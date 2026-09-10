@@ -10,18 +10,17 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('SidebarProvider', () => {
-  it('mobile sheet, global search, and chat search palette state are session-only', () => {
+  it('mobile sheet and search palette state are session-only', () => {
     const { result } = renderHook(() => useSidebar(), { wrapper });
     expect(result.current.isMobileSheetOpen).toBe(false);
     expect(result.current.isSearchOpen).toBe(false);
-    expect(result.current.isChatSearchOpen).toBe(false);
+    expect(result.current.searchScope).toBe('everything');
 
     act(() => result.current.setMobileSheetOpen(true));
-    act(() => result.current.setSearchOpen(true));
-    act(() => result.current.setChatSearchOpen(true));
+    act(() => result.current.openSearch('chats'));
     expect(result.current.isMobileSheetOpen).toBe(true);
     expect(result.current.isSearchOpen).toBe(true);
-    expect(result.current.isChatSearchOpen).toBe(true);
+    expect(result.current.searchScope).toBe('chats');
     // Neither is written to storage — ephemeral by design.
     expect(window.localStorage.length).toBe(0);
   });

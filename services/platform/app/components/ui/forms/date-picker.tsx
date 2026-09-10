@@ -139,7 +139,7 @@ export function DatePicker({
   const { t } = useT('common');
   const selected = value !== undefined ? new Date(value) : null;
   return (
-    <div className={styles.wrapper}>
+    <div className={cn(styles.wrapper, 'w-full')}>
       <ReactDatePicker
         id={id}
         selected={selected}
@@ -155,7 +155,7 @@ export function DatePicker({
             placeholder={placeholder ?? t('datePicker.placeholder')}
             hasValue={selected != null}
             onClear={() => onChange(null)}
-            className={className}
+            className={cn('w-full', className)}
           />
         }
         renderCustomHeader={({

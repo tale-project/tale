@@ -1,6 +1,7 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import { Button } from '@tale/ui/button';
 import { SwUpdateListener as SharedSwUpdateListener } from '@tale/ui/pwa/sw-update-listener';
 
 import { toast } from '@/app/hooks/use-toast';
@@ -28,12 +29,14 @@ export function SwUpdateListener() {
               asChild
               onClick={onUpdate}
             >
-              <button
+              <Button
                 type="button"
-                className="bg-foreground text-background inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors hover:opacity-90"
+                variant="primary"
+                size="sm"
+                className="shrink-0"
               >
                 {labels.updateNow}
-              </button>
+              </Button>
             </ToastPrimitives.Action>
           ),
         });

@@ -158,16 +158,21 @@ export function TaskAttachments({
             disabled={disabled}
             aria-label={t('attachments.add')}
             className={cn(
-              'border-border hover:border-muted-foreground/40 hover:bg-muted/40 relative flex items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 transition-colors',
+              'border-border hover:border-muted-foreground/40 hover:bg-muted/40 relative flex items-center justify-center gap-2 rounded-lg border border-dashed px-3 transition-colors',
+              // Empty zone stays compact (Prägnanz) — don't let a dashed box
+              // outrank the description. With files, keep the same quiet row.
+              hasContent ? 'py-2' : 'py-1.5',
               disabled && 'pointer-events-none opacity-60',
             )}
           >
             <Paperclip
-              className="text-muted-foreground size-4"
+              className="text-muted-foreground size-4 shrink-0"
               aria-hidden="true"
             />
-            <Text as="span" variant="muted">
-              {t('attachments.dropHint')}
+            <Text as="span" variant="muted" className="text-xs">
+              {hasContent
+                ? t('attachments.dropHint')
+                : t('attachments.emptyHint')}
             </Text>
             <FileUpload.Overlay label={t('attachments.dropHint')} />
           </FileUpload.DropZone>

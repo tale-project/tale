@@ -37,6 +37,29 @@ describe('Toaster', () => {
     expect(viewport?.textContent).toContain('Update available');
   });
 
+  // Action sits beside the copy (shadcn row), not stacked under it. No close
+  // control — toasts auto-dismiss.
+  it('places the action beside the copy in the toast row', () => {
+    render(<Toaster />);
+
+    act(() => {
+      toast({
+        title: 'Upgraded to v1.2.3',
+        description: 'See what changed in this release.',
+        action: <button type="button">View</button>,
+      });
+    });
+
+    const viewport = document.body.querySelector('ol');
+    const root = viewport?.querySelector('li');
+    const action = root?.querySelector('button');
+    expect(action).not.toBeNull();
+    expect(action?.textContent).toBe('View');
+    // Direct child of the toast root (sibling of the text grid), not nested
+    // under the title/description.
+    expect(action?.parentElement).toBe(root);
+  });
+
   // The stack tucks into the top-right corner with a SYMMETRIC inset: the
   // top gap equals the right gap (0.75rem plus the safe-area inset on each
   // axis). The old 4rem header-band offset (#1986) went with the old desktop

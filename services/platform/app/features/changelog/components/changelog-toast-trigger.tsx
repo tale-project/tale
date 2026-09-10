@@ -1,6 +1,7 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import { Button } from '@tale/ui/button';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
@@ -54,16 +55,17 @@ export function ChangelogToastTrigger() {
       description: t('toast.description'),
       action: (
         <ToastPrimitives.Action altText={t('toast.action')} asChild>
-          <Link
-            to="/dashboard/changelog"
-            search={{ from: lastSeenVersion, to: currentVersion }}
-            onClick={() => {
-              markSeen();
-            }}
-            className="bg-foreground text-background inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors hover:opacity-90"
-          >
-            {t('toast.action')}
-          </Link>
+          <Button variant="primary" size="sm" className="shrink-0" asChild>
+            <Link
+              to="/dashboard/changelog"
+              search={{ from: lastSeenVersion, to: currentVersion }}
+              onClick={() => {
+                markSeen();
+              }}
+            >
+              {t('toast.action')}
+            </Link>
+          </Button>
         </ToastPrimitives.Action>
       ),
     });

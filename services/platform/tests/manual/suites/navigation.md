@@ -65,10 +65,11 @@ is hidden when the org has no teams.
   content track each history entry; no error boundary; no blank view.
 - [ ] `NAV-F4` · **Command palette** — On `/dashboard/{org}/chat` press
   **Cmd/Ctrl+K**; type thread content into the **Search** field
-  (`dialogs.search.placeholder`) → A `role="dialog"` org-wide palette opens
-  with the **Search** input; typing matches a thread; selecting it navigates
-  to that thread; **Esc** closes the dialog. ⌘K always opens this palette — it
-  closes the chat-scoped one (`CHAT-F30`) if that was open.
+  (`dialogs.search.placeholder`) → A `role="dialog"` palette opens on
+  **Everything** (`dialogs.search.scopeEverything`) with the **Search** input;
+  typing matches a thread; selecting it navigates to that thread; **Esc**
+  closes the dialog. ⌘K toggles this palette; the thread-list search
+  (`CHAT-F30`) opens the same dialog on **Chats**.
 - [ ] `NAV-F5` · **Org switcher** — Open the **Organization** switcher
   (`navigation.orgSwitcher.label`) in the org button; pick a second org (needs
   ≥2 orgs) → URL passes through `/dashboard/switching?to={otherOrg}` (shows

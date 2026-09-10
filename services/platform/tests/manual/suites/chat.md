@@ -221,13 +221,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   is not available.** (`chat.notFound`)
 - [ ] `CHAT-F30` · **Search chats** — Panel **Search chats**
   (`chat.searchPalette.title`) → type message content into the dialog
-  (placeholder `chat.searchPalette.placeholder`); then click the footer
-  **Search everything** (`chat.searchPalette.searchEverywhere`) → The matching
-  thread is listed (no match: `chat.searchPalette.noResults`); selecting it
-  navigates to `/dashboard/{org}/chat/{threadId}`. The palette is chats-only —
-  **Search everything** closes it and opens the org-wide ⌘K palette
-  (`dialogs.search.title`), which also covers projects, tasks, documents, and
-  contacts.
+  (placeholder `chat.searchPalette.placeholder`); switch scope to
+  **Everything** (`dialogs.search.scopeEverything`) without closing → The
+  matching thread is listed under Chats (no match: `chat.searchPalette.noResults`);
+  selecting it navigates to `/dashboard/{org}/chat/{threadId}`. The same
+  palette stays open; **Everything** also covers projects, tasks, documents,
+  and contacts (`dialogs.search.title`).
 - [ ] `CHAT-F31` · **Move to project** — Thread-row menu → **Move to
   project…** (`chat.moveToProject`) → pick a project (create one first via
   **New project** `chat.newProject` if none) → The thread relocates under the
