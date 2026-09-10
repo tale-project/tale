@@ -24,10 +24,7 @@ import {
   transparentEgressSupported,
 } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
-import {
-  sessionBrowserViewEnabled,
-  sessionDindEnabled,
-} from '../../session/session-profile.ts';
+import { sessionDindEnabled } from '../../session/session-profile.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
 
@@ -279,14 +276,6 @@ export function buildSessionPod(
                   { name: 'TALE_DIND', value: '1' },
                   { name: 'TALE_RUNTIME_TIER', value: cfg.runtimeTier },
                 ]
-              : []),
-            // Live browser view (operator flag, agent-only — same gate as the
-            // Docker builder): the entrypoint brings up the headed Chromium +
-            // x11vnc mirror and runnerd enables browser-control; Playwright MCP
-            // attaches over CDP. Writes only /tmp (emptyDir) + /agent (PVC), so
-            // the hardened read-only rootfs is untouched. Absent ⇒ headless.
-            ...(sessionBrowserViewEnabled(cfg, inp.profile)
-              ? [{ name: 'TALE_BROWSER_CDP', value: '1' }]
               : []),
             // DinD transparent egress: the already-root runner installs the
             // OUTPUT REDIRECT inline after the inner dockerd is up (non-DinD uses

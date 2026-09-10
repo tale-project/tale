@@ -6,16 +6,16 @@ image; the only thing that varies is _when the session is destroyed_:
 
 - **project agents** — a standing per-agent session that persists across task
   runs (idle-stopped, workspace preserved).
-- **workflow steps** (agent AND script) — an ephemeral per-(run,step) session,
-  torn down at step end.
+- **workflow runs** — one session shared by the run's agent AND script nodes,
+  reclaimed after the run ends and no execution remains.
 - **crawler renders** — an ephemeral render session, destroyed right after the
   render.
 
-Per-org fairness is the governance `sandbox_quota` policy (separate user /
-thread / workflow / render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
+Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
+workflow and render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
 
 > The legacy one-shot `POST /v1/execute` route and the runtime image's one-shot
-> language lane are gone; the `ExecutionBackend` name survives only as the
+> language lane are gone; `HostBackend` owns the
 > host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep).
 
 ## Architecture
@@ -24,7 +24,7 @@ A session is a long-lived container (Docker) / Pod (K8s) running **runnerd**, a
 small control daemon (`services/sandbox-runtime/daemon`, bundled to a single
 `runnerd.mjs` and run by the image's Node 24), under the image's `tini` init as
 PID 1 on every dispatch path — a long-lived container needs a real reaper, since
-every cancelled exec tree and browser recycle leaves orphans that node (which
+cancelled exec trees leave orphans that node (which
 never `wait()`s children it did not spawn) would otherwise accumulate as zombies
 against `pids-limit`. The spawner proxies every in-session operation to runnerd
 over plain HTTP on `:8200`:
@@ -55,7 +55,7 @@ container/Pod is removed to release compute, but the **workspace is preserved**
 the hard TTL ever deletes data — they only hibernate. The next turn **resumes**
 a stopped session by re-creating against the same deterministic `sessionId`,
 which re-attaches the same workspace (`createSession`'s `mkdir`/PVC-ensure are
-idempotent), so files **and** the per-thread Claude `--resume` conversation
+idempotent), so files **and** the harness `--resume` conversation
 continue (the platform keeps the same incarnation `createdAt`). The only path
 that deletes a workspace is the **explicit Destroy** (management page →
 `destroySession`); `evictIfBackendGone` evicts a stale registry entry without
@@ -98,12 +98,13 @@ resolves to no injection rather than a placeholder identity.
 
 ## Resource profiles
 
-`default` mirrors the one-shot caps (uid 65534). `agent` (uid 10001 — a real
-passwd entry, so git/ssh work and Claude Code's `bypassPermissions` is allowed
-since the user is non-root): 2 CPU, 4 GiB, 512 pids, no cumulative-CPU ulimit
-(would kill a long-lived daemon), 512 MB `/dev/shm` (Chromium/Playwright),
-512 MB `/tmp`. All hardening is preserved: read-only root, `cap-drop=ALL`,
-`no-new-privileges`, apparmor/seccomp RuntimeDefault.
+`default` uses uid 65534 with the hardened code/render profile. `agent` uses
+uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults
+are 2 CPU, 4 GiB memory (8 GiB with DinD), 512 pids, 512 MB `/dev/shm`, and
+512 MB `/tmp`; the `SANDBOX_AGENT_*` settings override these limits.
+Non-DinD sessions keep a read-only root and drop capabilities. DinD changes
+the container security and process limits according to the selected runtime
+tier; headless Chromium remains available on demand in either profile.
 
 `HOME=/agent/.runtime/home` lives on the persistent workspace, so agent state
 (`~/.claude`, `~/.cursor`, `~/.gitconfig`) survives every exec and an
@@ -114,7 +115,7 @@ in-place container restart — this _is_ the session-persistence mechanism.
 is small and memory-backed (charged to the container's memory cgroup), so any
 install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
 at container (re)start — no exec is live then — preserving the old /tmp
-lifecycle. `/tmp` remains for small control files (redsocks.conf, X11 socket).
+lifecycle. `/tmp` remains for small control files such as redsocks.conf.
 
 ## Kubernetes specifics
 
@@ -151,8 +152,7 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
 ### NetworkPolicy
 
 - Session Pods (`tale.sandbox/role: session`): egress to the egress proxy, the
-  LLM gateway Service (`:8080`), and DNS only — same shape as the one-shot
-  runtime egress allowance plus the gateway.
+  LLM gateway Service (`:8080`), and DNS only.
 - Ingress to session Pods on `:8200` (runnerd) is allowed **from the spawner
   Deployment only**.
 

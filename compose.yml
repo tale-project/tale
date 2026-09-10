@@ -779,14 +779,6 @@ services:
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
       SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
-      # Live browser view (read-only mirror). Unset here so BOTH sides apply
-      # their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
-      # ONE value drives both sides — this spawner and the sandbox runtime each
-      # read it directly — so they MUST share a source. It is read on
-      # the platform service too (NOT a sandbox-only var like the ones above), and
-      # both interpolate from the same root .env, so a single value keeps them in
-      # lockstep. Mirrors the CLI generator (create-sandbox-service.ts).
-      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:

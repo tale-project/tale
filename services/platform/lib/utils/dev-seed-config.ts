@@ -13,8 +13,7 @@
 export const DEV_SEED_DEFAULT_EMAIL = 'dev@tale.test';
 export const DEV_SEED_DEFAULT_PASSWORD = 'TaleDev!Passw0rd';
 
-/** Opt-out spellings shared with the other dev toggles (SANDBOX_BROWSER_VIEW,
- * TALE_DEV_HOT_RELOAD): any of these disables the flag. */
+/** Opt-out spellings shared with TALE_DEV_HOT_RELOAD. */
 const FALSY_FLAG_VALUES = new Set(['0', 'false', 'no', 'off']);
 
 /** Same loopback list as the backend's HTTPS guard (backend/auth/auth.ts). */

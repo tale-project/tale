@@ -30,15 +30,24 @@ Two backends share the client:
 **Horizontal scale:** the spawner Deployment is HPA-able. The in-memory session
 registry is a per-replica cache: a request for a session another replica
 created re-resolves it from the backend by deterministic name and adopts it,
-and every sweep tick re-adopts whatever the backend lists. Total throughput =
-replicas × `SANDBOX_MAX_SESSIONS`, bounded by cluster capacity.
+and every sweep tick re-adopts whatever the backend lists. Session admission
+consults the namespace inventory; replicas do not multiply `SANDBOX_MAX_SESSIONS`.
+Concurrent creates on different replicas are not protected by a distributed
+reservation, so this limit is best effort. Use Kubernetes ResourceQuota and
+profile resource limits for hard namespace resource bounds.
+
+The signed capacity endpoint reports running and pending session Pods in this
+namespace, plus this spawner's configured session ceilings. CPU and memory
+measurements remain unavailable: the namespace-scoped ServiceAccount cannot
+read node capacity or the metrics API, and the spawner Pod's own resources
+would not describe the cluster.
 
 **Resource bounds:** the runner container enforces the profile's cpu/memory
 limits; the workspace PVC is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
 (default `4Gi`), which under DinD also bounds the inner-docker `emptyDir`.
 `SANDBOX_RUNTIME` selects the RuntimeClass per tier (gVisor / sysbox / kata;
-runc omits the field). DinD and the live browser view are agent-profile
-capabilities: a `default`-profile Pod (run_code, crawler renders) stays fully
+runc omits the field). DinD is an agent-profile capability:
+a `default`-profile Pod (run_code, crawler renders) stays fully
 hardened whatever the deployment flags say.
 
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)

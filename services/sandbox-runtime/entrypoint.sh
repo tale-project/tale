@@ -7,8 +7,7 @@
 #
 #   daemon          — a persistent SESSION container: brings up the workspace
 #                     skeleton, optionally the inner dockerd (TALE_DIND=1), the
-#                     transparent-egress redirect (TALE_TRANSPARENT_EGRESS=1)
-#                     and the live browser view (TALE_BROWSER_CDP=1), then
+#                     transparent-egress redirect (TALE_TRANSPARENT_EGRESS=1), then
 #                     execs `tini -g -- node runnerd.mjs` (see
 #                     services/sandbox/src/session/docker-session-args.ts and
 #                     backend/kubernetes/k8s-session-pod-spec.ts).
@@ -21,7 +20,7 @@
 #
 # Env (set by the spawner):
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
-#   TALE_DIND / TALE_TRANSPARENT_EGRESS / TALE_BROWSER_CDP  -> feature signals
+#   TALE_DIND / TALE_TRANSPARENT_EGRESS  -> feature signals
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
 #
 # Conventions:
@@ -408,6 +407,7 @@ start_inner_dockerd() {
       # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
       # the transparent-egress redirect (both need the daemon's chains/bridge).
       apply_inner_egress_fence
+      protect_shared_cache_network
       setup_inner_transparent_egress
       echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
       return 0
@@ -418,6 +418,32 @@ start_inner_dockerd() {
   echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
   tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
   exit 1
+}
+
+# A cache-enabled session joins the shared control network and its org's
+# private build network. dockerd enables IP forwarding, so deny unsolicited
+# traffic entering any outer eth interface before it can route to the other
+# network. Established replies to nested containers remain allowed by Docker's
+# existing rules. The guard is required even when development egress filtering
+# is disabled; an unguarded dual-homed session must never start runnerd.
+protect_shared_cache_network() {
+  [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
+  if ! "${_IPTABLES}" -I FORWARD 1 -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP; then
+    echo "[entrypoint] FATAL: IPv4 build-cache network guard unavailable" >&2
+    exit 1
+  fi
+  if "${_IP6TABLES}" -L FORWARD >/dev/null 2>&1; then
+    if ! "${_IP6TABLES}" -I FORWARD 1 -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP; then
+      echo "[entrypoint] FATAL: IPv6 build-cache network guard unavailable" >&2
+      exit 1
+    fi
+  elif [ -d /proc/sys/net/ipv6 ] && {
+    [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" != "1" ] ||
+    [ "$(cat /proc/sys/net/ipv6/conf/default/disable_ipv6 2>/dev/null)" != "1" ];
+  }; then
+    echo "[entrypoint] FATAL: IPv6 is enabled without a build-cache network guard" >&2
+    exit 1
+  fi
 }
 
 # Wire the session to the shared buildkitd (set by the spawner via
@@ -436,253 +462,24 @@ start_inner_dockerd() {
 # registers an endpoint (it does not connect), so it can't hang on a slow daemon.
 setup_shared_buildx_builder() {
   [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
+  # Workspace HOME can still contain the retired global `tale-shared` builder.
+  # Select a builder keyed by the full validated endpoint; never adopt that
+  # legacy definition, and explicitly fall back to the local daemon on failure.
+  export BUILDX_BUILDER=default
+  _builder=$(node -e 'const {createHash}=require("node:crypto"); process.stdout.write("tale-build-"+createHash("sha256").update(process.env.TALE_BUILDKITD_ENDPOINT).digest("hex").slice(0,24))')
   _bk() {
     setpriv --reuid 10001 --regid 10001 --init-groups -- \
       env HOME=/agent/.runtime/home docker buildx "$@"
   }
-  if _bk inspect tale-shared >/dev/null 2>&1 ||
-    _bk create --name tale-shared --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
+  if _bk inspect "${_builder}" >/dev/null 2>&1 ||
+    _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
       >/var/log/buildx-create.log 2>&1; then
-    export BUILDX_BUILDER=tale-shared
-    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=tale-shared -> ${TALE_BUILDKITD_ENDPOINT}"
+    export BUILDX_BUILDER="${_builder}"
+    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=${BUILDX_BUILDER} -> ${TALE_BUILDKITD_ENDPOINT}"
   else
     echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
     tail -n 3 /var/log/buildx-create.log >&2 2>/dev/null || true
   fi
-}
-
-# ---------------------------------------------------------------------------
-# Live browser view (read-only mirror). Used only when the spawner launches the
-# session with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW; see
-# config.ts + session/session-profile.ts). Brings up ONE managed HEADED Chromium
-# with a CDP endpoint on loopback 127.0.0.1:9222 that Playwright MCP attaches to
-# (instead of self-launching headless), mirrored read-only by x11vnc on loopback
-# 127.0.0.1:5900. Both ports are LOOPBACK-ONLY and the container publishes none —
-# the mirror is reachable only from inside the container. The agent drives the
-# browser over CDP; x11vnc runs -viewonly so the X side can never inject input —
-# that is the airtight read-only guarantee. Fail-open: any step failing logs a
-# WARN and continues so runnerd still starts (a session must work even if the
-# browser view didn't come up). Dead code on the default path (flag unset).
-# ---------------------------------------------------------------------------
-
-# Resolve the Chromium the MCP would launch — the SAME playwright-core bundled
-# under @playwright/mcp the Dockerfile build-verifies (see the executablePath()
-# check ~line 111). Prints the path or nothing.
-_resolve_chrome_bin() {
-  node -e "const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); process.stdout.write(p.chromium.executablePath())" 2>/dev/null || true
-}
-
-# Supervise a command in a rate-limited restart loop (background). A crash is
-# auto-restarted after a 1s pause; the 1s also caps the restart rate. The whole
-# loop is detached so the entrypoint moves on to exec runnerd. In DinD mode the
-# caller passes $DROP (setpriv → uid 10001) as the first arg so these run as the
-# agent user, not root.
-_supervise() {
-  ( while true; do "$@"; sleep 1; done ) &
-}
-
-# Persistent managed-Chromium profile, on the /agent bind/PVC so it survives
-# turns, idle-stop+resume, and container restart — site logins are remembered
-# across sessions (the old /tmp/cdp-profile was ephemeral tmpfs, wiped every
-# restart). Hidden under .runtime like HOME so it stays out of the user-facing
-# workspace file listing. The control dir (live pid + reset flag) is the channel
-# runnerd uses to recycle a wedged browser; it lives on tmpfs (transient state).
-TALE_BROWSER_PROFILE=/agent/.runtime/browser-profile
-TALE_BROWSER_CTRL=/tmp/tale-browser
-
-# Self-heal a persistent Chromium profile before each (re)launch. A stale
-# SingletonLock/Socket/Cookie from an unclean exit makes every connectOverCDP
-# attach hang; a "didn't shut down cleanly" flag pops a restore bubble that can
-# block the attach. Clear the locks and mark the last session clean WITHOUT
-# touching cookies/localStorage, so logins persist. Runs as the agent uid
-# ($DROP) so the files stay agent-owned (the supervisor is root under DinD).
-_browser_hygiene() {
-  # shellcheck disable=SC2086
-  $DROP rm -f \
-    "$TALE_BROWSER_PROFILE/SingletonLock" \
-    "$TALE_BROWSER_PROFILE/SingletonSocket" \
-    "$TALE_BROWSER_PROFILE/SingletonCookie" 2>/dev/null || true
-  _prefs="$TALE_BROWSER_PROFILE/Default/Preferences"
-  [ -f "$_prefs" ] || return 0
-  # NOTE: stderr is intentionally NOT redirected to /dev/null — a hygiene
-  # failure must be visible. `|| true` keeps a node hiccup from aborting (set -e)
-  # without hiding the diagnostic.
-  # shellcheck disable=SC2086
-  $DROP node -e '
-    const fs = require("node:fs");
-    const p = process.argv[1];
-    try {
-      const j = JSON.parse(fs.readFileSync(p, "utf8"));
-      j.profile = j.profile || {};
-      j.profile.exit_type = "Normal";
-      j.profile.exited_cleanly = true;
-      fs.writeFileSync(p, JSON.stringify(j));
-    } catch (e) {
-      // A corrupt/partially-written Preferences keeps popping the crash-restore
-      // bubble (which blocks the CDP attach), so DROP it — Chromium regenerates
-      // a clean one on launch. Cookies/localStorage live in separate files and
-      // are untouched, so logins survive.
-      process.stderr.write("[entrypoint] browser Preferences unreadable; resetting it (logins preserved): " + (e && e.message) + "\n");
-      try { fs.rmSync(p); } catch (e2) {
-        process.stderr.write("[entrypoint] could not remove corrupt Preferences: " + (e2 && e2.message) + "\n");
-      }
-    }
-  ' "$_prefs" || true
-}
-
-# Supervise the managed Chromium with self-healing + a control channel runnerd
-# uses to recycle a wedged-but-alive browser. Like _supervise (rate-limited
-# restart loop), but each (re)launch: (1) honors a reset flag — runnerd's "Reset
-# browser" wipes the profile while the browser is DOWN (atomic, no relaunch
-# race; loses logins, by design); (2) clears the singleton lock + crash-restore
-# state (_browser_hygiene, preserves logins); (3) records the live pid so
-# runnerd can SIGKILL it to force a fresh, self-healed restart. $@ = chrome argv.
-_browser_supervise() {
-  (
-    # CRITICAL: the script runs under `set -e`, but a supervisor loop MUST
-    # survive its child exiting non-zero — `wait "$_bpid"` returns 137 when
-    # runnerd SIGKILLs Chromium to recycle it, and the housekeeping rm/mkdir can
-    # also fail benignly. Without this the loop would errexit on the first
-    # recycle and never relaunch (the browser would stay dead). Disable errexit
-    # for the loop; every command here is already best-effort guarded.
-    set +e
-    while true; do
-      if [ -f "$TALE_BROWSER_CTRL/reset" ]; then
-        # shellcheck disable=SC2086
-        $DROP rm -rf "$TALE_BROWSER_PROFILE" 2>/dev/null || true
-        rm -f "$TALE_BROWSER_CTRL/reset" 2>/dev/null || true
-        # shellcheck disable=SC2086
-        $DROP mkdir -p "$TALE_BROWSER_PROFILE" 2>/dev/null || true
-      fi
-      _browser_hygiene
-      # shellcheck disable=SC2086
-      $DROP "$@" &
-      _bpid=$!
-      # Record the live pid for runnerd's restart/reset. If the write fails,
-      # REMOVE any stale pidfile rather than leaving an old pid the daemon might
-      # SIGKILL by mistake (a wrong/reused process); runnerd then reads "no pid"
-      # and treats the browser as uncontrollable this cycle (logged) instead.
-      if ! echo "$_bpid" >"$TALE_BROWSER_CTRL/pid" 2>/dev/null; then
-        rm -f "$TALE_BROWSER_CTRL/pid" 2>/dev/null || true
-        echo "[entrypoint] WARN: browser pidfile write failed; runnerd restart/reset disabled this cycle" >&2
-      fi
-      wait "$_bpid"
-      sleep 1
-    done
-  ) &
-}
-
-start_browser_stack() {
-  echo "[entrypoint] starting live browser view (TALE_BROWSER_CDP=1)"
-
-  # Profile (persistent, agent-owned). Created as the agent uid so Chromium
-  # (uid 10001) owns its own profile even under DinD (root supervisor).
-  # shellcheck disable=SC2086
-  $DROP mkdir -p "$TALE_BROWSER_PROFILE" 2>/dev/null || true
-  # Control dir (tmpfs): the pid file is written by the supervisor (ROOT under
-  # DinD) and the reset flag by runnerd (uid 10001). Make it 1777 (sticky,
-  # world-writable — same as /tmp/.X11-unix below) so both can create their file
-  # and read the other's regardless of who owns the dir, even under a strict
-  # umask. Single-tenant container, so world-writable here is not a leak.
-  # shellcheck disable=SC2086
-  $DROP mkdir -p "$TALE_BROWSER_CTRL" 2>/dev/null || true
-  # shellcheck disable=SC2086
-  $DROP chmod 1777 "$TALE_BROWSER_CTRL" 2>/dev/null || true
-
-  # X11 socket dir on the writable tmpfs (read-only root otherwise).
-  $DROP mkdir -p /tmp/.X11-unix 2>/dev/null || true
-  $DROP chmod 1777 /tmp/.X11-unix 2>/dev/null || true
-
-  CHROME_BIN="$(_resolve_chrome_bin)"
-  if [ -z "${CHROME_BIN}" ] || [ ! -x "${CHROME_BIN}" ]; then
-    echo "[entrypoint] WARN: could not resolve a runnable Chromium for the browser view (got '${CHROME_BIN:-}'); skipping — runnerd will still start" >&2
-    return 0
-  fi
-
-  # Virtual display for the headed browser. -nolisten tcp keeps the X server off
-  # the network (loopback unix socket only); -ac disables host access control
-  # (only the in-container procs can reach the socket anyway).
-  # shellcheck disable=SC2086 # $DROP must word-split (empty, or the setpriv prefix)
-  # 800 tall (not 720) leaves room for Chromium's own toolbar+tab strip (~72px)
-  # so the page viewport the agent renders into stays ~720 once the browser chrome
-  # is shown (see --window-size below; we no longer run fullscreen/kiosk).
-  _supervise $DROP Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -ac
-  export DISPLAY=:99
-
-  # Read-only mirror on :5900 — the DEFAULT path every watcher gets. -localhost
-  # binds 127.0.0.1 only, -viewonly drops all X input from the VNC side. -nopw is
-  # acceptable because the port is loopback-only inside an isolated container.
-  # shellcheck disable=SC2086
-  _supervise $DROP x11vnc -display :99 -rfbport 5900 -localhost -viewonly \
-    -forever -shared -nopw -noxdamage
-
-  # Writable control path on :5901 — same X display, NO -viewonly, so RFB
-  # pointer/keyboard events reach the real X input. This port is reached ONLY
-  # when a human-control grant is active: the runnerd tunnel dials 5901 instead
-  # of 5900 for a `?control=1` upgrade (which the platform oracle authorizes +
-  # leases to a single holder). Keeping the read-only :5900 as a separate
-  # process means watchers retain a structural read-only guarantee — there is no
-  # flag a watcher's client can flip to gain input. Same display ⇒ a human's
-  # clicks here and the agent's CDP drive both land on the one Chromium.
-  #
-  # -xkb is REQUIRED for correct keysym entry: without it x11vnc falls back to
-  # legacy modtweak, which can't synthesize shifted-symbol keysyms (_, +, @, #,
-  # {, }, |, etc.) against a modern XKB keymap and mangles them (e.g. `_` lands
-  # as a space). The XKEYBOARD path maps each keysym to the right keycode+level.
-  # Only the writable :5901 injects input, so :5900 (-viewonly) doesn't need it.
-  # shellcheck disable=SC2086
-  _supervise $DROP x11vnc -display :99 -rfbport 5901 -localhost \
-    -forever -shared -nopw -noxdamage -xkb
-
-  # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors
-  # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):
-  # forward the egress proxy + bypass list as flags so the managed browser has
-  # the same egress posture the self-launched one would.
-  #
-  # We deliberately do NOT run fullscreen/kiosk: a human taking control needs the
-  # browser's own menu bar (omnibox + back/forward/reload) to navigate, so we show
-  # the native chrome and size the window to fill the display (no WM runs here, so
-  # --window-size + --window-position place it). The toolbar also surfaces the
-  # current URL to read-only watchers for free.
-  set -- "${CHROME_BIN}" \
-    --remote-debugging-port=9222 \
-    --remote-debugging-address=127.0.0.1 \
-    --user-data-dir="${TALE_BROWSER_PROFILE}" \
-    --no-sandbox \
-    --disable-gpu \
-    --window-position=0,0 \
-    --window-size=1280,800 \
-    --ignore-certificate-errors \
-    --test-type \
-    --disable-infobars \
-    --disable-session-crashed-bubble \
-    --hide-crash-restore-bubble \
-    --no-first-run \
-    --no-default-browser-check
-  [ -n "${HTTPS_PROXY:-}" ] && set -- "$@" --proxy-server="${HTTPS_PROXY}"
-  [ -n "${NO_PROXY:-}" ] && set -- "$@" --proxy-bypass-list="${NO_PROXY}"
-  # Self-healing supervisor (lock hygiene + restart/reset control), not the
-  # blind _supervise — a persistent profile must never wedge on a stale lock,
-  # and runnerd must be able to recycle a hung-but-alive browser.
-  _browser_supervise "$@"
-
-  # Wait for Chromium's CDP HTTP server to come up — a "process launched" signal,
-  # NOT a health authority: /json/version answers even when the browser is wedged
-  # and no CDP *session* can attach. runnerd's pre-flight probe does the real
-  # liveness check (a CDP round-trip) and recycles the browser before each exec.
-  # Fail-open: a failed curl must NOT abort the script (set -e) — the loop
-  # swallows it and the timeout path only WARNs.
-  _i=0
-  while [ "$_i" -lt 30 ]; do
-    if curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null 2>&1; then
-      echo "[entrypoint] live browser view ready (CDP 127.0.0.1:9222, VNC 127.0.0.1:5900, view-only; profile ${TALE_BROWSER_PROFILE})"
-      return 0
-    fi
-    _i=$((_i + 1))
-    sleep 0.5
-  done
-  echo "[entrypoint] WARN: headed Chromium CDP not ready within ~15s; continuing (runnerd starts; its pre-flight probe will recycle/attach)" >&2
-  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -766,15 +563,15 @@ if [ "$1" = "daemon" ]; then
   # garbage from a previous incarnation — drop them. The platform re-queues
   # anything it hadn't reconciled.
   $DROP rm -rf /agent/.runtime/tale/steer
-  # Same install env the one-shot path exports, so inline pip/npm from a
-  # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
+  # Inline pip/npm installs land in the writable, on-PYTHONPATH/NODE_PATH
+  # dependency directories shared by executions in this session.
   export HOME=/agent/.runtime/home
   # Exec temp on the workspace (disk-backed on both backends), NOT the /tmp
   # tmpfs: pip stages the ENTIRE resolved package set in $TMPDIR before copying
   # it to PIP_TARGET, and the tmpfs is small AND memory-backed (its pages are
   # charged to the container's memory cgroup) — on the default profile's 128 MB
   # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
-  # 223 MB). /tmp itself stays for small control files (redsocks.conf, X11).
+  # 223 MB). /tmp itself stays for small control files such as redsocks.conf.
   export TMPDIR=/agent/.runtime/tmp
   export PIP_TARGET=/agent/.runtime/deps/python
   export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
@@ -786,7 +583,7 @@ if [ "$1" = "daemon" ]; then
   # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
   # each into the agent's user-level skill dir so Claude Code / Codex discover
   # them as native skills, runnable in place (their deps live in the baked dir).
-  # Idempotent + best-effort; Tale's per-turn reconcile (convex
+  # Idempotent + best-effort; Tale's per-turn reconcile (backend
   # connector_skills.ts) drops any the workspace repo also defines so the
   # repo's project-level skill wins. An unmatched glob stays literal in sh, so
   # the `-d` guard skips it when nothing is baked.
@@ -800,20 +597,11 @@ if [ "$1" = "daemon" ]; then
   fi
 
   # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
-  # browser + runnerd start, so every client (and Chromium's direct connections)
+  # runnerd starts, so every client (including headless Chromium)
   # egresses through the proxy. The DinD path installs it after the inner dockerd
   # is up (below), so it's skipped here when DinD.
   if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && [ "${TALE_DIND:-}" != "1" ]; then
     setup_session_transparent_egress
-  fi
-
-  # Live browser view (operator flag): bring up the headed Chromium + Xvfb +
-  # x11vnc mirror BEFORE handing off to runnerd, so Playwright MCP can attach to
-  # the CDP endpoint on the first browser tool call. In DinD mode the supervisor
-  # loops run as uid 10001 via $DROP (set above); on the default path the
-  # container is already uid 10001 and $DROP is empty. Fail-open inside.
-  if [ "${TALE_BROWSER_CDP:-}" = "1" ]; then
-    start_browser_stack
   fi
 
   # DinD: bring up the inner dockerd as root, then hand off under tini like

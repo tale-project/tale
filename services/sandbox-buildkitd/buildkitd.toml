@@ -3,9 +3,9 @@ root = "/var/lib/buildkit"
 
 [grpc]
 # gRPC endpoint the sessions' remote buildx builder connects to. Bound on the
-# internal sandbox network only (never published to the host); a unix socket
-# is also exposed for in-container probes. Auth is the network boundary
-# (tale-sandbox-net is `--internal`); per-org mTLS is a hardening follow-up.
+# organization network only (never published to the host); a unix socket
+# is also exposed for in-container probes. The spawner enforces a separate
+# internal bridge per organization; this endpoint has no client authentication.
 address = ["tcp://0.0.0.0:1234", "unix:///run/buildkit/buildkitd.sock"]
 
 [worker.oci]

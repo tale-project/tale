@@ -30,8 +30,8 @@ set -e
 #
 # Mirrors services/platform/docker-entrypoint.sh install_ssrf_firewall(). Requires
 # NET_ADMIN; cap_add: ['NET_ADMIN'] is set in compose.yml and the CLI
-# compose generator. Skipped (with a loud warn) when iptables is missing
-# or the capability isn't granted, so dev environments still boot.
+# compose generator. Missing tooling/capability refuses boot; only an explicit
+# development opt-out skips the firewall.
 SKIP_FIREWALL="${TALE_SKIP_SSRF_FIREWALL:-0}"
 
 if [ "$SKIP_FIREWALL" = "1" ]; then
@@ -50,61 +50,66 @@ elif ! iptables -L OUTPUT >/dev/null 2>&1; then
   echo "[sandbox-egress] FATAL: NET_ADMIN unavailable; SSRF firewall cannot install (set TALE_SKIP_SSRF_FIREWALL=1 to override for dev only, or cap_add: [NET_ADMIN] in compose.yml)"
   exit 1
 else
+  # The proxy joins per-organization BuildKit networks as well as the sandbox
+  # and outbound networks. It is an application proxy, never an IP router:
+  # reject forwarded packets before any pre-existing ACCEPT rule, so a sandbox
+  # cannot route through this container into another organization's cache.
+  if ! iptables -I FORWARD 1 -j DROP; then
+    echo "[sandbox-egress] FATAL: IPv4 forwarding guard unavailable; refusing to start"
+    exit 1
+  fi
+  IPV6_FIREWALL=0
+  if command -v ip6tables >/dev/null 2>&1 && ip6tables -L FORWARD >/dev/null 2>&1; then
+    IPV6_FIREWALL=1
+    if ! ip6tables -I FORWARD 1 -j DROP; then
+      echo "[sandbox-egress] FATAL: IPv6 forwarding guard unavailable; refusing to start"
+      exit 1
+    fi
+  elif [ -d /proc/sys/net/ipv6 ] && {
+    [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" != "1" ] ||
+    [ "$(cat /proc/sys/net/ipv6/conf/default/disable_ipv6 2>/dev/null)" != "1" ];
+  }; then
+    echo "[sandbox-egress] FATAL: IPv6 is enabled without a forwarding guard; refusing to start"
+    exit 1
+  fi
+
   echo "[sandbox-egress] installing SSRF egress firewall (REJECT IMDS + link-local + RFC1918, v4 + v6)"
   # Cloud instance metadata service (AWS/GCP/Azure IMDSv1 footprint).
-  iptables -I OUTPUT -d 169.254.169.254/32 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || \
-    echo "[sandbox-egress] WARN: failed to reject 169.254.169.254/32"
-  # All link-local — covers Azure 168.63.129.16 and other variants.
-  iptables -I OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  # RFC1918 ranges that aren't part of this container's own attached
-  # docker network. The kernel routes intra-network traffic via the
-  # bridge driver before OUTPUT is consulted for external-bound packets,
-  # so peer containers on the same docker network are not affected by
-  # these rules — only attempts to reach private ranges that route OUT
-  # of the bridge are dropped. If the operator deploys on a non-default
-  # docker-network topology where this assumption breaks, set
-  # TALE_SKIP_SSRF_FIREWALL=1 to bypass.
-  iptables -I OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  iptables -I OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  iptables -I OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+  iptables -I OUTPUT -d 169.254.169.254/32 -j REJECT --reject-with icmp-net-prohibited
+  # All IPv4 link-local addresses, including metadata endpoints.
+  iptables -I OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-prohibited
+  # Private destinations include peer networks attached for per-org build
+  # caches. New proxy connections to them are forbidden; only established
+  # replies to the runtime callers are accepted below.
+  iptables -I OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited
+  iptables -I OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited
+  iptables -I OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited
 
-  # Stateful ACCEPT for response traffic. Without this, the REJECT rules
-  # above also drop the SYN-ACK and data segments tinyproxy sends back to
-  # peer runtime containers — their IPs sit in 172.30.0.0/24 ⊂ 172.16/12,
-  # so the kernel rejects egress's reply with icmp-net-prohibited and the
-  # runtime's connect() times out. The header comment above optimistically
-  # assumed bridge-to-bridge traffic skips OUTPUT; on modern kernels with
-  # bridge-nf-call-iptables=1 it does NOT, so we explicitly let return
-  # traffic through. NEW outbound to RFC1918 is still rejected because
-  # this rule only matches ESTABLISHED/RELATED conntrack states.
+  # Accept responses to callers on attached private networks before the
+  # REJECT rules. New outbound private connections remain forbidden.
   iptables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
-    iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
-    echo "[sandbox-egress] WARN: failed to install stateful ACCEPT — runtime callers will time out connecting to the proxy"
+    iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-  # IPv6 mirror: if a future tale-sandbox-net is created with IPv6 enabled
-  # (or the host kernel exposes a v6 default route into one of the
-  # sensitive private ranges), the v4-only rules above would leave a hole.
-  # ip6tables is best-effort — alpine kernels without ip6_tables loaded
-  # just log a warn and continue; on hosts with v6 enabled the rules
-  # bind and provide parity with the v4 defenses.
-  if command -v ip6tables >/dev/null 2>&1 && ip6tables -L OUTPUT >/dev/null 2>&1; then
+  # Mirror the private-destination fence whenever IPv6 is filterable. Any
+  # failed installation exits under set -e before tinyproxy can start.
+  if [ "$IPV6_FIREWALL" = "1" ]; then
     # GCP / Azure ARM equivalents of 169.254.169.254 (fd00:ec2::254 etc.).
-    ip6tables -I OUTPUT -d fd00:ec2::254/128 -j REJECT 2>/dev/null || true
+    ip6tables -I OUTPUT -d fd00:ec2::254/128 -j REJECT
     # IPv4-mapped IMDS — `curl -g http://[::ffff:169.254.169.254]/` hits
     # the v4 stack through the v6 socket; block both the v4-mapped form
     # and the bare v6 address space that overlaps.
-    ip6tables -I OUTPUT -d ::ffff:169.254.0.0/112 -j REJECT 2>/dev/null || true
-    ip6tables -I OUTPUT -d ::1/128 -j REJECT 2>/dev/null || true
+    ip6tables -I OUTPUT -d ::ffff:169.254.0.0/112 -j REJECT
+    ip6tables -I OUTPUT -d ::1/128 -j REJECT
     # Link-local + unique-local (RFC4193) — covers any router-advertised
     # private v6 fabric.
-    ip6tables -I OUTPUT -d fe80::/10 -j REJECT 2>/dev/null || true
-    ip6tables -I OUTPUT -d fc00::/7 -j REJECT 2>/dev/null || true
+    ip6tables -I OUTPUT -d fe80::/10 -j REJECT
+    ip6tables -I OUTPUT -d fc00::/7 -j REJECT
     # Mirror the v4 stateful ACCEPT (see explanation above) so any IPv6
     # peer runtime can also receive return packets.
     ip6tables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
-      ip6tables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+      ip6tables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
   else
-    echo "[sandbox-egress] WARN: ip6tables unavailable; IPv6 SSRF defense not installed (harmless on IPv4-only hosts)"
+    echo "[sandbox-egress] IPv6 disabled; IPv4 firewall installed"
   fi
 fi
 

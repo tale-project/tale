@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { buildkitdEndpoint, buildkitdNetworkName } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -18,7 +19,6 @@ const cfg: SpawnerConfig = {
   dockerBuildCache: false,
   buildkitdImage: 'tale-sandbox-buildkitd:test',
   buildkitdMirrorImage: 'registry:2',
-  browserView: false,
   transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
@@ -106,32 +106,6 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('NPM_CONFIG_CACHE=/cache/npm');
     expect(args).toContain('BUN_INSTALL_CACHE_DIR=/cache/bun');
     expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
-  });
-
-  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
-    test('off (default): no TALE_BROWSER_CDP env leaks in', () => {
-      const args = buildDockerSessionRunArgs(cfg, goodInput);
-      expect(args).not.toContain('TALE_BROWSER_CDP=1');
-    });
-
-    test('on: appends TALE_BROWSER_CDP=1, rest unchanged', () => {
-      const args = buildDockerSessionRunArgs(
-        { ...cfg, browserView: true },
-        goodInput,
-      );
-      // The browser-view signal is present (additive).
-      const envIdxs = args.reduce<number[]>((acc, a, i) => {
-        if (a === '--env') acc.push(i);
-        return acc;
-      }, []);
-      expect(envIdxs.some((i) => args[i + 1] === 'TALE_BROWSER_CDP=1')).toBe(
-        true,
-      );
-      // Everything else stays as the default hardened agent argv.
-      expect(args).toContain('--cap-drop=ALL');
-      expect(args).toContain('--read-only');
-      expect(args[args.length - 1]).toBe('daemon');
-    });
   });
 
   describe('transparent egress (SANDBOX_TRANSPARENT_EGRESS)', () => {
@@ -307,10 +281,10 @@ describe('buildDockerSessionRunArgs', () => {
     test('shared build cache: emits TALE_BUILDKITD_ENDPOINT when set', () => {
       const args = buildDockerSessionRunArgs(dindCfg, {
         ...dindInput,
-        buildkitdEndpoint: 'tcp://tale-buildkitd:1234',
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
       });
       expect(args).toContain(
-        'TALE_BUILDKITD_ENDPOINT=tcp://tale-buildkitd:1234',
+        `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
       );
     });
 
@@ -324,6 +298,25 @@ describe('buildDockerSessionRunArgs', () => {
       expect(
         withField.some((a) => a.startsWith('TALE_BUILDKITD_ENDPOINT=')),
       ).toBe(false);
+    });
+
+    test('build cache joins only its own private network and retains control networking', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      const networks = args.filter((_, i) => args[i - 1] === '--network');
+      expect(networks).toEqual([
+        cfg.egressNetwork,
+        buildkitdNetworkName(goodInput.organizationId),
+      ]);
+      expect(args).toContain(`HTTP_PROXY=${cfg.egressProxy}`);
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint('different-org'),
+        }),
+      ).toThrow(/another organization/);
     });
 
     test('shared build cache: a malformed endpoint is rejected', () => {
@@ -423,14 +416,6 @@ describe('buildDockerSessionRunArgs', () => {
             { ...goodInput, profile: 'default' },
           ),
         ).not.toThrow();
-      });
-
-      test('browser stack is agent-only: default profile gets no TALE_BROWSER_CDP', () => {
-        const args = buildDockerSessionRunArgs(
-          { ...cfg, browserView: true },
-          { ...goodInput, profile: 'default' },
-        );
-        expect(args).not.toContain('TALE_BROWSER_CDP=1');
       });
     });
   });

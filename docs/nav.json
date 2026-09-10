@@ -188,6 +188,7 @@
             "platform/admin/enterprise-sso",
             "platform/admin/api-keys",
             "platform/admin/branding",
+            "platform/admin/sandboxes",
             "platform/admin/two-factor-authentication",
             "platform/admin/changelog",
             {

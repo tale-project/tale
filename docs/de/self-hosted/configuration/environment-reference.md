@@ -231,6 +231,15 @@ Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft e
 
 ## Sandbox-Agent-Turns
 
+Die folgenden Laufzeitgrenzen liest der Sandbox-Spawner. Übergib sie seiner Umgebung und starte den Dienst nach einer Änderung neu; die unter [Sandboxes](/de/platform/admin/sandboxes) bearbeiteten Organisationskontingente bleiben davon unabhängig. Dort siehst du tatsächliche Laufzeitzahlen und Host-Messwerte getrennt von diesen Kontingenten.
+
+| Name | Default | Beschreibung |
+| --- | --- | --- |
+| `SANDBOX_MAX_SESSIONS` | `16` | Laufende und startende Sessions aller Organisationen auf dem Docker-Host oder im Kubernetes-Namespace. Die Grenze reserviert weder CPU noch Arbeitsspeicher. Gleichzeitige Kubernetes-Replikate setzen sie nach bestem Bemühen durch; harte Ressourcengrenzen im Namespace setzt du mit ResourceQuota. |
+| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Laufzeitgrenze einer Organisation für Projektagenten, Workflow-Läufe und Rendering zusammen, einschließlich weiterlaufender Container im Leerlauf. |
+
+Docker-Build-Caches sind nach Organisation getrennt. Beim Upgrade entstehen leere Caches; die alten globalen Cachedaten bleiben erhalten. Alte Hilfscontainer stoppen automatisch, sobald keine laufende Session mehr auf sie angewiesen ist. Lass alte angepinnte Sessions auslaufen oder stoppe sie, um den Übergang abzuschließen; bis dahin bleibt der alte gemeinsame Cachedienst erreichbar. Browserautomatisierung nutzt Chromium ohne grafische Oberfläche. Die Live-Ansicht und manuelle Browserübernahme sind entfernt.
+
 | Name                             | Default              | Beschreibung                                                                                                                                                                                                                                                                                                       |
 | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 Min.)  | **Optional.** Wie lange ein Coding-Agent-Turn in der Sandbox (Claude Code, OpenCode, Codex) ohne Abnehmer seiner Ausgabe liegen darf, bevor der Sandbox-Daemon ihn abräumt. Ein gleitendes Fenster, das bei jedem Wiederanbinden der Plattform neu startet — keine absolute Obergrenze für den Turn. Millisekunden. |

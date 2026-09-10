@@ -24,7 +24,6 @@ const cfg: SpawnerConfig = {
   dockerBuildCache: false,
   buildkitdImage: 'tale-sandbox-buildkitd:test',
   buildkitdMirrorImage: 'registry:2',
-  browserView: false,
   transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
@@ -240,40 +239,6 @@ describe('buildSessionPod', () => {
           (e) => e.name === 'TALE_DIND',
         ),
       ).toBe(false);
-    });
-  });
-
-  // REGRESSION (dead end on K8s): only the Docker argv builder emitted
-  // TALE_BROWSER_CDP, so with SANDBOX_BROWSER_VIEW on (the default) no Pod
-  // ever started the headed Chromium — the live-browser pane, browser
-  // restart/reset and the in-sandbox Playwright MCP CDP attach were silent
-  // no-ops on the Kubernetes backend.
-  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
-    const cdpOf = (pod: ReturnType<typeof buildSessionPod>) =>
-      (pod.spec?.containers[0]?.env ?? []).find(
-        (e) => e.name === 'TALE_BROWSER_CDP',
-      )?.value;
-
-    test('on + agent profile: the runner gets TALE_BROWSER_CDP=1', () => {
-      const pod = buildSessionPod({ ...cfg, browserView: true }, input);
-      expect(cdpOf(pod)).toBe('1');
-      // The signal is additive: the hardened posture is unchanged.
-      expect(pod.spec?.containers[0]?.securityContext?.runAsNonRoot).toBe(true);
-    });
-
-    test('off: no TALE_BROWSER_CDP', () => {
-      expect(cdpOf(buildSessionPod(cfg, input))).toBeUndefined();
-    });
-
-    test('on + default profile: agent-only, no TALE_BROWSER_CDP', () => {
-      expect(
-        cdpOf(
-          buildSessionPod(
-            { ...cfg, browserView: true },
-            { ...input, profile: 'default' },
-          ),
-        ),
-      ).toBeUndefined();
     });
   });
 

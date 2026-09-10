@@ -1,7 +1,6 @@
 // Backend abstraction — the spawner's host lifecycle + persistent sessions.
 //
-// Every sandbox run is a session now. The `ExecutionBackend` (docker | k8s) no
-// longer executes code — it owns the spawner's host-level lifecycle (boot init,
+// Every sandbox run is a session. The `HostBackend` (docker | k8s) owns the spawner's host-level lifecycle (boot init,
 // image warm, /health, shutdown) + the legacy one-shot orphan sweep. The
 // `SessionBackend` owns the long-lived session container/Pod lifecycle. Both are
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
@@ -26,7 +25,7 @@ export interface SweepOptions {
  * a session). One implementation per deployment target (DockerBackend = Compose;
  * KubernetesBackend = Helm).
  */
-export interface ExecutionBackend {
+export interface HostBackend {
   readonly kind: 'docker' | 'kubernetes';
 
   /**
@@ -53,7 +52,7 @@ export interface ExecutionBackend {
 }
 
 // ---------------------------------------------------------------------------
-// Persistent sessions (sessions plan, milestone A). A SessionBackend manages
+// Persistent sessions. A SessionBackend manages
 // LONG-LIVED runtime containers/Pods running the in-container runnerd daemon;
 // the spawner's session routes proxy in-session operations to runnerd over
 // HTTP (Docker: container DNS name on tale-sandbox-net; K8s: Pod IP). The

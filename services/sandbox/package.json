@@ -2,7 +2,7 @@
   "name": "@tale/sandbox",
   "version": "0.1.0",
   "private": true,
-  "description": "Tale sandbox spawner — thin stateless docker-run service for artifact_run",
+  "description": "Tale sandbox spawner — control service for reusable Docker and Kubernetes execution sessions",
   "type": "module",
   "scripts": {
     "dev": "rm -f /tmp/tale-sandbox/sessions/.spawner.lock && SANDBOX_HOST_SESSION_ROOT=/tmp/tale-sandbox/sessions SANDBOX_SKIP_IMAGE_WARMUP=1 bun --hot src/server.ts",

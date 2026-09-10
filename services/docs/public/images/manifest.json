@@ -361,6 +361,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/settings-sandboxes.webp",
+      "shot": "settings-sandboxes",
+      "route": "/dashboard/:orgId/settings/sandboxes",
+      "viewport": {
+        "width": 1440,
+        "height": 1040
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 2080
+    },
+    {
       "file": "images/platform/settings-teams.webp",
       "shot": "settings-teams",
       "route": "/dashboard/:orgId/settings/teams",

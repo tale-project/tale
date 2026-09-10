@@ -1,10 +1,13 @@
 # @tale/sandbox
 
-Tale sandbox spawner — a thin, stateless `docker run` service that launches
-ephemeral `@tale/sandbox-runtime` containers for `artifact_run` (one container
-per execute call, plus optional long-lived persistent sessions).
+Tale sandbox spawner manages reusable `@tale/sandbox-runtime` sessions on
+Docker or Kubernetes. Each session runs runnerd, which starts commands, streams
+output, and manages workspace files through the authenticated session API.
+Project agents reuse their workspace across tasks; workflow runs share a
+session across their agent and script nodes; crawler render sessions are
+destroyed after their batch. See [the session contract](docs/sessions.md).
 
-It mounts `/var/run/docker.sock` (host root — an accepted threat boundary) and
+The Docker backend mounts `/var/run/docker.sock` (host root — an accepted threat boundary) and
 writes session state under the host session root mounted at
 `/var/lib/tale-sandbox/sessions`.
 
@@ -30,6 +33,26 @@ leaves it:
 docker exec tale-sandbox bun /app/src/control-cli.ts drain          # refuse new sessions
 docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining, sessions, sessionIds}
 ```
+
+## Capacity observations
+
+`GET /v1/capacity?organizationId=<id>` uses the same HMAC authentication as
+session operations. It returns aggregate runtime slot use, configured admission
+ceilings, and only the requesting organization's session ids. Platform exposes
+aggregates to admins and developers; workspace details remain admin-only.
+
+Docker observations come from labeled containers and Docker daemon totals.
+Local Linux hosts also report CPU deltas and used memory (`MemTotal` minus
+`MemAvailable`). Remote Docker endpoints retain known totals but leave usage
+unavailable; the spawner never substitutes its own machine's usage. CPU needs
+two observations no more than 30 seconds apart. Kubernetes reports namespace
+Pod counts with unavailable host measurements. Inventory errors return 503,
+never a successful zero count. Observations coalesce and cache for five seconds;
+the settings page refreshes every 15 seconds and marks unavailable metrics.
+
+Platform quota allocation and physical runtime state have separate lifecycles:
+finishing work can release an org allocation while its idle container stays
+running. The capacity inventory includes that container until it stops.
 
 ## Container
 

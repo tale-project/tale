@@ -10,7 +10,7 @@
 //    marker, ultrathink prompt keyword, baseline house rules) — they read
 //    operator env knobs and do content-dependent rewrites;
 //  - the MCP server shapes (the in-container Playwright launcher command and
-//    its headless/CDP argument sets, the capability-bridge command) — these
+//    its headless arguments, the capability-bridge command) — these
 //    are platform facts shared by every harness, not per-harness facts;
 //  - stream parsing (`parsers/`, keyed by the YAML's `parser` field).
 
@@ -172,18 +172,6 @@ const PLAYWRIGHT_MCP_ARGS = [
   '--isolated',
   '--no-sandbox',
   '--ignore-https-errors',
-] as const;
-
-/** Live-browser-view args. Instead of self-launching a headless Chromium,
- * the MCP ATTACHES over CDP to the session's externally-managed HEADED
- * Chromium (loopback 127.0.0.1:9222) so the browser can be mirrored
- * read-only. The self-launch flags all belong to the now-externally-launched
- * browser and must be dropped — connectOverCDP ignores launch options. The
- * shim also skips the proxy flags in this mode; the managed browser already
- * carries the egress proxy. */
-const PLAYWRIGHT_MCP_CDP_ARGS = [
-  '--cdp-endpoint',
-  'http://127.0.0.1:9222',
 ] as const;
 
 /** Vision polyfill (text-only model): force the browser tools to SAVE images
@@ -379,9 +367,7 @@ export function buildHarnessExec(
     const servers: DocTree = {};
     if (spec.mcp?.browser) {
       const args = [
-        ...(spec.mcp.browser === 'cdp'
-          ? PLAYWRIGHT_MCP_CDP_ARGS
-          : PLAYWRIGHT_MCP_ARGS),
+        ...PLAYWRIGHT_MCP_ARGS,
         ...(visionOmitsImages && spec.vision ? PLAYWRIGHT_VISION_ARGS : []),
       ];
       servers.playwright =
@@ -528,9 +514,7 @@ export function buildHarnessExec(
             `mcp_servers.playwright.command=${JSON.stringify(PLAYWRIGHT_MCP_COMMAND)}`,
             '-c',
             `mcp_servers.playwright.args=${tomlStringArray(
-              spec.mcp.browser === 'cdp'
-                ? PLAYWRIGHT_MCP_CDP_ARGS
-                : PLAYWRIGHT_MCP_ARGS,
+              PLAYWRIGHT_MCP_ARGS,
             )}`,
           );
         }

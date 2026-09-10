@@ -9,6 +9,7 @@
 import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { retireLegacyBuildkitd } from '../../buildkit-resources.ts';
 import { ensureBuildkitd } from '../../buildkitd.ts';
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
 import {
@@ -236,7 +237,7 @@ export class DockerSessionBackend implements SessionBackend {
       ? await this.ensureFreshDindVolume(spec.sessionId)
       : undefined;
 
-    // Shared cross-session build cache: ensure the shared buildkitd is up and
+    // Per-organization build cache: ensure its private buildkitd is up and
     // get the endpoint the session's remote buildx builder should target. This
     // is a pure OPTIMIZATION — a failure must never block session creation, so
     // on error we proceed with no endpoint and the session falls back to its own
@@ -702,7 +703,7 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   /**
-   * Heal the shared buildkitd for every org with a running session, so an
+   * Retire drained global helpers, then heal each organization's buildkitd so an
    * adopted session never builds against a daemon whose egress fence went stale
    * across a stack restart. ensureBuildkitd recreates a drifted daemon (its
    * `[dns]`/redsocks pinned to a since-moved sandbox-egress IP) and is a cheap
@@ -711,6 +712,12 @@ export class DockerSessionBackend implements SessionBackend {
    * optimization, so a failure is logged, never thrown.
    */
   async reconcileBuildCache(orgIds: readonly string[]): Promise<void> {
+    await retireLegacyBuildkitd().catch((error: unknown) => {
+      console.warn(
+        '[sandbox.session] legacy build-cache retirement deferred:',
+        error,
+      );
+    });
     if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
     for (const organizationId of new Set(orgIds)) {
       try {

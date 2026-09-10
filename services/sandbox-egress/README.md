@@ -7,7 +7,9 @@ RFC1918 ranges so sandboxed code cannot reach the host network or credentials.
 
 Egress is open at the hostname layer by default — the IP-layer firewall is the
 hard boundary. The entrypoint fails closed: if the firewall rules cannot be
-installed, the proxy refuses to start.
+installed, the proxy refuses to start. IPv4 and enabled IPv6 forwarding are
+blocked at the top of the FORWARD chain, so the multi-network proxy cannot
+route packets between organizations' private build-cache networks.
 
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress

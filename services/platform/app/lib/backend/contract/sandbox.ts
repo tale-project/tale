@@ -1,13 +1,14 @@
 /**
- * `sandbox` — the wire contract for the backend calls the app makes into this
- * family: one entry per function name, carrying its argument and response
- * shapes. Materialized from the shapes the app consumed at the Convex
- * retirement, so the hook wrappers stay fully typed with no generated
- * `_generated/api` behind them; the adapter rows in `../sandbox.ts` are what
- * actually serve them.
+ * App contracts for sandbox management and agent execution reads. The
+ * adapters in `../settings.ts` bind these names to authenticated HTTP routes.
  */
 
 export interface SandboxContract {
+  'sandbox/session_queries_public:getSandboxCapacity': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: SandboxCapacity;
+  };
   'sandbox/session_queries_public:getAgentNodeSandboxOp': {
     kind: 'query';
     args: { organizationId: string; runId: string };
@@ -86,6 +87,7 @@ export interface SandboxContract {
       sessionId: string;
       ownerType: string;
       ownerId: string;
+      ownerLabel?: string | null;
       createdBy: string;
       ownerName: null | string;
       ownerEmail: null | string;
@@ -98,6 +100,9 @@ export interface SandboxContract {
       busy: boolean;
       totalSpentCents: number;
       currentOp: null | {
+        kind?: 'task-agent' | 'workflow-agent';
+        taskId?: string;
+        workflowRunId?: string;
         threadId?: string;
         execId: string;
         status: string;
@@ -111,3 +116,28 @@ export interface SandboxContract {
     }>;
   };
 }
+
+export type SandboxCapacity =
+  | { status: 'unavailable'; reason: 'not_configured' | 'unreachable' }
+  | {
+      status: 'available';
+      observedAt: number;
+      backend: 'docker' | 'kubernetes';
+      scope: 'host' | 'namespace';
+      sessions: {
+        running: number;
+        starting: number;
+        limit: number;
+        organizationRunning: number;
+        organizationStarting: number;
+        organizationLimit: number;
+      };
+      resources: {
+        cpu: { totalCores: number | null; usedCores: number | null };
+        memory: { totalBytes: number | null; usedBytes: number | null };
+      };
+      runtimeSessions: Array<{
+        sessionId: string;
+        state: 'running' | 'starting' | 'stopped';
+      }>;
+    };

@@ -5,7 +5,11 @@ import {
   sessionIsAlive,
   sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
-import { markSessionDestroyed, setSessionPinned } from './sessions.ts';
+import {
+  getSessionBySessionId,
+  markSessionDestroyed,
+  setSessionPinned,
+} from './sessions.ts';
 
 /**
  * Spawner-facing session orchestration for the management surface and the
@@ -17,21 +21,19 @@ import { markSessionDestroyed, setSessionPinned } from './sessions.ts';
  * SANDBOX_URL/SANDBOX_TOKEN env) is REUSED verbatim.
  */
 
-/** Idempotent teardown: spawner destroy (a 404 is success), then the row. */
+/** Authorize before contacting the spawner; settle the row only after it
+ * confirms destruction or absence. Failures leave the session retryable. */
 export async function teardownSession(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
 ): Promise<boolean> {
-  try {
-    await sessionDestroy(args.sessionId);
-  } catch (error) {
-    // Best-effort: the row must settle even when the spawner is unreachable
-    // (the spawner's own reaper collects the container on TTL).
-    console.warn(
-      `[sandbox] spawner destroy failed for ${args.sessionId}; marking the row anyway:`,
-      error,
-    );
-  }
+  const session = await getSessionBySessionId(
+    sql,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (session === null) return false;
+  await sessionDestroy(args.sessionId);
   return markSessionDestroyed(sql, args);
 }
 

@@ -456,6 +456,14 @@
       "description": "Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation."
     }
   },
+  "fr:platform/admin/sandboxes": {
+    "slug": "platform/admin/sandboxes",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Sandboxes",
+      "description": "Fixe les limites de travail simultané et compare les quotas occupés aux environnements actifs et aux ressources de l’hôte."
+    }
+  },
   "fr:platform/admin/api-keys": {
     "slug": "platform/admin/api-keys",
     "locale": "fr",
@@ -1529,6 +1537,14 @@
       "description": "Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation."
     }
   },
+  "en:platform/admin/sandboxes": {
+    "slug": "platform/admin/sandboxes",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Sandboxes",
+      "description": "Set concurrent workload limits and compare organization allocations with actual sandbox runtime and host capacity."
+    }
+  },
   "en:platform/admin/api-keys": {
     "slug": "platform/admin/api-keys",
     "locale": "en",
@@ -2600,6 +2616,14 @@
     "frontmatter": {
       "title": "Enterprise-SSO und Bereitstellung",
       "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren."
+    }
+  },
+  "de:platform/admin/sandboxes": {
+    "slug": "platform/admin/sandboxes",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Sandboxes",
+      "description": "Begrenze gleichzeitige Aufgaben und vergleiche belegte Kontingente mit laufenden Sandboxes und der Host-Auslastung."
     }
   },
   "de:platform/admin/api-keys": {

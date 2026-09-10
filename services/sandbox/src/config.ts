@@ -205,9 +205,9 @@ export function loadConfig(): SpawnerConfig {
       );
     }
   }
-  // Shared build cache: a single, persistent buildkitd + pull-through registry
-  // mirror (the spawner launches them lazily, see buildkitd.ts) that every
-  // session's `docker build` / `docker compose up --build` reuses across sessions
+  // Shared build cache: one persistent buildkitd and per-registry pull-through
+  // mirrors per organization (launched lazily, see buildkitd.ts). Sessions in
+  // that organization reuse them for `docker build` / `docker compose up --build`
   // — instead of each session rebuilding all layers in its ephemeral inner
   // /var/lib/docker. DEFAULT = FOLLOW DinD: it's only meaningful with DinD (the
   // inner docker is what builds), and when DinD is on it's a strict, best-effort
@@ -262,7 +262,7 @@ export function loadConfig(): SpawnerConfig {
   // is a hard failure, not a bypass. Trimmed so a whitespace-only value is
   // treated as unset (otherwise it would enable HMAC with a trivially weak
   // space key) — consistent with numEnv/userEnv above and the client side
-  // (session_client / screencast-relay also trim).
+  // (session_client also trims).
   const sandboxToken = process.env.SANDBOX_TOKEN?.trim() ?? '';
   if (sandboxToken.length === 0) {
     throw new Error(
@@ -352,9 +352,8 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,
     dockerInContainer,
-    // Shared cross-session docker build cache (default off; only meaningful with
-    // DinD — resolved + warned above). When on, the spawner launches a shared
-    // buildkitd and points each session's remote buildx builder at it.
+    // Per-org cross-session build cache (defaults to DinD's setting, resolved
+    // above). Each organization gets its own builder, mirrors and private net.
     dockerBuildCache,
     // The shared buildkitd image the spawner launches (buildkitd.ts). Defaults
     // to a dev tag; release deployments set SANDBOX_BUILDKITD_IMAGE to the
@@ -366,12 +365,6 @@ export function loadConfig(): SpawnerConfig {
     // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
-    // Live browser view (default on; opt out with SANDBOX_BROWSER_VIEW=0). When
-    // on, session containers launch with TALE_BROWSER_CDP=1 (the entrypoint's
-    // headed-Chromium + x11vnc mirror). The PLATFORM reads the SAME env so the
-    // adapter attaches Playwright MCP over CDP — one deployment-level decision
-    // drives both sides, and they agree when the operator sets nothing.
-    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? true,
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,
@@ -398,14 +391,10 @@ export function loadConfig(): SpawnerConfig {
     }),
     maxRequestBodyBytes,
     session: {
-      // GLOBAL host-capacity ceiling: the max sandbox session containers this
-      // host runs at once, across all orgs (each ≈ 2 cpu / 4 g). This is the
-      // single physical cap — every sandbox is a session now. The per-org
-      // governance budgets (user / thread / workflow, in `sandbox_quota`) are
-      // fairness slices UNDER this ceiling, so the default is sized to cover one
-      // active org's summed budgets (2 + 8 + 4 = 14) with headroom. Sessions
-      // idle-stop, so this is a ceiling, not a reservation — operators on a small
-      // box lower SANDBOX_MAX_SESSIONS; on a big host, raise it.
+      // Runtime admission ceiling across organizations: Docker host or K8s
+      // namespace inventory. Separate from the platform's project/workflow/
+      // render allocation budgets (defaults 2/4/4), and not a CPU or memory
+      // reservation. Operators size this against the host and session profiles.
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 16, { min: 1 }),
       maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
       maxLifetimeMs: numEnv(

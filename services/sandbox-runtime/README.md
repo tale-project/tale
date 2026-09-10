@@ -12,8 +12,11 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
-All network egress is REDIRECTed through the egress proxy; the VNC/debug
-endpoints the entrypoint binds are loopback-only.
+Headless Chromium and Playwright are available on demand for automation,
+rendering and screenshots. The runtime starts no display server, managed
+browser or viewing tunnel. Configured transparent egress redirects external
+network access through `@tale/sandbox-egress`; Playwright MCP also receives
+the proxy settings through its launcher.
 
 ```bash
 bun run --filter @tale/sandbox-runtime docker:build

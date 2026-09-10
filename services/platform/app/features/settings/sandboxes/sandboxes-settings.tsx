@@ -1,6 +1,5 @@
 import { Badge } from '@tale/ui/badge';
 import { Row, Stack } from '@tale/ui/layout';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@tale/ui/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,11 +10,16 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useToast } from '@/app/hooks/use-toast';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
+
+import { SandboxCapacitySection } from './sandbox-capacity';
+import { SandboxQuotaEditor } from './sandbox-quota-editor';
+import { sandboxRuntimeState } from './sandbox-runtime-state';
 
 type SandboxList = NonNullable<
   ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>
@@ -34,18 +38,21 @@ function formatCents(cents: number | undefined): string {
 export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const { t } = useT('sandboxes');
   const { toast } = useToast();
+  const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
+  const canRead = ability.can('read', 'developerSettings');
+  const canManage = ability.can('write', 'orgSettings');
 
-  const { data, isLoading } = useBackendQuery(
+  const { data, isLoading, error } = useBackendQuery(
     'sandbox/session_queries_public:listSandboxesForOrg',
-    { organizationId },
+    canManage ? { organizationId } : 'skip',
   );
 
-  // Per-budget session usage vs cap — the soft-warning surface before a hard
-  // refusal. Reactive, so it tracks sessions coming and going live.
-  const quota = useBackendQuery(
-    'sandbox/session_queries_public:getSandboxQuotaUsage',
-    { organizationId },
+  const capacity = useBackendQuery(
+    'sandbox/session_queries_public:getSandboxCapacity',
+    canRead ? { organizationId } : 'skip',
   );
+  const snapshot = capacity.isError ? undefined : capacity.data;
 
   const stop = useBackendAction(
     'node_only/sandbox/session_admin_actions:stopSandboxTask',
@@ -57,18 +64,15 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     'node_only/sandbox/session_admin_actions:setSandboxPinned',
   );
 
-  // Reconcile platform rows with the spawner on mount so a session the idle/TTL
-  // reaper released shows as "Stopped" rather than a stale "Idle". The spawner
-  // is pull-only (no lifecycle callback), so this opportunistic probe — not a
-  // cron — is what keeps the fleet view honest. Fire-and-forget; the action
-  // logs its own per-session failures.
+  // Reconcile business allocation records on mount. Physical runtime state
+  // comes from the separate infrastructure snapshot below.
   const reconcile = useBackendAction(
     'node_only/sandbox/session_admin_actions:reconcileOrgSessions',
   );
   const reconcileMutate = reconcile.mutate;
   useEffect(() => {
-    reconcileMutate({ organizationId });
-  }, [organizationId, reconcileMutate]);
+    if (canManage) reconcileMutate({ organizationId });
+  }, [organizationId, reconcileMutate, canManage]);
 
   // The session id whose control is mid-flight (disables that row's buttons).
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -105,15 +109,13 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         size: 150,
         cell: ({ row }) => {
           const s = row.original;
-          // Name + email when resolved; fall back to the raw id (system-owned /
-          // deleted user). Constrained width + truncate so a long id/email can't
-          // bleed into the Agent column.
+          // A long owner name or fallback identifier stays within this column.
           return (
             <Stack gap={0} className="max-w-[220px] min-w-0">
               <span className="truncate font-medium">
-                {s.ownerName ?? s.ownerEmail ?? s.createdBy}
+                {s.ownerLabel ?? s.ownerName ?? s.ownerEmail ?? s.ownerId}
               </span>
-              {s.ownerEmail && s.ownerName && (
+              {s.ownerEmail && !s.ownerLabel && s.ownerName && (
                 <span className="text-muted-foreground truncate text-xs">
                   {s.ownerEmail}
                 </span>
@@ -130,28 +132,38 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       },
       {
         id: 'status',
-        size: 85,
+        size: 140,
         header: t('columns.status'),
         cell: ({ row }) => {
           const s = row.original;
           const paused = s.currentOp?.pausedReason === 'budget';
-          // `stopped` = compute released, workspace preserved (hibernated). It's
-          // never busy, so check it before the busy/idle branch — otherwise it
-          // would mislabel as "Idle" (which means a live, non-busy container).
-          const stopped = s.status === 'stopped';
+          const runtime = sandboxRuntimeState(snapshot, s.sessionId);
+          const allocated = s.status === 'creating' || s.status === 'active';
           return (
-            <Row gap={1} align="stretch" wrap>
-              {paused ? (
-                <Badge variant="destructive">{t('status.pausedBudget')}</Badge>
-              ) : stopped ? (
-                <Badge variant="yellow">{t('status.stopped')}</Badge>
-              ) : s.busy ? (
-                <Badge variant="green">{t('status.running')}</Badge>
-              ) : (
-                <Badge variant="outline">{t('status.idle')}</Badge>
-              )}
-              {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
-            </Row>
+            <Stack gap={1}>
+              <Row gap={1} align="stretch" wrap>
+                <Badge
+                  variant={
+                    runtime === 'running'
+                      ? 'green'
+                      : runtime === 'starting'
+                        ? 'yellow'
+                        : 'outline'
+                  }
+                >
+                  {t(`status.runtime.${runtime}`)}
+                </Badge>
+                {paused && (
+                  <Badge variant="destructive">
+                    {t('status.pausedBudget')}
+                  </Badge>
+                )}
+                {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
+              </Row>
+              <span className="text-muted-foreground text-xs">
+                {t(allocated ? 'status.quotaInUse' : 'status.quotaReleased')}
+              </span>
+            </Stack>
           );
         },
       },
@@ -166,18 +178,21 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               <span className="text-muted-foreground">{t('task.none')}</span>
             );
           }
-          const count = op.continuationCount ?? 0;
+          const runId = op.taskId ?? op.workflowRunId;
           return (
             <Stack gap={0}>
-              {op.threadId && (
-                <span className="text-xs">
-                  {t('task.thread')}{' '}
-                  <span className="font-mono">{op.threadId.slice(0, 8)}</span>
-                </span>
-              )}
-              {count > 0 && (
-                <span className="text-muted-foreground text-xs">
-                  {count} {t('task.continuations')}
+              <span className="text-xs">
+                {t(
+                  op.kind === 'workflow-agent'
+                    ? 'task.workflow'
+                    : op.kind === 'task-agent'
+                      ? 'task.project'
+                      : 'task.active',
+                )}
+              </span>
+              {runId && (
+                <span className="text-muted-foreground font-mono text-xs">
+                  {runId.slice(0, 8)}
                 </span>
               )}
             </Stack>
@@ -263,72 +278,61 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         },
       },
     ],
-    [t, organizationId, pendingId, stop, setPinned, run],
+    [t, organizationId, pendingId, stop, setPinned, run, snapshot],
   );
 
-  // Non-privileged member (or unauthenticated) → query returns null.
-  if (data === null) {
+  if ((canManage && data === null) || (!abilityLoading && !canRead)) {
     return <AccessDenied message={t('accessDenied')} />;
   }
 
-  const quotaRows = quota.data ?? [];
-
   return (
-    <SettingsSection title={t('title')} description={t('description')}>
-      {quotaRows.length > 0 && (
-        <Row gap={2} wrap className="mb-4">
-          {quotaRows.map((b) => (
-            <Tooltip key={b.budget}>
-              {/* The chip itself is the trigger; tabIndex makes it
-                keyboard-reachable so the hint opens on focus too. */}
-              <TooltipTrigger asChild>
-                <Badge
-                  tabIndex={0}
-                  variant={
-                    b.atLimit ? 'destructive' : b.nearLimit ? 'yellow' : 'slate'
-                  }
-                >
-                  {t(`quota.budgets.${b.budget}`)}: {b.used} / {b.cap}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                {t(`quota.budgetHints.${b.budget}`)}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </Row>
+    <>
+      <SandboxQuotaEditor organizationId={organizationId} />
+      <SandboxCapacitySection
+        capacity={snapshot}
+        isLoading={capacity.isLoading}
+        isRefreshing={capacity.isFetching}
+        onRefresh={() => void capacity.refetch()}
+      />
+      {canManage && (
+        <SettingsSection
+          title={t('sessionsTitle')}
+          description={t('description')}
+        >
+          <DataTable<SandboxRow>
+            columns={columns}
+            data={data ?? []}
+            isLoading={isLoading}
+            error={error}
+            approxRowCount={data?.length}
+            getRowId={(row) => row.sessionId}
+            emptyState={{
+              icon: Box,
+              title: t('empty.title'),
+              description: t('empty.description'),
+            }}
+            caption={t('title')}
+          />
+          <ConfirmDialog
+            open={canManage && confirmDestroy !== null}
+            onOpenChange={(open) => !open && setConfirmDestroy(null)}
+            title={t('destroyConfirm.title')}
+            description={t('destroyConfirm.description')}
+            confirmText={t('destroyConfirm.confirm')}
+            variant="destructive"
+            isLoading={pendingId !== null && pendingId === confirmDestroy}
+            onConfirm={() => {
+              const sessionId = confirmDestroy;
+              if (!sessionId) return;
+              void run(
+                sessionId,
+                () => destroy.mutateAsync({ organizationId, sessionId }),
+                'toast.destroyed',
+              ).finally(() => setConfirmDestroy(null));
+            }}
+          />
+        </SettingsSection>
       )}
-      <DataTable<SandboxRow>
-        columns={columns}
-        data={data ?? []}
-        isLoading={isLoading}
-        approxRowCount={data?.length}
-        getRowId={(row) => row.sessionId}
-        emptyState={{
-          icon: Box,
-          title: t('empty.title'),
-          description: t('empty.description'),
-        }}
-        caption={t('title')}
-      />
-      <ConfirmDialog
-        open={confirmDestroy !== null}
-        onOpenChange={(open) => !open && setConfirmDestroy(null)}
-        title={t('destroyConfirm.title')}
-        description={t('destroyConfirm.description')}
-        confirmText={t('destroyConfirm.confirm')}
-        variant="destructive"
-        isLoading={pendingId !== null && pendingId === confirmDestroy}
-        onConfirm={() => {
-          const sessionId = confirmDestroy;
-          if (!sessionId) return;
-          void run(
-            sessionId,
-            () => destroy.mutateAsync({ organizationId, sessionId }),
-            'toast.destroyed',
-          ).finally(() => setConfirmDestroy(null));
-        }}
-      />
-    </SettingsSection>
+    </>
   );
 }

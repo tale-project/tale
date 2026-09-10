@@ -231,6 +231,15 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 
 ## Sandbox agent turns
 
+The runtime ceilings below are read by the sandbox spawner. Pass them into its environment and restart that service after a change; they do not change the organization policies edited in [Sandboxes](/platform/admin/sandboxes). The page reports actual runtime counts and host measurements separately from those organization allocations.
+
+| Name | Default | Description |
+| --- | --- | --- |
+| `SANDBOX_MAX_SESSIONS` | `16` | Running and starting sessions across organizations on the Docker host or Kubernetes namespace. A runtime admission limit, not a CPU or memory reservation. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
+| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Runtime ceiling for one organization across project agents, workflow runs and rendering, including idle containers that remain running. |
+
+Docker build caches are isolated by organization. Upgrades create cold caches and retain the old global cache data. Old helper containers stop automatically after no running session depends on them. Drain or stop old pinned sessions to complete that transition; until then the old shared cache service remains reachable. Browser automation uses headless Chromium; live browser viewing and manual browser takeover are retired.
+
 | Name                             | Default              | Description                                                                                                                                                                                                                                                                                       |
 | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optional.** How long an in-sandbox coding-agent turn (Claude Code, OpenCode, Codex) may sit with nobody draining its output before the sandbox daemon reaps it. A sliding window, re-armed every time the platform re-attaches to the output — not an absolute cap on the turn. Milliseconds. |

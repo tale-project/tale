@@ -1,5 +1,5 @@
 // HTTP route handlers for the /v1/sessions API. Mounted by server.ts behind
-// the same HMAC authorize() gate as /v1/execute. The handlers own session
+// the same HMAC authorize() gate as the deploy routes. The handlers own session
 // quota + registry bookkeeping; the SessionBackend owns container/Pod
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
@@ -14,7 +14,6 @@ import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
   runnerdAttach,
-  runnerdBrowserControl,
   runnerdCancelExec,
   runnerdDeleteFiles,
   runnerdEnvPatch,
@@ -27,7 +26,6 @@ import {
   runnerdWriteStdin,
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
-import type { ScreencastTarget } from './screencast-relay.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
@@ -79,6 +77,11 @@ export class SessionRoutes {
     return this.registry.size();
   }
 
+  /** Creates that may not have a container/Pod yet, for capacity reporting. */
+  pendingCreates(): ReadonlyMap<string, string> {
+    return new Map(this.creating);
+  }
+
   /** Creates in flight for one org (the per-org quota's in-flight share). */
   private creatingCountForOrg(organizationId: string): number {
     let n = 0;
@@ -121,35 +124,6 @@ export class SessionRoutes {
    * token and runnerd always verifies). */
   private tokenFor(sessionId: string): string {
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
-  }
-
-  /**
-   * Resolve where + how the screencast relay should dial runnerd for a session.
-   * Returns the runnerd host:port (parsed from the registry's cached endpoint
-   * URL) + the per-session token, or null when the session is unknown / the
-   * endpoint can't be parsed. Synchronous (registry-cache only): a WS upgrade
-   * already passed the HMAC gate, so a registry miss simply means "no session"
-   * and the relay closes the socket — no backend round-trip on the hot path.
-   */
-  resolveScreencastTarget(sessionId: string): ScreencastTarget | null {
-    const session = this.registry.get(sessionId);
-    if (!session) return null;
-    let url: URL;
-    try {
-      url = new URL(session.endpoint);
-    } catch (err) {
-      console.warn(
-        `[sandbox.session] screencast endpoint unparseable for ${sessionId} (${session.endpoint}):`,
-        err,
-      );
-      return null;
-    }
-    const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
-    return {
-      hostname: url.hostname,
-      port,
-      token: this.tokenFor(sessionId),
-    };
   }
 
   /**
@@ -344,17 +318,6 @@ export class SessionRoutes {
           token: this.tokenFor(s.sessionId),
         });
         if (health.liveExecs > 0) continue; // busy — spare from idle AND TTL
-        // A live browser viewer (raw VNC tunnel piping) keeps the session alive
-        // exactly like a live exec — never stop a session someone is actively
-        // watching, even if no exec is running. Mirrors the liveExecs skip.
-        // BUT only while the browser is actually drivable: a watched session
-        // whose managed Chromium CDP is dead (cdpHealthy === false) would
-        // otherwise be pinned forever staring at a stale frame, so don't spare
-        // it on the viewer alone — let it age out (the next turn's pre-flight
-        // recycles the browser). Absent `browser` (non-browser session) keeps
-        // today's behavior.
-        const cdpDead = health.browser?.cdpHealthy === false;
-        if (health.activeScreencasts > 0 && !cdpDead) continue;
         if (!expired) {
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
         }
@@ -393,6 +356,14 @@ export class SessionRoutes {
         this.registry.delete(s.sessionId);
         reaped += 1;
       }
+    }
+    // No newly adopted session is required for maintenance: the last legacy
+    // session may just have stopped, allowing its global build helpers to
+    // retire. Empty orgIds performs cleanup without provisioning new builders.
+    try {
+      await this.backend.reconcileBuildCache([]);
+    } catch (error) {
+      console.warn('[sandbox.session] build-cache maintenance failed:', error);
     }
     return reaped;
   }
@@ -865,44 +836,6 @@ export class SessionRoutes {
       );
     }
     return jsonResponse({ killed }, 200);
-  }
-
-  /** POST /v1/sessions/:id/browser/{restart,reset,close-pages} — recycle the
-   * managed live-browser Chromium (restart preserves logins, reset wipes the
-   * profile) or reset its tabs (close-pages). Proxies to runnerd; a gone backend
-   * → 404, a transport blip → 502 (same ladder as cancel). Off-feature sessions
-   * answer a benign no-op (runnerd gates on TALE_BROWSER_CDP). */
-  async handleBrowserControl(
-    sessionId: string,
-    action: string,
-  ): Promise<Response> {
-    const session = await this.ensureRegistered(sessionId);
-    if (!session) return jsonResponse({ error: 'not_found' }, 404);
-    if (
-      action !== 'restart' &&
-      action !== 'reset' &&
-      action !== 'close-pages'
-    ) {
-      return jsonResponse({ error: 'not_found' }, 404);
-    }
-    try {
-      const body = await runnerdBrowserControl(
-        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
-        action,
-      );
-      return jsonResponse(body, 200);
-    } catch (err) {
-      if (await this.evictIfBackendGone(sessionId)) {
-        return jsonResponse({ error: 'not_found' }, 404);
-      }
-      return jsonResponse(
-        {
-          error: 'upstream_error',
-          message: err instanceof Error ? err.message : String(err),
-        },
-        502,
-      );
-    }
   }
 
   /** GET /v1/sessions/:id/exec/:execId — per-exec status without consuming the

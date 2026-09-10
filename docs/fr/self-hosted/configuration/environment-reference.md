@@ -231,6 +231,15 @@ Laisse-le non défini pour conserver la durée de session par défaut. Si défin
 
 ## Tours d'agent en sandbox
 
+Le spawner sandbox lit les plafonds d’exécution ci-dessous. Transmets-les dans son environnement et redémarre ce service après une modification ; ils restent indépendants des quotas d’organisation réglés dans [Sandboxes](/fr/platform/admin/sandboxes). Cette page distingue les environnements réellement actifs, les mesures de l’hôte et les allocations de l’organisation.
+
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `SANDBOX_MAX_SESSIONS` | `16` | Sessions actives ou en démarrage de toutes les organisations sur l’hôte Docker ou dans le namespace Kubernetes. Ce plafond d’admission ne réserve ni CPU ni mémoire. Des réplicas Kubernetes concurrents l’appliquent au mieux ; utilise ResourceQuota pour imposer des limites strictes aux ressources du namespace. |
+| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Plafond d’exécution d’une organisation pour les agents de projet, les Workflows et le rendu réunis, y compris les conteneurs inactifs qui tournent encore. |
+
+Les caches de build Docker sont isolés par organisation. Une mise à niveau crée des caches vides et conserve les anciennes données globales. Les anciens conteneurs auxiliaires s’arrêtent automatiquement dès qu’aucune session active n’en dépend. Laisse se terminer les anciennes sessions épinglées ou arrête-les pour achever la transition ; jusque-là, l’ancien service de cache partagé reste accessible. L’automatisation du navigateur utilise Chromium sans interface graphique. La vue en direct et la prise de contrôle manuelle ont été retirées.
+
 | Nom                              | Défaut               | Description                                                                                                                                                                                                                                                                                                                              |
 | -------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optionnel.** Combien de temps un tour d’agent de code en sandbox (Claude Code, OpenCode, Codex) peut rester sans que personne ne lise sa sortie avant que le daemon de la sandbox ne le récupère. Une fenêtre glissante, relancée chaque fois que la plateforme se rattache à la sortie — pas un plafond absolu sur le tour. En millisecondes. |

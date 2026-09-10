@@ -169,22 +169,6 @@ managed-mcp-headless-bridge:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdinMode: close
-managed-mcp-cdp:
-  argv:
-    - opencode
-    - run
-    - --format
-    - json
-    - --dir
-    - /agent/workspace
-    - 'Golden battery prompt: fix the flaky login test'
-  env:
-    OPENCODE_CONFIG_CONTENT:
-      '{"$schema":"https://opencode.ai/config.json","provider":{"tale":{"npm":"@ai-sdk/openai-compatible","name":"Tale
-      Gateway","options":{"baseURL":"http://golden-gw:8080/openai/v1","apiKey":"{env:TALE_GATEWAY_TOKEN}"},"models":{"default":{"name":"default"}}}},"model":"tale/default","permission":{"*":"allow","question":"deny","webfetch":"deny","websearch":"deny"},"share":"disabled","autoupdate":false,"mcp":{"playwright":{"type":"local","command":["tale-playwright-mcp","--cdp-endpoint","http://127.0.0.1:9222"],"enabled":true}}}'
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /agent/workspace
-  stdinMode: close
 managed-mcp-bridge-only:
   argv:
     - opencode

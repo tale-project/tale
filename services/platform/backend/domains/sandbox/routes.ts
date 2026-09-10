@@ -7,7 +7,10 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  sandboxCapacity,
+  sessionCancelExec,
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   DEFAULT_SANDBOX_QUOTA,
   sessionBudgetForOwnerType,
@@ -26,18 +29,27 @@ import {
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
- * teardown. Administering sandbox compute is org configuration, so every
- * route is gated on the `orgSettings` write capability.
+ * teardown. Developers can inspect aggregate capacity and quota; workspace
+ * details and changes require the `orgSettings` write capability because
+ * the organization-wide list can include private projects.
  */
 
 const pinSchema = z.object({ pinned: z.boolean() });
 
+function hasAdminCapability(c: Context<OrgEnv>): boolean {
+  return defineAbilityFor(c.get('orgMember').role).can('write', 'orgSettings');
+}
+
 function requireAdmin(c: Context<OrgEnv>): Response | null {
-  const allowed = defineAbilityFor(c.get('orgMember').role).can(
-    'write',
-    'orgSettings',
-  );
-  return allowed ? null : c.json({ error: 'admin capability required' }, 403);
+  return hasAdminCapability(c)
+    ? null
+    : c.json({ error: 'admin capability required' }, 403);
+}
+
+function requireComputeReader(c: Context<OrgEnv>): Response | null {
+  return isAdminOrDeveloperRole(c.get('orgMember').role)
+    ? null
+    : c.json({ error: 'developer role required' }, 403);
 }
 
 export function createSandboxRoutes(deps: {
@@ -47,9 +59,36 @@ export function createSandboxRoutes(deps: {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
+  /** Aggregate hardware/runtime observations, separate from organization
+   * policy. Only administrators and developers see host aggregates; no other org's ids are
+   * returned. Failure is explicit, so a down spawner never looks empty. */
+  app.get('/capacity', async (c) => {
+    const denied = requireComputeReader(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    if (!process.env.SANDBOX_TOKEN?.trim()) {
+      return c.json({ status: 'unavailable', reason: 'not_configured' });
+    }
+    try {
+      const snapshot = await sandboxCapacity(c.get('orgId'));
+      return c.json({
+        ...snapshot,
+        // Developers can see aggregate infrastructure pressure without
+        // learning ids belonging to a project they cannot access.
+        runtimeSessions: hasAdminCapability(c) ? snapshot.runtimeSessions : [],
+      });
+    } catch (error) {
+      console.warn(
+        '[sandbox] capacity observation unavailable:',
+        error instanceof Error ? error.message : 'unknown failure',
+      );
+      return c.json({ status: 'unavailable', reason: 'unreachable' });
+    }
+  });
+
   /** Per-budget quota pressure (the 0.4 `getSandboxQuotaUsage` wire). */
   app.get('/quota-usage', async (c) => {
-    const denied = requireAdmin(c);
+    const denied = requireComputeReader(c);
     if (denied) return denied;
     const organizationId = c.get('orgId');
     const policy = await readGovernancePolicyForOrg(

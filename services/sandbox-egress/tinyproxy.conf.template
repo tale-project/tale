@@ -38,8 +38,9 @@ ConnectPort 80
 ${FILTER_BLOCK}
 
 # Client allow-list (network-layer): only loopback (healthcheck) and the
-# Docker user-network CIDRs that the sandbox runtime containers attach to.
-# 172.16.0.0/12 covers the default Docker bridge-driver range. This list is
+# RFC1918 Docker network CIDRs that the sandbox runtime containers attach to.
+# Organization build networks can use any of these private address ranges;
+# their admission guard refuses public subnets and supernets. This list is
 # defense-in-depth ONLY — it's a client ACL, NOT the primary network
 # boundary. The primary boundary is the `--internal` flag on tale-sandbox-net
 # (runtime containers can't reach the host bridge) plus the iptables OUTPUT
@@ -49,7 +50,9 @@ ${FILTER_BLOCK}
 # ::1 covers IPv6 loopback for the healthcheck on dual-stack hosts.
 Allow 127.0.0.1
 Allow ::1
+Allow 10.0.0.0/8
 Allow 172.16.0.0/12
+Allow 192.168.0.0/16
 
 # DisableViaHeader replaces the default `No` (which emitted
 # `Via: 1.1 tale-sandbox-egress`). Note: tinyproxy's Anonymous block does

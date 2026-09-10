@@ -1,6 +1,4 @@
-// The shared-buildkitd naming seam. v1 returns ONE global daemon, but the
-// helpers take organizationId so per-org isolation later is a name change here
-// with no caller churn. These tests pin the v1 names + the org-id safety guard.
+// Organization isolation and resource naming for persistent build caches.
 
 import { describe, expect, test } from 'bun:test';
 
@@ -11,6 +9,8 @@ import {
   buildkitdEndpoint,
   buildkitdMirrorContainerName,
   buildkitdMirrorRef,
+  buildkitdMirrorVolumeName,
+  buildkitdNetworkName,
   EGRESS_READY_MARKER,
   egressProxyHostname,
   firstIpv4,
@@ -19,11 +19,29 @@ import {
 } from './buildkitd.ts';
 
 describe('buildkitd naming seam', () => {
-  test('v1 = one global daemon, volume, and endpoint regardless of org', () => {
-    expect(buildkitdContainerName('org-a')).toBe('tale-buildkitd');
-    expect(buildkitdContainerName('org-b')).toBe('tale-buildkitd');
-    expect(buildkitdCacheVolumeName('org-a')).toBe('tale-buildkitd-cache');
-    expect(buildkitdEndpoint('org-a')).toBe('tcp://tale-buildkitd:1234');
+  test('all build resources are stable per org and distinct across orgs', () => {
+    const ids = [
+      'org-a',
+      'org-b',
+      'ORG-A',
+      'org_a',
+      'a'.repeat(127) + '1',
+      'a'.repeat(127) + '2',
+    ];
+    for (const naming of [
+      buildkitdContainerName,
+      buildkitdCacheVolumeName,
+      buildkitdNetworkName,
+      buildkitdEndpoint,
+    ]) {
+      expect(new Set(ids.map(naming)).size).toBe(ids.length);
+      expect(naming('org-a')).toBe(naming('org-a'));
+    }
+    expect(buildkitdContainerName('org-a')).not.toBe('tale-buildkitd');
+    expect(buildkitdCacheVolumeName('org-a')).not.toBe('tale-buildkitd-cache');
+    expect(buildkitdContainerName('a'.repeat(128))).toMatch(
+      /^[a-z0-9-]{1,63}$/,
+    );
   });
 
   test('endpoint is a well-formed tcp://host:port (matches the args ENDPOINT_RE)', () => {
@@ -50,16 +68,24 @@ describe('buildkitd naming seam', () => {
     expect(() => buildkitdContainerName('org_123-AB')).not.toThrow();
   });
 
-  test('built-in mirrors: stable per-registry name:port (resolve as siblings)', () => {
+  test('registry caches and endpoints are organization-scoped and DNS-safe', () => {
     expect(MIRROR_REGISTRIES).toEqual(['docker.io', 'ghcr.io', 'quay.io']);
-    expect(buildkitdMirrorRef('docker.io')).toBe(
-      'tale-buildkitd-mirror-docker-io:5000',
+    for (const registry of MIRROR_REGISTRIES) {
+      const name = buildkitdMirrorContainerName('org-a', registry);
+      expect(buildkitdMirrorRef('org-a', registry)).toBe(`${name}:5000`);
+      expect(buildkitdMirrorContainerName('org-b', registry)).not.toBe(name);
+      expect(buildkitdMirrorVolumeName('org-a', registry)).not.toBe(
+        buildkitdMirrorVolumeName('org-b', registry),
+      );
+      expect(buildkitdMirrorContainerName('a'.repeat(128), registry)).toMatch(
+        /^[a-z0-9-]{1,63}$/,
+      );
+    }
+    expect(() => buildkitdMirrorRef('org-a', 'docker-io')).toThrow(
+      /unsupported mirror registry/,
     );
-    expect(buildkitdMirrorRef('ghcr.io')).toBe(
-      'tale-buildkitd-mirror-ghcr-io:5000',
-    );
-    expect(buildkitdMirrorContainerName('quay.io')).toBe(
-      'tale-buildkitd-mirror-quay-io',
+    expect(() => buildkitdMirrorRef('../org', 'docker.io')).toThrow(
+      /unsafe organizationId/,
     );
   });
 

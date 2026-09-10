@@ -4,17 +4,19 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
- * Save a governance policy to its per-org JSON file (the source of truth),
- * which re-syncs the `governanceCache` mirror that `getPolicy` reads. This is
- * a Convex action (filesystem write), so there is no optimistic patch — the
- * reactive `getPolicy` query updates once the write + cache sync complete.
- * Every editor toasts its own failure, so no generic error toast here.
+ * Save a governance policy to its per-org JSON file over HTTP. The backend
+ * adapter invalidates policy reads after success, and also quota usage when
+ * sandbox limits change. Editors using the shared Save/Discard cluster pass
+ * `errorToast: false` so that cluster owns the single failure message.
  *
  * Refuses `retention_policy` and `dsar_governance` — those route through
  * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).
  */
-export function useUpsertGovernancePolicy() {
-  return useBackendAction('governance/file_actions:saveGovernancePolicy');
+export function useUpsertGovernancePolicy(options?: { errorToast?: false }) {
+  return useBackendAction(
+    'governance/file_actions:saveGovernancePolicy',
+    options,
+  );
 }
 
 export function useProposeDsarPolicy() {

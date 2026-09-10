@@ -1,6 +1,6 @@
 // Request authentication for the spawner's HTTP surface — ONE verifier for
 // every route that changes or reveals state (sessions, exec, files, the deploy
-// control routes, the screencast upgrade). HMAC over
+// control routes). HMAC over
 // METHOD\npath\ntimestamp\nnonce\nsha256(body) with the shared SANDBOX_TOKEN
 // (auth.ts). The secret is REQUIRED (loadConfig fails closed without it), so
 // there is no "unsigned mode" branch here: a request without a valid signature

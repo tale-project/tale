@@ -12,6 +12,7 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
+import { buildkitdEndpoint, buildkitdNetworkName } from '../buildkitd.ts';
 import {
   dindCapabilityOf,
   dockerRuntimeFor,
@@ -20,10 +21,7 @@ import {
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { sessionContainerName } from './session-naming.ts';
-import {
-  sessionBrowserViewEnabled,
-  sessionDindEnabled,
-} from './session-profile.ts';
+import { sessionDindEnabled } from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
@@ -47,7 +45,7 @@ interface DockerSessionRunInput {
    */
   dockerStorageVolume?: string;
   /**
-   * Endpoint of the shared buildkitd (e.g. `tcp://tale-buildkitd:1234`), set only
+   * Endpoint of this organization's buildkitd, set only
    * when `cfg.dockerBuildCache` is on (and DinD). The entrypoint creates a remote
    * buildx builder pointing here + sets BUILDX_BUILDER, so the session's
    * `docker build` / `docker compose up --build` reuse the shared build cache.
@@ -59,6 +57,7 @@ interface DockerSessionRunInput {
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
+const NETWORK_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 // `tcp://host:port` for the shared buildkitd endpoint — the only injection
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
@@ -265,15 +264,6 @@ export function buildDockerSessionRunArgs(
     }
   }
 
-  // Live browser view (operator flag): signal the entrypoint to bring up the
-  // headed-Chromium + x11vnc read-only mirror (start_browser_stack). Additive
-  // and only present when enabled — off keeps today's argv byte-identical. The
-  // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
-  // Agent-only, like DinD (see session-profile.ts).
-  const browserViewEnv = sessionBrowserViewEnabled(cfg, inp.profile)
-    ? ['--env', 'TALE_BROWSER_CDP=1']
-    : [];
-
   // Transparent egress signal for the entrypoint. On the non-DinD hardening path
   // the container boots as root, so TALE_DROP_UID/GID tell the entrypoint which
   // profile uid to setpriv-drop to after installing the OUTPUT REDIRECT. On DinD
@@ -325,6 +315,27 @@ export function buildDockerSessionRunArgs(
       ];
 
   const containerName = sessionContainerName(inp.sessionId);
+  const buildNetwork =
+    dind && inp.buildkitdEndpoint
+      ? buildkitdNetworkName(inp.organizationId)
+      : undefined;
+  if (
+    buildNetwork &&
+    inp.buildkitdEndpoint !== buildkitdEndpoint(inp.organizationId)
+  ) {
+    throw new Error(
+      "docker-session-args: refusing another organization's buildkitd endpoint",
+    );
+  }
+  assertSafe('egressNetwork', cfg.egressNetwork, NETWORK_RE);
+  // The private builder network is additional to the control/LLM network.
+  // The runtime blocks unsolicited forwarding between these outer interfaces
+  // after starting DinD, while preserving replies to nested containers.
+  const networkArgs = [
+    '--network',
+    cfg.egressNetwork,
+    ...(buildNetwork ? ['--network', buildNetwork] : []),
+  ];
   return [
     'run',
     '-d',
@@ -344,8 +355,7 @@ export function buildDockerSessionRunArgs(
     `tale.profile=${inp.profile}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
-    '--network',
-    cfg.egressNetwork,
+    ...networkArgs,
     '--env',
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',
@@ -374,8 +384,6 @@ export function buildDockerSessionRunArgs(
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
-    // Live browser view signal for the entrypoint (empty when off).
-    ...browserViewEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).
     ...transparentEgressEnv,
     `--cpus=${profile.cpus}`,

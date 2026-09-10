@@ -22,16 +22,16 @@ export interface SpawnerConfig {
   // runtimeClassName via runtime-tier.ts. Uniform across all tenants.
   runtimeTier: RuntimeTier;
   // Native docker/docker compose inside SESSION containers (env
-  // SANDBOX_DOCKER_IN_CONTAINER; default false). Only valid on a tier that
-  // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
-  // otherwise. The one-shot /v1/execute path never enables this.
+  // SANDBOX_DOCKER_IN_CONTAINER). Enabled by default on sysbox/kata, opt-in on
+  // other tiers; runtime-tier.ts defines their different isolation guarantees.
+  // Only agent-profile sessions receive this capability.
   dockerInContainer: boolean;
   // Shared cross-session docker build cache (env SANDBOX_DOCKER_BUILD_CACHE;
   // DEFAULT = follows dockerInContainer, i.e. on whenever DinD is on). When on,
-  // the spawner lazily launches a single persistent buildkitd + pull-through
-  // registry mirror (see buildkitd.ts) and each session's entrypoint points a
-  // remote buildx builder at it, so `docker build` / `docker compose up --build`
-  // reuse one build cache across sessions instead of each rebuilding from zero.
+  // the spawner lazily launches one persistent buildkitd and per-registry
+  // pull-through mirrors per organization (see buildkitd.ts). Sessions use a
+  // remote buildx builder on their organization's private network, so builds
+  // reuse that organization's cache across sessions.
   // Inert without DinD; set false to opt out (keeps the extra daemons off).
   dockerBuildCache: boolean;
   // The shared buildkitd image ref the spawner launches (env
@@ -43,14 +43,6 @@ export interface SpawnerConfig {
   // pulls resolve by name on the internal net (buildkit can't resolve external
   // registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
-  // Live browser view (env SANDBOX_BROWSER_VIEW; default true — opt out with
-  // SANDBOX_BROWSER_VIEW=0). When true the session container is launched with
-  // TALE_BROWSER_CDP=1, so the entrypoint brings up a headed Chromium with a
-  // loopback CDP endpoint mirrored read-only by x11vnc; the platform reads the
-  // same SANDBOX_BROWSER_VIEW so the adapter attaches Playwright MCP over CDP
-  // (the two sides MUST agree — a deployment-level operator decision, and they
-  // do agree on the shared default when it is unset). Off ⇒ headless behavior.
-  browserView: boolean;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client

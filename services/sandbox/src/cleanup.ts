@@ -19,7 +19,7 @@ import { mkdir, readdir, rm, rmdir, stat, utimes } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
-import type { ExecutionBackend } from './backend/types.ts';
+import type { HostBackend } from './backend/types.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
 import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -484,7 +484,7 @@ async function sweepOrphanDindVolumes(): Promise<number> {
  * future KubernetesBackend → a label-selector Pod delete).
  */
 export function startPeriodicSweep(
-  backend: ExecutionBackend,
+  backend: HostBackend,
   cfg: SpawnerConfig,
 ): () => void {
   const tick = makeSweepTick(backend, cfg);
@@ -503,7 +503,7 @@ export function startPeriodicSweep(
  * slow. Exported for the unit test; startPeriodicSweep is the only caller.
  */
 export function makeSweepTick(
-  backend: Pick<ExecutionBackend, 'sweepOrphans'>,
+  backend: Pick<HostBackend, 'sweepOrphans'>,
   cfg: Pick<SpawnerConfig, 'maxTimeoutMs'>,
 ): () => Promise<void> {
   let inFlight = false;
@@ -549,7 +549,7 @@ export function makeSweepTick(
  */
 export function installSignalHandlers(
   stopAccepting: () => void,
-  backend: ExecutionBackend,
+  backend: HostBackend,
 ): void {
   let shuttingDown = false;
   const onTerm = async (sig: string) => {

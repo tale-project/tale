@@ -684,7 +684,8 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,
-    // and the sandbox-quota and feature caps that protect the org.
+    // and the feature caps that protect the org. Sandbox limits have their
+    // own settings surface next to runtime capacity.
     name: 'governance-policies-limits',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/policies-limits',
@@ -692,6 +693,24 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    name: 'settings-sandboxes',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
+      await expect(page.getByRole('spinbutton').first()).toBeEnabled();
+      await expect(page.getByRole('spinbutton').first()).not.toHaveValue('');
+      await expect(
+        page.getByRole('button', {
+          name: t('sandboxes.capacity.refresh'),
+          exact: true,
+        }),
+      ).toBeEnabled();
+    },
+    readyWhen: (page) =>
+      page.getByText(t('sandboxes.capacity.title'), { exact: true }),
+    viewport: { width: 1440, height: 1040 },
   },
   {
     // Governance > Guardrails — the three filter-layer status cards, the
