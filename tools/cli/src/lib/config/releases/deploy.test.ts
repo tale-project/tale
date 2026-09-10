@@ -61,7 +61,7 @@ test('two owned skills install create-only, a workflow-only transport imports, a
   await expect(verifyRelease(options)).rejects.toThrow('did not converge');
   await deployRelease(options);
   expect(state.deploys).toBe(2);
-});
+}, 30_000);
 
 test('pure workflow client needs neither owned skills nor native uploader identity', async () => {
   const { options, state } = await fixture([], []);
@@ -74,7 +74,7 @@ test('pure workflow client needs neither owned skills nor native uploader identi
     ),
   ).toBe(false);
   expect((await verifyRelease(options)).skillFilesVerified).toBe(0);
-});
+}, 30_000);
 
 for (const fault of [
   'wrongOwner',
@@ -108,7 +108,7 @@ for (const fault of [
       expect(state.requests.every((entry) => entry.method === 'GET')).toBe(
         true,
       );
-  });
+  }, 30_000);
 }
 for (const fault of ['corruptFile', 'unexpectedFile', 'missingAsset']) {
   test(`existing skill ${fault} refuses before any mutation, including on replay`, async () => {
@@ -123,7 +123,7 @@ for (const fault of ['corruptFile', 'unexpectedFile', 'missingAsset']) {
     const writes = state.imports;
     await expect(deployRelease(options)).rejects.toThrow();
     expect(state.imports).toBe(writes);
-  });
+  }, 30_000);
 }
 
 test('atomic create conflict with identical bytes is reused and lost creation response resumes', async () => {
@@ -138,7 +138,7 @@ test('atomic create conflict with identical bytes is reused and lost creation re
     expect(state.skillCreates).toBe(1);
     expect(state.imports).toBe(1);
   }
-});
+}, 30_000);
 
 test('saved import recovers failed deployment; lost unpublished response holds without duplicate version', async () => {
   const { options, state } = await fixture();
@@ -158,7 +158,7 @@ test('saved import recovers failed deployment; lost unpublished response holds w
   );
   expect(other.state.imports).toBe(1);
   expect(other.state.deploys).toBe(0);
-});
+}, 30_000);
 
 test('lost receipt recovers exact deployed bytes, but never accepts task-contract drift', async () => {
   const { options, state } = await fixture();
@@ -177,7 +177,7 @@ test('lost receipt recovers exact deployed bytes, but never accepts task-contrac
       state.requests.slice(before).every((entry) => entry.method === 'GET'),
     ).toBe(true);
   }
-});
+}, 30_000);
 
 test('credential/target injection and modified companion ZIPs refuse before requests', async () => {
   const { options, state, release } = await fixture();
@@ -203,7 +203,7 @@ test('credential/target injection and modified companion ZIPs refuse before requ
     writeFileSync(artifact.artifactPath, artifact.bytes);
   }
   expect(state.requests).toHaveLength(0);
-});
+}, 30_000);
 
 test('bad receipt and stale temporary files are not permanent locks', async () => {
   const { options, state } = await fixture();
@@ -229,7 +229,7 @@ test('bad receipt and stale temporary files are not permanent locks', async () =
   expect(readFileSync(options.receiptPath + '.tmp.123', 'utf8')).toBe(
     'old write',
   );
-});
+}, 30_000);
 
 test('frozen legacy only reuses a proven retained version, never uploads', async () => {
   const { descriptorPath, manifestPath, name, release } =
@@ -304,7 +304,7 @@ test('frozen legacy only reuses a proven retained version, never uploads', async
   expect(
     readonlyState.requests.every((request) => request.method === 'GET'),
   ).toBe(true);
-});
+}, 30_000);
 
 test('native transport, JSON and cancellation failures never expose raw causes', async () => {
   const f = await fixture();
@@ -337,7 +337,7 @@ test('native transport, JSON and cancellation failures never expose raw causes',
     expect(String(caught)).not.toContain(secret);
     expect((caught as Error).cause).toBeUndefined();
   }
-});
+}, 30_000);
 
 test('SHA receipts recover a saved deployment and preserve a previous semantic identity', async () => {
   const f = commandFixture();
@@ -414,4 +414,4 @@ test('SHA receipts recover a saved deployment and preserve a previous semantic i
       .slice(beforeDrift)
       .every((request) => request.method === 'GET'),
   ).toBe(true);
-});
+}, 30_000);

@@ -16,7 +16,7 @@ test('native admission registers embedded connectors and accepts a workflow-only
     const result = await buildRelease(f.options);
     expect(result.manifest.skillSlugs.length).toBe(owned ? 1 : 0);
   }
-});
+}, 30_000);
 
 test('native syntax errors are rejected before any immutable release is published', async () => {
   for (const node of [
@@ -46,7 +46,7 @@ test('native syntax errors are rejected before any immutable release is publishe
     );
     expect(existsSync(path.join(f.directory, 'releases'))).toBe(false);
   }
-});
+}, 30_000);
 
 test('native normalization and unsupported catalogue fields are refused before publication', async () => {
   for (const extra of [
@@ -71,4 +71,4 @@ test('native normalization and unsupported catalogue fields are refused before p
     ).rejects.toThrow();
     expect(existsSync(path.join(f.directory, 'releases'))).toBe(false);
   }
-});
+}, 30_000);

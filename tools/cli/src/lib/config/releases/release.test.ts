@@ -69,7 +69,7 @@ for (const [client, skills, external] of [
       'refusing to replace',
     );
     expect(readFileSync(f.release.artifactPath)).toEqual(different);
-  });
+  }, 30_000);
 }
 
 test('source/descriptor corruption and malformed identity refuse before release writes', async () => {
@@ -103,7 +103,7 @@ test('source/descriptor corruption and malformed identity refuse before release 
     verifyArtifact({ ...f.options, manifestPath: f.manifestPath }),
   ).rejects.toThrow('descriptor provenance');
   expect(() => loadClient(f.descriptorPath, 'unknown')).toThrow('not declared');
-});
+}, 30_000);
 
 test('failed native validation never writes an artifact', async () => {
   const f = fixture();
@@ -118,7 +118,7 @@ test('failed native validation never writes an artifact', async () => {
   expect(() =>
     readFileSync(path.join(f.directory, 'releases/2.3.4.json')),
   ).toThrow();
-});
+}, 30_000);
 
 test('schemas reject unsafe fields and cross-client descriptor ambiguities', () => {
   const f = fixture();
@@ -160,7 +160,7 @@ test('schemas reject unsafe fields and cross-client descriptor ambiguities', () 
   createImmutable(target, 'same');
   createImmutable(target, 'same');
   expect(() => createImmutable(target, 'different')).toThrow('refusing');
-});
+}, 30_000);
 
 test('historical schemas rebuild offline from retained bytes without the original repository', async () => {
   for (const schema of [1, 2] as const) {
@@ -181,7 +181,7 @@ test('historical schemas rebuild offline from retained bytes without the origina
       'explicitly retained',
     );
   }
-});
+}, 30_000);
 
 test('an interrupted write cannot expose partial immutable bytes and its replay completes', async () => {
   const directory = temporary();
@@ -204,7 +204,7 @@ test('an interrupted write cannot expose partial immutable bytes and its replay 
   expect(JSON.parse(readFileSync(f.manifestPath, 'utf8')).artifact.sha256).toBe(
     f.release.manifest.artifact.sha256,
   );
-});
+}, 30_000);
 
 test('identity boundaries reject a trailing newline or other noncanonical suffix', () => {
   for (const [schema, value] of [

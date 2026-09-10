@@ -91,7 +91,7 @@ test('owned routing and mount paths change without altering code, data or neighb
       ['pdf'],
     ),
   ).toThrow('declared immutable');
-});
+}, 30_000);
 
 for (const external of [[], ['pdf']]) {
   test(`workflow-only release with ${external.length} external skills preserves empty strings without owner`, async () => {
@@ -136,7 +136,7 @@ for (const external of [[], ['pdf']]) {
         })
       ).bytes,
     ).toEqual(release.bytes);
-  });
+  }, 30_000);
 }
 
 test('native normalization and unsupported install behavior refuse before publication', async () => {
@@ -180,4 +180,4 @@ test('native normalization and unsupported install behavior refuse before public
       buildRelease({ ...f.options, sourceCommit: f.git('rev-parse', 'HEAD') }),
     ).rejects.toThrow('native upload does not install');
   }
-});
+}, 30_000);

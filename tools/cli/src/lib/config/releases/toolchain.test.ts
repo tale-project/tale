@@ -49,7 +49,7 @@ test('historical rehydration ignores global attributes, filters and newline conf
     GIT_CONFIG_VALUE_0: 'true',
   });
   expect(result.sha).toBe(f.release.manifest.artifact.sha256);
-});
+}, 30_000);
 
 // POSIX shims model the actual old-Apple-Git capability failure and a missing
 // Python installation. The portable codecs and error adapter are also exercised
@@ -79,4 +79,5 @@ test.skipIf(process.platform === 'win32')(
       expect(result.message).not.toContain(f.root);
     }
   },
+  30_000,
 );

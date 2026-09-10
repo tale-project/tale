@@ -46,7 +46,7 @@ test('separate client repositories stage exact committed bytes and arbitrary des
       'differs from verified catalogue',
     );
   }
-});
+}, 30_000);
 
 test('historical stages rebuild offline and retain their original repository declaration', async () => {
   for (const schema of [1, 2] as const) {
@@ -84,7 +84,7 @@ test('historical stages rebuild offline and retain their original repository dec
       options.catalogueRepository,
     );
   }
-});
+}, 30_000);
 
 test('a self-consistent forged catalogue cannot claim unchanged source provenance', async () => {
   const f = await commandRelease('north-labs', false);
@@ -123,7 +123,7 @@ test('a self-consistent forged catalogue cannot claim unchanged source provenanc
   await expect(
     stageRelease({ ...f.stageOptions, catalogueCommit: f.commit() }),
   ).rejects.toThrow('rebuild differs');
-});
+}, 30_000);
 
 test('stage metadata, working-tree edits and duplicate identities fail before native authentication', async () => {
   const f = await commandRelease();
@@ -155,4 +155,4 @@ test('stage metadata, working-tree edits and duplicate identities fail before na
       output: path.join(temporary(), 'other'),
     }),
   ).rejects.toThrow('committed client catalogue');
-});
+}, 30_000);

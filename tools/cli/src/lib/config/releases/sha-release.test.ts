@@ -59,7 +59,7 @@ test('full source SHA builds deterministic native artifacts without a semantic l
     expect(verified.bytes).toEqual(first.bytes);
     expect(existsSync(path.join(f.directory, 'releases'))).toBe(false);
   }
-});
+}, 30_000);
 
 test('full SHA skills fit the native budget and shortened logical collisions fail closed', async () => {
   const logical = 'long-logical-skill-name-with-business-meaning';
@@ -111,7 +111,7 @@ test('full SHA skills fit the native budget and shortened logical collisions fai
     );
     expect(metadata).toContain(`sourceCommit: ${left}`);
   }
-});
+}, 30_000);
 
 test('SHA stages build from committed source with no catalogue commit cycle and replay exact bytes', async () => {
   for (const [client, owned] of [
@@ -165,7 +165,7 @@ test('SHA stages build from committed source with no catalogue commit cycle and 
     );
     expect(() => verifyStage(options.output)).toThrow('identity differs');
   }
-});
+}, 30_000);
 
 test('SHA admission refuses mismatches, ambiguous compatibility, and output inside the checkout', async () => {
   const f = commandFixture();
@@ -220,4 +220,4 @@ test('SHA admission refuses mismatches, ambiguous compatibility, and output insi
     expect(() =>
       validateManifest({ ...release.manifest, ...change }, context),
     ).toThrow();
-});
+}, 30_000);

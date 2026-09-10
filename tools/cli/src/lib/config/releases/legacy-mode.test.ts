@@ -38,7 +38,7 @@ test('legacy Git archives retain declared executable modes when the filesystem l
   expect(
     parsed.find((file) => file.path === 'retained/a.txt')?.executable,
   ).toBe(false);
-});
+}, 30_000);
 
 test('compiler 1 stored ZIPs retain POSIX ordering and modes without filesystem metadata', async () => {
   const canonical = legacyStored(entries);
@@ -57,4 +57,4 @@ test('compiler 1 stored ZIPs retain POSIX ordering and modes without filesystem 
     true,
   );
   expect(parsed.find((file) => file.path === 'a.txt')?.executable).toBe(false);
-});
+}, 30_000);

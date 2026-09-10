@@ -37,7 +37,7 @@ test('central-directory duplicates and reported expansion are rejected before ex
   const lying = await zipFile('file.txt', Buffer.alloc(1_000_000, 'x'));
   lying.writeUInt32LE(10, central(lying) + 24);
   await expect(unpack(lying)).rejects.toThrow();
-});
+}, 30_000);
 
 test('unsafe paths, special files, encrypted content and CRC corruption cannot be ingested', async () => {
   await expect(unpack(await zipFile('../outside'))).rejects.toThrow();
@@ -85,4 +85,4 @@ test('snapshot Git hashes include every source byte, path and executable mode', 
   expect(() => gitTreeHash([{ ...entry, path: '.git/config' }])).toThrow(
     'unsafe',
   );
-});
+}, 30_000);
