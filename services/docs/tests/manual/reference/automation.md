@@ -58,6 +58,10 @@ reviewed bundle identity, private stdin, confirmation placement, local native
 HTTP replay and scrubbed failure cleanup. Runtime, snapshot and native adapter
 fault tests live under `tools/cli/src/lib/deployment/`. These fixtures do not
 replace a destination rollout and independent native readback.
+`tools/cli/src/lib/deployment/sources.test.ts` additionally parses synthetic
+private keys with real OpenSSH after temporary-file materialization: LF, CRLF
+and missing final newlines retain the same key identity, with private file
+permissions, cleanup and public-runtime credential isolation checked.
 
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and
