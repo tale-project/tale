@@ -284,7 +284,71 @@ async function connectorBaseUrl(
   }
 }
 
+/** Refusal codes that name the ACCOUNT rather than the request: Z.ai's
+ * 1113 (insufficient balance / no resource package) and 1311 (the
+ * subscription plan does not include the model), and OpenAI's billing and
+ * spend-limit codes. Every one arrives as HTTP 429 or 402 — which reads as
+ * "wait and retry" when no wait helps. */
+const CREDIT_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  '1113',
+  '1311',
+  'insufficient_quota',
+  'billing_hard_limit_reached',
+  'billing_not_active',
+  'credit_balance_exhausted',
+  'insufficient_credits',
+  'organization_spend_limit_exceeded',
+  'project_spend_limit_exceeded',
+  'organization_usage_limit_exceeded',
+]);
+
+/** The same refusals where a provider sends no stable code: wording that
+ * names balance, plan or billing — never a per-minute limit. */
+const CREDIT_REFUSAL_MESSAGE =
+  /insufficient balance|no resource package|please recharge|subscription plan does not|not included in your (plan|package|subscription)|insufficient[_ ]quota|exceeded your current quota|credit balance|insufficient credits|spend limit|billing|payment required|purchase (more )?credits/i;
+
+/** Whether a provider refusal is about the ACCOUNT — out of balance, over a
+ * spend limit, or a plan that excludes the model. Waiting fixes nothing and
+ * a retry re-bills the same refusal, so these are excluded from the retry
+ * loop and mapped to a stable non-retryable error at the boundaries. */
+function isCreditRefusal(err: unknown): boolean {
+  if (!(err instanceof OpenAI.APIError)) return false;
+  if (err.status === 402) return true;
+  if (typeof err.code === 'string' && CREDIT_REFUSAL_CODES.has(err.code)) {
+    return true;
+  }
+  return CREDIT_REFUSAL_MESSAGE.test(err.message);
+}
+
+/** A credential the provider rejected (401) or one that may not use the
+ * model (403): configuration an admin fixes, never weather to wait out. */
+function isCredentialRefusal(err: unknown): boolean {
+  return (
+    err instanceof OpenAI.AuthenticationError ||
+    err instanceof OpenAI.PermissionDeniedError
+  );
+}
+
+/** How an embedding call failed: `credit` — the provider refused the account
+ * (balance, plan, billing); `credential` — it rejected the key or refused
+ * it the model; `upstream` — anything else (a rate limit, a 5xx, unreachable,
+ * a timeout), worth a later retry. */
+export type EmbeddingFailure = 'credit' | 'credential' | 'upstream';
+
+/** Classify an error from the provider call for the callers that turn it
+ * into a stable platform code. Null when the error did not come from the
+ * provider call at all. */
+export function classifyEmbeddingFailure(
+  err: unknown,
+): EmbeddingFailure | null {
+  if (!(err instanceof OpenAI.APIError)) return null;
+  if (isCreditRefusal(err)) return 'credit';
+  if (isCredentialRefusal(err)) return 'credential';
+  return 'upstream';
+}
+
 function isRetryable(err: unknown): boolean {
+  if (isCreditRefusal(err) || isCredentialRefusal(err)) return false;
   return (
     err instanceof OpenAI.RateLimitError ||
     err instanceof OpenAI.APIConnectionError ||

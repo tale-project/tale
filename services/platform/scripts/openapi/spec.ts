@@ -458,7 +458,11 @@ export function buildSpec(): Json {
       summary: 'Create document',
       description:
         'Requires a documents-write role. Send inline `content` from a REST ' +
-        'client. `fileId` must be the key holder’s own unbound upload in this ' +
+        'client. Inline content is stored and readable but NOT indexed for ' +
+        'knowledge search — only a document backed by an uploaded file ' +
+        '(`fileId`) enters the search corpus, and `retry-indexing` answers ' +
+        '`skipped` (`content-only`) for the rest. `fileId` must be the key ' +
+        'holder’s own unbound upload in this ' +
         'organization. Missing uploads, another user’s uploads and files already ' +
         'bound to a document, thread or conversation answer 404 FILE_NOT_FOUND. ' +
         'REST does not mint hub uploads; use the app to upload first.',
@@ -538,9 +542,11 @@ export function buildSpec(): Json {
       summary: 'Retry RAG indexing',
       description:
         'Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a ' +
-        'documents-write role. Answers `skipped` — honestly — for a ' +
-        'content-only document, a blob the platform does not track, or a ' +
-        'file whose RAG opt-out is persisted.',
+        'documents-write role. Answers `skipped` — honestly, with the ' +
+        '`reason` — for a content-only document (`content-only`: inline ' +
+        'text never enters the search corpus, only file-backed documents ' +
+        'do), a blob the platform does not track (`untracked-blob`), or a ' +
+        'file whose RAG opt-out is persisted (`rag-opt-out`).',
       operationId: 'retryDocumentIndexing',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
@@ -550,6 +556,12 @@ export function buildSpec(): Json {
           required: ['status'],
           properties: {
             status: { type: 'string', enum: ['indexing', 'skipped'] },
+            reason: {
+              type: 'string',
+              enum: ['content-only', 'untracked-blob', 'rag-opt-out'],
+              description:
+                'Why indexing was skipped; absent when `status` is `indexing`',
+            },
           },
         }),
         '403': errorResponse('The key holder’s role cannot write documents'),
@@ -2408,8 +2420,8 @@ export function buildSpec(): Json {
           ? 'Search a project’s indexed files'
           : 'Search visible Hub knowledge and organization websites',
         description: scope.project
-          ? 'Searches only indexed files attached to the URL project. Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.'
-          : 'Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams; web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.',
+          ? 'Searches only indexed files attached to the URL project (project files index only when bound with `skipRagIndexing: false`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.'
+          : 'Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams — file-backed documents only; a document created with inline `content` and no `fileId` is never indexed and cannot match. Web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.',
         operationId: scope.project
           ? 'searchProjectKnowledge'
           : 'searchKnowledge',
@@ -2446,7 +2458,20 @@ export function buildSpec(): Json {
           ...(scope.project
             ? { '404': errorResponse('Project missing or invisible') }
             : {}),
-          '409': errorResponse('No embedding model is configured'),
+          '409': errorResponse(
+            'The organization cannot search until an admin acts: no ' +
+              'embedding model is configured (`EMBEDDING_NOT_CONFIGURED`), ' +
+              'or the embedding provider refused for account reasons — ' +
+              'balance spent or the plan excludes the model ' +
+              '(`EMBEDDING_CREDIT_EXHAUSTED`), or it rejected the ' +
+              'organization’s credential or refused it the model ' +
+              '(`EMBEDDING_CREDENTIAL_REJECTED`). Not retryable by waiting.',
+          ),
+          '503': errorResponse(
+            'The embedding provider could not serve the request ' +
+              '(`EMBEDDING_UPSTREAM_ERROR`) — a transient upstream failure; ' +
+              '`Retry-After` names the wait, retry with backoff',
+          ),
           ...standardErrors,
         },
       },

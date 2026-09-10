@@ -37,8 +37,12 @@ vi.mock('openai', async (importOriginal) => {
 });
 
 const OpenAI = (await import('openai')).default;
-const { Embedder, EMBED_REQUEST_TIMEOUT_MS, MAX_BATCH } =
-  await import('./embedding.ts');
+const {
+  classifyEmbeddingFailure,
+  Embedder,
+  EMBED_REQUEST_TIMEOUT_MS,
+  MAX_BATCH,
+} = await import('./embedding.ts');
 
 const MODEL = {
   providerSlug: 'openai',
@@ -108,6 +112,76 @@ describe('the one retry policy', () => {
   });
 });
 
+describe('account refusals from the provider', () => {
+  // Z.ai answers account problems as HTTP 429 — 1113 for a spent balance,
+  // 1311 for a model the subscription plan excludes. The SDK classes both
+  // as RateLimitError, but waiting fixes neither and every retry re-bills
+  // the same refusal.
+  const providerError = (code: string, message: string) =>
+    OpenAI.APIError.generate(
+      429,
+      { error: { code, message } },
+      undefined,
+      new Headers(),
+    );
+
+  it('does not retry a balance refusal', async () => {
+    create.mockRejectedValue(
+      providerError(
+        '1113',
+        'Insufficient balance or no resource package. Please recharge.',
+      ),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).rejects.toThrow(
+      'Insufficient balance',
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['1113', 'Insufficient balance or no resource package. Please recharge.'],
+    [
+      '1311',
+      'Your current subscription plan does not yet include access to GLM-5V-Turbo',
+    ],
+    // The message alone identifies the refusal when the code is unfamiliar.
+    ['9999', 'This model is not included in your plan.'],
+  ])('classifies the %s account refusal as credit', (code, message) => {
+    expect(classifyEmbeddingFailure(providerError(code, message))).toBe(
+      'credit',
+    );
+  });
+
+  it('classifies any other provider failure as upstream', () => {
+    expect(
+      classifyEmbeddingFailure(
+        OpenAI.APIError.generate(
+          429,
+          {
+            error: {
+              code: 'rate_limit_exceeded',
+              message: 'Too many requests',
+            },
+          },
+          undefined,
+          new Headers(),
+        ),
+      ),
+    ).toBe('upstream');
+    expect(
+      classifyEmbeddingFailure(new OpenAI.APIConnectionTimeoutError()),
+    ).toBe('upstream');
+  });
+
+  it('leaves non-provider errors unclassified', () => {
+    expect(classifyEmbeddingFailure(new Error('a programming error'))).toBe(
+      null,
+    );
+  });
+});
+
 describe('batching', () => {
   it('never sends more texts per request than the tightest shipped cap', async () => {
     // Z.ai's embedding-3 refuses more than 64 inputs (error 1214) before it
@@ -152,5 +226,123 @@ describe('the request shape', () => {
       dimensions: 3,
       encoding_format: 'float',
     });
+  });
+});
+
+/**
+ * The refusals no wait can lift, across providers: OpenAI's billing and
+ * spend codes and its 402, a rejected key, a key the model is closed to.
+ * The first review of this module found them all classified as transient
+ * — retried three times and answered as a 503 the docs told consumers to
+ * retry.
+ */
+describe('provider refusals no wait can lift', () => {
+  const apiError = (status: number, body: Record<string, unknown>) =>
+    OpenAI.APIError.generate(status, body, undefined, new Headers());
+
+  it.each([
+    [
+      '429 insufficient_quota',
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message: 'You exceeded your current quota',
+        },
+      },
+      'credit',
+    ],
+    [
+      '429 credit_balance_exhausted with neutral wording',
+      429,
+      {
+        error: { code: 'credit_balance_exhausted', message: 'Request refused' },
+      },
+      'credit',
+    ],
+    [
+      '429 organization_spend_limit_exceeded',
+      429,
+      {
+        error: {
+          code: 'organization_spend_limit_exceeded',
+          message: 'Request refused',
+        },
+      },
+      'credit',
+    ],
+    [
+      '402 payment required',
+      402,
+      { error: { message: 'Payment Required' } },
+      'credit',
+    ],
+    [
+      '401 invalid_api_key',
+      401,
+      {
+        error: {
+          code: 'invalid_api_key',
+          message: 'Incorrect API key provided',
+        },
+      },
+      'credential',
+    ],
+    [
+      '403 model access refused',
+      403,
+      {
+        error: {
+          code: 'permission_denied',
+          message: 'Project does not have access to this model',
+        },
+      },
+      'credential',
+    ],
+    [
+      '429 rate_limit_exceeded',
+      429,
+      {
+        error: {
+          code: 'rate_limit_exceeded',
+          message: 'Rate limit reached for embeddings',
+        },
+      },
+      'upstream',
+    ],
+    ['500', 500, { error: { message: 'The server had an error' } }, 'upstream'],
+  ])('classifies %s as %s', (_label, status, body, expected) => {
+    expect(classifyEmbeddingFailure(apiError(status, body))).toBe(expected);
+  });
+
+  it.each([
+    [
+      'an account refusal',
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message: 'You exceeded your current quota',
+        },
+      },
+    ],
+    [
+      'a rejected credential',
+      401,
+      {
+        error: {
+          code: 'invalid_api_key',
+          message: 'Incorrect API key provided',
+        },
+      },
+    ],
+  ])('does not retry %s', async (_label, status, body) => {
+    create.mockRejectedValue(apiError(status, body));
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).rejects.toBeInstanceOf(
+      OpenAI.APIError,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

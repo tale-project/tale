@@ -533,7 +533,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (doc instanceof Response) return doc;
       if (doc.fileRef === null) {
         // A content-only document has no blob to index through this lane.
-        return c.json({ status: 'skipped' });
+        return c.json({ status: 'skipped', reason: 'content-only' });
       }
       const files = await deps.sql<
         { id: string; skipRagIndexing: boolean | null }[]
@@ -545,11 +545,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         LIMIT 1
       `;
       const file = files[0];
-      if (file === undefined) return c.json({ status: 'skipped' });
+      if (file === undefined) {
+        return c.json({ status: 'skipped', reason: 'untracked-blob' });
+      }
       // A persisted RAG opt-out never indexes — answer honestly instead of
       // claiming 'indexing'; clearing the opt-out stays a deliberate UI act.
       if (file.skipRagIndexing === true) {
-        return c.json({ status: 'skipped' });
+        return c.json({ status: 'skipped', reason: 'rag-opt-out' });
       }
       await deps.sql.begin(async (tx) => {
         await markRagQueued(tx, file.id);
@@ -583,6 +585,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const projectKnowledgeSearchBody = knowledgeSearchBody.extend({
     corpus: z.literal('documents').optional(),
   });
+  /** What a 503 from the embedding provider asks a consumer to wait —
+   * advisory, in whole seconds, the way the rate-limits page's own 429
+   * speaks. */
+  const EMBEDDING_RETRY_AFTER_SECONDS = '5';
   const search = async (c: Context<RestEnv>, projectId: string | null) => {
     const body = (
       projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
@@ -631,12 +637,29 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // The domain reports a missing embedding model as its 503; on this
       // door that is the documented 409 — the organization's state refuses
       // the search until an admin configures a model — never the 500 an
-      // unmapped 5xx domain error used to become.
+      // unmapped 5xx domain error used to become. A provider account
+      // refusal (balance spent, plan excludes the model) is the same kind
+      // of fact — an admin must act, waiting fixes nothing — so it answers
+      // the same 409, NEVER a 429 the consumer would back off and retry.
       if (
         error instanceof KnowledgeError &&
-        error.code === 'EMBEDDING_NOT_CONFIGURED'
+        (error.code === 'EMBEDDING_NOT_CONFIGURED' ||
+          error.code === 'EMBEDDING_CREDIT_EXHAUSTED' ||
+          error.code === 'EMBEDDING_CREDENTIAL_REJECTED')
       ) {
         return c.json({ error: error.message, code: error.code }, 409);
+      }
+      // Any other provider-side failure is a dependency outage: the
+      // documented 503, not the bare 500 an unmapped 5xx domain error
+      // becomes and not a 4xx blaming the caller — with the wait the
+      // retry-with-backoff guidance names.
+      if (
+        error instanceof KnowledgeError &&
+        error.code === 'EMBEDDING_UPSTREAM_ERROR'
+      ) {
+        return c.json({ error: error.message, code: error.code }, 503, {
+          'retry-after': EMBEDDING_RETRY_AFTER_SECONDS,
+        });
       }
       return domainErrorResponse(c, error);
     }

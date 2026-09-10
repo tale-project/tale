@@ -21,3 +21,10 @@ export const RAG_ERROR_INDEX_REBUILDING = 'index_rebuilding';
  * not restore it (`KnowledgeIndexUnavailable`); an operator has to repair the
  * index or restore the knowledge database, then indexing can be retried. */
 export const RAG_ERROR_INDEX_REPAIR_FAILED = 'index_repair_failed';
+
+/** The embedding provider refused the ACCOUNT or the credential — balance
+ * spent, a plan that excludes the model, a rejected key, no access to the
+ * model. Nothing here heals by waiting, so the indexing job does not retry:
+ * an admin fixes the provider account or settings, then retries indexing. */
+export const RAG_ERROR_EMBEDDING_PROVIDER_REFUSED =
+  'embedding_provider_refused';
