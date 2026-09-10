@@ -96,8 +96,8 @@ function fakeSql(log: Query[]): Sql {
 
 /** The last `rag_status` write's bound values. */
 const lastStatusWrite = (log: Query[]): unknown[] =>
-  log.filter((q) => q.text.includes('UPDATE app.file_metadata')).at(-1)
-    ?.values ?? [];
+  log.findLast((q) => q.text.includes('UPDATE app.file_metadata'))?.values ??
+  [];
 
 const providerError = (status: number, body: Record<string, unknown>) =>
   OpenAI.APIError.generate(status, body, undefined, new Headers());
