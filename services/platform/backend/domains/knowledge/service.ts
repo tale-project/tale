@@ -8,6 +8,7 @@ import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import { pinDimensions } from '../../core/knowledge/dimensions.ts';
 import {
+  classifyEmbeddingFailure,
   EmbeddingNotConfigured,
   embedderForOrg,
 } from '../../core/knowledge/embedding.ts';
@@ -410,6 +411,25 @@ export async function searchKnowledgeForOrg(
       throw new KnowledgeError(
         'EMBEDDING_NOT_CONFIGURED',
         'No embedding model is configured for this organization',
+        503,
+      );
+    }
+    // A provider failure while embedding the QUERY must never reach a caller
+    // raw: the provider's own 429 reads as a platform rate limit (the
+    // documented 429 carries Retry-After; the provider's does not), and an
+    // account refusal (balance, plan) invites retries that re-bill the same
+    // refusal. Both become stable platform codes here, on the one entry
+    // point every retrieval surface calls.
+    const failure = classifyEmbeddingFailure(error);
+    if (failure !== null) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new KnowledgeError(
+        failure === 'credit'
+          ? 'EMBEDDING_CREDIT_EXHAUSTED'
+          : 'EMBEDDING_UPSTREAM_ERROR',
+        failure === 'credit'
+          ? `The organization's embedding provider refused the request for account reasons (balance or plan): ${detail}`
+          : `The organization's embedding provider could not serve the request: ${detail}`,
         503,
       );
     }

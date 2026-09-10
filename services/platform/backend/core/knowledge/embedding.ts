@@ -284,7 +284,40 @@ async function connectorBaseUrl(
   }
 }
 
+/** Z.ai's account-level refusal codes: 1113 — insufficient balance / no
+ * resource package; 1311 — the subscription plan does not include the model.
+ * Both arrive as HTTP 429, which reads as "wait and retry" when it is not. */
+const CREDIT_REFUSAL_CODES: ReadonlySet<string> = new Set(['1113', '1311']);
+
+const CREDIT_REFUSAL_MESSAGE =
+  /insufficient balance|no resource package|please recharge|subscription plan does not|not included in your (plan|package|subscription)/i;
+
+/** Whether a provider refusal is about the ACCOUNT — out of balance, or a
+ * plan that excludes the model. Waiting fixes nothing and a retry re-bills
+ * the same refusal, so these are excluded from the retry loop and mapped to
+ * a stable non-retryable error at the search boundary. */
+function isCreditRefusal(err: unknown): boolean {
+  if (!(err instanceof OpenAI.APIError)) return false;
+  if (typeof err.code === 'string' && CREDIT_REFUSAL_CODES.has(err.code)) {
+    return true;
+  }
+  return CREDIT_REFUSAL_MESSAGE.test(err.message);
+}
+
+/** How an embedding call failed, for callers that turn provider errors into
+ * stable platform codes: `credit` — the provider refused for account
+ * reasons (balance, plan) and retrying cannot help; `upstream` — any other
+ * provider-side failure (rate limit, 5xx, unreachable, timeout). Null when
+ * the error did not come from the provider call at all. */
+export function classifyEmbeddingFailure(
+  err: unknown,
+): 'credit' | 'upstream' | null {
+  if (!(err instanceof OpenAI.APIError)) return null;
+  return isCreditRefusal(err) ? 'credit' : 'upstream';
+}
+
 function isRetryable(err: unknown): boolean {
+  if (isCreditRefusal(err)) return false;
   return (
     err instanceof OpenAI.RateLimitError ||
     err instanceof OpenAI.APIConnectionError ||

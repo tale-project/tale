@@ -1354,7 +1354,7 @@
       "post": {
         "tags": ["Documents"],
         "summary": "Create document",
-        "description": "Requires a documents-write role. Send inline `content` from a REST client. `fileId` must be the key holder’s own unbound upload in this organization. Missing uploads, another user’s uploads and files already bound to a document, thread or conversation answer 404 FILE_NOT_FOUND. REST does not mint hub uploads; use the app to upload first.",
+        "description": "Requires a documents-write role. Send inline `content` from a REST client. Inline content is stored and readable but NOT indexed for knowledge search — only a document backed by an uploaded file (`fileId`) enters the search corpus, and `retry-indexing` answers `skipped` (`content-only`) for the rest. `fileId` must be the key holder’s own unbound upload in this organization. Missing uploads, another user’s uploads and files already bound to a document, thread or conversation answer 404 FILE_NOT_FOUND. REST does not mint hub uploads; use the app to upload first.",
         "operationId": "createDocument",
         "security": [
           {
@@ -1705,7 +1705,7 @@
       "post": {
         "tags": ["Documents"],
         "summary": "Retry RAG indexing",
-        "description": "Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a documents-write role. Answers `skipped` — honestly — for a content-only document, a blob the platform does not track, or a file whose RAG opt-out is persisted.",
+        "description": "Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a documents-write role. Answers `skipped` — honestly, with the `reason` — for a content-only document (`content-only`: inline text never enters the search corpus, only file-backed documents do), a blob the platform does not track (`untracked-blob`), or a file whose RAG opt-out is persisted (`rag-opt-out`).",
         "operationId": "retryDocumentIndexing",
         "security": [
           {
@@ -1735,6 +1735,11 @@
                     "status": {
                       "type": "string",
                       "enum": ["indexing", "skipped"]
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": ["content-only", "untracked-blob", "rag-opt-out"],
+                      "description": "Why indexing was skipped; absent when `status` is `indexing`"
                     }
                   }
                 }
@@ -9680,7 +9685,7 @@
       "post": {
         "tags": ["Knowledge"],
         "summary": "Search visible Hub knowledge and organization websites",
-        "description": "Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams; web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.",
+        "description": "Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams — file-backed documents only; a document created with inline `content` and no `fileId` is never indexed and cannot match. Web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.",
         "operationId": "searchKnowledge",
         "security": [
           {
@@ -9779,7 +9784,7 @@
             }
           },
           "409": {
-            "description": "No embedding model is configured",
+            "description": "The organization cannot search until an admin acts: no embedding model is configured (`EMBEDDING_NOT_CONFIGURED`), or the embedding provider refused for account reasons — balance spent or the plan excludes the model (`EMBEDDING_CREDIT_EXHAUSTED`). Not retryable by waiting.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9797,6 +9802,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The embedding provider could not serve the request (`EMBEDDING_UPSTREAM_ERROR`) — a transient upstream failure; retry with backoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -9805,7 +9820,7 @@
       "post": {
         "tags": ["Knowledge"],
         "summary": "Search a project’s indexed files",
-        "description": "Searches only indexed files attached to the URL project. Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.",
+        "description": "Searches only indexed files attached to the URL project (project files index only when bound with `skipRagIndexing: false`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.",
         "operationId": "searchProjectKnowledge",
         "security": [
           {
@@ -9923,7 +9938,7 @@
             }
           },
           "409": {
-            "description": "No embedding model is configured",
+            "description": "The organization cannot search until an admin acts: no embedding model is configured (`EMBEDDING_NOT_CONFIGURED`), or the embedding provider refused for account reasons — balance spent or the plan excludes the model (`EMBEDDING_CREDIT_EXHAUSTED`). Not retryable by waiting.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9934,6 +9949,16 @@
           },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The embedding provider could not serve the request (`EMBEDDING_UPSTREAM_ERROR`) — a transient upstream failure; retry with backoff",
             "content": {
               "application/json": {
                 "schema": {

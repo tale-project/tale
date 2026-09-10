@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { getDocumentById } from '../domains/documents/service.ts';
 import {
   KnowledgeError,
   searchKnowledgeForOrg,
@@ -21,6 +22,13 @@ import { createCoreRoutes } from './v1-core.ts';
  * - `POST /knowledge/search` on an organization without an embedding model
  *   surfaced the domain's 503 as a bare 500 (the door maps 4xx only); the
  *   spec promises 409.
+ * - `POST /knowledge/search` passed the embedding provider's own 429 (a
+ *   spent balance, code 1113) through as the door's 429 — without the
+ *   `Retry-After` every documented 429 carries, inviting endless retries of
+ *   a refusal no wait can lift; the spec now promises 409 for account
+ *   refusals and 503 for other provider failures.
+ * - `POST /documents/{id}/retry-indexing` answered `skipped` for three
+ *   different reasons without saying which.
  * - A hub document that left the active lifecycle (expired by a project
  *   cascade, waiting for the retention sweep) still read as a live document.
  * - `PUT /skills/{slug}` shared a skill with team ids nobody could check.
@@ -226,6 +234,114 @@ describe('POST /knowledge/search without an embedding model', () => {
       error: 'No embedding model is configured for this organization',
       code: 'EMBEDDING_NOT_CONFIGURED',
     });
+  });
+});
+
+describe('POST /knowledge/search when the embedding provider fails', () => {
+  it('answers 409 for an account refusal (balance or plan), never a 429', async () => {
+    vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
+      new KnowledgeError(
+        'EMBEDDING_CREDIT_EXHAUSTED',
+        "The organization's embedding provider refused the request for account reasons (balance or plan): 429 Insufficient balance or no resource package. Please recharge.",
+        503,
+      ),
+    );
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/knowledge/search',
+      json('POST', { query: 'refunds' }),
+    );
+    expect(res.status).toBe(409);
+    expect(res.headers.get('retry-after')).toBeNull();
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('Insufficient balance'),
+      code: 'EMBEDDING_CREDIT_EXHAUSTED',
+    });
+  });
+
+  it('answers 503 for any other provider-side failure', async () => {
+    vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
+      new KnowledgeError(
+        'EMBEDDING_UPSTREAM_ERROR',
+        "The organization's embedding provider could not serve the request: 502 Bad Gateway",
+        503,
+      ),
+    );
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/knowledge/search',
+      json('POST', { query: 'refunds' }),
+    );
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('502 Bad Gateway'),
+      code: 'EMBEDDING_UPSTREAM_ERROR',
+    });
+  });
+});
+
+describe('POST /documents/{id}/retry-indexing', () => {
+  const hubDocument = (fileRef: string | null) =>
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the projection the route reads
+    ({
+      id: 'doc-1',
+      organizationId: 'org-1',
+      projectId: null,
+      lifecycleStatus: 'active',
+      fileRef,
+      title: 'Ledger',
+    }) as never;
+
+  const retry = (app: Hono<RestEnv>) =>
+    app.request('http://localhost/documents/doc-1/retry-indexing', {
+      method: 'POST',
+    });
+
+  it('names the content-only skip', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(hubDocument(null));
+    const { app } = mount();
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'skipped',
+      reason: 'content-only',
+    });
+  });
+
+  it('names the untracked-blob skip', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app } = mount({ file: null });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'skipped',
+      reason: 'untracked-blob',
+    });
+  });
+
+  it('names the persisted opt-out skip', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app } = mount({ file: { skipRagIndexing: true } });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'skipped',
+      reason: 'rag-opt-out',
+    });
+  });
+
+  it('queues indexing for a tracked blob without an opt-out', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app } = mount({ file: { skipRagIndexing: false } });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'indexing' });
   });
 });
 

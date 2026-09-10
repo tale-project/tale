@@ -37,8 +37,12 @@ vi.mock('openai', async (importOriginal) => {
 });
 
 const OpenAI = (await import('openai')).default;
-const { Embedder, EMBED_REQUEST_TIMEOUT_MS, MAX_BATCH } =
-  await import('./embedding.ts');
+const {
+  classifyEmbeddingFailure,
+  Embedder,
+  EMBED_REQUEST_TIMEOUT_MS,
+  MAX_BATCH,
+} = await import('./embedding.ts');
 
 const MODEL = {
   providerSlug: 'openai',
@@ -105,6 +109,76 @@ describe('the one retry policy', () => {
 
     await expect(embedder.embed('hello')).rejects.toThrow('bad request');
     expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('account refusals from the provider', () => {
+  // Z.ai answers account problems as HTTP 429 — 1113 for a spent balance,
+  // 1311 for a model the subscription plan excludes. The SDK classes both
+  // as RateLimitError, but waiting fixes neither and every retry re-bills
+  // the same refusal.
+  const providerError = (code: string, message: string) =>
+    OpenAI.APIError.generate(
+      429,
+      { error: { code, message } },
+      undefined,
+      new Headers(),
+    );
+
+  it('does not retry a balance refusal', async () => {
+    create.mockRejectedValue(
+      providerError(
+        '1113',
+        'Insufficient balance or no resource package. Please recharge.',
+      ),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).rejects.toThrow(
+      'Insufficient balance',
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['1113', 'Insufficient balance or no resource package. Please recharge.'],
+    [
+      '1311',
+      'Your current subscription plan does not yet include access to GLM-5V-Turbo',
+    ],
+    // The message alone identifies the refusal when the code is unfamiliar.
+    ['9999', 'This model is not included in your plan.'],
+  ])('classifies the %s account refusal as credit', (code, message) => {
+    expect(classifyEmbeddingFailure(providerError(code, message))).toBe(
+      'credit',
+    );
+  });
+
+  it('classifies any other provider failure as upstream', () => {
+    expect(
+      classifyEmbeddingFailure(
+        OpenAI.APIError.generate(
+          429,
+          {
+            error: {
+              code: 'rate_limit_exceeded',
+              message: 'Too many requests',
+            },
+          },
+          undefined,
+          new Headers(),
+        ),
+      ),
+    ).toBe('upstream');
+    expect(
+      classifyEmbeddingFailure(new OpenAI.APIConnectionTimeoutError()),
+    ).toBe('upstream');
+  });
+
+  it('leaves non-provider errors unclassified', () => {
+    expect(classifyEmbeddingFailure(new Error('a programming error'))).toBe(
+      null,
+    );
   });
 });
 
