@@ -1,0 +1,457 @@
+import { afterEach, describe, expect, test } from 'bun:test';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { applyDeployment } from './apply';
+import { verifyDeploymentBundle, writeDeploymentBundle } from './bundle';
+import { deploymentSpecSchema } from './model';
+import { prepareDeployment } from './prepare';
+import { applyRuntime, prepareRuntime } from './runtime';
+import {
+  installLegacy,
+  RuntimeDockerFixture,
+  runtimeFixture,
+  type RuntimeFixture,
+} from './runtime-test-helper';
+import { TALE_REPOSITORY, withDeploymentSources } from './sources';
+
+const fixtures: RuntimeFixture[] = [];
+afterEach(() => {
+  for (const fixture of fixtures.splice(0))
+    rmSync(fixture.directory, { recursive: true, force: true });
+  delete process.env.TALE_TEST_NATIVE_PASSWORD;
+  delete process.env.TALE_TEST_UNUSED_SECRET;
+});
+
+/** Real Git, staging, manifests, state files and lock; only the Docker boundary
+ * and backup I/O are simulated. Native HTTP has its own subprocess suite. */
+async function create(legacy = false, identity = true) {
+  const fixture = runtimeFixture();
+  fixtures.push(fixture);
+  const docker = new RuntimeDockerFixture(fixture);
+  const bundle = join(fixture.directory, 'deployment');
+  fixture.options.bundleDirectory = join(bundle, 'runtime');
+  const binary = join(fixture.directory, 'tale');
+  const executable = Buffer.alloc(128);
+  executable.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]);
+  executable.writeUInt16LE(62, 18);
+  writeFileSync(binary, executable);
+  const spec = deploymentSpecSchema.parse({
+    schemaVersion: 1,
+    name: fixture.options.name,
+    stateDirectory: fixture.options.stateDirectory,
+    composeProject: fixture.options.composeProject,
+    origin: fixture.options.origin,
+    tlsMode: 'external',
+    runtime: { revision: fixture.revision },
+    ...(identity
+      ? {
+          identity: {
+            email: 'operator@example.invalid',
+            password: { env: 'TALE_TEST_NATIVE_PASSWORD' },
+            slug: 'example-team',
+            name: 'Example team',
+            ssoEnabled: false,
+            nativeClients: [
+              {
+                key: 'portal',
+                name: 'Example portal',
+                clientId: 'native-client',
+                redirectUris: ['https://portal.example.invalid/callback'],
+              },
+            ],
+          },
+        }
+      : {}),
+  });
+  const specPath = join(fixture.directory, 'spec.json');
+  writeFileSync(specPath, JSON.stringify(spec));
+  const sourcesFile = join(fixture.directory, 'sources.json');
+  writeFileSync(
+    sourcesFile,
+    JSON.stringify({
+      [`${TALE_REPOSITORY}@${fixture.revision}`]: fixture.repoRoot,
+    }),
+  );
+  const preparation = {
+    spec: specPath,
+    output: bundle,
+    sourcesFile,
+    deploymentRef: 'c'.repeat(40),
+  };
+  const prepareDependencies: NonNullable<
+    Parameters<typeof prepareDeployment>[1]
+  > = {
+    build: () => ({ revision: 'a'.repeat(40), binary }),
+    // Other Docker unit suites mock the shared exec module. Keep this
+    // integration proof on real Git regardless of their module load order.
+    sources: (requests, options, work) =>
+      withDeploymentSources(
+        requests,
+        {
+          ...options,
+          run: async (command, args, execution) => {
+            expect(command).toBe('git');
+            const child = Bun.spawn([command, ...args], {
+              cwd: execution?.cwd,
+              env: execution?.env,
+              stdout: 'pipe',
+              stderr: 'pipe',
+            });
+            const [stdout, stderr, exitCode] = await Promise.all([
+              new Response(child.stdout).text(),
+              new Response(child.stderr).text(),
+              child.exited,
+            ]);
+            return { stdout, stderr, exitCode, success: exitCode === 0 };
+          },
+        },
+        work,
+      ),
+    runtime: (options: Parameters<typeof prepareRuntime>[0]) =>
+      prepareRuntime(options, docker.dependencies()),
+  };
+  await prepareDeployment(preparation, prepareDependencies);
+  const prior = legacy ? installLegacy(fixture, docker) : undefined;
+  docker.calls = [];
+  const events: string[] = [];
+  const nativeCopies: { source: string; binary: Buffer }[] = [];
+  docker.onUp = () => {
+    events.push('up');
+  };
+  const native = {
+    organizationId: 'native-organization',
+    organizationSlug: 'example-team',
+    userId: 'native-user',
+    ssoEnabled: false,
+    nativeClients: [
+      { key: 'portal', clientId: 'native-client', changed: false },
+    ],
+    configs: [],
+    ignoredSecret: 'synthetic-response-secret',
+  };
+  let nativeOutput = () =>
+    JSON.stringify({ ok: true, command: 'deploy provision', data: native });
+  let nativeFailure = false;
+  let cleanupFailure = false;
+  let snapshotFailure = false;
+  process.env.TALE_TEST_NATIVE_PASSWORD = 'synthetic-operator-password';
+  process.env.TALE_TEST_UNUSED_SECRET = 'synthetic-unrelated-secret';
+  const dependencies: NonNullable<Parameters<typeof applyDeployment>[1]> = {
+    runtime: (options) => applyRuntime(options, docker.dependencies()),
+    snapshot: async (options) => {
+      events.push('snapshot');
+      expect(options.prefix).toBe('tale_');
+      // The real snapshot helper creates this separate project-owned volume.
+      // Subsequent runtime admission must preserve and recognize it.
+      if (!docker.volumes.includes('tale_backups'))
+        docker.volumes.push('tale_backups');
+      return {
+        id: '20260910-000000-deploy',
+        createdAt: '2026-09-10T00:00:00Z',
+        cliVersion: 'dev',
+        platformVersion: null,
+        trigger: 'deploy',
+        volumes: { 'db-data': { sha256: '0'.repeat(64), sizeBytes: 1 } },
+      };
+    },
+    verifySnapshot: async () => {
+      events.push('verify-snapshot');
+      if (snapshotFailure) throw new Error('Snapshot verification failed');
+    },
+    exec: async (command, args, options) => {
+      expect(command).toBe('docker');
+      expect(options?.env).not.toHaveProperty('TALE_TEST_NATIVE_PASSWORD');
+      expect(options?.env).not.toHaveProperty('TALE_TEST_UNUSED_SECRET');
+      expect(args.join(' ')).not.toContain('synthetic-operator-password');
+      const ok = { success: true, exitCode: 0, stdout: '', stderr: '' };
+      if (args.includes('provision')) {
+        events.push('provision');
+        expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
+          password: 'synthetic-operator-password',
+          slug: 'example-team',
+        });
+        if (nativeFailure)
+          return {
+            ...ok,
+            success: false,
+            exitCode: 5,
+            stderr: 'synthetic-operator-password',
+          };
+        return { ...ok, stdout: nativeOutput() };
+      }
+      if (args.includes('rm')) {
+        events.push('cleanup');
+        if (cleanupFailure) throw new Error('synthetic-cleanup-secret');
+      } else if (args[0] === 'cp') {
+        nativeCopies.push({
+          source: args[1],
+          binary: readFileSync(join(args[1], 'cli/tale')),
+        });
+      } else expect(args.includes('mkdir')).toBe(true);
+      return ok;
+    },
+  };
+  const receiptPath = join(
+    fixture.options.stateDirectory,
+    '.tale/deployment-ready.json',
+  );
+  return {
+    fixture,
+    docker,
+    bundle,
+    preparation,
+    prepareDependencies,
+    spec,
+    prior,
+    native,
+    events,
+    nativeCopies,
+    dependencies,
+    receiptPath,
+    apply: (dryRun = false) =>
+      applyDeployment({ bundle, dryRun }, dependencies),
+    nativeOutput: (value: typeof nativeOutput) => {
+      nativeOutput = value;
+    },
+    nativeFailure: (value: boolean) => {
+      nativeFailure = value;
+    },
+    cleanupFailure: (value: boolean) => {
+      cleanupFailure = value;
+    },
+    snapshotFailure: (value: boolean) => {
+      snapshotFailure = value;
+    },
+  };
+}
+
+describe('complete managed deployment lifecycle', () => {
+  test('a bundle modified during rollout cannot replace the executable receiving private credentials', async () => {
+    const run = await create();
+    const original = readFileSync(join(run.bundle, 'cli/tale'));
+    const runtime = run.dependencies.runtime!;
+    run.dependencies.runtime = async (options) => {
+      const result = await runtime(options);
+      if (!options.dryRun)
+        writeFileSync(
+          join(run.bundle, 'cli/tale'),
+          'changed executable after initial verification',
+        );
+      return result;
+    };
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+    expect(run.nativeCopies).toHaveLength(1);
+    expect(run.nativeCopies[0]?.binary).toEqual(original);
+    expect(run.nativeCopies[0]?.source).not.toBe(`${run.bundle}/.`);
+    expect(existsSync(run.nativeCopies[0]!.source)).toBe(false);
+    await expect(run.apply()).rejects.toThrow('bytes');
+  });
+
+  test('recovery retains and re-verifies the original pre-deployment snapshot through a native failure', async () => {
+    const run = await create(true);
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    const intentPath = join(
+      run.fixture.options.stateDirectory,
+      '.tale/deployment-pending.json',
+    );
+    const intent = JSON.parse(readFileSync(intentPath, 'utf8'));
+    expect(intent.snapshot.id).toBe('20260910-000000-deploy');
+    expect(existsSync(run.receiptPath)).toBe(false);
+    run.events.length = 0;
+    run.nativeFailure(false);
+    const result = await run.apply();
+    expect(result).toMatchObject({
+      snapshotId: intent.snapshot.id,
+      runtimeChanged: false,
+    });
+    expect(run.events).toEqual(['verify-snapshot', 'provision', 'cleanup']);
+    expect(existsSync(intentPath)).toBe(false);
+    expect(await run.apply()).toMatchObject({
+      snapshotId: intent.snapshot.id,
+      runtimeChanged: false,
+    });
+  });
+
+  test('a failed native deployment must recover the same bundle before applying a different one', async () => {
+    const run = await create(true);
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    const original = await verifyDeploymentBundle(run.bundle);
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      schemaVersion: 1,
+      kind: 'tale-deployment',
+      cli: original.cli,
+      spec: original.spec,
+      deploymentRef: 'd'.repeat(40),
+    });
+    run.events.length = 0;
+    await expect(run.apply()).rejects.toThrow(
+      'different deployment bundle is pending',
+    );
+    expect(run.events).toEqual([]);
+  });
+
+  test('preparation binds real source commits, retains only secret references and refuses output reuse', async () => {
+    const run = await create();
+    const bundle = await verifyDeploymentBundle(run.bundle, {
+      cliRef: 'a'.repeat(40),
+      deploymentRef: 'c'.repeat(40),
+    });
+    expect(bundle.spec.runtime.revision).toBe(run.fixture.revision);
+    expect(JSON.stringify(bundle)).not.toContain('synthetic-operator-password');
+    expect(bundle.spec.identity?.password).toEqual({
+      env: 'TALE_TEST_NATIVE_PASSWORD',
+    });
+    expect(bundle.files.some((file) => file.path.includes('.git'))).toBe(false);
+    await expect(
+      prepareDeployment(run.preparation, run.prepareDependencies),
+    ).rejects.toThrow('already exists');
+    expect(run.events).toEqual([]);
+  });
+
+  test('preview reads fresh and adopted state without a lock, backup, native call or mutation', async () => {
+    for (const legacy of [false, true]) {
+      const run = await create(legacy);
+      expect(await run.apply(true)).toMatchObject({
+        dryRun: true,
+        runtime: { existing: legacy },
+      });
+      expect(run.events).toEqual([]);
+      expect(
+        existsSync(join(run.fixture.options.stateDirectory, '.tale')),
+      ).toBe(false);
+      expect(
+        run.docker.calls.some(
+          ({ args }) =>
+            args[0] === 'pull' || args[0] === 'tag' || args.includes('up'),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test('adoption verifies a recovery snapshot before rollout and records only verified public native proof', async () => {
+    const run = await create(true);
+    const result = await run.apply();
+    expect(run.events).toEqual([
+      'snapshot',
+      'verify-snapshot',
+      'up',
+      'provision',
+      'cleanup',
+    ]);
+    expect(result).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+      snapshotId: '20260910-000000-deploy',
+    });
+    const receipt = readFileSync(run.receiptPath, 'utf8');
+    expect(receipt).not.toContain('synthetic-response-secret');
+    expect(receipt).not.toContain('synthetic-operator-password');
+    expect(
+      readFileSync(
+        join(run.fixture.options.stateDirectory, 'secrets.env'),
+        'utf8',
+      ),
+    ).toBe(run.prior!.secrets);
+    run.events.length = 0;
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: false,
+    });
+    expect(run.events).toEqual(['provision', 'cleanup']);
+  });
+
+  test('a runtime-only instance uses the same lifecycle without a native identity', async () => {
+    const run = await create(false, false);
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+    });
+    expect(run.events).toEqual(['up']);
+    expect(
+      JSON.parse(readFileSync(run.receiptPath, 'utf8')).native,
+    ).toBeUndefined();
+  });
+
+  test('missing environment and a corrupt bundle are refused before Docker or state creation', async () => {
+    const run = await create();
+    delete process.env.TALE_TEST_NATIVE_PASSWORD;
+    await expect(run.apply()).rejects.toThrow('TALE_TEST_NATIVE_PASSWORD');
+    expect(run.docker.calls).toEqual([]);
+    expect(existsSync(run.fixture.options.stateDirectory)).toBe(false);
+    writeFileSync(join(run.bundle, 'runtime/compose.yml'), 'corrupted');
+    await expect(run.apply()).rejects.toThrow('bytes');
+    expect(run.docker.calls).toEqual([]);
+  });
+
+  test('a failed snapshot refuses rollout and releases the lock for a corrected retry', async () => {
+    const run = await create(true);
+    run.snapshotFailure(true);
+    await expect(run.apply()).rejects.toThrow('Snapshot verification failed');
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(existsSync(run.receiptPath)).toBe(false);
+    run.snapshotFailure(false);
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+  });
+
+  test('native failure retains the previous ready receipt, scrubs stderr, cleans its temporary and permits retry', async () => {
+    const run = await create();
+    await run.apply();
+    const previous = readFileSync(run.receiptPath);
+    run.nativeFailure(true);
+    run.cleanupFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    expect(readFileSync(run.receiptPath)).toEqual(previous);
+    expect(run.events.at(-1)).toBe('cleanup');
+    run.nativeFailure(false);
+    run.cleanupFailure(false);
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: false,
+    });
+  });
+
+  test('wrong native identity, client proof and invalid JSON never produce a ready receipt', async () => {
+    const run = await create();
+    for (const value of [
+      JSON.stringify({
+        ok: true,
+        command: 'deploy provision',
+        data: { ...run.native, organizationSlug: 'other-team' },
+      }),
+      JSON.stringify({
+        ok: true,
+        command: 'deploy provision',
+        data: { ...run.native, nativeClients: [] },
+      }),
+      JSON.stringify({
+        ok: true,
+        command: 'deploy provision',
+        data: {
+          ...run.native,
+          nativeClients: [
+            { key: 'other-client', clientId: 'native-client', changed: true },
+          ],
+        },
+      }),
+      'not json',
+      'x'.repeat(1_048_577),
+    ]) {
+      run.nativeOutput(() => value);
+      await expect(run.apply()).rejects.toThrow();
+      expect(existsSync(run.receiptPath)).toBe(false);
+      expect(run.events.at(-1)).toBe('cleanup');
+    }
+    run.nativeOutput(() =>
+      JSON.stringify({
+        ok: true,
+        command: 'deploy provision',
+        data: run.native,
+      }),
+    );
+    expect(await run.apply()).toMatchObject({ phase: 'ready' });
+  });
+});

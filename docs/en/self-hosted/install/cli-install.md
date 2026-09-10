@@ -5,7 +5,7 @@ description: Install the tale CLI on macOS, Linux, or Windows — and configure 
 
 The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale dev`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
 
-Everything the CLI does can also be done with `docker compose` and `ssh` directly, so a team already deep in its own automation can stay on compose. For everyone else the CLI is the shorter path, and the rest of the self-hosted docs assume it is installed.
+The same CLI owns workspace container operations, managed deployments from exact source commits, and client configuration releases. Your deployment automation selects destination, pins and credential references, then calls the CLI. [Release client configurations](/self-hosted/configuration/config-releases) covers content from the client's own repository.
 
 ## Before you begin
 
@@ -48,13 +48,15 @@ The CLI prints its version. If the command is not found, the installer dropped t
 
 ## Step 3 — Confirm configuration
 
-There is no `tale config set` — everything the CLI needs lives in the project that `tale init` created. Run any `tale` command from inside that directory (the CLI walks up the tree to find `tale.json`), and confirm it resolves:
+For workspace container operations, use the project created by `tale init`. The CLI walks up the directory tree to find its `tale.json`; check the resolved project with:
 
 ```bash
 tale config show
 ```
 
-The host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote host, point your shell's Docker context (or `DOCKER_HOST`) at it — the CLI talks to the same Docker endpoint every `docker` command does.
+Configuration releases and [managed deployments](#managed-deployments) select their sources and destinations explicitly and do not align to a nearby workspace. `config show` keeps its existing local-project behavior.
+
+For a workspace deployment, the host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote workspace host, point your shell's Docker context (or `DOCKER_HOST`) at it. Managed bundle deployment instead runs on its declared destination with the local Docker daemon.
 
 ## Step 4 — Run tale deploy
 
@@ -62,14 +64,14 @@ The host the proxy answers on, TLS settings, and every secret live in the projec
 tale deploy
 ```
 
-`tale deploy` always ships the CLI's own version: it pulls that version's images, restarts the affected containers in the right order, and runs schema migrations — `tale update` is how you move to a different version first. It is the supported replacement for the longer `docker compose pull && docker compose up -d` dance. If you prefer compose directly, the same effect lives in [Upgrades](/self-hosted/operate/upgrades).
+Without `--bundle`, `tale deploy` ships the CLI's own version: it pulls that version's images, restarts affected containers in order and runs schema migrations. Use `tale update` first to choose another workspace version. For independently pinned runtime and client source commits, follow [Managed deployments](#managed-deployments).
 
 ## Command reference
 
 The CLI groups its commands by what you are doing, the same way `tale --help` does. Each command and its arguments are listed below. How to read the notation:
 
 - A positional argument in `[square brackets]` is **optional**; one in `<angle brackets>` is **required**.
-- Every flag is **optional** — omit it to get the default behaviour.
+- Required options are named explicitly for configuration releases; other flags are optional unless command help marks them as required.
 - A flag written `--flag <value>` **requires a value** when you use it (e.g. `--port 8443`); a bare flag like `--detach` is a boolean switch.
 - **Defaults** are shown in parentheses after the description. No default means the flag is off, or the command resolves the value from `.env` / context.
 
@@ -81,7 +83,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-q, --quiet` — only warnings and errors.
 - `-y, --yes` — assume "yes" for all prompts (non-interactive).
 - `--no-color` — disable ANSI colour (also honours `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — machine-readable JSON on stdout, human messages on stderr; supported by `status` and `config show`.
+- `--json`—machine-readable JSON on stdout; supported by `status`, every `config` subcommand and managed deployment commands.
 - `--ci` — force non-interactive, append-only output (no cursor control).
 
 Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition (no project, Docker not running, port in use), `4` on a user abort (Ctrl-C, or a required prompt with no terminal), and `5` on an external-dependency failure — so scripts can branch on the cause.
@@ -112,6 +114,91 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
 - `--dry-run` — preview what would change without touching anything.
 
+### Managed deployments
+
+Use a reviewed deployment specification when the runtime and client configurations must follow exact source commits. Deployment automation selects the destination, credentials and pins and calls the Tale CLI. The CLI acquires source, resolves and verifies image digests, prepares the transfer, preserves supported existing state, takes recovery snapshots when required, rolls the stack, provisions the native instance and verifies configuration content. Keep those deployment internals in Tale.
+
+Run preparation with a compiled CLI built from a clean, committed Tale checkout on Linux, matching the destination's `linux/amd64` or `linux/arm64` architecture. That same executable is included for backend-local provisioning. Preparation needs Git and Docker for source/image verification; applying runs on the destination with its local Docker daemon, retained state directory and environment. The full CLI commit, runtime source commit and client configuration source commit are separate pins.
+
+This synthetic specification targets an existing organization and project. Replace its public identifiers and set the named environment values. `revision` accepts a full commit SHA directly or an environment reference; credentials remain references and are resolved privately at the destination. `tlsMode: "external"` means an existing edge handles public TLS; `letsencrypt` additionally requires `tlsEmail`.
+
+For Linux GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, returns the `executable` output and adds the binary to `PATH`.
+
+`origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "example-native",
+  "stateDirectory": "/opt/tale-example",
+  "composeProject": "tale-example",
+  "runtime": {
+    "revision": { "env": "TALE_RUNTIME_REF" },
+    "platform": "linux/amd64"
+  },
+  "origin": { "env": "TALE_PUBLIC_ORIGIN" },
+  "tlsMode": "external",
+  "identity": {
+    "email": { "env": "EXAMPLE_OPERATOR_EMAIL" },
+    "password": { "env": "EXAMPLE_OPERATOR_PASSWORD" },
+    "slug": "example-team",
+    "name": "Example team",
+    "ssoEnabled": false,
+    "nativeClients": [
+      {
+        "key": "example-portal",
+        "name": "Example portal",
+        "clientId": { "env": "EXAMPLE_NATIVE_CLIENT_ID" },
+        "redirectUris": [{ "env": "EXAMPLE_PORTAL_CALLBACK" }]
+      }
+    ]
+  },
+  "configs": [
+    {
+      "repository": "https://github.com/example-team/client-app",
+      "revision": { "env": "EXAMPLE_CONFIG_REF" },
+      "client": "example-team",
+      "descriptor": "tale/client.json",
+      "automation": "document-review",
+      "projectId": "existing-project-id",
+      "skillOwner": "native-operator-id"
+    }
+  ]
+}
+```
+
+Set `TALE_DEPLOY_SPEC` to that JSON file, `TALE_DEPLOY_BUNDLE` to a new absolute output directory, and `TALE_CLI_COMMIT` to the compiled CLI's full commit. `DEPLOYMENT_COMMIT` is optional orchestration provenance; omit its flags when unused. Prepare and verify, transfer the whole directory to the destination, then preview and apply there with the same pinned CLI.
+
+```bash
+tale --json deploy prepare \
+  --spec "$TALE_DEPLOY_SPEC" \
+  --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --output "$TALE_DEPLOY_BUNDLE"
+
+tale --json deploy verify-bundle \
+  --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+
+tale --json deploy --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT" --dry-run
+
+tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+```
+
+`deploy prepare` accepts optional `--sources-file <file>` mapping `repository@fullSHA` to an existing exact checkout. Otherwise it fetches canonical GitHub repositories. Inject the read-only private-client SSH key contents through `TALE_SOURCE_SSH_KEY` only during preparation; the CLI verifies GitHub's SSH host keys over HTTPS and keeps the key out of the bundle and runtime. Registry access must already be available to Docker.
+
+`deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
+
+`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the existing local account and selected organization, and always signs out before reporting success. Its fields are `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra `tenantId`/`clientId`/`clientSecret`, and optional `nativeClients` entries with `key`, `name`, existing `clientId` and HTTPS `redirectUris`. Local-only mode never creates replacement accounts or organizations; enabled Entra mode requires its three credential fields and retains first-boot setup. A bundle also binds the public identity and staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+
+Managed native clients are existing clients only. Their IDs, security policy and secrets are preserved; only display name and callback URLs can converge. On maintained 0.5 backends, a required change uses the server-native auth adapter from the two fixed in-container modules, with both connections closed afterward. Exact no-ops load no backend modules. This does not enable the disabled public OAuth update route or allow arbitrary module paths, remote backend imports, registration or secret rotation.
+
+Keep the state directory, snapshots and native receipts. The ready receipt is written only after healthy runtime verification, native configuration readback and session cleanup. A failed later phase may leave earlier completed changes in place; inspect retained evidence before replay. Local locks coordinate one host, without cross-host compare-and-swap or protection against native admin edits.
+
 ### Operate
 
 `tale status` — show the current deployment status. No arguments.
@@ -137,7 +224,7 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 ### Maintain
 
-`tale update` — move this Tale instance to a new version: update the CLI binary, then sync project files to that version's templates. Run `tale deploy` afterwards to roll the containers. The CLI also self-aligns to the instance version on every command, so this is only needed to deliberately change versions.
+`tale update`—move a workspace instance to a new version: update the CLI binary, then sync project files; run `tale deploy` afterward. Workspace commands align to that version. Managed bundles and configuration releases retain their separately pinned CLI revision.
 
 - `-v, --version <version>` — update to this exact version (e.g. `0.9.0`) instead of the latest; allows downgrades.
 - `-f, --force` — force re-sync and overwrite locally modified project files.
@@ -161,7 +248,32 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `--purge` — also remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources and delete its files. Irreversible.
 - `--dry-run` — show what would be removed without removing anything.
 
-`tale config` — manage CLI configuration. Use the `show` subcommand to print the resolved config.
+`tale config show`—print the resolved local project directory and CLI version. Outside a project, it reports that no project was found and exits successfully.
+
+### Configuration releases
+
+These commands use the selected CLI revision without instance alignment or Docker operations. [Release client configurations](/self-hosted/configuration/config-releases) covers descriptors, source commits, credentials and recovery. The default release identity is the full source SHA: manifest schema 4/compiler 3, with `releaseRef === sourceCommit`. Native integer automation versions remain separate.
+
+`build`, `verify` and `stage` require `--repo <directory>`, `--descriptor <path>` and `--automation <name>`. The descriptor is repository-relative. A verification manifest may be absolute or repository-relative.
+
+| Command              | Required options                             | Optional options                                                                                                          |
+| -------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `tale config build`  | `--source-commit <sha>`                      | `--skill-owner <user-id>` (required for owned skills), `--output <directory>`, compatibility `--config-version <version>` |
+| `tale config verify` | `--manifest <path>`                          | `--rebuild` for exact offline reconstruction                                                                              |
+| `tale config stage`  | `--config-ref <sha>`, `--output <directory>` | `--skill-owner <user-id>`, `--client <name>`, `--deployment-ref <sha>`                                                    |
+
+Source staging requires checkout `HEAD` at that full commit and output outside the checkout. It rebuilds committed content without a generated catalogue commit. Explicit `stage --config-version` instead selects the compatibility catalogue path and requires `--catalogue-commit`, `--catalogue-repository`, `--client` and `--ops-commit`. Do not mix `--config-ref` and `--config-version`.
+
+Native commands require `--stage <directory>`, `--url <origin>`, `--org <id>` and `--project <id>`. HTTPS is required except for loopback HTTP; use `--origin <origin>` for the canonical browser origin behind a proxy. Both read `TALE_CONFIG_COOKIE` only from the environment.
+
+| Command                     | Required options          | Optional options                                       |
+| --------------------------- | ------------------------- | ------------------------------------------------------ |
+| `tale config deploy`        | `--receipt <path>`        | Global `--yes` for an authorized unattended deployment |
+| `tale config verify-native` | No extra required options | `--native-version <number>`, `--allow-retained`        |
+
+Both native commands accept exact expectations through `--config-ref`, `--source-repository`, `--artifact-sha256`, `--deployment-ref`, `--client` and `--automation`. Historical catalogue expectation flags remain available for compatibility. `verify-native` is read-only; `--allow-retained` verifies an explicitly selected retained version without claiming it is deployed. Without `--native-version`, verification selects the latest saved version. The native API exposes the task contract only for the deployed version, so retained verification cannot attest that field.
+
+Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and `verify-native`. Success JSON is `{ok:true,command:"config <verb>",data}`. Build and verify data include `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` and `verified`; compatibility output uses `configVersion` instead of `releaseRef`. SHA stage and native receipts use schema 2. A deploy result includes `automationVersion` and `unchanged`; the explicit `verified` field belongs to verification output.
 
 ### Advanced
 

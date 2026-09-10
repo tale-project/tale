@@ -147,17 +147,21 @@ jobs:
           echo "Services to scan: ${SCANNABLE}"
 
       # CI image tag shared across build/smoke/validate/scan jobs. PR runs use
-      # `pr-{n}-sha-{shortsha}` so each push gets a unique, immutable tag that
+      # `pr-{n}-sha-{fullsha}` so every source commit has an unambiguous tag that
       # cleanup-pr-images.yml can wipe by prefix when the PR closes. Pushes to
       # main and merge-queue runs lack a PR number and fall back to `sha-…`.
       - name: Compute image tag
         id: tag
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          if [ -n "${{ github.event.pull_request.number }}" ]; then
-            echo "value=pr-${{ github.event.pull_request.number }}-sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
+          if [ -n "$PR_NUMBER" ]; then
+            [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+            echo "value=pr-${PR_NUMBER}-sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
   # ---------------------------------------------------------------------------

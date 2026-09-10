@@ -62,6 +62,25 @@ const RAW: RawNavConfig = navJson as unknown as RawNavConfig;
 
 export const DOCS_NAV: readonly DocsNavGroup[] = RAW.groups.map(resolveGroup);
 
+/** Sidebar group labels for a page, including groups without an index page. */
+export function navGroupTrail(slug: string): readonly string[] {
+  const find = (
+    entries: readonly DocsNavEntry[],
+    labels: readonly string[],
+  ): readonly string[] | null => {
+    for (const entry of entries) {
+      if (isNavGroup(entry)) {
+        const found = find(entry.pages, [...labels, entry.labelKey]);
+        if (found) return found;
+      } else if (entry.slug === slug) {
+        return labels;
+      }
+    }
+    return null;
+  };
+  return find(DOCS_NAV, []) ?? [];
+}
+
 /** Flatten every page in nav order — used for prev/next + sitemap iteration. */
 export function flattenNav(): { slug: string }[] {
   const out: { slug: string }[] = [];

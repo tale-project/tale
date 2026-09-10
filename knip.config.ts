@@ -253,6 +253,10 @@ export default {
     },
     'tools/cli': {
       project: ['**/*.ts'],
+      // The embedded native workflow validator imports Ajv from platform
+      // source. A CLI-only filtered install must provide that runtime edge,
+      // even though this workspace does not import the package directly.
+      ignoreDependencies: ['ajv'],
     },
     'tools/plop': {
       entry: ['plopfile.ts', 'generators/**/*.ts', 'helpers/**/*.ts'],

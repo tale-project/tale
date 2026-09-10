@@ -43,6 +43,7 @@
           "label": "configuration",
           "pages": [
             "self-hosted/configuration/environment-reference",
+            "self-hosted/configuration/config-releases",
             "self-hosted/configuration/video-ingestion",
             "self-hosted/configuration/authentication",
             "self-hosted/configuration/providers",

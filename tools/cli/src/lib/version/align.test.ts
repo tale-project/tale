@@ -141,3 +141,24 @@ describe('ensureAligned', () => {
     expect(deps.reExec).not.toHaveBeenCalled();
   });
 });
+
+// Artifact and explicit remote-target operations never inherit a local server
+// project's desired CLI version. Root deploy still uses the existing policy.
+test('qualified config release commands skip project version alignment', async () => {
+  const deps = makeDeps();
+  for (const command of ['build', 'verify', 'stage', 'deploy', 'verify-native'])
+    await ensureAligned(`config ${command}`, deps);
+  expect(deps.findProject).not.toHaveBeenCalled();
+  await ensureAligned('deploy', deps);
+  expect(deps.findProject).toHaveBeenCalled();
+});
+
+test('managed bundle commands keep the selected executable while workspace deploy still aligns', async () => {
+  const deps = makeDeps();
+  for (const command of ['bundle', 'prepare', 'verify-bundle', 'provision'])
+    await ensureAligned(`deploy ${command}`, deps);
+  expect(deps.findProject).not.toHaveBeenCalled();
+  await ensureAligned('deploy', deps);
+  expect(deps.resolveRelease).toHaveBeenCalledWith({ version: '0.9.0' });
+  expect(deps.reExec).toHaveBeenCalledTimes(1);
+});

@@ -38,7 +38,20 @@ export const ALIGN_GUARD_ENV = 'TALE_ALIGNED';
  * binary — aligning (download + re-exec) right before removal is wasteful and
  * would re-exec a binary we're tearing down.
  */
-const SELF_MANAGING_COMMANDS = new Set(['update', 'init', 'uninstall']);
+const SELF_MANAGING_COMMANDS = new Set([
+  'update',
+  'init',
+  'uninstall',
+  'config build',
+  'config verify',
+  'config stage',
+  'config deploy',
+  'config verify-native',
+  'deploy bundle',
+  'deploy prepare',
+  'deploy verify-bundle',
+  'deploy provision',
+]);
 
 /**
  * Injectable seams (re-exec, network, binary I/O) so the decision logic is

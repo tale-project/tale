@@ -3,7 +3,7 @@ title: Upgrades
 description: How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story.
 ---
 
-Upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern — the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
+Workspace upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern—the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
 
 **One hard exception:** there is no upgrade path onto 0.5 from an earlier line. 0.5 is a breaking cutover that requires a fresh deployment — see [0.4 → 0.5: breaking cutover](#04--05-breaking-cutover) before anything else if your instance is on 0.4.x or older (0.4 itself was the previous such cutover, severing 0.3.x).
 
@@ -13,9 +13,9 @@ The CLI install lives in [Install the tale CLI](/self-hosted/install/cli-install
 
 ## The CLI tracks the instance automatically
 
-The CLI binary is always the same version as the instance it manages. The workspace records that version in `tale.json`; on every command the CLI compares its own version against it and, if they differ, self-updates the binary to match (up or down) before running. When they already match — the overwhelmingly common case — this is a no-op with no network call, so you never notice it.
+Workspace instance commands align the CLI with the version recorded in the workspace's `tale.json`. If the versions differ, the CLI attempts to update itself to match before running. When they match, alignment is a local read with no network call. If the download fails, the CLI warns and continues with its current version; check that warning before deploying.
 
-That means you rarely run `tale update` except when you deliberately want to move to a new version. A teammate who installed a newer CLI than your instance, or restored an older snapshot, gets the right CLI version automatically on their next command. There is no flag to turn this off — keeping the tool and the instance in lockstep is what makes deploys safe.
+Use `tale update` to choose another workspace instance version. For a managed deployment, change the runtime/configuration source pins, prepare and verify a new bundle, then apply it with the pinned CLI. [Managed deployments](/self-hosted/install/cli-install#managed-deployments) owns that complete workflow and its retained-state recovery. Configuration-only commands use explicit source and native targets without rolling containers; see [Release client configurations](/self-hosted/configuration/config-releases).
 
 ## Before you upgrade
 

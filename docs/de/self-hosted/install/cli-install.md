@@ -5,7 +5,7 @@ description: Die tale-CLI auf macOS, Linux oder Windows installieren — und sie
 
 Die `tale`-CLI ist der empfohlene Weg, Tale zu betreiben und zu bedienen. Der [Quickstart](/de/self-hosted/install/quickstart) nutzt sie bereits, um eine Instanz lokal mit `tale init` und `tale dev` aufzustellen; diese Seite ist die andere Hälfte — die CLI auf einer Workstation installieren, damit sie eine _entfernte_ Instanz fahren kann: neue Versionen deployen, Migrationen ausführen und Diagnostiken einfangen, ohne dass du dir jede `docker compose`-Invokation merken musst.
 
-Alles, was die CLI macht, lässt sich auch direkt mit `docker compose` und `ssh` machen, sodass ein Team, das schon tief in der eigenen Automatisierung steckt, bei Compose bleiben kann. Für alle anderen ist die CLI der kürzere Weg, und der Rest der self-hosted Docs setzt voraus, dass sie installiert ist.
+Dieselbe CLI übernimmt Container-Operationen im Workspace, verwaltete Deployments aus exakten Quell-Commits und Client-Konfigurations-Releases. Deine Deployment-Automatisierung wählt Ziel, Referenzen und Zugangsdatenverweise und ruft die CLI auf. [Client-Konfigurationen veröffentlichen](/de/self-hosted/configuration/config-releases) behandelt die Inhalte im eigenen Repository des Clients.
 
 ## Bevor du beginnst
 
@@ -48,13 +48,15 @@ Die CLI gibt ihre Version aus. Wird der Befehl nicht gefunden, hat der Installer
 
 ## Schritt 3 — Konfiguration prüfen
 
-Es gibt kein `tale config set` — alles, was die CLI braucht, liegt im Projekt, das `tale init` angelegt hat. Führ jeden `tale`-Befehl aus diesem Verzeichnis heraus aus (die CLI läuft den Baum hoch, um `tale.json` zu finden), und prüf, dass es aufgelöst wird:
+Nutze für Container-Befehle im Workspace das Projekt aus `tale init`. Die CLI sucht im aktuellen Verzeichnis und seinen Eltern nach `tale.json`; prüfe das aufgelöste Projekt mit:
 
 ```bash
 tale config show
 ```
 
-Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale dev` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
+Konfigurations-Releases und [verwaltete Deployments](#verwaltete-deployments) wählen Quellen und Ziele explizit und gleichen sich nicht an einen benachbarten Workspace an. `config show` behält sein bisheriges Verhalten für lokale Projekte.
+
+Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Ändere `HOST` dort oder übergib `--host` an `tale dev` / `tale deploy`. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
 
 ## Schritt 4 — tale deploy ausführen
 
@@ -62,14 +64,14 @@ Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets li
 tale deploy
 ```
 
-`tale deploy` liefert immer die Version der CLI selbst aus: Es zieht die Images dieser Version, restartet die betroffenen Container in der richtigen Reihenfolge und führt Schema-Migrationen aus — auf eine andere Version wechselst du vorher mit `tale update`. Es ist der unterstützte Ersatz für das längere `docker compose pull && docker compose up -d`-Tänzchen. Bevorzugst du Compose direkt, lebt derselbe Effekt in [Upgrades](/de/self-hosted/operate/upgrades).
+Ohne `--bundle` stellt `tale deploy` die Version der CLI bereit: Es lädt deren Images, startet betroffene Container in der vorgesehenen Reihenfolge und führt Schema-Migrationen aus. Wähle eine andere Workspace-Version vorher mit `tale update`. Für getrennt festgelegte Runtime- und Client-Quell-Commits nutze [Verwaltete Deployments](#verwaltete-deployments).
 
 ## Befehlsreferenz
 
 Die CLI gruppiert ihre Befehle danach, was du gerade tust — genau wie `tale --help`. Jeder Befehl und seine Argumente sind unten aufgeführt. So liest du die Notation:
 
 - Ein positionales Argument in `[eckigen Klammern]` ist **optional**, eines in `<spitzen Klammern>` ist **erforderlich**.
-- Jedes Flag ist **optional** — weglassen ergibt das Standardverhalten.
+- Pflichtoptionen für Konfigurations-Releases sind ausdrücklich benannt; andere Flags sind optional, sofern die Befehlshilfe sie nicht als erforderlich markiert.
 - Ein Flag der Form `--flag <wert>` **erfordert einen Wert**, wenn du es nutzt (z. B. `--port 8443`); ein blosses Flag wie `--detach` ist ein boolescher Schalter.
 - **Standardwerte** stehen in Klammern hinter der Beschreibung. Kein Standard bedeutet, das Flag ist aus oder der Wert wird aus `.env` / Kontext aufgelöst.
 
@@ -81,7 +83,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 - `-q, --quiet` — nur Warnungen und Fehler.
 - `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
 - `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — maschinenlesbares JSON auf stdout, menschliche Meldungen auf stderr; unterstützt von `status` und `config show`.
+- `--json` — maschinenlesbares JSON auf stdout; unterstützt von `status`, allen `config`-Unterbefehlen und verwalteten Deployment-Befehlen.
 - `--ci` — erzwingt nicht-interaktive, rein anhängende Ausgabe (keine Cursor-Steuerung).
 
 Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer nicht erfüllten Voraussetzung (kein Projekt, Docker läuft nicht, Port belegt), `4` bei einem Abbruch durch dich (Ctrl-C oder eine erforderliche Rückfrage ohne Terminal) und `5` beim Fehler einer externen Abhängigkeit — so können Skripte anhand der Ursache verzweigen.
@@ -112,6 +114,91 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--dry-run` — Vorschau ohne Änderungen.
 
+### Verwaltete Deployments
+
+Nutze eine geprüfte Deployment-Deklaration, wenn Runtime und Client-Konfigurationen exakten Quell-Commits folgen sollen. Deine Deployment-Automatisierung wählt Ziel, Zugangsdaten und Referenzen und ruft die Tale-CLI auf. Die CLI beschafft Quellen, ermittelt und prüft Image-Digests, bereitet den Transfer vor, erhält unterstützten Bestandszustand, erstellt erforderliche Wiederherstellungssnapshots, rollt den Stack aus, provisioniert die native Instanz und prüft die Konfiguration. Diese Deployment-Logik bleibt in Tale.
+
+Führe die Vorbereitung unter Linux mit einer kompilierten CLI aus einem sauberen, committeten Tale-Checkout aus. Die Architektur muss zum Ziel passen: `linux/amd64` oder `linux/arm64`. Dasselbe Binary reist für die lokale Provisionierung im Backend mit. Die Vorbereitung braucht Git und Docker zur Quellen- und Image-Prüfung. Anwenden läuft auf dem Ziel mit dessen lokalem Docker-Daemon, erhaltenem Zustandsverzeichnis und Umgebung. Vollständiger CLI-Commit, Runtime-Quell-Commit und Quell-Commit der Client-Konfiguration sind getrennte Referenzen.
+
+Dieses synthetische Beispiel adressiert eine bestehende Organisation und ein Projekt. Ersetze die öffentlichen IDs und setze die benannten Umgebungswerte. `revision` nimmt einen vollständigen Commit-SHA oder einen Umgebungsverweis an. Zugangsdaten bleiben Verweise und werden am Ziel privat aufgelöst. `tlsMode: "external"` nutzt vorhandenes öffentliches TLS am vorgeschalteten Zugang; `letsencrypt` verlangt zusätzlich `tlsEmail`.
+
+Nutze für Linux-Jobs in GitHub Actions Tales Composite Action `.github/actions/setup-cli`. Lege sowohl die Action selbst als auch ihren Eingabewert `revision` auf denselben vollständigen Tale-Commit fest. Die Action baut mit Bun 1.4.2, liefert die Ausgabe `executable` und ergänzt das Binary im `PATH`.
+
+Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. So kann eine Deployment-Registry die öffentlichen Adressen verwalten. Die Vorbereitung löst sie zu geprüften wörtlichen HTTPS-URLs im Bundle auf.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "example-native",
+  "stateDirectory": "/opt/tale-example",
+  "composeProject": "tale-example",
+  "runtime": {
+    "revision": { "env": "TALE_RUNTIME_REF" },
+    "platform": "linux/amd64"
+  },
+  "origin": { "env": "TALE_PUBLIC_ORIGIN" },
+  "tlsMode": "external",
+  "identity": {
+    "email": { "env": "EXAMPLE_OPERATOR_EMAIL" },
+    "password": { "env": "EXAMPLE_OPERATOR_PASSWORD" },
+    "slug": "example-team",
+    "name": "Example team",
+    "ssoEnabled": false,
+    "nativeClients": [
+      {
+        "key": "example-portal",
+        "name": "Example portal",
+        "clientId": { "env": "EXAMPLE_NATIVE_CLIENT_ID" },
+        "redirectUris": [{ "env": "EXAMPLE_PORTAL_CALLBACK" }]
+      }
+    ]
+  },
+  "configs": [
+    {
+      "repository": "https://github.com/example-team/client-app",
+      "revision": { "env": "EXAMPLE_CONFIG_REF" },
+      "client": "example-team",
+      "descriptor": "tale/client.json",
+      "automation": "document-review",
+      "projectId": "existing-project-id",
+      "skillOwner": "native-operator-id"
+    }
+  ]
+}
+```
+
+Setze `TALE_DEPLOY_SPEC` auf die JSON-Datei, `TALE_DEPLOY_BUNDLE` auf ein neues absolutes Ausgabeverzeichnis und `TALE_CLI_COMMIT` auf den vollständigen Commit des Binaries. `DEPLOYMENT_COMMIT` ist ein optionaler Herkunftsvermerk für die Orchestrierung; lass die zugehörigen Flags bei Nichtgebrauch weg. Bereite vor und prüfe, übertrage das vollständige Verzeichnis und führe Vorschau und Deployment auf dem Ziel mit derselben festgelegten CLI aus.
+
+```bash
+tale --json deploy prepare \
+  --spec "$TALE_DEPLOY_SPEC" \
+  --deployment-ref "$DEPLOYMENT_COMMIT" \
+  --output "$TALE_DEPLOY_BUNDLE"
+
+tale --json deploy verify-bundle \
+  --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+
+tale --json deploy --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT" --dry-run
+
+tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
+  --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+```
+
+`deploy prepare` akzeptiert optional `--sources-file <file>` mit einer Zuordnung von `repository@fullSHA` zu vorhandenen exakten Checkouts. Sonst lädt die CLI kanonische GitHub-Repositories. Übergib den Inhalt eines nur lesenden SSH-Schlüssels für private Client-Repositories während der Vorbereitung über `TALE_SOURCE_SSH_KEY`. Die CLI prüft GitHubs SSH-Hostschlüssel über HTTPS und hält den Schlüssel aus Paket und Runtime heraus. Docker braucht bereits Zugriff auf die Registry.
+
+`deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
+
+`deploy provision [--bundle <directory>]` ist die lokale Backend-Phase, die normalerweise das Bundle-Deployment aufruft. Sie liest höchstens 64 KiB privates JSON von stdin, weist das bestehende lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor einer Erfolgsmeldung ab. Die Felder heißen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra `tenantId`/`clientId`/`clientSecret` sowie optional `nativeClients` mit `key`, `name`, bestehender `clientId` und HTTPS-`redirectUris`. Der rein lokale Modus erstellt keine Ersatzkonten oder Organisationen. Aktiviertes Entra verlangt seine drei Zugangsdatenfelder und erhält die Ersteinrichtung. Ein Bundle bindet zudem die öffentliche Identität und vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze zur Prüfung die lesenden Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und werden vor der Anmeldung geprüft.
+
+Verwaltete native Clients müssen bereits existieren. IDs, Sicherheitsrichtlinien und Secrets bleiben erhalten; nur Anzeigename und Callback-URLs lassen sich angleichen. Auf unterstützten 0.5-Backends verwendet eine nötige Änderung den servernativen Auth-Adapter aus zwei festgelegten Modulen im Container und schließt danach beide Verbindungen. Exakte Übereinstimmungen laden keine Backend-Module. Dieser Weg aktiviert weder die gesperrte öffentliche OAuth-Update-Route noch beliebige Modulpfade, entfernte Backend-Imports, Registrierung oder Secret-Rotation.
+
+Bewahre Zustandsverzeichnis, Snapshots und native Belege auf. Der Bereitschaftsbeleg entsteht erst nach Runtime-Zustandsprüfung, nativem Konfigurationsvergleich und Sitzungsbereinigung. Scheitert eine spätere Phase, können frühere Änderungen bestehen bleiben. Prüfe die erhaltenen Belege vor einem erneuten Aufruf. Lokale Sperren koordinieren einen Host, ohne hostübergreifendes Compare-and-swap oder Schutz vor nativen Admin-Änderungen.
+
 ### Betrieb
 
 `tale status` — den aktuellen Deployment-Status anzeigen. Keine Argumente.
@@ -137,7 +224,7 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 ### Wartung
 
-`tale update` — diese Tale-Instanz auf eine neue Version bewegen: zuerst das CLI-Binary aktualisieren, dann die Projektdateien synchronisieren; danach `tale deploy` ausführen, um die Container zu rollen. Die CLI gleicht sich bei jedem Befehl ohnehin an die Instanz-Version an, also brauchst du das nur, um die Version bewusst zu wechseln.
+`tale update` — eine Workspace-Instanz auf eine neue Version bringen: CLI-Binary aktualisieren und Projektdateien synchronisieren, danach `tale deploy` ausführen. Workspace-Befehle gleichen sich an diese Version an. Verwaltete Bundles und Konfigurations-Releases behalten ihre separat festgelegte CLI-Revision.
 
 - `-v, --version <version>` — auf genau diese Version aktualisieren (z. B. `0.9.0`) statt der neuesten; erlaubt Downgrades.
 - `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
@@ -161,7 +248,32 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `--purge` — zusätzlich `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen abbauen und seine Dateien löschen. Nicht umkehrbar.
 - `--dry-run` — anzeigen, was entfernt würde, ohne etwas zu entfernen.
 
-`tale config` — CLI-Konfiguration verwalten. Mit dem Unterbefehl `show` die aufgelöste Konfiguration ausgeben.
+`tale config show` — das aufgelöste lokale Projektverzeichnis und die CLI-Version ausgeben. Außerhalb eines Projekts meldet der Befehl, dass er keines gefunden hat, und endet ohne Fehler.
+
+### Konfigurations-Releases
+
+Diese Befehle nutzen die gewählte CLI-Revision ohne Instanzangleichung oder Docker-Operationen. [Client-Konfigurationen veröffentlichen](/de/self-hosted/configuration/config-releases) beschreibt Deskriptoren, Quell-Commits, Zugangsdaten und Wiederherstellung. Standardmäßig kennzeichnet der vollständige Quell-SHA das Release: Manifest-Schema 4/Compiler 3 mit `releaseRef === sourceCommit`. Native ganzzahlige Automatisierungsversionen bleiben davon getrennt.
+
+`build`, `verify` und `stage` verlangen `--repo <directory>`, `--descriptor <path>` und `--automation <name>`. Der Deskriptorpfad ist repositoryrelativ. Ein Prüfmanifest darf absolut oder repositoryrelativ angegeben werden.
+
+| Befehl               | Pflichtoptionen                              | Optionale Angaben                                                                                                            |
+| -------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `tale config build`  | `--source-commit <sha>`                      | `--skill-owner <user-id>` (bei eigenen Skills erforderlich), `--output <directory>`, kompatibel `--config-version <version>` |
+| `tale config verify` | `--manifest <path>`                          | `--rebuild` für exakte Offline-Rekonstruktion                                                                                |
+| `tale config stage`  | `--config-ref <sha>`, `--output <directory>` | `--skill-owner <user-id>`, `--client <name>`, `--deployment-ref <sha>`                                                       |
+
+Die Quellvorbereitung verlangt Checkout-`HEAD` auf diesem vollständigen Commit und ein Ausgabeziel außerhalb des Checkouts. Sie baut committete Inhalte ohne zusätzlichen Katalog-Commit. Explizites `stage --config-version` wählt stattdessen den kompatiblen Katalogweg und verlangt `--catalogue-commit`, `--catalogue-repository`, `--client` und `--ops-commit`. Kombiniere `--config-ref` und `--config-version` nicht.
+
+Native Befehle verlangen `--stage <directory>`, `--url <origin>`, `--org <id>` und `--project <id>`. Außer lokalem HTTP ist HTTPS Pflicht. Nutze `--origin <origin>` für die kanonische Browser-Origin hinter einem Proxy. Beide lesen `TALE_CONFIG_COOKIE` ausschließlich aus der Umgebung.
+
+| Befehl                      | Pflichtoptionen                | Optionale Angaben                                                   |
+| --------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| `tale config deploy`        | `--receipt <path>`             | Globales `--yes` für ein autorisiertes unbeaufsichtigtes Deployment |
+| `tale config verify-native` | Keine weiteren Pflichtoptionen | `--native-version <number>`, `--allow-retained`                     |
+
+Beide nativen Befehle nehmen exakte Erwartungen über `--config-ref`, `--source-repository`, `--artifact-sha256`, `--deployment-ref`, `--client` und `--automation` entgegen. Historische Katalog-Flags bleiben kompatibel. `verify-native` liest nur; `--allow-retained` prüft eine explizit gewählte aufbewahrte Version, ohne sie als bereitgestellt auszuweisen. Ohne `--native-version` wählt die Prüfung die zuletzt gespeicherte Version. Die native API zeigt den Aufgabenvertrag nur für die bereitgestellte Version; eine Prüfung aufbewahrter Versionen kann dieses Feld nicht bestätigen.
+
+Konfigurationsbefehle haben kein `--dry-run`: Nutze `stage`, `verify --rebuild` und `verify-native`. Erfolgs-JSON hat die Form `{ok:true,command:"config <verb>",data}`. Build- und Prüfdaten enthalten `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` und `verified`; kompatible Ausgaben verwenden `configVersion` statt `releaseRef`. SHA-Transferbelege und native Belege nutzen Schema 2. Ein Deployment-Ergebnis enthält `automationVersion` und `unchanged`; das explizite Feld `verified` gehört zur Prüfausgabe.
 
 ### Erweitert
 

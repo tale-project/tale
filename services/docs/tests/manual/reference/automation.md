@@ -22,13 +22,15 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
 | [content](../suites/content.md) | `CONT-F17`–`CONT-F18` (video sources) | 🔶 partial | vitest `videos.test.ts` (manifest ↔ disk parity, all-locales-or-none per episode, embed src/poster/captions resolve + match page locale, size budgets, well-formed WebVTT) |
 | [content](../suites/content.md) | `CONT-F9`–`CONT-F14` (component tags mirrored) | 🔶 partial | vitest `locale-components.test.ts` (DE/FR mirrors use the same component tags in the same order) — rendering manual |
-| [content](../suites/content.md) | `CONT-F1`–`CONT-F18` (rendered), `CONT-B1`–`CONT-B3` | ⛔ manual-only | — (no e2e renders a content page beyond the smoke shell) |
+| [content](../suites/content.md) | `CONT-F1`–`CONT-F18` (rendered), `CONT-B1`–`CONT-B3` | ⛔ manual-only | — (the header regression renders content pages but does not judge their body components) |
 | [locale](../suites/locale.md) | `LOC-F2` (mirror exists) | ✅ automated | vitest `locale-tree.test.ts` (every EN page has DE/FR mirrors) + `locale-outline.test.ts` (same outline) + `docs.test.ts` (voice/terminology) |
 | [locale](../suites/locale.md) | `LOC-F5` (dialog parity) | 🔶 partial | vitest `locale-components.test.ts` + `locale-translation.test.ts` (mirrors are real translations, same component tags) — rendered chrome manual |
-| [locale](../suites/locale.md) | `LOC-F1`, `LOC-F3`–`LOC-F7`, `LOC-B1`–`LOC-B2` | ⛔ manual-only | — (no e2e drives the switcher or asserts rendered locale chrome) |
+| [locale](../suites/locale.md) | `LOC-F1`, `LOC-F3`–`LOC-F7`, `LOC-B1`–`LOC-B2` | 🔶 partial | `page-header.spec.ts` checks EN/DE/FR breadcrumb and action labels; switcher, full-page locale behavior and unknown routes remain manual |
 | [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (sidebar shows links) + vitest `navigation.test.ts` (entries resolve) |
+| [navigation](../suites/navigation.md) | `NAV-F4`, `NAV-A3` (breadcrumb trail) | 🔶 partial | `page-header.spec.ts` checks translated groups, one current leaf and home targets; landing-page omission and navigating ancestors remain manual |
+| [navigation](../suites/navigation.md) | Page header at 375 px and 1440 px | ✅ automated | `page-header.spec.ts` checks non-overlapping phone actions, desktop row alignment, viewport containment and Escape/focus restoration in EN/DE/FR |
 | [navigation](../suites/navigation.md) | `NAV-F9`–`NAV-F10` (source map) | 🔶 partial | vitest `redirects.test.ts` (slug shape, every target exists in every locale, no source shadows a page, no chains) — the **served** 301s/stubs manual |
-| [navigation](../suites/navigation.md) | `NAV-F2`–`NAV-F8`, `NAV-F11`–`NAV-F12`, `NAV-B1`–`NAV-B3` | ⛔ manual-only | — |
+| [navigation](../suites/navigation.md) | `NAV-F2`–`NAV-F3`, `NAV-F5`–`NAV-F8`, `NAV-F11`–`NAV-F12`, `NAV-B1`–`NAV-B3` | ⛔ manual-only | — |
 | [search](../suites/search.md) | `SEARCH-F1` | ✅ automated | `smoke.spec.ts` (open via header button → placeholder input visible) |
 | [search](../suites/search.md) | `SEARCH-F2`–`SEARCH-F6` | 🔶 partial | component `app/features/search/dialog.test.tsx` (wiring); real index + navigation manual |
 | [search](../suites/search.md) | `SEARCH-F7` | 🔶 partial | vitest `redirects.test.ts` (no redirect source is still a page) — index content manual |
@@ -39,6 +41,23 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Security header values (`SEO-F9`) | 🔶 | `packages/ui/src/server/security-headers.test.ts` (unit) — the served response is manual |
 
 ## Seams
+
+The configuration release journey's command behavior belongs to
+`tools/cli/tests/config-releases.test.ts`: source and compiled CLI execution,
+native pack admission, exact build/verify/stage, local HTTP deployment and replay,
+read-only verification, confirmation, identity refusals and redacted errors.
+The focused tests under `tools/cli/src/lib/config/releases/` own archive safety,
+committed-source reconstruction, historical compatibility and interrupted native
+deployment. These synthetic tests do not prove a client's business results or a
+live server's compatibility. Docs suites still judge the rendered EN/DE/FR
+guide, navigation, code copying and narrow layouts.
+
+Managed deployment commands are covered by `tools/cli/tests/deployment.test.ts`
+and `tools/cli/tests/provision.test.ts`: source/compiled command boundaries,
+reviewed bundle identity, private stdin, confirmation placement, local native
+HTTP replay and scrubbed failure cleanup. Runtime, snapshot and native adapter
+fault tests live under `tools/cli/src/lib/deployment/`. These fixtures do not
+replace a destination rollout and independent native readback.
 
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and

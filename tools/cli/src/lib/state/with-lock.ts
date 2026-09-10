@@ -1,3 +1,4 @@
+import { preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { acquireLock } from './acquire-lock';
 import { releaseLock } from './release-lock';
@@ -9,7 +10,9 @@ export async function withLock<T>(
 ): Promise<T> {
   const acquired = await acquireLock(deployDir, command);
   if (!acquired) {
-    throw new Error('Failed to acquire deployment lock');
+    throw preconditionError(
+      'Another operation holds the local deployment lock.',
+    );
   }
 
   try {
