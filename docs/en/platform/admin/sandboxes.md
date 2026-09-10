@@ -5,9 +5,9 @@ description: Set concurrent workload limits and compare organization allocations
 
 Sandboxes shows how much work your organization may start and how much infrastructure is currently occupied. Open **Settings > Sandboxes** to change workload limits as an Admin or Owner; Developers can read the limits and aggregate capacity without seeing private workspace details.
 
-<Frame caption="Organization limits are editable here. Unavailable infrastructure measurements stay explicit when the deployment has no sandbox connection.">
+<Frame caption="Compare saved organization limits with observed runtime slots and host capacity. Unavailable usage stays explicit when the host does not expose a measurement.">
 
-![The Sandboxes settings page shows the three organization limits, their allocated counts, and separate infrastructure cards whose measurements are unavailable.](/images/platform/settings-sandboxes.webp)
+![The Sandboxes settings page shows the three editable organization limits, actual runtime slot counts, and measured host CPU and memory totals.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
@@ -44,4 +44,4 @@ Crawler environments are temporary. Their use appears in the capacity counts, ev
 
 ## Decide which limit to change
 
-Raise an organization limit when that workload's allocations are full and the deployment has room. A higher limit adds no CPU or memory, and a free runtime slot does not guarantee enough resources to start more work. Deployment operators control the runtime ceilings; self-hosted operators can find them in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-agent-turns). Token and spending budgets remain under [Policies and limits](/platform/admin/governance/policies-and-limits).
+Raise an organization limit when that workload's allocations are full and the deployment has room. A higher limit adds no CPU or memory, and a free runtime slot does not guarantee enough resources to start more work. Deployment operators control the runtime ceilings; self-hosted operators can find them in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure). Token and spending budgets remain under [Policies and limits](/platform/admin/governance/policies-and-limits).

@@ -18,7 +18,7 @@ const log = join(root, 'calls');
 const bin = join(root, 'bin');
 mkdirSync(bin);
 const ipv6 = join(root, 'ipv6');
-for (const profile of ['all', 'default']) {
+for (const profile of ['all', 'default', 'eth0']) {
   mkdirSync(join(ipv6, `conf/${profile}`), { recursive: true });
   writeFileSync(join(ipv6, `conf/${profile}/disable_ipv6`), '0');
 }
@@ -65,6 +65,14 @@ const builder = `tale-build-${createHash('sha256').update(endpoint).digest('hex'
 
 function run(command: string, env: Record<string, string> = {}) {
   writeFileSync(log, '');
+  for (const profile of ['all', 'default', 'eth0']) {
+    writeFileSync(
+      join(ipv6, `conf/${profile}/disable_ipv6`),
+      profile === 'eth0'
+        ? (env.TALE_BUILD_TEST_INTERFACE_DISABLED ?? '0')
+        : (env.TALE_BUILD_TEST_IPV6_DISABLED ?? '0'),
+    );
+  }
   const result = spawnSync('/bin/sh', ['-c', `${helpers}\n${command}`], {
     env: {
       ...process.env,
@@ -127,6 +135,23 @@ describe('shared build cache startup', () => {
       expect(result.stdout).not.toContain('GUARDED');
     }
   });
+  test('no IPv6 netfilter is acceptable only when every interface and defaults disable IPv6', () => {
+    const disabled = run(protect, {
+      TALE_BUILD_TEST_FIREWALL_FAIL: 'ip6tables -L FORWARD',
+      TALE_BUILD_TEST_IPV6_DISABLED: '1',
+      TALE_BUILD_TEST_INTERFACE_DISABLED: '1',
+    });
+    expect(disabled.result.status).toBe(0);
+    expect(disabled.result.stdout).toContain('GUARDED');
+    const enabledInterface = run(protect, {
+      TALE_BUILD_TEST_FIREWALL_FAIL: 'ip6tables -L FORWARD',
+      TALE_BUILD_TEST_IPV6_DISABLED: '1',
+      TALE_BUILD_TEST_INTERFACE_DISABLED: '0',
+    });
+    expect(enabledInterface.result.status).toBe(1);
+    expect(enabledInterface.result.stdout).not.toContain('GUARDED');
+  });
+
   test('without shared cache there are no extra network guard calls', () => {
     const { result, calls } = run(protect, { TALE_BUILDKITD_ENDPOINT: '' });
     expect(result.status).toBe(0);

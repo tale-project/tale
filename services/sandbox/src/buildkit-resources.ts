@@ -1,3 +1,9 @@
+import {
+  assertBuildSubnet,
+  daemonReservedSubnets,
+  dockerIpv4Subnets,
+  selectBuildSubnet,
+} from './buildkit-network-pool.ts';
 import { runDocker } from './spawn-util.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -14,10 +20,6 @@ const LEGACY_HELPERS = [
   'tale-buildkitd-mirror-quay-io',
 ];
 
-let legacyRetirementInFlight:
-  | Promise<{ stopped: number; deferred: boolean }>
-  | undefined;
-
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -33,8 +35,12 @@ function parsedObject(text: string): Record<string, unknown> {
   return object(JSON.parse(text));
 }
 
-async function readDockerMetadata(args: string[]): Promise<RunDockerResult> {
+export async function readDockerMetadata(
+  args: string[],
+  options: Parameters<typeof runDocker>[1] = {},
+): Promise<RunDockerResult> {
   const result = await runDocker(args, {
+    ...options,
     stdoutMaxBytes: METADATA_STDOUT_MAX_BYTES,
   });
   // A valid retained prefix is not proof of complete ownership or dependency
@@ -232,54 +238,217 @@ async function preventEgressForwarding(containerId: string): Promise<void> {
 }
 
 function assertPrivateBuildSubnets(network: Record<string, unknown>): void {
-  const ranges = object(network.IPAM).Config;
-  if (!Array.isArray(ranges) || ranges.length === 0) {
+  const subnets = dockerIpv4Subnets(object(network.IPAM).Config);
+  if (subnets.length === 0)
     throw new Error('buildkitd: private network has no IPv4 subnet');
+  for (const subnet of subnets) assertBuildSubnet(subnet);
+}
+
+async function occupiedDockerSubnets(): Promise<
+  ReturnType<typeof dockerIpv4Subnets>
+> {
+  const listed = await readDockerMetadata([
+    'network',
+    'ls',
+    '--no-trunc',
+    '--format',
+    '{{.ID}}',
+  ]);
+  if (listed.exitCode !== 0)
+    throw new Error('buildkitd: cannot read Docker network inventory');
+  const ids = listed.stdout.trim().split('\n').filter(Boolean);
+  if (
+    ids.some((id) => !DOCKER_ID_RE.test(id)) ||
+    new Set(ids).size !== ids.length
+  ) {
+    throw new Error('buildkitd: invalid Docker network inventory');
   }
-  for (const range of ranges) {
-    const subnet = object(range).Subnet;
-    if (typeof subnet !== 'string') {
-      throw new Error('buildkitd: invalid private network subnet');
+  const subnets: ReturnType<typeof dockerIpv4Subnets> = [];
+  for (let offset = 0; offset < ids.length; offset += 64) {
+    const batch = ids.slice(offset, offset + 64);
+    const result = await readDockerMetadata([
+      'network',
+      'inspect',
+      '--format',
+      '{"id":{{json .Id}},"ranges":{{json .IPAM.Config}}}',
+      ...batch,
+    ]);
+    if (result.exitCode !== 0)
+      throw new Error('buildkitd: cannot inspect Docker network subnets');
+    const unseen = new Set(batch);
+    for (const line of result.stdout.trim().split('\n').filter(Boolean)) {
+      const row = parsedObject(line);
+      if (typeof row.id !== 'string' || !unseen.delete(row.id)) {
+        throw new Error('buildkitd: invalid Docker network subnet inventory');
+      }
+      subnets.push(...dockerIpv4Subnets(row.ranges));
     }
-    const [ip = '', prefixText = ''] = subnet.split('/');
-    const bytes = ip.split('.').map(Number);
-    const prefix = Number(prefixText);
+    if (unseen.size > 0)
+      throw new Error('buildkitd: incomplete Docker network subnet inventory');
+  }
+  return subnets;
+}
+
+async function daemonHostReservations(
+  cfg: SpawnerConfig,
+): Promise<ReturnType<typeof dockerIpv4Subnets>> {
+  // This trusted, short-lived observer executes inside the DAEMON's host
+  // network namespace, also for remote Docker. No mounts, capabilities or user
+  // commands; Docker supplies the host-network container's resolver config.
+  const name = `tale-buildkit-routes-${crypto.randomUUID()}`;
+  const separator = '\n---tale-resolvers---\n';
+  const result = await readDockerMetadata(
+    [
+      'run',
+      '--rm',
+      '--name',
+      name,
+      '--label',
+      'tale.buildkit-probe=1',
+      '--network',
+      'host',
+      '--read-only',
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--user',
+      '65534:65534',
+      '--entrypoint',
+      '/bin/sh',
+      cfg.buildkitdImage,
+      '-c',
+      'ip -j -4 route show table all && printf "\\n---tale-resolvers---\\n" && cat /etc/resolv.conf',
+    ],
+    { timeoutMs: 120_000, killOnTimeoutContainer: name },
+  );
+  if (result.exitCode !== 0) {
+    await runDocker(['rm', '--force', name], { timeoutMs: 15_000 });
+    throw new Error(
+      'buildkitd: cannot read daemon host routes and resolvers; using local builds',
+    );
+  }
+  const parts = result.stdout.split(separator);
+  if (parts.length !== 2 || parts[0] === undefined || parts[1] === undefined) {
+    throw new Error(
+      'buildkitd: incomplete daemon host route/resolver observation',
+    );
+  }
+  return daemonReservedSubnets(JSON.parse(parts[0]), parts[1]);
+}
+
+// All org claims share Docker's default pools. One in-process allocator avoids
+// unnecessary collisions between simultaneous organizations on this spawner.
+let networkAllocation: Promise<void> = Promise.resolve();
+function ensurePrivateBuildNetwork(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const pending = networkAllocation.then(() =>
+    ensurePrivateBuildNetworkUnlocked(cfg, organizationId, name),
+  );
+  networkAllocation = pending.then(
+    () => undefined,
+    () => undefined,
+  );
+  return pending;
+}
+
+async function ensurePrivateBuildNetworkUnlocked(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const args = ['network', 'inspect', '--format', '{{json .}}', name];
+  const attempted = new Set<string>();
+  // A peer can win an allocation between inventory and create. Retry a bounded
+  // number of claims; every successful claim is inspected again before use.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let raw = await inspect(args);
+    let requested: string | undefined;
+    if (raw === null) {
+      const occupied = [
+        ...(await occupiedDockerSubnets()),
+        ...(await daemonHostReservations(cfg)),
+      ];
+      const info = await readDockerMetadata([
+        'info',
+        '--format',
+        '{{json .DefaultAddressPools}}',
+      ]);
+      if (info.exitCode !== 0)
+        throw new Error('buildkitd: cannot read Docker default address pools');
+      requested = selectBuildSubnet(
+        JSON.parse(info.stdout),
+        occupied,
+        attempted,
+      );
+      attempted.add(requested);
+      const created = await runDocker([
+        'network',
+        'create',
+        '--driver',
+        'bridge',
+        '--internal',
+        '--ipv6=false',
+        '--subnet',
+        requested,
+        '--label',
+        'tale.buildkitd=1',
+        '--label',
+        `tale.org=${organizationId}`,
+        name,
+      ]);
+      if (created.exitCode !== 0) {
+        if (/already exists|pool overlaps/i.test(created.stderr)) continue;
+        throw new Error(
+          `buildkitd: private network creation failed: ${created.stderr.trim()}`,
+        );
+      }
+      raw = await inspect(args);
+    }
+    const network = parsedObject(raw ?? 'null');
+    assertOwner(network.Labels, organizationId, name);
     if (
-      bytes.length !== 4 ||
-      bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255) ||
-      prefixText === '' ||
-      !Number.isInteger(prefix) ||
-      prefix < 0 ||
-      prefix > 32
+      network.Driver !== 'bridge' ||
+      network.Internal !== true ||
+      network.EnableIPv6 !== false
     ) {
-      throw new Error('buildkitd: invalid private network IPv4 range');
+      throw new Error(`buildkitd: refusing non-private network ${name}`);
     }
-    const [firstByte = -1, secondByte = -1] = bytes;
-    const isPrivate =
-      (firstByte === 10 && prefix >= 8) ||
-      (firstByte === 172 &&
-        secondByte >= 16 &&
-        secondByte <= 31 &&
-        prefix >= 12) ||
-      (firstByte === 192 && secondByte === 168 && prefix >= 16);
-    // Both tinyproxy's client ACL and the egress OUTPUT destination fence
-    // cover RFC1918. A broader/public subnet would either fail proxy access
-    // or let the proxy reach another organization's builder as a public host.
-    if (!isPrivate) {
-      throw new Error(
-        'buildkitd: private network must use an RFC1918 IPv4 subnet; using local builds',
-      );
-    }
-    // The runtime reserves 172.31.0.0/16 for inner docker0/Compose bridges.
-    // Docker's host allocator does not know about these nested networks.
-    const address = bytes.reduce((total, byte) => total * 256 + byte, 0);
-    const mask = prefix === 0 ? 0 : 0xffffffff << (32 - Math.min(prefix, 16));
-    if ((address & mask) === (0xac1f0000 & mask)) {
-      throw new Error(
-        'buildkitd: private network overlaps the inner Docker 172.31.0.0/16 pool; using local builds',
-      );
+    try {
+      assertPrivateBuildSubnets(network);
+      const subnets = dockerIpv4Subnets(object(network.IPAM).Config);
+      if (
+        requested !== undefined &&
+        (subnets.length !== 1 || subnets[0]?.address !== requested)
+      ) {
+        throw new Error(
+          'buildkitd: Docker did not allocate the requested private subnet',
+        );
+      }
+      return;
+    } catch (error) {
+      // Older spawners could leave an unused, owned bridge in 172.31/16 after
+      // rejecting Docker's automatic allocation. Only remove an empty bridge
+      // by its inspected ID; never disconnect endpoints or remove by a reused
+      // name. Docker arbitrates a concurrent endpoint attachment as well.
+      if (
+        !isObject(network.Containers) ||
+        Object.keys(network.Containers).length !== 0 ||
+        typeof network.Id !== 'string' ||
+        !DOCKER_ID_RE.test(network.Id)
+      )
+        throw error;
+      const removed = await runDocker(['network', 'rm', network.Id]);
+      if (removed.exitCode !== 0 && !/no such network/i.test(removed.stderr))
+        throw error;
     }
   }
+  throw new Error(
+    'buildkitd: private network allocation could not converge; using local builds',
+  );
 }
 
 /** Create a private IPv4 bridge for one organization's build resources and
@@ -289,39 +458,7 @@ export async function ensureBuildkitNetwork(
   organizationId: string,
   name: string,
 ): Promise<{ network: string; proxy: string }> {
-  const args = ['network', 'inspect', '--format', '{{json .}}', name];
-  let raw = await inspect(args);
-  if (raw === null) {
-    const created = await runDocker([
-      'network',
-      'create',
-      '--driver',
-      'bridge',
-      '--internal',
-      '--ipv6=false',
-      '--label',
-      'tale.buildkitd=1',
-      '--label',
-      `tale.org=${organizationId}`,
-      name,
-    ]);
-    if (created.exitCode !== 0 && !/already exists/i.test(created.stderr)) {
-      throw new Error(
-        `buildkitd: private network creation failed: ${created.stderr.trim()}`,
-      );
-    }
-    raw = await inspect(args);
-  }
-  const network = parsedObject(raw ?? 'null');
-  assertOwner(network.Labels, organizationId, name);
-  if (
-    network.Driver !== 'bridge' ||
-    network.Internal !== true ||
-    network.EnableIPv6 !== false
-  ) {
-    throw new Error(`buildkitd: refusing non-private network ${name}`);
-  }
-  assertPrivateBuildSubnets(network);
+  await ensurePrivateBuildNetwork(cfg, organizationId, name);
 
   const proxy = new URL(cfg.egressProxy);
   if (!['http:', 'https:'].includes(proxy.protocol)) {
@@ -349,20 +486,94 @@ export async function ensureBuildkitNetwork(
 /** Stop legacy global helpers after every old runtime that could still use
  * them has gone. Pinned/warm/paused sessions defer retirement. Volumes and
  * builder configuration are preserved; no resource is removed or relabelled. */
+export function createLegacyBuildkitRetirer(): () => Promise<{
+  stopped: number;
+  deferred: boolean;
+}> {
+  let retired = false;
+  let inFlight: Promise<{ stopped: number; deferred: boolean }> | undefined;
+  return () => {
+    if (retired) return Promise.resolve({ stopped: 0, deferred: false });
+    inFlight ??= retireLegacyBuildkitdUnlocked()
+      .then((result) => {
+        retired = !result.deferred;
+        return result;
+      })
+      .finally(() => {
+        inFlight = undefined;
+      });
+    return inFlight;
+  };
+}
+
+const legacyRetirers = new Map<
+  string,
+  ReturnType<typeof createLegacyBuildkitRetirer>
+>();
+
+// Once retired, org ensures cannot recreate a global helper. Keep that proof
+// scoped to the configured Docker endpoint, just like runDocker's target; a
+// different daemon (including an isolated test CLI) needs its own observation.
+// A process restart after deployment/rollback observes the daemon afresh.
 export function retireLegacyBuildkitd(): Promise<{
   stopped: number;
   deferred: boolean;
 }> {
-  legacyRetirementInFlight ??= retireLegacyBuildkitdUnlocked().finally(() => {
-    legacyRetirementInFlight = undefined;
-  });
-  return legacyRetirementInFlight;
+  const target = JSON.stringify([
+    process.env.DOCKER_BIN,
+    process.env.DOCKER_HOST,
+    process.env.DOCKER_CONTEXT,
+    process.env.DOCKER_CONFIG,
+  ]);
+  let retire = legacyRetirers.get(target);
+  if (!retire) {
+    retire = createLegacyBuildkitRetirer();
+    legacyRetirers.set(target, retire);
+  }
+  return retire();
 }
 
 async function retireLegacyBuildkitdUnlocked(): Promise<{
   stopped: number;
   deferred: boolean;
 }> {
+  const running: Array<{ name: string; id: string }> = [];
+  let deferred = false;
+  // Check the five known names before looking at any sessions. New deployments
+  // never had these helpers, and drained ones never need an env scan again.
+  for (const name of LEGACY_HELPERS) {
+    const raw = await inspect([
+      'inspect',
+      '--format',
+      '{"legacyId":{{json .Id}},"labels":{{json .Config.Labels}},"running":{{json .State.Running}}}',
+      name,
+    ]);
+    if (raw === null) continue;
+    const data = parsedObject(raw);
+    if (
+      !isObject(data.labels) ||
+      data.labels['tale.buildkitd'] !== '1' ||
+      data.labels['tale.org'] !== undefined
+    ) {
+      deferred = true;
+      continue;
+    }
+    if (typeof data.running !== 'boolean')
+      throw new Error(`buildkitd: invalid legacy container state for ${name}`);
+    if (data.running) {
+      if (
+        typeof data.legacyId !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(data.legacyId)
+      ) {
+        throw new Error(
+          `buildkitd: invalid legacy container identity for ${name}`,
+        );
+      }
+      running.push({ name, id: data.legacyId });
+    }
+  }
+  if (running.length === 0) return { stopped: 0, deferred };
+
   const sessions = await readDockerMetadata([
     'ps',
     '--all',
@@ -411,29 +622,10 @@ async function retireLegacyBuildkitdUnlocked(): Promise<{
   }
 
   let stopped = 0;
-  let deferred = false;
-  for (const name of LEGACY_HELPERS) {
-    const raw = await inspect([
-      'inspect',
-      '--format',
-      '{"labels":{{json .Config.Labels}},"running":{{json .State.Running}}}',
-      name,
-    ]);
-    if (raw === null) continue;
-    const data = parsedObject(raw);
-    if (
-      !isObject(data.labels) ||
-      data.labels['tale.buildkitd'] !== '1' ||
-      data.labels['tale.org'] !== undefined
-    ) {
-      deferred = true;
-      continue;
-    }
-    if (data.running === false) continue;
-    if (data.running !== true) {
-      throw new Error(`buildkitd: invalid legacy container state for ${name}`);
-    }
-    const result = await runDocker(['stop', '--time', '30', name], {
+  for (const { name, id } of running) {
+    // Session observation can outlive the inspected helper. Stop only that
+    // immutable identity, never an unverified replacement using its old name.
+    const result = await runDocker(['stop', '--time', '30', id], {
       timeoutMs: 35_000,
     });
     if (result.exitCode !== 0) {

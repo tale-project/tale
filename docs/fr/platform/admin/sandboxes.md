@@ -5,9 +5,9 @@ description: Fixe les limites de travail simultané et compare les quotas occup�
 
 Sandboxes indique combien de tâches ton organisation peut démarrer et quelles ressources sont déjà occupées. Ouvre **Paramètres > Sandboxes** en tant qu’Admin ou Propriétaire pour modifier les limites ; les Développeurs consultent les limites et la capacité globale, sans accéder aux détails des espaces privés.
 
-<Frame caption="Les limites de l’organisation se modifient ici. Sans connexion à l’infrastructure sandbox, les mesures manquantes restent signalées comme indisponibles.">
+<Frame caption="Compare les limites enregistrées de l’organisation aux créneaux d’exécution observés et à la capacité de l’hôte. Une utilisation que l’hôte ne peut pas mesurer reste explicitement indisponible.">
 
-![Les paramètres Sandboxes affichent les trois limites de l’organisation, leurs quotas occupés et des cartes distinctes dont les mesures d’infrastructure sont indisponibles.](/images/platform/settings-sandboxes.webp)
+![La page Sandboxes affiche les trois limites modifiables de l’organisation, le nombre réel de créneaux d’exécution et les capacités totales mesurées du CPU et de la mémoire de l’hôte.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
@@ -44,4 +44,4 @@ Les environnements d’exploration sont temporaires. Ils comptent dans la capaci
 
 ## Choisir la limite à modifier
 
-Augmente une limite d’organisation lorsque le quota concerné est plein et que le déploiement dispose encore de ressources. Cela n’ajoute ni CPU ni mémoire ; une place d’exécution libre ne garantit pas non plus les ressources nécessaires. L’opérateur fixe les plafonds d’exécution. Pour une installation auto-hébergée, consulte la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Les budgets de tokens et de dépenses restent dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+Augmente une limite d’organisation lorsque le quota concerné est plein et que le déploiement dispose encore de ressources. Cela n’ajoute ni CPU ni mémoire ; une place d’exécution libre ne garantit pas non plus les ressources nécessaires. L’opérateur fixe les plafonds d’exécution. Pour une installation auto-hébergée, consulte la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference#infrastructure-sandbox). Les budgets de tokens et de dépenses restent dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).

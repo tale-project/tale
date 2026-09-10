@@ -707,6 +707,11 @@ export const SHOTS: readonly Shot[] = [
           exact: true,
         }),
       ).toBeEnabled();
+      // This shot explains observed capacity. A disconnected spawner must not
+      // silently replace the example with four unavailable cards.
+      await expect(
+        page.getByText(t('sandboxes.capacity.scopes.host'), { exact: true }),
+      ).toBeVisible();
     },
     readyWhen: (page) =>
       page.getByText(t('sandboxes.capacity.title'), { exact: true }),

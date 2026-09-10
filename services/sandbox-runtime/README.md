@@ -18,6 +18,20 @@ browser or viewing tunnel. Configured transparent egress redirects external
 network access through `@tale/sandbox-egress`; Playwright MCP also receives
 the proxy settings through its launcher.
 
+Before starting inner Docker, the runtime chooses a private `/16` against
+its actual IPv4 routes and the planned organization build bridge. It prefers
+`172.31.0.0/16`, then other private ranges; `docker0` and inner Compose networks
+use `/24` blocks within the chosen pool. The same pool drives transparent
+outbound routing. Missing or malformed route observations and pool exhaustion
+fail session startup with a specific log message.
+
+Organization build networks attach only after runnerd is ready and the spawner
+has verified forwarding protection inside the session. Keep the runtime image on
+the same release as the spawner and egress image. Generated Docker session
+containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and
+`net.ipv6.conf.default.disable_ipv6=1`; preserve these sysctls in custom
+deployment definitions. An IPv4-only host then needs no IPv6 firewall module.
+
 ```bash
 bun run --filter @tale/sandbox-runtime docker:build
 ```

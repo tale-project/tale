@@ -74,6 +74,11 @@ bun run --filter @tale/docs dev                   # docs on :3002
 - **Ports 3000/4141 must be owned by THIS stack.** If another dev stack holds :3000, its config
   dir seeds the orgs and nothing here works (`waitForSeededOrg`'s error explains the same trap).
   Override the app origin with `E2E_BASE_URL`, the gateway with `TALE_MOCK_CONNECTORS_BASE`.
+- **`settings-sandboxes` requires a connected Docker spawner.** Configure the backend's
+  `SANDBOX_URL` and matching `SANDBOX_TOKEN` for the local stack. The shot waits for an actual
+  host observation and fails if infrastructure is disconnected; it never substitutes sample
+  values. Docker Desktop can show measured totals with unavailable usage, because its daemon
+  runs on another machine. Those unavailable usage fields stay visible in the capture.
 - **`TALE_CONFIG_BUILTIN_DIR` must point at `docs-demo/`** — without it, wizard orgs seed from
   the real `builtin-configs/` (OpenRouter with no key) and chat is dead.
 - **Mock provider wiring is a SEED stage** (post-credentials-rewrite): `ensureMockProvider`

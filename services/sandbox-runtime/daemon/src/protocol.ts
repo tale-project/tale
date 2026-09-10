@@ -27,7 +27,14 @@ export const RUNNERD_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 
-export const RUNNERD_ENV_DENYLIST = ['HOME', 'PATH', 'TMPDIR'] as const;
+export const RUNNERD_ENV_DENYLIST = [
+  'HOME',
+  'PATH',
+  'TMPDIR',
+  'TALE_BUILDKIT_NETWORK_SUBNETS',
+  'TALE_DIND_INNER_POOL',
+  'TALE_DIND_INNER_BIP',
+] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 

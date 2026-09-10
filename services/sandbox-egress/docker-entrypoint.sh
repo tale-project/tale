@@ -65,12 +65,15 @@ else
       echo "[sandbox-egress] FATAL: IPv6 forwarding guard unavailable; refusing to start"
       exit 1
     fi
-  elif [ -d /proc/sys/net/ipv6 ] && {
-    [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" != "1" ] ||
-    [ "$(cat /proc/sys/net/ipv6/conf/default/disable_ipv6 2>/dev/null)" != "1" ];
-  }; then
-    echo "[sandbox-egress] FATAL: IPv6 is enabled without a forwarding guard; refusing to start"
-    exit 1
+  elif [ -d /proc/sys/net/ipv6 ]; then
+    # conf/all alone is not proof: a per-interface override may re-enable IPv6.
+    # Check defaults (including future network attachments) and every interface.
+    for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+      if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
+        echo "[sandbox-egress] FATAL: IPv6 is enabled without a forwarding guard; refusing to start"
+        exit 1
+      fi
+    done
   fi
 
   echo "[sandbox-egress] installing SSRF egress firewall (REJECT IMDS + link-local + RFC1918, v4 + v6)"

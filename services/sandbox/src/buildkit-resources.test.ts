@@ -12,7 +12,8 @@ import { join } from 'node:path';
 
 import {
   ensureBuildkitNetwork,
-  retireLegacyBuildkitd,
+  createLegacyBuildkitRetirer,
+  retireLegacyBuildkitd as retireConfiguredLegacyBuildkitd,
 } from './buildkit-resources.ts';
 import {
   buildkitdCacheVolumeName,
@@ -48,17 +49,29 @@ function fail(message) { console.error(message); process.exit(1); }
 function flags(name) { return a.filter((v, i) => a[i - 1] === name); }
 function flag(name) { return flags(name)[0]; }
 function labels() { return Object.fromEntries(flags('--label').map(v => v.split('='))); }
+function containerId(name) { return s.containers[name].legacyId ?? new Bun.CryptoHasher('sha256').update('container:' + name).digest('hex'); }
 if (s.daemonError) fail('Cannot connect to the Docker daemon');
+if (a[0] === 'info') done(s.addressPools ?? null, 'pools');
 if (a[0] === 'ps') done(s.sessions.map(session => session.id + '\t' + session.status).join('\n'), 'inventory');
 if (a[0] === 'network') {
   const name = a.at(-1);
+  const idFor = name => new Bun.CryptoHasher('sha256').update(name).digest('hex');
+  const inventory = { 'tale-sandbox-net': { Id: idFor('tale-sandbox-net'), IPAM: { Config: [{ Subnet: '172.18.0.0/16' }] } }, ...s.networks };
+  if (a[1] === 'ls') done(Object.keys(inventory).map(idFor).join('\n'), 'networks');
+  if (a[1] === 'inspect' && flag('--format').includes('"ranges"')) done(Object.entries(inventory).filter(([key]) => a.includes(idFor(key))).map(([key, value]) => JSON.stringify({ id: idFor(key), ranges: value.IPAM.Config })).join('\n'), 'network-ranges');
+  if (a[1] === 'rm') {
+    const key = Object.keys(s.networks).find(key => key === name || s.networks[key].Id === name);
+    if (!key) fail('Error: No such network: ' + name);
+    if (Object.keys(s.networks[key].Containers ?? {}).length) fail('network has active endpoints');
+    delete s.networks[key]; done();
+  }
   if (a[1] === 'inspect') {
     if (name === 'tale-sandbox-net') done({ [s.egressId]: { Name: 'compose-egress-1' } }, 'egress-network');
     if (!s.networks[name]) fail('Error: No such network: ' + name);
     done(s.networks[name], 'resource');
   }
   if (a[1] === 'create') {
-    s.networks[name] = { Labels: labels(), Driver: flag('--driver'), Internal: a.includes('--internal'), EnableIPv6: !a.includes('--ipv6=false'), IPAM: { Config: [{ Subnet: '172.22.0.0/16' }] } };
+    s.networks[name] = { Id: idFor(name), Containers: {}, Labels: labels(), Driver: flag('--driver'), Internal: a.includes('--internal'), EnableIPv6: !a.includes('--ipv6=false'), IPAM: { Config: [{ Subnet: flag('--subnet') ?? '172.31.0.0/16' }] } };
     done(name);
   }
   if (a[1] === 'connect') {
@@ -77,12 +90,20 @@ if (a[0] === 'volume') {
   if (a[1] === 'create') { s.volumes[name] ??= labels(); done(name); }
 }
 if (a[0] === 'inspect') {
-  if (flag('--format').includes('.Config.Env')) done(s.sessions.filter(session => a.includes(session.id)).map(session => 'TALE_BUILDKITD_ENDPOINT=' + session.endpoint).join('\n'), 'endpoints');
+  if (flag('--format').includes('.Config.Env')) {
+    if (s.legacyReplacement) {
+      const { name, id } = s.legacyReplacement;
+      s.containers[name] = { ...s.containers[name], labels: {}, legacyId: id };
+      delete s.legacyReplacement;
+    }
+    done(s.sessions.filter(session => a.includes(session.id)).map(session => 'TALE_BUILDKITD_ENDPOINT=' + session.endpoint).join('\n'), 'endpoints');
+  }
   if (flag('--format').includes('"id"')) {
     done({ id: s.egressId, name: '/compose-egress-1', networks: { 'tale-sandbox-net': { Aliases: [s.egressAlias], IPAddress: '172.30.0.3' } } }, 'egress-containers');
   }
   const name = a.at(-1);
   if (!s.containers[name]) fail('Error: No such object: ' + name);
+  if (flag('--format').includes('"legacyId"')) done({ ...s.containers[name], legacyId: containerId(name) }, 'resource');
   done(s.containers[name], 'resource');
 }
 if (a[0] === 'exec') {
@@ -96,6 +117,10 @@ if (a[0] === 'exec') {
   if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
 }
 if (a[0] === 'run') {
+  if (a.includes('tale.buildkit-probe=1')) {
+    if (s.hostRouteFailure) fail('host route observation unavailable');
+    done(JSON.stringify(s.hostRoutes ?? [{dst:'default',gateway:'172.17.0.1'},{dst:'172.17.0.0/16'}]) + '\n---tale-resolvers---\n' + (s.hostDns ?? 'nameserver 8.8.8.8\n'), 'host-routes');
+  }
   const name = flag('--name');
   s.containers[name] = { labels: labels(), networks: { [flag('--network')]: {} }, ports: null, running: true };
   if (s.race && s.race.name === name) {
@@ -106,12 +131,21 @@ if (a[0] === 'run') {
   }
   done(name);
 }
-if (a[0] === 'stop') { s.containers[a.at(-1)].running = false; done(); }
+if (a[0] === 'stop') {
+  const name = Object.keys(s.containers).find(name => name === a.at(-1) || containerId(name) === a.at(-1));
+  if (!name) fail('Error: No such container: ' + a.at(-1));
+  s.containers[name].running = false; done();
+}
 if (a[0] === 'rm') { delete s.containers[a.at(-1)]; done(); }
 fail('Unhandled fake docker call: ' + JSON.stringify(a));
 `;
 
 interface FakeState {
+  hostRoutes?: object[];
+  hostDns?: string;
+  hostRouteFailure?: boolean;
+  legacyReplacement?: { name: string; id: string };
+  addressPools?: Array<{ Base: string; Size: number }>;
   oversizedStdout: {
     observation: string;
     prefix: string;
@@ -122,6 +156,8 @@ interface FakeState {
   networks: Record<
     string,
     {
+      Id?: string;
+      Containers?: Record<string, object>;
       Labels: Record<string, string>;
       Driver: string;
       Internal: boolean;
@@ -137,6 +173,7 @@ interface FakeState {
       networks: Record<string, object>;
       ports: Record<string, object> | null;
       running: boolean;
+      legacyId?: string;
     }
   >;
   egressId: string;
@@ -175,6 +212,7 @@ const cfg: SpawnerConfig = {
 };
 
 let root = '';
+let retireLegacyBuildkitd = createLegacyBuildkitRetirer();
 const originalDockerBin = process.env.DOCKER_BIN;
 function owned(organizationId: string) {
   return { 'tale.buildkitd': '1', 'tale.org': organizationId };
@@ -222,6 +260,7 @@ beforeAll(async () => {
   process.env.DOCKER_BIN = executable;
 });
 beforeEach(async () => {
+  retireLegacyBuildkitd = createLegacyBuildkitRetirer();
   await save(initialState());
   await writeFile(join(root, 'calls.jsonl'), '');
 });
@@ -232,6 +271,149 @@ afterAll(async () => {
 });
 
 describe('organization BuildKit provisioning', () => {
+  test('reads daemon-host routes and DNS before selecting a subnet', async () => {
+    const seeded = initialState();
+    seeded.addressPools = [{ Base: '10.0.0.0/16', Size: 23 }];
+    seeded.hostRoutes = [
+      { dst: '10.0.0.0/24' },
+      { dst: 'default', gateway: '172.17.0.1' },
+    ];
+    seeded.hostDns = 'nameserver 10.0.2.12\n';
+    await save(seeded);
+    const name = buildkitdNetworkName('org-a');
+    await ensureBuildkitNetwork(cfg, 'org-a', name);
+    expect((await state()).networks[name]?.IPAM.Config[0]?.Subnet).toBe(
+      '10.0.4.0/23',
+    );
+    const probe = (await calls()).find((args) =>
+      args.includes('tale.buildkit-probe=1'),
+    );
+    expect(probe).toContain('host');
+    expect(probe).toContain('--read-only');
+    expect(probe).toContain('ALL');
+    expect(probe).toContain('65534:65534');
+  });
+
+  test('does not create a network if daemon host routes cannot be observed', async () => {
+    const seeded = initialState();
+    seeded.hostRouteFailure = true;
+    await save(seeded);
+    expect(
+      (
+        await rejection(
+          ensureBuildkitNetwork(cfg, 'org-a', buildkitdNetworkName('org-a')),
+        )
+      )?.message,
+    ).toContain('cannot read daemon host routes');
+    expect(
+      (await calls()).some(
+        (args) => args[0] === 'network' && args[1] === 'create',
+      ),
+    ).toBe(false);
+    expect((await state()).networks).toEqual({});
+  });
+
+  test.each(['networks', 'network-ranges', 'host-routes', 'pools'])(
+    'refuses truncated %s before claiming an explicit subnet',
+    async (observation) => {
+      const seeded = initialState();
+      const id = new Bun.CryptoHasher('sha256')
+        .update('tale-sandbox-net')
+        .digest('hex');
+      const prefixes: Record<string, string> = {
+        networks: `${id}\n`,
+        'network-ranges': JSON.stringify({
+          id,
+          ranges: [{ Subnet: '172.18.0.0/16' }],
+        }),
+        'host-routes':
+          '[{"dst":"172.17.0.0/16"}]\n---tale-resolvers---\nnameserver 8.8.8.8\n',
+        pools: '[]',
+      };
+      seeded.oversizedStdout = {
+        observation,
+        prefix: prefixes[observation]!,
+        suffix: '',
+      };
+      await save(seeded);
+      expect(
+        (
+          await rejection(
+            ensureBuildkitNetwork(cfg, 'org-a', buildkitdNetworkName('org-a')),
+          )
+        )?.message,
+      ).toMatch(/truncated/);
+      expect(
+        (await calls()).some(
+          (args) => args[0] === 'network' && args[1] === 'create',
+        ),
+      ).toBe(false);
+      expect((await state()).networks).toEqual({});
+    },
+  );
+
+  test('allocates an explicit subnet instead of accepting the reserved default pool', async () => {
+    const result = await ensureBuildkitNetwork(
+      cfg,
+      'org-new',
+      buildkitdNetworkName('org-new'),
+    );
+    expect(result.network).toBe(buildkitdNetworkName('org-new'));
+    const created = (await calls()).find(
+      (args) => args[0] === 'network' && args[1] === 'create',
+    );
+    expect(created).toContain('--subnet');
+    expect(
+      (await state()).networks[result.network]?.IPAM.Config[0]?.Subnet,
+    ).not.toBe('172.31.0.0/16');
+  });
+
+  test('recovers an unused owned network stranded in the nested Docker pool', async () => {
+    const seeded = initialState();
+    const name = buildkitdNetworkName('org-a');
+    seeded.networks[name] = {
+      Id: 'f'.repeat(64),
+      Containers: {},
+      Labels: owned('org-a'),
+      Driver: 'bridge',
+      Internal: true,
+      EnableIPv6: false,
+      IPAM: { Config: [{ Subnet: '172.31.0.0/16' }] },
+    };
+    seeded.volumes['retained-cache'] = owned('org-a');
+    await save(seeded);
+    await ensureBuildkitNetwork(cfg, 'org-a', name);
+    await ensureBuildkitNetwork(cfg, 'org-a', name);
+    const commands = await calls();
+    expect(
+      commands.filter((args) => args[0] === 'network' && args[1] === 'rm'),
+    ).toEqual([['network', 'rm', 'f'.repeat(64)]]);
+    expect(
+      commands.filter((args) => args[0] === 'network' && args[1] === 'create'),
+    ).toHaveLength(1);
+    expect((await state()).volumes).toEqual(seeded.volumes);
+  });
+
+  test('never removes a conflicting network while an endpoint remains attached', async () => {
+    const seeded = initialState();
+    const name = buildkitdNetworkName('org-a');
+    seeded.networks[name] = {
+      Id: 'f'.repeat(64),
+      Containers: { ['c'.repeat(64)]: { Name: 'live-session' } },
+      Labels: owned('org-a'),
+      Driver: 'bridge',
+      Internal: true,
+      EnableIPv6: false,
+      IPAM: { Config: [{ Subnet: '172.31.0.0/16' }] },
+    };
+    await save(seeded);
+    expect(
+      (await rejection(ensureBuildkitNetwork(cfg, 'org-a', name)))?.message,
+    ).toMatch(/overlaps the inner Docker/);
+    expect(await calls()).toHaveLength(1);
+    expect(await state()).toEqual(seeded);
+  });
+
   test('two orgs receive private builders, mirrors and volumes; legacy cache data is preserved', async () => {
     const seeded = initialState();
     seeded.containers['tale-buildkitd'] = {
@@ -265,12 +447,12 @@ describe('organization BuildKit provisioning', () => {
     expect(Object.keys(final.volumes)).toHaveLength(10);
     for (const org of ['org-a', 'org-b']) {
       const network = buildkitdNetworkName(org);
-      expect(final.networks[network]).toEqual({
+      expect(final.networks[network]).toMatchObject({
         Labels: owned(org),
         Driver: 'bridge',
         Internal: true,
         EnableIPv6: false,
-        IPAM: { Config: [{ Subnet: '172.22.0.0/16' }] },
+        IPAM: { Config: [{ Subnet: expect.any(String) }] },
       });
       for (const name of [
         buildkitdContainerName(org),
@@ -289,7 +471,9 @@ describe('organization BuildKit provisioning', () => {
       }
     }
     const commands = await calls();
-    const launched = commands.filter((a) => a[0] === 'run');
+    const launched = commands.filter(
+      (a) => a[0] === 'run' && !a.includes('tale.buildkit-probe=1'),
+    );
     expect(launched).toHaveLength(8);
     for (const org of ['org-a', 'org-b']) {
       const builder = launched.find((a) =>
@@ -324,7 +508,11 @@ describe('organization BuildKit provisioning', () => {
     await ensureBuildkitd(cfg, 'org-a');
 
     const commands = await calls();
-    expect(commands.filter((a) => a[0] === 'run')).toHaveLength(4);
+    expect(
+      commands.filter(
+        (a) => a[0] === 'run' && !a.includes('tale.buildkit-probe=1'),
+      ),
+    ).toHaveLength(4);
     expect(commands.findLast((a) => a[1] === 'connect')?.at(-1)).toBe(
       'b'.repeat(64),
     );
@@ -406,13 +594,15 @@ describe('organization BuildKit provisioning', () => {
       await save(seeded);
 
       expect((await rejection(ensureBuildkitd(cfg, 'org-a')))?.message).toMatch(
-        /RFC1918/,
+        /RFC1918|nonzero host bits/,
       );
 
       expect(await state()).toEqual(seeded);
       expect(
         (await calls()).some(
-          (args) => args[1] === 'connect' || args[0] === 'run',
+          (args) =>
+            args[1] === 'connect' ||
+            (args[0] === 'run' && !args.includes('tale.buildkit-probe=1')),
         ),
       ).toBe(false);
     },
@@ -438,9 +628,13 @@ describe('organization BuildKit provisioning', () => {
       expect(await rejection(ensureBuildkitd(cfg, 'org-a'))).not.toBeNull();
 
       expect((await state()).containers[name]).toEqual(seeded.containers[name]);
-      expect((await calls()).some((a) => a[0] === 'rm' || a[0] === 'run')).toBe(
-        false,
-      );
+      expect(
+        (await calls()).some(
+          (a) =>
+            a[0] === 'rm' ||
+            (a[0] === 'run' && !a.includes('tale.buildkit-probe=1')),
+        ),
+      ).toBe(false);
     },
   );
 
@@ -457,7 +651,9 @@ describe('organization BuildKit provisioning', () => {
     expect((await state()).volumes[name]).toEqual(owned('org-b'));
     expect(
       (await calls()).some(
-        (a) => a[0] === 'run' || (a[1] === 'create' && a[0] === 'volume'),
+        (a) =>
+          (a[0] === 'run' && !a.includes('tale.buildkit-probe=1')) ||
+          (a[1] === 'create' && a[0] === 'volume'),
       ),
     ).toBe(false);
   });
@@ -472,7 +668,11 @@ describe('organization BuildKit provisioning', () => {
     );
 
     expect(
-      (await calls()).some((a) => a[1] === 'connect' || a[0] === 'run'),
+      (await calls()).some(
+        (a) =>
+          a[1] === 'connect' ||
+          (a[0] === 'run' && !a.includes('tale.buildkit-probe=1')),
+      ),
     ).toBe(false);
   });
 
@@ -531,7 +731,11 @@ describe('organization BuildKit provisioning', () => {
     );
 
     expect(
-      (await calls()).some((a) => a[1] === 'connect' || a[0] === 'run'),
+      (await calls()).some(
+        (a) =>
+          a[1] === 'connect' ||
+          (a[0] === 'run' && !a.includes('tale.buildkit-probe=1')),
+      ),
     ).toBe(false);
   });
 
@@ -541,7 +745,7 @@ describe('organization BuildKit provisioning', () => {
     await save(seeded);
 
     expect((await rejection(ensureBuildkitd(cfg, 'org-a')))?.message).toMatch(
-      /legacy sessions have drained/,
+      /Cannot connect to the Docker daemon/,
     );
 
     expect(await calls()).toHaveLength(1);
@@ -569,6 +773,42 @@ describe('organization BuildKit provisioning', () => {
 });
 
 describe('legacy global build-cache retirement', () => {
+  test('a different configured Docker target gets its own retirement observation', async () => {
+    const previous = process.env.DOCKER_BIN;
+    try {
+      for (const name of ['docker-empty', 'docker-legacy']) {
+        const executable = join(root, name);
+        await writeFile(executable, FAKE_DOCKER);
+        await chmod(executable, 0o755);
+        process.env.DOCKER_BIN = executable;
+        await save(name === 'docker-empty' ? initialState() : legacyState());
+        const expected = {
+          stopped: name === 'docker-empty' ? 0 : 2,
+          deferred: false,
+        };
+        expect(await retireConfiguredLegacyBuildkitd()).toEqual(expected);
+        const observedCalls = await calls();
+        expect(await retireConfiguredLegacyBuildkitd()).toEqual({
+          stopped: 0,
+          deferred: false,
+        });
+        expect(await calls()).toEqual(observedCalls);
+      }
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+    }
+  });
+
+  test('remembers an already retired deployment without inventorying sessions', async () => {
+    await retireLegacyBuildkitd();
+    const first = await calls();
+    await retireLegacyBuildkitd();
+    expect(first).toHaveLength(5);
+    expect(first.every((args) => args[0] === 'inspect')).toBe(true);
+    expect(await calls()).toEqual(first);
+  });
+
   function legacyState(): FakeState {
     const seeded = initialState();
     for (const name of ['tale-buildkitd', 'tale-buildkitd-mirror-docker-io']) {
@@ -622,7 +862,7 @@ describe('legacy global build-cache retirement', () => {
 
       expect(await state()).toEqual(seeded);
       const commands = await calls();
-      expect(commands).toHaveLength(observation === 'inventory' ? 1 : 2);
+      expect(commands).toHaveLength(observation === 'inventory' ? 6 : 7);
       expect(commands.some((args) => args[0] === 'stop')).toBe(false);
     },
   );
@@ -704,10 +944,72 @@ describe('legacy global build-cache retirement', () => {
     expect(
       (await calls()).filter((a) => a[0] !== 'inspect' && a[0] !== 'ps'),
     ).toEqual([
-      ['stop', '--time', '30', 'tale-buildkitd'],
-      ['stop', '--time', '30', 'tale-buildkitd-mirror-docker-io'],
+      [
+        'stop',
+        '--time',
+        '30',
+        new Bun.CryptoHasher('sha256')
+          .update('container:tale-buildkitd')
+          .digest('hex'),
+      ],
+      [
+        'stop',
+        '--time',
+        '30',
+        new Bun.CryptoHasher('sha256')
+          .update('container:tale-buildkitd-mirror-docker-io')
+          .digest('hex'),
+      ],
     ]);
   });
+
+  test('never stops a foreign same-name replacement during the session scan', async () => {
+    const seeded = legacyState();
+    seeded.legacyReplacement = { name: 'tale-buildkitd', id: 'f'.repeat(64) };
+    seeded.sessions.push({
+      id: 'd'.repeat(64),
+      status: 'running',
+      endpoint: buildkitdEndpoint('org-a'),
+    });
+    await save(seeded);
+
+    expect((await rejection(retireLegacyBuildkitd()))?.message).toMatch(
+      /failed to stop drained legacy helper/,
+    );
+    expect((await state()).containers['tale-buildkitd']).toMatchObject({
+      legacyId: 'f'.repeat(64),
+      labels: {},
+      running: true,
+    });
+    expect((await calls()).filter((args) => args[0] === 'stop')).toEqual([
+      [
+        'stop',
+        '--time',
+        '30',
+        new Bun.CryptoHasher('sha256')
+          .update('container:tale-buildkitd')
+          .digest('hex'),
+      ],
+    ]);
+    // A failed retirement must be retried, without adopting the replacement.
+    expect((await retireLegacyBuildkitd()).deferred).toBe(true);
+    expect((await state()).containers['tale-buildkitd']?.running).toBe(true);
+  });
+
+  test.each(['', 'a'.repeat(12), 'invalid'])(
+    'rejects an unverifiable legacy container ID (%s)',
+    async (legacyId) => {
+      const seeded = legacyState();
+      seeded.containers['tale-buildkitd']!.legacyId = legacyId;
+      await save(seeded);
+      expect((await rejection(retireLegacyBuildkitd()))?.message).toMatch(
+        /invalid legacy container identity/,
+      );
+      expect(
+        (await calls()).some((args) => args[0] === 'stop' || args[0] === 'ps'),
+      ).toBe(false);
+    },
+  );
 
   const foreignLabels: Array<Record<string, string>> = [
     {},

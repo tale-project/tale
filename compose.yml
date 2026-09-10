@@ -671,6 +671,11 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # IPv4-only proxy networks: disable current and future-interface IPv6 so
+    # the fail-closed firewall also boots on kernels without ip6_tables.
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: '1'
+      net.ipv6.conf.default.disable_ipv6: '1'
     # Drop the full default capability set, then add back ONLY what the
     # container provably needs (least privilege; shrinks the attack surface of
     # a NET_ADMIN-holding, internet-facing proxy). Verified live against the

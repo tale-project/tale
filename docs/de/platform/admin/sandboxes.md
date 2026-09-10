@@ -5,9 +5,9 @@ description: Begrenze gleichzeitige Aufgaben und vergleiche belegte Kontingente 
 
 Unter Sandboxes siehst du, wie viel Arbeit deine Organisation starten darf und wie viel Infrastruktur gerade belegt ist. Öffne als Admin oder Inhaber **Einstellungen > Sandboxes**, um die Grenzen zu ändern; Entwickler sehen die Grenzen und die zusammengefasste Kapazität, aber keine Details privater Arbeitsumgebungen.
 
-<Frame caption="Hier bearbeitest du die Organisationsgrenzen. Ohne Sandbox-Verbindung bleiben fehlende Infrastrukturmesswerte ausdrücklich als nicht verfügbar gekennzeichnet.">
+<Frame caption="Vergleiche gespeicherte Organisationsgrenzen mit erfassten Laufzeitplätzen und der Host-Kapazität. Nicht messbare Auslastung bleibt ausdrücklich als nicht verfügbar gekennzeichnet.">
 
-![Die Sandbox-Einstellungen zeigen drei Organisationsgrenzen mit den belegten Kontingenten sowie separate Infrastrukturkarten mit nicht verfügbaren Messwerten.](/images/platform/settings-sandboxes.webp)
+![Die Sandbox-Einstellungen zeigen drei bearbeitbare Organisationsgrenzen, tatsächliche Laufzeitplätze und gemessene Gesamtwerte für CPU und Arbeitsspeicher des Hosts.](/images/platform/settings-sandboxes.webp)
 
 </Frame>
 
@@ -44,4 +44,4 @@ Crawling-Umgebungen sind temporär. Sie zählen zur Kapazität, auch wenn keine 
 
 ## Die passende Grenze ändern
 
-Erhöhe eine Organisationsgrenze, wenn das Kontingent dieser Aufgabenart voll ist und die Installation noch Platz hat. Die Änderung fügt weder CPU noch Arbeitsspeicher hinzu; auch ein freier Laufzeitplatz garantiert keine ausreichenden Ressourcen. Die Laufzeitgrenzen legt der Betreiber fest. Für selbst gehostete Installationen stehen sie in der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference). Token- und Ausgabenbudgets bleiben unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
+Erhöhe eine Organisationsgrenze, wenn das Kontingent dieser Aufgabenart voll ist und die Installation noch Platz hat. Die Änderung fügt weder CPU noch Arbeitsspeicher hinzu; auch ein freier Laufzeitplatz garantiert keine ausreichenden Ressourcen. Die Laufzeitgrenzen legt der Betreiber fest. Für selbst gehostete Installationen stehen sie in der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#sandbox-infrastruktur). Token- und Ausgabenbudgets bleiben unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).

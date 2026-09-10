@@ -18,6 +18,7 @@ const ipv6 = join(root, 'ipv6');
 mkdirSync(bin);
 mkdirSync(join(ipv6, 'conf/all'), { recursive: true });
 mkdirSync(join(ipv6, 'conf/default'), { recursive: true });
+mkdirSync(join(ipv6, 'conf/eth0'), { recursive: true });
 const firewall = `#!/bin/sh
 name="\${0##*/}"
 printf '%s %s\\n' "$name" "$*" >> "$TALE_FIREWALL_TEST_LOG"
@@ -39,7 +40,11 @@ const entrypoint = readFileSync(
   .replace('exec /entrypoint.sh "$@"', 'exec "$TALE_FIREWALL_TEST_NEXT" "$@"');
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-function boot(fail: string = '', ipv6Disabled: boolean = false) {
+function boot(
+  fail: string = '',
+  ipv6Disabled: boolean = false,
+  interfaceDisabled: boolean = ipv6Disabled,
+) {
   const log = join(root, 'calls');
   writeFileSync(log, '');
   for (const profile of ['all', 'default']) {
@@ -48,6 +53,10 @@ function boot(fail: string = '', ipv6Disabled: boolean = false) {
       ipv6Disabled ? '1' : '0',
     );
   }
+  writeFileSync(
+    join(ipv6, 'conf/eth0/disable_ipv6'),
+    interfaceDisabled ? '1' : '0',
+  );
   const result = spawnSync('/bin/sh', ['-c', entrypoint], {
     env: {
       ...process.env,
@@ -112,6 +121,12 @@ describe('multi-network egress isolation', () => {
       expect(result.status).toBe(1);
       expect(calls).not.toContain('proxy-start');
     }
+  });
+
+  test('all/default disabled cannot mask an enabled interface without ip6tables', () => {
+    const { result, calls } = boot('ip6tables -L FORWARD', true, false);
+    expect(result.status).toBe(1);
+    expect(calls).not.toContain('proxy-start');
   });
 
   test('unfilterable IPv6 is permitted only when disabled for current and future interfaces', () => {

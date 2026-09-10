@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { buildkitdEndpoint, buildkitdNetworkName } from '../buildkitd.ts';
+import { buildkitdEndpoint } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -49,6 +49,16 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('disables IPv6 on existing and future interfaces for every Docker session', () => {
+    for (const profile of ['agent', 'default'] as const) {
+      const args = buildDockerSessionRunArgs(cfg, { ...goodInput, profile });
+      expect(args.filter((_, i) => args[i - 1] === '--sysctl')).toEqual([
+        'net.ipv6.conf.all.disable_ipv6=1',
+        'net.ipv6.conf.default.disable_ipv6=1',
+      ]);
+    }
+  });
+
   test('logging is fully stated so a host default cannot break the run', () => {
     const args = buildDockerSessionRunArgs(cfg, goodInput);
     // Any log-opt left unset falls through to the host daemon's `log-opts`,
@@ -247,6 +257,7 @@ describe('buildDockerSessionRunArgs', () => {
     const dindInput = {
       ...goodInput,
       dockerStorageVolume: 'tale-dind-ses-abc-123',
+      buildkitNetworkSubnets: ['172.19.0.0/23'],
     };
 
     test('relaxes hardening, runs as root, mounts the docker store, signals the entrypoint', () => {
@@ -288,6 +299,32 @@ describe('buildDockerSessionRunArgs', () => {
       );
     });
 
+    test('planned subnets are sent as validated JSON before delayed network attachment', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+        buildkitNetworkSubnets: ['172.19.0.0/23', '10.22.0.0/24'],
+      });
+      expect(args).toContain(
+        'TALE_BUILDKIT_NETWORK_SUBNETS=["172.19.0.0/23","10.22.0.0/24"]',
+      );
+      for (const subnets of [
+        undefined,
+        [],
+        ['bad-cidr'],
+        ['10.22.0.1/24'],
+        ['::1/128'],
+      ]) {
+        expect(() =>
+          buildDockerSessionRunArgs(dindCfg, {
+            ...dindInput,
+            buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+            buildkitNetworkSubnets: subnets,
+          }),
+        ).toThrow();
+      }
+    });
+
     test('shared build cache: absent endpoint keeps argv byte-identical', () => {
       const withField = buildDockerSessionRunArgs(dindCfg, {
         ...dindInput,
@@ -300,16 +337,13 @@ describe('buildDockerSessionRunArgs', () => {
       ).toBe(false);
     });
 
-    test('build cache joins only its own private network and retains control networking', () => {
+    test('build cache boots only on control networking until its firewall is verified', () => {
       const args = buildDockerSessionRunArgs(dindCfg, {
         ...dindInput,
         buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
       });
       const networks = args.filter((_, i) => args[i - 1] === '--network');
-      expect(networks).toEqual([
-        cfg.egressNetwork,
-        buildkitdNetworkName(goodInput.organizationId),
-      ]);
+      expect(networks).toEqual([cfg.egressNetwork]);
       expect(args).toContain(`HTTP_PROXY=${cfg.egressProxy}`);
       expect(() =>
         buildDockerSessionRunArgs(dindCfg, {

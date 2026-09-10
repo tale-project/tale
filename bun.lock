@@ -361,6 +361,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
+        "ip-address": "10.4.0",
         "yaml": "2.8.3",
       },
       "devDependencies": {
@@ -467,7 +468,7 @@
     "hono": "4.12.34",
     "html-to-text": "10.0.1",
     "immutable": "4.3.9",
-    "ip-address": "10.3.1",
+    "ip-address": "10.4.0",
     "js-yaml": "4.3.2",
     "kysely": "0.28.17",
     "linkify-it": "6.1.0",
@@ -3153,7 +3154,7 @@
 
     "iota-array": ["iota-array@1.0.0", "", {}, "sha512-pZ2xT+LOHckCatGQ3DcG/a+QuEqvoxqkiL7tvE8nn3uuu+f6i1TtpB5/FtWFbxUuVr5PZCx8KskuGatbJDXOWA=="],
 
-    "ip-address": ["ip-address@10.3.1", "", {}, "sha512-1e9d3kb97NHJTIJDZW9rKqW2h6+dFa50Dy0fpPSMQp2ADje5gvKsXmdiK6dwY5t76TaTt5+P5N1Y/LoToIxP6g=="],
+    "ip-address": ["ip-address@10.4.0", "", {}, "sha512-oSK96Grm3aP6OrS263xVxbNDGVL7rzBtYdpGqlDG8iQdoenDoTs/nkki+DflYbAEE8Xl6o5YxhxlrKvI3nqKXQ=="],
 
     "ipaddr.js": ["ipaddr.js@1.9.1", "", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
 

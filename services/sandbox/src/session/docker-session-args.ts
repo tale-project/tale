@@ -12,7 +12,8 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { buildkitdEndpoint, buildkitdNetworkName } from '../buildkitd.ts';
+import { ipv4Subnet } from '../buildkit-network-pool.ts';
+import { buildkitdEndpoint } from '../buildkitd.ts';
 import {
   dindCapabilityOf,
   dockerRuntimeFor,
@@ -52,6 +53,9 @@ interface DockerSessionRunInput {
    * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
    */
   buildkitdEndpoint?: string;
+  /** Inspected org bridge subnets, required with an endpoint because the bridge
+   * attaches after runtime readiness and is not in the initial route table. */
+  buildkitNetworkSubnets?: readonly string[];
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -260,7 +264,23 @@ export function buildDockerSessionRunArgs(
     // the off path stays argv byte-identical.
     if (inp.buildkitdEndpoint) {
       assertSafe('buildkitdEndpoint', inp.buildkitdEndpoint, ENDPOINT_RE);
-      dindEnv.push('--env', `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`);
+      const subnets = inp.buildkitNetworkSubnets;
+      if (
+        !Array.isArray(subnets) ||
+        subnets.length === 0 ||
+        subnets.length > 64
+      ) {
+        throw new Error(
+          'docker-session-args: buildkitNetworkSubnets are required with a buildkitd endpoint',
+        );
+      }
+      for (const subnet of subnets) ipv4Subnet(subnet);
+      dindEnv.push(
+        '--env',
+        `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`,
+        '--env',
+        `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
+      );
     }
   }
 
@@ -315,12 +335,9 @@ export function buildDockerSessionRunArgs(
       ];
 
   const containerName = sessionContainerName(inp.sessionId);
-  const buildNetwork =
-    dind && inp.buildkitdEndpoint
-      ? buildkitdNetworkName(inp.organizationId)
-      : undefined;
   if (
-    buildNetwork &&
+    dind &&
+    inp.buildkitdEndpoint &&
     inp.buildkitdEndpoint !== buildkitdEndpoint(inp.organizationId)
   ) {
     throw new Error(
@@ -328,14 +345,10 @@ export function buildDockerSessionRunArgs(
     );
   }
   assertSafe('egressNetwork', cfg.egressNetwork, NETWORK_RE);
-  // The private builder network is additional to the control/LLM network.
-  // The runtime blocks unsolicited forwarding between these outer interfaces
-  // after starting DinD, while preserving replies to nested containers.
-  const networkArgs = [
-    '--network',
-    cfg.egressNetwork,
-    ...(buildNetwork ? ['--network', buildNetwork] : []),
-  ];
+  // Boot on the control/LLM network only. The spawner verifies the runtime's
+  // forwarding firewall after readiness before attaching the org build bridge;
+  // this also protects deployments still using an older runtime image.
+  const networkArgs = ['--network', cfg.egressNetwork];
   return [
     'run',
     '-d',
@@ -356,6 +369,13 @@ export function buildDockerSessionRunArgs(
     '--label',
     `tale.created=${inp.createdAtMs}`,
     ...networkArgs,
+    // These Docker networks carry IPv4 only. Disable loopback/current and
+    // future-interface IPv6 explicitly so missing ip6_tables is safe on hosts
+    // where Docker leaves ::1 enabled even for IPv4-only networks.
+    '--sysctl',
+    'net.ipv6.conf.all.disable_ipv6=1',
+    '--sysctl',
+    'net.ipv6.conf.default.disable_ipv6=1',
     '--env',
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',

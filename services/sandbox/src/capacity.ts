@@ -16,8 +16,8 @@ import type { SpawnerConfig } from './types.ts';
 export type RuntimeState = 'running' | 'starting' | 'stopped';
 
 export interface RuntimeObservation {
-  sessionId: string;
-  organizationId: string;
+  sessionId: string | null;
+  organizationId: string | null;
   state: RuntimeState;
 }
 
@@ -68,6 +68,27 @@ function positive(value: unknown): number | null {
     : null;
 }
 
+function observation(
+  sessionId: unknown,
+  organizationId: unknown,
+  state: RuntimeState,
+): RuntimeObservation {
+  // Broken ownership labels do not make the underlying compute disappear.
+  // Keep it in aggregate counts, but never manufacture a tenant/session id.
+  return {
+    sessionId:
+      typeof sessionId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(sessionId)
+        ? sessionId
+        : null,
+    organizationId:
+      typeof organizationId === 'string' &&
+      /^[a-zA-Z0-9_-]{1,128}$/.test(organizationId)
+        ? organizationId
+        : null,
+    state,
+  };
+}
+
 /** Docker inventories all session containers, including warming and exited
  * ones. Paused containers still hold compute; restarting ones are starting. */
 function parseDockerSessions(stdout: string): RuntimeObservation[] {
@@ -75,36 +96,17 @@ function parseDockerSessions(stdout: string): RuntimeObservation[] {
   for (const line of stdout.split('\n')) {
     if (line.trim() === '') continue;
     const row = record(JSON.parse(line));
-    if (
-      row === null ||
-      typeof row.sessionId !== 'string' ||
-      typeof row.organizationId !== 'string' ||
-      typeof row.state !== 'string' ||
-      ![
-        'running',
-        'paused',
-        'created',
-        'restarting',
-        'exited',
-        'dead',
-        'removing',
-      ].includes(row.state) ||
-      !/^[a-zA-Z0-9_-]{1,64}$/.test(row.sessionId) ||
-      !/^[a-zA-Z0-9_-]{1,128}$/.test(row.organizationId)
-    ) {
+    if (row === null || typeof row.state !== 'string') {
       throw new Error('Invalid Docker session inventory');
     }
-    const state =
-      row.state === 'running' || row.state === 'paused'
-        ? 'running'
-        : row.state === 'created' || row.state === 'restarting'
-          ? 'starting'
-          : 'stopped';
-    sessions.push({
-      sessionId: row.sessionId,
-      organizationId: row.organizationId,
-      state,
-    });
+    // An unfamiliar state must not silently free capacity; only states that
+    // confirm termination stop counting as occupied.
+    const state = ['exited', 'dead', 'removing'].includes(row.state)
+      ? 'stopped'
+      : row.state === 'created' || row.state === 'restarting'
+        ? 'starting'
+        : 'running';
+    sessions.push(observation(row.sessionId, row.organizationId, state));
   }
   return sessions;
 }
@@ -220,11 +222,16 @@ export class CapacityReader {
     }
     const snapshot = await this.snapshot();
     const sessions = new Map(
-      snapshot.sessions.map((session) => [session.sessionId, session]),
+      snapshot.sessions.map((session) => [
+        session.sessionId !== null && session.organizationId !== null
+          ? JSON.stringify([session.organizationId, session.sessionId])
+          : Symbol(),
+        session,
+      ]),
     );
     // A create can predate the Docker/Pod object and must count exactly once.
     for (const [sessionId, org] of this.creating()) {
-      sessions.set(sessionId, {
+      sessions.set(JSON.stringify([org, sessionId]), {
         sessionId,
         organizationId: org,
         state: 'starting',
@@ -250,10 +257,9 @@ export class CapacityReader {
         organizationLimit: this.cfg.session.maxSessionsPerOrg,
       },
       resources: snapshot.resources,
-      runtimeSessions: own.map(({ sessionId, state }) => ({
-        sessionId,
-        state,
-      })),
+      runtimeSessions: own.flatMap(({ sessionId, state }) =>
+        sessionId === null ? [] : [{ sessionId, state }],
+      ),
     };
   }
 
@@ -282,35 +288,33 @@ export class CapacityReader {
         },
         apiTimeout(),
       );
+      if (
+        !Array.isArray(response.items) ||
+        response.metadata?._continue ||
+        (response.metadata?.remainingItemCount ?? 0) > 0
+      ) {
+        throw new Error('Incomplete session Pod inventory');
+      }
       const sessions: RuntimeObservation[] = [];
       for (const pod of response.items) {
         const annotations = pod.metadata?.annotations;
         const sessionId = annotations?.['tale.dev/session-id'];
         const organizationId = annotations?.['tale.dev/organization-id'];
-        if (
-          !sessionId ||
-          !organizationId ||
-          !/^[a-zA-Z0-9_-]{1,64}$/.test(sessionId) ||
-          !/^[a-zA-Z0-9_-]{1,128}$/.test(organizationId)
-        )
-          throw new Error('Invalid session Pod inventory');
         const phase = pod.status?.phase;
-        if (
-          phase !== undefined &&
-          !['Running', 'Pending', 'Succeeded', 'Failed'].includes(phase)
-        ) {
-          throw new Error('Session Pod state is unknown');
-        }
-        sessions.push({
-          sessionId,
-          organizationId,
-          state:
-            phase === 'Running'
-              ? 'running'
+        // An unreachable node can leave a Pod Unknown while its workload is
+        // still running. Count any unrecognized phase as occupied until the
+        // control plane confirms termination; do not fail healthy neighbors.
+        sessions.push(
+          observation(
+            sessionId,
+            organizationId,
+            phase === 'Succeeded' || phase === 'Failed'
+              ? 'stopped'
               : phase === 'Pending' || phase === undefined
                 ? 'starting'
-                : 'stopped',
-        });
+                : 'running',
+          ),
+        );
       }
       // Namespace-scoped credentials do not reveal cluster node capacity or
       // metrics. Never substitute the spawner Pod's cgroup for cluster capacity.

@@ -44,11 +44,10 @@ set -e
 # runnerd. Everything here is dead code on the default (non-DinD) path.
 # ---------------------------------------------------------------------------
 
-# Controlled address pool for the inner daemon's bridges (docker0 +
-# compose-created networks). Known so inner service-to-service traffic can be
-# left direct (matched as the source pool by the transparent-egress redirect,
-# see setup_inner_transparent_egress).
-TALE_DIND_INNER_POOL="172.31.0.0/16"
+# Selected before dockerd starts from observed outer routes and the planned
+# organization build bridge. Never trust inherited values for root networking.
+TALE_DIND_INNER_POOL=""
+TALE_DIND_INNER_BIP=""
 
 # iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
@@ -57,6 +56,110 @@ _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
 # route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
 _IP=/usr/sbin/ip
+
+# The organization bridge attaches after readiness, so the spawner supplies its
+# inspected IPv4 subnets before startup. Legacy spawners already attached both
+# outer interfaces; accept absent hints only when routes prove that topology.
+# Python runs from the immutable image in isolated mode: workspace PATH and
+# PYTHONPATH are user-controlled by the time this root helper runs.
+select_inner_docker_pool() {
+  if ! _inner_network="$(/usr/local/bin/python3 -I - "$_IP" "${TALE_BUILDKIT_NETWORK_SUBNETS:-}" "${TALE_BUILDKITD_ENDPOINT:-}" <<'PY'
+import ipaddress
+import json
+import os
+import re
+import selectors
+import subprocess
+import sys
+import time
+
+
+def route_inventory(binary):
+    deadline = time.monotonic() + 5
+    with subprocess.Popen(
+        [binary, "-j", "-4", "route", "show", "table", "all"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        try:
+            data = bytearray()
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stdout, selectors.EVENT_READ)
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or not selector.select(remaining):
+                        raise TimeoutError("outer route inventory timed out")
+                    chunk = os.read(process.stdout.fileno(), 65536)
+                    if not chunk:
+                        break
+                    data.extend(chunk)
+                    if len(data) > 1024 * 1024:
+                        raise ValueError("outer route inventory exceeds 1 MiB")
+            if process.wait(timeout=max(0.01, deadline - time.monotonic())) != 0:
+                raise ValueError("outer route inventory command failed")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+    routes = json.loads(data)
+    if not isinstance(routes, list) or len(routes) > 4096:
+        raise ValueError("invalid outer route inventory")
+    return routes
+
+
+def choose_pool():
+    routes = route_inventory(sys.argv[1])
+    occupied = []
+    outer_interfaces = set()
+    for route in routes:
+        if not isinstance(route, dict) or not isinstance(route.get("dst"), str):
+            raise ValueError("invalid outer route destination")
+        device = route.get("dev")
+        if device is not None and not isinstance(device, str):
+            raise ValueError("invalid outer route interface")
+        if device and re.fullmatch(r"eth[0-9]+", device):
+            outer_interfaces.add(device)
+        if route["dst"] in ("default", "0.0.0.0/0"):
+            continue
+        occupied.append(ipaddress.IPv4Network(route["dst"]))
+
+    raw_hints = sys.argv[2]
+    if raw_hints:
+        hints = json.loads(raw_hints)
+        if not isinstance(hints, list) or not 1 <= len(hints) <= 64:
+            raise ValueError("invalid planned build-network subnet list")
+        for hint in hints:
+            if not isinstance(hint, str) or "/" not in hint:
+                raise ValueError("invalid planned build-network subnet")
+            occupied.append(ipaddress.IPv4Network(hint))
+    elif sys.argv[3] and len(outer_interfaces) < 2:
+        raise ValueError("planned build-network subnets are required before delayed attachment")
+
+    candidates = ["172.31.0.0/16"]
+    candidates.extend(f"172.{part}.0.0/16" for part in range(16, 31))
+    candidates.extend(f"10.{part}.0.0/16" for part in range(256))
+    candidates.append("192.168.0.0/16")
+    for candidate in candidates:
+        network = ipaddress.IPv4Network(candidate)
+        if not any(network.overlaps(outer) for outer in occupied):
+            return f"{network} {network.network_address + 1}/24"
+    raise ValueError("no non-overlapping private /16 remains for inner Docker")
+
+
+try:
+    print(choose_pool())
+except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
+    print(f"[entrypoint] FATAL: cannot select inner Docker network: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+)"; then
+    exit 1
+  fi
+  TALE_DIND_INNER_POOL="${_inner_network%% *}"
+  TALE_DIND_INNER_BIP="${_inner_network#* }"
+  export TALE_DIND_INNER_POOL TALE_DIND_INNER_BIP
+  echo "[entrypoint] inner Docker network selected: ${TALE_DIND_INNER_POOL}"
+}
 
 # Dedicated low-priv uid redsocks runs as on the SESSION transparent-egress path,
 # so the OUTPUT owner-match loop-breaker has a stable owner to exempt (see
@@ -369,6 +472,9 @@ start_inner_dockerd() {
     fi
   fi
 
+  # Choose the pool before dockerd adds its own routes and firewall chains.
+  select_inner_docker_pool
+
   # Prepare cgroup v2 delegation BEFORE dockerd, so the /docker cgroup tree it
   # creates is a domain cgroup that can carry memory/pids limits.
   setup_cgroup_nesting
@@ -389,7 +495,7 @@ start_inner_dockerd() {
   PATH="/usr/sbin:/sbin:${PATH}" dockerd \
     --host=unix:///var/run/docker.sock \
     --data-root=/var/lib/docker \
-    --bip=172.31.0.1/24 \
+    --bip="${TALE_DIND_INNER_BIP}" \
     --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
     --storage-driver=overlay2 \
     ${_dns_flags} \
@@ -437,12 +543,15 @@ protect_shared_cache_network() {
       echo "[entrypoint] FATAL: IPv6 build-cache network guard unavailable" >&2
       exit 1
     fi
-  elif [ -d /proc/sys/net/ipv6 ] && {
-    [ "$(cat /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null)" != "1" ] ||
-    [ "$(cat /proc/sys/net/ipv6/conf/default/disable_ipv6 2>/dev/null)" != "1" ];
-  }; then
-    echo "[entrypoint] FATAL: IPv6 is enabled without a build-cache network guard" >&2
-    exit 1
+  elif [ -d /proc/sys/net/ipv6 ]; then
+    # conf/all alone is not proof: a per-interface override may re-enable IPv6.
+    # Check defaults (including future network attachments) and every interface.
+    for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+      if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
+        echo "[entrypoint] FATAL: IPv6 is enabled without a build-cache network guard" >&2
+        exit 1
+      fi
+    done
   fi
 }
 

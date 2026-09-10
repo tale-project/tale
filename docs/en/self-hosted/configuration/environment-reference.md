@@ -229,7 +229,7 @@ A deploy runs both colours at once, so each count is doubled for the length of t
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
 
-## Sandbox agent turns
+## Sandbox infrastructure
 
 The runtime ceilings below are read by the sandbox spawner. Pass them into its environment and restart that service after a change; they do not change the organization policies edited in [Sandboxes](/platform/admin/sandboxes). The page reports actual runtime counts and host measurements separately from those organization allocations.
 
@@ -237,13 +237,26 @@ The runtime ceilings below are read by the sandbox spawner. Pass them into its e
 | --- | --- | --- |
 | `SANDBOX_MAX_SESSIONS` | `16` | Running and starting sessions across organizations on the Docker host or Kubernetes namespace. A runtime admission limit, not a CPU or memory reservation. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
 | `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Runtime ceiling for one organization across project agents, workflow runs and rendering, including idle containers that remain running. |
+| `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Idle window for stopping unpinned sessions. Organization build-cache helpers also stop after this window with no potentially active organization session; their networks and cache volumes are retained. |
+| `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, read by the spawner.** The image every session container is created from. The default is the tag the development stack builds locally, so a host that pulls its images sets the registry one: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, matching the rest of the stack. `tale deploy` sets it for you. |
 
-Docker build caches are isolated by organization. Upgrades create cold caches and retain the old global cache data. Old helper containers stop automatically after no running session depends on them. Drain or stop old pinned sessions to complete that transition; until then the old shared cache service remains reachable. Browser automation uses headless Chromium; live browser viewing and manual browser takeover are retired.
+Docker build caches are isolated by organization. Each organization uses one privileged builder and three unprivileged registry mirrors. Once no session may still use them, the helpers stop after the session idle window; the next build restarts them with their cache volumes intact. Networks and volumes remain available for reuse.
+
+The spawner packs organization bridges into the first available Docker address pool before moving to the next. Its default `/23` gives each bridge 512 addresses; an otherwise unused `/16` holds 128 such organization networks. Smaller subnets configured in Docker’s pools remain smaller. It excludes existing Docker networks, routes and DNS server addresses on the Docker daemon’s host, and `172.31.0.0/16` for older runtime images, then validates the created network.
+
+To observe the daemon’s host even with remote Docker, the spawner briefly runs the configured BuildKit image in the host network namespace with a read-only filesystem, all capabilities dropped and no mounts. If that observation fails or no safe subnet remains, sessions build locally without the shared cache. An unused owned network left with an invalid subnet is rebuilt; in-use and foreign networks are preserved.
+
+Before starting its inner Docker daemon, the runtime selects a private `/16` that avoids its actual IPv4 routes and the organization bridge that will attach later. It prefers `172.31.0.0/16`, then tries other private ranges. The first `/24` serves `docker0`; inner Compose networks use `/24` blocks from that same pool. Unreadable routes or an exhausted pool prevent session startup and produce a specific runtime error.
+
+Keep `sandbox`, `sandbox-egress` and `SANDBOX_RUNTIME_IMAGE` on the same release when upgrading. Before attaching an organization’s build network, the spawner verifies the session’s forwarding protection. Compose and generated session containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and `net.ipv6.conf.default.disable_ipv6=1`; keep these sysctls in custom deployment definitions so an IPv4 deployment does not depend on host IPv6 firewall support.
+
+Upgrades create cold organization caches and retain the old global cache data. Old helper containers stop automatically after no running session depends on them. Drain or stop old pinned sessions to complete that transition; until then the old shared cache service remains reachable. Browser automation uses headless Chromium; live browser viewing and manual browser takeover are retired.
+
+## Sandbox agent turns
 
 | Name                             | Default              | Description                                                                                                                                                                                                                                                                                       |
 | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optional.** How long an in-sandbox coding-agent turn (Claude Code, OpenCode, Codex) may sit with nobody draining its output before the sandbox daemon reaps it. A sliding window, re-armed every time the platform re-attaches to the output — not an absolute cap on the turn. Milliseconds. |
-| `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, read by the spawner.** The image every session container is created from. The default is the tag the development stack builds locally, so a host that pulls its images sets the registry one: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, matching the rest of the stack. `tale deploy` sets it for you. |
 
 Raise it when long agent turns on a slow host come back as reaped orphans; the platform re-attaches on its own, so the window only ends a turn whose drain chain died. Read by the backend at boot — restart `backend-api backend-worker` after changing it.
 

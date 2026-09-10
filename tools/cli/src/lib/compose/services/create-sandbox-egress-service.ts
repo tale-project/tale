@@ -39,6 +39,12 @@ export function createSandboxEgressService(
     container_name: `${getProjectId()}-sandbox-egress`,
     env_file: ['.env'],
     restart: 'unless-stopped',
+    // Match compose.yml: IPv4-only networks need no IPv6 kernel firewall.
+    // Explicit defaults also cover org build bridges attached after startup.
+    sysctls: {
+      'net.ipv6.conf.all.disable_ipv6': '1',
+      'net.ipv6.conf.default.disable_ipv6': '1',
+    },
     // Least privilege: drop the full default cap set, add back only what the
     // container provably needs (verified live against the image). NET_ADMIN
     // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create

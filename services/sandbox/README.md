@@ -46,13 +46,45 @@ Local Linux hosts also report CPU deltas and used memory (`MemTotal` minus
 `MemAvailable`). Remote Docker endpoints retain known totals but leave usage
 unavailable; the spawner never substitutes its own machine's usage. CPU needs
 two observations no more than 30 seconds apart. Kubernetes reports namespace
-Pod counts with unavailable host measurements. Inventory errors return 503,
-never a successful zero count. Observations coalesce and cache for five seconds;
+Pod counts with unavailable host measurements. Unknown Pod phases count as
+occupied until termination is confirmed. A container or Pod with malformed
+ownership labels still contributes to aggregate occupancy; only validated
+organization/session identities appear in that organization's session list.
+Failed or incomplete inventories return 503, never a successful zero count.
+Observations coalesce and cache for five seconds;
 the settings page refreshes every 15 seconds and marks unavailable metrics.
 
 Platform quota allocation and physical runtime state have separate lifecycles:
 finishing work can release an org allocation while its idle container stays
 running. The capacity inventory includes that container until it stops.
+
+## Organization build caches
+
+Each organization has one privileged BuildKit container, three unprivileged
+registry mirrors, an internal network and four cache volumes. The spawner
+packs `/23` bridges (512 addresses each) into the first available Docker
+address pool before advancing, honoring smaller configured pool sizes. An
+otherwise unused `/16` holds 128 organization bridges. The allocation excludes
+existing Docker networks, the daemon host's routes and DNS servers, and
+`172.31.0.0/16` for older runtime images, then validates the created network.
+A short-lived observer runs the configured BuildKit image in the daemon's host
+network namespace with a read-only filesystem, no capabilities and no mounts;
+this works against remote Docker without borrowing the spawner host's routes.
+An unused invalid owned network is recreated; an in-use or foreign network is
+never removed. If host observation fails or no safe subnet is available,
+sessions build locally.
+
+After no session may still depend on an organization's cache helpers, the
+`SANDBOX_SESSION_MAX_IDLE_MS` window (30 minutes by default) starts. The helpers
+then stop; their network and volumes remain intact and the next build restarts
+them. Legacy global cache helpers retire once their remaining sessions drain,
+with their cache volumes retained.
+
+Deploy the spawner, egress and runtime images from the same release. Before it
+attaches an organization build network, the spawner verifies the runtime's
+forwarding protection, including when adopting an older runtime image. Generated
+Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
+on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
 
 ## Container
 

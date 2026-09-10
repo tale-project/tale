@@ -60,6 +60,32 @@ function dockerStub() {
   });
 }
 
+function pod(sessionId: string, organizationId: string, phase: string) {
+  return {
+    metadata: {
+      annotations: {
+        'tale.dev/session-id': sessionId,
+        'tale.dev/organization-id': organizationId,
+      },
+    },
+    status: { phase },
+  };
+}
+
+function kubernetesReader(
+  response: unknown,
+  creating: ReadonlyMap<string, string> = new Map(),
+) {
+  const listNamespacedPod = mock(async () => response);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the namespaced inventory seam is exercised
+  const client = { core: { listNamespacedPod } } as unknown as K8sClient;
+  return new CapacityReader(
+    { ...config(), backend: 'kubernetes' },
+    () => creating,
+    { client },
+  );
+}
+
 describe('infrastructure capacity observations', () => {
   test('counts real containers and pending creates once, without leaking other org ids', async () => {
     const creating = new Map([
@@ -109,6 +135,54 @@ describe('infrastructure capacity observations', () => {
       });
       expect(reader.forOrganization('a')).rejects.toThrow();
     }
+  });
+
+  test('broken Docker ownership labels keep occupied slots without exposing untrusted ids', async () => {
+    const rows = [
+      { sessionId: 'healthy', organizationId: 'a', state: 'running' },
+      { sessionId: 'bad/id', organizationId: 'a', state: 'created' },
+      { sessionId: '', organizationId: 'a', state: 'running' },
+      { sessionId: 'unowned', organizationId: '', state: 'running' },
+      { sessionId: '', organizationId: '', state: 'running' },
+      { sessionId: 'foreign', organizationId: 'b', state: 'running' },
+    ];
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker: async (args) =>
+        args[0] === 'ps'
+          ? ok(rows.map((row) => JSON.stringify(row)).join('\n'))
+          : ok('{}'),
+    });
+    const result = await reader.forOrganization('a');
+    expect(result.sessions).toMatchObject({
+      running: 5,
+      starting: 1,
+      organizationRunning: 2,
+      organizationStarting: 1,
+    });
+    expect(result.runtimeSessions).toEqual([
+      { sessionId: 'healthy', state: 'running' },
+    ]);
+  });
+
+  test('unrecognized Docker states conservatively retain occupied slots', async () => {
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker: async (args) =>
+        args[0] === 'ps'
+          ? ok(
+              JSON.stringify({
+                sessionId: 'uncertain',
+                organizationId: 'a',
+                state: 'unknown',
+              }),
+            )
+          : ok('{}'),
+    });
+    const result = await reader.forOrganization('a');
+    expect(result.sessions.running).toBe(1);
+    expect(result.sessions.organizationRunning).toBe(1);
+    expect(result.runtimeSessions).toEqual([
+      { sessionId: 'uncertain', state: 'running' },
+    ]);
   });
 
   test('keeps measured totals if local usage is unavailable; no fake zero', async () => {
@@ -220,31 +294,93 @@ describe('infrastructure capacity observations', () => {
     });
     expect(result.resources.cpu.totalCores).toBeNull();
     expect(listNamespacedPod.mock.calls).toHaveLength(1);
-    for (const item of [
+  });
+
+  test('unknown Pod phases count as occupied without poisoning healthy neighbors', async () => {
+    const reader = kubernetesReader({
+      items: [
+        pod('healthy', 'a', 'Running'),
+        pod('unreachable', 'a', 'Unknown'),
+        pod('future', 'a', 'UnrecognizedPhase'),
+        pod('pending', 'a', 'Pending'),
+        pod('done', 'a', 'Succeeded'),
+        pod('failed', 'a', 'Failed'),
+        pod('foreign', 'b', 'Unknown'),
+      ],
+    });
+    const result = await reader.forOrganization('a');
+    expect(result.sessions).toMatchObject({
+      running: 4,
+      starting: 1,
+      organizationRunning: 3,
+      organizationStarting: 1,
+    });
+    expect(result.runtimeSessions).toContainEqual({
+      sessionId: 'unreachable',
+      state: 'running',
+    });
+    expect(result.runtimeSessions).toContainEqual({
+      sessionId: 'done',
+      state: 'stopped',
+    });
+    expect(JSON.stringify(result)).not.toContain('foreign');
+  });
+
+  test('malformed Pod identities retain aggregate occupancy and only valid org ownership', async () => {
+    const reader = kubernetesReader({
+      items: [
+        pod('healthy', 'a', 'Running'),
+        pod('bad/id', 'a', 'Unknown'),
+        pod('', 'a', 'Pending'),
+        pod('unowned', 'invalid/org', 'Running'),
+        pod('foreign', 'b', 'Running'),
+        { status: { phase: 'Running' } },
+        { status: { phase: 'Unknown' } },
+      ],
+    });
+    const result = await reader.forOrganization('a');
+    expect(result.sessions).toMatchObject({
+      running: 6,
+      starting: 1,
+      organizationRunning: 2,
+      organizationStarting: 1,
+    });
+    expect(result.runtimeSessions).toEqual([
+      { sessionId: 'healthy', state: 'running' },
+    ]);
+  });
+
+  test('pending-create deduplication includes organization ownership', async () => {
+    const reader = kubernetesReader(
       {
-        metadata: {
-          annotations: {
-            'tale.dev/session-id': 's1',
-            'tale.dev/organization-id': 'a',
-          },
-        },
-        status: { phase: 'Unknown' },
+        items: [
+          pod('same-id', 'b', 'Running'),
+          pod('starting-id', 'a', 'Pending'),
+        ],
       },
-      {
-        metadata: {
-          annotations: {
-            'tale.dev/session-id': 'bad/id',
-            'tale.dev/organization-id': 'a',
-          },
-        },
-        status: { phase: 'Running' },
-      },
+      new Map([
+        ['same-id', 'a'],
+        ['starting-id', 'a'],
+      ]),
+    );
+    const result = await reader.forOrganization('a');
+    expect(result.sessions).toMatchObject({
+      running: 1,
+      starting: 2,
+      organizationRunning: 0,
+      organizationStarting: 2,
+    });
+    expect(result.runtimeSessions).toHaveLength(2);
+  });
+
+  test('partial and malformed Pod lists never report complete capacity', async () => {
+    for (const response of [
+      { metadata: { _continue: 'next-page' }, items: [] },
+      { metadata: { remainingItemCount: 1 }, items: [] },
+      {},
+      { items: 'invalid-list' },
     ]) {
-      listNamespacedPod.mockResolvedValueOnce({ items: [item] });
-      const unknownReader = new CapacityReader(cfg, () => new Map(), {
-        client,
-      });
-      expect(unknownReader.forOrganization('a')).rejects.toThrow();
+      expect(kubernetesReader(response).forOrganization('a')).rejects.toThrow();
     }
   });
 });

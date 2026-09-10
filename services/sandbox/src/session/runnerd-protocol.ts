@@ -53,7 +53,14 @@ export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
  * sandbox plumbing (egress proxy, workspace-home, daemon auth). Checked as
  * exact names except the two prefix rules.
  */
-export const RUNNERD_ENV_DENYLIST = ['HOME', 'PATH', 'TMPDIR'] as const;
+export const RUNNERD_ENV_DENYLIST = [
+  'HOME',
+  'PATH',
+  'TMPDIR',
+  'TALE_BUILDKIT_NETWORK_SUBNETS',
+  'TALE_DIND_INNER_POOL',
+  'TALE_DIND_INNER_BIP',
+] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 /** Proxy vars are deny-listed case-insensitively (HTTP_PROXY/http_proxy…). */
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;

@@ -10,7 +10,16 @@ import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { retireLegacyBuildkitd } from '../../buildkit-resources.ts';
-import { ensureBuildkitd } from '../../buildkitd.ts';
+import {
+  ensureBuildkitd,
+  retainBuildkitd,
+  sweepIdleBuildkitd,
+} from '../../buildkitd.ts';
+import {
+  attachBuildkitNetwork,
+  readBuildkitNetworkPlan,
+  type BuildkitNetworkPlan,
+} from '../../session/buildkit-network-guard.ts';
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
@@ -172,6 +181,20 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
+    const release =
+      sessionDindEnabled(this.cfg, spec.profile) && this.cfg.dockerBuildCache
+        ? retainBuildkitd(spec.organizationId)
+        : undefined;
+    try {
+      return await this.createSessionUnlocked(spec);
+    } finally {
+      release?.();
+    }
+  }
+
+  private async createSessionUnlocked(
+    spec: SessionSpec,
+  ): Promise<CreateSessionResult> {
     const containerName = sessionContainerName(spec.sessionId);
     // A new session starts UNPINNED whatever a prior incarnation under this
     // deterministic id recorded: the platform row is the truth and re-pushes
@@ -243,12 +266,13 @@ export class DockerSessionBackend implements SessionBackend {
     // on error we proceed with no endpoint and the session falls back to its own
     // inner builder (cold cache). Only when DinD + the flag are both on.
     let buildkitdEndpoint: string | undefined;
+    let buildkitNetworkPlan: BuildkitNetworkPlan | undefined;
     if (dind && this.cfg.dockerBuildCache) {
       try {
-        buildkitdEndpoint = await ensureBuildkitd(
-          this.cfg,
-          spec.organizationId,
-        );
+        const endpoint = await ensureBuildkitd(this.cfg, spec.organizationId);
+        const planned = await readBuildkitNetworkPlan(spec.organizationId);
+        buildkitNetworkPlan = planned;
+        buildkitdEndpoint = endpoint;
       } catch (err) {
         console.warn(
           `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
@@ -271,6 +295,9 @@ export class DockerSessionBackend implements SessionBackend {
       createdAtMs: spec.createdAtMs,
       dockerStorageVolume,
       ...(buildkitdEndpoint ? { buildkitdEndpoint } : {}),
+      ...(buildkitNetworkPlan
+        ? { buildkitNetworkSubnets: buildkitNetworkPlan.subnets }
+        : {}),
     });
     // The seed env is NOT passed on the `docker run` argv. A `--env
     // TALE_SESSION_ENV=…` would be readable by anyone with host Docker access
@@ -349,6 +376,17 @@ export class DockerSessionBackend implements SessionBackend {
         { baseUrl, token },
         this.cfg.session.createHealthTimeoutMs,
       );
+      // The inner daemon can rewrite firewall chains during boot. Connect the
+      // organization bridge only after readiness and actual guard verification,
+      // including for older runtime images. Failure uses the cleanup below.
+      if (buildkitNetworkPlan) {
+        await attachBuildkitNetwork(
+          this.cfg,
+          containerName,
+          spec.organizationId,
+          buildkitNetworkPlan,
+        );
+      }
       // Push the seed env now that runnerd is ready and BEFORE createSession
       // returns, so no exec can start without it. Fail-closed: a failed PATCH
       // tears the container down via the catch below rather than launching a
@@ -715,6 +753,12 @@ export class DockerSessionBackend implements SessionBackend {
     await retireLegacyBuildkitd().catch((error: unknown) => {
       console.warn(
         '[sandbox.session] legacy build-cache retirement deferred:',
+        error,
+      );
+    });
+    await sweepIdleBuildkitd(this.cfg).catch((error: unknown) => {
+      console.warn(
+        '[sandbox.session] idle build-cache cleanup deferred:',
         error,
       );
     });

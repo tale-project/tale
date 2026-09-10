@@ -127,7 +127,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   inner daemon — reaches any host via the egress proxy. Inner containers get the
   internet **transparently**, with **no proxy env injected**: the entrypoint runs
   `redsocks` and an iptables `REDSOCKS` nat chain that REDIRECTs nested
-  containers' _public_ TCP (matched by the inner source pool `172.31.0.0/16`)
+  containers' _public_ TCP (matched by the private inner source pool selected at
+  startup, preferring `172.31.0.0/16` when it does not overlap the outer routes
+  or the planned organization build network)
   through the egress proxy via `CONNECT` (both `:80` and `:443`), while internal /
   private / loopback traffic stays direct. External **DNS** is served by a
   `dnsmasq` forwarder on the (dual-homed) egress proxy — the inner daemon is

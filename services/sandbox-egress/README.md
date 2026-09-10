@@ -11,6 +11,13 @@ installed, the proxy refuses to start. IPv4 and enabled IPv6 forwarding are
 blocked at the top of the FORWARD chain, so the multi-network proxy cannot
 route packets between organizations' private build-cache networks.
 
+Compose and the deployment generator disable IPv6 with
+`net.ipv6.conf.all.disable_ipv6=1` and
+`net.ipv6.conf.default.disable_ipv6=1`. Keep both sysctls in custom deployment
+definitions so IPv4-only hosts do not require an IPv6 firewall module. The
+entrypoint still checks actual interface state before accepting the disabled
+IPv6 fallback.
+
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress
 bun run --filter @tale/sandbox-egress docker:build
