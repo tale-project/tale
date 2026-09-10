@@ -149,7 +149,6 @@ export default {
         // subsystems ignored above. Same debt ledger, same exit: delete a
         // line when its consumer wires up, or drop the dependency with it.
         // ------------------------------------------------------------
-        '@ai-sdk/provider',
         '@measured/puck',
         '@modelcontextprotocol/sdk',
         '@tanstack/react-virtual',
