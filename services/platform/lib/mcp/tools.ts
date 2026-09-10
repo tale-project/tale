@@ -335,8 +335,3 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     group: 'capability' as const,
   })),
 ];
-
-/** Which surface answers a tool name, or `undefined` when nothing does. */
-export function mcpToolKind(name: string): McpToolSpec['kind'] | undefined {
-  return MCP_TOOLS.find((tool) => tool.name === name)?.kind;
-}
