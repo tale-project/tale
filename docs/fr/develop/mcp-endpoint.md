@@ -11,13 +11,22 @@ Lis ceci pour connecter un client et comprendre l'inventaire des outils. La gram
 
 ## Connecter un client
 
-L'endpoint parle le protocole MCP `2025-03-26` en JSON-RPC sur HTTPS — réponses JSON pures, pas de flux SSE, un message par requête (un batch répond l'erreur `-32600`). Authentifie-toi avec une clé API d'organisation ([Clés API](/fr/platform/admin/api-keys) décrit la création). Si le détenteur de la clé appartient à plusieurs organisations, chaque requête doit aussi nommer celle qu’elle vise — l’en-tête `X-Organization-Slug`, vérifié contre les adhésions. Sans lui, une telle requête répond **400** `ORG_SLUG_REQUIRED` plutôt que de deviner depuis le dashboard ; une clé à organisation unique peut s’en passer.
+L'endpoint parle le protocole MCP `2025-06-18` (ou `2025-03-26` si le client le propose) en JSON-RPC sur HTTPS — réponses JSON pures, pas de flux SSE. Envoie un message par requête ou un batch JSON-RPC de 20 messages au plus : il est répondu sous forme de tableau, un batch composé uniquement de notifications répond 202, et chaque appel d'outil du batch après le premier puise dans le même budget de requêtes qu'une requête à part entière. Authentifie-toi avec une clé API d'organisation ([Clés API](/fr/platform/admin/api-keys) décrit la création). Si le détenteur de la clé appartient à plusieurs organisations, chaque requête doit aussi nommer celle qu’elle vise — l’en-tête `X-Organization-Slug`, vérifié contre les adhésions. Sans lui, une telle requête répond **400** `ORG_SLUG_REQUIRED` plutôt que de deviner depuis le dashboard ; une clé à organisation unique peut s’en passer.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
 // X-Organization-Slug: acme
-{ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": { "name": "my-client", "version": "1.0.0" }
+  }
+}
 ```
 
 Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, ces deux en-têtes suffisent :
@@ -40,7 +49,7 @@ Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, 
 
 ## Les outils
 
-Vingt-deux outils, en trois groupes. Les outils d'écriture prennent des documents d'automatisation entiers et valident tout eux-mêmes — leurs schémas restent ouverts sur le fil, et `get_docs` est la référence qu'un modèle lit d'abord. Les outils de gestion et de capacités prennent des arguments simples et déclarent de vrais schémas JSON.
+Vingt-deux outils, en trois groupes. Les quatre outils qui prennent un document d'automatisation entier — validate, run, test, save — le valident eux-mêmes : leurs schémas restent ouverts sur le fil, et `get_docs` est la référence qu'un modèle lit d'abord. Tout autre outil prend des arguments simples et déclare un vrai schéma JSON, et l'endpoint y tient chaque appel — des arguments qui ne correspondent pas répondent l'erreur JSON-RPC `-32602` avec le nom du champ, jamais un résultat vide en silence.
 
 ### Écriture
 
@@ -92,7 +101,7 @@ La clé prouve qui appelle ; le rôle de son détenteur décide ce que l'appel 
 - **Toute clé de membre** — chaque outil de lecture, `run_automation` (toujours contre les mocks), `search_capabilities`, `get_knowledge`.
 - **Capacité développeur requise** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, et l'exécution live (`run_deployed`, `start_run`).
 
-Un appel refusé n'est pas une erreur de protocole : l'outil répond un refus lisible — `{"error": "...", "hint": "..."}` — pour que le modèle appelant s'ajuste au lieu de planter. Cette convention vaut partout : problèmes de validation, déploiements manquants et refus de rôle reviennent comme des données ; `isError` est réservé à un appel qui a réellement levé.
+Un appel refusé n'est pas une erreur de protocole : l'outil répond un refus lisible — `{"error": "...", "hint": "..."}` — pour que le modèle appelant s'ajuste au lieu de planter, et le résultat porte `isError: true` pour qu'un client générique reconnaisse l'échec sans lire le texte. Cette convention vaut partout : problèmes de validation, déploiements manquants, refus de rôle et base de connaissances impossible à interroger reviennent comme des données avec le drapeau levé — exactement comme un appel qui a réellement levé. Une capacité qui répond `pending` — une mémoire enregistrée en attente de l'approbation d'un humain — est un résultat, pas un échec, et laisse `isError` à false ; une capacité `refused` (id inconnu, arguments rejetés par son schéma, aucun déploiement) est un échec et porte le drapeau.
 
 ## Où ça se place
 

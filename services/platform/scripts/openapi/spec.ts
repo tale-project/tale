@@ -2484,27 +2484,108 @@ export function buildSpec(): Json {
 
   // ── MCP ───────────────────────────────────────────────────────────────────
 
+  const jsonRpcId: Json = {
+    oneOf: [{ type: 'string' }, { type: 'integer' }],
+    description: 'The request id — a string or a number',
+  };
+  const jsonRpcMessage: Json = {
+    type: 'object',
+    required: ['jsonrpc', 'method'],
+    properties: {
+      jsonrpc: { type: 'string', enum: ['2.0'] },
+      id: {
+        ...jsonRpcId,
+        description:
+          'The request id — a string or a number; omit it for a notification, which is acknowledged with 202 and never answered',
+      },
+      method: str,
+      params: obj,
+    },
+  };
+  const jsonRpcResult: Json = {
+    type: 'object',
+    required: ['jsonrpc', 'id', 'result'],
+    properties: {
+      jsonrpc: { type: 'string', enum: ['2.0'] },
+      id: jsonRpcId,
+      result: obj,
+    },
+  };
+  const jsonRpcError: Json = {
+    type: 'object',
+    required: ['jsonrpc', 'id', 'error'],
+    properties: {
+      jsonrpc: { type: 'string', enum: ['2.0'] },
+      id: {
+        anyOf: [
+          { type: 'string', nullable: true },
+          { type: 'integer', nullable: true },
+        ],
+        description:
+          'The request id, or null when the request could not be read (a parse error, an invalid envelope)',
+      },
+      error: {
+        type: 'object',
+        required: ['code', 'message'],
+        properties: {
+          code: {
+            type: 'integer',
+            description:
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, or arguments that do not match the advertised input schema), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait)',
+          },
+          message: str,
+        },
+      },
+    },
+  };
+  const jsonRpcReply: Json = { oneOf: [jsonRpcResult, jsonRpcError] };
+
   paths['/api/v1/mcp'] = {
     post: {
       tags: ['MCP'],
       summary: 'The platform MCP endpoint',
       description:
-        'JSON-RPC over HTTP (MCP protocol 2025-03-26; JSON responses only, ' +
-        'no SSE; one message per request). Authenticate with the same ' +
-        'Bearer org API key as the REST API. Call `tools/list` for the tool ' +
-        'inventory — automation authoring, run and trigger management, and ' +
-        'the organization’s capability surface — and the `get_docs` tool for ' +
-        'the in-band authoring reference. GET answers 405. See the MCP ' +
+        'JSON-RPC over HTTP (MCP protocol 2025-06-18, or 2025-03-26 when the ' +
+        'client proposes it; JSON responses only, no SSE). One message per ' +
+        'request, or a JSON-RPC batch answered as an array. Authenticate with ' +
+        'the same Bearer org API key as the REST API. Call `tools/list` for ' +
+        'the tool inventory — automation authoring, run and trigger management, ' +
+        'and the organization’s capability surface — and the `get_docs` tool ' +
+        'for the in-band authoring reference. Tool arguments are checked ' +
+        'against the advertised input schema. GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
       security: sec,
       requestBody: jsonBody({
-        type: 'object',
-        description: 'A single JSON-RPC 2.0 message',
+        oneOf: [
+          jsonRpcMessage,
+          {
+            type: 'array',
+            minItems: 1,
+            maxItems: 20,
+            items: jsonRpcMessage,
+            description:
+              'A JSON-RPC batch — at most 20 messages; every tool call beyond the first draws from the request budget like a request of its own',
+          },
+        ],
       }),
       responses: {
-        '200': jsonResponse('The JSON-RPC response'),
-        ...standardErrors,
+        '200': jsonResponse(
+          'The JSON-RPC reply — a result or an error envelope; an array of them for a batch. A tool call that failed is a result whose `isError` is true, never an error envelope.',
+          {
+            oneOf: [jsonRpcReply, { type: 'array', items: jsonRpcReply }],
+          },
+        ),
+        '202': {
+          description:
+            'A notification (a message without an id), or a batch of notifications alone — acknowledged, no body',
+        },
+        '400': jsonResponse(
+          'The body could not be acted on: not JSON (-32700), not a JSON-RPC 2.0 message, an id that is not a string or a number, an empty batch, or an unsupported `MCP-Protocol-Version` header (-32600)',
+          jsonRpcError,
+        ),
+        '401': standardErrors['401'],
+        '429': standardErrors['429'],
       },
     },
   };

@@ -12,6 +12,10 @@ import {
 import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
 import { createCtxShim, type ShimHandlers } from '../lib/ctx-shim.ts';
+import {
+  RateLimitExceededError,
+  checkUserRateLimit,
+} from '../lib/rate-limit.ts';
 import type { RestEnv } from './shared.ts';
 
 /**
@@ -100,7 +104,22 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       user: { userId: c.get('userId') },
     };
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused protocol layer touches exactly the rc surface built above
-    return handleMcpRequest(rc as never, c.req.raw);
+    return handleMcpRequest(rc as never, c.req.raw, {
+      // The door charged this HTTP request once; every further tool call a
+      // batch carries draws from the same `rest:api` budget, so a batch is
+      // never cheaper than the requests it stands for.
+      admit: async () => {
+        try {
+          await checkUserRateLimit(deps.sql, 'rest:api', c.get('userId'));
+          return null;
+        } catch (error) {
+          if (error instanceof RateLimitExceededError) {
+            return { retryAfterMs: error.retryAfter };
+          }
+          throw error;
+        }
+      },
+    });
   });
 
   app.get('/mcp', () => mcpGetNotAllowed());

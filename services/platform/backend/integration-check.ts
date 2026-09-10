@@ -10885,15 +10885,17 @@ async function checkMcp(
     params: {},
   });
   const initOk = z
-    .object({ result: z.object({ protocolVersion: z.literal('2025-03-26') }) })
+    .object({ result: z.object({ protocolVersion: z.literal('2025-06-18') }) })
     .safeParse(init.body).success;
   const note = await rpc({
     jsonrpc: '2.0',
     method: 'notifications/initialized',
   });
+  // 2025-03-26 requires receiving batches: one reply per request, as an array.
   const batch = await rpc([{ jsonrpc: '2.0', id: 2, method: 'ping' }]);
-  const batchCode = z
-    .object({ error: z.object({ code: z.number() }) })
+  const batchReplies = z
+    .array(z.object({ id: z.literal(2), result: z.object({}) }))
+    .length(1)
     .safeParse(batch.body);
   const unknownMethod = await rpc({
     jsonrpc: '2.0',
@@ -11041,8 +11043,8 @@ async function checkMcp(
     oneShotRow.mode === 'live' &&
     oneShotRow.startedBy.startsWith('api-key:');
 
-  // The developer gate: a member-role key gets the refusal as DATA on the
-  // persisting tools while every read tool keeps answering.
+  // The developer gate: a member-role key gets the refusal as DATA (flagged
+  // isError) on the persisting tools while every read tool keeps answering.
   const { cookie: memberCookie } = await signUpOrgMember(
     sql,
     base,
@@ -11093,7 +11095,7 @@ async function checkMcp(
     .object({ error: z.string() })
     .safeParse(memberLive.value);
   const memberLiveRefused =
-    !memberLive.isError &&
+    memberLive.isError &&
     memberLiveShape.success &&
     memberLiveShape.data.error.includes('developer-settings');
   const developerActor = oneShotRow?.startedBy ?? '';
@@ -11165,9 +11167,8 @@ async function checkMcp(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&
       note.status === 202 &&
-      batch.status === 400 &&
-      batchCode.success &&
-      batchCode.data.error.code === -32600 &&
+      batch.status === 200 &&
+      batchReplies.success &&
       unknownCode.success &&
       unknownCode.data.error.code === -32601 &&
       getRes.status === 405 &&
@@ -11185,16 +11186,17 @@ async function checkMcp(
       !oneShot.isError &&
       oneShotShape.success &&
       oneShotRecorded &&
-      !refusal.isError &&
+      refusal.isError &&
       refusalShape.success &&
       refusalShape.data.error.includes('refused for this key') &&
       memberLiveRefused &&
       memberLeftNoRun &&
       memberListShape.success &&
       capHit &&
-      !knowledge.isError &&
-      knowledgeShape.success,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+      knowledgeShape.success &&
+      // Unavailable is the tool failing at its job; a passage list is not.
+      knowledge.isError === (knowledgeShape.data.status === 'unavailable'),
+    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an
