@@ -19,7 +19,7 @@ import { useT } from '@/lib/i18n/client';
 import { ProjectDeleteDialog } from './project-delete-dialog';
 
 /** The section's DOM id — the chat sidebar's folder menu navigates to it. */
-export const PROJECT_DANGER_ZONE_ID = 'project-danger';
+const PROJECT_DANGER_ZONE_ID = 'project-danger';
 
 export function ProjectDangerZone({
   organizationId,

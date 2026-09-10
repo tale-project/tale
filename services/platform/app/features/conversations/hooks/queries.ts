@@ -3,27 +3,12 @@ import { useMemo } from 'react';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import type { ItemOf } from '@/app/lib/backend/contract';
 
 import {
   resolvedEmailOption,
   type EmailConnectorOption,
 } from '../lib/email-connectors';
 import { useInboxAvailability } from './use-inbox-availability';
-
-export type Conversation = ItemOf<'conversations/queries:listConversations'>;
-
-export function useConversations(organizationId: string) {
-  const { data, isLoading } = useBackendQuery(
-    'conversations/queries:listConversations',
-    { organizationId },
-  );
-
-  return {
-    conversations: data ?? [],
-    isLoading,
-  };
-}
 
 interface ListConversationsPaginatedArgs {
   organizationId: string;

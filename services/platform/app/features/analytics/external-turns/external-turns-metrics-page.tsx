@@ -55,7 +55,7 @@ interface ViewProps {
 
 // Plain presentational view — rendered live AND as its own skeleton (wrapped in
 // <Skeletonize>), so the loading and loaded layouts are the same tree.
-export function ExternalTurnMetricsPageView({
+function ExternalTurnMetricsPageView({
   data,
   periodDays,
   onPeriod,

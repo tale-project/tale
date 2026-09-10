@@ -4,15 +4,7 @@ import { useAuth } from '@/app/hooks/use-session-user';
 import {
   organizationQuery,
   userOrganizationsQuery,
-  type UserOrganizationRow,
 } from '@/app/lib/backend/org';
-
-export type UserOrganization = Pick<
-  UserOrganizationRow,
-  'organizationId' | 'role'
->;
-
-export type UserOrganizationWithDetails = UserOrganizationRow;
 
 export function useUserOrganizations() {
   // The session probe, not the websocket: the boot chain must resolve on

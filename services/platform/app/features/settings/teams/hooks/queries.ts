@@ -2,16 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import type { ItemOf } from '@/app/lib/backend/contract';
 import { myTeamsQuery, type MyTeamRow } from '@/app/lib/backend/org';
 
 export type Team = MyTeamRow;
-
-export function useApproxTeamCount(organizationId: string) {
-  return useBackendQuery('members/queries:approxCountMyTeams', {
-    organizationId,
-  });
-}
 
 export function useTeams() {
   const organizationId = useOrganizationId();
@@ -38,8 +31,6 @@ export function useOrgTeams() {
     isLoading,
   };
 }
-
-export type TeamMember = ItemOf<'team_members/queries:listByTeam'>;
 
 export function useTeamMembers(teamId: string) {
   const { data, isLoading } = useBackendQuery(

@@ -24,7 +24,6 @@ import { useCitationsContext } from './citations-context';
 import { CodeBlock, HighlightedCode } from './code-block';
 import { ImagePreviewDialog } from './image-preview-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
-import { StructuredMessage } from './structured-message/structured-message';
 
 export const markdownWrapperStyles = cn(
   '[&_p:not(:last-child)]:mb-2',
@@ -326,24 +325,6 @@ export const markdownComponents = {
     return <CitationLink citation={citation} onNavigate={onNavigate} />;
   },
 };
-
-export function TypewriterTextWrapper({
-  text,
-  isStreaming = false,
-  onSendFollowUp,
-}: {
-  text: string;
-  isStreaming?: boolean;
-  onSendFollowUp?: (message: string) => void;
-}) {
-  return (
-    <StructuredMessage
-      text={text}
-      isStreaming={isStreaming}
-      onSendFollowUp={onSendFollowUp}
-    />
-  );
-}
 
 /**
  * Renders a markdown string with the shared GFM renderer and wrapper styles, no

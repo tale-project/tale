@@ -213,19 +213,3 @@ export function stripMarkdown(
 export function stripMarkdownOnce(text: string): string {
   return stripMarkdown(text, { current: false });
 }
-
-/**
- * Compare two strings for substring containment after whitespace
- * normalisation. Used by the spotlight matcher: the chunker's stored
- * chunk text was produced with the same `stripMarkdown` pass, so a
- * substring match against a paragraph's stripped text is correct iff
- * whitespace differences (markdown re-flow, trailing spaces) don't
- * trip us up.
- */
-export function containsNormalized(haystack: string, needle: string): boolean {
-  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-  const h = normalize(haystack);
-  const n = normalize(needle);
-  if (n.length === 0) return false;
-  return h.includes(n);
-}

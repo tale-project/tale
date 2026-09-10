@@ -8,7 +8,7 @@
 
 export type TaskView = 'board' | 'list';
 
-export const TASK_VIEWS: readonly TaskView[] = ['board', 'list'];
+const TASK_VIEWS: readonly TaskView[] = ['board', 'list'];
 
 /** Route path per view — the tab switch and the `/tasks` alias both use it. */
 export const TASK_VIEW_ROUTES = {

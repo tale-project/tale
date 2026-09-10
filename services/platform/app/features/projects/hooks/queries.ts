@@ -72,7 +72,7 @@ export type ProjectOverviewRow =
  * changes — never because time passed. Rounding to a bucket gives the cache
  * key something that actually rotates, without refetching on every render.
  */
-export const OVERDUE_BUCKET_MS = 5 * 60 * 1000;
+const OVERDUE_BUCKET_MS = 5 * 60 * 1000;
 
 /**
  * The ONE place the overview query's args are built. The route loader
@@ -169,22 +169,4 @@ export function useProjectChatThreads(projectId: string | undefined) {
     shared: data?.shared ?? [],
     isLoading,
   };
-}
-
-export function useSidebarProjects(organizationId: string) {
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:listSidebarProjects',
-    { organizationId, limit: 8 },
-  );
-  return { projects: data ?? [], isLoading };
-}
-
-export function useProjectsSearch(organizationId: string, query: string) {
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:searchProjects',
-    query.trim().length > 0
-      ? { organizationId, query: query.trim(), limit: 20 }
-      : 'skip',
-  );
-  return { results: data ?? [], isLoading };
 }

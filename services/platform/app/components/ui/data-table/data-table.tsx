@@ -190,7 +190,7 @@ export interface DataTableProps<TData, TValue = unknown> {
   approxRowCount?: number;
   /** Whether the table data is loading externally (shows skeleton rows) */
   isLoading?: boolean;
-  /** Sorting configuration from useDataTable hook */
+  /** Controlled sorting state and its change handler. */
   sorting?: DataTableSortingConfig;
   /**
    * Enable row selection. Pass `true` to allow selecting any row, or a

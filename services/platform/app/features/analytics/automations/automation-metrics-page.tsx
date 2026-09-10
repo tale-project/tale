@@ -48,7 +48,7 @@ interface AutomationMetricsPageViewProps {
 // container) and as its own skeleton (wrapped in `<Skeletonize>`), so the
 // loading and loaded layouts are the SAME tree and cannot drift.
 // =============================================================================
-export function AutomationMetricsPageView({
+function AutomationMetricsPageView({
   data,
   isLoading,
   periodDays,

@@ -58,7 +58,7 @@ export interface AutomationNodeData extends Record<string, unknown> {
  * store uses for `deployedUnpinnedAgentNodes`. The run walks connectors at
  * kick time; the editor's preselect can look pinned.
  */
-export function agentHasUnpinnedModel(node: NodeDef): boolean {
+function agentHasUnpinnedModel(node: NodeDef): boolean {
   if (node.type !== 'agent') return false;
   if (typeof node.model !== 'string' || node.model === '') return false;
   return typeof node.modelProvider !== 'string' || node.modelProvider === '';

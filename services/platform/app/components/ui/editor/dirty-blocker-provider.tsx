@@ -5,7 +5,6 @@ import { useBlocker } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
-  useContext,
   useMemo,
   useRef,
   useState,
@@ -30,16 +29,6 @@ interface DirtyBlockerControl {
 const DirtyBlockerControlContext = createContext<DirtyBlockerControl | null>(
   null,
 );
-
-export function useDirtyBlockerControl(): DirtyBlockerControl {
-  const ctx = useContext(DirtyBlockerControlContext);
-  if (!ctx) {
-    throw new Error(
-      'useDirtyBlockerControl must be used inside a DirtyBlockerProvider',
-    );
-  }
-  return ctx;
-}
 
 /**
  * Whether a navigation to `pathname` stays inside a source's scope — the

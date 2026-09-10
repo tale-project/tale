@@ -97,7 +97,7 @@ interface FeedbackMetricsPageViewProps {
 // filter alerts stay in the container (they describe a loaded, not loading,
 // state).
 // =============================================================================
-export function FeedbackMetricsPageView({
+function FeedbackMetricsPageView({
   stats,
   loading,
   period,

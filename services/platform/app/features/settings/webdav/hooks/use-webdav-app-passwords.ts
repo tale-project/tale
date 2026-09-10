@@ -25,5 +25,3 @@ export function useRevokeWebdavAppPassword() {
 export type WebdavAppPasswordRow = NonNullable<
   ReturnType<typeof useWebdavAppPasswords>
 >[number];
-
-export type WebdavAppPasswordId = string;

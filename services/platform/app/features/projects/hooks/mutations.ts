@@ -17,24 +17,6 @@ export function useUpdateProjectSharing() {
   return useBackendMutation('projects/mutations:updateProjectSharing');
 }
 
-export function useUpdateProjectKnowledgeMode() {
-  return useBackendMutation('projects/mutations:updateProjectKnowledgeMode');
-}
-
-export function useUpdateProjectAgentSettings() {
-  return useBackendMutation('projects/mutations:updateProjectAgentSettings');
-}
-
-export function useUpdateProjectModelSettings() {
-  return useBackendMutation('projects/mutations:updateProjectModelSettings');
-}
-
-export function useUpdateProjectConnectorSettings() {
-  return useBackendMutation(
-    'projects/mutations:updateProjectConnectorSettings',
-  );
-}
-
 export function useCreateProjectAgent() {
   return useBackendMutation('projects/mutations:createProjectAgent');
 }
@@ -59,14 +41,6 @@ export function useDeleteAgentSecret() {
 
 export function useDetachDocumentFromProject() {
   return useBackendMutation('projects/mutations:detachDocumentFromProject');
-}
-
-export function useMoveThreadToProject() {
-  return useBackendMutation('projects/mutations:moveThreadToProject');
-}
-
-export function useSetProjectPinned() {
-  return useBackendMutation('projects/mutations:setProjectPinned');
 }
 
 export function useSetThreadSharedWithProject() {

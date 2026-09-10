@@ -2,11 +2,6 @@ import * as z from 'zod';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
-import type { ItemOf } from '@/app/lib/backend/contract';
-
-export type Member = ItemOf<'members/queries:listByOrganization'>;
-
-export type MemberPasskey = ItemOf<'two_factor/queries:listPasskeysForMember'>;
 
 export function useMembers(organizationId: string) {
   const { data, isLoading } = useBackendQuery(

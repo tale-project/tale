@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { fn } from 'storybook/test';
+import { expect, fn, mocked } from 'storybook/test';
 
+import { useSaveImage } from '../hooks/mutations';
 import { ImageUploadField } from './image-upload-field';
 
 const meta: Meta<typeof ImageUploadField> = {
@@ -32,6 +33,12 @@ const meta: Meta<typeof ImageUploadField> = {
     imageType: 'logo',
     ariaLabel: 'Upload image',
   },
+  beforeEach() {
+    mocked(useSaveImage, { partial: true }).mockReturnValue({
+      mutateAsync: fn().mockResolvedValue({ filename: 'storybook-logo.svg' }),
+      isPending: false,
+    });
+  },
 };
 
 export default meta;
@@ -40,6 +47,11 @@ type Story = StoryObj<typeof ImageUploadField>;
 export const Empty: Story = {
   args: {
     ariaLabel: 'Upload logo',
+  },
+  async play({ canvas }) {
+    await expect(
+      canvas.getByRole('button', { name: 'Upload logo' }),
+    ).toBeVisible();
   },
 };
 

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils/cn';
 // element explicitly so converted document HTML (mammoth DOCX, ODT) renders
 // like a document. Shared by `document-preview-docx` and
 // `document-preview-odt`.
-export const documentProseClasses = cn(
+const documentProseClasses = cn(
   '[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:first:mt-0',
   '[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:first:mt-0',
   '[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold',
@@ -29,7 +29,7 @@ export const documentProseClasses = cn(
 );
 
 /** Shared white "page" chrome for every in-dialog document preview. */
-export const previewPageShellClasses =
+const previewPageShellClasses =
   'bg-background mx-auto w-full rounded-lg border border-border/60 shadow-sm';
 
 /** Converted DOCX/ODT HTML — centered page on a muted canvas. */

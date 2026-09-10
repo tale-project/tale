@@ -1,13 +1,12 @@
 /**
  * Label colour presentation. Catalogue colour lives on `taskLabels.color`;
- * this module maps palette names to Tailwind classes and offers the
- * predefined trio for the picker's always-visible rows.
+ * this module maps palette names to Tailwind classes and resolves a
+ * name's default colour before its catalog row loads.
  */
 
 import {
   defaultTaskLabelColor,
   isTaskLabelColor,
-  PREDEFINED_TASK_LABELS,
   type TaskLabelColor,
 } from '@/lib/shared/task-label-colors';
 
@@ -25,9 +24,6 @@ export const LABEL_DOT_CLASS: Record<TaskLabelColor, string> = {
   pink: 'bg-pink-500',
   gray: 'bg-gray-400',
 };
-
-/** Labels offered out of the box in the picker, with their default colours. */
-export const PREDEFINED_LABELS = PREDEFINED_TASK_LABELS;
 
 /** Coerce a stored/wire colour string to a palette name. */
 export function asLabelColor(color: string | undefined): TaskLabelColor {

@@ -7,7 +7,7 @@ import { useT } from '@/lib/i18n/client';
 
 /** Accepts a bare language tag (`en`) or a language-region/script tag
  *  (`en-US`, `zh_Hans`) — mirrors the import mapper's locale detection. */
-export const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
+const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
 
 /** Shared shape for both the create and edit contact forms — keeping one
  *  schema factory means the two dialogs can't drift on which fields are

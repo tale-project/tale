@@ -38,7 +38,7 @@ import { useFileUrl } from './use-file-url';
 
 export { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
-export function getFileTypeLabel(
+function getFileTypeLabel(
   fileName: string,
   mediaType: string,
   t: (key: string) => string,

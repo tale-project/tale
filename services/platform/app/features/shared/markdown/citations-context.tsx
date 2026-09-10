@@ -9,7 +9,7 @@ interface CitationsContextValue {
   onNavigate?: (fileId: string, page?: number) => void;
 }
 
-export const CitationsContext = createContext<CitationsContextValue>({
+const CitationsContext = createContext<CitationsContextValue>({
   citations: new Map(),
 });
 

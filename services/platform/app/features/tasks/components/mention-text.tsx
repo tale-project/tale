@@ -43,7 +43,7 @@ interface ResolvedHandle {
  * Unresolvable tokens render verbatim. `organizationId` must be non-empty
  * (the directory queries fire unconditionally).
  */
-export function MentionizedText({
+function MentionizedText({
   body,
   organizationId,
   projectId,

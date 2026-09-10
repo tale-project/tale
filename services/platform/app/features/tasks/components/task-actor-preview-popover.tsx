@@ -25,7 +25,7 @@ interface TaskActorPreviewPopoverProps {
  * Hover/focus preview for agent and workflow actors in the task timeline.
  * Uses a Popover (not a Tooltip) so the View link stays interactive.
  */
-export function TaskActorPreviewPopover({
+function TaskActorPreviewPopover({
   preview,
   children,
   className,

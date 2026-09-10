@@ -1642,10 +1642,6 @@ common:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
     backToDashboard: Back to dashboard
-  localeTabs:
-    default: default
-    untranslated: untranslated
-    autoTranslate: Auto-translate
   discardChangesConfirm: Discard unsaved changes?
   moveUp: Move up
   moveDown: Move down
@@ -5683,10 +5679,6 @@ settings:
     card:
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint set per credential'
-      sourceStatic: Built-in catalog
-      sourceOpenrouterApi: OpenRouter catalog
-      sourceModelsEndpoint: Provider models endpoint
-      sourceNone: No catalog
       modelCount: '{count, plural, one {# model} other {# models}}'
       catalogUnavailable: 'Model catalog unavailable: {error}'
     credential:
@@ -7112,9 +7104,7 @@ websites:
       then resume scanning.
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
-  viewPages: View pages
   indexed: Indexed
-  indexedTooltip: '{percentage} % - {crawled} of {total} pages'
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet

@@ -66,7 +66,7 @@ function yamlOf(
 /** One field's issue, or null. Mirrors the declaration's own rules; a broken
  * pattern fails OPEN like the contract's naming gate — a bad declaration must
  * not brick the form. */
-export function fieldIssue(
+function fieldIssue(
   field: SettingsField,
   raw: string,
 ): SettingsFieldIssue | null {

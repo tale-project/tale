@@ -31,7 +31,7 @@ interface SwitchProps extends ComponentPropsWithoutRef<
  * control — replaces the ~10 hand-copied `h-[1.15rem] w-8` skeletons across
  * governance editors.
  */
-export const SWITCH_TRACK_DIMENSIONS = 'h-[1.15rem] w-8';
+const SWITCH_TRACK_DIMENSIONS = 'h-[1.15rem] w-8';
 
 // Plain control — the real Radix switch (+ optional label/description). No
 // skeleton logic of its own.

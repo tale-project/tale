@@ -32,7 +32,7 @@ function InfoRow({ label, children }: InfoRowProps) {
   );
 }
 
-export function ContactInfoCard({ contact }: { contact: ContactData }) {
+function ContactInfoCard({ contact }: { contact: ContactData }) {
   const { formatDate } = useFormatDate();
   const { t } = useT('common');
 

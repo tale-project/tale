@@ -10,7 +10,7 @@
  *  (`backend/core/tasks/mentions.ts::MENTION_RE`) — a handle outside it can never
  *  resolve, so such candidates are skipped. Includes `/` so pack agent
  *  slugs (`github/create-pull-requests/pr-creator`) round-trip. */
-export const MENTION_TOKEN_RE = /^[a-zA-Z0-9._/-]+$/;
+const MENTION_TOKEN_RE = /^[a-zA-Z0-9._/-]+$/;
 
 export interface MentionableMember {
   id: string;
