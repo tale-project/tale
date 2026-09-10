@@ -340,7 +340,7 @@ test('failed private source checkout scrubs errors and removes its ephemeral key
             expect(ssh).toContain('IdentitiesOnly=yes');
             expect(options?.env).not.toHaveProperty('TALE_SOURCE_SSH_KEY');
             keySeen =
-              readFileSync(keyFile, 'utf8') === 'private-source-key-marker';
+              readFileSync(keyFile, 'utf8') === 'private-source-key-marker\n';
             return {
               stdout: '',
               stderr: 'private-source-key-marker',

@@ -184,10 +184,17 @@ export async function withDeploymentSources<T>(
         // declared client repository and is never passed to Docker or Tale.
         if (options.sourceKey && request.repository !== TALE_REPOSITORY) {
           if (!ssh) {
-            await writeFile(sshKey, options.sourceKey, {
-              mode: 0o600,
-              flag: 'wx',
-            });
+            // Secret transports may remove the final newline; OpenSSH needs it.
+            // Normalize text line endings without trimming the key payload.
+            const privateKey = options.sourceKey.replaceAll('\r\n', '\n');
+            await writeFile(
+              sshKey,
+              privateKey.endsWith('\n') ? privateKey : `${privateKey}\n`,
+              {
+                mode: 0o600,
+                flag: 'wx',
+              },
+            );
             await writeFile(
               knownHosts,
               await githubKnownHosts(options.fetchImpl ?? fetch),
