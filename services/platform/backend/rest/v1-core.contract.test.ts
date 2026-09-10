@@ -365,6 +365,8 @@ describe('POST /documents/{id}/retry-indexing', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'indexing' });
   });
+});
+
 /**
  * A refused body names the field that failed. Each route used to answer a
  * fixed sentence — `invalid body ("name" is required)` for ANY schema
