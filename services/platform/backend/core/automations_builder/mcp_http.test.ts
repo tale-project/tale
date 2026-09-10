@@ -19,7 +19,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { internal } from '../lib/handler_names';
 import type { RestContext } from '../lib/rest/helpers';
-import { handleMcpRequest, mcpGetNotAllowed } from './mcp_http';
+import {
+  handleMcpRequest,
+  MAX_BATCH_MESSAGES,
+  mcpGetNotAllowed,
+} from './mcp_http';
 
 // The REST helpers resolve identity through Better Auth; the handler under test
 // never reaches it, but importing the module must not boot the auth stack.
@@ -402,12 +406,11 @@ describe('tools/call — the capability surface', () => {
     expect(isErrorFlag(payload)).toBe(false);
   });
 
-  it('passes an approval-gated invoke through as a readable result', async () => {
+  it('keeps a pending memory — saved for a human’s approval — an outcome, not a failure', async () => {
     const runAction = vi.fn().mockResolvedValue({
-      status: 'refused',
-      id: 'connector.github.create_issue',
-      reason: 'This action requires approval.',
-      hint: 'The organization requires a human to approve this action.',
+      status: 'pending',
+      id: 'mem_1',
+      note: 'Saved as pending. It becomes usable only once the user approves it.',
     });
     const { payload } = await call(
       {
@@ -416,14 +419,48 @@ describe('tools/call — the capability surface', () => {
         method: 'tools/call',
         params: {
           name: 'invoke_capability',
-          arguments: { id: 'connector.github.create_issue', input: {} },
+          arguments: { id: 'memory.save', input: { content: 'Prefers CSV' } },
         },
       },
       runAction,
     );
-    // Waiting for a human is an outcome, not a failure.
     expect(isErrorFlag(payload)).toBe(false);
-    expect(resultText(payload)).toContain('requires approval');
+    expect(resultText(payload)).toContain('pending');
+  });
+
+  it.each([
+    ['an unknown capability', 'No capability "automation.nope" exists here.'],
+    [
+      'arguments its schema rejects',
+      'Input does not match the schema of "automation.billing": /count must be integer',
+    ],
+    ['no deployment', '"billing" has no deployed version'],
+  ])('flags a capability refused for %s', async (_case, reason) => {
+    const runAction = vi.fn().mockResolvedValue({
+      status: 'refused',
+      id: 'automation.billing',
+      reason,
+      hint: 'Fix the arguments and call again.',
+    });
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: {
+          name: 'invoke_capability',
+          arguments: { id: 'automation.billing', input: {} },
+        },
+      },
+      runAction,
+    );
+    // The call did not do what it was asked — a generic client must see that
+    // without parsing the reason.
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(JSON.parse(resultText(payload))).toMatchObject({
+      status: 'refused',
+      reason,
+    });
   });
 
   it('answers an unavailable knowledge base as a readable result flagged isError', async () => {
@@ -771,5 +808,148 @@ describe('batches', () => {
     const { status, replies } = await batch([]);
     expect(status).toBe(400);
     expect(replies).toMatchObject({ error: { code: -32600 } });
+  });
+});
+
+/**
+ * A run tool's `status` is the run's own outcome; a run input is whatever the
+ * automation's schema accepts.
+ */
+describe('run tools', () => {
+  it.each([
+    ['error', true],
+    ['invalid', true],
+    ['success', false],
+  ])('reads a run that ended %s as isError=%s', async (status, flagged) => {
+    const runAction = vi.fn().mockResolvedValue({
+      version: 2,
+      status,
+      output: status === 'success' ? 3 : undefined,
+      ...(status === 'error'
+        ? { error: { nodeId: 'sum', message: 'node "sum" threw' } }
+        : {}),
+      trace: [],
+      effects: [],
+    });
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 30,
+        method: 'tools/call',
+        params: { name: 'run_deployed', arguments: { name: 'math/sum' } },
+      },
+      runAction,
+    );
+    expect(isErrorFlag(payload)).toBe(flagged);
+  });
+
+  it('lets a run input be any JSON value — the automation’s own schema judges it', async () => {
+    const runAction = vi
+      .fn()
+      .mockResolvedValue({ version: 1, status: 'success', output: 3 });
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 31,
+        method: 'tools/call',
+        params: {
+          name: 'run_deployed',
+          arguments: { name: 'math/sum', input: [1, 2] },
+        },
+      },
+      runAction,
+    );
+    expect(payload.error).toBeUndefined();
+    expect(runAction.mock.calls[0][1]).toMatchObject({
+      method: 'run_deployed',
+      params: { name: 'math/sum', input: [1, 2] },
+    });
+    expect(isErrorFlag(payload)).toBe(false);
+  });
+});
+
+describe('ids', () => {
+  it('refuses a fractional id — MCP allows a string or an integer', async () => {
+    const { status, payload } = await call({
+      jsonrpc: '2.0',
+      id: 1.5,
+      method: 'ping',
+    });
+    expect(status).toBe(400);
+    expect(payload.id).toBeNull();
+    expect(payload.error).toMatchObject({ code: -32600 });
+  });
+});
+
+/**
+ * A batch is never cheaper than the requests it stands for: the door charged
+ * the HTTP request once, and every further tool call is admitted through the
+ * host's hook.
+ */
+describe('batch budget', () => {
+  const listCall = (id: number) => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name: 'list_automations', arguments: {} },
+  });
+
+  it('refuses a batch above the cap with -32600', async () => {
+    const { rc } = context();
+    const response = await handleMcpRequest(
+      rc,
+      rpc(
+        Array.from({ length: MAX_BATCH_MESSAGES + 1 }, (_, i) => ({
+          jsonrpc: '2.0',
+          id: i + 1,
+          method: 'ping',
+        })),
+      ),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { code: -32600, message: expect.stringContaining('at most') },
+    });
+  });
+
+  it('admits the first tool call on the door’s charge and asks for every further one', async () => {
+    const runAction = vi.fn().mockResolvedValue({ automations: [] });
+    const admit = vi.fn().mockResolvedValue(null);
+    const { rc } = context(runAction);
+    const response = await handleMcpRequest(
+      rc,
+      rpc([listCall(1), listCall(2), listCall(3)]),
+      { admit },
+    );
+    const replies = (await response.json()) as Array<Record<string, unknown>>;
+    expect(replies.map((reply) => reply.id)).toEqual([1, 2, 3]);
+    expect(replies.every((reply) => reply.result !== undefined)).toBe(true);
+    expect(admit).toHaveBeenCalledTimes(2);
+    expect(runAction).toHaveBeenCalledTimes(3);
+  });
+
+  it('answers a refused admission as -32000 for that call alone, and runs nothing for it', async () => {
+    const runAction = vi.fn().mockResolvedValue({ automations: [] });
+    const admit = vi.fn().mockResolvedValue({ retryAfterMs: 1500 });
+    const { rc } = context(runAction);
+    const response = await handleMcpRequest(
+      rc,
+      rpc([listCall(1), listCall(2)]),
+      { admit },
+    );
+    const replies = (await response.json()) as Array<Record<string, unknown>>;
+    expect(replies[0]).toMatchObject({ id: 1, result: expect.anything() });
+    expect(replies[1]).toMatchObject({
+      id: 2,
+      error: { code: -32000, data: { retryAfterMs: 1500 } },
+    });
+    expect(runAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('never consults the hook for a single request — the door already charged it', async () => {
+    const admit = vi.fn();
+    const { rc } = context(vi.fn().mockResolvedValue({ automations: [] }));
+    await handleMcpRequest(rc, rpc(listCall(1)), { admit });
+    expect(admit).not.toHaveBeenCalled();
   });
 });

@@ -29,18 +29,25 @@
  * those come back as an ordinary tool result so the caller's model can read
  * and act on them. The result's `isError` flag tells a generic client the
  * same thing without parsing the text: it is set whenever the answer says the
- * call did not do its job — a refusal, a missing resource, a knowledge base
- * that could not be searched — and on a call that threw. A capability that
- * is waiting for a human's approval is an outcome, not a failure, and keeps
- * the flag off.
+ * call did not do its job — an engine refusal or missing resource (a top-level
+ * string `error`), a capability that was refused (an unknown id, arguments
+ * its schema rejects, no deployment) or could not act (`unavailable`), a run
+ * tool whose run ended in `error` or `invalid` — and on a call that threw. A
+ * capability that answers `pending` (a memory saved for a human's approval)
+ * and a read that found a failed run are outcomes, not failures, and keep the
+ * flag off.
  *
  * Protocol notes: `initialize`/`ping`/`tools/*` only. The envelope is checked
  * before anything is dispatched — a `jsonrpc` other than "2.0" or an id that
- * is not a string or a number is -32600, and such an id is never echoed
- * back. A JSON-RPC batch is accepted and answered as an array (a batch of
- * notifications alone answers 202), tool arguments are held to the input
- * schema `tools/list` advertised (-32602), and a notification gets 202 with
- * no body as the streamable-HTTP transport specifies.
+ * is not a string or an integer is -32600, and such an id is never echoed
+ * back. A JSON-RPC batch of at most `MAX_BATCH_MESSAGES` messages is accepted
+ * and answered as an array (a batch of notifications alone answers 202), and
+ * every tool call a batch carries beyond the first is admitted through the
+ * host's `admit` hook — the REST door charged the HTTP request once, so a
+ * batch is never cheaper than the requests it stands for. Tool arguments are
+ * held to the input schema `tools/list` advertised (-32602), and a
+ * notification gets 202 with no body as the streamable-HTTP transport
+ * specifies.
  */
 
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
@@ -54,6 +61,8 @@ import {
   type RestContext,
 } from '../lib/rest/helpers';
 
+type McpTool = (typeof MCP_TOOLS)[number];
+
 /**
  * The protocol revisions this endpoint speaks, newest first. `initialize`
  * echoes the client's proposal when it is one of these and answers the
@@ -64,6 +73,19 @@ import {
  */
 const PROTOCOL_VERSIONS: readonly string[] = ['2025-06-18', '2025-03-26'];
 const LATEST_PROTOCOL_VERSION = '2025-06-18';
+
+/** How many messages one batch may carry. 2025-03-26 requires receiving
+ * batches and says nothing about their size; without a cap one HTTP request
+ * could carry any number of tool dispatches. */
+export const MAX_BATCH_MESSAGES = 20;
+
+/** The tools that EXECUTE an automation: their answer's `status` is the run's
+ * own outcome, so `error` / `invalid` there means the call did not do its job.
+ * A READ of a run (`get_run`) that found a failed run succeeded. */
+const RUN_TOOLS: ReadonlySet<string> = new Set([
+  'run_automation',
+  'run_deployed',
+]);
 
 /**
  * Tools that persist or rebind an automation. Their in-app equivalents sit
@@ -95,15 +117,13 @@ async function developerRefusal(rc: RestContext): Promise<string | null> {
   }
 }
 
-/** A JSON-RPC request id: a string or a number. Anything else cannot be
- * represented in a conforming reply, so it is refused rather than echoed. */
+/** A JSON-RPC request id as MCP restricts it: a string or an integer. A
+ * fraction, an object or an array cannot be represented in a conforming
+ * reply, so it is refused rather than echoed. */
 type JsonRpcId = string | number;
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {
-  return (
-    typeof value === 'string' ||
-    (typeof value === 'number' && Number.isFinite(value))
-  );
+  return typeof value === 'string' || Number.isInteger(value);
 }
 
 interface JsonRpcReply {
@@ -123,32 +143,54 @@ function rpcError(
   code: number,
   message: string,
   status: 200 | 400 = 200,
+  data?: Record<string, unknown>,
 ): JsonRpcReply {
-  return { status, body: { jsonrpc: '2.0', id, error: { code, message } } };
+  return {
+    status,
+    body: {
+      jsonrpc: '2.0',
+      id,
+      error: { code, message, ...(data !== undefined ? { data } : {}) },
+    },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Whether a tool's answer says the call did not do its job: the engine's
- * refusal envelope carries a top-level string `error` (a run view's failure
- * detail is an object, so a read that succeeded is not mistaken for one),
- * and a capability backend that could not act answers `status:
- * 'unavailable'`. A `refused` capability is a human's approval pending — an
- * outcome the caller waits on, not a failure. */
-function isFailureShaped(result: unknown): boolean {
+/** Whether a tool's answer says the call did not do its job — the shapes the
+ * two surfaces use for that, per tool: the engine's refusal envelope is a
+ * top-level string `error` (a run view's failure detail is an object, so a
+ * read that succeeded is not mistaken for one); a capability answers
+ * `refused` (an unknown id, arguments its schema rejects, a backend that
+ * would not act) or `unavailable` (a knowledge base it could not search),
+ * while `pending` — a memory saved for a human's approval — is an outcome;
+ * a run tool's `status` is the run's own, so `error` / `invalid` there is the
+ * call failing at what it was asked to do. */
+function isFailureShaped(tool: McpTool, result: unknown): boolean {
   if (!isRecord(result)) return false;
-  return typeof result.error === 'string' || result.status === 'unavailable';
+  if (typeof result.error === 'string') return true;
+  if (tool.kind === 'capability') {
+    return result.status === 'refused' || result.status === 'unavailable';
+  }
+  if (RUN_TOOLS.has(tool.name)) {
+    return result.status === 'error' || result.status === 'invalid';
+  }
+  return false;
 }
 
 /** A tool result the caller's model reads as text. Structured content is not
  * offered: the tools answer arbitrary JSON (a run trace, a passage list), and
  * pretty-printed JSON is what every MCP client renders faithfully. */
-function toolResult(id: JsonRpcId, result: unknown): JsonRpcReply {
+function toolResult(
+  tool: McpTool,
+  id: JsonRpcId,
+  result: unknown,
+): JsonRpcReply {
   return rpcResult(id, {
     content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    isError: isFailureShaped(result),
+    isError: isFailureShaped(tool, result),
   });
 }
 
@@ -194,11 +236,27 @@ function argumentProblem(
 
 // --------------------------------------------------------------- dispatch
 
+export interface McpRequestOptions {
+  /** Called before every tool call in a request AFTER the first — the door
+   * charged the HTTP request itself, so each further dispatch a batch
+   * carries is charged here. Null admits the call; a wait refuses that call
+   * alone (-32000 with `data.retryAfterMs`) while the rest of the batch goes
+   * on. */
+  readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
+}
+
+/** What one request has spent so far — shared by the messages of a batch. */
+interface RequestState {
+  toolCalls: number;
+}
+
 /** One JSON-RPC message → its reply, or null for a notification (a message
  * without an id is acknowledged, never answered). */
 async function handleMessage(
   rc: RestContext,
   message: unknown,
+  options: McpRequestOptions,
+  state: RequestState,
 ): Promise<JsonRpcReply | null> {
   if (!isRecord(message)) {
     return rpcError(
@@ -221,7 +279,7 @@ async function handleMessage(
     return rpcError(
       null,
       -32600,
-      'Invalid request: id must be a string or a number',
+      'Invalid request: id must be a string or an integer',
       400,
     );
   }
@@ -286,11 +344,24 @@ async function handleMessage(
           `Invalid arguments for "${name}": ${problem}`,
         );
       }
+      if (state.toolCalls > 0 && options.admit !== undefined) {
+        const wait = await options.admit();
+        if (wait !== null) {
+          return rpcError(
+            id,
+            -32000,
+            `Rate limit exceeded — this batch has spent the key holder's request budget; retry after ${Math.ceil(wait.retryAfterMs / 1000)} s`,
+            200,
+            { retryAfterMs: wait.retryAfterMs },
+          );
+        }
+      }
+      state.toolCalls += 1;
       try {
         if (DEVELOPER_TOOLS.has(name)) {
           const refusal = await developerRefusal(rc);
           if (refusal !== null) {
-            return toolResult(id, {
+            return toolResult(tool, id, {
               error: `${name} is refused for this key: ${refusal}`,
               hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
             });
@@ -306,7 +377,7 @@ async function handleMessage(
               params: args,
             },
           );
-          return toolResult(id, result);
+          return toolResult(tool, id, result);
         }
         const result: unknown = await rc.ctx.runAction(
           internal.automations_builder.run_session.dispatchEngineMethod,
@@ -317,7 +388,7 @@ async function handleMessage(
             params: args,
           },
         );
-        return toolResult(id, result);
+        return toolResult(tool, id, result);
       } catch (error) {
         // Only a THROWN failure lands here — a refusal is data and was returned
         // above. Surface the message as a tool error rather than a protocol
@@ -348,6 +419,7 @@ function respond(reply: JsonRpcReply): Response {
 export async function handleMcpRequest(
   rc: RestContext,
   request: Request,
+  options: McpRequestOptions = {},
 ): Promise<Response> {
   // 2025-06-18 clients name the negotiated revision on every request; one
   // this endpoint never negotiates is a client mistake the transport answers
@@ -371,24 +443,35 @@ export async function handleMcpRequest(
       rpcError(null, -32700, 'Parse error: the body is not JSON', 400),
     );
   }
+  const state: RequestState = { toolCalls: 0 };
   if (Array.isArray(message)) {
     if (message.length === 0) {
       return respond(
         rpcError(null, -32600, 'Invalid request: an empty batch', 400),
       );
     }
+    if (message.length > MAX_BATCH_MESSAGES) {
+      return respond(
+        rpcError(
+          null,
+          -32600,
+          `Invalid request: a batch carries at most ${MAX_BATCH_MESSAGES} messages`,
+          400,
+        ),
+      );
+    }
     // In order, one after another: a batch may carry calls that depend on
     // each other's side effects, and replies are matched by id regardless.
     const replies: Record<string, unknown>[] = [];
     for (const entry of message) {
-      const reply = await handleMessage(rc, entry);
+      const reply = await handleMessage(rc, entry, options, state);
       if (reply !== null) replies.push(reply.body);
     }
     return replies.length === 0
       ? new Response(null, { status: 202 })
       : Response.json(replies);
   }
-  const reply = await handleMessage(rc, message);
+  const reply = await handleMessage(rc, message, options, state);
   return reply === null ? new Response(null, { status: 202 }) : respond(reply);
 }
 

@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
+import { handleMcpRequest } from '../../backend/core/automations_builder/mcp_http.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
@@ -813,5 +814,57 @@ describe('new project routes answer the published wire schemas', () => {
     ).toBe(true);
     if (route.endsWith('/automations'))
       expect(body).toEqual({ automations: [automation] });
+  });
+});
+
+/**
+ * The MCP path documents JSON-RPC envelopes of its own — an `id` that can be
+ * null on a 400, an array on a batch. OpenAPI 3.0 spells "or null" as
+ * `nullable: true` beside a `type`; a `nullable` on a bare `oneOf` compiles
+ * nowhere (`"nullable" cannot be used without "type"`), which is what shipped
+ * until these replies were held against their schemas.
+ */
+describe('MCP JSON-RPC envelopes validate against their documented schemas', () => {
+  const rc = {
+    ctx: { runAction: vi.fn(), runQuery: vi.fn() },
+    user: { userId: 'user-1', email: 'user@example.com', name: 'User' },
+    org: { organizationId: 'org-1', orgSlug: 'acme' },
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the handler touches exactly this surface
+  } as never;
+  const post = (body: unknown) =>
+    new Request('http://localhost/api/v1/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+
+  it('a single reply and a batch reply validate against the 200 schema', async () => {
+    const validate = responseValidator('/api/v1/mcp', 'post', '200');
+    const single: unknown = await (
+      await handleMcpRequest(
+        rc,
+        post({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+      )
+    ).json();
+    expect(validate(single), JSON.stringify(validate.errors)).toBe(true);
+    const batch: unknown = await (
+      await handleMcpRequest(
+        rc,
+        post([
+          { jsonrpc: '2.0', id: 1, method: 'ping' },
+          { jsonrpc: '2.0', id: 'b', method: 'resources/list' },
+        ]),
+      )
+    ).json();
+    expect(validate(batch), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('a parse error, whose id is null, validates against the 400 schema', async () => {
+    const validate = responseValidator('/api/v1/mcp', 'post', '400');
+    const response = await handleMcpRequest(rc, post('not json at all'));
+    expect(response.status).toBe(400);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ id: null, error: { code: -32700 } });
+    expect(validate(body), JSON.stringify(validate.errors)).toBe(true);
   });
 });

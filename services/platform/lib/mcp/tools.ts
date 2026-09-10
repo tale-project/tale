@@ -157,9 +157,12 @@ const SAVED_VERSION: Record<string, unknown> = {
   description: 'A saved version number — list_versions shows them.',
 };
 
+/** No `type`: an automation's own `inputs` schema may be an array or a
+ * scalar, and the engine validates the value against it — the tool schema
+ * only says where the input goes. */
 const RUN_INPUT: Record<string, unknown> = {
-  type: 'object',
-  description: "The run's input, matching the automation's inputs schema.",
+  description:
+    "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it.",
 };
 
 /** Real schemas for every tool whose arguments are simple. The four
@@ -280,8 +283,8 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
           'The capability id from search_capabilities, e.g. "automation.billing/dunning-reminder".',
       },
       input: {
-        type: 'object',
-        description: "Arguments, matching the capability's own input schema.",
+        description:
+          "Arguments — any JSON value the capability's own input schema accepts; the surface validates them.",
       },
       credential: {
         type: 'string',

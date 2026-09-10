@@ -2517,8 +2517,10 @@ export function buildSpec(): Json {
     properties: {
       jsonrpc: { type: 'string', enum: ['2.0'] },
       id: {
-        ...jsonRpcId,
-        nullable: true,
+        anyOf: [
+          { type: 'string', nullable: true },
+          { type: 'integer', nullable: true },
+        ],
         description:
           'The request id, or null when the request could not be read (a parse error, an invalid envelope)',
       },
@@ -2529,7 +2531,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, or arguments that do not match the advertised input schema)',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, or arguments that do not match the advertised input schema), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait)',
           },
           message: str,
         },
@@ -2560,8 +2562,10 @@ export function buildSpec(): Json {
           {
             type: 'array',
             minItems: 1,
+            maxItems: 20,
             items: jsonRpcMessage,
-            description: 'A JSON-RPC batch',
+            description:
+              'A JSON-RPC batch — at most 20 messages; every tool call beyond the first draws from the request budget like a request of its own',
           },
         ],
       }),

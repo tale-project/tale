@@ -11,7 +11,7 @@ Read this to connect a client and understand the tool inventory. The grammar for
 
 ## Connect a client
 
-The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch: it is answered as an array, and a batch of notifications alone answers 202. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
+The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch of at most 20 messages: it is answered as an array, a batch of notifications alone answers 202, and every tool call in a batch beyond the first draws from the same request budget as a request of its own. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
@@ -101,7 +101,7 @@ The key proves who is calling; the key holder's role decides what the call may d
 - **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
 - **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
 
-A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. An action waiting for a human's approval is an outcome, not a failure — its `isError` stays false.
+A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
 
 ## Where this fits
 
