@@ -228,3 +228,121 @@ describe('the request shape', () => {
     });
   });
 });
+
+/**
+ * The refusals no wait can lift, across providers: OpenAI's billing and
+ * spend codes and its 402, a rejected key, a key the model is closed to.
+ * The first review of this module found them all classified as transient
+ * — retried three times and answered as a 503 the docs told consumers to
+ * retry.
+ */
+describe('provider refusals no wait can lift', () => {
+  const apiError = (status: number, body: Record<string, unknown>) =>
+    OpenAI.APIError.generate(status, body, undefined, new Headers());
+
+  it.each([
+    [
+      '429 insufficient_quota',
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message: 'You exceeded your current quota',
+        },
+      },
+      'credit',
+    ],
+    [
+      '429 credit_balance_exhausted with neutral wording',
+      429,
+      {
+        error: { code: 'credit_balance_exhausted', message: 'Request refused' },
+      },
+      'credit',
+    ],
+    [
+      '429 organization_spend_limit_exceeded',
+      429,
+      {
+        error: {
+          code: 'organization_spend_limit_exceeded',
+          message: 'Request refused',
+        },
+      },
+      'credit',
+    ],
+    [
+      '402 payment required',
+      402,
+      { error: { message: 'Payment Required' } },
+      'credit',
+    ],
+    [
+      '401 invalid_api_key',
+      401,
+      {
+        error: {
+          code: 'invalid_api_key',
+          message: 'Incorrect API key provided',
+        },
+      },
+      'credential',
+    ],
+    [
+      '403 model access refused',
+      403,
+      {
+        error: {
+          code: 'permission_denied',
+          message: 'Project does not have access to this model',
+        },
+      },
+      'credential',
+    ],
+    [
+      '429 rate_limit_exceeded',
+      429,
+      {
+        error: {
+          code: 'rate_limit_exceeded',
+          message: 'Rate limit reached for embeddings',
+        },
+      },
+      'upstream',
+    ],
+    ['500', 500, { error: { message: 'The server had an error' } }, 'upstream'],
+  ])('classifies %s as %s', (_label, status, body, expected) => {
+    expect(classifyEmbeddingFailure(apiError(status, body))).toBe(expected);
+  });
+
+  it.each([
+    [
+      'an account refusal',
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message: 'You exceeded your current quota',
+        },
+      },
+    ],
+    [
+      'a rejected credential',
+      401,
+      {
+        error: {
+          code: 'invalid_api_key',
+          message: 'Incorrect API key provided',
+        },
+      },
+    ],
+  ])('does not retry %s', async (_label, status, body) => {
+    create.mockRejectedValue(apiError(status, body));
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).rejects.toBeInstanceOf(
+      OpenAI.APIError,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+});

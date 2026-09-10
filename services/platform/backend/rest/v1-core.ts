@@ -585,6 +585,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const projectKnowledgeSearchBody = knowledgeSearchBody.extend({
     corpus: z.literal('documents').optional(),
   });
+  /** What a 503 from the embedding provider asks a consumer to wait —
+   * advisory, in whole seconds, the way the rate-limits page's own 429
+   * speaks. */
+  const EMBEDDING_RETRY_AFTER_SECONDS = '5';
   const search = async (c: Context<RestEnv>, projectId: string | null) => {
     const body = (
       projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
@@ -640,18 +644,22 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (
         error instanceof KnowledgeError &&
         (error.code === 'EMBEDDING_NOT_CONFIGURED' ||
-          error.code === 'EMBEDDING_CREDIT_EXHAUSTED')
+          error.code === 'EMBEDDING_CREDIT_EXHAUSTED' ||
+          error.code === 'EMBEDDING_CREDENTIAL_REJECTED')
       ) {
         return c.json({ error: error.message, code: error.code }, 409);
       }
       // Any other provider-side failure is a dependency outage: the
       // documented 503, not the bare 500 an unmapped 5xx domain error
-      // becomes and not a 4xx blaming the caller.
+      // becomes and not a 4xx blaming the caller — with the wait the
+      // retry-with-backoff guidance names.
       if (
         error instanceof KnowledgeError &&
         error.code === 'EMBEDDING_UPSTREAM_ERROR'
       ) {
-        return c.json({ error: error.message, code: error.code }, 503);
+        return c.json({ error: error.message, code: error.code }, 503, {
+          'retry-after': EMBEDDING_RETRY_AFTER_SECONDS,
+        });
       }
       return domainErrorResponse(c, error);
     }

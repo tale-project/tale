@@ -259,6 +259,26 @@ describe('POST /knowledge/search when the embedding provider fails', () => {
     });
   });
 
+  it('answers 409 for a rejected credential — provider settings an admin fixes, never a retry', async () => {
+    vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
+      new KnowledgeError(
+        'EMBEDDING_CREDENTIAL_REJECTED',
+        "The organization's embedding provider rejected its credential or refused it the model — provider settings an admin must fix: 401 Incorrect API key provided",
+        503,
+      ),
+    );
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/knowledge/search',
+      json('POST', { query: 'refunds' }),
+    );
+    expect(res.status).toBe(409);
+    expect(res.headers.get('retry-after')).toBeNull();
+    expect(await res.json()).toMatchObject({
+      code: 'EMBEDDING_CREDENTIAL_REJECTED',
+    });
+  });
+
   it('answers 503 for any other provider-side failure', async () => {
     vi.mocked(searchKnowledgeForOrg).mockRejectedValueOnce(
       new KnowledgeError(
@@ -273,6 +293,8 @@ describe('POST /knowledge/search when the embedding provider fails', () => {
       json('POST', { query: 'refunds' }),
     );
     expect(res.status).toBe(503);
+    // The wait the retry-with-backoff guidance names.
+    expect(res.headers.get('retry-after')).toBe('5');
     expect(await res.json()).toEqual({
       error: expect.stringContaining('502 Bad Gateway'),
       code: 'EMBEDDING_UPSTREAM_ERROR',

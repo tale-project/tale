@@ -2463,12 +2463,14 @@ export function buildSpec(): Json {
               'embedding model is configured (`EMBEDDING_NOT_CONFIGURED`), ' +
               'or the embedding provider refused for account reasons — ' +
               'balance spent or the plan excludes the model ' +
-              '(`EMBEDDING_CREDIT_EXHAUSTED`). Not retryable by waiting.',
+              '(`EMBEDDING_CREDIT_EXHAUSTED`), or it rejected the ' +
+              'organization’s credential or refused it the model ' +
+              '(`EMBEDDING_CREDENTIAL_REJECTED`). Not retryable by waiting.',
           ),
           '503': errorResponse(
             'The embedding provider could not serve the request ' +
               '(`EMBEDDING_UPSTREAM_ERROR`) — a transient upstream failure; ' +
-              'retry with backoff',
+              '`Retry-After` names the wait, retry with backoff',
           ),
           ...standardErrors,
         },

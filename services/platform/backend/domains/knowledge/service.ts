@@ -25,7 +25,10 @@ import {
   getKnowledgePoolForOrg,
   resolveOrgUrl,
 } from '../../core/knowledge/pool.ts';
-import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '../../core/knowledge/rag_error_codes.ts';
+import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+} from '../../core/knowledge/rag_error_codes.ts';
 import {
   searchKnowledge,
   type SearchKnowledgeArgs,
@@ -386,6 +389,22 @@ async function requireOrgSlug(
   return slug;
 }
 
+/** The stable code and the sentence each class of provider failure becomes
+ * at the retrieval boundary. `credit` and `credential` are refusals an
+ * admin lifts (never a wait); `upstream` is weather worth a later retry. */
+const EMBEDDING_FAILURE_CODE = {
+  credit: 'EMBEDDING_CREDIT_EXHAUSTED',
+  credential: 'EMBEDDING_CREDENTIAL_REJECTED',
+  upstream: 'EMBEDDING_UPSTREAM_ERROR',
+} as const;
+const EMBEDDING_FAILURE_PROSE = {
+  credit:
+    "The organization's embedding provider refused the request for account reasons (balance, plan or billing)",
+  credential:
+    "The organization's embedding provider rejected its credential or refused it the model — provider settings an admin must fix",
+  upstream: "The organization's embedding provider could not serve the request",
+} as const;
+
 /** The reused 0.4 search over the org's corpus. */
 export async function searchKnowledgeForOrg(
   sql: Sql,
@@ -424,12 +443,8 @@ export async function searchKnowledgeForOrg(
     if (failure !== null) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new KnowledgeError(
-        failure === 'credit'
-          ? 'EMBEDDING_CREDIT_EXHAUSTED'
-          : 'EMBEDDING_UPSTREAM_ERROR',
-        failure === 'credit'
-          ? `The organization's embedding provider refused the request for account reasons (balance or plan): ${detail}`
-          : `The organization's embedding provider could not serve the request: ${detail}`,
+        EMBEDDING_FAILURE_CODE[failure],
+        `${EMBEDDING_FAILURE_PROSE[failure]}: ${detail}`,
         503,
       );
     }
@@ -747,6 +762,19 @@ export async function indexUploadedFile(
         ragError:
           'No embedding model is configured for this organization. An admin can set one under Settings → Data residency → Embedding model, then retry indexing.',
         ragErrorCode: RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+      });
+      return;
+    }
+    // A provider that refused the ACCOUNT (balance, plan, billing) or the
+    // CREDENTIAL: the job's retries would re-run the same refusal, so it
+    // ends here with the cause on the file; an admin fixes the provider
+    // account or settings and retries indexing.
+    const refusal = classifyEmbeddingFailure(error);
+    if (refusal === 'credit' || refusal === 'credential') {
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'failed',
+        ragError: `${EMBEDDING_FAILURE_PROSE[refusal]}. Fix the provider account or settings, then retry indexing: ${error instanceof Error ? error.message : String(error)}`,
+        ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
       return;
     }
