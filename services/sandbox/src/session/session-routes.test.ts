@@ -13,12 +13,14 @@ import {
   test,
 } from 'bun:test';
 
+import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import type {
   BackendSession,
   SessionBackend,
   SessionSpec,
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
+import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRoutes } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 
@@ -74,6 +76,13 @@ const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
 };
+const fakeActivities = new Map<string, ActivityGate>();
+let legacyDaemon = false;
+// Daemons (by session token) that answer nothing usable any more — a
+// container whose runnerd died — and how often each daemon's /healthz was
+// probed, for the probe back-off assertions.
+const deadDaemons = new Set<string>();
+const healthProbes = new Map<string, number>();
 
 function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
@@ -84,14 +93,64 @@ beforeAll(() => {
     port: 0,
     async fetch(req) {
       const url = new URL(req.url);
+      const token = req.headers.get('x-tale-runnerd-token') ?? '';
+      let activity = fakeActivities.get(token);
+      if (activity === undefined) {
+        activity = new ActivityGate(() => fakeHealth.liveExecs);
+        fakeActivities.set(token, activity);
+      }
+      if (deadDaemons.has(token)) {
+        return new Response('runnerd is gone', { status: 503 });
+      }
       if (url.pathname === '/healthz') {
+        healthProbes.set(token, (healthProbes.get(token) ?? 0) + 1);
         return Response.json({
           ok: true,
           bootedAtMs: 0,
           lastActivityAtMs: fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
+          ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
+      if (!legacyDaemon && url.pathname === '/acquire') {
+        const generation = activity.acquire();
+        return Response.json(
+          { generation },
+          { status: generation === null ? 503 : 200 },
+        );
+      }
+      if (
+        !legacyDaemon &&
+        url.pathname === '/release' &&
+        req.method === 'GET'
+      ) {
+        return Response.json({ generation: activity.snapshot().generation });
+      }
+      if (
+        !legacyDaemon &&
+        ['/release', '/reclaim', '/pin'].includes(url.pathname)
+      ) {
+        const parsed: unknown = await req.json();
+        const body =
+          parsed !== null && typeof parsed === 'object'
+            ? Object.fromEntries(Object.entries(parsed))
+            : {};
+        if (url.pathname === '/release')
+          return Response.json({
+            released: activity.release(String(body.generation)),
+          });
+        if (url.pathname === '/reclaim')
+          return Response.json({
+            claimed: activity.claim(
+              String(body.claimId),
+              String(body.generation),
+            ),
+          });
+        const applied = activity.setPinned(body.pinned === true);
+        return Response.json({ ok: applied }, { status: applied ? 200 : 503 });
+      }
+      if (activity.snapshot().reclaiming)
+        return new Response('reclaiming', { status: 503 });
       if (url.pathname === '/execs' && req.method === 'POST') {
         // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
         const body = (await req.json()) as {
@@ -221,6 +280,7 @@ const fakeBackend: SessionBackend = {
   kind: 'docker',
   async createSession(spec: SessionSpec) {
     created.add(spec.sessionId);
+    stopped.delete(spec.sessionId);
     return { resumed: resumedSessions.has(spec.sessionId) };
   },
   async resolveEndpoint(sessionId: string) {
@@ -252,7 +312,7 @@ const fakeBackend: SessionBackend = {
   },
   async sessionExists(sessionId: string) {
     if (backendCheckThrows) throw new Error('docker daemon hiccup');
-    return !backendGone.has(sessionId);
+    return !backendGone.has(sessionId) && !stopped.has(sessionId);
   },
   async setPinned(sessionId: string, pinned: boolean) {
     backendPins.set(sessionId, pinned);
@@ -302,6 +362,10 @@ beforeEach(() => {
   backendPins.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
+  fakeActivities.clear();
+  legacyDaemon = false;
+  deadDaemons.clear();
+  healthProbes.clear();
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -467,7 +531,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(sent?.stderrMaxBytes).toBe(cfg.stderrMaxBytes);
   });
 
-  test('per-org session cap returns 429', async () => {
+  test('one organization can use the deployment capacity without a second cap', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'a', organizationId: 'org_cap' }),
@@ -475,18 +539,16 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'b', organizationId: 'org_cap' }),
     );
-    // maxSessionsPerOrg = 2 in TEST_SESSION_CONFIG → third is rejected.
     const third = await routes.handleCreate(
       JSON.stringify({ sessionId: 'c', organizationId: 'org_cap' }),
     );
-    expect(third.status).toBe(429);
-    expect(await third.json()).toMatchObject({ error: 'session_quota' });
+    expect(third.status).toBe(201);
   });
 
   // REGRESSION (quota vs creates in flight): the registry is populated only
   // AFTER backend.createSession resolves (up to createHealthTimeoutMs later
   // through a slow image pull), and the caps used to read the registry alone —
-  // so a burst of distinct ids during one slow create all passed the host/org
+  // so a burst of distinct ids during one slow create all passed the host
   // caps and oversubscribed the host by the number of creates in flight.
   describe('quotas count creates in flight', () => {
     /** A backend whose createSession of `blockedId` blocks until the test
@@ -508,10 +570,10 @@ describe('SessionRoutes (fake runnerd)', () => {
       };
     };
 
-    test('per-org cap: a second org create 429s while the first is still creating', async () => {
+    test('one org can create concurrently while deployment capacity remains', async () => {
       const backend = blockingBackend('inflight-b');
       const routes = new SessionRoutes(cfg, backend);
-      // Occupy one real slot, then one in-flight slot (maxSessionsPerOrg = 2).
+      // Occupy one real slot, then one in-flight slot in the same organization.
       await routes.handleCreate(
         JSON.stringify({ sessionId: 'inflight-a', organizationId: 'org_if' }),
       );
@@ -522,12 +584,8 @@ describe('SessionRoutes (fake runnerd)', () => {
       const third = await routes.handleCreate(
         JSON.stringify({ sessionId: 'inflight-c', organizationId: 'org_if' }),
       );
-      expect(third.status).toBe(429);
-      expect(await third.json()).toMatchObject({
-        error: 'session_quota',
-        message: 'org session cap reached',
-      });
-      // Another org is unaffected by org_if's in-flight create.
+      expect(third.status).toBe(201);
+      // Another org can also use the remaining deployment capacity.
       expect(
         (
           await routes.handleCreate(
@@ -537,7 +595,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       ).toBe(201);
       backend.release();
       expect((await pending).status).toBe(201);
-      expect(routes.sessionCount()).toBe(3);
+      expect(routes.sessionCount()).toBe(4);
     });
 
     test('host cap: creates in flight occupy spawner capacity', async () => {
@@ -1502,6 +1560,296 @@ describe('SessionRoutes (fake runnerd)', () => {
       await routes.adoptExisting();
       expect(routes.sessionCount()).toBe(0);
     });
+  });
+});
+
+describe('capacity pressure reclamation', () => {
+  const capped = { ...cfg, session: { ...cfg.session, maxSessions: 1 } };
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({ sessionId: id, organizationId: 'org_pressure' }),
+    );
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
+
+  test('reclaims released compute and preserves its workspace before admitting a replacement', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    expect((await create(routes, 'warm')).status).toBe(201);
+    expect(await (await release(routes, 'warm')).json()).toEqual({
+      released: true,
+    });
+    expect((await create(routes, 'next')).status).toBe(201);
+    expect(stopped.has('warm')).toBe(true);
+    expect(destroyed.size).toBe(0);
+    expect(routes.sessionCount()).toBe(1);
+    expect((await routes.handleActivity('warm', 'acquire')).status).toBe(404);
+    // The new container is not idle merely because its first exec has not started.
+    expect((await create(routes, 'too-soon')).status).toBe(429);
+  });
+
+  test.each(['busy', 'pinned', 'unknown', 'legacy'] as const)(
+    'never reclaims a %s runtime',
+    async (kind) => {
+      const routes = new SessionRoutes(capped, fakeBackend);
+      const id = kind === 'unknown' ? 'dead-pressure' : 'protected';
+      await create(routes, id);
+      if (kind !== 'unknown') await release(routes, id);
+      if (kind === 'busy') fakeHealth.liveExecs = 1;
+      if (kind === 'pinned')
+        await routes.handleSetPinned(id, JSON.stringify({ pinned: true }));
+      if (kind === 'legacy') legacyDaemon = true;
+      expect((await create(routes, 'refused')).status).toBe(429);
+      expect(stopped.size).toBe(0);
+      expect(destroyed.size).toBe(0);
+    },
+  );
+
+  test('a ticket from before reacquire cannot release the newer allocation', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'again');
+    const ticket: unknown = await (
+      await routes.handleActivity('again', 'ticket')
+    ).json();
+    expect((await routes.handleActivity('again', 'acquire')).status).toBe(200);
+    expect(
+      await (
+        await routes.handleActivity('again', 'release', JSON.stringify(ticket))
+      ).json(),
+    ).toEqual({ released: false });
+    expect((await create(routes, 'refused')).status).toBe(429);
+    expect(stopped.size).toBe(0);
+  });
+
+  test('concurrent creates share one reclaim and reserve the freed slot once', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'warm-race');
+    await release(routes, 'warm-race');
+    const responses = await Promise.all([
+      create(routes, 'race-a'),
+      create(routes, 'race-b'),
+      create(routes, 'race-c'),
+    ]);
+    expect(
+      responses.map((response) => response.status).sort((a, b) => a - b),
+    ).toEqual([201, 429, 429]);
+    expect(stopped.size).toBe(1);
+    expect(routes.sessionCount()).toBe(1);
+  });
+
+  test('acquire waits for a pressure stop and returns not found after it completes', async () => {
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession(id, expectedCreatedAtMs) {
+        expect(expectedCreatedAtMs).toBeGreaterThan(0);
+        started.resolve();
+        await finish.promise;
+        return fakeBackend.stopSession(id);
+      },
+    });
+    await create(routes, 'warm-wait');
+    await release(routes, 'warm-wait');
+    const next = create(routes, 'wait-next');
+    await started.promise;
+    let acquired = false;
+    const acquire = routes
+      .handleActivity('warm-wait', 'acquire')
+      .then((response) => {
+        acquired = true;
+        return response;
+      });
+    await Promise.resolve();
+    expect(acquired).toBe(false);
+    finish.resolve();
+    expect((await next).status).toBe(201);
+    expect((await acquire).status).toBe(404);
+  });
+
+  test('an ambiguous stop failure keeps capacity occupied and work frozen until retry succeeds', async () => {
+    let failStop = true;
+    const routes = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession(id) {
+        if (failStop) throw new Error('backend timeout');
+        return fakeBackend.stopSession(id);
+      },
+    });
+    await create(routes, 'warm-failure');
+    await release(routes, 'warm-failure');
+    expect((await create(routes, 'after-failure')).status).toBe(429);
+    expect(routes.sessionCount()).toBe(1);
+    expect(
+      (await routes.handleActivity('warm-failure', 'acquire')).status,
+    ).toBe(503);
+    expect(
+      (await routes.handleSetPinned('warm-failure', '{"pinned":true}')).status,
+    ).toBe(503);
+    failStop = false;
+    expect(await routes.sweepExpired()).toBe(1);
+    expect((await create(routes, 'after-retry')).status).toBe(201);
+    expect(destroyed.size).toBe(0);
+  });
+
+  test('older runtime images remain usable without inventing release eligibility', async () => {
+    legacyDaemon = true;
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'old-image');
+    expect(
+      await (await routes.handleActivity('old-image', 'acquire')).json(),
+    ).toEqual({ generation: 'legacy' });
+    expect((await routes.handleActivity('old-image', 'ticket')).status).toBe(
+      404,
+    );
+    expect((await create(routes, 'full')).status).toBe(429);
+    // Failed unsupported claims must not disable the existing idle reaper.
+    expect(await routes.sweepExpired()).toBe(1);
+  });
+
+  test('an acquire for an id still being created waits for that create instead of answering not-found', async () => {
+    // A sibling turn of the same owner arrives while the first turn's
+    // container is still coming up: the platform must not be told the
+    // session is gone (it would answer with a duplicate create and fail).
+    const imagePulled = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'slow-create') await imagePulled.promise;
+        return fakeBackend.createSession(spec);
+      },
+    });
+    const pending = routes.handleCreate(
+      JSON.stringify({ sessionId: 'slow-create', organizationId: 'org_a' }),
+    );
+    await Promise.resolve();
+    let acquired: Response | undefined;
+    const acquire = routes
+      .handleActivity('slow-create', 'acquire')
+      .then((response) => {
+        acquired = response;
+        return response;
+      });
+    await Promise.resolve();
+    expect(acquired).toBeUndefined();
+    imagePulled.resolve();
+    expect((await pending).status).toBe(201);
+    expect((await acquire).status).toBe(200);
+  });
+
+  test('a failed sweep stop never turns a concurrent acquire or create into a 500', async () => {
+    let failStop = true;
+    const routes = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession(id, expectedCreatedAtMs) {
+        if (failStop && expectedCreatedAtMs === undefined) {
+          throw new Error('apiserver blip');
+        }
+        return fakeBackend.stopSession(id);
+      },
+    });
+    await create(routes, 'ttl-stop');
+    // Idle past its window, so the sweep's ordinary (unfenced) stop runs and
+    // fails; an acquire and a create at capacity race it.
+    const sweep = routes.sweepExpired(Date.now() + 3_600_000);
+    const [acquire, refused] = await Promise.all([
+      routes.handleActivity('ttl-stop', 'acquire'),
+      create(routes, 'while-stopping'),
+    ]);
+    expect(await sweep).toBe(0);
+    expect(acquire.status).toBe(200);
+    expect(refused.status).toBe(429);
+    failStop = false;
+    expect(await routes.sweepExpired(Date.now() + 3_600_000)).toBe(1);
+  });
+
+  test('an acquire finishes a frozen stop whose backend removal failed, so the caller can recreate at once', async () => {
+    let failStop = true;
+    const routes = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession(id) {
+        if (failStop) throw new Error('docker rm timed out');
+        return fakeBackend.stopSession(id);
+      },
+    });
+    await create(routes, 'frozen');
+    await release(routes, 'frozen');
+    expect((await create(routes, 'pressure')).status).toBe(429);
+    failStop = false;
+    // Not a 503 until the next sweep: the stop is retried on the spot.
+    expect((await routes.handleActivity('frozen', 'acquire')).status).toBe(404);
+    expect(stopped.has('frozen')).toBe(true);
+    expect(routes.sessionCount()).toBe(0);
+    expect((await create(routes, 'after-frozen')).status).toBe(201);
+  });
+
+  test('a claimed container whose daemon died is still removed by its immutable id', async () => {
+    let failStop = true;
+    const routes = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession(id, expectedCreatedAtMs) {
+        if (failStop) throw new Error('docker rm timed out');
+        expect(expectedCreatedAtMs).toBeGreaterThan(0);
+        return fakeBackend.stopSession(id);
+      },
+    });
+    await create(routes, 'dying');
+    await release(routes, 'dying');
+    expect((await create(routes, 'pressure')).status).toBe(429);
+    // The daemon is gone (OOM-killed container): no probe can succeed, but
+    // the acknowledged claim proves nothing can run in that incarnation.
+    deadDaemons.add(deriveRunnerdToken(cfg.sandboxToken, 'dying'));
+    failStop = false;
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('dying')).toBe(true);
+    expect(destroyed.size).toBe(0);
+    expect((await create(routes, 'after-dying')).status).toBe(201);
+  });
+
+  test('a daemon that does not answer the reclaim probe is not re-probed by every create at capacity', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'wedged');
+    const token = deriveRunnerdToken(cfg.sandboxToken, 'wedged');
+    deadDaemons.add(token);
+    expect((await create(routes, 'first')).status).toBe(429);
+    expect((await create(routes, 'second')).status).toBe(429);
+    // One failed probe per back-off window: the second create at capacity
+    // did not pay for another (the dead daemon answers 503 to /healthz —
+    // its probe count stays at zero while a live one would climb).
+    expect(healthProbes.get(token) ?? 0).toBe(0);
+    deadDaemons.delete(token);
+    // Back-off elapsed: the candidate is probed again and reclaimed once it
+    // is released.
+    await release(routes, 'wedged');
+    expect((await create(routes, 'third')).status).toBe(429);
+    expect(healthProbes.get(token) ?? 0).toBe(0);
+  });
+
+  test('a replacement spawner safely finishes a frozen stop from before restart', async () => {
+    const original = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async stopSession() {
+        throw new Error('spawner lost backend connection');
+      },
+    });
+    await create(original, 'restart-idle');
+    await release(original, 'restart-idle');
+    expect((await create(original, 'before-restart')).status).toBe(429);
+    const replacement = new SessionRoutes(capped, {
+      ...fakeBackend,
+      async listSessions() {
+        return stopped.has('restart-idle')
+          ? []
+          : [mkBackendSession('restart-idle', 'org_pressure')];
+      },
+    });
+    await replacement.adoptExisting();
+    expect(await replacement.sweepExpired()).toBe(1);
+    expect((await create(replacement, 'after-restart')).status).toBe(201);
+    expect(destroyed.size).toBe(0);
   });
 });
 

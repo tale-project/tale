@@ -94,7 +94,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       header: () => (
         <span className="block w-full text-right">{tEntity('indexed')}</span>
       ),
-      size: 80,
+      size: 88,
       meta: { headerLabel: tEntity('indexed') },
       cell: ({ row }) => (
         <Text as="span" variant="caption" className="block w-full text-right">

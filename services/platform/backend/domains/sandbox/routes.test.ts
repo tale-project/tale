@@ -8,6 +8,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 const {
   caller,
   capacity,
+  deploymentLimits,
   policy,
   listViews,
   listSessions,
@@ -17,6 +18,7 @@ const {
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
+  deploymentLimits: vi.fn(),
   policy: vi.fn(),
   listViews: vi.fn(),
   listSessions: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('../../auth/org.ts', () => ({
 }));
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
   sandboxCapacity: capacity,
+  sandboxDeploymentLimits: deploymentLimits,
   sessionCancelExec: vi.fn(),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
@@ -77,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('SANDBOX_TOKEN', 'route-test-only');
   caller.role = 'admin';
+  deploymentLimits.mockResolvedValue({ maxSessions: 16 });
   capacity.mockResolvedValue({
     status: 'available',
     observedAt: 1000,
@@ -105,6 +109,16 @@ describe('sandbox settings read and write authority', () => {
       expect(response.status).toBe(200);
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(capacity).toHaveBeenCalledWith('member-org');
+      const limitsResponse = await app().request(
+        '/limits?maxSessions=1000&orgId=foreign',
+      );
+      expect(limitsResponse.status).toBe(200);
+      expect(deploymentLimits).toHaveBeenCalledWith('member-org');
+      expect(limitsResponse.headers.get('cache-control')).toBe('no-store');
+      expect(await limitsResponse.json()).toEqual({
+        status: 'available',
+        maxSessions: 16,
+      });
       expect((await app().request('/quota-usage')).status).toBe(200);
       for (const path of ['/sessions', '/sessions/view']) {
         expect((await app().request(path)).status).toBe(
@@ -135,6 +149,7 @@ describe('sandbox settings read and write authority', () => {
       caller.role = role;
       for (const path of [
         '/capacity',
+        '/limits',
         '/quota-usage',
         '/sessions',
         '/sessions/view',
@@ -142,6 +157,7 @@ describe('sandbox settings read and write authority', () => {
         expect((await app().request(path)).status).toBe(403);
       }
       expect(capacity).not.toHaveBeenCalled();
+      expect(deploymentLimits).not.toHaveBeenCalled();
       expect(query).not.toHaveBeenCalled();
     },
   );
@@ -197,6 +213,43 @@ describe('sandbox settings read and write authority', () => {
     vi.stubEnv('SANDBOX_TOKEN', 'test-only');
     capacity.mockRejectedValue(new Error('observation failed'));
     expect(await (await app().request('/capacity')).json()).toEqual({
+      status: 'unavailable',
+      reason: 'unreachable',
+    });
+  });
+
+  it('reads the configured ceiling even when runtime observations fail', async () => {
+    capacity.mockRejectedValue(new Error('metrics unavailable'));
+    expect(await (await app().request('/limits')).json()).toEqual({
+      status: 'available',
+      maxSessions: 16,
+    });
+    expect(capacity).not.toHaveBeenCalled();
+    expect(await (await app().request('/capacity')).json()).toEqual({
+      status: 'unavailable',
+      reason: 'unreachable',
+    });
+    expect(await (await app().request('/limits')).json()).toEqual({
+      status: 'available',
+      maxSessions: 16,
+    });
+    expect(deploymentLimits).toHaveBeenCalledTimes(2);
+  });
+
+  it('distinguishes unconfigured and unreachable deployment limits without guessing a cap', async () => {
+    vi.stubEnv('SANDBOX_TOKEN', '  ');
+    const unconfigured = await app().request('/limits');
+    expect(unconfigured.headers.get('cache-control')).toBe('no-store');
+    expect(await unconfigured.json()).toEqual({
+      status: 'unavailable',
+      reason: 'not_configured',
+    });
+    expect(deploymentLimits).not.toHaveBeenCalled();
+    vi.stubEnv('SANDBOX_TOKEN', 'test-only');
+    deploymentLimits.mockRejectedValue(new Error('spawner unreachable'));
+    const unreachable = await app().request('/limits');
+    expect(unreachable.headers.get('cache-control')).toBe('no-store');
+    expect(await unreachable.json()).toEqual({
       status: 'unavailable',
       reason: 'unreachable',
     });

@@ -4,9 +4,12 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
+  DEFAULT_SANDBOX_QUOTA,
   dsarGovernanceConfigSchema,
   isFilePolicyType,
   POLICY_SCHEMAS,
+  sandboxQuotaConfigSchema,
+  sandboxQuotaTotal,
 } from '../../../lib/shared/schemas/governance.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
@@ -27,6 +30,7 @@ import {
 } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { checkTtsBudget } from '../tts/service.ts';
 import {
   CompetenceError,
@@ -145,6 +149,43 @@ export function createGovernanceRoutes(deps: {
         },
         400,
       );
+    }
+    if (policyType === 'sandbox_quota') {
+      const total = sandboxQuotaTotal(
+        sandboxQuotaConfigSchema.parse(parsed.data),
+      );
+      // Read at save time; neither a client-supplied ceiling nor the UI's
+      // last snapshot can authorize a configuration against a changed host.
+      const limits = await getSandboxDeploymentLimits(c.get('orgId'));
+      if (limits.status === 'unavailable') {
+        // No readable ceiling: a total that does not grow is still saved.
+        // Lowering limits can never oversubscribe more than the saved
+        // configuration already does, and shedding load is the one edit an
+        // admin needs while the sandbox service is down; only raising the
+        // total needs the capacity.
+        const saved = sandboxQuotaConfigSchema.safeParse(
+          await readGovernancePolicyForOrg(
+            deps.sql,
+            c.get('orgId'),
+            'sandbox_quota',
+            { fresh: true },
+          ),
+        );
+        const savedTotal = sandboxQuotaTotal(
+          saved.success ? saved.data : DEFAULT_SANDBOX_QUOTA,
+        );
+        if (total > savedTotal) {
+          return c.json({ error: 'SANDBOX_CAPACITY_UNAVAILABLE' }, 503);
+        }
+      } else if (total > limits.maxSessions) {
+        return c.json(
+          {
+            error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
+            data: { total, maxSessions: limits.maxSessions },
+          },
+          400,
+        );
+      }
     }
     const organizationId = c.get('orgId');
     const orgSlug = await resolveOrgSlug(deps.sql, organizationId);

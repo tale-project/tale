@@ -37,6 +37,7 @@ export interface SandboxCapacity {
     limit: number;
     organizationRunning: number;
     organizationStarting: number;
+    /** @deprecated Compatibility alias of the deployment limit; no org cap. */
     organizationLimit: number;
   };
   resources: HostResources;
@@ -254,7 +255,7 @@ export class CapacityReader {
         limit: this.cfg.session.maxSessions,
         organizationRunning: count(own, 'running'),
         organizationStarting: count(own, 'starting'),
-        organizationLimit: this.cfg.session.maxSessionsPerOrg,
+        organizationLimit: this.cfg.session.maxSessions,
       },
       resources: snapshot.resources,
       runtimeSessions: own.flatMap(({ sessionId, state }) =>

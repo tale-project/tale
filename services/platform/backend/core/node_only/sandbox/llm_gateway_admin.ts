@@ -36,6 +36,7 @@
 import { createHash } from 'node:crypto';
 
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 
 /**
@@ -294,12 +295,19 @@ export async function mintVirtualKey(
     // gateway has no native TTL; session teardown revokes the key.
     name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
     provider_configs: providerConfigs,
-    budget: {
-      max_limit: args.budgetCents / 100, // the governance API takes dollars
-      // Smallest accepted horizon ('never' is rejected); the key is revoked
-      // at session end, long before any reset matters.
-      reset_duration: '1M',
-    },
+    // `budgets` (plural, one entry per reset window) is the gateway's
+    // multi-budget contract. Its JSON decoder drops unknown fields, so the
+    // pre-multi-budget singular `budget` object is accepted with a 200 and
+    // silently stores the key WITHOUT a cap — which is why the response is
+    // checked below rather than trusted.
+    budgets: [
+      {
+        max_limit: args.budgetCents / 100, // the governance API takes dollars
+        // Smallest accepted horizon ('never' is rejected); the key is revoked
+        // at session end, long before any reset matters.
+        reset_duration: '1M',
+      },
+    ],
     is_active: true,
   };
   const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
@@ -313,12 +321,28 @@ export async function mintVirtualKey(
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
-    virtual_key?: { id?: string; value?: string };
+    virtual_key?: { id?: string; value?: string; budgets?: unknown };
   };
   const key = parsed.virtual_key?.value;
   const keyId = parsed.virtual_key?.id;
   if (!key || !keyId) {
     throw new Error('llm-gateway mint key returned no key/id');
+  }
+  // The budget is the only thing bounding what a runaway turn can spend, and
+  // its `current_usage` is the only spend signal the ledger has. A key the
+  // gateway stored without one is an uncapped, unmetered credential — revoke
+  // it and refuse the session rather than serve it.
+  const budgets = parsed.virtual_key?.budgets;
+  if (!Array.isArray(budgets) || budgets.length === 0) {
+    await revokeVirtualKey(keyId).catch((err: unknown) =>
+      console.warn(
+        `[llm-gateway] revoke of budget-less key ${keyId} failed:`,
+        err,
+      ),
+    );
+    throw new Error(
+      'llm-gateway mint key returned a key without its budget (the spend cap did not attach)',
+    );
   }
   return { key, keyId };
 }
@@ -341,11 +365,14 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
 
 /**
  * Cumulative spend on a virtual key, in (fractional) cents, from
- * `GET /api/governance/virtual-keys/:id` → `budget.current_usage` (dollars).
- * The budget figure is the gateway's only authoritative spend signal — and
- * the only usage source that works where a harness's own stream reports 0
- * tokens. Returns null on error; the caller degrades to whatever the agent
- * stream reported.
+ * `GET /api/governance/virtual-keys/:id` → the key's `budgets[].current_usage`
+ * (dollars; the pre-multi-budget singular `budget` is still read). Every
+ * budget on a key meters the same requests over its own reset window, so the
+ * largest figure is the key's spend. The budget figure is the gateway's only
+ * authoritative spend signal — and the only usage source that works where a
+ * harness's own stream reports 0 tokens. Returns null on error, or for a key
+ * the gateway holds without any budget; the caller degrades to whatever the
+ * agent stream reported.
  */
 export async function getVirtualKeySpendCents(
   keyId: string,
@@ -370,15 +397,213 @@ export async function getVirtualKeySpendCents(
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
-    virtual_key?: { budget?: { current_usage?: number } };
+    virtual_key?: {
+      budgets?: unknown;
+      budget?: { current_usage?: number };
+    };
     budget?: { current_usage?: number };
   };
-  const dollars =
-    parsed.virtual_key?.budget?.current_usage ??
-    parsed.budget?.current_usage ??
-    null;
+  const budgets = parsed.virtual_key?.budgets;
+  const usages = [
+    ...(Array.isArray(budgets) ? budgets : []).map((budget: unknown) =>
+      isRecord(budget) ? budget.current_usage : undefined,
+    ),
+    parsed.virtual_key?.budget?.current_usage,
+    parsed.budget?.current_usage,
+  ].filter(
+    (usage): usage is number =>
+      typeof usage === 'number' && Number.isFinite(usage),
+  );
+  if (usages.length === 0) {
+    // A key without a budget is unmetered (see mintVirtualKey); say so
+    // instead of stamping a silent zero.
+    console.warn(
+      `[llm-gateway] key ${keyId} carries no budget; its spend is unknown`,
+    );
+    return null;
+  }
   // Sub-cent spends are real with cheap models — keep the precision.
-  return dollars === null ? null : dollars * 100;
+  return Math.max(...usages) * 100;
+}
+
+/** The price the gateway should bill one model at, in the catalog's unit
+ * (cents per million tokens). */
+export interface ModelPricingOverride {
+  /** Gateway provider (record) name the model routes to. */
+  gatewayProvider: string;
+  /** The model id as the client sends it under that record — an override
+   * matches the wire model, i.e. the ref with its provider prefix stripped. */
+  modelId: string;
+  inputCentsPerMillion: number;
+  outputCentsPerMillion: number;
+}
+
+/** Request kinds a sandbox harness turn bills under (stream variants ride
+ * their base type). The gateway rejects an override with an empty list. */
+const PRICING_OVERRIDE_REQUEST_TYPES = [
+  'chat_completion',
+  'responses',
+  'text_completion',
+] as const;
+
+/** Page size for listing a provider's pricing overrides. */
+const PRICING_OVERRIDE_PAGE = 200;
+
+/**
+ * Drift signal for the pricing reconcile: the patch this process last saw
+ * on the gateway per override name. Module-scoped like the provider memo — a
+ * fresh process re-reads each override once and then skips it.
+ */
+const pushedPricingFingerprints = new Map<string, string>();
+
+function pricingOverrideName(override: ModelPricingOverride): string {
+  return `tale-pricing-${override.gatewayProvider}-${override.modelId}`;
+}
+
+/** Dollars per token from the catalog's cents per million tokens. */
+function dollarsPerToken(centsPerMillion: number): number {
+  return centsPerMillion / 100 / 1_000_000;
+}
+
+/** One override as the gateway lists it (`pricing_patch` is the stored patch
+ * as a JSON string). */
+interface GatewayPricingOverride {
+  id: string;
+  name: string;
+  pattern?: string;
+  match_type?: string;
+  request_types?: string[];
+  pricing_patch?: unknown;
+}
+
+/** Whether the gateway's stored patch already prices at `patch` (its JSON
+ * round-trips the floats, so an exact compare is enough). */
+function samePricingPatch(
+  stored: unknown,
+  patch: { input_cost_per_token: number; output_cost_per_token: number },
+): boolean {
+  let parsed: unknown = stored;
+  if (typeof stored === 'string') {
+    try {
+      parsed = JSON.parse(stored);
+    } catch (err) {
+      // Not JSON → not our patch; the caller rewrites it.
+      console.warn('[llm-gateway] unreadable pricing override patch:', err);
+      return false;
+    }
+  }
+  return (
+    isRecord(parsed) &&
+    parsed.input_cost_per_token === patch.input_cost_per_token &&
+    parsed.output_cost_per_token === patch.output_cost_per_token
+  );
+}
+
+/** Every override on a provider record, paged until the gateway's own total
+ * is reached. */
+async function listPricingOverrides(
+  gatewayProvider: string,
+): Promise<GatewayPricingOverride[]> {
+  const overrides: GatewayPricingOverride[] = [];
+  // Advance by what the gateway actually returned, not the requested page
+  // size — a server-side cap below it would otherwise skip a stride.
+  for (let offset = 0; ; offset = overrides.length) {
+    const res = await fetch(
+      `${llmGatewayUrl()}/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
+      {
+        method: 'GET',
+        headers: managementHeaders(),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `llm-gateway list pricing overrides failed (${res.status})`,
+      );
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const page = (await res.json()) as {
+      pricing_overrides?: GatewayPricingOverride[];
+      total_count?: number;
+    };
+    const items = page.pricing_overrides ?? [];
+    overrides.push(...items);
+    const total = typeof page.total_count === 'number' ? page.total_count : 0;
+    if (items.length === 0 || overrides.length >= total) return overrides;
+  }
+}
+
+/**
+ * Ensure the gateway bills `modelId` under `gatewayProvider` at the catalog's
+ * price (`/api/governance/pricing-overrides`, scope `provider`, exact model
+ * match). The gateway meters a virtual key's budget from the cost it computes
+ * per request, and that cost comes from its own pricing datasheet — which
+ * knows nothing about an org's custom upstream records
+ * (`<org>__<slug>__<model>`) and lags for the rest. Without the override
+ * every request under such a record costs 0: the budget never fills, the
+ * hard cap never trips, and the spend ledger stays empty. Idempotent by
+ * override name: a matching override is left alone, a stale one (the catalog
+ * price moved) is updated in place, and the per-process memo makes the
+ * steady state zero gateway calls. A zero/zero price is skipped — the
+ * gateway applies only non-zero patch fields, and a zero token price marks a
+ * free tier or non-token billing, never a rate.
+ */
+export async function ensureModelPricingOverride(
+  override: ModelPricingOverride,
+): Promise<void> {
+  if (
+    override.inputCentsPerMillion <= 0 &&
+    override.outputCentsPerMillion <= 0
+  ) {
+    return;
+  }
+  const name = pricingOverrideName(override);
+  const patch = {
+    input_cost_per_token: dollarsPerToken(override.inputCentsPerMillion),
+    output_cost_per_token: dollarsPerToken(override.outputCentsPerMillion),
+  };
+  const fingerprint = JSON.stringify(patch);
+  if (pushedPricingFingerprints.get(name) === fingerprint) return;
+
+  const existing = (await listPricingOverrides(override.gatewayProvider)).find(
+    (entry) => entry.name === name,
+  );
+  const requestTypes = [...PRICING_OVERRIDE_REQUEST_TYPES];
+  if (
+    existing &&
+    existing.pattern === override.modelId &&
+    existing.match_type === 'exact' &&
+    samePricingPatch(existing.pricing_patch, patch) &&
+    requestTypes.every((type) => existing.request_types?.includes(type))
+  ) {
+    pushedPricingFingerprints.set(name, fingerprint);
+    return;
+  }
+  const desired = {
+    scope_kind: 'provider',
+    provider_id: override.gatewayProvider,
+    match_type: 'exact',
+    pattern: override.modelId,
+    request_types: requestTypes,
+    patch,
+  };
+  const res = await fetch(
+    existing
+      ? `${llmGatewayUrl()}/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
+      : `${llmGatewayUrl()}/api/governance/pricing-overrides`,
+    {
+      method: existing ? 'PUT' : 'POST',
+      headers: managementHeaders(),
+      body: JSON.stringify(existing ? desired : { name, ...desired }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway ${existing ? 'update' : 'create'} pricing override ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  pushedPricingFingerprints.set(name, fingerprint);
 }
 
 export interface ProviderProvision {

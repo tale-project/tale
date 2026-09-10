@@ -44,14 +44,6 @@ export class SessionRegistry {
     return this.sessions.size;
   }
 
-  countForOrg(organizationId: string): number {
-    let n = 0;
-    for (const s of this.sessions.values()) {
-      if (s.organizationId === organizationId) n += 1;
-    }
-    return n;
-  }
-
   list(organizationId?: string): RegistrySession[] {
     const all = [...this.sessions.values()];
     return organizationId

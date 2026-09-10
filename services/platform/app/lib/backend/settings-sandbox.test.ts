@@ -35,6 +35,46 @@ describe('sandbox capacity adapter', () => {
       '/api/app/sandbox/capacity?orgId=org-a',
     );
   });
+
+  it.each([
+    { status: 'available', maxSessions: 16 },
+    { status: 'unavailable', reason: 'not_configured' },
+    { status: 'unavailable', reason: 'unreachable' },
+  ])(
+    'requests the configured deployment limit independently from runtime telemetry: %j',
+    async (response) => {
+      const fetch = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(Response.json(response));
+      const adapter = settingsReadAdapters[
+        'sandbox/session_queries_public:getSandboxDeploymentLimits'
+      ]?.({ organizationId: 'org-a' }, { organizationId: 'org-b' });
+      expect(adapter?.queryKey).toEqual(
+        backendKey('org-a', 'sandbox_session', 'deployment-limits'),
+      );
+      expect(adapter?.refetchInterval).toBe(15_000);
+      await expect(adapter?.queryFn()).resolves.toEqual(response);
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(fetch.mock.calls[0]?.[0]).toBe(
+        '/api/app/sandbox/limits?orgId=org-a',
+      );
+    },
+  );
+
+  it('does not manufacture a deployment limit after an HTTP failure', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 503 }),
+    );
+    const adapter = settingsReadAdapters[
+      'sandbox/session_queries_public:getSandboxDeploymentLimits'
+    ]?.({ organizationId: 'org-a' }, {});
+    await expect(adapter?.queryFn()).rejects.toThrow('503');
+    expect(
+      settingsReadAdapters[
+        'sandbox/session_queries_public:getSandboxDeploymentLimits'
+      ]?.({}, {}),
+    ).toBeNull();
+  });
 });
 
 describe('sandbox quota cache refresh', () => {

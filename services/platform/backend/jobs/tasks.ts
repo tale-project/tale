@@ -226,6 +226,12 @@ export interface TaskPayloads {
   /** 5-min sandbox drift sweep: expire overdue sessions, heal phantom
    * rows against the spawner, reclaim ended automation runs' sessions. */
   'watchdog.sandbox': Record<string, never>;
+  /** Release warm compute only after its allocation transaction commits. */
+  'sandbox.release_idle': {
+    organizationId: string;
+    sessionId: string;
+    generation: string;
+  };
   /** 2-min direct-chat crash recovery: clear stale generation rows so a
    * hard-killed turn cannot wedge its thread's composer. */
   'watchdog.chat_generations': Record<string, never>;
@@ -434,6 +440,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
+  // A spawner blip is retried with backoff, not three times in one second.
+  'sandbox.release_idle': {
+    retryLimit: 3,
+    retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 60,
+  },
   'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
   'documents.replacement_cleanup': { retryLimit: 1, expireInSeconds: 300 },
   'onedrive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },

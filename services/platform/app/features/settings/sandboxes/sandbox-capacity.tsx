@@ -48,27 +48,26 @@ export function SandboxCapacitySection({
             limit: slots.limit,
           })
         : unknown,
-      hint: slots
+      hint: t('capacity.sessionSlotsHint'),
+      states: slots
         ? t('capacity.sessionStates', {
             running: slots.running,
             starting: slots.starting,
           })
-        : t('capacity.sessionSlotsHint'),
+        : undefined,
     },
     {
       label: t('capacity.organizationSessions'),
       value: slots
-        ? t('capacity.slots', {
-            used: slots.organizationRunning + slots.organizationStarting,
-            limit: slots.organizationLimit,
-          })
+        ? number(slots.organizationRunning + slots.organizationStarting)
         : unknown,
-      hint: slots
+      hint: t('capacity.organizationSessionsHint'),
+      states: slots
         ? t('capacity.sessionStates', {
             running: slots.organizationRunning,
             starting: slots.organizationStarting,
           })
-        : t('capacity.organizationSessionsHint'),
+        : undefined,
     },
     {
       label: t('capacity.cpu'),
@@ -126,6 +125,11 @@ export function SandboxCapacitySection({
                   <SkeletonBox>{metric.value}</SkeletonBox>
                 </dd>
                 <dd className="text-muted-foreground text-xs">{metric.hint}</dd>
+                {metric.states && (
+                  <dd className="text-muted-foreground text-xs">
+                    {metric.states}
+                  </dd>
+                )}
               </dl>
             </Card>
           ))}

@@ -1548,8 +1548,10 @@ async function settleTaskAgentTurn(
  * Free the agent's standing-session slot the moment its run ends — the org's
  * whole agent budget otherwise stays held through the ~30-min idle sweep. A
  * sibling task's live turn keeps the session up (the release mutation checks
- * running ops); the workspace is preserved either way. Best-effort: a failed
- * release costs latency (the reconcile cron gets it), never the settle.
+ * running ops AND live runs of the agent, so a sibling that is admitted but
+ * has no exec yet is not uncounted); the workspace is preserved either way.
+ * Best-effort: a failed release costs latency (the task watchdog's orphan
+ * backstop gets it), never the settle.
  */
 async function releaseProjectAgentSlotAfterSettle(
   ctx: ActionCtx,

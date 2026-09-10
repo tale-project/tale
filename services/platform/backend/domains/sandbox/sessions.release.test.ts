@@ -22,6 +22,10 @@ vi.mock('../tasks/agent-runs.ts', () => ({
 vi.mock('./gateway-keys.ts', () => ({
   revokeSessionGatewayKeys: vi.fn(() => Promise.resolve()),
 }));
+vi.mock('./idle-release.ts', () => ({
+  captureIdleReleaseTickets: vi.fn(async () => new Map()),
+  enqueueIdleSessionReleases: vi.fn(async () => undefined),
+}));
 
 interface Statement {
   text: string;
@@ -38,6 +42,7 @@ function fakeSql(rows: unknown[]): { sql: Sql; statements: Statement[] } {
     });
     return Promise.resolve(rows);
   };
+  Object.assign(fn, { begin: (run: (tx: typeof fn) => unknown) => run(fn) });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: fn as unknown as Sql, statements };
 }
@@ -56,7 +61,9 @@ describe('releaseProjectAgentSessionSlot', () => {
     const released = await releaseProjectAgentSessionSlot(sql, ARGS);
 
     expect(released).toBe(true);
-    const update = statements[0];
+    const update = statements.find((statement) =>
+      statement.text.startsWith('UPDATE'),
+    );
     expect(update?.text).toContain(
       "UPDATE app.sandbox_sessions s SET status = 'stopped'",
     );
@@ -66,6 +73,11 @@ describe('releaseProjectAgentSessionSlot', () => {
     );
     expect(update?.text).toContain('s.pinned = false');
     expect(update?.text).toContain("op.status = 'running'");
+    // A live turn of the agent (queued or running, not parked for capacity)
+    // owns the slot before its exec exists: an older settle must not uncount
+    // it.
+    expect(update?.text).toContain("r.status IN ('queued', 'running')");
+    expect(update?.text).toContain('r.waiting_for_capacity_at_ms IS NULL');
     expect(update?.values).toEqual(['agent-1', 'org-1']);
   });
 

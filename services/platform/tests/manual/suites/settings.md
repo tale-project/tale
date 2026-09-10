@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 57 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications), **Organization** (Organization, Teams, Members,
@@ -317,8 +317,11 @@ any toggled setting after the run.
   admin row actions **Stop task** / **Pin** / **Destroy** (`sandboxes.actions.stop` /
   `…pin` / `…destroy`; Destroy confirms via `sandboxes.destroyConfirm.title`)
   — runtime and organization allocation are separate; a running container can
-  show **Quota released** (`sandboxes.status.quotaReleased`). Quota editing is
-  covered by GOV-F13.
+  show **Quota released** (`sandboxes.status.quotaReleased`). Every header
+  label sits inside its own column in `en`, `de` and `fr` (no label paints
+  over its neighbour, no horizontal scrollbar at the settings pane's width);
+  the row-action column has no visible header. Quota editing is covered by
+  GOV-F13.
 - [ ] `SET-F31` · **Metrics smoke** — Expand the rail's **Metrics** group;
   open `/dashboard/{org}/settings/metrics` → The group lists six children from
   `metrics.groups.*` (Usage / Feedback / Chat health / Harness turns /
@@ -386,7 +389,15 @@ any toggled setting after the run.
   (`settings.dataResidency.readOnly.title`) naming their sign-in email — full
   depth (stores, tests, restart) is [data-residency.md](data-residency.md)'s
   job.
-- [ ] `SET-F37` · **Infrastructure capacity** — `/dashboard/{org}/settings/sandboxes` → with a configured sandbox service, compare **Host session slots** (`sandboxes.capacity.hostSessions`) and **Your organization's runtime slots** (`sandboxes.capacity.organizationSessions`) with the running and starting environment counts; click **Refresh** (`sandboxes.capacity.refresh`) → **Observed** (`sandboxes.capacity.observedAt`) advances. CPU and memory show measured usage and total hardware separately from configured session limits; a Kubernetes deployment names namespace scope and leaves unsupported host measurements unavailable.
+- [ ] `SET-F37` · **Infrastructure capacity** — `/dashboard/{org}/settings/sandboxes` → with a configured sandbox service, read **Deployment sandboxes** (`sandboxes.capacity.hostSessions`) as the running and starting count across all organizations / deployment capacity; **Your organization's sandboxes** (`sandboxes.capacity.organizationSessions`) shows only this organization's count, including idle sandboxes kept for reuse. Both cards keep their explanatory hints visible. Click **Refresh** (`sandboxes.capacity.refresh`) → **Observed** (`sandboxes.capacity.observedAt`) advances. CPU and memory show measured usage and total hardware separately from configured session limits; a Kubernetes deployment names namespace scope and leaves unsupported host measurements unavailable.
+- [ ] `SET-F38` · **Concurrent tasks and spend per workspace** —
+  `/dashboard/{org}/settings/sandboxes` as an admin, after starting three
+  tasks for the SAME project agent (env-gated) → The agent keeps ONE workspace
+  row (`sandboxes.limits.usage` counts one project session) whose
+  `sandboxes.columns.task` cell reads **3 project tasks**
+  (`sandboxes.task.project`) above the three task ids; when a task settles,
+  its id drops from the cell and `sandboxes.columns.spend` grows by that
+  turn's metered cost (a workspace whose turns never settled shows **—**).
 
 ## Boundary & error tests
 
@@ -450,7 +461,7 @@ any toggled setting after the run.
   env-dependent, note rather than force it.
 
 - [ ] `SET-B11` · **REST model discovery** → With a SET-F32 key, call `GET /api/v1/models`; only this organization's configured chat models allowed by the key holder's model policy appear. Without available models the response is `200 {"models":[]}`; use an entry's `id` and `providerSlug` to send a thread message and verify the selected provider answers.
-- [ ] `SET-B12` · **Sandbox reader and unavailable state** — `/dashboard/{org}/settings/sandboxes` as a developer → saved limits, allocations and capacity remain readable; **Save**, **Discard**, and the entire **Workspaces** section are absent. In a disconnected sandbox-service test environment, **Refresh** (`sandboxes.capacity.refresh`) shows `sandboxes.capacity.unreachable`, and metrics never substitute zero for a failed observation. As an admin in that environment, workspace runtime state is **Unknown** (`sandboxes.status.runtime.unknown`).
+- [ ] `SET-B12` · **Sandbox reader and unavailable state** — `/dashboard/{org}/settings/sandboxes` as a developer → saved limits, the calculated total, allocations and capacity remain readable; **Save**, **Discard**, and the entire **Workspaces** section are absent. In a disconnected sandbox-service test environment, **Refresh** (`sandboxes.capacity.refresh`) shows `sandboxes.capacity.unreachable`, and metrics never substitute zero for a failed observation. As an admin in that environment, workspace runtime state is **Unknown** (`sandboxes.status.runtime.unknown`); a limit cannot be RAISED while the deployment capacity is unavailable (`sandboxes.limits.capacityUnavailable` explains how to retry), while lowering one still saves.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -472,6 +483,7 @@ any toggled setting after the run.
   keyboard-operable, not pointer-only (`settings.branding.pickColorAria`,
   `settings.branding.hexValueAria`); credential row-action menus are labelled
   per row (`settings.credentials.actionsLabel`)
+- [ ] `SET-A6` · **Sandbox total feedback** — `/dashboard/{org}/settings/sandboxes` → edit a workload limit by keyboard until **Total organization sessions** (`sandboxes.limits.total`) exceeds the deployment capacity → a screen reader announces the updated total and explains `sandboxes.limits.totalExceedsDeployment` when a workload field receives focus. The total, validation text and capacity-card hints remain readable without clipping or horizontal scrolling in `en`, `de` and `fr`; return to valid values and use **Discard** to leave saved limits unchanged.
 
 ## Performance
 

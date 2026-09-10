@@ -11,10 +11,13 @@ import type { CoreV1Api, NetworkingV1Api } from '@kubernetes/client-node';
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import type { SessionSpec } from '../types.ts';
+import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
 import type { K8sClient } from './k8s-client.ts';
 import { KubernetesSessionBackend } from './k8s-session-backend.ts';
-import { sessionPodNameFor } from './k8s-session-pod-spec.ts';
+import {
+  sessionPodNameFor,
+  sessionSecretNameFor,
+} from './k8s-session-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -56,6 +59,198 @@ const spec: SessionSpec = {
 function notFound(): Promise<never> {
   return Promise.reject(Object.assign(new Error('not found'), { code: 404 }));
 }
+
+describe('Kubernetes pressure stop', () => {
+  test('fences Pod and Secret UIDs, waits through termination, and retains the workspace PVC', async () => {
+    const terminating = Promise.withResolvers<void>();
+    let deleting = false;
+    let gone = false;
+    const deletions: Array<{ kind: string; body: unknown }> = [];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded CoreV1 test seam
+    const core = {
+      readNamespacedPod: async () => {
+        if (gone) return notFound();
+        if (deleting) terminating.resolve();
+        return {
+          metadata: {
+            uid: 'pod-original',
+            annotations: { 'tale.dev/created-at': '1000' },
+            ...(deleting ? { deletionTimestamp: new Date() } : {}),
+          },
+          status: { phase: 'Running' },
+        };
+      },
+      // The documented Role grants list/create/delete on Secrets, never
+      // `get`: the fence reads the Secret through a name-selected list.
+      listNamespacedSecret: async (args: { fieldSelector?: string }) => {
+        expect(args.fieldSelector).toBe(
+          `metadata.name=${sessionSecretNameFor('fenced')}`,
+        );
+        return {
+          items: [
+            {
+              metadata: {
+                name: sessionSecretNameFor('fenced'),
+                uid: 'secret-original',
+                annotations: { 'tale.dev/created-at': '1000' },
+              },
+            },
+          ],
+        };
+      },
+      deleteNamespacedSecret: async (args: { body: unknown }) => {
+        deletions.push({ kind: 'secret', body: args.body });
+      },
+      deleteNamespacedPod: async (args: { body: unknown }) => {
+        deleting = true;
+        deletions.push({ kind: 'pod', body: args.body });
+      },
+      deleteNamespacedPersistentVolumeClaim: async () => {
+        throw new Error('workspace must survive');
+      },
+    } as unknown as CoreV1Api;
+    const base = stub(async () => ({}));
+    const backend = new KubernetesSessionBackend(cfg, { ...base.client, core });
+    let stopped = false;
+    const stop = backend.stopSession('fenced', 1000).then((result) => {
+      stopped = true;
+      return result;
+    });
+    await terminating.promise;
+    expect(stopped).toBe(false);
+    expect(deletions).toEqual([
+      { kind: 'secret', body: { preconditions: { uid: 'secret-original' } } },
+      { kind: 'pod', body: { preconditions: { uid: 'pod-original' } } },
+    ]);
+    gone = true;
+    expect(await stop).toBe(true);
+  });
+
+  test('a changed creation stamp prevents deletion of a replacement Pod', async () => {
+    const base = stub(async () => ({}));
+    base.client.core.readNamespacedPod = async () => ({
+      metadata: {
+        uid: 'replacement',
+        annotations: { 'tale.dev/created-at': '2000' },
+      },
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    const result = await backend.stopSession('changed', 1000).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(result).toBeInstanceOf(Error);
+    expect(result instanceof Error ? result.message : '').toContain(
+      'changed before idle stop',
+    );
+    expect(base.calls.podDeleted).toBe(false);
+    expect(base.calls.secretDeleted).toBe(0);
+    expect(base.calls.pvcDeleted).toBe(false);
+  });
+
+  test('a replacement Secret observed after the Pod read is left untouched', async () => {
+    const base = stub(async () => ({}));
+    base.client.core.readNamespacedPod = async () => ({
+      metadata: {
+        uid: 'original',
+        annotations: { 'tale.dev/created-at': '1000' },
+      },
+    });
+    base.client.core.listNamespacedSecret = async () => ({
+      items: [
+        {
+          metadata: {
+            name: sessionSecretNameFor('secret-race'),
+            uid: 'new-secret',
+            annotations: { 'tale.dev/created-at': '2000' },
+          },
+        },
+      ],
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    const result = await backend.stopSession('secret-race', 1000).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(result).toBeInstanceOf(Error);
+    expect(base.calls.secretDeleted).toBe(0);
+    expect(base.calls.podDeleted).toBe(false);
+    expect(base.calls.pvcDeleted).toBe(false);
+  });
+
+  test('a Secret from an older spawner (no creation stamp) is still deleted by its UID', async () => {
+    // Only a DIFFERENT stamp marks a replacement: a stamp-less Secret can
+    // only be the one an older spawner created for this incarnation.
+    let podGone = false;
+    const deletions: Array<{ kind: string; body: unknown }> = [];
+    const base = stub(async () => ({}));
+    base.client.core.readNamespacedPod = async () => {
+      if (podGone) return notFound();
+      return {
+        metadata: {
+          uid: 'pod-original',
+          annotations: { 'tale.dev/created-at': '1000' },
+        },
+      };
+    };
+    base.client.core.listNamespacedSecret = async () => ({
+      items: [
+        {
+          metadata: {
+            name: sessionSecretNameFor('legacy-secret'),
+            uid: 'legacy-secret-uid',
+          },
+        },
+      ],
+    });
+    base.client.core.deleteNamespacedSecret = async (args: {
+      body?: unknown;
+    }) => {
+      deletions.push({ kind: 'secret', body: args.body });
+      return {};
+    };
+    base.client.core.deleteNamespacedPod = async (args: { body?: unknown }) => {
+      podGone = true;
+      deletions.push({ kind: 'pod', body: args.body });
+      return {};
+    };
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    expect(await backend.stopSession('legacy-secret', 1000)).toBe(true);
+    expect(deletions).toEqual([
+      { kind: 'secret', body: { preconditions: { uid: 'legacy-secret-uid' } } },
+      { kind: 'pod', body: { preconditions: { uid: 'pod-original' } } },
+    ]);
+    expect(base.calls.pvcDeleted).toBe(false);
+  });
+
+  test('a Pod replaced while ours terminates is reported as changed, never as freed', async () => {
+    let deleted = false;
+    const base = stub(async () => ({}));
+    base.client.core.readNamespacedPod = async () => ({
+      metadata: deleted
+        ? { uid: 'replacement', annotations: { 'tale.dev/created-at': '2000' } }
+        : {
+            uid: 'pod-original',
+            annotations: { 'tale.dev/created-at': '1000' },
+          },
+    });
+    base.client.core.listNamespacedSecret = async () => ({ items: [] });
+    base.client.core.deleteNamespacedPod = async () => {
+      deleted = true;
+      return {};
+    };
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    const startedAt = Date.now();
+    const result = await backend.stopSession('replaced', 1000).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(result).toBeInstanceOf(SessionIncarnationChangedError);
+    // Decided on the first poll, not after the termination deadline.
+    expect(Date.now() - startedAt).toBeLessThan(5_000);
+    expect(base.calls.pvcDeleted).toBe(false);
+  });
+});
 function conflict(): Promise<never> {
   return Promise.reject(Object.assign(new Error('conflict'), { code: 409 }));
 }

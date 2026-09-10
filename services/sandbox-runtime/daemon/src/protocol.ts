@@ -53,6 +53,14 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
+  /** Absent on older runtime images; pressure reclamation then fails closed. */
+  activity?: {
+    generation: string;
+    activeOperations: number;
+    released: boolean;
+    pinned: boolean;
+    reclaiming: boolean;
+  };
 }
 
 export interface RunnerdExecRequest {

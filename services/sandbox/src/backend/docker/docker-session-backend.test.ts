@@ -5,7 +5,15 @@
 // can't loosen it to "anything that isn't running".
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -104,6 +112,7 @@ case "$cmd" in
     fmt="$2"; name="$3"
     if [ "$present" = "1" ]; then
       case "$fmt" in
+        *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
         *Mounts*) echo "" ;;
@@ -114,6 +123,7 @@ case "$cmd" in
     echo "Error response from daemon: No such object: $name" >&2
     exit 1 ;;
   rm)
+    printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
       ok) exit 0 ;;
       nosuch)
@@ -214,6 +224,35 @@ async function exists(path: string): Promise<boolean> {
 }
 
 describe('DockerSessionBackend stop/destroy honour the rm result', () => {
+  test('pressure stops the observed immutable container and preserves its workspace', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const workspace = join(hostSessionRoot, 'ses-pressure');
+    await mkdir(workspace, { recursive: true });
+    await writeFile(join(workspace, 'keep.txt'), 'user data');
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.stopSession('pressure', 1_700_000_000_000)).toBe(true);
+    expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toContain(
+      'abcdef123456',
+    );
+    expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).not.toContain(
+      'tale-sbx-ses-pressure',
+    );
+    expect(await readFile(join(workspace, 'keep.txt'), 'utf8')).toBe(
+      'user data',
+    );
+  });
+
+  test('an idle stop retry cannot remove a newer incarnation with the same name', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    await writeFile(join(fakeRoot, 'last-rm'), 'untouched');
+    const backend = new DockerSessionBackend(backendConfig());
+    const error = await rejection(
+      backend.stopSession('replacement', 1_600_000_000_000),
+    );
+    expect(error?.message).toContain('changed before idle stop');
+    expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe('untouched');
+  });
+
   test('stopSession THROWS when docker rm fails on a present container (never a silent orphan)', async () => {
     await fakeDocker({ present: true, rm: 'busy' });
     const backend = new DockerSessionBackend(backendConfig());

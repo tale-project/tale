@@ -56,6 +56,18 @@ describe('session HTTP routes', () => {
     expect(response.status).toBe(401);
   });
 
+  test('release tickets and allocation lifecycle changes require signatures', async () => {
+    for (const [method, path] of [
+      ['GET', '/v1/sessions/test/release'],
+      ['POST', '/v1/sessions/test/release'],
+      ['POST', '/v1/sessions/test/acquire'],
+    ]) {
+      expect(
+        (await router(new Request(`http://sandbox${path}`, { method }))).status,
+      ).toBe(401);
+    }
+  });
+
   test('capacity requires authentication and binds the organization query', async () => {
     const path = '/v1/capacity?organizationId=org-a';
     expect((await router(new Request(`http://sandbox${path}`))).status).toBe(
@@ -80,6 +92,34 @@ describe('session HTTP routes', () => {
       }),
     );
     expect(response.status).toBe(401);
+  });
+
+  test('signed limits read the deployment config without observing the host', async () => {
+    const path = '/v1/limits';
+    expect((await router(new Request(`http://sandbox${path}`))).status).toBe(
+      401,
+    );
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const response = await router(
+      new Request(`http://sandbox${path}`, {
+        headers: {
+          [SIGNATURE_HEADER]: sign(
+            'GET',
+            path,
+            timestamp,
+            '',
+            'route-test-secret',
+            nonce,
+          ),
+          [TIMESTAMP_HEADER]: timestamp,
+          [NONCE_HEADER]: nonce,
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ maxSessions: 8 });
   });
 
   test('capacity rejects missing or invalid organization ids before observing the host', async () => {

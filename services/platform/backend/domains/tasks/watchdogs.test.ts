@@ -46,11 +46,15 @@ const overdueRun = {
 
 /** A recorder `sql`: every statement lands in `events` in call order, next
  * to the exec cancels the mock records — the order IS the contract. */
-function fakeSql(events: string[]): Sql {
+function fakeSql(
+  events: string[],
+  orphaned: Array<{ organizationId: string; agentId: string }> = [],
+): Sql {
   const fn = (strings: TemplateStringsArray): Promise<unknown[]> => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     events.push(`sql:${text.slice(0, 36)}`);
-    return Promise.resolve([]);
+    // The orphan backstop's read is the only SELECT answered with rows.
+    return Promise.resolve(text.startsWith('SELECT DISTINCT') ? orphaned : []);
   };
   return fn as unknown as Sql;
 }
@@ -122,5 +126,37 @@ describe('runTaskAgentWatchdog (deadline lane)', () => {
 
     expect(result.failed).toBe(0);
     expect(sessionCancelExec).not.toHaveBeenCalled();
+  });
+});
+
+describe('runTaskAgentWatchdog (orphan backstop)', () => {
+  it('releases a standing session that no live turn holds any more', async () => {
+    // A settle deferred its release to a queued sibling that then died
+    // before it started: nothing else ever frees the agent's slot.
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    const events: string[] = [];
+
+    const result = await runTaskAgentWatchdog(
+      fakeSql(events, [{ organizationId: 'org-1', agentId: 'agent-9' }]),
+    );
+
+    expect(result.released).toBe(1);
+    expect(releaseProjectAgentSessionSlot).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      { organizationId: 'org-1', agentId: 'agent-9' },
+    );
+    const read = events.find((event) =>
+      event.startsWith('sql:SELECT DISTINCT'),
+    );
+    expect(read).toBeDefined();
+  });
+
+  it('counts nothing when every standing session still has a live owner', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+
+    const result = await runTaskAgentWatchdog(fakeSql([]));
+
+    expect(result.released).toBe(0);
+    expect(releaseProjectAgentSessionSlot).not.toHaveBeenCalled();
   });
 });

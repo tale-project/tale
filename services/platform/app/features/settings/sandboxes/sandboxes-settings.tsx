@@ -53,6 +53,21 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     canRead ? { organizationId } : 'skip',
   );
   const snapshot = capacity.isError ? undefined : capacity.data;
+  const deploymentLimits = useBackendQuery(
+    'sandbox/session_queries_public:getSandboxDeploymentLimits',
+    canRead ? { organizationId } : 'skip',
+  );
+  // While the caller's role is still loading the query is skipped (not
+  // loading, no data) — the editor must read that as "still checking", not
+  // as an unavailable capacity it would alert about for a moment.
+  const deploymentLimitsLoading = abilityLoading || deploymentLimits.isLoading;
+  const refreshDeploymentLimits = useCallback(() => {
+    void deploymentLimits.refetch();
+  }, [deploymentLimits]);
+  const refreshCapacity = useCallback(() => {
+    void capacity.refetch();
+    void deploymentLimits.refetch();
+  }, [capacity, deploymentLimits]);
 
   const stop = useBackendAction(
     'node_only/sandbox/session_admin_actions:stopSandboxTask',
@@ -101,6 +116,9 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     [t, toast],
   );
 
+  // Column sizes fit each header label in every shipped locale (the widest:
+  // fr "Espace de travail", de "Aktuelle Aufgaben") and sum to the settings
+  // pane's width, so the table neither clips a header nor scrolls sideways.
   const columns = useMemo<ColumnDef<SandboxRow>[]>(
     () => [
       {
@@ -127,12 +145,18 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'agentKind',
         header: t('columns.agent'),
-        size: 95,
-        cell: ({ row }) => row.original.agentKind ?? '—',
+        size: 90,
+        // A harness id (`claude-code`), so it reads like the run ids below.
+        cell: ({ row }) =>
+          row.original.agentKind === null ? (
+            '—'
+          ) : (
+            <span className="font-mono text-xs">{row.original.agentKind}</span>
+          ),
       },
       {
         id: 'status',
-        size: 140,
+        size: 150,
         header: t('columns.status'),
         cell: ({ row }) => {
           const s = row.original;
@@ -171,37 +195,47 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         id: 'task',
         size: 150,
         header: t('columns.task'),
+        // Every turn executing in this workspace: a project agent runs its
+        // tasks concurrently in the one workspace it owns, so a single
+        // "current" op would hide its siblings.
         cell: ({ row }) => {
-          const op = row.original.currentOp;
-          if (!op) {
+          const ops = row.original.runningOps;
+          const lead = ops[0];
+          if (lead === undefined) {
             return (
               <span className="text-muted-foreground">{t('task.none')}</span>
             );
           }
-          const runId = op.taskId ?? op.workflowRunId;
           return (
             <Stack gap={0}>
               <span className="text-xs">
                 {t(
-                  op.kind === 'workflow-agent'
+                  lead.kind === 'workflow-agent'
                     ? 'task.workflow'
-                    : op.kind === 'task-agent'
+                    : lead.kind === 'task-agent'
                       ? 'task.project'
                       : 'task.active',
+                  { count: ops.length },
                 )}
               </span>
-              {runId && (
-                <span className="text-muted-foreground font-mono text-xs">
-                  {runId.slice(0, 8)}
-                </span>
-              )}
+              {ops.map((op) => {
+                const runId = op.taskId ?? op.workflowRunId;
+                return runId === undefined ? null : (
+                  <span
+                    key={op.execId}
+                    className="text-muted-foreground font-mono text-xs"
+                  >
+                    {runId.slice(0, 8)}
+                  </span>
+                );
+              })}
             </Stack>
           );
         },
       },
       {
         id: 'spend',
-        size: 75,
+        size: 80,
         header: t('columns.spend'),
         // Cumulative spend across every task this sandbox has run. `|| undefined`
         // renders a never-billed sandbox as "—" rather than a misleading $0.00.
@@ -211,14 +245,17 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'createdAt',
         header: t('columns.created'),
-        size: 95,
+        size: 100,
         cell: ({ row }) => <TableDateCell date={row.original.createdAt} />,
       },
       {
         id: 'actions',
         size: 44,
         meta: { isAction: true },
-        header: t('columns.actions'),
+        // Empty like every entity table's row-action column: the DataTable
+        // supplies the screen-reader label, and a visible word does not fit
+        // the pinned trigger box.
+        header: '',
         cell: ({ row }) => {
           const s = row.original;
           const busy = pendingId === s.sessionId;
@@ -287,12 +324,19 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
 
   return (
     <>
-      <SandboxQuotaEditor organizationId={organizationId} />
+      <SandboxQuotaEditor
+        organizationId={organizationId}
+        deploymentLimits={
+          deploymentLimits.isError ? undefined : deploymentLimits.data
+        }
+        deploymentLimitsLoading={deploymentLimitsLoading}
+        onRefreshDeploymentLimits={refreshDeploymentLimits}
+      />
       <SandboxCapacitySection
         capacity={snapshot}
         isLoading={capacity.isLoading}
-        isRefreshing={capacity.isFetching}
-        onRefresh={() => void capacity.refetch()}
+        isRefreshing={capacity.isFetching || deploymentLimits.isFetching}
+        onRefresh={refreshCapacity}
       />
       {canManage && (
         <SettingsSection

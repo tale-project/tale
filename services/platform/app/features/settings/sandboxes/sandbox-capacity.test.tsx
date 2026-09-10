@@ -17,7 +17,7 @@ const snapshot = {
     limit: 16,
     organizationRunning: 1,
     organizationStarting: 1,
-    organizationLimit: 50,
+    organizationLimit: 16,
   },
   resources: {
     cpu: { totalCores: 8, usedCores: 2.5 },
@@ -38,10 +38,25 @@ function capacityView(capacity: SandboxCapacity | undefined) {
 }
 
 describe('SandboxCapacitySection', () => {
-  it('separates host slots, organization runtime slots, and measured resources', () => {
+  it('separates deployment capacity, actual organization sandboxes, and measured resources', () => {
     const { container } = render(capacityView(snapshot));
     expect(screen.getByText('5 / 16')).toBeInTheDocument();
-    expect(screen.getByText('2 / 50')).toBeInTheDocument();
+    expect(screen.getByText('Deployment sandboxes')).toBeInTheDocument();
+    expect(
+      screen.getByText("Your organization's sandboxes"),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText(/^2 \/ /)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Currently running or starting / deployment capacity, shared by all organizations.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Currently running or starting, including idle sandboxes kept for reuse.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('4 running · 1 starting')).toBeInTheDocument();
     expect(screen.getByText('2.5 / 8 cores')).toBeInTheDocument();
     expect(screen.getByText('12 / 32 GiB')).toBeInTheDocument();
@@ -89,7 +104,9 @@ describe('SandboxCapacitySection', () => {
         },
       }),
     );
-    expect(screen.getByText('Namespace session slots')).toBeInTheDocument();
+    expect(
+      screen.getByText('Deployment sandboxes (namespace)'),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Kubernetes namespace scope/)).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable')).toHaveLength(2);
   });

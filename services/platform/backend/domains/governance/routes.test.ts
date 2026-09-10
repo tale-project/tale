@@ -14,19 +14,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrgEnv } from '../../auth/org.ts';
 
 const {
+  caller,
   createAuditLog,
   emitHintInTx,
   readGovernancePolicyForOrg,
   resolveOrgSlug,
   transactSerializable,
   writeGovernancePolicyFile,
+  getSandboxDeploymentLimits,
 } = vi.hoisted(() => ({
+  caller: { role: 'admin' },
   createAuditLog: vi.fn(),
   emitHintInTx: vi.fn(),
   readGovernancePolicyForOrg: vi.fn(),
   resolveOrgSlug: vi.fn(),
   transactSerializable: vi.fn(),
   writeGovernancePolicyFile: vi.fn(),
+  getSandboxDeploymentLimits: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -39,6 +43,7 @@ vi.mock('../../lib/governance-policy-write.ts', () => ({
 }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
+vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
 
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -57,7 +62,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
     requireOrgMember:
       () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
         c.set('orgId', 'o1');
-        c.set('orgMember', { role: 'admin' } as never);
+        c.set('orgMember', { role: caller.role } as never);
         await next();
       },
   };
@@ -83,6 +88,11 @@ const ON_DISK = { rules: [], enabled: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  caller.role = 'admin';
+  getSandboxDeploymentLimits.mockResolvedValue({
+    status: 'available',
+    maxSessions: 16,
+  });
   resolveOrgSlug.mockResolvedValue('acme');
   readGovernancePolicyForOrg.mockResolvedValue(ON_DISK);
   transactSerializable.mockImplementation(
@@ -112,6 +122,7 @@ describe('POST /policies/:policyType — write order', () => {
     expect(hintAt).toBeLessThan(writeAt);
     // The audit row rides the transaction the file write is part of.
     expect(createAuditLog.mock.calls[0]?.[0]).toBe(TX);
+    expect(getSandboxDeploymentLimits).not.toHaveBeenCalled();
   });
 
   it('leaves the file untouched when the audit row cannot be written', async () => {
@@ -138,4 +149,155 @@ describe('POST /policies/:policyType — write order', () => {
       newState: { config: NEXT },
     });
   });
+});
+
+describe('POST /policies/sandbox_quota — deployment capacity', () => {
+  const atCapacity = {
+    maxSessionsPerOrg: 2,
+    maxWorkflowSessionsPerOrg: 8,
+    maxRenderSessionsPerOrg: 6,
+  };
+
+  function expectNoWrite() {
+    expect(transactSerializable).not.toHaveBeenCalled();
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  }
+
+  it('saves an exact-capacity allocation with one audited file write', async () => {
+    const response = await post('/policies/sandbox_quota?orgId=o1', atCapacity);
+    expect(response.status).toBe(200);
+    expect(getSandboxDeploymentLimits).toHaveBeenCalledOnce();
+    expect(getSandboxDeploymentLimits).toHaveBeenCalledWith('o1');
+    expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      'sandbox_quota',
+      atCapacity,
+    );
+    expect(createAuditLog).toHaveBeenCalledOnce();
+    expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+      organizationId: 'o1',
+      newState: { config: atCapacity },
+    });
+  });
+
+  it('rejects a total one above capacity before any audit or file write', async () => {
+    const response = await post('/policies/sandbox_quota', {
+      ...atCapacity,
+      maxSessionsPerOrg: 3,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
+      data: { total: 17, maxSessions: 16 },
+    });
+    expectNoWrite();
+    expect(resolveOrgSlug).not.toHaveBeenCalled();
+    expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
+  });
+
+  it('recomputes from validated fields and ignores forged totals and deployment limits', async () => {
+    const response = await post('/policies/sandbox_quota', {
+      config: {
+        ...atCapacity,
+        maxSessionsPerOrg: 3,
+        total: 1,
+        maxSessions: 500,
+      },
+      total: 1,
+      maxSessions: 500,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
+      data: { total: 17, maxSessions: 16 },
+    });
+    expectNoWrite();
+  });
+
+  it('rereads deployment capacity for each save after an operator changes it', async () => {
+    getSandboxDeploymentLimits
+      .mockResolvedValueOnce({ status: 'available', maxSessions: 16 })
+      .mockResolvedValueOnce({ status: 'available', maxSessions: 10 });
+    expect((await post('/policies/sandbox_quota', atCapacity)).status).toBe(
+      200,
+    );
+    const response = await post('/policies/sandbox_quota', atCapacity);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
+      data: { total: 16, maxSessions: 10 },
+    });
+    expect(getSandboxDeploymentLimits).toHaveBeenCalledTimes(2);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledOnce();
+    expect(createAuditLog).toHaveBeenCalledOnce();
+  });
+
+  it.each(['not_configured', 'unreachable'])(
+    'refuses to save when capacity is %s',
+    async (reason) => {
+      getSandboxDeploymentLimits.mockResolvedValue({
+        status: 'unavailable',
+        reason,
+      });
+      const response = await post('/policies/sandbox_quota', atCapacity);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: 'SANDBOX_CAPACITY_UNAVAILABLE',
+      });
+      expectNoWrite();
+    },
+  );
+
+  it('still saves a total that does not grow while capacity is unavailable', async () => {
+    // Shedding load is the one edit an admin needs during a sandbox outage;
+    // lowering can never oversubscribe more than the saved total does.
+    getSandboxDeploymentLimits.mockResolvedValue({
+      status: 'unavailable',
+      reason: 'unreachable',
+    });
+    readGovernancePolicyForOrg.mockResolvedValue(atCapacity);
+    const lowered = { ...atCapacity, maxRenderSessionsPerOrg: 5 };
+    expect((await post('/policies/sandbox_quota', lowered)).status).toBe(200);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      'sandbox_quota',
+      lowered,
+    );
+    const raised = { ...atCapacity, maxRenderSessionsPerOrg: 7 };
+    const response = await post('/policies/sandbox_quota', raised);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'SANDBOX_CAPACITY_UNAVAILABLE',
+    });
+    expect(writeGovernancePolicyFile).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, 501, 2.5, '2', null])(
+    'rejects an invalid field of %j before contacting runtime',
+    async (value) => {
+      const response = await post('/policies/sandbox_quota', {
+        ...atCapacity,
+        maxWorkflowSessionsPerOrg: value,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'validation' });
+      expect(getSandboxDeploymentLimits).not.toHaveBeenCalled();
+      expectNoWrite();
+    },
+  );
+
+  it.each(['developer', 'editor', 'viewer'])(
+    'refuses %s before reading capacity or changing policy',
+    async (role) => {
+      caller.role = role;
+      const response = await post('/policies/sandbox_quota', atCapacity);
+      expect(response.status).toBe(403);
+      expect(getSandboxDeploymentLimits).not.toHaveBeenCalled();
+      expectNoWrite();
+    },
+  );
 });

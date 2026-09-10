@@ -8,7 +8,7 @@ import { SessionDuplicateError } from './helpers/session_client';
 
 const runtime = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
-  sessionIsAlive: vi.fn(),
+  sessionAcquire: vi.fn(),
 }));
 vi.mock('./helpers/session_client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./helpers/session_client')>()),
@@ -49,12 +49,14 @@ function fixture(
   const mutationError = new Error('admission or release failed');
   const ctx = {
     runQuery: vi.fn(async () => existing),
-    runMutation: vi.fn(async (ref: unknown, _args: unknown) => {
-      const name = functionRefName(ref).split(':')[1];
-      events.push(name ?? 'unknown');
-      if (name === failMutation) throw mutationError;
-      return 'row_1';
-    }),
+    runMutation: vi.fn(
+      async (ref: unknown, _args: unknown): Promise<string | boolean> => {
+        const name = functionRefName(ref).split(':')[1];
+        events.push(name ?? 'unknown');
+        if (name === failMutation) throw mutationError;
+        return 'row_1';
+      },
+    ),
   };
   runtime.sessionCreate.mockImplementation(async () => {
     events.push('create');
@@ -74,7 +76,7 @@ function fixture(
 
 beforeEach(() => {
   vi.resetAllMocks();
-  runtime.sessionIsAlive.mockResolvedValue(true);
+  runtime.sessionAcquire.mockResolvedValue(true);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -88,8 +90,8 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       ownerType: scenario.owner.type,
       ownerId: scenario.ownerId,
     });
-    expect(runtime.sessionIsAlive).toHaveBeenCalledWith('session_1');
-    expect(f.events).toEqual([]);
+    expect(runtime.sessionAcquire).toHaveBeenCalledWith('session_1');
+    expect(f.events).toEqual(['resumeSessionSlotWithCapCheck']);
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
   });
 
@@ -106,9 +108,19 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
   });
 
+  it('does not acquire compute if its allocation disappeared after the owner lookup', async () => {
+    const f = fixture(scenario, { status: 'active', createdAt: 123 });
+    f.ctx.runMutation.mockResolvedValueOnce(false);
+
+    await expect(f.ensure()).rejects.toThrow('allocation');
+
+    expect(runtime.sessionAcquire).not.toHaveBeenCalled();
+    expect(runtime.sessionCreate).not.toHaveBeenCalled();
+  });
+
   it('reserves quota before recreating compute and preserves the workspace incarnation', async () => {
     const f = fixture(scenario, { status: 'stopped', createdAt: 123 });
-    runtime.sessionIsAlive.mockResolvedValue(false);
+    runtime.sessionAcquire.mockResolvedValue(false);
 
     await expect(f.ensure()).resolves.toEqual({ liveCreatedAt: 123 });
 
@@ -128,23 +140,30 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         { status: 'stopped', createdAt: 123 },
         'resumeSessionSlotWithCapCheck',
       );
-      runtime.sessionIsAlive.mockResolvedValue(warm);
+      runtime.sessionAcquire.mockResolvedValue(warm);
 
       await expect(f.ensure()).rejects.toBe(f.mutationError);
 
       expect(f.events).toEqual(['resumeSessionSlotWithCapCheck']);
       expect(runtime.sessionCreate).not.toHaveBeenCalled();
+      expect(runtime.sessionAcquire).not.toHaveBeenCalled();
     },
   );
 
-  it('does not recreate or release a session when liveness is unknown', async () => {
+  // The rollback asks for the owner's release; while this turn's run row is
+  // still live the release's own guard defers it to the settle, which runs
+  // after the run is marked failed.
+  it('asks for the slot release without recreating compute when acquisition is unknown', async () => {
     const f = fixture(scenario, { status: 'active', createdAt: 123 });
     const error = new Error('spawner unreachable');
-    runtime.sessionIsAlive.mockRejectedValue(error);
+    runtime.sessionAcquire.mockRejectedValue(error);
 
     await expect(f.ensure()).rejects.toBe(error);
 
-    expect(f.events).toEqual([]);
+    expect(f.events).toEqual([
+      'resumeSessionSlotWithCapCheck',
+      scenario.release,
+    ]);
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
   });
 
@@ -156,7 +175,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         { status: 'stopped', createdAt: 123 },
         releaseFails ? scenario.release : undefined,
       );
-      runtime.sessionIsAlive.mockResolvedValue(false);
+      runtime.sessionAcquire.mockResolvedValue(false);
       const error = new Error('container create failed');
       runtime.sessionCreate.mockRejectedValue(error);
 
@@ -175,7 +194,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
   it('adopts a concurrent runtime without releasing its existing incarnation', async () => {
     const f = fixture(scenario, { status: 'stopped', createdAt: 123 });
-    runtime.sessionIsAlive.mockResolvedValue(false);
+    runtime.sessionAcquire.mockResolvedValueOnce(false).mockResolvedValue(true);
     runtime.sessionCreate.mockRejectedValue(
       new SessionDuplicateError('session_1'),
     );
@@ -215,7 +234,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         rowId: 'row_1',
         status: 'active',
       });
-      expect(runtime.sessionIsAlive).not.toHaveBeenCalled();
+      expect(runtime.sessionAcquire).toHaveBeenCalledTimes(adopt ? 1 : 0);
     },
   );
 

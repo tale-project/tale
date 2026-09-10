@@ -25,6 +25,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
+import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -882,14 +883,10 @@ async function stopRunSandboxSessions(
   organizationId: string,
   runId: string,
 ): Promise<void> {
-  await tx`
-    UPDATE app.sandbox_sessions SET status = 'stopped'
-    WHERE org_id = ${organizationId}
-      AND owner_type = 'workflow_run'
-      AND (owner_id = ${runId} OR owner_id LIKE ${runId + ':%'})
-      AND status IN ('creating', 'active', 'degraded')
-      AND pinned = false
-  `;
+  await stopWorkflowSessionSlotsInTx(tx, {
+    organizationId,
+    executionId: runId,
+  });
 }
 
 /**

@@ -46,8 +46,8 @@ export const POLICY_TYPES = [
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
-  // Per-org sandbox session budgets (user / thread / workflow / render — every
-  // sandbox is a session). The deployment-wide host-capacity ceiling is spawner
+  // Per-org sandbox session budgets (project agents / workflows / renders).
+  // The deployment-wide host-capacity ceiling is spawner
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
   // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
@@ -99,8 +99,8 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
  * so no one workload can starve another. Two-tier model: the GLOBAL host cap
  * (total sessions across every org) is spawner env `SANDBOX_MAX_SESSIONS`, sized
  * to the physical box. THIS policy is the per-tenant slice under it an org admin
- * tunes; a per-org value above the host cap simply never binds (the host cap
- * always wins).
+ * tunes. Saving this policy requires the sum of its three budgets to fit
+ * within the current deployment cap; there is no fourth organization limit.
  */
 export const sandboxQuotaConfigSchema = z.object({
   /**
@@ -111,18 +111,27 @@ export const sandboxQuotaConfigSchema = z.object({
    */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
-  maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
+  maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(2),
   /**
    * Max concurrently-active crawler **render** sessions (headless-Chromium
    * document/page rendering). Isolated in its own budget so heavy crawling can't
    * starve interactive agent/run_code sessions — the session-model replacement
    * for the old one-shot render pool.
    */
-  maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(4),
+  maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(2),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
   sandboxQuotaConfigSchema.parse({});
+
+/** The organization total is derived from its three workload budgets. */
+export function sandboxQuotaTotal(config: SandboxQuotaConfig): number {
+  return (
+    config.maxSessionsPerOrg +
+    config.maxWorkflowSessionsPerOrg +
+    config.maxRenderSessionsPerOrg
+  );
+}
 
 // Org-level default for the custom-instructions feature. Per-user
 // `userPreferences.customInstructionsEnabled` may override this default;

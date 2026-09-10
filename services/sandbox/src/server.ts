@@ -113,6 +113,9 @@ const SESSION_EXEC_STATUS_RE = new RegExp(
 );
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
+const SESSION_ACTIVITY_RE = new RegExp(
+  `^/v1/sessions/${SESSION_ID}/(acquire|release)$`,
+);
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
 );
@@ -156,6 +159,24 @@ async function handleSessionRoutes(
     if ('error' in r) return r.error;
     return getSessionRoutes().handleList(
       url.searchParams.get('organizationId'),
+    );
+  }
+  const activityMatch = path.match(SESSION_ACTIVITY_RE);
+  if (
+    activityMatch &&
+    (req.method === 'POST' ||
+      (req.method === 'GET' && activityMatch[2] === 'release'))
+  ) {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return getSessionRoutes().handleActivity(
+      activityMatch[1] ?? '',
+      req.method === 'GET'
+        ? 'ticket'
+        : activityMatch[2] === 'acquire'
+          ? 'acquire'
+          : 'release',
+      signed.body,
     );
   }
   // POST /v1/sessions/:id/exec  (must precede the bare :id matcher)
@@ -285,6 +306,13 @@ export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   if (req.method === 'GET' && url.pathname === '/health') {
     return handleHealth();
+  }
+  if (req.method === 'GET' && url.pathname === '/v1/limits') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return jsonResponse({ maxSessions: cfg.session.maxSessions }, 200, {
+      'cache-control': 'no-store',
+    });
   }
   if (req.method === 'GET' && url.pathname === '/v1/capacity') {
     const signed = await auth.readAndAuth(req);

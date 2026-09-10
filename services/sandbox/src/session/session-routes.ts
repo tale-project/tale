@@ -3,16 +3,19 @@
 // quota + registry bookkeeping; the SessionBackend owns container/Pod
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
-import type {
-  BackendSession,
-  CreateSessionResult,
-  SessionBackend,
+import {
+  SessionIncarnationChangedError,
+  type BackendSession,
+  type CreateSessionResult,
+  type SessionBackend,
 } from '../backend/types.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SessionExecResponse, SessionInfo } from '../wire.ts';
 import {
+  RunnerdActivityError,
+  runnerdActivity,
   runnerdAttach,
   runnerdCancelExec,
   runnerdDeleteFiles,
@@ -37,16 +40,53 @@ function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
 
+/** How long a session whose runnerd failed a reclaim probe stays off the
+ * candidate list — the periodic sweep re-probes everything anyway. */
+const RECLAIM_PROBE_BACKOFF_MS = 30_000;
+
+/** Longest an acquire waits for an in-flight create of the same id. Under
+ * the platform's own acquire timeout, so a create that is still pulling its
+ * image answers not-found (the caller retries) rather than a client timeout. */
+const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
+
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
   // Session ids with a createSession in flight → their organization. The
   // registry is only populated AFTER the backend create resolves (up to
   // createHealthTimeoutMs later, through an image pull), so this map closes
   // the gap a concurrent create would otherwise slip through: the same id
-  // (a duplicate) AND the host/org quotas, which count in-flight creates as
+  // (a duplicate) AND the deployment cap, which counts in-flight creates as
   // occupied capacity — a burst of distinct ids during a slow pull must not
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
+  // Settles when the create of that id leaves `creating` (success or
+  // failure): an acquire for an id still being created waits for it instead
+  // of answering a false not-found that the caller would turn into a
+  // duplicate create.
+  private readonly createSettled = new Map<
+    string,
+    PromiseWithResolvers<void>
+  >();
+  private admission: Promise<void> = Promise.resolve();
+  // Reclaim claims runnerd has ACKNOWLEDGED — the daemon is frozen and no
+  // work can start in that incarnation — bound to the incarnation they were
+  // taken on. A claim outlives a failed backend stop so the next sweep or
+  // acquire retries the fenced stop without a new probe (a container whose
+  // daemon has since died is still ours to remove); it is dropped with the
+  // incarnation, never carried onto a replacement under the same id.
+  private readonly reclaimClaims = new Map<
+    string,
+    { claimId: string; createdAtMs: number }
+  >();
+  // Stops in flight (pressure reclaim or the sweep), shared so a concurrent
+  // create at capacity or an acquire waits for the outcome. Every handle
+  // settles to a boolean — a failed stop is `false`, never a rejection a
+  // waiter would surface as a 500.
+  private readonly stopping = new Map<string, Promise<boolean>>();
+  // Sessions whose runnerd did not answer a reclaim probe, by failure time:
+  // skipped as reclaim candidates for a short window so one wedged daemon
+  // (a full health timeout) does not stall every create at capacity.
+  private readonly probeFailedAtMs = new Map<string, number>();
 
   // Backend lists behind ensureRegistered (the platform probes sessionIsAlive
   // + exec-status per turn, so a stopped session would otherwise cost one
@@ -82,15 +122,6 @@ export class SessionRoutes {
     return new Map(this.creating);
   }
 
-  /** Creates in flight for one org (the per-org quota's in-flight share). */
-  private creatingCountForOrg(organizationId: string): number {
-    let n = 0;
-    for (const org of this.creating.values()) {
-      if (org === organizationId) n += 1;
-    }
-    return n;
-  }
-
   /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
    * whether to LINGER this spawner (keep it serving its sessions) rather than
    * tear it down during an in-place roll. */
@@ -108,6 +139,7 @@ export class SessionRoutes {
       try {
         await this.backend.stopSession(s.sessionId);
         this.registry.delete(s.sessionId);
+        this.forgetReclaimMarks(s.sessionId);
         stopped += 1;
       } catch (err) {
         console.warn(
@@ -124,6 +156,219 @@ export class SessionRoutes {
    * token and runnerd always verifies). */
   private tokenFor(sessionId: string): string {
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
+  }
+
+  /** Admission decisions run one at a time: the registry and `creating`
+   * counts must never be read by two creates and then claimed by both. The
+   * decision itself is synchronous; the slow work — the container create,
+   * and reclaiming an idle session at capacity — runs outside the lock. */
+  private async withAdmission<T>(decide: () => T): Promise<T> {
+    const previous = this.admission;
+    const gate = Promise.withResolvers<void>();
+    this.admission = gate.promise;
+    await previous;
+    try {
+      return decide();
+    } finally {
+      gate.resolve();
+    }
+  }
+
+  private atCapacity(): boolean {
+    return (
+      this.registry.size() + this.creating.size >= this.cfg.session.maxSessions
+    );
+  }
+
+  /** The admission decision for one create: a duplicate id → 409, a full
+   * host → `'full'`, else the id is reserved in `creating`. */
+  private admit(
+    sessionId: string,
+    organizationId: string,
+  ): Response | 'full' | null {
+    if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
+      return jsonResponse(
+        {
+          error: 'duplicate',
+          message: `session ${sessionId} exists or is being created`,
+        },
+        409,
+      );
+    }
+    if (this.atCapacity()) return 'full';
+    this.creating.set(sessionId, organizationId);
+    this.createSettled.set(sessionId, Promise.withResolvers<void>());
+    return null;
+  }
+
+  private async reserveCreate(
+    sessionId: string,
+    organizationId: string,
+  ): Promise<Response | null> {
+    let decision = await this.withAdmission(() =>
+      this.admit(sessionId, organizationId),
+    );
+    if (decision === 'full') {
+      // At capacity: try to reclaim ONE released idle session, outside the
+      // admission lock (a probe per candidate and a backend stop take
+      // seconds — creates that still have room must not queue behind them),
+      // then decide again. Concurrent creates at capacity share the one stop
+      // in flight and only the first to re-enter admission gets its slot.
+      await this.reclaimOneIdle();
+      decision = await this.withAdmission(() =>
+        this.admit(sessionId, organizationId),
+      );
+    }
+    if (decision === 'full') {
+      return jsonResponse(
+        { error: 'session_quota', message: 'spawner session cap reached' },
+        429,
+        { 'retry-after': '10' },
+      );
+    }
+    return decision;
+  }
+
+  /** Reclaim the oldest released idle session, if any. Candidates that
+   * failed their last probe within the back-off window are skipped: a
+   * wedged daemon costs one health timeout per window, not one per create. */
+  private async reclaimOneIdle(): Promise<boolean> {
+    const now = Date.now();
+    for (const session of this.registry.list()) {
+      const failedAt = this.probeFailedAtMs.get(session.sessionId);
+      if (
+        failedAt !== undefined &&
+        now - failedAt < RECLAIM_PROBE_BACKOFF_MS &&
+        !this.reclaimClaims.has(session.sessionId)
+      ) {
+        continue;
+      }
+      if (await this.reclaimIdle(session)) return true;
+    }
+    return false;
+  }
+
+  /** runnerd's atomic claim closes the health-probe→stop race across replicas.
+   * Unknown/old daemons refuse, as do busy, pinned and unreleased sessions.
+   * A failed stop keeps its claim frozen and counted until a later retry.
+   * Never rejects: a waiter sharing the stop sees `false`, not a 500. */
+  private reclaimIdle(session: RegistrySession): Promise<boolean> {
+    const pending = this.stopping.get(session.sessionId);
+    if (pending !== undefined) return pending;
+    if (
+      session.pinned ||
+      session.liveExecs.size > 0 ||
+      this.creating.has(session.sessionId)
+    ) {
+      return Promise.resolve(false);
+    }
+    const reclaim = this.stopClaimedIdle(session).finally(() => {
+      this.stopping.delete(session.sessionId);
+    });
+    this.stopping.set(session.sessionId, reclaim);
+    return reclaim;
+  }
+
+  private async stopClaimedIdle(session: RegistrySession): Promise<boolean> {
+    const sessionId = session.sessionId;
+    const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
+    const held = this.reclaimClaims.get(sessionId);
+    if (held !== undefined && held.createdAtMs !== session.createdAtMs) {
+      // Taken on an incarnation that has since left the registry; it must
+      // not follow the deterministic id onto this replacement.
+      this.reclaimClaims.delete(sessionId);
+    }
+    try {
+      if (!this.reclaimClaims.has(sessionId)) {
+        const health = await runnerdHealth(opts);
+        const activity = health.activity;
+        if (
+          activity === undefined ||
+          activity.pinned ||
+          health.liveExecs > 0 ||
+          activity.activeOperations > 0 ||
+          (!activity.released && !activity.reclaiming)
+        ) {
+          return false;
+        }
+        const claimId = crypto.randomUUID();
+        const result = await runnerdActivity(opts, 'reclaim', {
+          claimId,
+          generation: activity.generation,
+        });
+        if (result.claimed !== true) return false;
+        // Frozen: nothing can start in this incarnation any more, so a
+        // failed stop below is retried later without another probe.
+        this.reclaimClaims.set(sessionId, {
+          claimId,
+          createdAtMs: session.createdAtMs,
+        });
+      }
+      await this.backend.stopSession(sessionId, session.createdAtMs);
+      if (await this.backend.sessionExists(sessionId)) {
+        throw new Error('runtime still occupies capacity after stop');
+      }
+      this.forgetReclaimed(session);
+      return true;
+    } catch (error) {
+      // An older daemon has no claim route and cannot have frozen itself.
+      if (error instanceof RunnerdActivityError && error.status === 404) {
+        return false;
+      }
+      if (error instanceof SessionIncarnationChangedError) {
+        // The backend object under this id is no longer the incarnation we
+        // registered (a peer replica recreated it): our entry and claim are
+        // stale, and the replacement is not ours to count as freed — the
+        // next sweep adopts it.
+        console.warn(
+          `[sandbox.session] ${sessionId} was replaced under a pending idle stop; dropping the stale entry`,
+        );
+        this.forgetReclaimed(session);
+        return false;
+      }
+      if (!this.reclaimClaims.has(sessionId)) {
+        this.probeFailedAtMs.set(sessionId, Date.now());
+      }
+      // The stop may have completed despite a lost acknowledgement. Only a
+      // disappeared backend object frees the slot: a terminating Pod is
+      // still a RUNNING object in listSessions even though its ordinary
+      // aliveness probe is false, while an exited container is not.
+      try {
+        if (
+          !(await this.backend.sessionExists(sessionId)) &&
+          !(await this.backend.listSessions()).some(
+            (entry) => entry.sessionId === sessionId && entry.state === 'ready',
+          )
+        ) {
+          this.forgetReclaimed(session);
+          return true;
+        }
+      } catch (probeError) {
+        console.warn(
+          `[sandbox.session] backend state of ${sessionId} unknown after a failed idle stop (capacity stays occupied):`,
+          probeError,
+        );
+      }
+      console.warn(
+        `[sandbox.session] idle reclaim deferred for ${sessionId} (workspace preserved):`,
+        error,
+      );
+      return false;
+    }
+  }
+
+  /** The incarnation is gone (stopped, or replaced): drop its registry entry
+   * — only if the registry still holds THAT entry — and every reclaim mark. */
+  private forgetReclaimed(session: RegistrySession): void {
+    if (this.registry.get(session.sessionId) === session) {
+      this.registry.delete(session.sessionId);
+    }
+    this.forgetReclaimMarks(session.sessionId);
+  }
+
+  private forgetReclaimMarks(sessionId: string): void {
+    this.reclaimClaims.delete(sessionId);
+    this.probeFailedAtMs.delete(sessionId);
   }
 
   /**
@@ -296,6 +541,10 @@ export class SessionRoutes {
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
     for (const s of this.registry.list()) {
+      if (this.reclaimClaims.has(s.sessionId)) {
+        if (await this.reclaimIdle(s)) reaped += 1;
+        continue;
+      }
       // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
       if (s.pinned) continue;
       // A session with a live exec is NEVER reaped — a long, QUIET tool (no
@@ -317,7 +566,17 @@ export class SessionRoutes {
           baseUrl: s.endpoint,
           token: this.tokenFor(s.sessionId),
         });
-        if (health.liveExecs > 0) continue; // busy — spare from idle AND TTL
+        // Resume a frozen stop after a spawner restart through the same
+        // generation and backend-incarnation fences as pressure admission.
+        if (health.activity?.reclaiming) {
+          if (await this.reclaimIdle(s)) reaped += 1;
+          continue;
+        }
+        if (
+          health.liveExecs > 0 ||
+          (health.activity?.activeOperations ?? 0) > 0
+        )
+          continue;
         if (!expired) {
           expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
         }
@@ -338,23 +597,45 @@ export class SessionRoutes {
         // decision below — a not-yet-expired session is left for a later sweep.
       }
       if (expired) {
+        // A pressure claim may have begun while the health probe awaited.
+        // Its owner alone stops that incarnation, including retries.
+        if (
+          this.reclaimClaims.has(s.sessionId) ||
+          this.stopping.has(s.sessionId) ||
+          s.pinned ||
+          s.liveExecs.size > 0
+        )
+          continue;
         // Stop, never destroy: idle/TTL release compute but keep the workspace
         // so the session resumes with its data on the next turn. stopSession
         // THROWS on a transient backend hiccup (its contract) — keep the
         // registry entry so the next sweep retries, rather than dropping a
         // still-running container from the cache and orphaning it until a
         // restart re-adopts it.
-        try {
-          await this.backend.stopSession(s.sessionId);
-        } catch (err) {
-          console.warn(
-            '[sandbox.session] sweep stop failed (will retry next sweep):',
-            err,
-          );
-          continue;
-        }
-        this.registry.delete(s.sessionId);
-        reaped += 1;
+        // The shared handle settles to a boolean: an acquire or a create at
+        // capacity waiting on it must see a failed stop as `false`, never
+        // as a rejection it would answer with a 500.
+        const stop = this.backend
+          .stopSession(s.sessionId)
+          .then(
+            () => {
+              this.registry.delete(s.sessionId);
+              this.forgetReclaimMarks(s.sessionId);
+              return true;
+            },
+            (err: unknown) => {
+              console.warn(
+                '[sandbox.session] sweep stop failed (will retry next sweep):',
+                err,
+              );
+              return false;
+            },
+          )
+          .finally(() => {
+            this.stopping.delete(s.sessionId);
+          });
+        this.stopping.set(s.sessionId, stop);
+        if (await stop) reaped += 1;
       }
     }
     // No newly adopted session is required for maintenance: the last legacy
@@ -408,6 +689,9 @@ export class SessionRoutes {
    */
   private async evictIfBackendGone(sessionId: string): Promise<boolean> {
     if (!this.registry.has(sessionId)) return false;
+    // A terminating Pod is unavailable for work before its compute is gone.
+    // Its stop owner keeps the slot until removal is actually confirmed.
+    if (this.stopping.has(sessionId)) return false;
     let alive: boolean;
     try {
       alive = await this.backend.sessionExists(sessionId);
@@ -423,6 +707,7 @@ export class SessionRoutes {
       `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
     );
     this.registry.delete(sessionId);
+    this.forgetReclaimMarks(sessionId);
     return true;
   }
 
@@ -438,53 +723,8 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const req = v.value;
 
-    if (this.registry.has(req.sessionId)) {
-      return jsonResponse(
-        { error: 'duplicate', message: `session ${req.sessionId} exists` },
-        409,
-      );
-    }
-    // A retry of an id still being created is a duplicate (409), judged BEFORE
-    // the quotas so a full host does not turn it into a misleading 429.
-    if (this.creating.has(req.sessionId)) {
-      return jsonResponse(
-        {
-          error: 'duplicate',
-          message: `session ${req.sessionId} is being created`,
-        },
-        409,
-      );
-    }
-    // Quotas count live sessions PLUS creates in flight (see `creating`).
-    if (
-      this.registry.size() + this.creating.size >=
-      this.cfg.session.maxSessions
-    ) {
-      return jsonResponse(
-        { error: 'session_quota', message: 'spawner session cap reached' },
-        429,
-        { 'retry-after': '10' },
-      );
-    }
-    if (
-      this.registry.countForOrg(req.organizationId) +
-        this.creatingCountForOrg(req.organizationId) >=
-      this.cfg.session.maxSessionsPerOrg
-    ) {
-      return jsonResponse(
-        { error: 'session_quota', message: 'org session cap reached' },
-        429,
-        { 'retry-after': '10' },
-      );
-    }
-
-    // Reserve the id synchronously (below). The registry isn't populated until
-    // AFTER backend.createSession resolves, so without this a concurrent create
-    // of the SAME id would slip past the registry.has() check above and race
-    // into the backend — where the loser's name-conflict cleanup could
-    // `docker rm` the winner's healthy container (the backend also guards
-    // against rm-on-conflict as defense-in-depth).
-    this.creating.set(req.sessionId, req.organizationId);
+    const refused = await this.reserveCreate(req.sessionId, req.organizationId);
+    if (refused !== null) return refused;
     try {
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
@@ -553,6 +793,8 @@ export class SessionRoutes {
       return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);
+      this.createSettled.get(req.sessionId)?.resolve();
+      this.createSettled.delete(req.sessionId);
     }
   }
 
@@ -580,6 +822,110 @@ export class SessionRoutes {
     return jsonResponse({ sessions }, 200);
   }
 
+  /** The release ticket is read BEFORE the platform releases its allocation.
+   * Reacquiring invalidates all earlier tickets, so a delayed completion can
+   * never make the next workload eligible for pressure reclamation. */
+  async handleActivity(
+    sessionId: string,
+    action: 'ticket' | 'acquire' | 'release',
+    body = '',
+  ): Promise<Response> {
+    let generation: string | undefined;
+    if (action === 'release') {
+      try {
+        const parsed: unknown = JSON.parse(body);
+        if (
+          parsed !== null &&
+          typeof parsed === 'object' &&
+          'generation' in parsed &&
+          typeof parsed.generation === 'string' &&
+          /^[a-zA-Z0-9_-]{1,128}$/.test(parsed.generation)
+        ) {
+          generation = parsed.generation;
+        }
+      } catch (parseError) {
+        // Malformed JSON is the same boundary error as a missing generation.
+        console.warn(
+          `[sandbox.session] release body for ${sessionId} is not JSON:`,
+          parseError,
+        );
+      }
+      if (generation === undefined)
+        return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    if (action === 'acquire') {
+      // A sibling turn of the same owner may still be creating this id (a
+      // slow image pull): wait for that create rather than answer a
+      // not-found the caller turns into a duplicate create and a failed turn.
+      const creating = this.createSettled.get(sessionId);
+      if (creating !== undefined) {
+        await Promise.race([
+          creating.promise,
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, ACQUIRE_WAITS_FOR_CREATE_MS).unref?.();
+          }),
+        ]);
+      }
+      await this.stopping.get(sessionId);
+      const frozen = this.registry.get(sessionId);
+      if (frozen !== undefined && this.reclaimClaims.has(sessionId)) {
+        // Frozen by an acknowledged claim whose backend stop failed: finish
+        // the fenced stop now, so the caller recreates against the preserved
+        // workspace instead of hitting `reclaiming` until the next sweep.
+        if (await this.reclaimIdle(frozen))
+          return jsonResponse({ error: 'not_found' }, 404);
+      }
+    }
+    const session = await this.ensureRegistered(sessionId);
+    if (!session || (await this.evictIfBackendGone(sessionId))) {
+      return jsonResponse({ error: 'not_found' }, 404);
+    }
+    const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
+    try {
+      const result = await runnerdActivity(
+        opts,
+        action,
+        generation === undefined ? undefined : { generation },
+      );
+      if (action === 'release') {
+        if (typeof result.released !== 'boolean')
+          throw new Error('invalid runnerd release response');
+        return jsonResponse({ released: result.released }, 200);
+      }
+      if (
+        typeof result.generation !== 'string' ||
+        !/^[a-zA-Z0-9_-]{1,128}$/.test(result.generation)
+      ) {
+        throw new Error('invalid runnerd generation');
+      }
+      return jsonResponse({ generation: result.generation }, 200);
+    } catch (error) {
+      if (await this.evictIfBackendGone(sessionId))
+        return jsonResponse({ error: 'not_found' }, 404);
+      if (error instanceof RunnerdActivityError && error.status === 404) {
+        // Older runtime images cannot be pressure-reclaimed. They can still
+        // serve work during a rolling upgrade; a release ticket stays absent.
+        if (action === 'acquire') {
+          const health = await runnerdHealth(opts).catch(
+            (probeError: unknown) => {
+              console.warn(
+                `[sandbox.session] health probe after an unsupported acquire on ${sessionId} failed:`,
+                probeError,
+              );
+              return null;
+            },
+          );
+          if (health !== null && health.activity === undefined) {
+            return jsonResponse({ generation: 'legacy' }, 200);
+          }
+        } else return jsonResponse({ error: 'unsupported' }, 404);
+      }
+      return jsonResponse({ error: 'session_unavailable' }, 503, {
+        'retry-after': '1',
+      });
+    }
+  }
+
   async handleDestroy(
     sessionId: string,
     opts: { ifIdle?: boolean } = {},
@@ -602,6 +948,9 @@ export class SessionRoutes {
     const entry = this.registry.get(sessionId);
     const had = entry !== undefined;
     if (had) this.registry.delete(sessionId);
+    // Whatever the destroy does to the object, no reclaim mark may outlive
+    // the incarnation and follow the deterministic id onto a later resume.
+    this.forgetReclaimMarks(sessionId);
     try {
       const backendExisted = await this.backend.destroySession(sessionId);
       return jsonResponse(
@@ -1008,6 +1357,19 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
     }
     const pinned = parsed.pinned === true;
+    try {
+      await runnerdActivity(
+        { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+        'pin',
+        { pinned },
+      );
+    } catch (error) {
+      // An old image has no pressure gate, so the durable backend pin remains
+      // sufficient. Other failures must not acknowledge an unapplied pin.
+      if (!(error instanceof RunnerdActivityError && error.status === 404)) {
+        return jsonResponse({ error: 'session_unavailable' }, 503);
+      }
+    }
     session.pinned = pinned;
     if (!pinned) {
       // Give an unpinned session a fresh lifetime so it isn't reaped instantly.

@@ -2,7 +2,7 @@
 // gone while ordinary command execution still streams stdout and exit status.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
-import type { Server } from 'node:http';
+import { request, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
@@ -46,6 +46,28 @@ afterAll(async () => {
 
 const headers = { 'x-tale-runnerd-token': token };
 
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.entries(value))
+    : {};
+}
+
+async function activityPost(path: string, body: object = {}) {
+  const payload =
+    path === '/reclaim' ? { ...(await releaseTicket()), ...body } : body;
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  const value = record(await response.json());
+  return { status: response.status, value };
+}
+
+async function releaseTicket(): Promise<Record<string, unknown>> {
+  return record(await (await fetch(`${baseUrl}/release`, { headers })).json());
+}
+
 describe('runnerd HTTP service', () => {
   test('rejects unauthenticated execution', async () => {
     const response = await fetch(`${baseUrl}/execs`, {
@@ -75,6 +97,13 @@ describe('runnerd HTTP service', () => {
       bootedAtMs: expect.any(Number),
       lastActivityAtMs: expect.any(Number),
       liveExecs: 0,
+      activity: {
+        generation: expect.any(String),
+        activeOperations: 0,
+        released: false,
+        pinned: false,
+        reclaiming: false,
+      },
     });
   });
 
@@ -102,5 +131,122 @@ describe('runnerd HTTP service', () => {
       state: 'exited',
       exitCode: 0,
     });
+  });
+
+  test('a partial exec request body already protects the runtime from release and reclaim', async () => {
+    const completed = Promise.withResolvers<number>();
+    const upload = request(
+      `${baseUrl}/execs`,
+      { method: 'POST', headers: { ...headers, 'content-length': '2' } },
+      (response) => {
+        response.resume();
+        response.on('end', () => completed.resolve(response.statusCode ?? 0));
+      },
+    );
+    upload.on('error', completed.reject);
+    upload.write('{');
+    let activeOperations = 0;
+    for (
+      let attempt = 0;
+      attempt < 50 && activeOperations === 0;
+      attempt += 1
+    ) {
+      const health = record(
+        await (await fetch(`${baseUrl}/healthz`, { headers })).json(),
+      );
+      activeOperations = Number(record(health.activity).activeOperations);
+      if (activeOperations === 0)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    try {
+      expect(activeOperations).toBe(1);
+      expect(
+        (await activityPost('/release', await releaseTicket())).value,
+      ).toEqual({ released: false });
+      expect(
+        (await activityPost('/reclaim', { claimId: 'upload' })).value,
+      ).toEqual({ claimed: false });
+    } finally {
+      upload.end('}');
+    }
+    expect(await completed.promise).toBe(200);
+  });
+
+  test('staging remains protected during its upstream fetch and preserves the resulting file', async () => {
+    const fetched = Promise.withResolvers<void>();
+    const complete = Promise.withResolvers<void>();
+    const source = Bun.serve({
+      port: 0,
+      async fetch() {
+        fetched.resolve();
+        await complete.promise;
+        return new Response('preserved');
+      },
+    });
+    try {
+      const staging = activityPost('/files/stage', {
+        files: [
+          { path: 'pressure.txt', url: `http://127.0.0.1:${source.port}` },
+        ],
+      });
+      await fetched.promise;
+      expect(
+        (await activityPost('/release', await releaseTicket())).value,
+      ).toEqual({ released: false });
+      expect(
+        (await activityPost('/reclaim', { claimId: 'staging' })).value,
+      ).toEqual({ claimed: false });
+      complete.resolve();
+      expect((await staging).value).toEqual({
+        staged: [{ path: 'pressure.txt', bytes: 9 }],
+        skipped: [],
+      });
+      expect(
+        await (
+          await fetch(`${baseUrl}/fs/read?path=pressure.txt`, { headers })
+        ).text(),
+      ).toBe('preserved');
+    } finally {
+      complete.resolve();
+      await source.stop(true);
+    }
+  });
+
+  // KEEP LAST: the claim below freezes the one daemon this file shares —
+  // by design a successful claim never expires — so every request a later
+  // test would make answers 503 `reclaiming`.
+  test('a released runtime is atomically frozen before a pressure stop and refuses competing work', async () => {
+    const stale = await releaseTicket();
+    expect((await activityPost('/acquire')).status).toBe(200);
+    expect((await activityPost('/release', stale)).value).toEqual({
+      released: false,
+    });
+    const current = await releaseTicket();
+    expect((await activityPost('/release', current)).value).toEqual({
+      released: true,
+    });
+    expect((await activityPost('/pin', { pinned: true })).status).toBe(200);
+    expect(
+      (await activityPost('/reclaim', { claimId: 'pressure' })).value,
+    ).toEqual({ claimed: false });
+    expect((await activityPost('/pin', { pinned: false })).status).toBe(200);
+    expect(
+      (await activityPost('/reclaim', { claimId: 'pressure' })).value,
+    ).toEqual({ claimed: true });
+    expect((await activityPost('/reclaim', { claimId: 'peer' })).value).toEqual(
+      { claimed: true },
+    );
+    for (const [path, body] of [
+      ['/acquire', {}],
+      ['/pin', { pinned: true }],
+      ['/env', { set: { NEXT: '1' } }],
+      ['/files/stage', { files: [] }],
+      ['/execs', { execId: 'too-late', command: ['true'] }],
+    ] as const) {
+      expect((await activityPost(path, body)).status).toBe(503);
+    }
+    expect(
+      (await fetch(`${baseUrl}/fs/read?path=pressure.txt`, { headers })).status,
+    ).toBe(503);
   });
 });

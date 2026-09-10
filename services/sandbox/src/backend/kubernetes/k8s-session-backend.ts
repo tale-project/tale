@@ -17,11 +17,12 @@ import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import type {
-  BackendSession,
-  CreateSessionResult,
-  SessionBackend,
-  SessionSpec,
+import {
+  SessionIncarnationChangedError,
+  type BackendSession,
+  type CreateSessionResult,
+  type SessionBackend,
+  type SessionSpec,
 } from '../types.ts';
 import {
   apiTimeout,
@@ -89,6 +90,7 @@ export class KubernetesSessionBackend implements SessionBackend {
         name: sessionSecretNameFor(spec.sessionId),
         namespace: this.cfg.k8s.namespace,
         labels: { 'tale.sandbox-session': '1' },
+        annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
       },
       stringData: {
         TALE_RUNNERD_TOKEN: this.tokenFor(spec.sessionId),
@@ -347,10 +349,114 @@ export class KubernetesSessionBackend implements SessionBackend {
     return existed;
   }
 
-  async stopSession(sessionId: string): Promise<boolean> {
+  async stopSession(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     // Release compute but PRESERVE the workspace PVC — a later createSession
     // re-mounts it (resume).
-    return this.removePodAndSecret(sessionId);
+    if (expectedCreatedAtMs === undefined)
+      return this.removePodAndSecret(sessionId);
+    const podName = sessionPodNameFor(sessionId);
+    let pod;
+    try {
+      pod = await this.readPod(sessionId);
+    } catch (error) {
+      if (httpStatusCode(error) === 404) return false;
+      throw error;
+    }
+    const uid = pod.metadata?.uid;
+    if (!uid) {
+      throw new SessionIncarnationChangedError(sessionId, 'pod has no uid');
+    }
+    if (
+      Number(pod.metadata?.annotations?.['tale.dev/created-at']) !==
+      expectedCreatedAtMs
+    ) {
+      throw new SessionIncarnationChangedError(
+        sessionId,
+        'pod creation stamp moved',
+      );
+    }
+    // Delete this incarnation's Secret first, fenced by its immutable UID: a
+    // delayed/retried pressure stop must never remove a replacement's keys.
+    // Read through `list` — the documented Role grants list/create/delete on
+    // Secrets, not `get` (docs/kubernetes.md). A Secret from an older spawner
+    // carries no creation stamp while a replacement always does, so only a
+    // DIFFERENT stamp marks a replacement.
+    const secretName = sessionSecretNameFor(sessionId);
+    const secrets = await this.client.core.listNamespacedSecret(
+      {
+        namespace: this.cfg.k8s.namespace,
+        fieldSelector: `metadata.name=${secretName}`,
+      },
+      apiTimeout(),
+    );
+    const secret = secrets.items.find(
+      (item) => item.metadata?.name === secretName,
+    );
+    if (secret !== undefined) {
+      const secretUid = secret.metadata?.uid;
+      const stamp = secret.metadata?.annotations?.['tale.dev/created-at'];
+      if (
+        !secretUid ||
+        (stamp !== undefined && Number(stamp) !== expectedCreatedAtMs)
+      ) {
+        throw new SessionIncarnationChangedError(
+          sessionId,
+          'secret belongs to another incarnation',
+        );
+      }
+      try {
+        await this.client.core.deleteNamespacedSecret(
+          {
+            name: secretName,
+            namespace: this.cfg.k8s.namespace,
+            body: { preconditions: { uid: secretUid } },
+          },
+          apiTimeout(),
+        );
+      } catch (error) {
+        if (httpStatusCode(error) !== 404) throw error;
+      }
+    }
+    try {
+      await this.client.core.deleteNamespacedPod(
+        {
+          name: podName,
+          namespace: this.cfg.k8s.namespace,
+          gracePeriodSeconds: 5,
+          body: { preconditions: { uid } },
+        },
+        apiTimeout(),
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) throw error;
+    }
+    // A DELETE acknowledgement still consumes compute during the grace period.
+    // `sessionExists` deliberately treats terminating Pods as unavailable for
+    // work; capacity needs the stronger, actual-disappearance proof here.
+    const deadline = Date.now() + 10_000;
+    for (;;) {
+      let current;
+      try {
+        current = await this.readPod(sessionId);
+      } catch (error) {
+        if (httpStatusCode(error) === 404) return true;
+        throw error;
+      }
+      if (current.metadata?.uid !== uid) {
+        // Our Pod is gone (the delete was UID-fenced) and a peer replica has
+        // already recreated the session under the name: not ours to count.
+        throw new SessionIncarnationChangedError(
+          sessionId,
+          'replaced while terminating',
+        );
+      }
+      if (Date.now() >= deadline)
+        throw new Error(`session ${sessionId} is still terminating`);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
 
   /** Does the session's workspace PVC already exist? (resume vs fresh create) */

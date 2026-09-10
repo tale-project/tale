@@ -33,6 +33,8 @@ import {
  */
 export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   failed: number;
+  /** Standing sessions hibernated because no live turn held them. */
+  released: number;
   woken: number;
 }> {
   let failed = 0;
@@ -93,6 +95,35 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     if (didFail) failed += 1;
   }
 
+  // Backstop for a slot held by nothing. A settle defers its release to a
+  // queued sibling turn of the same agent; when that turn dies before it
+  // starts (cancelled, deleted, superseded by a retry), no later edge ever
+  // releases the agent's standing session and the org's project budget is
+  // held until the 24 h TTL. The release re-checks the same guards under
+  // the org's admission lock, so a live turn that appeared since is left
+  // alone.
+  let released = 0;
+  const orphaned = await sql<{ organizationId: string; agentId: string }[]>`
+    SELECT DISTINCT s.org_id AS "organizationId", s.owner_id AS "agentId"
+    FROM app.sandbox_sessions s
+    WHERE s.owner_type = 'project_agent'
+      AND s.status IN ('creating', 'active', 'degraded') AND s.pinned = false
+      AND NOT EXISTS (
+        SELECT 1 FROM app.sandbox_session_ops op
+        WHERE op.session_id = s.session_id AND op.status = 'running'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM app.project_agent_runs r
+        WHERE r.org_id = s.org_id AND r.agent_id = s.owner_id
+          AND r.status IN ('queued', 'running')
+          AND r.waiting_for_capacity_at_ms IS NULL
+      )
+    LIMIT 50
+  `;
+  for (const owner of orphaned) {
+    if (await releaseProjectAgentSessionSlot(sql, owner)) released += 1;
+  }
+
   let woken = 0;
   const parkedOrgs = new Set(
     (await listParkedAgentRuns(sql)).map((run) => run.organizationId),
@@ -100,5 +131,5 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   for (const organizationId of parkedOrgs) {
     woken += await wakeParkedAgentRuns(sql, organizationId);
   }
-  return { failed, woken };
+  return { failed, released, woken };
 }

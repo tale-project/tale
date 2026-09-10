@@ -399,10 +399,9 @@ export function loadConfig(): SpawnerConfig {
     session: {
       // Runtime admission ceiling across organizations: Docker host or K8s
       // namespace inventory. Separate from the platform's project/workflow/
-      // render allocation budgets (defaults 2/4/4), and not a CPU or memory
+      // render allocation budgets (defaults 2/2/2), and not a CPU or memory
       // reservation. Operators size this against the host and session profiles.
-      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 16, { min: 1 }),
-      maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
+      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
         24 * 60 * 60 * 1000,

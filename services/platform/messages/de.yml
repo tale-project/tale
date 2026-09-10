@@ -7458,11 +7458,17 @@ sandboxes:
     description:
       Lege fest, wie viele Sitzungen jede Arbeitsart gleichzeitig nutzen darf.
       Sitzungen belegen das Kontingent beim Start und während der Arbeit.
-      Größere Limits schaffen weder Rechenleistung noch Speicher; die Limits
-      der Bereitstellung gelten weiterhin.
+      Die Summe passt sich automatisch an und darf die Kapazität der
+      Bereitstellung nicht überschreiten.
     usage: 'Belegt: {used} / {limit}'
     usageUnavailable: Kontingentbelegung nicht verfügbar
     invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
+    total: Sitzungen deiner Organisation insgesamt
+    totalValue: '{total} / {maxSessions}'
+    totalHint: Summe der drei Limits / Kapazität der Bereitstellung. Andere Organisationen teilen sich diese Kapazität.
+    totalExceedsDeployment: Die Summe von {total} Sitzungen überschreitet die Kapazität der Bereitstellung von {maxSessions}. Verringere mindestens ein Limit, um zu speichern.
+    capacityUnavailable: Die Kapazität der Bereitstellung ist nicht verfügbar. Niedrigere Limits kannst du speichern; aktualisiere die Infrastrukturdaten, bevor du ein Limit erhöhst.
+    capacityLoading: Kapazität der Bereitstellung prüfen…
     saveFailed: Sandbox-Limits konnten nicht gespeichert werden
   quota:
     budgets:
@@ -7480,13 +7486,13 @@ sandboxes:
       können von der Kontingentbelegung abweichen, weil Umgebungen nach dem Ende
       einer Aufgabe weiterlaufen können.
     refresh: Aktualisieren
-    hostSessions: Sitzungsplätze auf dem Host
-    namespaceSessions: Sitzungsplätze im Namespace
-    organizationSessions: Laufzeitplätze deiner Organisation
+    hostSessions: Sandboxes der Bereitstellung
+    namespaceSessions: Sandboxes der Bereitstellung (Namespace)
+    organizationSessions: Sandboxes deiner Organisation
     slots: '{used} / {limit}'
     sessionStates: '{running} laufen · {starting} starten'
-    sessionSlotsHint: Laufende und startende Umgebungen aller Organisationen.
-    organizationSessionsHint: Alle Arbeitsarten deiner Organisation teilen sich dieses Bereitstellungslimit.
+    sessionSlotsHint: Aktuell laufend oder startend / Kapazität der Bereitstellung, gemeinsam für alle Organisationen.
+    organizationSessionsHint: Aktuell laufend oder startend, auch Sandboxes im Leerlauf, die zur Wiederverwendung bereitstehen.
     cpu: CPU-Auslastung des Hosts
     cpuUsage: '{used} / {total} Kerne'
     cpuHint: Messung über alle Prozesse auf dem Host; die erste Messung kann fehlen.
@@ -7495,8 +7501,9 @@ sandboxes:
     memoryHint: Genutzter und gesamter Host-Speicher, einschließlich anderer Dienste.
     unknownValue: Nicht verfügbar
     operatorLimits:
-      Die Bereitstellungsverwaltung legt die Laufzeitlimits fest. Ein freier
-      Sitzungsplatz garantiert keine freie Rechenleistung oder freien Speicher.
+      Alle Organisationen teilen sich die vom Betreiber festgelegte Kapazität.
+      Ein freier Platz garantiert keine ausreichende Rechenleistung oder
+      ausreichend Speicher für eine neue Sandbox.
     observedAt: 'Messzeitpunkt: {time}'
     scopes:
       host: Host gesamt
@@ -7504,13 +7511,12 @@ sandboxes:
     notConfigured: Für diese Bereitstellung ist keine Sandbox-Infrastruktur eingerichtet.
     unreachable: Infrastrukturdaten konnten nicht aktualisiert werden. Laufzeitstatus und Ressourcennutzung sind unbekannt.
   columns:
-    owner: Arbeitsbereich von
+    owner: Arbeitsbereich
     agent: Agent
-    status: Laufzeit / Kontingent
-    task: Aktuelle Aufgabe
+    status: Status
+    task: Aktuelle Aufgaben
     spend: Kosten
     created: Erstellt
-    actions: Aktionen
   status:
     runtime:
       running: Läuft
@@ -7523,9 +7529,9 @@ sandboxes:
     pinned: Angepinnt
   task:
     none: Keine aktive Aufgabe
-    project: Projektaufgabe
-    workflow: Workflow-Lauf
-    active: Aktive Ausführung
+    project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
+    workflow: '{count, plural, one {Workflow-Lauf} other {# Workflow-Läufe}}'
+    active: '{count, plural, one {Aktive Ausführung} other {# aktive Ausführungen}}'
   actions:
     stop: Aufgabe stoppen
     pin: Anpinnen

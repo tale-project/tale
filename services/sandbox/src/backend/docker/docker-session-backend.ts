@@ -46,11 +46,12 @@ import {
   npmCacheVolumeName,
   pipCacheVolumeName,
 } from '../../volume.ts';
-import type {
-  BackendSession,
-  CreateSessionResult,
-  SessionBackend,
-  SessionSpec,
+import {
+  SessionIncarnationChangedError,
+  type BackendSession,
+  type CreateSessionResult,
+  type SessionBackend,
+  type SessionSpec,
 } from '../types.ts';
 
 /** Does a `docker run` stderr report a container-name collision? */
@@ -519,8 +520,45 @@ export class DockerSessionBackend implements SessionBackend {
    * it. Throwing is the stop/destroy contract (types.ts): the reaper keeps the
    * entry and retries next sweep; destroy leaves the workspace intact.
    */
-  private async removeContainer(sessionId: string): Promise<boolean> {
+  private async removeContainer(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
+    let removalTarget = containerName;
+    if (expectedCreatedAtMs !== undefined) {
+      const observed = await runDocker(
+        [
+          'inspect',
+          '--format',
+          '{{.Id}}\t{{index .Config.Labels "tale.created"}}',
+          containerName,
+        ],
+        { timeoutMs: 5_000 },
+      );
+      if (observed.exitCode !== 0) {
+        if (isDockerNoSuchObject(observed.stderr)) return false;
+        throw new Error(`cannot identify session ${sessionId} for idle stop`);
+      }
+      // Strip only the line break: a `trim()` would eat the tab in front of
+      // an EMPTY label, and a label-less container adopted with
+      // `createdAtMs: 0` must still match its stamp (`Number('') === 0`).
+      const [containerId, created] = observed.stdout
+        .replace(/\r?\n$/, '')
+        .split('\t');
+      if (!containerId || !/^[a-f0-9]{12,64}$/.test(containerId)) {
+        throw new Error(`cannot identify session ${sessionId} for idle stop`);
+      }
+      if (Number(created) !== expectedCreatedAtMs) {
+        throw new SessionIncarnationChangedError(
+          sessionId,
+          'container creation stamp moved',
+        );
+      }
+      // The immutable container id fences a late rm against any replacement
+      // that reuses the deterministic session name after a timeout/retry.
+      removalTarget = containerId;
+    }
     let existed = false;
     try {
       const inspect = await runDocker(
@@ -531,7 +569,7 @@ export class DockerSessionBackend implements SessionBackend {
     } catch {
       existed = false;
     }
-    const removal = await dockerRm(containerName);
+    const removal = await dockerRm(removalTarget);
     if (!dockerRmSucceeded(removal)) {
       throw new Error(
         `docker rm ${containerName} failed (exit ${removal.exitCode}): ` +
@@ -636,11 +674,14 @@ export class DockerSessionBackend implements SessionBackend {
     return existed;
   }
 
-  async stopSession(sessionId: string): Promise<boolean> {
+  async stopSession(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean> {
     // Release compute but PRESERVE the host workspace dir — a later
     // createSession with the same sessionId re-mounts it (resume). The inner
     // docker store is ephemeral, so reap it (resume rebuilds the image cache).
-    const existed = await this.removeContainer(sessionId);
+    const existed = await this.removeContainer(sessionId, expectedCreatedAtMs);
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
     // The pin belongs to the container that just went away; the resume's
     // create starts unpinned and the platform re-pushes.

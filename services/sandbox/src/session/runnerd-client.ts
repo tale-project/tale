@@ -59,6 +59,40 @@ export async function runnerdHealth(
   return (await res.json()) as RunnerdHealth;
 }
 
+/** The lifecycle gate must be acknowledged by runnerd itself. An older image
+ * or an ambiguous response never becomes permission to reclaim compute. */
+export class RunnerdActivityError extends Error {
+  constructor(
+    readonly status: number,
+    path: string,
+  ) {
+    super(`runnerd /${path} ${status}`);
+  }
+}
+
+export async function runnerdActivity(
+  opts: RunnerdClientOptions,
+  action: 'ticket' | 'acquire' | 'release' | 'reclaim' | 'pin',
+  body?:
+    | { generation: string }
+    | { claimId: string; generation: string }
+    | { pinned: boolean },
+): Promise<Record<string, unknown>> {
+  const path = action === 'ticket' ? 'release' : action;
+  const res = await fetch(`${opts.baseUrl}/${path}`, {
+    method: action === 'ticket' ? 'GET' : 'POST',
+    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(RUNNERD_HEALTH_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new RunnerdActivityError(res.status, path);
+  const value: unknown = await res.json();
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`runnerd /${path} invalid response`);
+  }
+  return Object.fromEntries(Object.entries(value));
+}
+
 /** Poll /healthz until it answers 200 or the deadline passes. Resolves once
  * the daemon is ready; throws on timeout. */
 export async function waitForRunnerd(

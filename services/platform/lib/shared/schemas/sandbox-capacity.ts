@@ -3,6 +3,15 @@ import { z } from 'zod';
 const count = z.number().int().nonnegative();
 const measurement = z.number().nonnegative().nullable();
 
+/** Configured admission ceiling, readable even when runtime observation fails. */
+export const sandboxDeploymentLimitsSchema = z.object({
+  maxSessions: z.number().int().positive(),
+});
+
+export type SandboxDeploymentLimits =
+  | ({ status: 'available' } & z.infer<typeof sandboxDeploymentLimitsSchema>)
+  | { status: 'unavailable'; reason: 'not_configured' | 'unreachable' };
+
 /** Validated at the spawner boundary. Missing measurements stay unknown;
  * organization quota usage is read independently from the platform ledger. */
 export const sandboxCapacitySchema = z.object({
@@ -16,6 +25,7 @@ export const sandboxCapacitySchema = z.object({
     limit: z.number().int().positive(),
     organizationRunning: count,
     organizationStarting: count,
+    /** Deprecated wire field: new spawners alias the deployment limit here. */
     organizationLimit: z.number().int().positive(),
   }),
   resources: z.object({

@@ -13,8 +13,11 @@
 
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
+import { z } from 'zod';
+
 import {
   sandboxCapacitySchema,
+  sandboxDeploymentLimitsSchema,
   type SandboxCapacityObservation,
 } from '../../../../../lib/shared/schemas/sandbox-capacity.ts';
 
@@ -59,10 +62,9 @@ export class ExecNotFoundError extends Error {
   }
 }
 
-/** Spawner already owns a live session under this id (HTTP 409 on create).
- * With deterministic per-(org,user) ids this means an orphan the platform no
- * longer tracks (e.g. a destroy that raced provisioning) — callers reap it
- * and retry rather than failing the turn. */
+/** Spawner already owns this session or is creating it (HTTP 409). A caller
+ * adopting the existing runtime must acquire it before starting work while
+ * preserving the standing workspace. */
 export class SessionDuplicateError extends Error {
   constructor(sessionId: string) {
     super(`session ${sessionId} already exists spawner-side`);
@@ -70,11 +72,10 @@ export class SessionDuplicateError extends Error {
   }
 }
 
-/** The spawner is at its GLOBAL host capacity (HTTP 429 — `busy` for one-shot
- * execs, `session_quota` for sessions). Distinct from the per-org governance cap
- * (a platform-side `QUOTA_EXCEEDED`): this is a cross-tenant host limit the
- * platform can't see ahead of time, so the caller PARKS best-effort and retries
- * after `retryAfterMs` rather than failing the run. */
+/** The spawner is at its global host capacity (HTTP 429, `session_quota`).
+ * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
+ * shared across organizations. The retry hint lets each workload apply its
+ * own failure/retry policy; an earlier capacity read reserves no compute. */
 export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
   constructor(retryAfterMs: number | undefined) {
@@ -272,6 +273,95 @@ export async function sandboxCapacity(
   if (!response.ok)
     throw new Error(`Sandbox capacity unavailable (${response.status})`);
   return sandboxCapacitySchema.parse(await response.json());
+}
+
+/** The spawner's current configured ceiling, independent of host telemetry. */
+export async function sandboxDeploymentLimits(organizationId: string): Promise<{
+  maxSessions: number;
+}> {
+  const response = await spawnerFetch('GET', '/v1/limits', {
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (response.status === 404) {
+    // A running older spawner already reports its configured global ceiling
+    // through capacity. Read that endpoint afresh for this authenticated org;
+    // its deprecated organizationLimit is a different limit and must not win.
+    const capacity = await sandboxCapacity(organizationId);
+    return { maxSessions: capacity.sessions.limit };
+  }
+  if (!response.ok)
+    throw new Error(
+      `Sandbox deployment limits unavailable (${response.status})`,
+    );
+  return sandboxDeploymentLimitsSchema.parse(await response.json());
+}
+
+const acquisitionSchema = z.object({ generation: z.string().min(1) });
+
+/** Claim warm compute before staging any new work. A concurrent idle stop
+ * finishes first; a definitive 404 then allows the caller to recreate it. */
+export async function sessionAcquire(sessionId: string): Promise<boolean> {
+  const response = await spawnerFetch(
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
+    { signal: AbortSignal.timeout(15_000) },
+  );
+  if (response.status === 404) {
+    // Rolling upgrade: an old spawner has neither activity routes nor the
+    // limits endpoint (and cannot pressure-reclaim compute). Only that
+    // positively identified legacy protocol may use the old liveness door.
+    const limits = await spawnerFetch('GET', '/v1/limits', {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (limits.status === 404) return sessionIsAlive(sessionId);
+    if (!limits.ok)
+      throw new Error(
+        `Sandbox acquisition protocol unavailable (${limits.status})`,
+      );
+    sandboxDeploymentLimitsSchema.parse(await limits.json());
+    return false;
+  }
+  if (!response.ok)
+    throw new Error(`Sandbox acquisition unavailable (${response.status})`);
+  acquisitionSchema.parse(await response.json());
+  return true;
+}
+
+/** Capture BEFORE releasing the database allocation. The generation binds a
+ * later release to this use, so a delayed job cannot release a newer turn. */
+export async function sessionReleaseTicket(
+  sessionId: string,
+): Promise<string | null> {
+  const response = await spawnerFetch(
+    'GET',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/release`,
+    { signal: AbortSignal.timeout(2_000) },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`Sandbox release ticket unavailable (${response.status})`);
+  return acquisitionSchema.parse(await response.json()).generation;
+}
+
+/** Mark released compute eligible for pressure reclamation; never stop it
+ * here. The runtime still arbitrates pinning and active operations. */
+export async function sessionReleaseIdle(
+  sessionId: string,
+  generation: string,
+): Promise<boolean> {
+  const response = await spawnerFetch(
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/release`,
+    {
+      body: JSON.stringify({ generation }),
+      signal: AbortSignal.timeout(5_000),
+    },
+  );
+  if (response.status === 404) return false;
+  if (!response.ok)
+    throw new Error(`Sandbox idle release unavailable (${response.status})`);
+  return z.object({ released: z.boolean() }).parse(await response.json())
+    .released;
 }
 
 const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
