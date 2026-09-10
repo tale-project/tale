@@ -30,7 +30,6 @@
     "pwa:icons": "bunx pwa-assets-generator --preset minimal-2023 public/assets/logo-black.svg"
   },
   "dependencies": {
-    "@ai-sdk/provider": "3.0.8",
     "@better-auth/api-key": "1.6.30",
     "@better-auth/oauth-provider": "1.6.30",
     "@better-auth/passkey": "1.6.30",
