@@ -394,7 +394,7 @@ Every non-2xx response carries one flat envelope:
 
 Branch on the HTTP status; the message is for humans:
 
-- **400** — malformed request: a missing required field, a wrong type, an unparseable body — or a multi-org key that did not name its organization (required on every write, and on all project and task routes).
+- **400** — malformed request: a missing required field, a wrong type, an unknown key, an unparseable body — the envelope carries `code: "INVALID_BODY"` and lists every problem under `data.issues`, each naming the field (`price`, `contacts.2.email`) and the reason, so fix what it names rather than what a sentence guessed; a `cursor` the list never answered (`INVALID_CURSOR`) or a `limit` that is not a number (`INVALID_LIMIT`) — neither is read as the first page; or a multi-org key that did not name its organization (required on every write, and on all project and task routes).
 - **401** — missing or invalid API key.
 - **403** — the holder lacks the required role or project edit access, the project or task is archived for a requested mutation, or an automation cannot run in this project.
 - **404** — the resource is absent, invisible to the holder, owned by another thread user, or belongs to a different project than the URL names.

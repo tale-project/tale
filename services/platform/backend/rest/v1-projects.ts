@@ -44,12 +44,13 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  invalidBodyResponse,
   loadRestProject,
   lockRestProjectForWrite,
-  pageLimit,
-  parseKeysetCursor,
   readJsonBody,
+  readKeysetCursor,
   readOptionalJsonBody,
+  readPageLimit,
   requireEditor,
   type RestEnv,
   restProjectAuth,
@@ -167,7 +168,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body ("name" is required)' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       requireEditor(c);
@@ -205,8 +206,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.post('/projects/:id/agents', async (c) => {
     const body = projectAgentBody.safeParse(await readJsonBody(c));
-    if (!body.success)
-      return c.json({ error: 'invalid project agent body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
@@ -244,8 +244,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.put('/projects/:id/agents/:agentId', async (c) => {
     const body = projectAgentBody.safeParse(await readJsonBody(c));
-    if (!body.success)
-      return c.json({ error: 'invalid project agent body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
@@ -315,7 +314,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body ("name" is required)' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await restProjectAuth(deps.sql, c);
@@ -362,7 +361,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       // Gate BEFORE presigning: refusing after would hand the caller a
@@ -428,7 +427,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await restProjectAuth(deps.sql, c);
@@ -538,8 +537,10 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     const folderId = c.req.query('folderId')?.trim() || undefined;
-    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
-    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const limit = readPageLimit(c, { fallback: 25, max: 100 });
+    if (limit instanceof Response) return limit;
+    const cursor = readKeysetCursor(c);
+    if (cursor instanceof Response) return cursor;
     const cursorCreatedAt = cursor?.at ?? null;
     const cursorId = cursor?.id ?? null;
     if (folderId !== undefined) {

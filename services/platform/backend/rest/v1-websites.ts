@@ -21,7 +21,12 @@ import {
 } from '../domains/websites/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
-import { pageLimit, type RestEnv } from './shared.ts';
+import {
+  pageLimit,
+  readKeysetCursor,
+  readPageLimit,
+  type RestEnv,
+} from './shared.ts';
 
 /**
  * The /websites REST family (the 0.4 `websites/rest_api.ts` contract):
@@ -93,6 +98,12 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   app.get('/websites', async (c) => {
+    // The service decodes the `<createdAt>:<id>` token itself; the shape is
+    // checked here so a mangled one is refused, never read as page one.
+    const cursor = readKeysetCursor(c);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 25, max: 200 });
+    if (limit instanceof Response) return limit;
     const result = await listWebsites(deps.sql, c.get('organizationId'), {
       ...(c.req.query('status') !== undefined
         ? { status: c.req.query('status') ?? '' }
@@ -101,7 +112,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ? { scanInterval: c.req.query('scanInterval') ?? '' }
         : {}),
       cursor: c.req.query('cursor') ?? null,
-      limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
+      limit,
     });
     return c.json(result);
   });

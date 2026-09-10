@@ -187,15 +187,24 @@ describe.each(FAMILIES)('GET $route pagination', ({ route, table, row }) => {
     expect(body.continueCursor).toBe('');
   });
 
-  it('reads an unparseable cursor as the first page', async () => {
-    const { sql, queries } = fakeSql([row(1)]);
-    const res = await mount(sql).request(
-      `http://localhost${route}?cursor=%7B%22updatedAt%22%3A1%7D`,
-    );
-    expect(res.status).toBe(200);
-    const { values } = listQuery(queries, table);
-    // no keyset bound reached the query — the cursor slots are null
-    expect(values).not.toContain(1);
+  it('refuses a cursor it never answered with 400 instead of restarting at page one', async () => {
+    // A consumer that mangled or truncated a stored cursor must learn it —
+    // silently re-reading the first page re-processes what it already saw.
+    for (const cursor of [
+      '%7B%22updatedAt%22%3A1%7D',
+      'malformed-eval-cursor',
+      'not-a-number:c-2',
+    ]) {
+      const { sql, queries } = fakeSql([row(1)]);
+      const res = await mount(sql).request(
+        `http://localhost${route}?cursor=${cursor}`,
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+      expect(queries.some((q) => q.text.includes(`FROM app.${table}`))).toBe(
+        false,
+      );
+    }
   });
 
   it('clamps limit so no client value becomes a zero or negative LIMIT', async () => {
@@ -203,12 +212,18 @@ describe.each(FAMILIES)('GET $route pagination', ({ route, table, row }) => {
       ['0', 2],
       ['-4', 2],
       ['999', 201],
-      ['abc', 26],
     ] as const) {
       const { sql, queries } = fakeSql([row(1)]);
       await mount(sql).request(`http://localhost${route}?limit=${limit}`);
       expect(listQuery(queries, table).values).toContain(expected);
     }
+  });
+
+  it('refuses a limit that is not a number with 400', async () => {
+    const { sql } = fakeSql([row(1)]);
+    const res = await mount(sql).request(`http://localhost${route}?limit=abc`);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
   });
 });
 
@@ -332,11 +347,17 @@ describe.each([
   { route: '/documents', table: 'documents' },
   { route: '/knowledge-entries', table: 'knowledge_entries' },
 ])('GET $route limit', ({ route, table }) => {
+  it('refuses a limit that is not a number with 400', async () => {
+    const { sql } = fakeSql([]);
+    const res = await mount(sql).request(`http://localhost${route}?limit=abc`);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+  });
+
   it.each([
     ['2.5', 3],
     ['-4', 2],
     ['999', 101],
-    ['abc', 26],
   ])(
     'turns ?limit=%s into a whole LIMIT of %i (page + 1)',
     async (limit, expected) => {

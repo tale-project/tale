@@ -365,6 +365,97 @@ describe('POST /documents/{id}/retry-indexing', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'indexing' });
   });
+/**
+ * A refused body names the field that failed. Each route used to answer a
+ * fixed sentence — `invalid body ("name" is required)` for ANY schema
+ * failure — so a product with a string `price` was told to add the name it
+ * had sent, and a document with an unknown `projectId` to add its title.
+ * The cases are the evaluation's own repros.
+ */
+describe('a refused body names the field that failed', () => {
+  const refused = async (
+    route: string,
+    body: unknown,
+  ): Promise<{
+    error: string;
+    issues: { path: string; message: string }[];
+  }> => {
+    const { app, queries } = mount();
+    const res = await app.request(
+      `http://localhost${route}`,
+      json('POST', body),
+    );
+    expect(res.status).toBe(400);
+    expect(queries.some((q) => /^(INSERT|UPDATE) (INTO )?app\./.test(q))).toBe(
+      false,
+    );
+    const payload = (await res.json()) as {
+      error: string;
+      code: string;
+      data: { issues: { path: string; message: string }[] };
+    };
+    expect(payload.code).toBe('INVALID_BODY');
+    return { error: payload.error, issues: payload.data.issues };
+  };
+
+  it('blames the string price, not the name that was sent', async () => {
+    const { error, issues } = await refused('/products', {
+      name: 'TALE-EVAL-20260910-INVALID',
+      price: '12.34',
+    });
+    expect(issues).toEqual([
+      { path: 'price', message: expect.stringContaining('number') },
+    ]);
+    expect(error).toContain('"price"');
+    expect(error).not.toContain('name');
+  });
+
+  it('names the missing product name', async () => {
+    const { issues } = await refused('/products', {
+      category: 'TALE-EVAL-20260910',
+    });
+    expect(issues).toEqual([
+      { path: 'name', message: expect.stringContaining('string') },
+    ]);
+  });
+
+  it('names the unknown key a strict body refuses', async () => {
+    const { error, issues } = await refused('/documents', {
+      title: 'TALE-EVAL-20260910-INVALID',
+      content: 'Synthetic test',
+      projectId: '00000000-0000-4000-8000-000000000009',
+    });
+    expect(issues).toEqual([
+      { path: '', message: expect.stringContaining('projectId') },
+    ]);
+    expect(error).not.toContain('title');
+  });
+
+  it('names the contact source vocabulary the public schema never listed', async () => {
+    const { issues } = await refused('/contacts', {
+      name: 'TALE-EVAL-20260910-CONTACT-A',
+      source: 'TALE-EVAL-20260910',
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ path: 'source' });
+    expect(issues[0]?.message).toContain('api_import');
+    expect(issues[0]?.message).toContain('custom');
+  });
+
+  it('says so when the body is not JSON at all', async () => {
+    const { app } = mount();
+    const res = await app.request('http://localhost/products', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"name": ',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid body: The body is not valid JSON',
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: '', message: 'The body is not valid JSON' }] },
+    });
+  });
 });
 
 describe('knowledge search resource scope', () => {

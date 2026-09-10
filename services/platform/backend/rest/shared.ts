@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
+import type { ZodError } from 'zod';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
@@ -142,6 +143,54 @@ export async function readOptionalJsonBody(
   }
 }
 
+/** How many schema problems one 400 lists — enough to fix a body in one
+ * round trip, bounded so a hostile body cannot echo itself back at length. */
+const MAX_BODY_ISSUES = 20;
+
+/**
+ * The 400 for a body a route's schema refused: the first problem, named by
+ * path and reason, in the envelope's `error`; the stable `INVALID_BODY`
+ * code; and every problem under `data.issues`. A fixed sentence per route
+ * ("name is required") blamed a field the caller HAD sent whenever the real
+ * problem was another field's type or an unknown key — a consumer following
+ * that hint could never fix the body.
+ */
+export function invalidBodyResponse(
+  c: Context<RestEnv>,
+  error: ZodError,
+): Response {
+  // `readJsonBody` answers a body that is not JSON with a symbol no schema
+  // accepts; zod reports that as a type mismatch at the root, which is not
+  // what the caller needs to hear.
+  const notJson = error.issues.some(
+    (issue) =>
+      issue.path.length === 0 &&
+      issue.code === 'invalid_type' &&
+      issue.message.endsWith('received symbol'),
+  );
+  const issues = notJson
+    ? [{ path: '', message: 'The body is not valid JSON' }]
+    : error.issues.slice(0, MAX_BODY_ISSUES).map((issue) => ({
+        path: issue.path.map(String).join('.'),
+        message: issue.message,
+      }));
+  const first = issues[0] ?? {
+    path: '',
+    message: 'does not match the schema',
+  };
+  return c.json(
+    {
+      error:
+        first.path === ''
+          ? `invalid body: ${first.message}`
+          : `invalid body: "${first.path}" ${first.message}`,
+      code: 'INVALID_BODY',
+      data: { issues },
+    },
+    400,
+  );
+}
+
 /**
  * The developer capability gate — authoring a trigger, starting a LIVE run,
  * cancelling a run (the same rule the session surface applies).
@@ -222,9 +271,11 @@ export function formatKeysetCursor(at: number, id: string): string {
   return `${at}:${id}`;
 }
 
-/** The inverse of `formatKeysetCursor`; anything unparseable reads as "no
- * cursor" (the first page) rather than a 400 — an opaque token has no
- * shape a consumer could have gotten wrong on purpose. */
+/** The inverse of `formatKeysetCursor`: the decoded position, or null for
+ * nothing / an empty string / a token that is not one of ours. The REST
+ * doors read it through `readKeysetCursor`, which turns the last case into
+ * a 400 — this codec itself stays lenient for callers that hold a cursor a
+ * service decoded for them. */
 export function parseKeysetCursor(
   raw: string | null | undefined,
 ): { at: number; id: string } | null {
@@ -233,6 +284,56 @@ export function parseKeysetCursor(
   if (split <= 0 || split === raw.length - 1) return null;
   const at = Number(raw.slice(0, split));
   return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
+}
+
+/** The 400 for a query parameter a list cannot act on. */
+function invalidQueryResponse(
+  c: Context<RestEnv>,
+  code: 'INVALID_CURSOR' | 'INVALID_LIMIT',
+  message: string,
+): Response {
+  return c.json({ error: message, code }, 400);
+}
+
+const CURSOR_MESSAGE =
+  'The "cursor" query parameter is not a cursor this list answered — pass the cursor the previous page answered, unchanged, or omit it for the first page';
+
+/**
+ * The `cursor` query of a keyset-paginated list: null for the first page
+ * (absent or empty), the decoded position, or the 400 a token that is not
+ * one of ours answers. A mangled or truncated cursor used to read as "no
+ * cursor" and silently restart from page one — a consumer walking a list
+ * incrementally re-processed the first page without any signal that its
+ * position was lost. (`INVALID_CURSOR`)
+ */
+export function readKeysetCursor(
+  c: Context<RestEnv>,
+): { at: number; id: string } | null | Response {
+  const raw = c.req.query('cursor');
+  if (raw === undefined || raw === '') return null;
+  return (
+    parseKeysetCursor(raw) ??
+    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE)
+  );
+}
+
+/**
+ * The `cursor` query of a list whose position is one whole number (a
+ * message order, an entry sequence): null for the first page, the number,
+ * or the 400 for anything else — the same posture as `readKeysetCursor`.
+ */
+export function readIntegerCursor(
+  c: Context<RestEnv>,
+  bounds: { max?: number } = {},
+): number | null | Response {
+  const raw = c.req.query('cursor');
+  if (raw === undefined || raw.trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) &&
+    parsed >= 0 &&
+    parsed <= (bounds.max ?? Number.MAX_SAFE_INTEGER)
+    ? parsed
+    : invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE);
 }
 
 /** The page size a list route honours: the documented default, truncated
@@ -249,6 +350,27 @@ export function pageLimit(
     ? Math.trunc(parsed)
     : defaults.fallback;
   return Math.min(Math.max(limit, 1), defaults.max);
+}
+
+/**
+ * The `limit` query of a list route: `pageLimit`'s clamping for a number
+ * (the documented "out-of-range values are clamped"), the 400 for a value
+ * that is not a number at all — `limit=abc` used to read as the default
+ * page size with nothing telling the caller. (`INVALID_LIMIT`)
+ */
+export function readPageLimit(
+  c: Context<RestEnv>,
+  defaults: { fallback: number; max: number },
+): number | Response {
+  const raw = c.req.query('limit');
+  if (raw !== undefined && raw.trim() !== '' && !Number.isFinite(Number(raw))) {
+    return invalidQueryResponse(
+      c,
+      'INVALID_LIMIT',
+      `The "limit" query parameter must be a whole number (1..${defaults.max})`,
+    );
+  }
+  return pageLimit(raw, defaults);
 }
 
 /** The minting user's project-auth context (visibility matrix). */

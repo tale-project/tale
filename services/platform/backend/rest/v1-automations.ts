@@ -24,6 +24,7 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
+  invalidBodyResponse,
   loadRestProject,
   pageLimit,
   readJsonBody,
@@ -173,7 +174,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const installAutomation = async (c: Context<RestEnv>) => {
     const body = emptyBody.safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       requireDeveloper(c);
@@ -237,7 +238,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limited) return limited;
     const body = runBody.safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const mode = body.data.mode ?? 'live';
     try {

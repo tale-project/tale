@@ -460,17 +460,17 @@ describe('REST thread paths enforce project scope', () => {
   );
 
   it.each(['2.5', '2147483648', '-1', '1e100'])(
-    'does not pass malformed message cursor %s into an int cast',
+    'refuses malformed message cursor %s before any int cast',
     async (cursor) => {
       const { app, queries } = mount();
-      expect(
-        (await app.request(`/threads/t-personal/messages?cursor=${cursor}`))
-          .status,
-      ).toBe(200);
-      const query = queries.find((entry) =>
-        entry.text.includes('FROM app.messages'),
+      const response = await app.request(
+        `/threads/t-personal/messages?cursor=${cursor}`,
       );
-      expect(query?.values).toEqual(['t-personal', null, null, 26]);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+      expect(
+        queries.some((entry) => entry.text.includes('FROM app.messages')),
+      ).toBe(false);
     },
   );
 });

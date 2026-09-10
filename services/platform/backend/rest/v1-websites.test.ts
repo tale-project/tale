@@ -211,7 +211,6 @@ describe('website list bounds', () => {
       ['2.5', 2],
       ['-1', 1],
       ['9999', 200],
-      ['abc', 25],
     ] as const) {
       vi.mocked(listWebsites).mockClear();
       expect(
@@ -221,6 +220,21 @@ describe('website list bounds', () => {
         limit: expected,
       });
     }
+  });
+
+  it('refuses a non-numeric limit and a mangled cursor with 400, listing nothing', async () => {
+    const { sql } = fakeSql();
+    const app = mount(sql);
+    vi.mocked(listWebsites).mockClear();
+    const limit = await app.request('http://localhost/websites?limit=abc');
+    expect(limit.status).toBe(400);
+    expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    const cursor = await app.request(
+      'http://localhost/websites?cursor=malformed-eval-cursor',
+    );
+    expect(cursor.status).toBe(400);
+    expect(await cursor.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+    expect(listWebsites).not.toHaveBeenCalled();
   });
 
   it('floors offset at zero and caps limit for GET /websites/{id}/pages', async () => {

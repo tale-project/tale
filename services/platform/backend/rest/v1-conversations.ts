@@ -28,6 +28,7 @@ import { recordUploadIntent } from '../domains/files/upload-intents.ts';
 import {
   chargeLane,
   domainErrorResponse,
+  invalidBodyResponse,
   readJsonBody,
   type RestEnv,
 } from './shared.ts';
@@ -78,7 +79,7 @@ export function createConversationRestRoutes(deps: {
     bodyLimit({ maxSize: 8 * 1024 * 1024 }),
     async (c) => {
       const body = apiSnapshotSchema.safeParse(await readJsonBody(c));
-      if (!body.success) return c.json({ error: 'invalid snapshot' }, 400);
+      if (!body.success) return invalidBodyResponse(c, body.error);
       try {
         return c.json(
           await synchronizeConversation(deps.sql, viewer(c), body.data),
@@ -98,7 +99,7 @@ export function createConversationRestRoutes(deps: {
           limit: z.number().int().min(1).max(100).default(100),
         })
         .safeParse(await readJsonBody(c));
-      if (!body.success) return c.json({ error: 'invalid body' }, 400);
+      if (!body.success) return invalidBodyResponse(c, body.error);
       try {
         return c.json({
           deliveries: await claimApiDeliveries(
@@ -118,7 +119,7 @@ export function createConversationRestRoutes(deps: {
     bodyLimit({ maxSize: 64 * 1024 }),
     async (c) => {
       const body = apiDeliveryFailureSchema.safeParse(await readJsonBody(c));
-      if (!body.success) return c.json({ error: 'invalid body' }, 400);
+      if (!body.success) return invalidBodyResponse(c, body.error);
       try {
         return c.json(
           await failApiDelivery(
@@ -143,7 +144,7 @@ export function createConversationRestRoutes(deps: {
           sourceVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
         })
         .safeParse(await readJsonBody(c));
-      if (!body.success) return c.json({ error: 'invalid body' }, 400);
+      if (!body.success) return invalidBodyResponse(c, body.error);
       try {
         return c.json(
           await acknowledgeApiDelivery(

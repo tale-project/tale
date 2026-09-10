@@ -123,7 +123,10 @@ describe('POST /automations/{name}/runs', () => {
   it('answers 400 for a body that is present but not JSON, and starts nothing', async () => {
     const res = await start(SAVED, '{"mode": "live", broken');
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'invalid body' });
+    expect(await res.json()).toMatchObject({
+      error: 'invalid body: The body is not valid JSON',
+      code: 'INVALID_BODY',
+    });
     expect(beginRun).not.toHaveBeenCalled();
   });
 

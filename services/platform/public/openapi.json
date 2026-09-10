@@ -1262,7 +1262,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -1271,7 +1271,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
           {
             "name": "sourceProvider",
@@ -1817,7 +1817,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -1826,7 +1826,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
           {
             "name": "status",
@@ -2631,7 +2631,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -2640,7 +2640,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
           {
             "name": "status",
@@ -2734,7 +2734,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductInput"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ProductInput"
+                  }
+                ],
+                "required": ["name"]
               }
             }
           }
@@ -3052,7 +3057,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -3061,7 +3066,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
           {
             "name": "source",
@@ -4837,7 +4842,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `cursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -4846,7 +4851,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -7558,7 +7563,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -7567,7 +7572,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -7840,7 +7845,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -7849,7 +7854,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -8201,7 +8206,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -8210,7 +8215,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -8540,7 +8545,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -8549,7 +8554,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -9258,7 +9263,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
           },
           {
             "name": "limit",
@@ -9267,7 +9272,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
+            "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
           {
             "name": "status",
@@ -10515,6 +10520,23 @@
               "retryAfterMs": {
                 "type": "number",
                 "description": "Wait in milliseconds for RATE_LIMITED"
+              },
+              "issues": {
+                "type": "array",
+                "description": "For INVALID_BODY: every problem the body’s schema found (at most 20), each naming the field and the reason; `error` repeats the first one",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "message"],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "The field, dotted for nesting (`address.city`, `contacts.2.email`); empty for a problem with the body as a whole"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           }
@@ -11100,7 +11122,34 @@
           },
           "source": {
             "type": "string",
-            "description": "Defaults to `api_import`"
+            "enum": [
+              "manual_import",
+              "file_upload",
+              "api_import",
+              "conversation",
+              "shopify",
+              "woocommerce",
+              "magento",
+              "bigcommerce",
+              "prestashop",
+              "chargebee",
+              "stripe",
+              "recurly",
+              "salesforce",
+              "hubspot",
+              "pipedrive",
+              "zoho",
+              "sap",
+              "oracle",
+              "netsuite",
+              "mailchimp",
+              "klaviyo",
+              "sendgrid",
+              "webhook",
+              "zapier",
+              "custom"
+            ],
+            "description": "Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed"
           },
           "locale": {
             "type": "string"
