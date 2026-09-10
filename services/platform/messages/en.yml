@@ -1358,6 +1358,8 @@ chat:
     tokens.
   errorHintProviderError: The AI provider is temporarily experiencing issues. Try again in a moment.
   errorHintRateLimited: Too many requests. Wait a moment and try again.
+  errorHintModelNotEntitled: The provider's plan does not include this model.
+    Pick another model, or ask your administrator to upgrade the plan.
   errorHintTokenLimit:
     The model's output token limit was exceeded. Try a shorter
     request or ask your administrator to adjust the model settings.
@@ -1379,6 +1381,8 @@ chat:
     The selected model was not found on {provider}. It
     may have been renamed or removed.
   errorHintRateLimitedNamed: Rate limit reached on {provider}. Wait a moment and try again.
+  errorHintModelNotEntitledNamed: The {provider} plan does not include this
+    model. Pick another model, or ask your administrator to upgrade the plan.
 
   errorGenerating: Couldn't generate a reply. Try again.
   errorTriedModels: 'Tried {count} models before giving up.'

@@ -1406,6 +1406,8 @@ chat:
     ou demande à ton administrateur de le baisser.
   errorHintProviderError: Le fournisseur d'IA rencontre temporairement des problèmes. Réessaie dans un instant.
   errorHintRateLimited: Trop de requêtes. Patiente un moment, puis réessaie.
+  errorHintModelNotEntitled: Le forfait du fournisseur n'inclut pas ce modèle.
+    Choisis un autre modèle ou demande à ton administrateur d'étendre le forfait.
   errorHintTokenLimit: La limite de tokens en sortie du modèle a été dépassée.
     Essaie une requête plus courte ou demande à ton administrateur d'ajuster les
     paramètres du modèle.
@@ -1429,6 +1431,8 @@ chat:
   errorHintModelNotFoundNamed: Le modèle sélectionné est introuvable chez
     {provider}. Il a peut-être été renommé ou supprimé.
   errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Patiente un moment, puis réessaie.
+  errorHintModelNotEntitledNamed: Le forfait chez {provider} n'inclut pas ce
+    modèle. Choisis un autre modèle ou demande à ton administrateur d'étendre le forfait.
 
   errorGenerating: Impossible de générer une réponse. Réessaie.
   errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."

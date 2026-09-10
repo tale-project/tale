@@ -33,6 +33,7 @@ export function isStoppedReason(reason: string | undefined): boolean {
 export const CHAT_ERROR_CODES = [
   'missing_api_key',
   'credit_exhausted',
+  'model_not_entitled',
   'auth_error',
   'model_not_found',
   'unsupported_parameter',
@@ -60,6 +61,7 @@ export function isChatErrorCode(value: unknown): value is ChatErrorCode {
 export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
   missing_api_key: 'errorHintMissingApiKey',
   credit_exhausted: 'errorHintCreditExhausted',
+  model_not_entitled: 'errorHintModelNotEntitled',
   auth_error: 'errorHintAuthError',
   model_not_found: 'errorHintModelNotFound',
   unsupported_parameter: 'errorHintUnsupportedParameter',
@@ -83,6 +85,7 @@ export const CHAT_ERROR_I18N_KEY_NAMED: Readonly<
   Partial<Record<ChatErrorCode, string>>
 > = {
   credit_exhausted: 'errorHintCreditExhaustedNamed',
+  model_not_entitled: 'errorHintModelNotEntitledNamed',
   auth_error: 'errorHintAuthErrorNamed',
   provider_unreachable: 'errorHintProviderUnreachableNamed',
   model_not_found: 'errorHintModelNotFoundNamed',
@@ -179,10 +182,27 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'missing_api_key';
   }
 
+  // The account's plan excludes THIS model while others still serve — Z.ai
+  // answers it as HTTP 429 (code 1311, "Your current subscription plan does
+  // not yet include access to …"), so this must precede the status-429
+  // rate-limit branch: no wait lifts it, and the remedy is another model or
+  // a plan change, not a retry.
+  if (
+    code === '1311' ||
+    /subscription plan does not (yet )?include|not included in your (plan|package|subscription)|plan does not (yet )?include access/i.test(
+      message,
+    )
+  ) {
+    return 'model_not_entitled';
+  }
+
   // Out of funds — account-level, every model on the provider fails the same.
+  // Z.ai's spent balance is also an HTTP 429 (code 1113), hence the message
+  // patterns and the code alongside the 402 every other provider answers.
   if (
     status === 402 ||
-    /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*(limit|reached)|\b402\b/i.test(
+    code === '1113' ||
+    /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*(limit|reached)|insufficient balance|no resource package|please recharge|\b402\b/i.test(
       message,
     )
   ) {

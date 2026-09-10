@@ -2,13 +2,45 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { listComposerModels } from '../domains/chat/composer.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import type { RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../domains/chat/composer.ts', () => ({
+  listComposerModels: vi.fn(),
+}));
+
+/** What `GET /models` advertises in these tests: one direct pair, plus a
+ * subscription model the REST door hides because it only runs in a sandbox. */
+function catalog() {
+  vi.mocked(listComposerModels).mockResolvedValue({
+    models: [
+      {
+        id: 'model-a',
+        label: 'Model A',
+        providerSlug: 'provider-a',
+        providerLabel: 'Provider A',
+        credential: { authMethod: 'api-key' },
+      },
+      {
+        id: 'sandbox-model',
+        label: 'Sandbox model',
+        providerSlug: 'subscription',
+        providerLabel: 'Subscription',
+        credential: {
+          authMethod: 'subscription-key',
+          constraints: { execution: 'sandbox', harness: 'claude-code' },
+        },
+      },
+    ],
+    harnesses: [],
+    voice: { ttsAvailable: false, transcriptionAvailable: false },
+  });
+}
 
 interface Captured {
   text: string;
@@ -97,6 +129,12 @@ describe('GET /threads/{id}/messages limit', () => {
 });
 
 describe('POST /threads/{id}/messages body', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockClear();
+    vi.mocked(listComposerModels).mockReset();
+    catalog();
+  });
+
   it('forwards the chosen model provider to the background turn', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
@@ -136,6 +174,78 @@ describe('POST /threads/{id}/messages body', () => {
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
     ).toBe(false);
+  });
+});
+
+/**
+ * An explicit `providerSlug` is a choice. The turn's own resolution treats
+ * an unmatched provider as a hint and falls back to whichever connector
+ * serves the model id — so a machine caller that sent a typo got a reply
+ * from a provider it never named, with nothing in the 202 saying so. The
+ * door now holds the pair to what `GET /models` advertises.
+ */
+describe('POST /threads/{id}/messages provider choice', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockClear();
+    vi.mocked(listComposerModels).mockReset();
+    catalog();
+  });
+
+  const send = (sql: Sql, body: Record<string, unknown>) =>
+    mount(sql).request('http://localhost/threads/t-1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'Hello', ...body }),
+    });
+
+  it('refuses a provider the model list does not carry, and queues nothing', async () => {
+    const { sql } = fakeSql();
+    const res = await send(sql, {
+      model: 'model-a',
+      providerSlug: 'tale-eval-nonexistent-provider',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('Unknown provider'),
+      code: 'CHAT_PROVIDER_UNKNOWN',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses a listed provider that does not serve the chosen model', async () => {
+    const { sql } = fakeSql();
+    const res = await send(sql, {
+      model: 'model-b',
+      providerSlug: 'provider-a',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('does not serve model "model-b"'),
+      code: 'CHAT_MODEL_NOT_ON_PROVIDER',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('holds the caller to the REST projection — a sandbox-only provider is unknown here', async () => {
+    const { sql } = fakeSql();
+    const res = await send(sql, {
+      model: 'sandbox-model',
+      providerSlug: 'subscription',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'CHAT_PROVIDER_UNKNOWN' });
+  });
+
+  it('does not consult the catalog when no provider is named', async () => {
+    const { sql } = fakeSql();
+    const res = await send(sql, { model: 'model-a' });
+    expect(res.status).toBe(202);
+    expect(listComposerModels).not.toHaveBeenCalled();
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({ modelId: 'model-a' }),
+    );
   });
 });
 

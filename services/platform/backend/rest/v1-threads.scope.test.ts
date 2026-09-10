@@ -9,6 +9,26 @@ import type { RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+// A send names its provider, and the door holds the pair to what
+// `GET /models` lists — scope is what is under test here, so the catalog
+// simply carries the pair every send below uses.
+vi.mock('../domains/chat/composer.ts', () => ({
+  listComposerModels: vi.fn(() =>
+    Promise.resolve({
+      models: [
+        {
+          id: 'model-a',
+          label: 'Model A',
+          providerSlug: 'provider-a',
+          providerLabel: 'Provider A',
+          credential: { authMethod: 'api-key' },
+        },
+      ],
+      harnesses: [],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    }),
+  ),
+}));
 
 interface Query {
   text: string;

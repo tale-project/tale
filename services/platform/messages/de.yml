@@ -1397,6 +1397,8 @@ chat:
     zu senken.
   errorHintProviderError: Der KI-Anbieter hat vorübergehend technische Probleme. Versuch es gleich nochmal.
   errorHintRateLimited: Zu viele Anfragen. Warte einen Moment und versuch es erneut.
+  errorHintModelNotEntitled: Der Tarif des Anbieters enthält dieses Modell nicht.
+    Wähl ein anderes Modell oder lass deinen Administrator den Tarif erweitern.
   errorHintTokenLimit: Das Token-Limit des Modells wurde überschritten. Versuche
     eine kürzere Anfrage oder bitte deinen Administrator, die
     Modelleinstellungen anzupassen.
@@ -1421,6 +1423,8 @@ chat:
   errorHintModelNotFoundNamed: Das ausgewählte Modell wurde bei {provider} nicht
     gefunden. Es wurde möglicherweise umbenannt oder entfernt.
   errorHintRateLimitedNamed: Ratenlimit bei {provider} erreicht. Warte einen Moment und versuch es erneut.
+  errorHintModelNotEntitledNamed: Der Tarif bei {provider} enthält dieses Modell
+    nicht. Wähl ein anderes Modell oder lass deinen Administrator den Tarif erweitern.
 
   errorGenerating: Antwort konnte nicht erzeugt werden. Versuch es erneut.
   errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'

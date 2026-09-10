@@ -174,7 +174,7 @@ Le projet dans l’URL fournit le contexte aux outils de tâches et de documents
 
 Le chat de projet suit aussi la séquence 202, puis suivi. Choisis un projet que tu peux lire, crée un thread, envoie un message, interroge la génération, puis lis les messages :
 
-Liste les modèles avant d’envoyer un message. Reprends `id` dans `model` et `providerSlug` pour choisir le fournisseur. La liste respecte les règles d’accès aux modèles de l’organisation et ne contient que ceux que REST peut appeler directement. Une liste vide signifie qu’aucun modèle de chat n’est disponible pour le détenteur de la clé.
+Liste les modèles avant d’envoyer un message. Reprends `id` dans `model` et `providerSlug` pour choisir le fournisseur. La liste respecte les règles d’accès aux modèles de l’organisation et ne contient que ceux que REST peut appeler directement. Une liste vide signifie qu’aucun modèle de chat n’est disponible pour le détenteur de la clé. Le couple est vérifié à l’envoi : un `providerSlug` absent de la liste donne **400**, `CHAT_PROVIDER_UNKNOWN`, et un fournisseur qui ne sert pas le `model` choisi donne **400**, `CHAT_MODEL_NOT_ON_PROVIDER` — le tour ne bascule jamais en silence vers un autre fournisseur.
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/models" \
@@ -210,7 +210,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 Pour un chat personnel sans projet, utilise `/api/v1/threads` et ses chemins de détail, de messages et de génération. Ces URL ne donnent pas accès aux threads de projet. Un mauvais projet dans l’URL donne **404**. Les deux types de chat utilisent l’assistant intégré ; `projectId`, `agentSlug` ou `agentId` dans un corps de création ou de message donne **400**. Les lecteurs du projet, y compris les Membres, peuvent créer et envoyer. Un projet archivé refuse ces écritures avec **403** ; un thread archivé refuse un message avec **409**.
 
-Un échec du modèle peut apparaître dans un message d’assistant avec un texte lisible dans `error` et, si disponible, un `errorCode`. Avant d’ouvrir le tour, le worker revérifie le thread accepté et l’accès au projet. Si le thread change de projet ou que l’accès disparaît pendant l’attente, il n’exécute pas le tour et n’ajoute pas d’erreur dans le nouveau contexte.
+Un échec du modèle peut apparaître dans un message d’assistant avec un texte lisible dans `error` et, si disponible, un `errorCode`. La liste des modèles est le catalogue configuré de l’organisation, pas une promesse du compte fournisseur : deux codes désignent donc le compte plutôt que la requête, `credit_exhausted` (solde épuisé) et `model_not_entitled` (le forfait du fournisseur n’inclut pas ce modèle). Choisis un autre modèle ou remets le compte en ordre — attendre ne change rien, et aucun des deux n’est un `rate_limited`. Avant d’ouvrir le tour, le worker revérifie le thread accepté et l’accès au projet. Si le thread change de projet ou que l’accès disparaît pendant l’attente, il n’exécute pas le tour et n’ajoute pas d’erreur dans le nouveau contexte.
 
 ## Rechercher dans les fichiers d’un projet
 
