@@ -1,6 +1,7 @@
 # Tale CLI
 
-A self-contained CLI tool for managing Tale deployments and services.
+A self-contained CLI for managing Tale instances and releasing client-owned
+automation configurations.
 
 ## Features
 
@@ -53,11 +54,55 @@ tale deploy --services platform
 tale deploy --dry-run
 ```
 
-The deployed version always matches the running CLI's version. The CLI keeps
-itself aligned to the instance automatically — every command checks the
-workspace's recorded version and self-updates the binary to match. To move to a
+For workspace deployment, the deployed version matches the running CLI's version. The CLI keeps
+itself aligned to the instance automatically — instance-management commands check
+the workspace's recorded version and attempt to update the binary to match. To move to a
 new version, run `tale update` (updates the CLI + syncs project files), then
 `tale deploy` to roll the containers.
+
+### Managed Deployment Bundles
+
+For exact source deployments, the same CLI prepares and applies a reviewed
+bundle. Client repositories own `tale/` packs and their business tests. Deployment
+automation owns destination choices, full source commits and credential
+references; Tale owns checkout, image verification, state adoption, snapshots,
+rollout, native identity/configuration provisioning and receipts.
+
+```bash
+tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json
+tale deploy verify-bundle --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --json
+tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --dry-run --json
+tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --yes --json
+```
+
+Prepare on Linux with a compiled CLI from a clean committed checkout, matching
+the destination's architecture. Preparation verifies source and image provenance
+through Git and Docker. Transfer the complete bundle and apply it on the
+destination with its local Docker daemon and retained state directory. Optional
+`--deployment-ref` records orchestration provenance. The Linux composite action
+`.github/actions/setup-cli` accepts the full Tale `revision`, builds with Bun
+1.4.2, exposes `executable` and adds it to `PATH`; pin both the action reference
+and its revision input. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
+contains the specification and environment-reference example.
+
+Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.
+
+The backend-local `deploy provision [--bundle <directory>]` phase reads bounded
+private JSON on stdin, proves the selected local account/organization, deploys
+the exact staged configurations and signs out. It returns only safe metadata.
+It refuses workspace flags and `--dry-run`; use read-only verification first.
+Exact `--cli-ref` and `--deployment-ref` expectations require `--bundle` and
+are checked before native login.
+Existing native client callbacks can converge without ID or secret rotation. On
+maintained 0.5 backends this uses a lazy adapter loading only the fixed native
+auth/SQL modules inside that backend when a change is required; both connections
+close afterward. It does not expose a remote update endpoint or accept module
+paths from input. Exact no-ops require no backend module loading.
+
+Bundle deployment preserves supported existing state and verifies health; it
+does not inherit the workspace path's blue-green guarantees. The ready receipt
+is written only after native readback and session cleanup. Keep snapshots,
+stages and receipts for recovery, and coordinate all deployers sharing a target.
 
 ### Management Commands
 
@@ -94,7 +139,7 @@ tale reset --force --all
 
 ### `tale deploy`
 
-Deploy the current CLI version with the blue-green strategy. The deployed
+Without `--bundle`, deploy the current CLI version with the blue-green strategy. The deployed
 platform version always matches the running CLI. To move to a different version,
 use `tale update` first (updates the CLI + syncs project files), then `tale
 deploy` to roll the containers.
@@ -123,8 +168,8 @@ newest 0.3.x). Line upgrades (e.g. 0.3.x → 0.4.0) can be breaking, so they
 never happen implicitly: when a newer line exists the command says so and
 stays put; move lines deliberately with `--version`.
 
-The CLI also self-aligns to the instance version on every command, so you rarely
-run `tale update` except to deliberately move versions.
+Workspace instance commands also align to the workspace version. Configuration
+and managed bundle commands use their independently pinned CLI revision and explicit inputs.
 
 | Option                | Description                                                                                    |
 | --------------------- | ---------------------------------------------------------------------------------------------- |
@@ -190,6 +235,51 @@ Remove ALL blue-green containers.
 | `-a, --all`   | Also remove stateful services (db, proxy, convex, sandbox tier) |
 | `--dry-run`   | Preview reset without making changes                            |
 
+### `tale config`
+
+`tale config show` retains its local-project behavior: print the resolved project
+directory and CLI version, or report no project with exit code 0. The release
+commands use explicit inputs and do not align to a local `tale.json`, invoke
+Docker or require a Tale source checkout beside the installed binary.
+
+```bash
+tale config --help
+tale config build --help
+tale config verify --help
+tale config stage --help
+tale config deploy --help
+tale config verify-native --help
+```
+
+Keep the client's descriptor, packs, retained release catalogue and domain tests in its
+own repository under `tale/`. The CLI owns the generic compiler, native validators
+and importer. Deployment automation selects the exact client source commit,
+runtime commit, Tale CLI revision and destination, then calls these commands.
+No client business rules or private fixtures belong in the shared tool.
+
+Ignore `.tale/` in the client repository: it holds the CLI's local coordination
+database. Maintained configuration uses `tale/` without the dot.
+
+`build --source-commit` defaults to manifest schema 4/compiler 3, with the full
+source SHA as `releaseRef`. Owned skill slugs carry the complete SHA and logical
+identity metadata. `verify --rebuild` requires identical archives; `stage
+--config-ref` builds the exact source checkout into an external directory with a
+hashed transfer inventory, without a generated catalogue commit. Explicit
+`--config-version` retains the semantic catalogue compatibility path. `deploy`
+requires a persistent receipt and confirmation (`--yes` for
+an approved unattended run); `verify-native` reads current native content without
+uploading, deploying or writing a receipt. Both native commands take
+`TALE_CONFIG_COOKIE` from the environment only.
+
+The [configuration release journey](../../docs/en/self-hosted/configuration/config-releases.md)
+covers the descriptor, complete commands and recovery boundaries. The
+[CLI reference](../../docs/en/self-hosted/install/cli-install.md#configuration-releases)
+lists required options, optional stage-identity checks and retained-version
+verification. The parser and validator bundled with a CLI support their own
+native format; they do not make newer server capabilities available on an older
+target. Serialize managed deployments externally and retain the exact pins and
+receipts; the local lock is not a cross-host compare-and-swap guarantee.
+
 ### `tale daemon`
 
 Run Tale board tasks on this machine with the coding-agent CLIs you already use
@@ -220,19 +310,21 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 
 ## Environment Variables
 
-| Variable               | Description                                             | Default                     |
-| ---------------------- | ------------------------------------------------------- | --------------------------- |
-| `GHCR_REGISTRY`        | Container registry                                      | `ghcr.io/tale-project/tale` |
-| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)                          | `300`                       |
-| `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)                      | `30`                        |
-| `TALE_PLATFORM_REPLICAS`       | Replicas of the web tier in a colour (1-16)     | `1`                         |
-| `TALE_BACKEND_API_REPLICAS`    | Replicas of the api in a colour (1-16)          | `1`                         |
-| `TALE_BACKEND_WORKER_REPLICAS` | Replicas of the job runner in a colour (1-16)   | `1`                         |
-| `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age                        | `5`                         |
-| `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count             | `14`                        |
-| `HOST`                 | Host alias for proxy                                    | `localhost`                 |
-| `TALE_DAEMON_API_KEY`  | `tale daemon` API key (keeps it out of the config file) | _(unset)_                   |
-| `TALE_DAEMON_HOME`     | Override the `tale daemon` config directory             | `~/.tale-daemon`            |
+| Variable                       | Description                                                                                                                                              | Default                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `GHCR_REGISTRY`                | Container registry                                                                                                                                       | `ghcr.io/tale-project/tale` |
+| `HEALTH_CHECK_TIMEOUT`         | Health check timeout (seconds)                                                                                                                           | `300`                       |
+| `DRAIN_TIMEOUT`                | Connection drain timeout (seconds)                                                                                                                       | `30`                        |
+| `TALE_PLATFORM_REPLICAS`       | Replicas of the web tier in a colour (1-16)                                                                                                              | `1`                         |
+| `TALE_BACKEND_API_REPLICAS`    | Replicas of the api in a colour (1-16)                                                                                                                   | `1`                         |
+| `TALE_BACKEND_WORKER_REPLICAS` | Replicas of the job runner in a colour (1-16)                                                                                                            | `1`                         |
+| `BACKUP_KEEP_COUNT`            | Snapshots kept regardless of age                                                                                                                         | `5`                         |
+| `BACKUP_KEEP_DAYS`             | Days a snapshot is kept regardless of count                                                                                                              | `14`                        |
+| `HOST`                         | Host alias for proxy                                                                                                                                     | `localhost`                 |
+| `TALE_DAEMON_API_KEY`          | `tale daemon` API key (keeps it out of the config file)                                                                                                  | _(unset)_                   |
+| `TALE_DAEMON_HOME`             | Override the `tale daemon` config directory                                                                                                              | `~/.tale-daemon`            |
+| `TALE_CONFIG_COOKIE`           | Native operator session cookie for `config deploy` and `config verify-native`; inject through a secret manager, never CLI arguments or release artifacts | _(unset)_                   |
+| `TALE_SOURCE_SSH_KEY`          | Read-only private-client SSH key contents for `deploy prepare` only; never included in bundles or runtime environments                                   | _(unset)_                   |
 
 ## Architecture
 

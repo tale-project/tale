@@ -3,7 +3,7 @@ title: Upgrades
 description: Wie `tale update` eine Tale-Instanz vorwärtsbewegt — die automatische CLI-/Instanz-Versions-Angleichung, das Rolling-Restart-Pattern, was vor einem Upgrade zu tun ist und die Versions-Kompatibilitäts-Story.
 ---
 
-Upgrades auf einer self-hosted Tale-Instanz laufen durch zwei Kommandos: `tale update` bewegt das CLI-Binary auf die neue Version und synct deine Projektdateien passend dazu, dann rollt `tale deploy` die Plattform-Container. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; macht ein Patch-Release Ärger, bringt `tale rollback` den vorherigen Patch in einem Kommando zurück, und alles Größere recovert aus dem Pre-Upgrade-Snapshot.
+Workspace-Upgrades auf einer selbst gehosteten Tale-Instanz laufen durch zwei Kommandos: `tale update` bewegt das CLI-Binary auf die neue Version und synct deine Projektdateien passend dazu, dann rollt `tale deploy` die Plattform-Container. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; macht ein Patch-Release Ärger, bringt `tale rollback` den vorherigen Patch in einem Kommando zurück, und alles Größere recovert aus dem Pre-Upgrade-Snapshot.
 
 **Eine harte Ausnahme:** Auf 0.5 führt von keiner früheren Linie ein Upgrade-Pfad. 0.5 ist ein Breaking Cutover, der ein frisches Deployment verlangt — lies zuerst [0.4 → 0.5: Breaking Cutover](#04--05-breaking-cutover), wenn deine Instanz auf 0.4.x oder älter läuft (0.4 war selbst der vorige Cutover dieser Art und hat 0.3.x abgetrennt).
 
@@ -13,9 +13,9 @@ Die CLI-Installation lebt in [Tale-CLI installieren](/de/self-hosted/install/cli
 
 ## Das CLI verfolgt die Instanz automatisch
 
-Das CLI-Binary hat immer dieselbe Version wie die Instanz, die es verwaltet. Der Workspace zeichnet diese Version in `tale.json` auf; bei jedem Kommando vergleicht das CLI seine eigene Version dagegen und aktualisiert sich selbst — auf- oder abwärts —, falls sie sich unterscheiden, bevor es läuft. Stimmen sie schon überein — der ganz überwiegend häufige Fall —, ist das ein No-op ohne Netzwerk-Aufruf, sodass du nie etwas davon merkst.
+Workspace-Befehle zur Instanzverwaltung gleichen die CLI an die Version in der `tale.json` des Workspace an. Unterscheiden sich die Versionen, versucht die CLI vor der Ausführung, sich auf diese Version zu aktualisieren. Stimmen sie überein, liest sie nur lokal und braucht keinen Netzwerkaufruf. Scheitert der Download, warnt die CLI und läuft mit ihrer aktuellen Version weiter; prüfe diese Warnung vor dem Deployment.
 
-Das heißt, du läufst `tale update` selten, außer wenn du bewusst auf eine neue Version willst. Ein Teamkollege, der ein neueres CLI als deine Instanz installiert hat, oder einen älteren Snapshot wiederhergestellt hat, bekommt beim nächsten Kommando automatisch die richtige CLI-Version. Es gibt kein Flag, das abzuschalten — Tool und Instanz im Gleichschritt zu halten ist das, was Deploys sicher macht.
+Mit `tale update` wählst du eine andere Workspace-Instanzversion. Ändere bei einem verwalteten Deployment die Quellreferenzen für Runtime und Konfiguration, bereite ein neues Bundle vor, prüfe es und wende es mit der festgelegten CLI an. [Verwaltete Deployments](/de/self-hosted/install/cli-install#verwaltete-deployments) beschreibt diesen vollständigen Ablauf samt Wiederherstellung des erhaltenen Zustands. Reine Konfigurationsbefehle wählen Quelle und natives Ziel explizit und rollen keine Container; siehe [Client-Konfigurationen veröffentlichen](/de/self-hosted/configuration/config-releases).
 
 ## Bevor du upgradest
 

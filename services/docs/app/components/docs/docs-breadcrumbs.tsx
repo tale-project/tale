@@ -30,6 +30,7 @@ export function DocsBreadcrumbs({ locale, crumbs }: DocsBreadcrumbsProps) {
           <Link
             // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
             to={docPath(locale, 'index') as any}
+            activeOptions={{ exact: true }}
             className="hover:text-fg-base inline-flex items-center transition-colors"
           >
             <Home aria-hidden className="size-3" />
@@ -48,6 +49,7 @@ export function DocsBreadcrumbs({ locale, crumbs }: DocsBreadcrumbsProps) {
                 <Link
                   // oxlint-disable-next-line typescript/no-explicit-any
                   to={docPath(locale, crumb.slug) as any}
+                  activeOptions={{ exact: true }}
                   className="hover:text-fg-base transition-colors"
                 >
                   {crumb.label}

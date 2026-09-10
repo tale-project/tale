@@ -17,8 +17,16 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here).
 - `configs/platform/` — the builtin, org-independent config catalog (`system/` read-only,
-  `custom/` seeded per org). This is NOT per-customer content; that lives in the separate
-  `tale-project/configs` repository.
+  `custom/` seeded per org). Each client's private repository owns its `tale/` descriptor,
+  packs, release catalogue and domain tests. Client content does not belong in this catalog.
+- **Managed deployments** — the existing `@tale/cli` owns source acquisition, runtime/image
+  verification, bundle preparation, rollout, native identity provisioning, configuration
+  releases and deployment receipts. Ops selects destinations, full source commits and
+  credential references, then calls the CLI; do not duplicate Tale deployment internals there.
+  New client configuration releases use their full source commit as identity and need no
+  generated catalogue commit. Retained historical releases remain byte-preserved. Keep client
+  names, fixtures, business rules and deployment targets out of the shared implementation;
+  its tests use independent synthetic clients.
 - `design/` — the design system contract (`docs/` + `sources/`). **UI in scope? Learn
   [`design/`](../design/) and `@tale/ui` first, then build to it.**
 

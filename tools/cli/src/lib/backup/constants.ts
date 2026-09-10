@@ -32,6 +32,9 @@ export const BLOB_VOLUME = 'object-store-data';
  */
 export const SNAPSHOT_VOLUMES = [
   'db-data',
+  // The source-Compose layout keeps its knowledge corpus in a separate
+  // Postgres volume. Capturing only the application DB cannot restore it.
+  'knowledge-db-data',
   CONFIG_VOLUME,
   BLOB_VOLUME,
   'caddy-data',

@@ -1,25 +1,18 @@
 import { unlink } from 'node:fs/promises';
 
-import * as logger from '../../utils/logger';
 import { getLockFilePath } from './get-lock-file-path';
-import { getLockInfo } from './get-lock-info';
+import { ownsGuard, releaseGuard, validateLockPaths } from './lock-guard';
 
 export async function releaseLock(deployDir: string): Promise<void> {
-  const lockPath = getLockFilePath(deployDir);
-
+  if (!(await ownsGuard(deployDir))) return;
   try {
-    const lockInfo = await getLockInfo(deployDir);
-
-    if (lockInfo && lockInfo.pid !== process.pid) {
-      return;
-    }
-
-    // Remove lock if it's ours or if it's corrupt (lockInfo is null but file exists)
-    await unlink(lockPath);
-    logger.debug('Released deployment lock');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn(`Failed to release lock: ${err}`);
-    }
+    await validateLockPaths(deployDir);
+    // Remove diagnostic metadata while still holding the kernel lock. Never
+    // remove the SQLite file: a new inode would create a second lock.
+    await unlink(getLockFilePath(deployDir));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  } finally {
+    await releaseGuard(deployDir);
   }
 }

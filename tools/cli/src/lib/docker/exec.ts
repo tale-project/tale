@@ -15,6 +15,8 @@ export async function exec(
     cwd?: string;
     silent?: boolean;
     timeout?: number;
+    /** Replace the inherited environment for managed deployment commands. */
+    env?: Record<string, string | undefined>;
     /**
      * Pipe this string into the child's stdin and close. Required for the
      * `docker exec -i <container> bash -s` pattern used by reseed/migrate.
@@ -22,7 +24,7 @@ export async function exec(
     stdin?: string;
   } = {},
 ): Promise<ExecResult> {
-  const { cwd, silent = false, timeout, stdin } = options;
+  const { cwd, silent = false, timeout, stdin, env } = options;
 
   if (!silent) {
     logger.debug(`Executing: ${command} ${args.join(' ')}`);
@@ -32,11 +34,13 @@ export async function exec(
     stdin === undefined
       ? Bun.spawn([command, ...args], {
           cwd,
+          ...(env === undefined ? {} : { env }),
           stdout: 'pipe',
           stderr: 'pipe',
         })
       : Bun.spawn([command, ...args], {
           cwd,
+          ...(env === undefined ? {} : { env }),
           stdin: 'pipe',
           stdout: 'pipe',
           stderr: 'pipe',

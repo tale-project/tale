@@ -68,7 +68,18 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   const mode = resolveOutputMode(program.opts<GlobalFlags>());
   configureOutput(mode);
   setActiveOutputMode(mode);
-  await ensureAligned(actionCommand.name());
+  // Explicit artifact operations use this binary's commit. A nearby tale.json
+  // must not replace it with an older CLI lacking the bundle commands. Ordinary
+  // workspace deployment retains its existing version-alignment policy.
+  const parentName = actionCommand.parent?.name();
+  const commandName =
+    parentName === 'config' || parentName === 'deploy'
+      ? `${parentName} ${actionCommand.name()}`
+      : actionCommand.name() === 'deploy' &&
+          actionCommand.opts().bundle !== undefined
+        ? 'deploy bundle'
+        : actionCommand.name();
+  await ensureAligned(commandName);
 });
 
 // Group headings keep the command list scannable. Commander renders each

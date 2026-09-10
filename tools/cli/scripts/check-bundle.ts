@@ -25,6 +25,11 @@ import { resolve } from 'node:path';
 // bundling, so a broken channel would still pass (false negative).
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
   [
+    'MOCK_SCRIPT_RUN[',
+    'embedded native sandbox connector mock (configuration admission catalogue)',
+  ],
+  ['BEGIN EXCLUSIVE', 'SQLite local deployment lock transaction'],
+  [
     'Bearer $TALE_CONTROL_TOKEN',
     'control-call.ts (the token is expanded inside the container)',
   ],

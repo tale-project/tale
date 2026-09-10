@@ -2,11 +2,23 @@ import { Command } from 'commander';
 
 import { runDeploy } from '../../lib/actions/run-deploy';
 import { ALL_SERVICES, STOP_GATED_SERVICES } from '../../lib/compose/types';
+import { usageError } from '../../utils/fail';
 import { action } from '../../utils/run-command';
+import {
+  createPrepareCommand,
+  createVerifyBundleCommand,
+  runManagedDeployment,
+} from './managed';
+import { createProvisionCommand } from './provision';
 
 export function createDeployCommand(): Command {
   return new Command('deploy')
-    .description('Deploy the current CLI version to the environment')
+    .description(
+      'Deploy the current CLI version or a verified deployment bundle',
+    )
+    .option('--bundle <directory>', 'Apply a prepared Tale deployment bundle')
+    .option('--cli-ref <sha>', 'Expected bundle CLI source commit')
+    .option('--deployment-ref <sha>', 'Expected bundle orchestrator commit')
     .option(
       '--stop',
       `Also update the stop-gated tier (${STOP_GATED_SERVICES.join(', ')}) — recreates them, so accepts a brief downtime. Without it, running ${STOP_GATED_SERVICES.join('/')} are left untouched.`,
@@ -48,8 +60,37 @@ export function createDeployCommand(): Command {
         'unreadable. Normally you want a fresh deployment instead.',
       false,
     )
+    .addCommand(createPrepareCommand())
+    .addCommand(createVerifyBundleCommand())
+    .addCommand(createProvisionCommand())
     .action(
       action(async (options) => {
+        if (options.bundle !== undefined) {
+          if (!options.bundle)
+            throw usageError('--bundle must name a directory.');
+          if (
+            options.stop ||
+            options.services ||
+            options.host ||
+            options.override ||
+            options.overrideAll ||
+            options.skipBackup ||
+            options.acceptDataLoss
+          )
+            throw usageError(
+              'Bundle deployments cannot use workspace deployment flags. Review the bundle specification instead.',
+            );
+          await runManagedDeployment({
+            bundle: options.bundle,
+            cliRef: options.cliRef,
+            deploymentRef: options.deploymentRef,
+            dryRun: options.dryRun,
+            yes: options.yes,
+          });
+          return;
+        }
+        if (options.cliRef !== undefined || options.deploymentRef !== undefined)
+          throw usageError('--cli-ref and --deployment-ref require --bundle.');
         await runDeploy({
           stop: options.stop,
           services: options.services,

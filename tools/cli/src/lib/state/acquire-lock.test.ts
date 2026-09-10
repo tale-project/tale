@@ -1,17 +1,11 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-mock.module('../../utils/logger', () => ({
-  debug: mock(),
-  info: mock(),
-  warn: mock(),
-  error: mock(),
-}));
-
-const { acquireLock } = await import('./acquire-lock');
-const { getLockFilePath } = await import('./get-lock-file-path');
+import { acquireLock } from './acquire-lock';
+import { getLockFilePath } from './get-lock-file-path';
+import { releaseLock } from './release-lock';
 
 /** A pid no process holds: far above any real pid_max default. */
 const DEAD_PID = 2_000_000_000;
@@ -23,6 +17,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await releaseLock(deployDir);
   await rm(deployDir, { recursive: true, force: true });
 });
 
@@ -70,10 +65,8 @@ describe('acquireLock', () => {
   });
 
   test('two callers racing over one stale lock: exactly one wins', async () => {
-    // Both see the same stale lock. With unlink-then-create, the second
-    // caller's unlink removed the FIRST caller's fresh lock and both
-    // proceeded — two concurrent deploys on the same volumes. The atomic
-    // rename hand-over lets only one through.
+    // Diagnostic metadata cannot admit a second operation: one SQLite kernel
+    // lock owns the full deployment even while stale metadata is replaced.
     await seedStaleLock();
 
     const results = await Promise.all([

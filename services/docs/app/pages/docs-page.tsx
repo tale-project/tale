@@ -19,7 +19,7 @@ import { DocsVideo } from '@/app/components/docs/docs-video';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
 import { PageActions } from '@/app/features/page-actions/page-actions';
 import { getDocPage } from '@/lib/content/loader';
-import { flattenNav } from '@/lib/content/nav';
+import { flattenNav, navGroupTrail } from '@/lib/content/nav';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import { BASE_LOCALES, type SupportedLocale } from '@/lib/i18n/locales';
@@ -46,9 +46,11 @@ function humaniseSegment(part: string): string {
 function buildBreadcrumbs(
   locale: SupportedLocale,
   slug: string,
+  translateGroup: (key: string) => string,
 ): { label: string; slug?: string }[] {
   if (slug === 'index') return [];
   const parts = slug.split('/').filter((p) => p !== 'index');
+  const groups = navGroupTrail(slug);
   return parts.map((part, i) => {
     const fullSlug = parts.slice(0, i + 1).join('/');
     const isLast = i === parts.length - 1;
@@ -64,7 +66,9 @@ function buildBreadcrumbs(
     // on disk (e.g. `platform/index.md`); otherwise render as plain text.
     const sectionDoc = getDocPage(locale, fullSlug);
     return {
-      label: sectionDoc?.frontmatter.title ?? humaniseSegment(part),
+      label:
+        sectionDoc?.frontmatter.title ??
+        (groups[i] ? translateGroup(groups[i]) : humaniseSegment(part)),
       slug: sectionDoc ? fullSlug : undefined,
     };
   });
@@ -136,10 +140,12 @@ function buildAlternates(
 export function DocsPage({ locale, slug }: DocsPageProps) {
   const { t } = useT('docs');
   const { t: tSeo } = useT('seo');
+  const { t: tNav } = useT('nav');
   const doc = getDocPage(locale, slug);
   const breadcrumbs = useMemo(
-    () => buildBreadcrumbs(locale, slug),
-    [locale, slug],
+    () =>
+      buildBreadcrumbs(locale, slug, (key) => tNav(key.slice('nav.'.length))),
+    [locale, slug, tNav],
   );
   const { prev, next } = useMemo(() => findPrevNext(slug), [slug]);
   const tocEntries = useMemo(() => (doc ? extractToc(doc.body) : []), [doc]);
@@ -228,7 +234,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   return (
     <div className="flex gap-10">
       <div className="min-w-0 flex-1">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
           <div className="min-w-0 flex-1">
             <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
           </div>

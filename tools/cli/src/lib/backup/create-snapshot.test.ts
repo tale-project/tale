@@ -102,6 +102,25 @@ afterEach(() => {
 });
 
 describe('createSnapshot', () => {
+  test('captures the separate knowledge database and makes its archive restorable', async () => {
+    seedLocalStack([]);
+    volumeExistsMock.mockImplementation((name: string) =>
+      Promise.resolve(name === 'p_knowledge-db-data'),
+    );
+    const manifest = await createSnapshot({
+      prefix: 'p_',
+      trigger: 'deploy',
+      platformVersion: '0.5.16',
+    });
+    expect(manifest?.volumes['knowledge-db-data']).toEqual({
+      sha256: SHA,
+      sizeBytes: 4096,
+    });
+    expect(tarredVolumes()).toEqual(['knowledge-db-data']);
+    const { RESTORABLE_ARCHIVES } = await import('./constants');
+    expect(RESTORABLE_ARCHIVES).toContain('knowledge-db-data');
+  });
+
   test('pauses volume users, tars, unpauses, and writes the manifest last', async () => {
     // Only db-data exists under the prefix.
     volumeExistsMock.mockImplementation((name: string) =>
@@ -275,6 +294,7 @@ describe('createSnapshot', () => {
         'caddy-data',
         'config-data',
         'db-data',
+        'knowledge-db-data',
         'object-store-data',
       ]);
       expect(manifest?.volumes['object-store-data']).toEqual({
@@ -311,7 +331,7 @@ describe('createSnapshot', () => {
 
       expect(manifest?.volumes['object-store-data']).toBeUndefined();
       expect(tarredVolumes()).not.toContain('object-store-data');
-      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(4);
+      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(5);
       const notices = loggerNoticeMock.mock.calls.map((call) =>
         String(call[0]),
       );

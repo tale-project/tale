@@ -1,0 +1,69 @@
+name: Set up Tale CLI from a commit
+description: Build and install the existing Tale CLI from one exact source commit for Linux deployment jobs.
+
+inputs:
+  revision:
+    description: Full forty-character Tale source commit; branches and mutable tags are refused.
+    required: true
+
+outputs:
+  executable:
+    description: Absolute path to the compiled Tale executable, also added to PATH.
+    value: ${{ steps.build.outputs.executable }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate the source pin and runner
+      shell: bash
+      env:
+        TALE_CLI_REVISION: ${{ inputs.revision }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$TALE_CLI_REVISION" =~ ^[a-f0-9]{40}$ ]]; then
+          echo '::error::Tale CLI revision must be a full source commit'; exit 1
+        fi
+        if [[ "$RUNNER_OS" != Linux ]]; then
+          echo '::error::Managed Tale deployment preparation requires a Linux runner'; exit 1
+        fi
+        case "$RUNNER_ARCH" in
+          X64|ARM64) ;;
+          *) echo '::error::Unsupported Tale CLI runner architecture'; exit 1 ;;
+        esac
+
+    - name: Set up the Tale build toolchain
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      with:
+        bun-version: '1.4.2'
+
+    - name: Read the selected Tale source
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        repository: tale-project/tale
+        ref: ${{ inputs.revision }}
+        path: .tale-cli-source
+        persist-credentials: false
+
+    - name: Build and expose the Tale CLI
+      id: build
+      shell: bash
+      working-directory: .tale-cli-source
+      env:
+        TALE_CLI_REVISION: ${{ inputs.revision }}
+      run: |
+        set -euo pipefail
+        test "$(git rev-parse HEAD)" = "$TALE_CLI_REVISION"
+        test -z "$(git status --porcelain --untracked-files=all)"
+        bun install --frozen-lockfile --filter @tale/cli
+        # Generation records the clean source commit in the executable.
+        bun run --filter @tale/cli generate
+        case "$RUNNER_ARCH" in
+          X64) bun run --filter @tale/cli build:linux ;;
+          ARM64) bun run --filter @tale/cli build:linux-arm64 ;;
+        esac
+        bun run --filter @tale/cli check:bundle
+        test -z "$(git status --porcelain --untracked-files=all)"
+        CLI_DIRECTORY="$(pwd)/tools/cli/dist"
+        "$CLI_DIRECTORY/tale" deploy prepare --help >/dev/null
+        printf '%s\n' "$CLI_DIRECTORY" >> "$GITHUB_PATH"
+        printf 'executable=%s/tale\n' "$CLI_DIRECTORY" >> "$GITHUB_OUTPUT"

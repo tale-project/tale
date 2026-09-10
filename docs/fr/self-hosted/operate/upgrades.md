@@ -3,7 +3,7 @@ title: Montées de version
 description: Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
 ---
 
-Les montées de version sur une instance Tale auto-hébergée passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
+Les montées de version d’un workspace Tale auto-hébergé passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l’ancienne, les healthchecks passent, le trafic bascule, l’ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
 
 **Une exception dure :** il n'existe aucun chemin de montée de version vers la 0.5 depuis une ligne antérieure. La 0.5 est une rupture qui exige un déploiement neuf — lis [0.4 → 0.5 : rupture de version](#04--05--rupture-de-version) avant toute chose si ton instance est en 0.4.x ou plus ancienne (la 0.4 était la rupture précédente du même genre, qui a coupé la 0.3.x).
 
@@ -13,9 +13,9 @@ L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/instal
 
 ## La CLI suit l'instance automatiquement
 
-Le binaire CLI est toujours à la même version que l'instance qu'il gère. Le workspace enregistre cette version dans `tale.json` ; à chaque commande, la CLI compare sa propre version à celle-là et, si elles diffèrent, se met à jour pour correspondre (en montant ou en descendant) avant de tourner. Quand elles correspondent déjà — le cas largement le plus fréquent — c'est un no-op sans appel réseau, donc tu ne le remarques jamais.
+Les commandes du workspace alignent la CLI sur la version enregistrée dans le fichier `tale.json` du workspace. Si les versions diffèrent, la CLI tente de se mettre à jour avant l’exécution. Si elles correspondent, elle ne lit que des données locales, sans appel réseau. Si le téléchargement échoue, la CLI affiche un avertissement et continue avec sa version actuelle ; vérifie cet avertissement avant le déploiement.
 
-Cela veut dire que tu lances rarement `tale update`, sauf quand tu veux délibérément bouger vers une nouvelle version. Un coéquipier qui a installé une CLI plus récente que ton instance, ou restauré un snapshot plus ancien, obtient la bonne version de CLI automatiquement à sa prochaine commande. Il n'y a aucun flag pour désactiver ça — garder l'outil et l'instance au pas l'un de l'autre est ce qui rend les déploiements sûrs.
+Utilise `tale update` pour changer la version d’une instance de workspace. Pour un déploiement géré, modifie les références source du runtime et des configurations, prépare et vérifie un nouveau bundle, puis applique-le avec la CLI fixée. [Déploiements gérés](/fr/self-hosted/install/cli-install#deploiements-geres) décrit ce parcours complet et la récupération de l’état conservé. Les commandes de configuration seules choisissent explicitement source et cible native sans redémarrer de conteneurs ; voir [Publier les configurations d’un client](/fr/self-hosted/configuration/config-releases).
 
 ## Avant de monter de version
 
