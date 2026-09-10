@@ -11,13 +11,22 @@ Lies das, um einen Client zu verbinden und das Tool-Inventar zu verstehen. Die G
 
 ## Einen Client verbinden
 
-Der Endpoint spricht MCP-Protokoll `2025-03-26` als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream, eine Nachricht pro Request (ein Batch antwortet Fehler `-32600`). Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen). Gehört der Schlüsselinhaber mehreren Organisationen an, muss jede Anfrage zusätzlich sagen, welche gemeint ist — über `X-Organization-Slug`, gegen die Mitgliedschaft geprüft. Ohne diesen Wert antwortet so eine Anfrage mit **400** `ORG_SLUG_REQUIRED`, statt aus dem Dashboard zu raten; ein Schlüssel mit nur einer Organisation kann ihn weglassen.
+Der Endpoint spricht MCP-Protokoll `2025-06-18` (oder `2025-03-26`, wenn der Client es vorschlägt) als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream. Schick eine Nachricht pro Request oder einen JSON-RPC-Batch: Der kommt als Array zurück, ein Batch aus lauter Notifications mit 202. Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen). Gehört der Schlüsselinhaber mehreren Organisationen an, muss jede Anfrage zusätzlich sagen, welche gemeint ist — über `X-Organization-Slug`, gegen die Mitgliedschaft geprüft. Ohne diesen Wert antwortet so eine Anfrage mit **400** `ORG_SLUG_REQUIRED`, statt aus dem Dashboard zu raten; ein Schlüssel mit nur einer Organisation kann ihn weglassen.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
 // X-Organization-Slug: acme
-{ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": { "name": "my-client", "version": "1.0.0" }
+  }
+}
 ```
 
 Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Block reichen diese beiden Einträge:
@@ -40,7 +49,7 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
 
 ## Die Tools
 
-Zweiundzwanzig Tools, in drei Gruppen. Die Autoring-Tools nehmen ganze Automatisierungsdokumente und validieren alles selbst — ihre Schemas sind auf dem Draht offen, und `get_docs` ist die Referenz, die ein Modell zuerst liest. Die Verwaltungs- und Capability-Tools nehmen einfache Argumente und deklarieren echte JSON-Schemas.
+Zweiundzwanzig Tools, in drei Gruppen. Die vier Tools, die ein ganzes Automatisierungsdokument nehmen — validate, run, test, save — validieren es selbst: Ihre Schemas sind auf dem Draht offen, und `get_docs` ist die Referenz, die ein Modell zuerst liest. Jedes andere Tool nimmt einfache Argumente und deklariert ein echtes JSON-Schema, und der Endpoint hält jeden Aufruf daran fest — Argumente, die nicht passen, ergeben den JSON-RPC-Fehler `-32602` mit dem Feldnamen, nie ein stillschweigend leeres Ergebnis.
 
 ### Autorieren
 
@@ -92,7 +101,7 @@ Der Schlüssel beweist, wer anruft; die Rolle seines Besitzers entscheidet, was 
 - **Jeder Mitglieds-Schlüssel** — jedes Lese-Tool, `run_automation` (immer gegen die Mocks), `search_capabilities`, `get_knowledge`.
 - **Entwickler-Fähigkeit nötig** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run` und Live-Ausführung (`run_deployed`, `start_run`).
 
-Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "hint": "..."}` — damit das aufrufende Modell sich anpassen kann, statt abzustürzen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments und Rollenablehnungen kommen als Daten zurück; `isError` ist für Aufrufe reserviert, die wirklich geworfen haben.
+Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "hint": "..."}` — damit das aufrufende Modell sich anpassen kann, statt abzustürzen, und das Ergebnis trägt `isError: true`, damit ein generischer Client den Fehlschlag erkennt, ohne den Text zu lesen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments, Rollenablehnungen und eine Wissensdatenbank, die sich nicht durchsuchen ließ, kommen als Daten mit gesetztem Flag zurück — genau wie ein Aufruf, der wirklich geworfen hat. Eine Aktion, die auf die Freigabe eines Menschen wartet, ist ein Ergebnis, kein Fehlschlag: Dort bleibt `isError` false.
 
 ## Wo das hingehört
 

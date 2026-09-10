@@ -106,7 +106,7 @@ describe('initialize', () => {
       jsonrpc: '2.0',
       id: 1,
       result: {
-        protocolVersion: '2025-03-26',
+        protocolVersion: '2025-06-18',
         capabilities: { tools: { listChanged: false } },
         serverInfo: {
           name: 'tale-platform',
@@ -114,6 +114,27 @@ describe('initialize', () => {
           version: '1.0.0',
         },
       },
+    });
+  });
+
+  it('echoes a proposed revision it speaks, and answers the newest otherwise', async () => {
+    const older = await call({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-03-26', capabilities: {} },
+    });
+    expect(older.payload.result).toMatchObject({
+      protocolVersion: '2025-03-26',
+    });
+    const unknown = await call({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {} },
+    });
+    expect(unknown.payload.result).toMatchObject({
+      protocolVersion: '2025-06-18',
     });
   });
 
@@ -157,18 +178,13 @@ describe('tools/list', () => {
     'get_knowledge',
   ];
 
-  /** Everything whose params are simple enough to state on the wire. */
-  const REAL_SCHEMA_TOOLS = [
-    'start_run',
-    'list_runs',
-    'get_run',
-    'cancel_run',
-    'list_versions',
-    'list_triggers',
-    'delete_trigger',
-    'search_capabilities',
-    'invoke_capability',
-    'get_knowledge',
+  /** The four methods that take an automation document — the engine teaches
+   * their grammar in band, so their schema stays open on the wire. */
+  const OPEN_SCHEMA_TOOLS = [
+    'validate_automation',
+    'run_automation',
+    'test_automation',
+    'save_automation',
   ];
 
   it('advertises exactly the documented tools, in order', async () => {
@@ -195,7 +211,7 @@ describe('tools/list', () => {
     }
   });
 
-  it('keeps the authoring methods open and gives every simple tool a real schema', async () => {
+  it('keeps only the automation-document methods open and gives every other tool a real schema', async () => {
     const { payload } = await call({
       jsonrpc: '2.0',
       id: 3,
@@ -208,17 +224,17 @@ describe('tools/list', () => {
       }
     ).tools;
 
-    const withRealSchema = tools
-      .filter((tool) => tool.inputSchema.properties !== undefined)
+    const open = tools
+      .filter((tool) => tool.inputSchema.properties === undefined)
       .map((tool) => tool.name);
-    expect(withRealSchema).toEqual(REAL_SCHEMA_TOOLS);
+    expect(open).toEqual(OPEN_SCHEMA_TOOLS);
 
     for (const tool of tools) {
-      if (withRealSchema.includes(tool.name)) {
+      if (open.includes(tool.name)) {
+        expect(tool.inputSchema, tool.name).toEqual({ type: 'object' });
+      } else {
         // A typo must fail at the client, not be dropped silently.
         expect(tool.inputSchema.additionalProperties, tool.name).toBe(false);
-      } else {
-        expect(tool.inputSchema, tool.name).toEqual({ type: 'object' });
       }
     }
   });
@@ -283,11 +299,11 @@ describe('tools/call — the engine surface', () => {
     });
   });
 
-  it('treats a structured refusal as a normal result, not an error', async () => {
+  it('keeps a structured refusal readable and flags it isError', async () => {
     const runAction = vi.fn().mockResolvedValue({
       error: 'durable runs are not supported in this environment',
     });
-    const { payload } = await call(
+    const { status, payload } = await call(
       {
         jsonrpc: '2.0',
         id: 7,
@@ -296,8 +312,46 @@ describe('tools/call — the engine surface', () => {
       },
       runAction,
     );
-    expect(isErrorFlag(payload)).toBe(false);
+    // Still a successful JSON-RPC exchange — the refusal is the tool's
+    // answer, readable by the model, and the flag says it is a failure.
+    expect(status).toBe(200);
+    expect(isErrorFlag(payload)).toBe(true);
     expect(resultText(payload)).toContain('not supported in this environment');
+  });
+
+  it('reads a missing resource as a failure, a failed run as data', async () => {
+    const missing = await call(
+      {
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: {
+          name: 'get_automation',
+          arguments: { name: 'evaluation/never-created' },
+        },
+      },
+      vi.fn().mockResolvedValue({
+        error: 'no saved automation named "evaluation/never-created"',
+      }),
+    );
+    expect(isErrorFlag(missing.payload)).toBe(true);
+
+    // A run that failed is a run the read found: its `error` is the run's
+    // detail object, not the engine's refusal string.
+    const failedRun = await call(
+      {
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: { name: 'get_run', arguments: { runId: 'r-failed' } },
+      },
+      vi.fn().mockResolvedValue({
+        runId: 'r-failed',
+        status: 'failed',
+        error: { message: 'node "send" threw' },
+      }),
+    );
+    expect(isErrorFlag(failedRun.payload)).toBe(false);
   });
 
   it('reports a thrown call as isError with its message', async () => {
@@ -372,7 +426,7 @@ describe('tools/call — the capability surface', () => {
     expect(resultText(payload)).toContain('requires approval');
   });
 
-  it('answers an unavailable knowledge base as a result, with its reason', async () => {
+  it('answers an unavailable knowledge base as a readable result flagged isError', async () => {
     const runAction = vi.fn().mockResolvedValue({
       status: 'unavailable',
       reason: 'The knowledge base could not be searched: no embedding model.',
@@ -386,8 +440,87 @@ describe('tools/call — the capability surface', () => {
       },
       runAction,
     );
-    expect(isErrorFlag(payload)).toBe(false);
+    // The tool could not do its job — a generic client must not read the
+    // reason as a passage list.
+    expect(isErrorFlag(payload)).toBe(true);
     expect(resultText(payload)).toContain('could not be searched');
+  });
+});
+
+describe('tools/call — arguments are held to the advertised schema', () => {
+  const invalid = async (
+    name: string,
+    args: unknown,
+  ): Promise<{ message: string; runAction: ReturnType<typeof vi.fn> }> => {
+    const runAction = vi.fn();
+    const { status, payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 20,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      },
+      runAction,
+    );
+    expect(status).toBe(200);
+    expect(payload.error).toMatchObject({ code: -32602 });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted above
+    return {
+      message: (payload.error as { message: string }).message,
+      runAction,
+    };
+  };
+
+  it('refuses a wrongly typed argument and runs nothing', async () => {
+    const { message, runAction } = await invalid('search_capabilities', {
+      query: 42,
+    });
+    expect(message).toContain('arguments.query');
+    expect(message).toContain('string');
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it('refuses a missing required argument instead of answering an empty search', async () => {
+    const { message, runAction } = await invalid('search_capabilities', {});
+    expect(message).toContain("required property 'query'");
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it('refuses a value outside the declared range', async () => {
+    const { message } = await invalid('list_runs', { limit: 0 });
+    expect(message).toContain('arguments.limit');
+    expect(message).toContain('>= 1');
+  });
+
+  it('refuses an unexpected property by name', async () => {
+    const { message } = await invalid('get_run', {
+      runId: 'r1',
+      verbose: true,
+    });
+    expect(message).toContain('unexpected property "verbose"');
+  });
+
+  it('refuses arguments that are not an object', async () => {
+    const { message } = await invalid('get_run', ['r1']);
+    expect(message).toContain('must be an object');
+  });
+
+  it('leaves an automation-document tool to the engine', async () => {
+    const runAction = vi.fn().mockResolvedValue({ ok: true, errors: [] });
+    const { payload } = await call(
+      {
+        jsonrpc: '2.0',
+        id: 21,
+        method: 'tools/call',
+        params: {
+          name: 'validate_automation',
+          arguments: { automation: { name: 'x', nodes: [] }, anything: 1 },
+        },
+      },
+      runAction,
+    );
+    expect(payload.error).toBeUndefined();
+    expect(runAction).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -397,7 +530,7 @@ describe('tools/call — the developer gate on persistence tools', () => {
     const runQuery = vi.fn().mockResolvedValue('member');
     const { payload } = await call(saveCall(12), runAction, runQuery);
 
-    expect(isErrorFlag(payload)).toBe(false);
+    expect(isErrorFlag(payload)).toBe(true);
     const text = resultText(payload);
     expect(text).toContain('save_automation is refused for this key');
     expect(text).toContain('developer');
@@ -409,7 +542,7 @@ describe('tools/call — the developer gate on persistence tools', () => {
     const runQuery = vi.fn().mockResolvedValue(null);
     const { payload } = await call(saveCall(13), runAction, runQuery);
 
-    expect(isErrorFlag(payload)).toBe(false);
+    expect(isErrorFlag(payload)).toBe(true);
     expect(resultText(payload)).toContain('Not a member');
     expect(runAction).not.toHaveBeenCalled();
   });
@@ -456,15 +589,59 @@ describe('protocol errors', () => {
     expect(await response.text()).toBe('');
   });
 
-  it('refuses a batch (-32600)', async () => {
-    const { status, payload } = await call([
-      { jsonrpc: '2.0', id: 1, method: 'ping' },
-    ]);
-    expect(status).toBe(400);
-    expect(payload.error).toMatchObject({
-      code: -32600,
-      message: expect.stringContaining('Batches are not supported'),
+  it('treats any message without an id as a notification — acknowledged, never answered', async () => {
+    const { rc } = context();
+    const response = await handleMcpRequest(
+      rc,
+      rpc({ jsonrpc: '2.0', method: 'ping' }),
+    );
+    expect(response.status).toBe(202);
+    expect(await response.text()).toBe('');
+  });
+
+  it('refuses a jsonrpc version other than 2.0 (-32600)', async () => {
+    const { status, payload } = await call({
+      jsonrpc: '1.0',
+      id: 7,
+      method: 'ping',
     });
+    expect(status).toBe(400);
+    expect(payload).toMatchObject({
+      jsonrpc: '2.0',
+      id: 7,
+      error: { code: -32600, message: expect.stringContaining('"2.0"') },
+    });
+  });
+
+  it('refuses an id that is not a string or a number, and never echoes it', async () => {
+    const { status, payload } = await call({
+      jsonrpc: '2.0',
+      id: { evaluation: 25 },
+      method: 'ping',
+    });
+    expect(status).toBe(400);
+    expect(payload.id).toBeNull();
+    expect(payload.error).toMatchObject({ code: -32600 });
+  });
+
+  it('refuses an MCP-Protocol-Version it never negotiates, accepts one it does', async () => {
+    const { rc } = context();
+    const request = (version: string) =>
+      new Request('https://app.example.test/api/v1/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-protocol-version': version,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+      });
+    const refused = await handleMcpRequest(rc, request('2024-11-05'));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      error: { code: -32600, message: expect.stringContaining('2024-11-05') },
+    });
+    const accepted = await handleMcpRequest(rc, request('2025-03-26'));
+    expect(accepted.status).toBe(200);
   });
 
   it('refuses a body that is not JSON (-32700)', async () => {
@@ -519,5 +696,80 @@ describe('protocol errors', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Use POST with a JSON-RPC message',
     });
+  });
+});
+
+/**
+ * 2025-03-26 requires receiving JSON-RPC batches. One reply per request, in
+ * order; notifications are consumed silently; an entry the envelope check
+ * refuses answers inside the array without costing the others.
+ */
+describe('batches', () => {
+  const batch = async (
+    entries: unknown[],
+    runAction = vi.fn(),
+  ): Promise<{ status: number; replies: unknown }> => {
+    const { rc } = context(runAction);
+    const response = await handleMcpRequest(rc, rpc(entries));
+    return {
+      status: response.status,
+      replies: response.status === 202 ? undefined : await response.json(),
+    };
+  };
+
+  it('answers two pings with two replies, in order', async () => {
+    const { status, replies } = await batch([
+      { jsonrpc: '2.0', id: 1701, method: 'ping' },
+      { jsonrpc: '2.0', id: 1702, method: 'ping' },
+    ]);
+    expect(status).toBe(200);
+    expect(replies).toEqual([
+      { jsonrpc: '2.0', id: 1701, result: {} },
+      { jsonrpc: '2.0', id: 1702, result: {} },
+    ]);
+  });
+
+  it('acknowledges a batch of notifications alone with 202 and no body', async () => {
+    const { status } = await batch([
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', method: 'notifications/cancelled', params: {} },
+    ]);
+    expect(status).toBe(202);
+  });
+
+  it('answers only the requests of a mixed batch', async () => {
+    const { replies } = await batch([
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', id: 'a', method: 'ping' },
+    ]);
+    expect(replies).toEqual([{ jsonrpc: '2.0', id: 'a', result: {} }]);
+  });
+
+  it('refuses one malformed entry without dropping the rest', async () => {
+    const { status, replies } = await batch([
+      { jsonrpc: '2.0', id: 1, method: 'ping' },
+      { jsonrpc: '1.0', id: 2, method: 'ping' },
+      'not a message',
+    ]);
+    expect(status).toBe(200);
+    expect(replies).toEqual([
+      { jsonrpc: '2.0', id: 1, result: {} },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        error: { code: -32600, message: expect.stringContaining('"2.0"') },
+      },
+      {
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32600, message: expect.any(String) },
+      },
+    ]);
+  });
+
+  it('refuses an empty batch (-32600)', async () => {
+    const { status, replies } = await batch([]);
+    expect(status).toBe(400);
+    expect(replies).toMatchObject({ error: { code: -32600 } });
   });
 });

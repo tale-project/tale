@@ -10,15 +10,17 @@
  *
  * Two schema policies, on purpose:
  *
- *  - the AUTHORING methods keep an OPEN schema (`{type: 'object'}`). Their one
- *    real argument is an automation document, whose grammar is a page of rules
- *    the engine teaches in band: it validates the params itself and refuses with
- *    an actionable hint, and `get_docs` is the reference. A JSON Schema copy of
- *    the node grammar here would be a second source of truth that drifts.
- *  - the MANAGEMENT and CAPABILITY tools declare REAL schemas. Their arguments
- *    are a name, a handle, a query — a client can and should be told the shape,
- *    and `additionalProperties: false` turns a typo into a client-side error
- *    instead of a silently ignored field.
+ *  - the four methods that take an AUTOMATION DOCUMENT (validate, run, test,
+ *    save) keep an OPEN schema (`{type: 'object'}`). The document's grammar is
+ *    a page of rules the engine teaches in band: it validates the params
+ *    itself and refuses with an actionable hint, and `get_docs` is the
+ *    reference. A JSON Schema copy of the node grammar here would be a second
+ *    source of truth that drifts.
+ *  - every other tool declares a REAL schema. Its arguments are a name, a
+ *    handle, a version, a query — a client can and should be told the shape,
+ *    the endpoint holds a call to it (a mismatch is -32602, never a silently
+ *    "successful" call that ran nothing), and `additionalProperties: false`
+ *    turns a typo into an error instead of a silently ignored field.
  */
 
 import { METHODS, type Method } from '../engine/api/dispatch';
@@ -122,7 +124,8 @@ const CAPABILITY_TOOL_DESCRIPTIONS: Record<CapabilityToolName, string> = {
     "Retrieve passages from the organization's knowledge — its documents and its crawled web pages.",
 };
 
-/** The engine validates and teaches its own params; `get_docs` is the schema. */
+/** For the automation-document methods: the engine validates and teaches
+ * its own params; `get_docs` is the schema. */
 const OPEN_SCHEMA: Record<string, unknown> = { type: 'object' };
 
 function object(
@@ -148,20 +151,72 @@ const RUN_ID: Record<string, unknown> = {
   description: 'The run handle start_run and list_runs return.',
 };
 
-/** Real schemas for the tools whose arguments are simple. Anything absent here
- * keeps the open schema. */
+const SAVED_VERSION: Record<string, unknown> = {
+  type: 'integer',
+  minimum: 1,
+  description: 'A saved version number — list_versions shows them.',
+};
+
+const RUN_INPUT: Record<string, unknown> = {
+  type: 'object',
+  description: "The run's input, matching the automation's inputs schema.",
+};
+
+/** Real schemas for every tool whose arguments are simple. The four
+ * automation-document methods are deliberately absent and keep the open
+ * schema. */
 const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
+  get_docs: object({}),
+  get_catalog: object({}),
+  search_catalog: object(
+    {
+      query: {
+        type: 'string',
+        description:
+          'Capability keywords — verbs and objects, e.g. "send email".',
+      },
+    },
+    ['query'],
+  ),
+  get_automation: object(
+    {
+      name: AUTOMATION_NAME,
+      version: {
+        ...SAVED_VERSION,
+        description: 'Read this saved version instead of the latest one.',
+      },
+    },
+    ['name'],
+  ),
+  list_automations: object({}),
+  deploy_automation: object(
+    {
+      name: AUTOMATION_NAME,
+      version: {
+        ...SAVED_VERSION,
+        description: 'The saved version to promote — list_versions shows them.',
+      },
+    },
+    ['name', 'version'],
+  ),
+  set_trigger: object(
+    {
+      name: AUTOMATION_NAME,
+      trigger: {
+        type: 'object',
+        description:
+          'The trigger — {kind: "schedule" | "webhook" | "event", …}; get_docs describes each kind.',
+      },
+    },
+    ['name', 'trigger'],
+  ),
+  run_deployed: object({ name: AUTOMATION_NAME, input: RUN_INPUT }, ['name']),
   start_run: object(
     {
       name: AUTOMATION_NAME,
-      input: {
-        type: 'object',
-        description:
-          "The run's input, matching the automation's inputs schema.",
-      },
+      input: RUN_INPUT,
       version: {
-        type: 'integer',
-        minimum: 1,
+        ...SAVED_VERSION,
         description:
           'Run this exact version instead of the deployed one. Rarely needed.',
       },

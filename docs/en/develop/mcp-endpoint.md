@@ -11,13 +11,22 @@ Read this to connect a client and understand the tool inventory. The grammar for
 
 ## Connect a client
 
-The endpoint speaks MCP protocol `2025-03-26` as JSON-RPC over HTTPS — plain JSON responses, no SSE stream, one message per request (a batch answers error `-32600`). Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
+The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch: it is answered as an array, and a batch of notifications alone answers 202. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
 // X-Organization-Slug: acme
-{ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": { "name": "my-client", "version": "1.0.0" }
+  }
+}
 ```
 
 The server identifies as `tale-platform`. In a client that takes a config block, the two headers are all you need:
@@ -40,7 +49,7 @@ The server identifies as `tale-platform`. In a client that takes a config block,
 
 ## The tools
 
-Twenty-two tools, in three groups. The authoring tools take whole automation documents and validate everything themselves — their schemas are open on the wire, and `get_docs` is the reference a model reads first. The management and capability tools take simple arguments and declare real JSON schemas.
+Twenty-two tools, in three groups. The four tools that take a whole automation document — validate, run, test, save — validate it themselves: their schemas are open on the wire, and `get_docs` is the reference a model reads first. Every other tool takes simple arguments and declares a real JSON schema, and the endpoint holds a call to it — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result.
 
 ### Authoring
 
@@ -92,7 +101,7 @@ The key proves who is calling; the key holder's role decides what the call may d
 - **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
 - **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
 
-A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing. That convention holds everywhere: validation problems, missing deployments, and role refusals all come back as data; `isError` is reserved for a call that actually threw.
+A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. An action waiting for a human's approval is an outcome, not a failure — its `isError` stays false.
 
 ## Where this fits
 
