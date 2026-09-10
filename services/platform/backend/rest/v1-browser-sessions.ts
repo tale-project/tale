@@ -6,7 +6,12 @@ import {
   importBrowserSession,
   listBrowserSessions,
 } from '../domains/browser_sessions/service.ts';
-import { domainErrorResponse, type RestEnv } from './shared.ts';
+import {
+  domainErrorResponse,
+  invalidBodyResponse,
+  readJsonBody,
+  type RestEnv,
+} from './shared.ts';
 
 /**
  * The /browser-sessions REST family — the operator door to the warmed
@@ -45,12 +50,9 @@ export function createRestBrowserSessionRoutes(deps: {
   });
 
   app.post('/browser-sessions/import', async (c) => {
-    const body = importBody.safeParse(await c.req.json().catch(() => null));
+    const body = importBody.safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json(
-        { error: 'invalid body ("domain" and "cookiesJar" are required)' },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const result = await importBrowserSession(deps.sql, {

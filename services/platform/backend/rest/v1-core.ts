@@ -64,10 +64,12 @@ import {
   assertExplicitOrg,
   domainErrorResponse,
   formatKeysetCursor,
+  invalidBodyResponse,
   loadRestProject,
-  pageLimit,
-  parseKeysetCursor,
+  readIntegerCursor,
   readJsonBody,
+  readKeysetCursor,
+  readPageLimit,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -105,7 +107,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** Keyset-paginated (`cursor` = the previous page's `continueCursor`,
    * `<updatedAt>:<id>`); `limit` 1..200, default 25. */
   app.get('/contacts', async (c) => {
-    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const cursor = readKeysetCursor(c);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 25, max: 200 });
+    if (limit instanceof Response) return limit;
     try {
       const result = await listContacts(deps.sql, scope(c), {
         ...(c.req.query('source') !== undefined
@@ -114,7 +119,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           : {}),
         cursor:
           cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
-        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
+        limit,
       });
       return c.json({
         page: result.items,
@@ -135,7 +140,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/contacts', async (c) => {
     const body = contactInput.safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const id = await deps.sql.begin((tx) =>
@@ -161,7 +166,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       })
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'Missing or invalid "contacts" array' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const result = await bulkCreateContacts(
@@ -213,7 +218,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       })
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const current = await loadLiveContact(c, c.req.param('id'));
@@ -260,10 +265,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     externalId: z.string().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   });
+  /** Create requires the name; update leaves every field optional. */
+  const productCreateInput = productInput.extend({ name: z.string() });
 
   /** Keyset-paginated like /contacts; `status` and `category` narrow. */
   app.get('/products', async (c) => {
-    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const cursor = readKeysetCursor(c);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 25, max: 200 });
+    if (limit instanceof Response) return limit;
     try {
       const result = await listProducts(deps.sql, scope(c), {
         ...(c.req.query('category') !== undefined
@@ -275,7 +285,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           : {}),
         cursor:
           cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
-        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
+        limit,
       });
       return c.json({
         page: result.items,
@@ -294,17 +304,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = productInput.safeParse(await readJsonBody(c));
-    if (!body.success || body.data.name === undefined) {
-      return c.json({ error: 'invalid body ("name" is required)' }, 400);
+    const body = productCreateInput.safeParse(await readJsonBody(c));
+    if (!body.success) {
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const id = await deps.sql.begin((tx) =>
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the service validates status/currency vocabularies
-        createProduct(tx, scope(c), {
-          ...body.data,
-          name: body.data.name,
-        } as never),
+        createProduct(tx, scope(c), body.data as never),
       );
       return c.json({ id }, 201);
     } catch (error) {
@@ -325,7 +332,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.patch('/products/:id', async (c) => {
     const body = productInput.safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       await deps.sql.begin((tx) =>
@@ -374,6 +381,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/documents', async (c) => {
+    // The service decodes the `<createdAt>:<id>` token itself; the shape is
+    // checked here so a mangled one is refused, never read as page one.
+    const cursor = readKeysetCursor(c);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 25, max: 100 });
+    if (limit instanceof Response) return limit;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const result = await listHubDocumentsPage(deps.sql, auth, {
@@ -384,7 +397,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ? { folderId: c.req.query('folderId') ?? '' }
           : {}),
         cursor: c.req.query('cursor') ?? null,
-        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 100 }),
+        limit,
       });
       return c.json({
         page: result.page.map((doc) => hubDocumentPayload(doc, null)),
@@ -412,7 +425,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body ("title" is required)' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await restProjectAuth(deps.sql, c);
@@ -469,7 +482,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
@@ -594,7 +607,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
     ).safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body ("query" is required)' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await restProjectAuth(deps.sql, c);
@@ -706,15 +719,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (status !== 'active' && status !== 'superseded') {
       return c.json({ error: '"status" must be active or superseded' }, 400);
     }
-    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
-    const cursorParam = c.req.query('cursor');
-    // Number('') is 0 — only a present, non-empty cursor filters the page.
-    const cursor =
-      cursorParam !== undefined &&
-      cursorParam !== '' &&
-      Number.isFinite(Number(cursorParam))
-        ? Number(cursorParam)
-        : null;
+    const limit = readPageLimit(c, { fallback: 25, max: 100 });
+    if (limit instanceof Response) return limit;
+    const cursor = readIntegerCursor(c);
+    if (cursor instanceof Response) return cursor;
     const rows = await deps.sql<RestEntryRow[]>`
       SELECT ${deps.sql.unsafe(ENTRY_VIEW_COLUMNS)}
       FROM app.knowledge_entries
@@ -768,10 +776,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/knowledge-entries', async (c) => {
     const body = entryBody.safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json(
-        { error: 'invalid body ("topic" and "content" are required)' },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     const limited = await chargeKnowledgeMutate(c);
     if (limited) return limited;
@@ -803,10 +808,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.patch('/knowledge-entries/:id', async (c) => {
     const body = entryBody.safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json(
-        { error: 'invalid body ("topic" and "content" are required)' },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     const limited = await chargeKnowledgeMutate(c);
     if (limited) return limited;
@@ -887,7 +889,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       })
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     // The file layer trusts team ids (the app's library only offers real
     // ones); a machine caller can send anything, so they are checked here —

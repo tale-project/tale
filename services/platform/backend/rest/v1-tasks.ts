@@ -30,6 +30,7 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
+  invalidBodyResponse,
   loadRestProject,
   readJsonBody,
   type RestEnv,
@@ -170,13 +171,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json(
-        {
-          error:
-            'invalid body ("externalSystem", "externalId" and "title" are required)',
-        },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await restProjectAuth(deps.sql, c);
@@ -314,8 +309,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
       .strict()
       .safeParse(await readJsonBody(c));
-    if (!body.success)
-      return c.json({ error: 'invalid body ("body" is required)' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const projectId = c.req.param('id');
@@ -347,11 +341,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({ workflowSlug: z.string().min(1).max(200) })
       .strict()
       .safeParse(await readJsonBody(c));
-    if (!body.success)
-      return c.json(
-        { error: 'invalid body ("workflowSlug" is required)' },
-        400,
-      );
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const projectId = c.req.param('id');

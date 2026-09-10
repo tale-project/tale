@@ -109,11 +109,24 @@ function mount(sql: Sql) {
  * 500 for a malformed query string.
  */
 describe('GET /threads/{id}/messages limit', () => {
+  it('refuses a limit that is not a number, and a cursor that is not a message order', async () => {
+    const { sql } = fakeSql();
+    const limit = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?limit=abc',
+    );
+    expect(limit.status).toBe(400);
+    expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    const cursor = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?cursor=not-a-number',
+    );
+    expect(cursor.status).toBe(400);
+    expect(await cursor.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+
   it.each([
     ['2.5', 3],
     ['-4', 2],
     ['999', 101],
-    ['abc', 26],
   ])(
     'turns ?limit=%s into a whole LIMIT of %i (page + 1)',
     async (limit, expected) => {

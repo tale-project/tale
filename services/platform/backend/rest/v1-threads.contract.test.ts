@@ -168,7 +168,10 @@ describe('POST /threads', () => {
       post('{"title": '),
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'invalid body' });
+    expect(await res.json()).toMatchObject({
+      error: 'invalid body: The body is not valid JSON',
+      code: 'INVALID_BODY',
+    });
     expect(queries.some((q) => q.startsWith('INSERT INTO app.threads'))).toBe(
       false,
     );

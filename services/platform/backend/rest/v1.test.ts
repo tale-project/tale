@@ -132,6 +132,57 @@ function bearer(key: string, extra: Record<string, string> = {}) {
   return { headers: { authorization: `Bearer ${key}`, ...extra } };
 }
 
+/**
+ * RFC 9110: the authentication scheme is case-insensitive (§11.1), and a
+ * 401 carries a `WWW-Authenticate` challenge (§11.6.1). The door matched
+ * `Bearer ` byte for byte — the same key answered 200 as `Bearer` and 401 as
+ * `bearer` — and none of its 401s named the scheme it expected.
+ */
+describe('/api/v1 door — HTTP authentication conformance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(['bearer', 'BEARER', 'Bearer'])(
+    'accepts the scheme spelled %s',
+    async (scheme) => {
+      const { sql } = fakeSql();
+      const { auth } = fakeAuth();
+      const res = await door(sql, auth).request('http://localhost/probe', {
+        headers: { authorization: `${scheme} ${GOOD_KEY}` },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ userId: 'user-1' });
+    },
+  );
+
+  it('challenges a request without credentials with the bare Bearer scheme', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const missing = await door(sql, auth).request('http://localhost/probe');
+    expect(missing.status).toBe(401);
+    expect(missing.headers.get('www-authenticate')).toBe('Bearer');
+    const empty = await door(sql, auth).request('http://localhost/probe', {
+      headers: { authorization: 'Bearer   ' },
+    });
+    expect(empty.status).toBe(401);
+    expect(empty.headers.get('www-authenticate')).toBe('Bearer');
+  });
+
+  it('names the refused token on a key that failed to authenticate', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer('tale_bogus'),
+    );
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toBe(
+      'Bearer error="invalid_token"',
+    );
+  });
+});
+
 describe('/api/v1 door — rate-limit attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks();

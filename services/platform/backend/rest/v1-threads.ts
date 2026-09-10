@@ -11,11 +11,13 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  invalidBodyResponse,
   loadRestProject,
-  pageLimit,
-  parseKeysetCursor,
+  readIntegerCursor,
   readJsonBody,
+  readKeysetCursor,
   readOptionalJsonBody,
+  readPageLimit,
   restProjectAuth,
   type RestEnv,
 } from './shared.ts';
@@ -230,8 +232,10 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
      * (`cursor` = the previous page's `<updatedAt>:<id>`). */
     app.get(scope.collection, async (c) => {
       const projectId = projectIdFor(c);
-      const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
-      const cursor = parseKeysetCursor(c.req.query('cursor'));
+      const limit = readPageLimit(c, { fallback: 25, max: 100 });
+      if (limit instanceof Response) return limit;
+      const cursor = readKeysetCursor(c);
+      if (cursor instanceof Response) return cursor;
       const cursorUpdatedAt = cursor?.at ?? null;
       const cursorId = cursor?.id ?? null;
       const rows = await deps.sql<RestThreadRow[]>`
@@ -273,7 +277,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         .strict()
         .safeParse(await readOptionalJsonBody(c));
       if (!body.success) {
-        return c.json({ error: 'invalid body' }, 400);
+        return invalidBodyResponse(c, body.error);
       }
       try {
         const projectId = projectIdFor(c);
@@ -303,19 +307,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     app.get(`${scope.item}/messages`, async (c) => {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null) return c.json({ error: 'Thread not found' }, 404);
-      const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
-      const cursorParam = c.req.query('cursor');
-      // Only a stored message order fits this int4 cursor. Invalid values
-      // start the first page instead of reaching Postgres's integer cast.
-      const parsedCursor = Number(cursorParam);
-      const cursor =
-        cursorParam !== undefined &&
-        cursorParam.trim() !== '' &&
-        Number.isInteger(parsedCursor) &&
-        parsedCursor >= 0 &&
-        parsedCursor <= 2_147_483_647
-          ? parsedCursor
-          : null;
+      const limit = readPageLimit(c, { fallback: 25, max: 100 });
+      if (limit instanceof Response) return limit;
+      // Only a stored message order fits this int4 cursor; anything else is
+      // refused before it reaches Postgres's integer cast.
+      const cursor = readIntegerCursor(c, { max: 2_147_483_647 });
+      if (cursor instanceof Response) return cursor;
       const rows = await deps.sql<
         {
           id: string;
@@ -399,10 +396,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         .strict()
         .safeParse(await readJsonBody(c));
       if (!body.success) {
-        return c.json(
-          { error: 'invalid body ("content" and "model" are required)' },
-          400,
-        );
+        return invalidBodyResponse(c, body.error);
       }
       const projectId = projectIdFor(c);
       const thread = await loadRestThread(c, threadIdFor(c), projectId);

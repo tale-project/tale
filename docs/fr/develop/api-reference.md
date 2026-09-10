@@ -394,7 +394,7 @@ Chaque réponse non-2xx porte une enveloppe plate :
 
 Branche sur le statut HTTP ; le message est pour les humains :
 
-- **400** — requête mal formée : champ requis manquant, mauvais type, corps illisible — ou une clé multi-organisations qui n'a pas nommé son organisation (requis à chaque écriture et sur toutes les routes Projets et Tâches).
+- **400** — requête mal formée : champ requis manquant, mauvais type, clé inconnue, corps illisible — la réponse porte `code: "INVALID_BODY"` et liste sous `data.issues` chaque problème avec le champ (`price`, `contacts.2.email`) et la raison, donc corrige ce qu'elle nomme ; un `cursor` que la liste n'a jamais renvoyé (`INVALID_CURSOR`) ou un `limit` qui n'est pas un nombre (`INVALID_LIMIT`) — aucun des deux n'est lu comme la première page ; ou une clé multi-organisations qui n'a pas nommé son organisation (requis à chaque écriture et sur toutes les routes Projets et Tâches).
 - **401** — clé API absente ou invalide.
 - **403** — le rôle ou l’accès en édition manque, le projet ou la tâche est archivé pour l’écriture demandée, ou l’automatisation ne peut pas tourner dans ce projet.
 - **404** — la ressource est absente, invisible pour le détenteur, appartient au thread d’un autre utilisateur ou à un autre projet que celui de l’URL.

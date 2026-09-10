@@ -61,7 +61,23 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * automations (app.ts). The token is their sole credential.
  */
 
-/** The 429 every lane answers: the flat envelope plus `Retry-After`. */
+/**
+ * The door's 401: the flat envelope plus the `WWW-Authenticate` challenge
+ * RFC 9110 §11.6.1 requires of every 401 — naming the Bearer scheme, with
+ * RFC 6750 §3's `error="invalid_token"` when a key was presented and
+ * refused (a request that presented nothing gets the bare challenge).
+ */
+function unauthorized(
+  c: Context<RestEnv>,
+  message: string,
+  challenge: 'bearer' | 'invalid_token' = 'bearer',
+): Response {
+  return c.json({ error: message }, 401, {
+    'www-authenticate':
+      challenge === 'invalid_token' ? 'Bearer error="invalid_token"' : 'Bearer',
+  });
+}
+
 /** The plugin's own per-key window, answered in the one 429 shape every
  * door speaks — the window is a refusal the limiter never threw. */
 function rateLimited(c: Context<RestEnv>, retryAfterMs: number): Response {
@@ -92,13 +108,15 @@ export function createRestV1Routes(deps: {
 
   // ---- the door: API key → key holder's budget → org resolution → role ---
   app.use(async (c, next) => {
-    const header = c.req.header('authorization') ?? '';
-    if (!header.startsWith('Bearer ')) {
-      return c.json({ error: 'Missing or invalid Authorization header' }, 401);
+    // RFC 9110 §11.1: the authentication scheme is case-insensitive —
+    // `bearer` and `BEARER` name the same scheme as `Bearer`.
+    const scheme = /^bearer\s+(.*)$/i.exec(c.req.header('authorization') ?? '');
+    if (scheme === null) {
+      return unauthorized(c, 'Missing or invalid Authorization header');
     }
-    const apiKey = header.slice('Bearer '.length).trim();
+    const apiKey = (scheme[1] ?? '').trim();
     if (apiKey === '') {
-      return c.json({ error: 'Empty API key' }, 401);
+      return unauthorized(c, 'Empty API key');
     }
 
     // The client IP the trusted-proxy walk vouches for — from the TCP peer
@@ -133,7 +151,7 @@ export function createRestV1Routes(deps: {
         }
         throw error;
       }
-      return c.json({ error: 'Invalid API key' }, 401);
+      return unauthorized(c, 'Invalid API key', 'invalid_token');
     }
 
     // Authenticated: the shared `rest:api` budget belongs to the key holder,

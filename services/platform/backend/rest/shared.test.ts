@@ -135,3 +135,29 @@ describe('pageLimit', () => {
     expect(pageLimit('2.9', { fallback: 25, max: 200 })).toBe(2);
   });
 });
+
+/**
+ * The keyset codec only ever writes a whole epoch-millisecond count. A
+ * fraction, an exponent or a count beyond the bigint column used to pass
+ * `Number.isFinite` and reach Postgres as a cast error — a 500 where the
+ * door had just promised a 400 for a cursor it never answered.
+ */
+describe('parseKeysetCursor — timestamps the column cannot hold', () => {
+  it.each([
+    '1.5:p-2',
+    '100000000000000000000:p-2',
+    '1e100:p-2',
+    '-5:p-2',
+    '0x10:p-2',
+    ' 7:p-2',
+  ])('reads %s as no cursor', (token) => {
+    expect(parseKeysetCursor(token)).toBeNull();
+  });
+
+  it('keeps a whole epoch-millisecond count', () => {
+    expect(parseKeysetCursor('1699999999998:p-2')).toEqual({
+      at: 1_699_999_999_998,
+      id: 'p-2',
+    });
+  });
+});

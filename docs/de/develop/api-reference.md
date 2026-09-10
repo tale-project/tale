@@ -394,7 +394,7 @@ Jede Nicht-2xx-Antwort trägt einen flachen Umschlag:
 
 Verzweige auf den HTTP-Status; die Meldung ist für Menschen:
 
-- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, nicht parsebarer Body — oder ein Multi-Org-Schlüssel, der seine Organisation nicht benannt hat (erforderlich bei jedem Schreiben und auf allen Projekt- und Aufgaben-Routen).
+- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, unbekannter Schlüssel, nicht parsebarer Body — die Antwort trägt `code: "INVALID_BODY"` und listet unter `data.issues` jedes Problem mit Feld (`price`, `contacts.2.email`) und Grund, also korrigier, was sie benennt; ein `cursor`, den die Liste nie geliefert hat (`INVALID_CURSOR`), oder ein `limit`, das keine Zahl ist (`INVALID_LIMIT`) — beides wird nie als erste Seite gelesen; oder ein Multi-Org-Schlüssel, der seine Organisation nicht benannt hat (erforderlich bei jedem Schreiben und auf allen Projekt- und Aufgaben-Routen).
 - **401** — fehlender oder ungültiger API-Schlüssel.
 - **403** — die Rolle oder Projektbearbeitungsrechte fehlen, die gewünschte Änderung betrifft ein archiviertes Projekt oder eine archivierte Aufgabe, oder die Automatisierung darf in diesem Projekt nicht laufen.
 - **404** — die Ressource fehlt, ist für den Schlüsselbesitzer unsichtbar, gehört einem anderen Threadbenutzer oder liegt in einem anderen Projekt als dem der URL.

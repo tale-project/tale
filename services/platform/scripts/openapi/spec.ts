@@ -18,6 +18,7 @@ import {
   apiDeliveryFailureSchema,
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
+import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 
 export type Json = Record<string, unknown>;
@@ -91,16 +92,24 @@ function queryParam(
   };
 }
 
-/** `cursor` + `limit` for the keyset-paginated families. */
-function paginationParams(max: number, fallback: number) {
+/** `cursor` + `limit` for the keyset-paginated families. `cursorField`
+ * names the response field the cursor comes back in — `continueCursor` for
+ * the `{page, isDone, continueCursor}` envelope, `cursor` for the project
+ * files listing — so the parameter never points at a field its own
+ * response does not carry. */
+function paginationParams(
+  max: number,
+  fallback: number,
+  cursorField: 'continueCursor' | 'cursor' = 'continueCursor',
+) {
   return [
     queryParam(
       'cursor',
-      'The previous page’s `continueCursor` — opaque; omit for the first page',
+      `The previous page’s \`${cursorField}\`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 \`INVALID_CURSOR\` rather than read as the first page`,
     ),
     queryParam(
       'limit',
-      `Page size, 1..${max} (default ${fallback}; out-of-range values are clamped)`,
+      `Page size, 1..${max} (default ${fallback}; out-of-range numbers are clamped, a value that is not a number answers 400 \`INVALID_LIMIT\`)`,
       { type: 'integer' },
     ),
   ];
@@ -804,7 +813,12 @@ export function buildSpec(): Json {
       summary: 'Create product',
       operationId: 'createProduct',
       security: sec,
-      requestBody: jsonBody(ref('ProductInput')),
+      // The one schema serves create and update; only create requires
+      // the name, so the requirement rides the operation, not the schema.
+      requestBody: jsonBody({
+        allOf: [ref('ProductInput')],
+        required: ['name'],
+      }),
       responses: {
         '201': createdId('Created — the product’s id'),
         '409': errorResponse('Duplicate external id'),
@@ -1314,7 +1328,7 @@ export function buildSpec(): Json {
         orgSlugHeaderParam,
         pathParam('id', 'Project ID'),
         queryParam('folderId', 'Only files inside this project folder'),
-        ...paginationParams(100, 25),
+        ...paginationParams(100, 25, 'cursor'),
       ],
       responses: {
         '200': jsonResponse('The files', {
@@ -2823,6 +2837,23 @@ curl -H "Authorization: Bearer tale_..." \\
                   type: 'number',
                   description: 'Wait in milliseconds for RATE_LIMITED',
                 },
+                issues: {
+                  type: 'array',
+                  description:
+                    'For INVALID_BODY: every problem the body’s schema found (at most 20), each naming the field and the reason; `error` repeats the first one',
+                  items: {
+                    type: 'object',
+                    required: ['path', 'message'],
+                    properties: {
+                      path: {
+                        type: 'string',
+                        description:
+                          'The field, dotted for nesting (`address.city`, `contacts.2.email`); empty for a problem with the body as a whole',
+                      },
+                      message: { type: 'string' },
+                    },
+                  },
+                },
               },
             },
           },
@@ -3106,7 +3137,12 @@ curl -H "Authorization: Bearer tale_..." \\
             name: str,
             email: str,
             phone: str,
-            source: { ...str, description: 'Defaults to `api_import`' },
+            source: {
+              type: 'string',
+              enum: [...dataSourceSchema.options],
+              description:
+                'Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed',
+            },
             locale: str,
             address: obj,
             externalId: {
