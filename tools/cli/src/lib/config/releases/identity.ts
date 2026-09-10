@@ -88,12 +88,20 @@ export const loadClient = (
     descriptorPath,
     automationName,
   );
+/** Convert host-relative CLI/API input before POSIX source-path validation.
+ * Do not use this on archive names or paths read from descriptors/manifests:
+ * a literal backslash there is invalid even when the CLI runs on Windows. */
+export function sourcePathSeparators(
+  input: string,
+  separator: '/' | '\\' = path.sep,
+): string {
+  return input.split(separator).join('/');
+}
 export function repoPath(repoRoot: string, absolute: string): string {
   return relativePath.parse(
-    path
-      .relative(path.resolve(repoRoot), path.resolve(absolute))
-      .split(path.sep)
-      .join('/'),
+    sourcePathSeparators(
+      path.relative(path.resolve(repoRoot), path.resolve(absolute)),
+    ),
   );
 }
 export function sourcePackPath(

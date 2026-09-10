@@ -115,6 +115,7 @@ export function legacyGitArchive(
   entries: Entry[],
   wrapper: string,
   expectedTree: string,
+  writeSource: typeof writeFileSync = writeFileSync,
 ): Buffer {
   const directory = mkdtempSync(path.join(tmpdir(), 'tale-legacy-source-'));
   try {
@@ -128,12 +129,16 @@ export function legacyGitArchive(
     for (const entry of entries) {
       const file = path.join(directory, entry.path);
       mkdirSync(path.dirname(file), { recursive: true });
-      writeFileSync(file, entry.bytes, {
+      writeSource(file, entry.bytes, {
         flag: 'wx',
         mode: entry.executable ? 0o755 : 0o644,
       });
     }
-    git('-c', 'core.filemode=true', 'add', '-f', '--all');
+    // Source modes belong to the verified snapshot, not the temporary host
+    // filesystem. Windows cannot round-trip POSIX executable bits through stat.
+    git('-c', 'core.filemode=false', 'add', '-f', '--all');
+    for (const entry of entries)
+      if (entry.executable) git('update-index', '--chmod=+x', '--', entry.path);
     insist(
       git('write-tree').toString('utf8').trim() === expectedTree,
       'rehydrated git source differs',

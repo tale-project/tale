@@ -23,6 +23,8 @@ import {
   type RuntimeFixture,
 } from './runtime-test-helper';
 
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const fixtures: RuntimeFixture[] = [];
 afterEach(() => {
   for (const fixture of fixtures.splice(0))
@@ -64,7 +66,8 @@ function mutations(docker: RuntimeDockerFixture) {
   );
 }
 
-describe('managed source-Compose runtime adoption', () => {
+// The managed CLI refuses NTFS: runtime custody includes POSIX file modes.
+describePosix('managed source-Compose runtime adoption', () => {
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {
     const fresh = await create();
     expect(await fresh.apply(true)).toMatchObject({

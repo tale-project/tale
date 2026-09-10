@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,8 @@ const modes: [string, string[]][] = [
     ? [['compiled', [resolve(process.env.TALE_BINARY)]] as [string, string[]]]
     : []),
 ];
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0))
@@ -69,8 +71,40 @@ async function run(executable: string[], cwd: string, args: string[]) {
   return { stdout, stderr, code };
 }
 
-for (const [mode, executable] of modes)
-  describe(`managed deployment commands (${mode})`, () => {
+for (const [mode, executable] of modes) {
+  test.skipIf(process.platform !== 'win32')(
+    `managed deployment refuses Windows before filesystem or native work (${mode})`,
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'tale-managed-windows-'));
+      roots.push(root);
+      for (const args of [
+        ['--bundle', join(root, 'bundle'), '--yes'],
+        [
+          'prepare',
+          '--spec',
+          join(root, 'spec.json'),
+          '--output',
+          join(root, 'output'),
+        ],
+        ['verify-bundle', '--bundle', join(root, 'bundle')],
+        ['provision', '--bundle', join(root, 'bundle'), '--yes'],
+      ]) {
+        const result = await run(executable, root, [
+          'deploy',
+          ...args,
+          '--json',
+        ]);
+        expect(result.code).toBe(3);
+        expect(result.stderr).toBe('');
+        expect(JSON.parse(result.stdout).ok).toBe(false);
+        expect(result.stdout).toContain('not supported on Windows');
+        expect(await readdir(root)).toEqual([]);
+      }
+    },
+    30_000,
+  );
+  // NTFS cannot prove the executable-mode contract of a Linux bundle.
+  describePosix(`managed deployment commands (${mode})`, () => {
     test('child commands refuse unsupported inherited flags instead of silently ignoring them', async () => {
       const { root, bundle } = await fixture();
       for (const child of [
@@ -214,3 +248,4 @@ for (const [mode, executable] of modes)
       ).toBe(2);
     }, 30_000);
   });
+}

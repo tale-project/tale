@@ -16,7 +16,7 @@ import * as logger from '../../utils/logger';
 import { getOutputMode, resolveConsent } from '../../utils/output-mode';
 import { confirm, NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
-import { assertManagedOptions } from './options';
+import { assertManagedOptions, assertManagedPlatform } from './options';
 
 async function managedResult(
   command: string,
@@ -110,6 +110,7 @@ export async function runManagedDeployment(
   options: ApplyDeploymentOptions & { yes?: boolean },
 ): Promise<void> {
   await managedResult('deploy', async () => {
+    assertManagedPlatform();
     if (
       !options.dryRun &&
       !resolveConsent(options.yes) &&

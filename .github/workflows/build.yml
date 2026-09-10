@@ -156,9 +156,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
+          if [[ ! "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo '::error::Image source must be a full commit SHA'; exit 1
+          fi
           if [ -n "$PR_NUMBER" ]; then
-            [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+            if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo '::error::Pull request number must contain only digits'; exit 1
+            fi
             echo "value=pr-${PR_NUMBER}-sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           else
             echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"

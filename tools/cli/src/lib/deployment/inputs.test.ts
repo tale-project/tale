@@ -17,6 +17,8 @@ import {
 } from './model';
 import { withDeploymentSources } from './sources';
 
+const testPosix = test.skipIf(process.platform === 'win32');
+
 const roots: string[] = [];
 const temporary = () => {
   const root = mkdtempSync(join(tmpdir(), 'tale-deployment-input-'));
@@ -31,7 +33,7 @@ const revision = 'b'.repeat(40);
 const spec = () => ({
   schemaVersion: 1,
   name: 'north-labs',
-  stateDirectory: '/opt/north-labs',
+  stateDirectory: join(tmpdir(), 'north-labs'),
   composeProject: 'tale',
   runtime: { revision, platform: 'linux/amd64' },
   origin: 'https://desk.north-labs.example',
@@ -208,40 +210,44 @@ async function bundleFixture() {
   return root;
 }
 
-test('whole bundle proof rejects changed bytes, companions, symlinks and wrong source pins', async () => {
-  const root = await bundleFixture();
-  const verified = await verifyDeploymentBundle(root, {
-    cliRef: revision,
-    deploymentRef: revision,
-  });
-  expect(verified.files.map((file) => file.path)).toEqual([
-    'cli/tale',
-    'runtime/compose.yml',
-    'runtime/runtime.json',
-  ]);
-  await expect(
-    verifyDeploymentBundle(root, { cliRef: 'a'.repeat(40) }),
-  ).rejects.toThrow('source pins');
-  for (const invalid of ['', 'main', `${revision}\n`]) {
+// Windows has no POSIX executable-mode custody; its CLI refuses this operation.
+testPosix(
+  'whole bundle proof rejects changed bytes, companions, symlinks and wrong source pins',
+  async () => {
+    const root = await bundleFixture();
+    const verified = await verifyDeploymentBundle(root, {
+      cliRef: revision,
+      deploymentRef: revision,
+    });
+    expect(verified.files.map((file) => file.path)).toEqual([
+      'cli/tale',
+      'runtime/compose.yml',
+      'runtime/runtime.json',
+    ]);
     await expect(
-      verifyDeploymentBundle(root, { cliRef: invalid }),
-    ).rejects.toThrow('full commit SHAs');
-    await expect(
-      verifyDeploymentBundle(root, { deploymentRef: invalid }),
-    ).rejects.toThrow('full commit SHAs');
-  }
-  await writeFile(join(root, 'unexpected.txt'), 'extra');
-  await expect(verifyDeploymentBundle(root)).rejects.toThrow('inventory');
-  rmSync(join(root, 'unexpected.txt'));
-  await symlink(join(root, 'cli/tale'), join(root, 'other'));
-  await expect(verifyDeploymentBundle(root)).rejects.toThrow('symlink');
-  rmSync(join(root, 'other'));
-  await writeFile(
-    join(root, 'runtime', 'compose.yml'),
-    'services: {changed: true}\n',
-  );
-  await expect(verifyDeploymentBundle(root)).rejects.toThrow('bytes');
-});
+      verifyDeploymentBundle(root, { cliRef: 'a'.repeat(40) }),
+    ).rejects.toThrow('source pins');
+    for (const invalid of ['', 'main', `${revision}\n`]) {
+      await expect(
+        verifyDeploymentBundle(root, { cliRef: invalid }),
+      ).rejects.toThrow('full commit SHAs');
+      await expect(
+        verifyDeploymentBundle(root, { deploymentRef: invalid }),
+      ).rejects.toThrow('full commit SHAs');
+    }
+    await writeFile(join(root, 'unexpected.txt'), 'extra');
+    await expect(verifyDeploymentBundle(root)).rejects.toThrow('inventory');
+    rmSync(join(root, 'unexpected.txt'));
+    await symlink(join(root, 'cli/tale'), join(root, 'other'));
+    await expect(verifyDeploymentBundle(root)).rejects.toThrow('symlink');
+    rmSync(join(root, 'other'));
+    await writeFile(
+      join(root, 'runtime', 'compose.yml'),
+      'services: {changed: true}\n',
+    );
+    await expect(verifyDeploymentBundle(root)).rejects.toThrow('bytes');
+  },
+);
 
 test('plain runtimes and the wrong executable architecture are never shipped', async () => {
   const executable = join(temporary(), 'tale');

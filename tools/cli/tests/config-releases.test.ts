@@ -52,7 +52,7 @@ async function run(
   return start(command, args, cwd, env).result;
 }
 function success(result: Awaited<ReturnType<typeof run>>, command: string) {
-  expect(result.code).toBe(0);
+  expect(result.code, result.stderr + result.stdout).toBe(0);
   expect(result.stderr).toBe('');
   const lines = result.stdout.trim().split('\n');
   expect(lines).toHaveLength(1);

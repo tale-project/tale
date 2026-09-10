@@ -12,7 +12,13 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import { committedClient, git } from './git';
-import { loadClient, releaseIdentity, repoPath, sha256 } from './identity';
+import {
+  loadClient,
+  releaseIdentity,
+  repoPath,
+  sha256,
+  sourcePathSeparators,
+} from './identity';
 import { loadRelease } from './manifest';
 import {
   insist,
@@ -205,7 +211,7 @@ export async function stageRelease(
   const output = stageOutputDirectory(options.repoRoot, options.output);
   const descriptorPath = path.resolve(
     options.repoRoot,
-    relativePath.parse(options.descriptorPath),
+    relativePath.parse(sourcePathSeparators(options.descriptorPath)),
   );
   const catalogueCommit = gitSha.parse(
     options.catalogueCommit ?? options.configRef,

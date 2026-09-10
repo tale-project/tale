@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { verifyProvisionIdentity } from '../../commands/deploy/provision';
 import { deploymentBundleSchema } from './bundle';
@@ -219,7 +221,7 @@ function reviewedBundle() {
     spec: {
       schemaVersion: 1,
       name: 'example-native',
-      stateDirectory: '/opt/example-native',
+      stateDirectory: join(tmpdir(), 'example-native'),
       composeProject: 'example-native',
       runtime: { revision: 'b'.repeat(40) },
       origin: INPUT.origin,

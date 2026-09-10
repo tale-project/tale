@@ -14,6 +14,8 @@ const modes: [string, string[]][] = [
     ? [['compiled', [resolve(process.env.TALE_BINARY)]] as [string, string[]]]
     : []),
 ];
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const input = {
   origin: 'https://native.example.org',
   email: 'operator@example.org',
@@ -107,7 +109,7 @@ async function bundle(directory: string) {
 }
 
 for (const [label, executable] of modes)
-  describe(`${label} native provisioning command`, () => {
+  describePosix(`${label} native provisioning command`, () => {
     test('validates private stdin and confirmation outside a workspace before any native request', async () => {
       const directory = await mkdtemp(
         join(tmpdir(), 'tale-provision-command-'),

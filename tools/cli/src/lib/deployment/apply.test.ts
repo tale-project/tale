@@ -15,6 +15,8 @@ import {
 } from './runtime-test-helper';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
 
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const fixtures: RuntimeFixture[] = [];
 afterEach(() => {
   for (const fixture of fixtures.splice(0))
@@ -226,7 +228,8 @@ async function create(legacy = false, identity = true) {
   };
 }
 
-describe('complete managed deployment lifecycle', () => {
+// Real Git, file modes and runtime state require the supported POSIX host.
+describePosix('complete managed deployment lifecycle', () => {
   test('a bundle modified during rollout cannot replace the executable receiving private credentials', async () => {
     const run = await create();
     const original = readFileSync(join(run.bundle, 'cli/tale'));

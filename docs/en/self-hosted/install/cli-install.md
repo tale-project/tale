@@ -120,6 +120,8 @@ Use a reviewed deployment specification when the runtime and client configuratio
 
 Run preparation with a compiled CLI built from a clean, committed Tale checkout on Linux, matching the destination's `linux/amd64` or `linux/arm64` architecture. That same executable is included for backend-local provisioning. Preparation needs Git and Docker for source/image verification; applying runs on the destination with its local Docker daemon, retained state directory and environment. The full CLI commit, runtime source commit and client configuration source commit are separate pins.
 
+Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.
+
 This synthetic specification targets an existing organization and project. Replace its public identifiers and set the named environment values. `revision` accepts a full commit SHA directly or an environment reference; credentials remain references and are resolved privately at the destination. `tlsMode: "external"` means an existing edge handles public TLS; `letsencrypt` additionally requires `tlsEmail`.
 
 For Linux GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, returns the `executable` output and adds the binary to `PATH`.

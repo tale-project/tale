@@ -85,6 +85,8 @@ destination with its local Docker daemon and retained state directory. Optional
 and its revision input. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
 contains the specification and environment-reference example.
 
+Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.
+
 The backend-local `deploy provision [--bundle <directory>]` phase reads bounded
 private JSON on stdin, proves the selected local account/organization, deploys
 the exact staged configurations and signs out. It returns only safe metadata.

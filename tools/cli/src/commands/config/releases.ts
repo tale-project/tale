@@ -8,6 +8,7 @@ import { deployRelease, verifyRelease } from '../../lib/config/releases/deploy';
 import {
   loadClient,
   releaseIdentity,
+  sourcePathSeparators,
 } from '../../lib/config/releases/identity';
 import { loadRelease } from '../../lib/config/releases/manifest';
 import {
@@ -138,7 +139,11 @@ function input<S extends z.ZodType>(
 }
 function source(flags: SourceFlags) {
   const repoRoot = path.resolve(flags.repo);
-  const descriptor = input(relativePath, flags.descriptor, '--descriptor');
+  const descriptor = input(
+    relativePath,
+    sourcePathSeparators(flags.descriptor),
+    '--descriptor',
+  );
   return {
     repoRoot,
     descriptorPath: path.resolve(repoRoot, descriptor),
@@ -247,7 +252,11 @@ export function addReleaseCommands(config: Command): void {
               ? path.resolve(flags.manifest)
               : path.resolve(
                   options.repoRoot,
-                  input(relativePath, flags.manifest, '--manifest'),
+                  input(
+                    relativePath,
+                    sourcePathSeparators(flags.manifest),
+                    '--manifest',
+                  ),
                 ),
             rebuild: flags.rebuild,
             validateNative: validateNativeRelease,

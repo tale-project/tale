@@ -20,7 +20,10 @@ import { legacyGitArchive } from './snapshot';
 
 /** Compatibility only: compiler1 used Python's ZIP_STORED headers. Preserve
  * those headers rather than changing historical bytes under its identifier. */
-function legacyStored(entries: Entry[]): Buffer {
+export function legacyStored(
+  entries: Entry[],
+  writeSource: typeof writeFileSync = writeFileSync,
+): Buffer {
   const temporary = mkdtempSync(path.join(tmpdir(), 'tale-legacy-zip-'));
   try {
     const root = path.join(temporary, 'source');
@@ -28,30 +31,48 @@ function legacyStored(entries: Entry[]): Buffer {
     for (const entry of entries) {
       const file = path.join(root, entry.path);
       mkdirSync(path.dirname(file), { recursive: true });
-      writeFileSync(file, entry.bytes, {
+      writeSource(file, entry.bytes, {
         mode: entry.executable ? 0o755 : 0o644,
         flag: 'wx',
       });
     }
     const output = path.join(temporary, 'archive.zip');
+    // Keep the trusted modes outside the archived source directory. NTFS mode
+    // bits cannot represent this metadata, and Windows Path ordering differs
+    // from the original POSIX codec for mixed-case and nested names.
+    const modes = path.join(temporary, 'modes.json');
+    writeFileSync(
+      modes,
+      JSON.stringify(
+        Object.fromEntries(
+          entries.map((entry) => [
+            entry.path,
+            entry.executable ? 0o755 : 0o644,
+          ]),
+        ),
+      ),
+      { flag: 'wx' },
+    );
     try {
       execFileSync(
         'python3',
         [
           '-c',
-          `from pathlib import Path
-import stat,sys,zipfile
+          `from pathlib import Path,PurePosixPath
+import json,stat,sys,zipfile
 root=Path(sys.argv[1]); target=Path(sys.argv[2])
+modes=json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 with zipfile.ZipFile(target,'x',compression=zipfile.ZIP_STORED) as output:
- for file in sorted(root.rglob('*')):
-  if not file.is_file(): continue
-  info=zipfile.ZipInfo(file.relative_to(root).as_posix(),date_time=(2000,1,1,0,0,0))
+ for name in sorted(modes,key=PurePosixPath):
+  file=root.joinpath(*PurePosixPath(name).parts)
+  info=zipfile.ZipInfo(name,date_time=(2000,1,1,0,0,0))
   info.create_system=3
-  info.external_attr=(stat.S_IFREG | (0o755 if file.stat().st_mode & 0o111 else 0o644)) << 16
+  info.external_attr=(stat.S_IFREG | modes[name]) << 16
   output.writestr(info,file.read_bytes())
 `,
           root,
           output,
+          modes,
         ],
         { stdio: 'pipe' },
       );

@@ -29,7 +29,10 @@ async function execute(
   roots.push(root);
   const output = join(root, 'output');
   await writeFile(output, '');
-  const child = Bun.spawn(['bash', '-c', script], {
+  // macOS still ships Bash 3.2. Its errexit behavior differs for a bare
+  // failed [[ condition ]], so exercise that supported shell explicitly.
+  const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+  const child = Bun.spawn([shell, '-c', script], {
     cwd: root,
     env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...environment },
     stdout: 'pipe',
@@ -65,6 +68,14 @@ test.skipIf(process.platform === 'win32')(
     }
     for (const sha of ['main', revision.slice(0, 7), `${revision}\n`, '']) {
       const result = await execute(script, { GITHUB_SHA: sha, PR_NUMBER: '' });
+      expect(result.code).not.toBe(0);
+      expect(result.output).toBe('');
+    }
+    for (const pr of ['913\n', 'branch', '913; exit 0']) {
+      const result = await execute(script, {
+        GITHUB_SHA: revision,
+        PR_NUMBER: pr,
+      });
       expect(result.code).not.toBe(0);
       expect(result.output).toBe('');
     }

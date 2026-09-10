@@ -120,6 +120,8 @@ Utilise une déclaration de déploiement vérifiée quand le runtime et les conf
 
 Lance la préparation sous Linux avec une CLI compilée depuis un checkout Tale propre et committé, pour l’architecture cible `linux/amd64` ou `linux/arm64`. Le même exécutable accompagne le paquet pour le provisionnement local au backend. La préparation demande Git et Docker pour vérifier sources et images. L’application s’exécute sur la destination avec son daemon Docker local, son répertoire d’état conservé et son environnement. Le commit complet de CLI, le commit source du runtime et celui de la configuration client sont trois références distinctes.
 
+Les commandes de bundle géré ne sont pas disponibles sous Windows, y compris `deploy verify-bundle` et le `deploy provision` local au backend : leurs contrôles d’intégrité exigent les droits d’exécution POSIX. Exécute le déploiement géré complet sur un hôte Linux. Les commandes ordinaires du workspace et les commandes autonomes `config build`, `verify`, `stage`, `deploy` et `verify-native` restent disponibles sous Windows.
+
 Cet exemple synthétique cible une organisation et un projet existants. Remplace les ID publics et définis les variables nommées. `revision` accepte un SHA de commit complet ou une référence d’environnement. Les identifiants restent des références, résolues en privé sur la destination. `tlsMode: "external"` suppose qu’un point d’entrée existant gère le TLS public ; `letsencrypt` demande aussi `tlsEmail`.
 
 Pour les jobs Linux de GitHub Actions, utilise l’action composite Tale `.github/actions/setup-cli`. Fixe la référence de l’action et son entrée `revision` au même commit Tale complet. Elle compile avec Bun 1.4.2, fournit la sortie `executable` et ajoute le binaire au `PATH`.
