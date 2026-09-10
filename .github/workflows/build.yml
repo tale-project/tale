@@ -607,6 +607,12 @@ jobs:
           SKIP_BUILD: 'true'
           PULL_POLICY: never
 
+      - name: Validate sandbox runtime behavior
+        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          IMAGE: tale-sandbox-runtime:latest
+
       - name: Summary
         if: always()
         run: echo "## Image validation complete" >> "$GITHUB_STEP_SUMMARY"
@@ -639,6 +645,12 @@ jobs:
 
       - name: Run image validation (local build)
         run: bun services/platform/tests/integration/container-image-test.ts
+
+      - name: Validate sandbox runtime behavior
+        run: bun services/platform/tests/integration/container-sandbox-runtime-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          IMAGE: tale-sandbox-runtime:latest
 
       - name: Summary
         if: always()

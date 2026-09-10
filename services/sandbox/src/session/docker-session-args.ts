@@ -12,6 +12,8 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
+import { buildkitdEndpoint } from '../buildkitd.ts';
+import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
 import {
   dindCapabilityOf,
   dockerRuntimeFor,
@@ -20,10 +22,7 @@ import {
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { sessionContainerName } from './session-naming.ts';
-import {
-  sessionBrowserViewEnabled,
-  sessionDindEnabled,
-} from './session-profile.ts';
+import { sessionDindEnabled } from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
@@ -47,18 +46,22 @@ interface DockerSessionRunInput {
    */
   dockerStorageVolume?: string;
   /**
-   * Endpoint of the shared buildkitd (e.g. `tcp://tale-buildkitd:1234`), set only
+   * Endpoint of this organization's buildkitd, set only
    * when `cfg.dockerBuildCache` is on (and DinD). The entrypoint creates a remote
    * buildx builder pointing here + sets BUILDX_BUILDER, so the session's
    * `docker build` / `docker compose up --build` reuse the shared build cache.
    * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
    */
   buildkitdEndpoint?: string;
+  /** Inspected org bridge subnets, required with an endpoint because the bridge
+   * attaches after runtime readiness and is not in the initial route table. */
+  buildkitNetworkSubnets?: readonly string[];
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
+const NETWORK_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 // `tcp://host:port` for the shared buildkitd endpoint — the only injection
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
@@ -255,24 +258,37 @@ export function buildDockerSessionRunArgs(
       '--env',
       `TALE_RUNTIME_TIER=${cfg.runtimeTier}`,
     ];
+    if (cfg.dindInnerPool !== undefined) {
+      dindEnv.push(
+        '--env',
+        `TALE_DIND_INNER_POOL_OVERRIDE=${parseDindInnerPool(cfg.dindInnerPool)}`,
+      );
+    }
     // Shared build cache: point the session at the shared buildkitd so the
     // entrypoint can wire a remote buildx builder. Only present when the backend
     // resolved an endpoint (cfg.dockerBuildCache on + the daemon came up), so
     // the off path stays argv byte-identical.
     if (inp.buildkitdEndpoint) {
       assertSafe('buildkitdEndpoint', inp.buildkitdEndpoint, ENDPOINT_RE);
-      dindEnv.push('--env', `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`);
+      const subnets = inp.buildkitNetworkSubnets;
+      if (
+        !Array.isArray(subnets) ||
+        subnets.length === 0 ||
+        subnets.length > 64
+      ) {
+        throw new Error(
+          'docker-session-args: buildkitNetworkSubnets are required with a buildkitd endpoint',
+        );
+      }
+      for (const subnet of subnets) ipv4Subnet(subnet);
+      dindEnv.push(
+        '--env',
+        `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`,
+        '--env',
+        `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
+      );
     }
   }
-
-  // Live browser view (operator flag): signal the entrypoint to bring up the
-  // headed-Chromium + x11vnc read-only mirror (start_browser_stack). Additive
-  // and only present when enabled — off keeps today's argv byte-identical. The
-  // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
-  // Agent-only, like DinD (see session-profile.ts).
-  const browserViewEnv = sessionBrowserViewEnabled(cfg, inp.profile)
-    ? ['--env', 'TALE_BROWSER_CDP=1']
-    : [];
 
   // Transparent egress signal for the entrypoint. On the non-DinD hardening path
   // the container boots as root, so TALE_DROP_UID/GID tell the entrypoint which
@@ -325,6 +341,20 @@ export function buildDockerSessionRunArgs(
       ];
 
   const containerName = sessionContainerName(inp.sessionId);
+  if (
+    dind &&
+    inp.buildkitdEndpoint &&
+    inp.buildkitdEndpoint !== buildkitdEndpoint(inp.organizationId)
+  ) {
+    throw new Error(
+      "docker-session-args: refusing another organization's buildkitd endpoint",
+    );
+  }
+  assertSafe('egressNetwork', cfg.egressNetwork, NETWORK_RE);
+  // Boot on the control/LLM network only. The spawner verifies the runtime's
+  // forwarding firewall after readiness before attaching the org build bridge;
+  // this also protects deployments still using an older runtime image.
+  const networkArgs = ['--network', cfg.egressNetwork];
   return [
     'run',
     '-d',
@@ -344,8 +374,14 @@ export function buildDockerSessionRunArgs(
     `tale.profile=${inp.profile}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
-    '--network',
-    cfg.egressNetwork,
+    ...networkArgs,
+    // These Docker networks carry IPv4 only. Disable loopback/current and
+    // future-interface IPv6 explicitly so missing ip6_tables is safe on hosts
+    // where Docker leaves ::1 enabled even for IPv4-only networks.
+    '--sysctl',
+    'net.ipv6.conf.all.disable_ipv6=1',
+    '--sysctl',
+    'net.ipv6.conf.default.disable_ipv6=1',
     '--env',
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',
@@ -374,8 +410,6 @@ export function buildDockerSessionRunArgs(
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
-    // Live browser view signal for the entrypoint (empty when off).
-    ...browserViewEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).
     ...transparentEgressEnv,
     `--cpus=${profile.cpus}`,

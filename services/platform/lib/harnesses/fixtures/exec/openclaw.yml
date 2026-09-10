@@ -127,18 +127,6 @@ managed-mcp-headless-bridge:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","config":{"agents":{"defaults":{"workspace":"/agent/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}}'
   stdinMode: close
-managed-mcp-cdp:
-  argv:
-    - tale-openclaw-run
-    - --workdir
-    - /agent/workspace
-  env:
-    OPENCLAW_STATE_DIR: /agent/.runtime/home/.openclaw
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","config":{"agents":{"defaults":{"workspace":"/agent/workspace","skipBootstrap":true}},"tools":{"profile":"coding","deny":["web_search","web_fetch","x_search"]},"models":{"providers":{"tale":{"baseUrl":"http://golden-gw:8080/openai/v1","apiKey":"${TALE_GATEWAY_TOKEN}","api":"openai-completions","models":[]}}},"mcp":{"servers":{"playwright":{"command":"tale-playwright-mcp","args":["--cdp-endpoint","http://127.0.0.1:9222"]}}}}}'
-  stdinMode: close
 managed-mcp-bridge-only:
   argv:
     - tale-openclaw-run

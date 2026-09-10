@@ -54,6 +54,7 @@ export interface ComposeService {
   // and made sandbox impossible. All optional; emit only when set.
   cap_add?: string[];
   cap_drop?: string[];
+  sysctls?: Record<string, string>;
   mem_limit?: string;
   pids_limit?: number;
   ulimits?: Record<string, number | { soft: number; hard: number }>;

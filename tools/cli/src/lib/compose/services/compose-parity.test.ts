@@ -23,6 +23,8 @@ import {
 } from './create-backend-services';
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
+import { createSandboxEgressService } from './create-sandbox-egress-service';
+import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
 // config that lives in one pipeline but not the other. `compose.yml` (the
@@ -50,6 +52,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
     {
       networks?: unknown;
       cap_add?: string[];
+      sysctls?: Record<string, string>;
       stop_grace_period?: string;
       stop_signal?: string;
       image?: string;
@@ -128,6 +131,25 @@ describe('sandbox→backend reachability parity', () => {
 });
 
 describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
+  test('operator inner Docker pool reaches the spawner in both compose pipelines', () => {
+    const expected = '${SANDBOX_DIND_INNER_POOL:-}';
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_DIND_INNER_POOL,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_DIND_INNER_POOL,
+    ).toBe(expected);
+  });
+
+  test('egress disables IPv6 for current and future interfaces in both compose pipelines', () => {
+    const expected = {
+      'net.ipv6.conf.all.disable_ipv6': '1',
+      'net.ipv6.conf.default.disable_ipv6': '1',
+    };
+    expect(compose.services['sandbox-egress']?.sysctls).toEqual(expected);
+    expect(createSandboxEgressService(config).sysctls).toEqual(expected);
+  });
+
   test('CLI generator keeps NET_ADMIN on the backend tier', () => {
     expect(createBackendApiService(config).cap_add).toContain('NET_ADMIN');
     expect(createBackendWorkerService(config).cap_add).toContain('NET_ADMIN');

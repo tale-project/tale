@@ -1355,8 +1355,8 @@ async function checkProjects(
       fetched.data.project.isOrgWide &&
       fetched.data.project.canEdit &&
       fetched.data.project.canAdminister &&
-      dupExternal.status === 400,
-    `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, flags=${fetched.success ? `${fetched.data.project.isOrgWide}/${fetched.data.project.canEdit}/${fetched.data.project.canAdminister}` : 'ERR'} (want true×3), dupExternal → ${dupExternal.status} (want 400)`,
+      dupExternal.status === 409,
+    `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, flags=${fetched.success ? `${fetched.data.project.isOrgWide}/${fetched.data.project.canEdit}/${fetched.data.project.canAdminister}` : 'ERR'} (want true×3), dupExternal → ${dupExternal.status} (want 409)`,
   );
 
   const agentCreated = z.object({ agentId: z.string() }).safeParse(
@@ -29888,6 +29888,120 @@ async function checkSandboxSessions(
   );
 }
 
+/** The settings view must name the workspace and its current task/run,
+ * including hibernated quota rows, without borrowing another org's owners. */
+async function checkSandboxSettingsViews(
+  sql: Sql,
+  base: string,
+  ctx: { orgId: string; userId: string; cookie: string },
+): Promise<void> {
+  const { orgId, userId, cookie } = ctx;
+  const now = Date.now();
+  const projectId = randomUUID();
+  const agentId = randomUUID();
+  const taskId = randomUUID();
+  const runId = randomUUID();
+  const sessionId = `view-${randomUUID()}`;
+  const workflowSessionId = `view-${randomUUID()}`;
+  const execId = randomUUID();
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+    VALUES (${projectId}, ${orgId}, 'Sandbox settings proof', ${userId}, ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.project_agents (id, org_id, project_id, name, harness, model, created_by, created_at_ms, updated_at_ms)
+    VALUES (${agentId}, ${orgId}, ${projectId}, 'Research workspace', 'opencode', 'itest', ${userId}, ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.tasks (id, org_id, project_id, title, status, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
+    VALUES (${taskId}, ${orgId}, ${projectId}, 'Review source material', 'in_review', 'a0', ${userId}, 'user', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.automation_runs (id, org_id, project_id, name, version, status, mode, started_by, input, checkpoints, started_at_ms)
+    VALUES (${runId}, ${orgId}, ${projectId}, 'Daily research', 1, 'success', 'live', ${userId}, ${sql.json({})}, ${sql.json({})}, ${now})
+  `;
+  for (const [id, type, owner] of [
+    [sessionId, 'project_agent', agentId],
+    [workflowSessionId, 'workflow_run', `${runId}:agent`],
+  ]) {
+    await sql`
+      INSERT INTO app.sandbox_sessions (org_id, session_id, status, owner_type, owner_id, created_by, created_at_ms, expires_at_ms)
+      VALUES (${orgId}, ${id ?? ''}, 'stopped', ${type ?? ''}, ${owner ?? ''}, ${userId}, ${now}, ${now + 60_000})
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (org_id, session_id, exec_id, kind, status, finalized_at_ms, spent_cents, started_at_ms)
+      VALUES (${orgId}, ${id ?? ''}, ${execId}, ${type === 'project_agent' ? 'task-agent' : 'workflow-agent'}, 'completed', ${now}, 12, ${now - 1000})
+    `;
+  }
+  await sql`
+    INSERT INTO app.project_agent_runs (org_id, project_id, task_id, agent_id, session_id, exec_id, status, harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms)
+    VALUES (${orgId}, ${projectId}, ${taskId}, ${agentId}, ${sessionId}, ${execId}, 'settled', 'opencode', 'itest', ${userId}, ${now - 1000}, ${now + 60_000}, ${now})
+  `;
+  const { listSandboxViewsForOrg } =
+    await import('./domains/sandbox/sessions.ts');
+  const lookupIndex = await sql<{ valid: boolean }[]>`
+    SELECT indisvalid AS valid FROM pg_index
+    WHERE indexrelid = to_regclass('app.project_agent_runs_session_exec')
+  `;
+  const views = await listSandboxViewsForOrg(sql, orgId);
+  const project = views.find((view) => view.sessionId === sessionId);
+  const workflow = views.find((view) => view.sessionId === workflowSessionId);
+  record(
+    'sandbox settings name the workspace and current task/run',
+    lookupIndex.some((index) => index.valid) &&
+      project?.ownerId === agentId &&
+      project.ownerLabel === 'Research workspace' &&
+      project.status === 'stopped' &&
+      !project.busy &&
+      project.totalSpentCents === 12 &&
+      project.currentOp?.kind === 'task-agent' &&
+      project.currentOp.taskId === taskId &&
+      workflow?.ownerLabel === 'Daily research' &&
+      workflow.currentOp?.workflowRunId === runId,
+    `project=${project?.ownerLabel}, task=${project?.currentOp?.taskId}, workflow=${workflow?.ownerLabel}, run=${workflow?.currentOp?.workflowRunId}`,
+  );
+  // A corrupt/stale cross-org owner reference must not reveal that owner's
+  // label, even though the referenced primary key exists globally.
+  await sql`UPDATE app.project_agents SET org_id = 'foreign-settings-org' WHERE id = ${agentId}`;
+  const scoped = (await listSandboxViewsForOrg(sql, orgId)).find(
+    (view) => view.sessionId === sessionId,
+  );
+  const anonymous = await fetch(
+    `${base}/api/app/sandbox/capacity?orgId=${orgId}`,
+  );
+  const foreign = await fetch(
+    `${base}/api/app/sandbox/capacity?orgId=foreign-settings-org`,
+    { headers: { cookie } },
+  );
+  record(
+    'sandbox settings keep owner labels and capacity behind organization authority',
+    scoped?.ownerLabel === null &&
+      anonymous.status === 401 &&
+      [403, 404].includes(foreign.status),
+    `foreignOwner=${scoped?.ownerLabel}, anonymous=${anonymous.status}, nonMember=${foreign.status}`,
+  );
+  await sql`UPDATE app.sandbox_sessions SET org_id = 'foreign-settings-org' WHERE session_id = ${sessionId}`;
+  const foreignDestroy = await fetch(
+    `${base}/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { cookie, origin: base },
+    },
+  );
+  const foreignSession = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions WHERE session_id = ${sessionId}
+  `;
+  record(
+    'sandbox destroy refuses a different organization before changing its session',
+    foreignDestroy.status === 404 && foreignSession[0]?.status === 'stopped',
+    `status=${foreignDestroy.status}, foreign session=${foreignSession[0]?.status}`,
+  );
+  await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${[sessionId, workflowSessionId]})`;
+  await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+}
+
 /**
  * The AUTOMATION RUN's tool lane, end to end through `POST /api/tools/execute`
  * — the door an agent container actually knocks on.
@@ -45356,6 +45470,10 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxSettingsViews',
+        () => checkSandboxSettingsViews(sql, baseUrl, authCtx),
+      ],
       [
         'checkAutomationRunToolLane',
         () => checkAutomationRunToolLane(sql, baseUrl, authCtx),

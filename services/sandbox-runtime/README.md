@@ -12,8 +12,38 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
-All network egress is REDIRECTed through the egress proxy; the VNC/debug
-endpoints the entrypoint binds are loopback-only.
+Headless Chromium and Playwright are available on demand for automation,
+rendering and screenshots. The runtime starts no display server, managed
+browser or viewing tunnel. Configured transparent egress redirects external
+network access through `@tale/sandbox-egress`; Playwright MCP also receives
+the proxy settings through its launcher.
+
+Before starting inner Docker on either backend, the runtime checks IPv4 routes
+and gateways from all tables, interface addresses and prefixes, DNS servers,
+proxy/gateway addresses configured at container startup, and any planned Docker
+organization bridge. Hosts supplied later during a turn are not observed at boot.
+Automatic selection prefers a free `172.31.0.0/16`, then other private ranges;
+`docker0` and inner Compose networks use `/24` blocks within the chosen pool.
+The same pool drives transparent outbound routing. Failed observations or
+exhausted private space stop automatic startup with a specific log message.
+
+Operators can set `SANDBOX_DIND_INNER_POOL` on the spawner to pass a canonical
+private `/16` through the internal `TALE_DIND_INNER_POOL_OVERRIDE`. This rejects
+known overlaps; unavailable observations produce named warnings and may allow
+the explicit pool. A Kubernetes Pod cannot discover the full cluster Pod,
+Service or VPC CIDRs, so choose an override outside those ranges. Restart the
+spawner and recreate existing sessions after changing the pool; a same-Pod
+runner restart retains its environment and inner Docker store. See the
+[operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
+
+Docker organization build networks attach only after runnerd is ready and the spawner
+has verified forwarding protection inside the session. Keep the runtime image on
+the same release as the spawner and egress image. Generated Docker session
+containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and
+`net.ipv6.conf.default.disable_ipv6=1`; preserve these sysctls in custom
+Docker definitions. Kubernetes runners and transparent-egress sidecars do not
+automatically disable IPv6 or receive unsafe Pod sysctls. Their standalone
+egress proxy must satisfy the [Kubernetes IPv6 prerequisite](../sandbox/docs/kubernetes.md#egress-ipv6-prerequisite).
 
 ```bash
 bun run --filter @tale/sandbox-runtime docker:build

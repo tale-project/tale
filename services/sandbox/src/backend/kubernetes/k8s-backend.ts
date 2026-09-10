@@ -8,7 +8,7 @@
 import type { V1Pod, V1Secret } from '@kubernetes/client-node';
 
 import type { SpawnerConfig } from '../../types.ts';
-import type { ExecutionBackend, HealthResult, SweepOptions } from '../types.ts';
+import type { HostBackend, HealthResult, SweepOptions } from '../types.ts';
 import { secretNameFor } from './exec-spec.ts';
 import {
   apiTimeout,
@@ -119,7 +119,7 @@ export function shouldReapSecret(
   return Number.isFinite(startedAt) && startedAt > 0 && startedAt < cutoff;
 }
 
-export class KubernetesBackend implements ExecutionBackend {
+export class KubernetesBackend implements HostBackend {
   readonly kind = 'kubernetes' as const;
 
   private readonly client: K8sClient;

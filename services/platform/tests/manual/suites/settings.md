@@ -311,12 +311,14 @@ any toggled setting after the run.
   (`settings.branding.resetConfirmTitle`) warns removed images can't be
   restored — cancel.
 - [ ] `SET-F30` · **Sandboxes page** — `/dashboard/{org}/settings/sandboxes` →
-  A fresh org shows **No active sandboxes** (`sandboxes.empty.title`); with a
+  A fresh org shows **No workspaces yet** (`sandboxes.empty.title`); with a
   live sandbox session (env-gated) the table renders columns
   `sandboxes.columns.owner` / `…agent` / `…status` / `…task` / `…spend` and
-  row actions **Stop** / **Pin** / **Destroy** (`sandboxes.actions.stop` /
+  admin row actions **Stop task** / **Pin** / **Destroy** (`sandboxes.actions.stop` /
   `…pin` / `…destroy`; Destroy confirms via `sandboxes.destroyConfirm.title`)
-  — a monitoring surface, nothing to save.
+  — runtime and organization allocation are separate; a running container can
+  show **Quota released** (`sandboxes.status.quotaReleased`). Quota editing is
+  covered by GOV-F13.
 - [ ] `SET-F31` · **Metrics smoke** — Expand the rail's **Metrics** group;
   open `/dashboard/{org}/settings/metrics` → The group lists six children from
   `metrics.groups.*` (Usage / Feedback / Chat health / Harness turns /
@@ -384,6 +386,7 @@ any toggled setting after the run.
   (`settings.dataResidency.readOnly.title`) naming their sign-in email — full
   depth (stores, tests, restart) is [data-residency.md](data-residency.md)'s
   job.
+- [ ] `SET-F37` · **Infrastructure capacity** — `/dashboard/{org}/settings/sandboxes` → with a configured sandbox service, compare **Host session slots** (`sandboxes.capacity.hostSessions`) and **Your organization's runtime slots** (`sandboxes.capacity.organizationSessions`) with the running and starting environment counts; click **Refresh** (`sandboxes.capacity.refresh`) → **Observed** (`sandboxes.capacity.observedAt`) advances. CPU and memory show measured usage and total hardware separately from configured session limits; a Kubernetes deployment names namespace scope and leaves unsupported host measurements unavailable.
 
 ## Boundary & error tests
 
@@ -447,6 +450,7 @@ any toggled setting after the run.
   env-dependent, note rather than force it.
 
 - [ ] `SET-B11` · **REST model discovery** → With a SET-F32 key, call `GET /api/v1/models`; only this organization's configured chat models allowed by the key holder's model policy appear. Without available models the response is `200 {"models":[]}`; use an entry's `id` and `providerSlug` to send a thread message and verify the selected provider answers.
+- [ ] `SET-B12` · **Sandbox reader and unavailable state** — `/dashboard/{org}/settings/sandboxes` as a developer → saved limits, allocations and capacity remain readable; **Save**, **Discard**, and the entire **Workspaces** section are absent. In a disconnected sandbox-service test environment, **Refresh** (`sandboxes.capacity.refresh`) shows `sandboxes.capacity.unreachable`, and metrics never substitute zero for a failed observation. As an admin in that environment, workspace runtime state is **Unknown** (`sandboxes.status.runtime.unknown`).
 
 ## Accessibility (WCAG 2.1 AA)
 

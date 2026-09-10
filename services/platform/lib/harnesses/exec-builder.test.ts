@@ -204,6 +204,25 @@ describe('placeholder substitution safety', () => {
   });
 });
 
+describe('optional headless browser execution', () => {
+  const withMcp = loadHarnesses().filter((harness) => harness.capabilities.mcp);
+  it.each(withMcp.map((harness) => [harness.slug, harness] as const))(
+    '%s launches a headless browser only when requested',
+    (_slug, harness) => {
+      const withoutBrowser = buildHarnessExec(harness, managedSpec());
+      expect(execCarries(withoutBrowser, 'tale-playwright-mcp')).toBe(false);
+      const withBrowser = buildHarnessExec(
+        harness,
+        managedSpec({ mcp: { browser: 'headless' } }),
+      );
+      expect(execCarries(withBrowser, 'tale-playwright-mcp')).toBe(true);
+      expect(execCarries(withBrowser, '--headless')).toBe(true);
+      expect(execCarries(withBrowser, '--isolated')).toBe(true);
+      expect(execCarries(withBrowser, '--cdp-endpoint')).toBe(false);
+    },
+  );
+});
+
 describe('subscription delivery', () => {
   const subscription = {
     secret: 'subscription-plan-secret',

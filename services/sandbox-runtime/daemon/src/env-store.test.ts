@@ -3,6 +3,26 @@ import { describe, expect, test } from 'bun:test';
 import { EnvStore } from './env-store.ts';
 
 describe('EnvStore', () => {
+  test.each([
+    'TALE_BUILDKIT_NETWORK_SUBNETS',
+    'TALE_DIND_INNER_POOL',
+    'TALE_DIND_INNER_BIP',
+    'TALE_DIND_INNER_POOL_OVERRIDE',
+  ])(
+    'reserves startup network routing metadata from seeds, patch and exec overlay (%s)',
+    (name) => {
+      const store = new EnvStore({ [name]: 'spoofed' });
+      expect(
+        store.patch({ [name.toLowerCase()]: 'spoofed' }, [name]),
+      ).toContain(name);
+      const resolved = store.resolve({
+        [name]: 'spoofed',
+        [name.toLowerCase()]: 'spoofed',
+      });
+      expect(resolved[name]).toBeUndefined();
+      expect(resolved[name.toLowerCase()]).toBeUndefined();
+    },
+  );
   test('seeds non-denied vars, drops denied seeds', () => {
     const s = new EnvStore({ FOO: '1', HOME: '/evil', HTTPS_PROXY: 'x' });
     const r = s.resolve();

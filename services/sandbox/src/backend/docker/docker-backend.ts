@@ -13,9 +13,9 @@ import {
 } from '../../cleanup.ts';
 import { ensureImage, runDocker } from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import type { ExecutionBackend, HealthResult, SweepOptions } from '../types.ts';
+import type { HostBackend, HealthResult, SweepOptions } from '../types.ts';
 
-export class DockerBackend implements ExecutionBackend {
+export class DockerBackend implements HostBackend {
   readonly kind = 'docker' as const;
 
   constructor(private readonly cfg: SpawnerConfig) {}

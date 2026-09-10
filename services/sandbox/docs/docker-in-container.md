@@ -127,7 +127,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   inner daemon — reaches any host via the egress proxy. Inner containers get the
   internet **transparently**, with **no proxy env injected**: the entrypoint runs
   `redsocks` and an iptables `REDSOCKS` nat chain that REDIRECTs nested
-  containers' _public_ TCP (matched by the inner source pool `172.31.0.0/16`)
+  containers' _public_ TCP (matched by the private inner source pool selected at
+  startup, preferring `172.31.0.0/16` when it does not overlap the outer routes
+  or the planned organization build network)
   through the egress proxy via `CONNECT` (both `:80` and `:443`), while internal /
   private / loopback traffic stays direct. External **DNS** is served by a
   `dnsmasq` forwarder on the (dual-homed) egress proxy — the inner daemon is
@@ -155,9 +157,19 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
-  kernel) and is reaped on both stop and destroy, so a crash never leaves a
-  dirty overlay2 that wedges resume. Image cache therefore does **not** persist
-  across an idle stop/resume (cold rebuild).
+  kernel). Stop and destroy remove the container or Pod and its inner store,
+  so image cache does **not** persist across an idle stop/resume (cold rebuild).
+  On Kubernetes, a runner-container restart within the **same Pod** retains
+  the `emptyDir`, including image and network state; it does not provide a
+  clean inner store after a crash. The workspace PVC has its own lifecycle
+  and survives stop/resume.
+- **Restarted inner networks.** After confirming retained inner Docker state,
+  the address selector recognizes standard `docker0` and `br-<12hex>` kernel
+  bridges as inner networks. Unknown or custom-named bridges remain in the
+  observed outer inventory and can block an overlapping pool. Choose
+  `SANDBOX_DIND_INNER_POOL` outside every outer Pod, Service and VPC network;
+  changing it requires recreating the session container or Pod. A same-Pod
+  container restart keeps its existing Pod environment and inner store.
 - **Disk bound.** A plain Docker named volume has no hard size cap. For a real
   multi-tenant quota, back the host docker data-root with an XFS project quota
   (or a fixed-size loopback filesystem). On K8s the `emptyDir.sizeLimit` bounds
@@ -167,81 +179,45 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   (per-container userns shifting makes a shared cross-session volume unsafe).
   Installs still work, just uncached across sessions.
 
-## Shared build cache (on by default under DinD)
+## Reuse builds within an organization
 
-By default a session's inner `/var/lib/docker` is ephemeral, so every session
-that runs `docker build` / `docker compose up --build` rebuilds **all** layers
-from zero. The shared build cache makes those builds reuse one persistent cache
-across sessions.
+The Docker backend keeps each session's inner `/var/lib/docker` disposable and
+shares persistent build caches only among sessions from the same organization.
+`SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting. Set it to `false` on
+the `sandbox` service, or set `sandboxRuntime.dockerBuildCache` in deployment
+configuration, to use only the session's local builder.
 
-It is **on by default whenever DinD is enabled** (it's a strict, best-effort
-improvement — a failed daemon falls back to the inner builder — so there's no
-reason to opt in twice). Turn it off explicitly to keep the extra daemons off:
+The spawner provisions one BuildKit daemon and one internal Docker bridge per
+organization. It also provisions three registry mirrors (`docker.io`, `ghcr.io`,
+and `quay.io`), each with an organization-specific volume. Names use a bounded,
+case-sensitive organization hash; ownership labels are verified before any
+resource is reused. The daemon and mirrors have no published ports and do not
+join the shared sandbox network.
 
-```
-# env on the `sandbox` service, or deployment.json: sandboxRuntime.dockerBuildCache
-SANDBOX_DOCKER_BUILD_CACHE=false    # opt OUT (default follows DinD)
-```
+Sessions join both their organization's build network and the existing control
+network. The egress proxy joins the private build network under a local alias;
+forwarding rules prevent that proxy and the session's outer interfaces from
+routing unsolicited traffic between networks. The builder's RUN steps retain
+the transparent proxy and DNS path. A moved egress proxy is reattached and the
+builder's stale egress configuration is repaired during provisioning/adoption.
 
-How it works (all spawner-managed; the user does nothing per build):
+The runtime derives its buildx builder name from the configured endpoint, so
+persistent workspaces do not retain an earlier global endpoint by name. Builder
+setup failure selects the local builder. A bare remote `docker build` needs
+`--load` before the resulting image can run in the session's inner engine.
 
-- The spawner lazily launches **one persistent buildkitd** (image
-  `services/sandbox-buildkitd/`, container `tale-buildkitd`) on
-  `tale-sandbox-net`, with its content-addressed cache on a persistent volume
-  (`tale-buildkitd-cache` → `/var/lib/buildkit`, GC-bounded).
-- …and **one pull-through registry mirror** (stock `registry:2`, container
-  `tale-buildkitd-mirror`, volume `tale-buildkitd-mirror-cache`). This is
-  **load-bearing, not just a cache**: buildkit's image-pull DNS runs in the
-  daemon via Go's resolver against docker's embedded resolver (`127.0.0.11`),
-  which SERVFAILs Go's queries for **external** registry names on a user-defined
-  network — and can't be fixed from inside the container (resolv.conf / `[dns]` /
-  `GODEBUG` are all ignored for pulls). So the buildkitd is configured to mirror
-  `docker.io` at the registry by its **container name** (a _sibling_ name, which
-  the embedded resolver answers locally → no SERVFAIL); the mirror reaches Docker
-  Hub through the `sandbox-egress` proxy. The mirror also caches base-image
-  layers across sessions.
-- Each session's entrypoint creates a **remote buildx builder** pointing at the
-  buildkitd and sets `BUILDX_BUILDER`, so `docker build` / `docker buildx build`
-  / `docker compose up --build` run on the shared daemon **with no per-build
-  flags**. The daemon's own internal cache is the shared cache — no
-  `--cache-to/--cache-from`.
-- **Egress is still fenced.** Build RUN steps run in the buildkitd's netns
-  (`--oci-worker-net=host`) and reach the internet only through the
-  `sandbox-egress` proxy (redsocks redirect + IMDS/RFC1918 fence; RUN-step DNS is
-  pinned to the egress dnsmasq via the buildkitd's `[dns]` config). Verified:
-  `apk add`/`curl` reach the internet, `169.254.169.254` (IMDS) is blocked.
-- **The fence self-heals across egress moves.** `sandbox-egress` is recreated —
-  and can land on a **new IP** — by any stack restart (`bun dev` / `docker:dev` /
-  `docker compose up` / `tale deploy`), while this `--restart unless-stopped`
-  daemon keeps running with its `[dns]`/redsocks pinned to the **old** IP (RUN-step
-  DNS would then resolve against whatever now holds that address). The spawner
-  guards against this: on every session create — and once at startup for
-  already-running/adopted sessions (`reconcileBuildCache`) — it compares the
-  daemon's live `[dns]` nameserver to the egress's **current** IP and, on a
-  mismatch, reaps + recreates the daemon (the persistent cache volume is
-  preserved; the entrypoint reinstalls the fence against the current IP).
-- **Best-effort.** If the daemon can't be reached, the session falls back to its
-  own inner builder (cold cache); it never blocks session creation.
+On upgrade, organization caches start cold. The old global containers are
+stopped only after all sessions depending on the old endpoint have stopped;
+paused, restarting, starting, and pinned legacy sessions defer this cleanup.
+Their volumes and old buildx configuration are retained. Until those sessions
+drain, the legacy global service remains reachable on the shared network.
+Resources with foreign or missing ownership labels are never stopped or adopted.
 
-Notes / limits:
-
-- `docker compose up --build` auto-loads the built image into the session's
-  inner docker, so build + run is transparent. A bare `docker build` to the
-  remote builder leaves the image in the cache only (add `--load` to run it).
-- **Mirrors cover `docker.io`, `ghcr.io`, `quay.io`** (one `registry:2` instance
-  per upstream — `registry:2` proxies one upstream each). A `FROM` base image
-  from a registry **outside this set** can't be pulled (buildkit can't resolve
-  its external name) — add it to `MIRROR_REGISTRIES` in `buildkitd.ts`. The
-  operator's host must be able to pull the mirror image
-  (`SANDBOX_BUILDKITD_MIRROR_IMAGE`, default `registry:2`).
-- **One global daemon + mirror in v1** — caches shared across orgs (acceptable
-  for single-enterprise self-host). The spawner helpers (`buildkitd.ts`) are
-  keyed by org id, so per-org isolation later is a name change + a per-org
-  network / mTLS.
-- buildkitd runs `--privileged` (host-level shared infra, not user code); the
-  build egress fence still applies. Rootless buildkitd is a hardening follow-up.
-- All addresses are resolved **dynamically** (the mirror by its stable container
-  name; the egress proxy by name via the embedded resolver) — no hardcoded IPs.
+This integration currently belongs to the Docker backend. The Kubernetes
+backend does not provision this shared BuildKit service. BuildKit's GC budget
+applies per organization; registry mirror storage is separate. See
+[the BuildKit reference](../../sandbox-buildkitd/README.md) for the resource
+boundary and upgrade requirements.
 
 ## v1 limitations
 

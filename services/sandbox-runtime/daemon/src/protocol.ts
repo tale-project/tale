@@ -27,7 +27,15 @@ export const RUNNERD_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 
-export const RUNNERD_ENV_DENYLIST = ['HOME', 'PATH', 'TMPDIR'] as const;
+export const RUNNERD_ENV_DENYLIST = [
+  'HOME',
+  'PATH',
+  'TMPDIR',
+  'TALE_BUILDKIT_NETWORK_SUBNETS',
+  'TALE_DIND_INNER_POOL',
+  'TALE_DIND_INNER_BIP',
+  'TALE_DIND_INNER_POOL_OVERRIDE',
+] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
 
@@ -45,25 +53,6 @@ export interface RunnerdHealth {
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
-  /** Raw VNC tunnels (GET /screencast) currently piping. */
-  activeScreencasts: number;
-  /** Managed live-browser CDP liveness; present only on browser-view sessions
-   * (TALE_BROWSER_CDP=1). Real CDP round-trip, not just "HTTP answers". */
-  browser?: { cdpHealthy: boolean; tabs: number };
-}
-
-// --- POST /browser/{restart,reset,close-pages} (browser-view sessions) -------
-
-/** restart (recycle, preserves logins) / reset (wipe profile, loses logins). */
-export interface RunnerdBrowserRecycle {
-  signalled: boolean;
-  ready: boolean;
-  tabs: number;
-}
-
-/** close-pages — tabs closed, cookies untouched. */
-export interface RunnerdBrowserClosePages {
-  closed: number;
 }
 
 export interface RunnerdExecRequest {

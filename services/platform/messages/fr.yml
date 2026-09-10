@@ -3068,20 +3068,6 @@ governance:
       Par défaut : 30."
     invalid: Le délai d'inactivité doit être un entier entre 1 et 1440 minutes.
     saveFailed: Échec de l'enregistrement du délai d'inactivité de session
-  sandboxQuota:
-    title: Limites de simultanéité des sandboxes
-    description:
-      Limitez le nombre de sandboxes que cette organisation peut exécuter
-      simultanément. Ces limites par organisation s'inscrivent sous la capacité
-      hôte définie au niveau du déploiement ; les réduire protège les ressources
-      serveur partagées contre la saturation.
-    maxSessions: Sessions actives max.
-    maxSessionsHint: "Sessions de sandbox persistantes (agents de discussion et
-      étapes d'agent d'automatisation) pouvant être actives simultanément pour cette
-      organisation. Les demandes au-delà de la limite échouent avec une erreur
-      de quota. Par défaut : 2."
-    invalidSessions: Doit être un nombre entier compris entre 1 et 500.
-    saveFailed: Échec de l'enregistrement des limites de simultanéité des sandboxes
   featureFlags:
     title: Contrôle des fonctionnalités
     description: Plafonne la fenêtre de contexte des réponses IA par utilisateur, équipe ou rôle.
@@ -7570,60 +7556,105 @@ webdav:
     cancel: Annuler
 sandboxes:
   title: Sandboxes
-  description: Sandboxes distantes persistantes où travaillent les agents de
-    projet et les exécutions d'automatisation de ton organisation ;
-    épingle-en une pour la garder toujours prête.
+  sessionsTitle: Espaces de travail
+  description: >-
+    Les agents de projet réutilisent leur espace entre les tâches. Les étapes
+    d'un workflow partagent le même espace. L'état d'exécution et l'allocation
+    du quota sont distincts : un conteneur peut rester actif après la libération
+    de son allocation.
+  limits:
+    title: Limites de l'organisation
+    description:
+      Fixe le nombre de sessions que chaque type de travail peut utiliser à la fois.
+      Les sessions occupent le quota au démarrage et pendant le travail.
+      Augmenter ces limites n'ajoute ni CPU ni mémoire ; les limites du
+      déploiement continuent de s'appliquer.
+    usage: 'Allouées : {used} / {limit}'
+    usageUnavailable: Allocation indisponible
+    invalidSessions: Saisis un nombre entier entre 1 et 500.
+    saveFailed: Impossible d'enregistrer les limites des sandboxes
   quota:
     budgets:
-      project: Sessions d’agent
-      workflow: Sessions d'automatisation
+      project: Sessions d'agent de projet
+      workflow: Sessions de workflow
       render: Sessions de rendu
     budgetHints:
-      project: Sandboxes persistantes où travaillent tes agents de projet.
-      workflow: Chaque exécution d'automatisation active utilise sa propre sandbox.
-      render: Sandboxes éphémères qui font le rendu des pages riches en
-        JavaScript pendant l'exploration de tes sites web.
+      project: Les agents de projet réutilisent une sandbox entre leurs tâches.
+      workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
+      render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
+  capacity:
+    title: Capacité de l'infrastructure
+    description: >-
+      Environnements réellement actifs et ressources mesurées sur l'hôte.
+      Ces chiffres peuvent différer des allocations : un environnement peut
+      rester actif après la fin d'une tâche.
+    refresh: Actualiser
+    hostSessions: Places de session sur l'hôte
+    namespaceSessions: Places de session dans le namespace
+    organizationSessions: Places d'exécution de ton organisation
+    slots: '{used} / {limit}'
+    sessionStates: '{running} actives · {starting} au démarrage'
+    sessionSlotsHint: Environnements actifs ou au démarrage, toutes organisations confondues.
+    organizationSessionsHint: Tous les types de travail de ton organisation partagent cette limite de déploiement.
+    cpu: Utilisation du CPU de l'hôte
+    cpuUsage: '{used} / {total} cœurs'
+    cpuHint: Mesure sur l'ensemble des processus de l'hôte ; le premier relevé peut manquer.
+    memory: Mémoire de l'hôte utilisée
+    memoryUsage: '{used} / {total} Gio'
+    memoryHint: Mémoire utilisée et totale de l'hôte, y compris les autres services.
+    unknownValue: Indisponible
+    operatorLimits:
+      L'équipe qui gère le déploiement fixe les limites d'exécution.
+      Une place libre ne garantit pas assez de CPU ou de mémoire pour une nouvelle session.
+    observedAt: 'Relevé : {time}'
+    scopes:
+      host: Ensemble de l'hôte
+      namespace: Namespace Kubernetes ; mesures des ressources de l'hôte indisponibles
+    notConfigured: Ce déploiement n'a pas d'infrastructure de sandbox configurée.
+    unreachable: Impossible d'actualiser les données de l'infrastructure. L'état d'exécution et les ressources utilisées sont inconnus.
   columns:
-    owner: Propriétaire
+    owner: Espace de travail de
     agent: Agent
-    status: Statut
+    status: Exécution / allocation
     task: Tâche en cours
     spend: Coût
     created: Créée
     actions: Actions
   status:
-    running: En cours
-    idle: Inactive
+    runtime:
+      running: Active
+      starting: Au démarrage
+      stopped: Arrêtée
+      unknown: Inconnue
+    quotaInUse: Quota alloué
+    quotaReleased: Quota libéré
     pausedBudget: En pause (budget)
-    stopped: Arrêtée
     pinned: Épinglée
   task:
     none: Aucune tâche active
-    thread: Thread
-    continuations: continuations
+    project: Tâche de projet
+    workflow: Exécution de workflow
+    active: Exécution active
   actions:
-    stop: Arrêter
+    stop: Arrêter la tâche
     pin: Épingler
     unpin: Détacher
-    destroy: Détruire
+    destroy: Supprimer
   destroyConfirm:
-    title: Détruire la sandbox ?
-    description:
-      Cela démonte le conteneur et son espace de travail. Toute tâche en
-      cours est annulée. Le prochain lancement de l'agent recrée une sandbox
-      neuve.
-    confirm: Détruire
+    title: Supprimer la sandbox ?
+    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent crée une nouvelle sandbox.
+    confirm: Supprimer
   toast:
     stopped: Tâche arrêtée
     pinned: Sandbox épinglée
     unpinned: Sandbox détachée
-    destroyed: Sandbox détruite
-    error: Échec de l’action
+    destroyed: Sandbox supprimée
+    error: Échec de l'action
   empty:
-    title: Aucune sandbox active
+    title: Aucun espace de travail pour le moment
     description:
-      Les sandboxes démarrent automatiquement lorsqu'un agent de projet
-      ou un nœud agent d'automatisation lance un tour de harness.
+      Les espaces apparaissent lorsqu'un agent de projet ou un workflow démarre.
+      Les chiffres de capacité ci-dessus incluent les sessions temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
 envEditor:
   confirmRemoveTitle: Supprimer la variable ?

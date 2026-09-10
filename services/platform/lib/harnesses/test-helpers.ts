@@ -170,11 +170,6 @@ export function goldenBattery(): readonly GoldenCase[] {
       }),
     },
     {
-      name: 'managed-mcp-cdp',
-      mode: 'managed',
-      spec: managedSpec({ mcp: { browser: 'cdp' } }),
-    },
-    {
       name: 'managed-mcp-bridge-only',
       mode: 'managed',
       spec: managedSpec({ mcp: { bridgeUrl: GOLDEN_BRIDGE_URL } }),

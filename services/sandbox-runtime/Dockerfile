@@ -61,19 +61,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
       libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
       libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
-      # Live browser view (read-only mirror). INERT unless the session is
-      # launched with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW):
-      # Xvfb gives the headed Chromium a virtual display, x11vnc mirrors it
-      # view-only, and the fonts keep rendered pages legible. The CDP (9222)
-      # and VNC (5900) endpoints the entrypoint binds are LOOPBACK-ONLY
-      # (127.0.0.1) and the session container publishes NO ports — they are
-      # never EXPOSE'd and only reachable from inside the container.
-      xvfb \
-      x11vnc \
       fonts-liberation \
       fonts-noto-core \
       # CJK + emoji so real-world pages (e.g. google.com.hk, any non-Latin
-      # site) render glyphs instead of tofu boxes in the live browser view.
+      # site) render glyphs instead of tofu boxes in screenshots and documents.
       fonts-noto-cjk \
       fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
@@ -124,7 +115,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   texlive-fonts-recommended — Latin Modern / TeX Gyre fonts that template uses.
 #   texlive-lang-chinese      — xeCJK / ctex so the Chinese workspace docs
 #       (e.g. *-zh-CN.md) typeset instead of dropping to tofu. The CJK *fonts*
-#       (Noto CJK) are already baked above for the live browser, so this adds
+#       (Noto CJK) are already baked above for page rendering, so this adds
 #       only the macro packages; it also pulls texlive-latex-extra, handy for
 #       richer templates (fancyhdr, mdframed, …).
 #   lmodern                   — Latin Modern `lmodern.sty`. Pandoc's default
@@ -339,8 +330,8 @@ RUN chmod +x /usr/local/bin/tale-openclaw-run
 # Native `docker` / `docker compose` INSIDE a session container. Present in
 # every image but INERT unless the session is launched in DinD mode
 # (SANDBOX_DOCKER_IN_CONTAINER + a sysbox/kata tier): the binaries are not
-# setuid and cannot start a daemon without caps the one-shot/non-DinD paths
-# drop, so adding them does not change the one-shot (uid 65534) attack surface.
+# setuid and cannot start a daemon without caps the default/non-DinD profiles
+# drop, so adding them does not change the default profile (uid 65534) attack surface.
 # The session entrypoint starts an inner dockerd only in DinD mode.
 #   docker-ce/cli + compose/buildx plugins + containerd = the engine
 #   tini       = PID-1 reaper (DinD spawns many short-lived containerd-shims)
@@ -454,25 +445,18 @@ RUN python3 -m venv /opt/tale-vision \
        > /usr/local/bin/tale-vision
 COPY services/sandbox-runtime/tale-vision /opt/tale-vision/cli.py
 
-# Human-control MCP bridge: a dependency-free stdio MCP server exposing
-# request_human_control({reason}). The agent calls it to hand the live browser
-# to a human (CAPTCHA/login/2FA); the platform observes the tool_use, parks the
-# turn, and resumes once control is returned. Purely local — no network call.
-COPY services/sandbox-runtime/tale-human-control-mcp /usr/local/bin/tale-human-control-mcp
-
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-connectors-mcp \
       /usr/local/bin/tale-vision-transcribe /usr/local/bin/tale-vision-read-hook \
       /usr/local/bin/tale-vision \
-      /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate
 
 # Session role runs as the `agent` user (uid 10001) — a real passwd entry so
 # git/ssh have a home + name, and non-root so Claude Code's bypassPermissions
-# is allowed. The one-shot role still runs as 65534 (spawner pins --user per
+# is allowed. The default profile runs as 65534 (spawner pins --user per
 # profile); this is just the named account the session profile selects.
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
@@ -505,7 +489,7 @@ RUN if getent group redsocks >/dev/null; then \
     fi
 
 # Default user is nobody; spawner pins --user per profile at the call site
-# (65534 one-shot, 10001 session-agent).
+# (65534 default profile, 10001 agent profile).
 USER 65534:65534
 
 WORKDIR /agent

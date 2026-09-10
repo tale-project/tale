@@ -13,6 +13,11 @@
 
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
+import {
+  sandboxCapacitySchema,
+  type SandboxCapacityObservation,
+} from '../../../../../lib/shared/schemas/sandbox-capacity.ts';
+
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 const NONCE_HEADER = 'x-tale-sandbox-nonce';
@@ -253,6 +258,20 @@ export interface SessionInfo {
   createdAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;
+}
+
+/** Live infrastructure snapshot. The org is bound into the signed URL;
+ * callers must derive it from authenticated membership, never user input. */
+export async function sandboxCapacity(
+  organizationId: string,
+): Promise<SandboxCapacityObservation> {
+  const path = `/v1/capacity?organizationId=${encodeURIComponent(organizationId)}`;
+  const response = await spawnerFetch('GET', path, {
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok)
+    throw new Error(`Sandbox capacity unavailable (${response.status})`);
+  return sandboxCapacitySchema.parse(await response.json());
 }
 
 const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)

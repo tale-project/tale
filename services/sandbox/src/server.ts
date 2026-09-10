@@ -13,27 +13,23 @@
 // Every sandbox run is a session; the per-org session budgets live platform-side
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
-import { createBackend, createSessionBackend } from './backend/index.ts';
+import { createHostBackend, createSessionBackend } from './backend/index.ts';
+import { CapacityReader } from './capacity.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
 import { ControlRoutes } from './control-routes.ts';
 import { makeHealthProbe } from './health-probe.ts';
 import { jsonResponse } from './http-util.ts';
 import { createRequestAuth } from './request-auth.ts';
-import {
-  createScreencastWebSocketHandler,
-  type ScreencastWsData,
-} from './session/screencast-relay.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
 const cfg = loadConfig();
-// Execution backend (docker | kubernetes), chosen once at boot. Constructing
+// Host lifecycle backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
-const backend = createBackend(cfg);
+const backend = createHostBackend(cfg);
 
-// Session subsystem (persistent sessions). Lazily constructed on first session
-// route hit so a kubernetes deployment (session backend not yet implemented)
-// only errors when sessions are actually used, never at boot.
+// Session lifecycle is separate from host boot/health. Construct once after
+// the deploy control routes are ready; both Docker and Kubernetes implement it.
 let sessionRoutes: SessionRoutes | null = null;
 function getSessionRoutes(): SessionRoutes {
   if (sessionRoutes === null) {
@@ -58,6 +54,9 @@ const auth = createRequestAuth(cfg.sandboxToken, cfg.maxRequestBodyBytes);
 // serialized drain — see control-routes.ts. The status probe peeks at the
 // session subsystem without constructing it.
 const controlRoutes = new ControlRoutes(auth, () => sessionRoutes);
+const capacity = new CapacityReader(cfg, () =>
+  getSessionRoutes().pendingCreates(),
+);
 
 // A single execution's stray async error must not take down the long-running
 // spawner that's serving other requests. Per-request paths already try/catch;
@@ -98,12 +97,6 @@ async function handleHealth(): Promise<Response> {
 // handlers live in session/session-routes.ts.
 const SESSION_ID = '([a-zA-Z0-9_-]{1,64})';
 const EXEC_ID = '([a-zA-Z0-9_-]{1,64})';
-// Read-only live browser view: a WebSocket the platform opens, bridged to the
-// session's runnerd raw-VNC tunnel (see session/screencast-relay.ts). Matched
-// BEFORE the bare :id matcher (it carries a trailing /screencast segment).
-const SESSION_BROWSER_SCREENCAST_RE = new RegExp(
-  `^/v1/sessions/${SESSION_ID}/screencast$`,
-);
 const SESSION_ONE_RE = new RegExp(`^/v1/sessions/${SESSION_ID}$`);
 const SESSION_EXEC_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/exec$`);
 const SESSION_EXEC_CANCEL_RE = new RegExp(
@@ -120,11 +113,6 @@ const SESSION_EXEC_STATUS_RE = new RegExp(
 );
 const SESSION_ENV_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/env$`);
 const SESSION_PIN_RE = new RegExp(`^/v1/sessions/${SESSION_ID}/pin$`);
-// Managed live-browser recycle: restart (preserve logins), reset (wipe
-// profile), close-pages (reset tabs on turn-stop). Browser-view sessions only.
-const SESSION_BROWSER_RE = new RegExp(
-  `^/v1/sessions/${SESSION_ID}/browser/(restart|reset|close-pages)$`,
-);
 const SESSION_FILES_STAGE_RE = new RegExp(
   `^/v1/sessions/${SESSION_ID}/files/stage$`,
 );
@@ -236,16 +224,6 @@ async function handleSessionRoutes(
     if ('error' in r) return r.error;
     return getSessionRoutes().handleSetPinned(pinMatch[1] ?? '', r.body);
   }
-  // POST /v1/sessions/:id/browser/{restart,reset,close-pages}
-  const browserMatch = path.match(SESSION_BROWSER_RE);
-  if (req.method === 'POST' && browserMatch) {
-    const r = await auth.readAndAuth(req);
-    if ('error' in r) return r.error;
-    return getSessionRoutes().handleBrowserControl(
-      browserMatch[1] ?? '',
-      browserMatch[2] ?? '',
-    );
-  }
   // POST /v1/sessions/:id/files/stage
   const stageMatch = path.match(SESSION_FILES_STAGE_RE);
   if (req.method === 'POST' && stageMatch) {
@@ -303,48 +281,31 @@ async function handleSessionRoutes(
   return null;
 }
 
-// The browser-facing WebSocket handler (one per process). It bridges each WS
-// to the session's runnerd raw-VNC tunnel; the resolver is the registry-cache
-// lookup the route layer owns (a WS that reached here already passed HMAC).
-const screencastWsHandler = createScreencastWebSocketHandler((sessionId) =>
-  getSessionRoutes().resolveScreencastTarget(sessionId),
-);
-
-/**
- * GET /v1/sessions/:id/screencast — authenticate (HMAC over an EMPTY body,
- * since the GET has no body), then hand the connection to Bun's WebSocket
- * server. Returns:
- *  - a 401/500 `Response` to send as-is (auth failed / upgrade refused), or
- *  - `undefined` when `server.upgrade` succeeded and Bun has taken over the
- *    socket (fetch must return undefined in that case).
- *
- * Lives in `fetch` rather than `router()` because `server.upgrade` needs the
- * live `Server` instance, which only exists inside the Bun.serve callback.
- */
-function handleScreencastUpgrade(
-  req: Request,
-  server: import('bun').Server<ScreencastWsData>,
-  sessionId: string,
-): Response | undefined {
-  // HMAC over the empty body — same gate as every other session route (the
-  // files/content GET signs sha256('') identically). The signature covers
-  // pathname+search, so the `?control=1` query (see below) is authenticated:
-  // the platform only sets it after its oracle authorized + leased control.
-  const authFail = auth.authorize('', req);
-  if (authFail) return authFail;
-  // The spawner does NOT decide control — it relays the platform's already-
-  // authorized flag so runnerd dials the writable x11vnc. Parse it from the
-  // (signed) query and carry it on ws.data.
-  const control = new URL(req.url).searchParams.get('control') === '1';
-  const upgraded = server.upgrade(req, { data: { sessionId, control } });
-  if (upgraded) return undefined; // Bun owns the socket now.
-  return jsonResponse({ error: 'upgrade_failed' }, 500);
-}
-
-async function router(req: Request): Promise<Response> {
+export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   if (req.method === 'GET' && url.pathname === '/health') {
     return handleHealth();
+  }
+  if (req.method === 'GET' && url.pathname === '/v1/capacity') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    const organizationId = url.searchParams.get('organizationId');
+    if (
+      organizationId === null ||
+      !/^[a-zA-Z0-9_-]{1,128}$/.test(organizationId)
+    ) {
+      return jsonResponse({ error: 'bad_request' }, 400);
+    }
+    try {
+      return jsonResponse(await capacity.forOrganization(organizationId), 200, {
+        'cache-control': 'no-store',
+      });
+    } catch (error) {
+      console.warn('[sandbox] capacity observation failed:', error);
+      return jsonResponse({ error: 'capacity_unavailable' }, 503, {
+        'cache-control': 'no-store',
+      });
+    }
   }
   // Deploy control routes — HMAC-gated inside ControlRoutes; null = not one.
   const controlResponse = await controlRoutes.handle(req, url);
@@ -368,7 +329,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Warm the runtime image so the first /v1/execute call doesn't pay a
+  // Warm the runtime image so the first session create doesn't pay a
   // cold registry round-trip. Non-fatal: if the daemon is unreachable at
   // boot the spawner still starts (its /health probe will surface the
   // real problem). Failure is logged inside the backend.
@@ -383,8 +344,8 @@ async function main(): Promise<void> {
 
   // Session subsystem: re-adopt running session containers into the registry
   // (the registry is a cache; backend objects are the source of truth) and
-  // start the TTL/idle reaper. Best-effort + guarded so a kubernetes
-  // deployment (session backend not yet implemented) doesn't fail boot.
+  // start the TTL/idle reaper. A transient backend failure is retried on
+  // the next sweep; it must not prevent the control service from starting.
   let stopSessionSweep: (() => void) | undefined;
   try {
     const sessions = getSessionRoutes();
@@ -428,42 +389,22 @@ async function main(): Promise<void> {
     }, SESSION_SWEEP_INTERVAL_MS);
     stopSessionSweep = () => clearInterval(sweepTimer);
   } catch (err) {
-    console.warn(
-      '[sandbox.session] session subsystem not started (backend unsupported?):',
-      err,
-    );
+    console.warn('[sandbox.session] session subsystem startup failed:', err);
   }
 
-  const server = Bun.serve<ScreencastWsData>({
+  const server = Bun.serve({
     port: cfg.port,
     // Bun's default idleTimeout is 10 s, which kills long SSE streams during
     // silent install phases. 255 is Bun's max — combined with the in-stream
-    // keepalive in /v1/execute, this gives a generous backstop without
+    // keepalive in session exec streams, this gives a generous backstop without
     // disabling the timeout entirely.
     idleTimeout: 255,
-    fetch: (req, srv) => {
-      // Intercept the screencast WS upgrade before the generic router: the
-      // upgrade needs the live Server instance (only available here). Every
-      // other route flows through router() unchanged.
-      const url = new URL(req.url);
-      const screencastMatch =
-        req.method === 'GET'
-          ? url.pathname.match(SESSION_BROWSER_SCREENCAST_RE)
-          : null;
-      if (screencastMatch) {
-        try {
-          return handleScreencastUpgrade(req, srv, screencastMatch[1] ?? '');
-        } catch (err) {
-          console.error('[sandbox] screencast upgrade error:', err);
-          return jsonResponse({ error: 'internal', message: String(err) }, 500);
-        }
-      }
+    fetch: (req) => {
       return router(req).catch((err) => {
         console.error('[sandbox] handler error:', err);
         return jsonResponse({ error: 'internal', message: String(err) }, 500);
       });
     },
-    websocket: screencastWsHandler,
   });
 
   installSignalHandlers(() => {
@@ -483,10 +424,11 @@ async function main(): Promise<void> {
   void stopSessionSweep;
 }
 
-main().catch((err: unknown) => {
-  // Without this catch a boot failure after init() (e.g. Bun.serve EADDRINUSE)
-  // would be swallowed by the global unhandledRejection backstop above,
-  // leaving a zombie process that neither listens nor exits.
-  console.error('[sandbox] FATAL: boot failed:', err);
-  process.exit(1);
-});
+if (import.meta.main)
+  main().catch((err: unknown) => {
+    // Without this catch a boot failure after init() (e.g. Bun.serve EADDRINUSE)
+    // would be swallowed by the global unhandledRejection backstop above,
+    // leaving a zombie process that neither listens nor exits.
+    console.error('[sandbox] FATAL: boot failed:', err);
+    process.exit(1);
+  });

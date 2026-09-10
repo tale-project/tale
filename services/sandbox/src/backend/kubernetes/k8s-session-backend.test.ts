@@ -26,7 +26,6 @@ const cfg: SpawnerConfig = {
   dockerBuildCache: false,
   buildkitdImage: 'tale-sandbox-buildkitd:test',
   buildkitdMirrorImage: 'registry:2',
-  browserView: false,
   transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',

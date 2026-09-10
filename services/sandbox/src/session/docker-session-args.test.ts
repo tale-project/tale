@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { buildkitdEndpoint } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -18,7 +19,6 @@ const cfg: SpawnerConfig = {
   dockerBuildCache: false,
   buildkitdImage: 'tale-sandbox-buildkitd:test',
   buildkitdMirrorImage: 'registry:2',
-  browserView: false,
   transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
@@ -49,6 +49,41 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('passes a validated operator inner pool only to DinD agent containers', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      dindInnerPool: '10.240.0.0/16',
+    };
+    const input = { ...goodInput, dockerStorageVolume: 'tale-dind-test' };
+    expect(buildDockerSessionRunArgs(configured, input)).toContain(
+      'TALE_DIND_INNER_POOL_OVERRIDE=10.240.0.0/16',
+    );
+    expect(
+      buildDockerSessionRunArgs(configured, {
+        ...input,
+        profile: 'default',
+      }).some((arg) => arg.includes('TALE_DIND_INNER_POOL_OVERRIDE')),
+    ).toBe(false);
+    expect(() =>
+      buildDockerSessionRunArgs(
+        { ...configured, dindInnerPool: '8.8.0.0/16' },
+        input,
+      ),
+    ).toThrow(/SANDBOX_DIND_INNER_POOL/);
+  });
+
+  test('disables IPv6 on existing and future interfaces for every Docker session', () => {
+    for (const profile of ['agent', 'default'] as const) {
+      const args = buildDockerSessionRunArgs(cfg, { ...goodInput, profile });
+      expect(args.filter((_, i) => args[i - 1] === '--sysctl')).toEqual([
+        'net.ipv6.conf.all.disable_ipv6=1',
+        'net.ipv6.conf.default.disable_ipv6=1',
+      ]);
+    }
+  });
+
   test('logging is fully stated so a host default cannot break the run', () => {
     const args = buildDockerSessionRunArgs(cfg, goodInput);
     // Any log-opt left unset falls through to the host daemon's `log-opts`,
@@ -106,32 +141,6 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('NPM_CONFIG_CACHE=/cache/npm');
     expect(args).toContain('BUN_INSTALL_CACHE_DIR=/cache/bun');
     expect(args).toContain('type=volume,src=bun-org_456,dst=/cache/bun');
-  });
-
-  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
-    test('off (default): no TALE_BROWSER_CDP env leaks in', () => {
-      const args = buildDockerSessionRunArgs(cfg, goodInput);
-      expect(args).not.toContain('TALE_BROWSER_CDP=1');
-    });
-
-    test('on: appends TALE_BROWSER_CDP=1, rest unchanged', () => {
-      const args = buildDockerSessionRunArgs(
-        { ...cfg, browserView: true },
-        goodInput,
-      );
-      // The browser-view signal is present (additive).
-      const envIdxs = args.reduce<number[]>((acc, a, i) => {
-        if (a === '--env') acc.push(i);
-        return acc;
-      }, []);
-      expect(envIdxs.some((i) => args[i + 1] === 'TALE_BROWSER_CDP=1')).toBe(
-        true,
-      );
-      // Everything else stays as the default hardened agent argv.
-      expect(args).toContain('--cap-drop=ALL');
-      expect(args).toContain('--read-only');
-      expect(args[args.length - 1]).toBe('daemon');
-    });
   });
 
   describe('transparent egress (SANDBOX_TRANSPARENT_EGRESS)', () => {
@@ -273,6 +282,7 @@ describe('buildDockerSessionRunArgs', () => {
     const dindInput = {
       ...goodInput,
       dockerStorageVolume: 'tale-dind-ses-abc-123',
+      buildkitNetworkSubnets: ['172.19.0.0/23'],
     };
 
     test('relaxes hardening, runs as root, mounts the docker store, signals the entrypoint', () => {
@@ -307,11 +317,37 @@ describe('buildDockerSessionRunArgs', () => {
     test('shared build cache: emits TALE_BUILDKITD_ENDPOINT when set', () => {
       const args = buildDockerSessionRunArgs(dindCfg, {
         ...dindInput,
-        buildkitdEndpoint: 'tcp://tale-buildkitd:1234',
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
       });
       expect(args).toContain(
-        'TALE_BUILDKITD_ENDPOINT=tcp://tale-buildkitd:1234',
+        `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
       );
+    });
+
+    test('planned subnets are sent as validated JSON before delayed network attachment', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+        buildkitNetworkSubnets: ['172.19.0.0/23', '10.22.0.0/24'],
+      });
+      expect(args).toContain(
+        'TALE_BUILDKIT_NETWORK_SUBNETS=["172.19.0.0/23","10.22.0.0/24"]',
+      );
+      for (const subnets of [
+        undefined,
+        [],
+        ['bad-cidr'],
+        ['10.22.0.1/24'],
+        ['::1/128'],
+      ]) {
+        expect(() =>
+          buildDockerSessionRunArgs(dindCfg, {
+            ...dindInput,
+            buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+            buildkitNetworkSubnets: subnets,
+          }),
+        ).toThrow();
+      }
     });
 
     test('shared build cache: absent endpoint keeps argv byte-identical', () => {
@@ -324,6 +360,22 @@ describe('buildDockerSessionRunArgs', () => {
       expect(
         withField.some((a) => a.startsWith('TALE_BUILDKITD_ENDPOINT=')),
       ).toBe(false);
+    });
+
+    test('build cache boots only on control networking until its firewall is verified', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      const networks = args.filter((_, i) => args[i - 1] === '--network');
+      expect(networks).toEqual([cfg.egressNetwork]);
+      expect(args).toContain(`HTTP_PROXY=${cfg.egressProxy}`);
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint('different-org'),
+        }),
+      ).toThrow(/another organization/);
     });
 
     test('shared build cache: a malformed endpoint is rejected', () => {
@@ -423,14 +475,6 @@ describe('buildDockerSessionRunArgs', () => {
             { ...goodInput, profile: 'default' },
           ),
         ).not.toThrow();
-      });
-
-      test('browser stack is agent-only: default profile gets no TALE_BROWSER_CDP', () => {
-        const args = buildDockerSessionRunArgs(
-          { ...cfg, browserView: true },
-          { ...goodInput, profile: 'default' },
-        );
-        expect(args).not.toContain('TALE_BROWSER_CDP=1');
       });
     });
   });

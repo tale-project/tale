@@ -1,16 +1,16 @@
-// Shared cross-session docker build cache: a single, persistent buildkitd that
-// every DinD session's remote buildx builder points at. The daemon's own
-// content-addressed cache (/var/lib/buildkit, a persistent volume) is reused
-// across sessions automatically — no `--cache-to/--cache-from`. See
-// services/sandbox-buildkitd/ for the image + services/sandbox/docs/
-// docker-in-container.md for the model.
-//
-// SCOPE: v1 runs ONE global daemon (cross-org cache shared — acceptable for
-// single-enterprise self-host). Every helper here is KEYED BY organizationId so
-// per-org isolation later is a name change here (append `-${org}`) + a per-org
-// network / mTLS — with zero caller churn, since the session backend already
-// passes organizationId. No data migration: the build cache is regenerable.
+// Persistent build cache shared only by sessions from one organization.
+// Each daemon and its registry mirrors have private volumes and an internal
+// organization network. Legacy global resources are neither adopted nor removed.
 
+import { createHash } from 'node:crypto';
+
+import {
+  ensureBuildkitNetwork,
+  ensureBuildkitVolume,
+  inspectBuildkitContainer,
+  readDockerMetadata,
+  retireLegacyBuildkitd,
+} from './buildkit-resources.ts';
 import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -96,19 +96,32 @@ const MIRROR_PREFIX = 'tale-buildkitd-mirror';
 // directly — no operator config to get right. Add one here to support more.
 export const MIRROR_REGISTRIES = ['docker.io', 'ghcr.io', 'quay.io'] as const;
 
-function sanitize(registry: string): string {
-  return registry.replace(/[^a-zA-Z0-9]+/g, '-');
+function registryLabel(registry: string): string {
+  if (!MIRROR_REGISTRIES.some((known) => known === registry)) {
+    throw new Error(`buildkitd: unsupported mirror registry ${registry}`);
+  }
+  return registry.replaceAll('.', '-');
 }
-/** Per-registry pull-through cache container name. */
-export function buildkitdMirrorContainerName(registry: string): string {
-  return `${MIRROR_PREFIX}-${sanitize(registry)}`;
+
+/** Per-organization, per-registry pull-through cache container name. */
+export function buildkitdMirrorContainerName(
+  organizationId: string,
+  registry: string,
+): string {
+  return `${MIRROR_PREFIX}-${orgKey(organizationId)}-${registryLabel(registry)}`;
 }
-function buildkitdMirrorVolumeName(registry: string): string {
-  return `${MIRROR_PREFIX}-cache-${sanitize(registry)}`;
+export function buildkitdMirrorVolumeName(
+  organizationId: string,
+  registry: string,
+): string {
+  return `${MIRROR_PREFIX}-cache-${orgKey(organizationId)}-${registryLabel(registry)}`;
 }
 /** The mirror reference (`name:port`) buildkit points `registry` at. */
-export function buildkitdMirrorRef(registry: string): string {
-  return `${buildkitdMirrorContainerName(registry)}:${MIRROR_PORT}`;
+export function buildkitdMirrorRef(
+  organizationId: string,
+  registry: string,
+): string {
+  return `${buildkitdMirrorContainerName(organizationId, registry)}:${MIRROR_PORT}`;
 }
 // registry:2 proxies ONE upstream per instance; Docker Hub's registry API host
 // differs from its canonical name.
@@ -126,21 +139,29 @@ function assertOrg(organizationId: string): void {
   }
 }
 
-/** Container name of the shared daemon. v1 = one global daemon. */
-export function buildkitdContainerName(organizationId: string): string {
+/** A bounded, case-sensitive organization identity. Hashing avoids DNS case
+ * folding, underscore replacement, and truncation collisions. Every resource
+ * is also labelled and checked against the full org id before reuse. */
+function orgKey(organizationId: string): string {
   assertOrg(organizationId);
-  return 'tale-buildkitd';
+  return createHash('sha256').update(organizationId).digest('hex').slice(0, 24);
 }
 
-/** Persistent cache volume backing /var/lib/buildkit. v1 = one global volume. */
+export function buildkitdContainerName(organizationId: string): string {
+  return `tale-buildkitd-${orgKey(organizationId)}`;
+}
+
 export function buildkitdCacheVolumeName(organizationId: string): string {
-  assertOrg(organizationId);
-  return 'tale-buildkitd-cache';
+  return `tale-buildkitd-cache-${orgKey(organizationId)}`;
+}
+
+export function buildkitdNetworkName(organizationId: string): string {
+  return `tale-buildkitd-net-${orgKey(organizationId)}`;
 }
 
 /**
  * The remote-builder endpoint a session connects its buildx builder to.
- * Reachable by container name on the (internal) egress network — the session's
+ * Reachable by container name on the organization's private network — the session's
  * redsocks leaves RFC1918 direct, so this resolves + connects without
  * traversing the proxy.
  */
@@ -149,11 +170,224 @@ export function buildkitdEndpoint(organizationId: string): string {
 }
 
 // Coalesce concurrent ensure* calls for the same container (two sessions from
-// the same deployment starting at once would otherwise both race past the
+// the same organization starting at once would otherwise both race past the
 // inspect gate and both `docker run --name`, the second erroring). Mirrors
 // ensureCacheVolume in volume.ts.
 const ensureInFlight = new Map<string, Promise<string>>();
 const mirrorInFlight = new Map<string, Promise<void>>();
+const organizationOperations = new Map<string, Promise<void>>();
+const createLeases = new Map<string, number>();
+const idleSince = new Map<string, number>();
+let idleSweepInFlight: Promise<BuildkitIdleSweepResult> | undefined;
+
+interface BuildkitIdleSweepResult {
+  stopped: number;
+  organizations: number;
+}
+
+/** Keep helpers available across the gap between ensure and docker run. The
+ * Docker backend holds this lease until session create/health has completed,
+ * including failure cleanup. Its release is idempotent for finally handlers. */
+export function retainBuildkitd(organizationId: string): () => void {
+  assertOrg(organizationId);
+  createLeases.set(organizationId, (createLeases.get(organizationId) ?? 0) + 1);
+  idleSince.delete(organizationId);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const remaining = (createLeases.get(organizationId) ?? 1) - 1;
+    if (remaining > 0) createLeases.set(organizationId, remaining);
+    else createLeases.delete(organizationId);
+    idleSince.delete(organizationId);
+  };
+}
+
+/** Serialize launch and idle-stop for an org. Docker deployments run one
+ * spawner per host session root (DockerBackend's host lock and serialized
+ * deploy); this is an in-process lock, not a distributed-replica lease. */
+async function withBuildkitdOperation<T>(
+  organizationId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = organizationOperations.get(organizationId);
+  const result = (previous ?? Promise.resolve()).then(operation);
+  const settled = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  organizationOperations.set(organizationId, settled);
+  try {
+    return await result;
+  } finally {
+    if (organizationOperations.get(organizationId) === settled) {
+      organizationOperations.delete(organizationId);
+    }
+  }
+}
+
+const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
+
+async function liveBuildkitOrganizations(
+  organizationId?: string,
+): Promise<Set<string>> {
+  const sessions = await readDockerMetadata([
+    'ps',
+    '--all',
+    '--no-trunc',
+    '--filter',
+    'label=tale.sandbox-session=1',
+    ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
+    '--format',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}',
+  ]);
+  if (sessions.exitCode !== 0) {
+    throw new Error('buildkitd: cannot establish idle session dependencies');
+  }
+  const live = new Set<string>();
+  for (const line of sessions.stdout.split('\n').filter(Boolean)) {
+    const [id, status, org, extra] = line.split('\t');
+    if (
+      !id ||
+      !DOCKER_ID_RE.test(id) ||
+      !status ||
+      !org ||
+      !ORG_RE.test(org) ||
+      extra !== undefined
+    ) {
+      throw new Error('buildkitd: invalid session inventory during idle sweep');
+    }
+    // Created, paused, restarting, removing and unrecognized non-terminal
+    // states may still use the cache. Pinned/warm runtimes are also retained.
+    if (status !== 'exited' && status !== 'dead') live.add(org);
+  }
+  return live;
+}
+
+function organizationHelperNames(organizationId: string): string[] {
+  return [
+    buildkitdContainerName(organizationId),
+    ...MIRROR_REGISTRIES.map((registry) =>
+      buildkitdMirrorContainerName(organizationId, registry),
+    ),
+  ];
+}
+
+/** Release only compute after an org has had no live session for the normal
+ * session idle grace. A fresh spawner observes a full grace before reclaiming
+ * anything. Persistent volumes, private networks and container configuration
+ * survive; the next ensure recreates stopped helpers from their caches. */
+export function sweepIdleBuildkitd(
+  cfg: SpawnerConfig,
+  nowMs = Date.now(),
+): Promise<BuildkitIdleSweepResult> {
+  if (cfg.backend !== 'docker')
+    return Promise.resolve({ stopped: 0, organizations: 0 });
+  idleSweepInFlight ??= sweepIdleBuildkitdUnlocked(cfg, nowMs).finally(() => {
+    idleSweepInFlight = undefined;
+  });
+  return idleSweepInFlight;
+}
+
+async function sweepIdleBuildkitdUnlocked(
+  cfg: SpawnerConfig,
+  nowMs: number,
+): Promise<BuildkitIdleSweepResult> {
+  const helpers = await readDockerMetadata([
+    'ps',
+    '--all',
+    '--no-trunc',
+    '--filter',
+    'label=tale.buildkitd=1',
+    '--format',
+    '{{.ID}}\t{{.Names}}\t{{.Label "tale.org"}}',
+  ]);
+  if (helpers.exitCode !== 0)
+    throw new Error('buildkitd: cannot inventory idle helpers');
+  const byOrg = new Map<string, Map<string, string>>();
+  for (const line of helpers.stdout.split('\n').filter(Boolean)) {
+    const [id, name, org, extra] = line.split('\t');
+    if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
+      throw new Error('buildkitd: invalid helper inventory during idle sweep');
+    }
+    // The legacy retirement lane owns global resources. Unknown org labels
+    // and arbitrary similarly-labelled containers are never stop candidates.
+    if (
+      !org ||
+      !ORG_RE.test(org) ||
+      !organizationHelperNames(org).includes(name)
+    )
+      continue;
+    const names = byOrg.get(org) ?? new Map<string, string>();
+    if (names.has(name))
+      throw new Error('buildkitd: duplicate helper inventory');
+    names.set(name, id);
+    byOrg.set(org, names);
+  }
+  if (byOrg.size === 0) {
+    idleSince.clear();
+    return { stopped: 0, organizations: 0 };
+  }
+  const live = await liveBuildkitOrganizations();
+  for (const org of idleSince.keys()) {
+    if (!byOrg.has(org)) idleSince.delete(org);
+  }
+  const result = { stopped: 0, organizations: 0 };
+  for (const [org, names] of byOrg) {
+    const stopped = await withBuildkitdOperation(org, async () => {
+      if (live.has(org) || createLeases.has(org)) {
+        idleSince.delete(org);
+        return 0;
+      }
+      const since = idleSince.get(org);
+      if (since === undefined || nowMs < since) {
+        idleSince.set(org, nowMs);
+        return 0;
+      }
+      if (nowMs - since < cfg.session.maxIdleMs) return 0;
+
+      const runningIds: string[] = [];
+      // Validate EVERY candidate before the first stop. Inspect and stop by
+      // immutable ID, so same-name replacement cannot redirect a stop to an
+      // uninspected container. Stop builder first, then its mirrors.
+      for (const name of organizationHelperNames(org)) {
+        const id = names.get(name);
+        if (
+          id &&
+          (await inspectBuildkitContainer(
+            id,
+            org,
+            buildkitdNetworkName(org),
+          )) === 'running'
+        )
+          runningIds.push(id);
+      }
+      let stoppedCount = 0;
+      for (const id of runningIds) {
+        // Inventory is complete and fresh immediately before each mutation;
+        // a late visible session from any spawner also cancels idle-stop.
+        const latestLive = await liveBuildkitOrganizations(org);
+        if (latestLive.has(org) || createLeases.has(org)) {
+          idleSince.delete(org);
+          return stoppedCount;
+        }
+        const stopResult = await runDocker(['stop', '--time', '30', id], {
+          timeoutMs: 35_000,
+        });
+        if (stopResult.exitCode !== 0)
+          throw new Error(`buildkitd: failed to stop idle helper ${id}`);
+        stoppedCount++;
+      }
+      idleSince.delete(org);
+      return stoppedCount;
+    });
+    if (stopped > 0) {
+      result.stopped += stopped;
+      result.organizations++;
+    }
+  }
+  return result;
+}
 
 /**
  * Lazy, idempotent launch of every built-in pull-through mirror (one `registry:2`
@@ -162,12 +396,15 @@ const mirrorInFlight = new Map<string, Promise<void>>();
  * mirror — a registry whose mirror fails to come up is dropped from the mapping
  * (its base images then aren't pullable, but the others still work).
  */
-async function ensureBuildkitdMirrors(cfg: SpawnerConfig): Promise<string> {
+async function ensureBuildkitdMirrors(
+  cfg: SpawnerConfig,
+  organizationId: string,
+): Promise<string> {
   const pairs: string[] = [];
   for (const registry of MIRROR_REGISTRIES) {
     try {
-      await ensureOneMirror(cfg, registry);
-      pairs.push(`${registry}=${buildkitdMirrorRef(registry)}`);
+      await ensureOneMirror(cfg, organizationId, registry);
+      pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
     } catch (err) {
       console.warn(
         `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
@@ -181,12 +418,18 @@ async function ensureBuildkitdMirrors(cfg: SpawnerConfig): Promise<string> {
 
 async function ensureOneMirror(
   cfg: SpawnerConfig,
+  organizationId: string,
   registry: string,
 ): Promise<void> {
-  const name = buildkitdMirrorContainerName(registry);
+  const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
   if (existing) return existing;
-  const work = ensureOneMirrorUnlocked(cfg, registry, name).finally(() => {
+  const work = ensureOneMirrorUnlocked(
+    cfg,
+    organizationId,
+    registry,
+    name,
+  ).finally(() => {
     mirrorInFlight.delete(name);
   });
   mirrorInFlight.set(name, work);
@@ -195,17 +438,17 @@ async function ensureOneMirror(
 
 async function ensureOneMirrorUnlocked(
   cfg: SpawnerConfig,
+  organizationId: string,
   registry: string,
   name: string,
 ): Promise<void> {
-  const inspect = await runDocker([
-    'inspect',
-    '-f',
-    '{{.State.Running}}',
+  const state = await inspectBuildkitContainer(
     name,
-  ]);
-  if (inspect.exitCode === 0) {
-    if (inspect.stdout.trim() === 'true') return;
+    organizationId,
+    cfg.egressNetwork,
+  );
+  if (state !== null) {
+    if (state === 'running') return;
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
       console.warn(
@@ -214,19 +457,8 @@ async function ensureOneMirrorUnlocked(
     }
   }
 
-  const volume = buildkitdMirrorVolumeName(registry);
-  const vol = await runDocker([
-    'volume',
-    'create',
-    '--label',
-    'tale.buildkitd=1',
-    volume,
-  ]);
-  if (vol.exitCode !== 0 && !/already exists/i.test(vol.stderr)) {
-    throw new Error(
-      `buildkitd: failed to create mirror cache volume ${volume}: ${vol.stderr.trim()}`,
-    );
-  }
+  const volume = buildkitdMirrorVolumeName(organizationId, registry);
+  await ensureBuildkitVolume(volume, organizationId);
 
   const run = await runDocker(
     [
@@ -236,9 +468,11 @@ async function ensureOneMirrorUnlocked(
       name,
       '--label',
       'tale.buildkitd=1',
+      '--label',
+      `tale.org=${organizationId}`,
       '--restart',
       'unless-stopped',
-      // On the sandbox network so buildkit reaches it by name; it pulls upstream
+      // On this organization's network so buildkit reaches it by name; it pulls upstream
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
       cfg.egressNetwork,
@@ -259,7 +493,16 @@ async function ensureOneMirrorUnlocked(
     { timeoutMs: 120_000 },
   );
   if (run.exitCode !== 0) {
-    if (/already in use|already exists/i.test(run.stderr)) return;
+    if (/already in use|already exists/i.test(run.stderr)) {
+      if (
+        (await inspectBuildkitContainer(
+          name,
+          organizationId,
+          cfg.egressNetwork,
+        )) === 'running'
+      )
+        return;
+    }
     throw new Error(
       `buildkitd: failed to launch mirror ${name}: ${run.stderr.trim() || run.stdout.trim()}`,
     );
@@ -281,11 +524,13 @@ export async function ensureBuildkitd(
   const name = buildkitdContainerName(organizationId);
   const existing = ensureInFlight.get(name);
   if (existing) return existing;
-  const work = ensureBuildkitdUnlocked(cfg, organizationId, name).finally(
-    () => {
-      ensureInFlight.delete(name);
-    },
-  );
+  const release = retainBuildkitd(organizationId);
+  const work = withBuildkitdOperation(organizationId, () =>
+    ensureBuildkitdUnlocked(cfg, organizationId, name),
+  ).finally(() => {
+    release();
+    ensureInFlight.delete(name);
+  });
   ensureInFlight.set(name, work);
   return work;
 }
@@ -354,6 +599,28 @@ async function ensureBuildkitdUnlocked(
   organizationId: string,
   name: string,
 ): Promise<string> {
+  await retireLegacyBuildkitd();
+  const privateNetwork = await ensureBuildkitNetwork(
+    cfg,
+    organizationId,
+    buildkitdNetworkName(organizationId),
+  );
+  return ensureBuildkitdOnNetwork(
+    {
+      ...cfg,
+      egressNetwork: privateNetwork.network,
+      egressProxy: privateNetwork.proxy,
+    },
+    organizationId,
+    name,
+  );
+}
+
+async function ensureBuildkitdOnNetwork(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  name: string,
+): Promise<string> {
   const endpoint = buildkitdEndpoint(organizationId);
 
   // Already running? Reuse it ONLY if its egress fence is still installed AND
@@ -362,15 +629,19 @@ async function ensureBuildkitdUnlocked(
   // a stack restart moved sandbox-egress to a new IP, silently serves builds
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
   // recreate it. See buildkitdEgressHealthy.
-  const inspect = await runDocker([
-    'inspect',
-    '-f',
-    '{{.State.Running}}',
+  const state = await inspectBuildkitContainer(
     name,
-  ]);
-  if (inspect.exitCode === 0) {
-    if (inspect.stdout.trim() === 'true') {
-      if (await buildkitdEgressHealthy(cfg, name)) return endpoint;
+    organizationId,
+    cfg.egressNetwork,
+  );
+  if (state !== null) {
+    if (state === 'running') {
+      if (await buildkitdEgressHealthy(cfg, name)) {
+        // A partial idle-stop/crash may have stopped mirrors while the builder
+        // stayed healthy. Reusing the builder must revive those caches too.
+        await ensureBuildkitdMirrors(cfg, organizationId);
+        return endpoint;
+      }
       console.warn(
         `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
           `stale; recreating so build RUN steps regain internet. The persistent ` +
@@ -392,22 +663,11 @@ async function ensureBuildkitdUnlocked(
   // unlike the per-org dep caches (shared by two uids, hence 1777) — it needs no
   // perms fix; just ensure it exists.
   const volume = buildkitdCacheVolumeName(organizationId);
-  const vol = await runDocker([
-    'volume',
-    'create',
-    '--label',
-    'tale.buildkitd=1',
-    volume,
-  ]);
-  if (vol.exitCode !== 0 && !/already exists/i.test(vol.stderr)) {
-    throw new Error(
-      `buildkitd: failed to create cache volume ${volume}: ${vol.stderr.trim() || vol.stdout.trim()}`,
-    );
-  }
+  await ensureBuildkitVolume(volume, organizationId);
 
   // Bring up the pull-through mirrors first (buildkit pulls base images from them
   // by name, sidestepping its broken external-name DNS — see MIRROR_REGISTRIES).
-  const mirrors = await ensureBuildkitdMirrors(cfg);
+  const mirrors = await ensureBuildkitdMirrors(cfg, organizationId);
 
   const run = await runDocker(
     [
@@ -417,16 +677,18 @@ async function ensureBuildkitdUnlocked(
       name,
       '--label',
       'tale.buildkitd=1',
+      '--label',
+      `tale.org=${organizationId}`,
       // Long-lived shared infra: survive a daemon crash + host docker restart.
       '--restart',
       'unless-stopped',
-      // On the internal sandbox network so sessions reach it by name and its
-      // RUN-step egress goes through the dual-homed sandbox-egress proxy.
+      // Only this organization's sessions can reach the builder. RUN-step
+      // egress goes through the proxy attached to this private bridge.
       '--network',
       cfg.egressNetwork,
       // buildkitd needs mount/namespace ops to run builds. This is a host-level
-      // shared build daemon with no isolation boundary by design; build RUN
-      // egress is fenced through the egress proxy by the image entrypoint.
+      // build daemon isolated from other organizations by its private network
+      // and volumes; build RUN egress is fenced by the image entrypoint.
       // nosemgrep: tools.opengrep.rules.trailofbits.generic.container-privileged.container-privileged -- intentional: buildkitd requires privileged to run builds; this is host-level shared infra (not user-code), egress-fenced via sandbox-egress
       '--privileged',
       '--mount',
@@ -449,8 +711,17 @@ async function ensureBuildkitdUnlocked(
   );
   if (run.exitCode !== 0) {
     // Racy across spawner replicas / restarts: a peer may have created it
-    // between our inspect and our run. Treat a name conflict as success.
-    if (/already in use|already exists/i.test(run.stderr)) return endpoint;
+    // between our inspect and our run. Adopt only a running, owned peer.
+    if (/already in use|already exists/i.test(run.stderr)) {
+      if (
+        (await inspectBuildkitContainer(
+          name,
+          organizationId,
+          cfg.egressNetwork,
+        )) === 'running'
+      )
+        return endpoint;
+    }
     throw new Error(
       `buildkitd: failed to launch ${name}: ${run.stderr.trim() || run.stdout.trim()}`,
     );

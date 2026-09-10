@@ -497,6 +497,9 @@ export async function listRunningOpsBySession(
 }
 
 export interface SandboxCurrentOpView {
+  kind?: 'task-agent' | 'workflow-agent';
+  taskId?: string;
+  workflowRunId?: string;
   threadId?: string;
   execId: string;
   status: string;
@@ -511,9 +514,11 @@ export interface SandboxCurrentOpView {
 export interface SandboxSessionView {
   sessionId: string;
   ownerType: string;
+  ownerId: string;
   createdBy: string;
   ownerName?: string | null;
   ownerEmail?: string | null;
+  ownerLabel?: string | null;
   agentKind: string | null;
   pinned: boolean;
   createdAt: number;
@@ -551,17 +556,29 @@ export async function listSandboxViewsForOrg(
   if (sessions.length === 0) return [];
   const sessionIds = sessions.map((session) => session.sessionId);
   const ops = await sql<SessionOpViewRow[]>`
-    SELECT session_id AS "sessionId", thread_id AS "threadId",
-           exec_id AS "execId", status,
-           continuation_count AS "continuationCount",
-           spent_cents AS "spentCents", paused_reason AS "pausedReason",
-           progress_text AS "progressText",
-           started_at_ms::float8 AS "startedAt",
-           heartbeat_at_ms::float8 AS "heartbeatAt",
-           finalized_at_ms::float8 AS "finalizedAt"
-    FROM app.sandbox_session_ops
-    WHERE org_id = ${organizationId} AND session_id = ANY(${sessionIds})
+    SELECT o.session_id AS "sessionId", o.thread_id AS "threadId",
+           o.exec_id AS "execId", o.status,
+           o.continuation_count AS "continuationCount",
+           o.spent_cents AS "spentCents", o.paused_reason AS "pausedReason",
+           o.progress_text AS "progressText",
+           o.started_at_ms::float8 AS "startedAt",
+           o.heartbeat_at_ms::float8 AS "heartbeatAt",
+           o.finalized_at_ms::float8 AS "finalizedAt"
+    FROM app.sandbox_session_ops o
+    WHERE o.org_id = ${organizationId} AND o.session_id = ANY(${sessionIds})
   `;
+  const owners = await sql<{ sessionId: string; label: string | null }[]>`
+    SELECT s.session_id AS "sessionId", coalesce(a.name, r.name) AS label
+    FROM app.sandbox_sessions s
+    LEFT JOIN app.project_agents a ON s.owner_type = 'project_agent'
+      AND a.org_id = s.org_id AND a.id = s.owner_id
+    LEFT JOIN app.automation_runs r ON s.owner_type = 'workflow_run'
+      AND r.org_id = s.org_id AND r.id = split_part(s.owner_id, ':', 1)
+    WHERE s.org_id = ${organizationId} AND s.id = ANY(${sessions.map((session) => session.id)})
+  `;
+  const ownerLabels = new Map(
+    owners.map((owner) => [owner.sessionId, owner.label]),
+  );
   const userIds = [...new Set(sessions.map((session) => session.createdBy))];
   const users = await sql<
     { id: string; name: string | null; email: string | null }[]
@@ -592,6 +609,15 @@ export async function listSandboxViewsForOrg(
         execId: op.execId,
         status: op.status,
         startedAt: op.startedAt,
+        ...(session.ownerType === 'project_agent'
+          ? { kind: 'task-agent' as const }
+          : {}),
+        ...(session.ownerType === 'workflow_run'
+          ? {
+              kind: 'workflow-agent' as const,
+              workflowRunId: session.ownerId.split(':')[0],
+            }
+          : {}),
         ...(op.threadId !== null ? { threadId: op.threadId } : {}),
         ...(op.continuationCount !== null
           ? { continuationCount: op.continuationCount }
@@ -608,9 +634,11 @@ export async function listSandboxViewsForOrg(
     return {
       sessionId: session.sessionId,
       ownerType: session.ownerType,
+      ownerId: session.ownerId,
       createdBy: session.createdBy,
       ownerName: owner?.name ?? null,
       ownerEmail: owner?.email ?? null,
+      ownerLabel: ownerLabels.get(session.sessionId) ?? null,
       agentKind: session.agentKind,
       pinned: session.pinned,
       createdAt: session.createdAt,
@@ -621,6 +649,34 @@ export async function listSandboxViewsForOrg(
       totalSpentCents,
     };
   });
+  // Resolve task ownership only for the displayed operations, in one org-
+  // scoped read. Joining every historical op to the run ledger would repeat
+  // the lookup for a standing workspace's entire lifetime.
+  const taskOps = views.flatMap((view) =>
+    view.ownerType === 'project_agent' && view.currentOp !== null
+      ? [{ sessionId: view.sessionId, op: view.currentOp }]
+      : [],
+  );
+  if (taskOps.length > 0) {
+    const runs = await sql<
+      { sessionId: string; execId: string; taskId: string }[]
+    >`
+      SELECT DISTINCT ON (session_id, exec_id)
+        session_id AS "sessionId", exec_id AS "execId", task_id AS "taskId"
+      FROM app.project_agent_runs
+      WHERE org_id = ${organizationId}
+        AND session_id = ANY(${taskOps.map((entry) => entry.sessionId)})
+        AND exec_id = ANY(${taskOps.map((entry) => entry.op.execId)})
+      ORDER BY session_id, exec_id, seq DESC
+    `;
+    const tasks = new Map(
+      runs.map((run) => [`${run.sessionId}:${run.execId}`, run.taskId]),
+    );
+    for (const { sessionId, op } of taskOps) {
+      const taskId = tasks.get(`${sessionId}:${op.execId}`);
+      if (taskId !== undefined) op.taskId = taskId;
+    }
+  }
   views.sort((a, b) => {
     if (a.busy !== b.busy) return a.busy ? -1 : 1;
     return b.createdAt - a.createdAt;

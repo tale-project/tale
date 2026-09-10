@@ -229,12 +229,49 @@ Un déploiement fait tourner les deux couleurs en même temps : chaque nombre e
 
 Laisse-le non défini pour conserver la durée de session par défaut. Si défini, une session inactive expire côté serveur une fois la fenêtre écoulée, tandis qu'une session active continue de glisser à chaque requête. Les Administrateurs d'organisation peuvent raccourcir la fenêtre effective par organisation — jamais l'allonger au-delà de ce plafond — via la [politique de gouvernance du délai d'inactivité de session](/fr/platform/admin/governance/policies-and-limits) ; les sessions inactives sous cette politique sont révoquées par une passe qui tourne environ toutes les cinq minutes.
 
+## Infrastructure sandbox
+
+Le spawner sandbox lit les paramètres ci-dessous. Transmets-les dans son environnement et redémarre ce service après une modification ; ils restent indépendants des quotas d’organisation réglés dans [Sandboxes](/fr/platform/admin/sandboxes). Cette page distingue les environnements réellement actifs, les mesures de l’hôte et les allocations de l’organisation.
+
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `SANDBOX_MAX_SESSIONS` | `16` | Sessions actives ou en démarrage de toutes les organisations sur l’hôte Docker ou dans le namespace Kubernetes. Ce plafond d’admission ne réserve ni CPU ni mémoire. Des réplicas Kubernetes concurrents l’appliquent au mieux ; utilise ResourceQuota pour imposer des limites strictes aux ressources du namespace. |
+| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Plafond d’exécution d’une organisation pour les agents de projet, les Workflows et le rendu réunis, y compris les conteneurs inactifs qui tournent encore. |
+| `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Délai d’inactivité avant l’arrêt des sessions non épinglées. Les conteneurs auxiliaires du cache de build d’une organisation s’arrêtent aussi après ce délai sans session potentiellement active ; leurs réseaux et volumes de cache sont conservés. |
+| `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optionnel, lu par le spawner.** L'image dont sort chaque conteneur de session. Le défaut est le tag que la stack de développement construit localement ; un hôte qui tire ses images pose donc le nom de la registry : `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, aligné sur le reste de la stack. `tale deploy` le pose pour toi. |
+| `SANDBOX_DIND_INNER_POOL` | non défini (automatique) | Pool d’adresses optionnel du daemon Docker interne des sessions d’agent, sur Docker ou Kubernetes. Choisis un `/16` IPv4 privé RFC1918 sous forme canonique, hors de tes réseaux de Pods, de Services et de VPC. La runtime refuse tout chevauchement avec les réseaux et adresses qu’elle détecte. |
+
+### Caches de build Docker
+
+Les caches de build Docker sont isolés par organisation. Chaque organisation utilise un builder privilégié et trois miroirs de registre sans privilèges élevés. Dès qu’aucune session ne peut encore les utiliser, le délai d’inactivité commence ; les conteneurs auxiliaires s’arrêtent ensuite. Le prochain build les redémarre avec leurs volumes de cache conservés. Les réseaux et les volumes restent disponibles pour être réutilisés. Les sessions Kubernetes utilisent leur propre builder Docker interne ; la réconciliation Kubernetes n’appelle pas la CLI Docker pour ces conteneurs auxiliaires.
+
+Le spawner remplit le premier pool d’adresses Docker disponible avec les réseaux d’organisation avant de passer au suivant. Par défaut, chaque réseau reçoit un `/23` de 512 adresses ; un `/16` entièrement libre peut donc accueillir 128 réseaux d’organisation. Les sous-réseaux plus petits configurés dans Docker gardent leur taille. Le spawner exclut les réseaux Docker existants, les routes et les adresses des serveurs DNS de l’hôte du daemon Docker, ainsi que `172.31.0.0/16` pour les anciennes images de runtime, puis vérifie le réseau créé.
+
+Pour observer l’hôte du daemon même avec Docker à distance, le spawner lance brièvement l’image BuildKit configurée dans le namespace réseau de l’hôte. Ce conteneur utilise un système de fichiers en lecture seule, sans capacités Linux ni montages. Si cette observation échoue ou qu’aucun sous-réseau sûr ne reste disponible, les sessions construisent localement sans cache partagé. Le spawner recrée un réseau inutilisé qui lui appartient si son sous-réseau est invalide ; il conserve les réseaux utilisés ou appartenant à un autre propriétaire.
+
+Une mise à niveau crée des caches d’organisation vides et conserve les anciennes données globales. Les anciens conteneurs auxiliaires s’arrêtent automatiquement dès qu’aucune session active n’en dépend. Laisse se terminer les anciennes sessions épinglées ou arrête-les pour achever la transition ; jusque-là, l’ancien service de cache partagé reste accessible. L’automatisation du navigateur utilise Chromium sans interface graphique. La vue en direct et la prise de contrôle manuelle ont été retirées.
+
+### Réseaux Docker internes
+
+Sur Docker et Kubernetes, le choix automatique vérifie les routes IPv4 et leurs passerelles dans toutes les tables de routage, les adresses et préfixes des interfaces, les serveurs DNS et les adresses résolues des hôtes de proxy et de passerelle configurés dans l’environnement au démarrage du conteneur. Les hôtes transmis plus tard pendant un tour d’agent échappent à cette observation initiale. Il tient aussi compte du réseau d’organisation Docker raccordé ensuite. La runtime privilégie `172.31.0.0/16` s’il est libre, puis essaie d’autres plages privées `/16`. Le premier `/24` sert à `docker0` ; les réseaux Compose internes utilisent des blocs `/24` du même pool. En mode automatique, une observation indisponible ou l’absence de plage libre empêche le démarrage de la session.
+
+Un Pod ne peut pas déduire tous les CIDR des Pods, des Services et du VPC du cluster depuis son propre namespace réseau. Pour DinD sur Kubernetes, définis `SANDBOX_DIND_INNER_POOL` avec un `/16` privé que tu as vérifié contre l’ensemble de ces réseaux. Un pool explicite reste refusé si la runtime détecte un chevauchement ou une valeur invalide. Si certaines observations manquent, elle les indique dans un avertissement et peut continuer avec ce pool ; c’est à toi de tenir compte des plages invisibles depuis le Pod.
+
+Après avoir modifié ce pool, redémarre le spawner et recrée les sessions existantes pour leur appliquer la valeur. Redémarrer le conteneur runner dans le même Pod Kubernetes conserve l’environnement du Pod et le stockage Docker interne.
+
+Le proxy egress autorise les requêtes DNS vers les adresses IP de serveurs de noms validées dans son `/etc/resolv.conf`, y compris le DNS privé du cluster. Chaque exception se limite à cette IP exacte et au port de destination 53 en UDP/TCP. Les autres destinations privées et le transfert entre réseaux raccordés restent bloqués.
+
+### Protection du transfert IPv6
+
+Garde `sandbox`, `sandbox-egress` et `SANDBOX_RUNTIME_IMAGE` sur la même version lors d’une mise à niveau. Avant de raccorder le réseau de build Docker d’une organisation, le spawner vérifie la protection de la session contre le transfert de paquets. Compose et les conteneurs de session Docker générés désactivent IPv6 avec `net.ipv6.conf.all.disable_ipv6=1` et `net.ipv6.conf.default.disable_ipv6=1`. Conserve les deux valeurs dans tes propres définitions Docker.
+
+Les Pods Kubernetes ne reçoivent pas automatiquement de sysctls non sûrs. Le proxy egress a besoin d’un pare-feu IPv6 fonctionnel ou d’IPv6 désactivé dans son namespace réseau. Si le pare-feu IPv6 est indisponible, l’entrypoint tente cette désactivation locale, puis vérifie la valeur par défaut et chaque interface. Un `/proc/sys` en lecture seule ou des droits insuffisants peuvent l’en empêcher ; IPv6 encore actif sans protection bloque le démarrage. Configure le Pod egress avant le déploiement avec les paramètres réseau autorisés par ton cluster.
+
 ## Tours d'agent en sandbox
 
 | Nom                              | Défaut               | Description                                                                                                                                                                                                                                                                                                                              |
 | -------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optionnel.** Combien de temps un tour d’agent de code en sandbox (Claude Code, OpenCode, Codex) peut rester sans que personne ne lise sa sortie avant que le daemon de la sandbox ne le récupère. Une fenêtre glissante, relancée chaque fois que la plateforme se rattache à la sortie — pas un plafond absolu sur le tour. En millisecondes. |
-| `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optionnel, lu par le spawner.** L'image dont sort chaque conteneur de session. Le défaut est le tag que la stack de développement construit localement ; un hôte qui tire ses images pose donc le nom de la registry : `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, aligné sur le reste de la stack. `tale deploy` le pose pour toi. |
 
 Augmente-le quand de longs tours d’agent sur un hôte lent reviennent comme des orphelins récupérés ; la plateforme se rattache d’elle-même, la fenêtre ne termine donc qu’un tour dont la chaîne de lecture est morte. Lu par le backend au démarrage — redémarre `backend-api backend-worker` après l’avoir changé.
 

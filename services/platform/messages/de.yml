@@ -3000,19 +3000,6 @@ governance:
       gesetzt. Standard: 30.'
     invalid: Leerlaufzeit muss eine ganze Zahl zwischen 1 und 1440 Minuten sein.
     saveFailed: Sitzungs-Leerlaufzeit konnte nicht gespeichert werden
-  sandboxQuota:
-    title: Sandbox-Parallelitätslimits
-    description: Begrenze, wie viele Sandboxes diese Organisation gleichzeitig
-      ausführen kann. Diese Limits pro Organisation liegen unterhalb der
-      deploymentweiten Hostkapazität; ein Senken schützt gemeinsam genutzte
-      Serverressourcen vor Überlastung.
-    maxSessions: Max. aktive Sitzungen
-    maxSessionsHint: 'Dauerhafte Sandbox-Sitzungen (Chat-Agenten und
-      Automatisierungs-Agentenschritte), die für diese Organisation gleichzeitig aktiv
-      sein dürfen. Anfragen über dem Limit schlagen mit einem Kontingentfehler
-      fehl. Standard: 2.'
-    invalidSessions: Muss eine ganze Zahl zwischen 1 und 500 sein.
-    saveFailed: Sandbox-Parallelitätslimits konnten nicht gespeichert werden
   featureFlags:
     title: Feature-Steuerung
     description: Begrenze das Kontextfenster für KI-Antworten pro Benutzer, Team oder Rolle.
@@ -7460,59 +7447,105 @@ webdav:
     cancel: Abbrechen
 sandboxes:
   title: Sandboxes
-  description: Dauerhafte Remote-Sandboxes, in denen die Projekt-Agenten und
-    Automatisierungsläufe deiner Organisation arbeiten; pinne eine an, damit
-    sie immer bereit ist.
+  sessionsTitle: Arbeitsbereiche
+  description:
+    Projekt-Agenten nutzen ihren Arbeitsbereich für mehrere Aufgaben. Die Schritte
+    eines Workflow-Laufs teilen sich einen Arbeitsbereich. Laufzeitstatus und
+    Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
+    des Kontingents weiterlaufen.
+  limits:
+    title: Organisationslimits
+    description:
+      Lege fest, wie viele Sitzungen jede Arbeitsart gleichzeitig nutzen darf.
+      Sitzungen belegen das Kontingent beim Start und während der Arbeit.
+      Größere Limits schaffen weder Rechenleistung noch Speicher; die Limits
+      der Bereitstellung gelten weiterhin.
+    usage: 'Belegt: {used} / {limit}'
+    usageUnavailable: Kontingentbelegung nicht verfügbar
+    invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
+    saveFailed: Sandbox-Limits konnten nicht gespeichert werden
   quota:
     budgets:
-      project: Agent-Sitzungen
-      workflow: Automatisierungssitzungen
+      project: Projekt-Agent-Sitzungen
+      workflow: Workflow-Sitzungen
       render: Render-Sitzungen
     budgetHints:
-      project: Dauerhafte Sandboxes, in denen deine Projekt-Agenten arbeiten.
-      workflow: Jeder aktive Automatisierungslauf nutzt eine eigene Sandbox.
-      render: Kurzlebige Sandboxes, die beim Crawlen deiner Websites
-        JavaScript-lastige Seiten rendern.
+      project: Projekt-Agenten nutzen dieselbe Sandbox für mehrere Aufgaben.
+      workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
+      render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+  capacity:
+    title: Infrastrukturkapazität
+    description:
+      Tatsächlich laufende Umgebungen und gemessene Host-Ressourcen. Die Zahlen
+      können von der Kontingentbelegung abweichen, weil Umgebungen nach dem Ende
+      einer Aufgabe weiterlaufen können.
+    refresh: Aktualisieren
+    hostSessions: Sitzungsplätze auf dem Host
+    namespaceSessions: Sitzungsplätze im Namespace
+    organizationSessions: Laufzeitplätze deiner Organisation
+    slots: '{used} / {limit}'
+    sessionStates: '{running} laufen · {starting} starten'
+    sessionSlotsHint: Laufende und startende Umgebungen aller Organisationen.
+    organizationSessionsHint: Alle Arbeitsarten deiner Organisation teilen sich dieses Bereitstellungslimit.
+    cpu: CPU-Auslastung des Hosts
+    cpuUsage: '{used} / {total} Kerne'
+    cpuHint: Messung über alle Prozesse auf dem Host; die erste Messung kann fehlen.
+    memory: Speichernutzung des Hosts
+    memoryUsage: '{used} / {total} GiB'
+    memoryHint: Genutzter und gesamter Host-Speicher, einschließlich anderer Dienste.
+    unknownValue: Nicht verfügbar
+    operatorLimits:
+      Die Bereitstellungsverwaltung legt die Laufzeitlimits fest. Ein freier
+      Sitzungsplatz garantiert keine freie Rechenleistung oder freien Speicher.
+    observedAt: 'Messzeitpunkt: {time}'
+    scopes:
+      host: Host gesamt
+      namespace: Kubernetes-Namespace; Messwerte für Host-Ressourcen fehlen
+    notConfigured: Für diese Bereitstellung ist keine Sandbox-Infrastruktur eingerichtet.
+    unreachable: Infrastrukturdaten konnten nicht aktualisiert werden. Laufzeitstatus und Ressourcennutzung sind unbekannt.
   columns:
-    owner: Eigentümer
+    owner: Arbeitsbereich von
     agent: Agent
-    status: Status
+    status: Laufzeit / Kontingent
     task: Aktuelle Aufgabe
     spend: Kosten
     created: Erstellt
     actions: Aktionen
   status:
-    running: Läuft
-    idle: Inaktiv
+    runtime:
+      running: Läuft
+      starting: Startet
+      stopped: Gestoppt
+      unknown: Unbekannt
+    quotaInUse: Kontingent belegt
+    quotaReleased: Kontingent freigegeben
     pausedBudget: Pausiert (Budget)
-    stopped: Gestoppt
     pinned: Angepinnt
   task:
     none: Keine aktive Aufgabe
-    thread: Thread
-    continuations: Fortsetzungen
+    project: Projektaufgabe
+    workflow: Workflow-Lauf
+    active: Aktive Ausführung
   actions:
-    stop: Stoppen
+    stop: Aufgabe stoppen
     pin: Anpinnen
     unpin: Lösen
-    destroy: Zerstören
+    destroy: Löschen
   destroyConfirm:
-    title: Sandbox zerstören?
-    description:
-      Dies baut den Container und seinen Workspace ab. Laufende Aufgaben
-      werden abgebrochen. Beim nächsten Lauf des Agenten entsteht eine neue
-      Sandbox.
-    confirm: Zerstören
+    title: Sandbox löschen?
+    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Beim nächsten Lauf des Agenten entsteht eine neue Sandbox.
+    confirm: Löschen
   toast:
     stopped: Aufgabe gestoppt
     pinned: Sandbox angepinnt
     unpinned: Sandbox gelöst
-    destroyed: Sandbox zerstört
+    destroyed: Sandbox gelöscht
     error: Aktion fehlgeschlagen
   empty:
-    title: Keine aktiven Sandboxes
-    description: Sandboxes starten automatisch, wenn ein Projekt-Agent oder eine
-      Automatisierungs-Agent-Node eine Harness-Runde ausführt.
+    title: Noch keine Arbeitsbereiche
+    description:
+      Arbeitsbereiche erscheinen, sobald ein Projekt-Agent oder Workflow läuft.
+      Die Kapazitätszahlen oben enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
 envEditor:
   confirmRemoveTitle: Variable entfernen?

@@ -53,7 +53,15 @@ export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
  * sandbox plumbing (egress proxy, workspace-home, daemon auth). Checked as
  * exact names except the two prefix rules.
  */
-export const RUNNERD_ENV_DENYLIST = ['HOME', 'PATH', 'TMPDIR'] as const;
+export const RUNNERD_ENV_DENYLIST = [
+  'HOME',
+  'PATH',
+  'TMPDIR',
+  'TALE_BUILDKIT_NETWORK_SUBNETS',
+  'TALE_DIND_INNER_POOL',
+  'TALE_DIND_INNER_BIP',
+  'TALE_DIND_INNER_POOL_OVERRIDE',
+] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 /** Proxy vars are deny-listed case-insensitively (HTTP_PROXY/http_proxy…). */
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;
@@ -79,34 +87,7 @@ export interface RunnerdHealth {
    * across spawner restarts. */
   lastActivityAtMs: number;
   liveExecs: number;
-  /** Raw VNC tunnels (GET /screencast) currently piping. A freshly attached
-   * viewer also bumps lastActivityAtMs, so watching keeps a session alive. */
-  activeScreencasts: number;
-  /** Managed live-browser CDP liveness — present only on browser-view sessions
-   * (TALE_BROWSER_CDP=1). `cdpHealthy` is a real CDP session round-trip, not
-   * just "HTTP answers", so the idle reaper won't pin a dead-CDP-but-watched
-   * session and the pane can surface a "recovering" state. */
-  browser?: { cdpHealthy: boolean; tabs: number };
 }
-
-// --- POST /browser/{restart,reset,close-pages} (browser-view sessions) -------
-
-/** restart (recycle, PRESERVES logins via lock hygiene) /
- * reset (wipe the persistent profile, LOSES logins). */
-export interface RunnerdBrowserRecycle {
-  /** A managed browser process was found and signalled (SIGKILL → respawn). */
-  signalled: boolean;
-  /** A CDP session attached again within the bounded wait window. */
-  ready: boolean;
-  tabs: number;
-}
-
-/** close-pages — open tabs closed; cookies/localStorage untouched. */
-export interface RunnerdBrowserClosePages {
-  closed: number;
-}
-
-// --- POST /execs (NDJSON response stream) ----------------------------------
 
 export interface RunnerdExecRequest {
   /** ID_ALPHABET_RE; unique within the session (daemon 409s duplicates). */

@@ -4,7 +4,7 @@
 // (the `daemon` entrypoint dispatch). Unlike the one-shot pod-per-exec shape there
 // is no stage initContainer / harvest sidecar — runnerd does staging, exec,
 // and harvest at runtime over HTTP. `restartPolicy: Always` so a runner crash
-// restarts in place against the surviving emptyDir workspace; the daemon is
+// restarts in place against the surviving PVC workspace; the daemon is
 // boot-idempotent, so the session survives with a brief `degraded` blip.
 //
 // Pure function so a unit test can snapshot the Pod without a cluster. Every
@@ -19,15 +19,13 @@ import { createHash } from 'node:crypto';
 
 import type { V1Pod, V1EnvFromSource } from '@kubernetes/client-node';
 
+import { parseDindInnerPool } from '../../network-address.ts';
 import {
   dindCapabilityOf,
   transparentEgressSupported,
 } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
-import {
-  sessionBrowserViewEnabled,
-  sessionDindEnabled,
-} from '../../session/session-profile.ts';
+import { sessionDindEnabled } from '../../session/session-profile.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
 
@@ -239,10 +237,10 @@ export function buildSessionPod(
         { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
         // /dev/shm — Chromium (Playwright) crashes on the 64Mi default.
         { name: 'dshm', emptyDir: { medium: 'Memory', sizeLimit: '512Mi' } },
-        // Inner dockerd store (DinD only): ephemeral emptyDir, size-bounded so a
-        // runaway `docker build` can't fill the node. NOT the PVC workspace —
-        // overlay-on-overlay is rejected, and image cache shouldn't persist
-        // (dirty-overlay2 on a crash would wedge the restart-in-place).
+        // Inner dockerd store (DinD only): Pod-scoped, size-bounded emptyDir,
+        // separate from the PVC workspace so nested overlay has its own store.
+        // It survives runner-container restarts within this Pod, including
+        // image/network state; stop/destroy deletes the Pod and this store.
         ...(dind
           ? [
               {
@@ -278,15 +276,15 @@ export function buildSessionPod(
               ? [
                   { name: 'TALE_DIND', value: '1' },
                   { name: 'TALE_RUNTIME_TIER', value: cfg.runtimeTier },
+                  ...(cfg.dindInnerPool !== undefined
+                    ? [
+                        {
+                          name: 'TALE_DIND_INNER_POOL_OVERRIDE',
+                          value: parseDindInnerPool(cfg.dindInnerPool),
+                        },
+                      ]
+                    : []),
                 ]
-              : []),
-            // Live browser view (operator flag, agent-only — same gate as the
-            // Docker builder): the entrypoint brings up the headed Chromium +
-            // x11vnc mirror and runnerd enables browser-control; Playwright MCP
-            // attaches over CDP. Writes only /tmp (emptyDir) + /agent (PVC), so
-            // the hardened read-only rootfs is untouched. Absent ⇒ headless.
-            ...(sessionBrowserViewEnabled(cfg, inp.profile)
-              ? [{ name: 'TALE_BROWSER_CDP', value: '1' }]
               : []),
             // DinD transparent egress: the already-root runner installs the
             // OUTPUT REDIRECT inline after the inner dockerd is up (non-DinD uses

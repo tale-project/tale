@@ -25,18 +25,3 @@ export function sessionDindEnabled(
 ): boolean {
   return cfg.dockerInContainer && profile === 'agent';
 }
-
-/**
- * Live browser view (operator flag SANDBOX_BROWSER_VIEW): the session is
- * launched with TALE_BROWSER_CDP=1 so the entrypoint brings up the headed
- * Chromium + x11vnc read-only mirror and runnerd enables its browser-control
- * surface. Agent-only, like DinD: a run_code (`default`) session has no
- * browser tool, so the headed stack would be pure boot latency + attack
- * surface.
- */
-export function sessionBrowserViewEnabled(
-  cfg: SpawnerConfig,
-  profile: SandboxSessionProfile,
-): boolean {
-  return cfg.browserView && profile === 'agent';
-}

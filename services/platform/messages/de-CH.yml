@@ -158,3 +158,12 @@ webdav:
       aktive Lock-Tokens werden freigegeben.
     confirm: Widerrufen
     cancel: Abbrechen
+sandboxes:
+  limits:
+    description:
+      Lege fest, wie viele Sitzungen jede Arbeitsart gleichzeitig nutzen darf.
+      Sitzungen belegen das Kontingent beim Start und während der Arbeit.
+      Grössere Limits schaffen weder Rechenleistung noch Speicher; die Limits
+      der Bereitstellung gelten weiterhin.
+  capacity:
+    memoryHint: Genutzter und gesamter Host-Speicher, einschliesslich anderer Dienste.

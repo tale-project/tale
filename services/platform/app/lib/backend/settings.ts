@@ -503,6 +503,19 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
           (body) => body.usage,
           () => null,
         ),
+      refetchInterval: 15_000,
+    };
+  },
+  'sandbox/session_queries_public:getSandboxCapacity': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_session', 'capacity'),
+      queryFn: () =>
+        backendFetch<
+          ReturnsOf<'sandbox/session_queries_public:getSandboxCapacity'>
+        >('/sandbox/capacity', { orgId }),
+      refetchInterval: 15_000,
     };
   },
   'sandbox/session_queries_public:listSandboxesForOrg': (args, ctx) => {
@@ -1345,6 +1358,11 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'governance_policy'),
       });
+      if (args.policyType === 'sandbox_quota') {
+        void client.invalidateQueries({
+          queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
+        });
+      }
     },
   },
   'governance/restore:restoreSoftDeletedRow': {

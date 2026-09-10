@@ -1,41 +1,77 @@
-# Tale Sandbox Shared buildkitd
+# Tale Sandbox BuildKit cache
 
-A single, persistent BuildKit daemon shared by every DinD sandbox session on a
-host. Its content-addressed cache (`/var/lib/buildkit`, a persistent volume) is
-reused across sessions **automatically** — so `docker compose up --build` in one
-session reuses the layers another already built, instead of every session
-rebuilding from zero.
+Each organization gets a persistent BuildKit daemon that its DinD sessions can
+reuse. Build layers and registry downloads stay within that organization, while
+the session's own Docker image store remains disposable.
 
-## How it fits together
+## Enable caching for DinD sessions
 
-- The spawner launches this lazily, once per deployment, on `tale-sandbox-net`
-  (see `services/sandbox/src/buildkitd.ts`). Opt-in:
-  `SANDBOX_DOCKER_BUILD_CACHE=true` (only meaningful with DinD enabled).
-- Each session's entrypoint creates a **remote buildx builder** pointing at this
-  daemon (`TALE_BUILDKITD_ENDPOINT`) and sets `BUILDX_BUILDER`, so plain
-  `docker build` / `docker compose up --build` route here transparently — no
-  `--cache-to/--cache-from` flags. The daemon's own internal cache is the shared
-  cache.
-- **Egress.** `tale-sandbox-net` is `--internal`, so build RUN steps have no
-  direct internet. `--oci-worker-net=host` runs them in this container's netns,
-  and `docker-entrypoint.sh` installs the same transparent egress as a session
-  (`OUTPUT -> redsocks -> sandbox-egress`, with the IMDS/RFC1918 fence and DNS
-  via the egress dnsmasq). So build egress is fenced like the rest of the
-  sandbox.
+The Docker spawner provisions the cache lazily when an agent session needs it.
+`SANDBOX_DOCKER_BUILD_CACHE` defaults to the DinD setting; set it to `false` to
+use only each session's local builder. This integration is implemented by the
+Docker backend, not the Kubernetes backend.
+
+The spawner creates one daemon, one private internal bridge, and persistent
+cache volumes per organization. Container/network names include a bounded hash
+of the case-sensitive organization ID; full `tale.org` labels are checked before
+reuse. A same-name resource with missing or different ownership is refused.
+
+Each organization also gets a separate `registry:2` pull-through mirror for
+`docker.io`, `ghcr.io`, and `quay.io`. The daemon and mirrors join only their
+organization's bridge, without published ports. Sessions also retain the shared
+control network for runnerd, Platform, and the model gateway.
+
+## Keep build traffic isolated
+
+The existing egress proxy joins each private bridge with the network-local alias
+`tale-buildkit-egress`. The spawner verifies or installs a forwarding deny rule
+before attaching it, so the proxy cannot route packets between organizations.
+The runtime blocks unsolicited forwarding through a session's outer interfaces
+after starting the inner Docker daemon; replies to nested containers remain
+allowed.
+
+Build RUN steps use the builder's network namespace. Its entrypoint installs
+transparent egress through the proxy and pins DNS to that proxy's current IP.
+Provisioning and adoption check for an absent or stale egress setup and recreate
+the affected builder with the same cache volume.
+
+The runtime selects a buildx builder whose name is derived from the full
+`TALE_BUILDKITD_ENDPOINT`, so a resumed workspace cannot reuse the old global
+`tale-shared` builder by accident. Failed builder setup selects the local
+`default` builder. A bare remote `docker build` needs `--load` to make its result
+available in the session's inner Docker engine.
+
+## Upgrade from the global cache
+
+New sessions start with organization-specific caches. Existing global volumes
+and buildx configuration are retained and are never imported into an
+organization's cache.
+
+The spawner stops only the known global helper containers carrying the legacy
+`tale.buildkitd=1` ownership label, and only after no running, paused, restarting,
+or starting session still depends on the global endpoint. It checks during
+provisioning and maintenance. It does not remove their containers or volumes.
+
+Pinned legacy sessions must finish their work and stop before the old helpers
+can retire. Until that drain completes, the old global service remains reachable
+on the shared network; deployment of the new code alone does not complete the
+isolation transition. Helpers with foreign or missing ownership labels are left
+for the operator to review.
 
 ## Runtime requirements
 
-- `--privileged` (buildkitd needs mount/namespace ops to run builds).
-- Attached to `tale-sandbox-net`, with `HTTPS_PROXY` pointed at the egress proxy
-  so the entrypoint can resolve it for redsocks + DNS.
-- A persistent volume at `/var/lib/buildkit` (the cache; bounded by the GC
-  policy in `buildkitd.toml`).
+The builder runs privileged for its mount and namespace operations. Its private
+bridge and the egress firewall are required boundaries; the API has no separate
+client authentication. Cache size is bounded by the GC policy in
+[buildkitd.toml](buildkitd.toml), per organization. Registry mirror storage is
+separate from the BuildKit cache.
 
-## Scope / follow-ups
+Keep Docker's outer network allocation within RFC1918 and separate from the
+runtime's reserved `172.31.0.0/16` inner Docker pool. The proxy accepts clients
+from `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`; private build bridges
+must fit entirely inside one of those ranges. A public or conflicting bridge is
+refused and the session uses its local builder; the spawner preserves the
+network for operator review.
 
-- **One global daemon** in v1 (cross-org cache shared — acceptable for
-  single-enterprise self-host). The spawner helpers are keyed by org id, so
-  per-org isolation later is a name change + a per-org network or mTLS.
-- Bare `docker build` to the remote builder leaves the image in the build cache
-  (needs `--load` to run); `docker compose up --build` auto-loads — that's the
-  supported transparent path.
+Resource creation, refusal, reuse, and guarded legacy retirement are covered by
+[the provisioning tests](../sandbox/src/buildkit-resources.test.ts).

@@ -99,13 +99,8 @@ export type HarnessCredential =
  * ignore this entirely.
  */
 export interface HarnessMcpConfig {
-  /**
-   * In-container Playwright browser server. `headless` self-launches a
-   * headless Chromium; `cdp` attaches to the session's externally-launched
-   * HEADED Chromium (live browser view — requires the session to have started
-   * its browser stack; the two must agree).
-   */
-  readonly browser?: 'headless' | 'cdp';
+  /** Start an isolated headless Chromium through the in-container Playwright server. */
+  readonly browser?: 'headless';
   /**
    * Platform base URL of the capability-dispatch bridge. When set on a
    * managed run, the glue mounts the in-image `tale-connectors-mcp` server,

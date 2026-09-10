@@ -3,10 +3,9 @@ import { sleep } from './lib/docker';
 // =============================================================================
 // Tale — Sandbox Runtime Image Conformance Test
 // =============================================================================
-// Builds the sandbox-runtime image and asserts BOTH roles it serves from one
-// image (sessions plan, single-image decision):
-//   1. One-shot /v1/execute role — runs as uid 65534, python/node present.
-//   2. Agent session role — runs as the `agent` user (uid 10001) with the
+// Builds the sandbox-runtime image and checks both session profiles:
+//   1. Default code/render profile — uid 65534, Python/Node and headless browser.
+//   2. Agent profile — runs as the `agent` user (uid 10001) with the
 //      external-agent tooling (claude, opencode, gh, playwright MCP, git/rg/fd),
 //      a writable HOME, and runnerd bootable under the `daemon` entrypoint.
 //
@@ -99,7 +98,7 @@ if (process.env.SKIP_BUILD !== 'true' && !process.env.IMAGE_PREBUILT) {
 }
 
 console.log('');
-console.log('--- one-shot role (uid 65534) ---');
+console.log('--- default session profile (uid 65534) ---');
 await assertContains('python3 present', 65534, 'Python 3', 'python3 --version');
 await assertContains('node present', 65534, 'v', 'node --version');
 await assertOk('uv present', 65534, 'command -v uv');
@@ -189,6 +188,38 @@ await assertOk(
   10001,
   'node -e \'const p=require("/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core"); require("fs").accessSync(p.chromium.executablePath())\'',
 );
+// Chromium must render and capture pages without a display server in either
+// profile. The source image retains browser libraries/fonts while retiring the
+// managed headed browser, its viewing tunnel, and the human-control bridge.
+await assertOk(
+  'retired viewing binaries are absent',
+  10001,
+  '! command -v Xvfb && ! command -v x11vnc && ! command -v tale-human-control-mcp',
+);
+for (const uid of [65534, 10001]) {
+  await assertContains(
+    `headless Chromium renders and screenshots as uid ${uid}`,
+    uid,
+    'HEADLESS_BROWSER_OK',
+    `node <<'NODEEOF'
+const assert = require('node:assert/strict');
+const { chromium } = require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core');
+(async () => {
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<h1>Sandbox headless rendering</h1>');
+    assert.equal(await page.locator('h1').textContent(), 'Sandbox headless rendering');
+    const png = await page.screenshot({ path: '/workspace/headless.png' });
+    assert.equal(png.subarray(1, 4).toString(), 'PNG');
+    console.log('HEADLESS_BROWSER_OK');
+  } finally {
+    await browser.close();
+  }
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+NODEEOF`,
+  );
+}
 // Pinned versions resolve (a broken install would non-zero here).
 await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');

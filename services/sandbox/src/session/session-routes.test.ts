@@ -34,7 +34,6 @@ const cfg: SpawnerConfig = {
   dockerBuildCache: false,
   buildkitdImage: 'tale-sandbox-buildkitd:test',
   buildkitdMirrorImage: 'registry:2',
-  browserView: false,
   transparentEgress: false,
   k8s: {
     namespace: 'tale-sandbox',
@@ -70,11 +69,10 @@ const execRequests: Array<{
   stderrMaxBytes?: number;
 }> = [];
 // Mutable so the sweepExpired tests can drive runnerd's reported
-// activity/liveExecs/activeScreencasts.
+// activity/liveExecs.
 const fakeHealth = {
   lastActivityAtMs: 0,
   liveExecs: 0,
-  activeScreencasts: 0,
 };
 
 function ndjson(lines: object[]): string {
@@ -92,7 +90,6 @@ beforeAll(() => {
           bootedAtMs: 0,
           lastActivityAtMs: fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
-          activeScreencasts: fakeHealth.activeScreencasts,
         });
       }
       if (url.pathname === '/execs' && req.method === 'POST') {
@@ -305,7 +302,6 @@ beforeEach(() => {
   backendPins.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
-  fakeHealth.activeScreencasts = 0;
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -781,6 +777,46 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect((await routes.handleGet('ttl1')).status).toBe(404);
   });
 
+  test('sweepExpired runs build-cache cleanup even with no registered sessions', async () => {
+    const calls: Array<readonly string[]> = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async reconcileBuildCache(orgIds) {
+        calls.push(orgIds);
+      },
+    });
+
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(calls).toEqual([[]]);
+  });
+
+  test.each([false, true])(
+    'build-cache maintenance follows idle stopping and does not fail the sweep (maintenance fails=%s)',
+    async (fails) => {
+      let maintained = false;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async reconcileBuildCache(orgIds) {
+          expect(orgIds).toEqual([]);
+          expect(stopped.has('idle-maintenance')).toBe(true);
+          maintained = true;
+          if (fails) throw new Error('builder maintenance unavailable');
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'idle-maintenance',
+          organizationId: 'org_maintenance',
+        }),
+      );
+      fakeHealth.liveExecs = 0;
+      fakeHealth.lastActivityAtMs = 0;
+
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(maintained).toBe(true);
+    },
+  );
+
   test('sweepExpired skips a PINNED session (always-on)', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -852,30 +888,6 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(stopped.has('adopt-pinned')).toBe(false);
     expect((await routes.handleGet('adopt-pinned')).status).toBe(200);
     expect((await routes.handleGet('adopt-plain')).status).toBe(404);
-  });
-
-  test('sweepExpired skips a session with a live browser viewer (activeScreencasts > 0)', async () => {
-    const routes = new SessionRoutes(cfg, fakeBackend);
-    await routes.handleCreate(
-      JSON.stringify({ sessionId: 'watched1', organizationId: 'org_watch' }),
-    );
-
-    // No live exec + stale activity → would normally idle-reap, but a live raw
-    // VNC tunnel (someone is actively watching) keeps it alive, mirroring the
-    // liveExecs skip.
-    fakeHealth.liveExecs = 0;
-    fakeHealth.activeScreencasts = 1;
-    fakeHealth.lastActivityAtMs = 0; // epoch → far past the idle window
-    expect(await routes.sweepExpired()).toBe(0);
-    expect((await routes.handleGet('watched1')).status).toBe(200);
-
-    // Viewer disconnects → reaped on the next sweep.
-    fakeHealth.activeScreencasts = 0;
-    expect(await routes.sweepExpired()).toBe(1);
-    expect(stopped.has('watched1')).toBe(true);
-    expect(destroyed.has('watched1')).toBe(false);
-    expect((await routes.handleGet('watched1')).status).toBe(404);
-    fakeHealth.lastActivityAtMs = 0;
   });
 
   // Zombie sessions: the backend object disappeared OUT-OF-BAND (manual

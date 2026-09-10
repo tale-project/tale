@@ -137,15 +137,14 @@ select lists only the current admin's keys (`useApiKeys`).
   there is **no manual "permanently delete"** action and **no "Memory audit"
   tab** — rows are auto-purged at the end of their grace window
   (`governance.trash.empty` describes this)
-- [ ] `GOV-F13` · **Sandbox quota** — `policies-limits` → **Sandbox
-  concurrency limits** (`governance.sandboxQuota.title`) → set **Max active
-  sessions** (`governance.sandboxQuota.maxSessions`) to a new value → Save →
+- [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
+  **Organization limits** (`sandboxes.limits.title`) → change **Project agent
+  sessions**, **Workflow sessions**, and **Render sessions**
+  (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
   (`common.actions.saved`) and Save goes disabled again; after reload the
-  **Max active sessions** field holds the saved value — **restore
-  afterwards**. Note: this org-level cap sits **beneath** operator/environment
-  caps (two-tier — the effective limit is the lower of the two). Bounds: see
-  GOV-B7.
+  three fields and allocated/limit summaries hold the saved limits — **restore
+  afterwards**. Deployment runtime limits apply separately. Bounds: see GOV-B7.
 - [ ] `GOV-F14` · **Retention editor** — `policies-limits` → **Retention
   policy** (`governance.retentionPolicy.title`) summary → open the edit drawer
   **Edit retention policy** (`governance.retentionPolicy.drawer.title`) →
@@ -241,10 +240,11 @@ select lists only the current admin's keys (`useApiKeys`).
   will never apply."** (`governance.budgets.targetRequired`) shows under the
   scope row; no rule row is added (reload confirms). The same guard already
   covers the user/team/role scopes.
-- [ ] `GOV-B7` · **Sandbox quota bounds** — `policies-limits` → **Max active
-  sessions** (`governance.sandboxQuota.maxSessions`) → enter `0` or `501` →
+- [ ] `GOV-B7` · **Sandbox quota bounds** — `/dashboard/{org}/settings/sandboxes` →
+  **Project agent sessions** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
-  (`governance.sandboxQuota.invalidSessions`); save blocked.
+  (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
+  workflow and render limits.
 
 ## Accessibility (WCAG 2.1 AA)
 

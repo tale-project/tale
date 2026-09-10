@@ -43,13 +43,11 @@ import {
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
+import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
-  SessionDuplicateError,
   sessionCancelExec,
-  sessionCreate,
   sessionDeleteFiles,
-  sessionIsAlive,
   sessionListFiles,
   sessionStageFiles,
   sessionWriteExecStdin,
@@ -68,7 +66,6 @@ import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
-import { projectAgentOwnerId } from '../sandbox/session_naming';
 import {
   grantedToolsGuidance,
   KNOWLEDGE_READ_TOOLS,
@@ -95,7 +92,7 @@ interface TurnKeys {
 
 /**
  * Ensure the agent's standing sandbox session exists (AGENT profile), with
- * the chat lane's orphan-adoption self-heal. Unlike the per-run workflow
+ * shared admission and recovery. Unlike the per-run workflow
  * session it is NEVER torn down here — idle stop-and-preserve owns its
  * lifecycle. Returns the live row's `createdAt` — the incarnation stamp the
  * `--resume` binds-check compares — or undefined when this call had to mint
@@ -107,97 +104,11 @@ async function ensureProjectAgentSession(
   agentId: string,
   sessionId: string,
 ): Promise<{ liveCreatedAt: number | undefined }> {
-  const ownerId = projectAgentOwnerId(agentId);
-  const existing = await ctx.runQuery(
-    internal.sandbox.session_queries.getActiveSessionByOwner,
-    { ownerType: 'project_agent', ownerId },
-  );
-  if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) {
-      // A hibernated row over a still-warm container: re-admit through the
-      // cap check, or the turn runs on a slot no budget counts. Throws
-      // QUOTA_EXCEEDED when the org is full — the caller parks the run.
-      if (existing.status === 'stopped') {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
-          { organizationId, sessionId },
-        );
-      }
-      return { liveCreatedAt: existing.createdAt };
-    }
-    // Re-admit BEFORE recreating the container: if the org is full this
-    // throws with nothing to clean up, instead of leaving a fresh container
-    // whose row still reads `stopped`.
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
-      { organizationId, sessionId },
-    );
-    try {
-      await sessionCreate({ sessionId, organizationId, profile: 'agent' });
-    } catch (err) {
-      if (!(err instanceof SessionDuplicateError)) {
-        // Give the just-taken slot back — a dead create must not hold the
-        // org's budget until the reconcile cron notices.
-        await ctx
-          .runMutation(
-            internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
-            { organizationId, agentId },
-          )
-          .catch((releaseErr) =>
-            console.warn(
-              '[task-agent] slot release after failed resume-create failed:',
-              releaseErr,
-            ),
-          );
-        throw err;
-      }
-      console.warn(
-        `[task-agent] adopting orphan sandbox container for ${sessionId}`,
-      );
-    }
-    // The container was recreated under the SAME row: /agent is a persistent
-    // volume on both backends, so the harness conversation store survives
-    // and the incarnation stamp legitimately still binds.
-    return { liveCreatedAt: existing.createdAt };
-  }
-  const rowId = await ctx.runMutation(
-    internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
-    {
-      organizationId,
-      sessionId,
-      profile: 'agent',
-      ownerType: 'project_agent',
-      ownerId,
-      createdBy: 'system:task-agent',
-    },
-  );
-  try {
-    await sessionCreate({ sessionId, organizationId, profile: 'agent' });
-  } catch (err) {
-    if (err instanceof SessionDuplicateError) {
-      console.warn(
-        `[task-agent] adopting orphan sandbox container for ${sessionId} (no platform row)`,
-      );
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.setSessionStatus,
-        {
-          rowId,
-          status: 'active',
-        },
-      );
-      return { liveCreatedAt: undefined };
-    }
-    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-      rowId,
-      status: 'failed',
-    });
-    throw err;
-  }
-  await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-    rowId,
-    status: 'active',
+  return ensureAgentSession(ctx, {
+    organizationId,
+    sessionId,
+    owner: { type: 'project_agent', agentId },
   });
-  return { liveCreatedAt: undefined };
 }
 
 /** The task's own delivery box inside the agent's STANDING session — the

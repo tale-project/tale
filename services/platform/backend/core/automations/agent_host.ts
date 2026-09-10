@@ -47,13 +47,11 @@ import {
   type SubscriptionVision,
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
+import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
-  SessionDuplicateError,
   sessionCancelExec,
-  sessionCreate,
   sessionDeleteFiles,
-  sessionIsAlive,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -69,10 +67,7 @@ import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
-import {
-  sessionIdForWorkflowExecution,
-  workflowExecutionOwnerId,
-} from '../sandbox/session_naming';
+import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
   grantedToolsGuidance,
@@ -558,8 +553,8 @@ export async function releaseTurnKey(
 /**
  * Ensure the run's workflow sandbox session exists (AGENT profile). One
  * session per run, shared by every agent/script node of that run; torn down
- * with the run. Mirrors the chat lane's orphan-adoption self-heal. Exported
- * for the script host, which runs in the same session.
+ * with the run. Uses the same admission and recovery as project agents.
+ * Exported for the script host, which runs in the same session.
  */
 export async function ensureWorkflowSession(
   ctx: ActionCtx,
@@ -567,92 +562,10 @@ export async function ensureWorkflowSession(
   runId: string,
 ): Promise<string> {
   const sessionId = sessionIdForWorkflowExecution(runId);
-  const ownerId = workflowExecutionOwnerId(runId);
-  const existing = await ctx.runQuery(
-    internal.sandbox.session_queries.getActiveSessionByOwner,
-    { ownerType: 'workflow_run', ownerId },
-  );
-  if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) {
-      // A hibernated row over a still-warm container (a review pause, or the
-      // run-terminal release racing a late node): re-admit through the cap
-      // check, or the turn runs on a slot no budget counts.
-      if (existing.status === 'stopped') {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
-          { organizationId, sessionId },
-        );
-      }
-      return sessionId;
-    }
-    // Re-admit BEFORE recreating the container: if the org is full this
-    // throws with nothing to clean up, instead of leaving a fresh container
-    // whose row still reads `stopped`.
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
-      { organizationId, sessionId },
-    );
-    try {
-      await sessionCreate({ sessionId, organizationId, profile: 'agent' });
-    } catch (err) {
-      if (!(err instanceof SessionDuplicateError)) {
-        // Give the just-taken slot back — a dead create must not hold the
-        // org's workflow budget until the reconcile cron notices.
-        await ctx
-          .runMutation(
-            internal.sandbox.session_mutations.hibernateAutomationScopedSession,
-            { executionId: runId },
-          )
-          .catch((releaseErr) =>
-            console.warn(
-              '[agent-host] slot release after failed resume-create failed:',
-              releaseErr,
-            ),
-          );
-        throw err;
-      }
-      console.warn(
-        `[agent-host] adopting orphan sandbox container for ${sessionId}`,
-      );
-    }
-    return sessionId;
-  }
-  const rowId = await ctx.runMutation(
-    internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
-    {
-      organizationId,
-      sessionId,
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId,
-      createdBy: 'system:automation',
-    },
-  );
-  try {
-    await sessionCreate({ sessionId, organizationId, profile: 'agent' });
-  } catch (err) {
-    if (err instanceof SessionDuplicateError) {
-      console.warn(
-        `[agent-host] adopting orphan sandbox container for ${sessionId} (no platform row)`,
-      );
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.setSessionStatus,
-        {
-          rowId,
-          status: 'active',
-        },
-      );
-      return sessionId;
-    }
-    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-      rowId,
-      status: 'failed',
-    });
-    throw err;
-  }
-  await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-    rowId,
-    status: 'active',
+  await ensureAgentSession(ctx, {
+    organizationId,
+    sessionId,
+    owner: { type: 'workflow_run', runId },
   });
   return sessionId;
 }

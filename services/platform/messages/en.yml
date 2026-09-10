@@ -2897,20 +2897,6 @@ governance:
       deployment's SESSION_IDLE_TIMEOUT_MINUTES when set. Default: 30."
     invalid: Idle timeout must be an integer between 1 and 1440 minutes.
     saveFailed: Couldn't save session idle timeout
-  sandboxQuota:
-    title: Sandbox concurrency limits
-    description:
-      Cap how many sandboxes this organization can run at the same time.
-      These per-organization limits sit beneath the deployment-wide host
-      capacity; lowering them protects shared server resources from being
-      overwhelmed.
-    maxSessions: Max active sessions
-    maxSessionsHint:
-      'Persistent sandbox sessions (chat agents and automation agent
-      steps) that may be active at once for this organization. Requests beyond
-      the cap fail with a quota error. Default: 2.'
-    invalidSessions: Must be a whole number between 1 and 500.
-    saveFailed: Couldn't save sandbox concurrency limits
   featureFlags:
     title: Feature controls
     description: Cap the context window for AI replies per user, team, or role.
@@ -7183,45 +7169,91 @@ webdav:
     cancel: Cancel
 sandboxes:
   title: Sandboxes
+  sessionsTitle: Workspaces
   description:
-    Standing remote sandboxes where your organization's project agents and
-    automation runs do their work; pin one to keep it always ready.
+    Project agents reuse their workspaces across tasks. Workflow runs share one
+    workspace across their steps. Runtime status and organization quota allocation
+    are shown separately; a released allocation can still have a running container.
+  limits:
+    title: Organization limits
+    description:
+      Set the number of sessions each workload can use at once. Allocated sessions
+      count against these limits while work starts or runs. Higher limits do not
+      add CPU or memory, and deployment limits still apply.
+    usage: 'Allocated: {used} / {limit}'
+    usageUnavailable: Allocation data unavailable
+    invalidSessions: Must be a whole number between 1 and 500.
+    saveFailed: Couldn't save sandbox limits
   quota:
     budgets:
-      project: Agent sessions
-      workflow: Automation sessions
+      project: Project agent sessions
+      workflow: Workflow sessions
       render: Render sessions
     budgetHints:
-      project: Standing sandboxes where your project agents do their work.
-      workflow: Each active automation run works in its own sandbox.
-      render: Short-lived sandboxes that render JavaScript-heavy pages while
-        your websites are crawled.
+      project: Project agents reuse one sandbox across their tasks.
+      workflow: Agent and script steps share one sandbox per workflow run.
+      render: Temporary sandboxes render web pages during website crawling.
+  capacity:
+    title: Infrastructure capacity
+    description:
+      Actual running environments and measured host resources. These counts can
+      differ from organization allocations because idle environments can stay
+      running after a task ends.
+    refresh: Refresh
+    hostSessions: Host session slots
+    namespaceSessions: Namespace session slots
+    organizationSessions: Your organization's runtime slots
+    slots: '{used} / {limit}'
+    sessionStates: '{running} running · {starting} starting'
+    sessionSlotsHint: Running and starting environments across organizations.
+    organizationSessionsHint: All workloads in this organization share this deployment limit.
+    cpu: Host CPU usage
+    cpuUsage: '{used} / {total} cores'
+    cpuHint: Measured across all host workloads; an initial sample may be unavailable.
+    memory: Host memory usage
+    memoryUsage: '{used} / {total} GiB'
+    memoryHint: Used memory and total memory across the host, including other services.
+    unknownValue: Unavailable
+    operatorLimits:
+      Deployment operators control runtime slot limits. A free slot does not
+      guarantee enough CPU or memory for a new session.
+    observedAt: 'Observed: {time}'
+    scopes:
+      host: Host scope
+      namespace: Kubernetes namespace scope; host resource measurements unavailable
+    notConfigured: Sandbox infrastructure is not configured for this deployment.
+    unreachable: Couldn't refresh infrastructure data. Runtime state and resource usage are unknown.
   columns:
-    owner: Owner
+    owner: Workspace owner
     agent: Agent
-    status: Status
+    status: Runtime / allocation
     task: Current task
     spend: Spend
     created: Created
     actions: Actions
   status:
-    running: Running
-    idle: Idle
+    runtime:
+      running: Running
+      starting: Starting
+      stopped: Stopped
+      unknown: Unknown
+    quotaInUse: Quota allocated
+    quotaReleased: Quota released
     pausedBudget: Paused (budget)
-    stopped: Stopped
     pinned: Pinned
   task:
     none: No active task
-    thread: Thread
-    continuations: continuations
+    project: Project task
+    workflow: Workflow run
+    active: Active execution
   actions:
-    stop: Stop
+    stop: Stop task
     pin: Pin
     unpin: Unpin
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
+    description: This deletes the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
     confirm: Destroy
   toast:
     stopped: Task stopped
@@ -7230,10 +7262,10 @@ sandboxes:
     destroyed: Sandbox destroyed
     error: Action failed
   empty:
-    title: No active sandboxes
+    title: No workspaces yet
     description:
-      Sandboxes start automatically when a project agent or an automation
-      agent node runs a harness turn.
+      Workspaces appear when a project agent or workflow runs. Temporary crawler
+      sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.
 envEditor:
   confirmRemoveTitle: Remove variable?

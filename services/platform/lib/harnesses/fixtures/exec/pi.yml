@@ -124,17 +124,6 @@ managed-mcp-headless-bridge:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}}}'
   stdinMode: close
-managed-mcp-cdp:
-  argv:
-    - tale-pi-run
-    - --workdir
-    - /agent/workspace
-  env:
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}}}'
-  stdinMode: close
 managed-mcp-bridge-only:
   argv:
     - tale-pi-run

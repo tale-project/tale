@@ -671,6 +671,11 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # IPv4-only proxy networks: disable current and future-interface IPv6 so
+    # the fail-closed firewall also boots on kernels without ip6_tables.
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: '1'
+      net.ipv6.conf.default.disable_ipv6: '1'
     # Drop the full default capability set, then add back ONLY what the
     # container provably needs (least privilege; shrinks the attack surface of
     # a NET_ADMIN-holding, internet-facing proxy). Verified live against the
@@ -768,6 +773,7 @@ services:
       # runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER=true/false (or the
       # deployment.json sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-}
+      SANDBOX_DIND_INNER_POOL: ${SANDBOX_DIND_INNER_POOL:-}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
       # Shared cross-session docker build cache. Unset here so the spawner applies
       # its default (follows SANDBOX_DOCKER_IN_CONTAINER — on whenever DinD is on);
@@ -779,14 +785,6 @@ services:
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
       SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
-      # Live browser view (read-only mirror). Unset here so BOTH sides apply
-      # their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
-      # ONE value drives both sides — this spawner and the sandbox runtime each
-      # read it directly — so they MUST share a source. It is read on
-      # the platform service too (NOT a sandbox-only var like the ones above), and
-      # both interpolate from the same root .env, so a single value keeps them in
-      # lockstep. Mirrors the CLI generator (create-sandbox-service.ts).
-      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:
