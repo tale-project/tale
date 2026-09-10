@@ -2018,7 +2018,7 @@ export function buildSpec(): Json {
       tags: ['Threads'],
       summary: 'List available chat models',
       description:
-        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message.',
+        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.',
       operationId: 'listChatModels',
       security: sec,
       responses: {
@@ -2168,7 +2168,8 @@ export function buildSpec(): Json {
               type: 'string',
               minLength: 1,
               maxLength: 200,
-              description: 'Provider slug returned with the model',
+              description:
+                'Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider.',
             },
             locale: { type: 'string', minLength: 1, maxLength: 20 },
           },
@@ -2195,6 +2196,9 @@ export function buildSpec(): Json {
             'Archived or non-direct thread, or a turn is already running',
           ),
           ...standardErrors,
+          '400': errorResponse(
+            'Invalid body, an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)',
+          ),
         },
       },
     };

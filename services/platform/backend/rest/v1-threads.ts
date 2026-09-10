@@ -80,30 +80,74 @@ function restMessageError(stored: string): {
 export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
+  /** The models this door advertises: the composer's servable set narrowed
+   * to direct credentials — a subscription model only runs in a sandbox. A
+   * send is checked against the SAME projection, so the caller is held to
+   * exactly what `GET /models` told them. */
+  const restModels = async (c: Context<RestEnv>) => {
+    const { models } = await listComposerModels(deps.sql, {
+      organizationId: c.get('organizationId'),
+      userId: c.get('userId'),
+    });
+    return models.filter(
+      ({ credential }) =>
+        credential.authMethod === 'api-key' || credential.authMethod === 'env',
+    );
+  };
+
   app.get('/models', async (c) => {
     try {
-      const { models } = await listComposerModels(deps.sql, {
-        organizationId: c.get('organizationId'),
-        userId: c.get('userId'),
-      });
       return c.json({
-        models: models
-          .filter(
-            ({ credential }) =>
-              credential.authMethod === 'api-key' ||
-              credential.authMethod === 'env',
-          )
-          .map(({ id, label, providerSlug, providerLabel }) => ({
+        models: (await restModels(c)).map(
+          ({ id, label, providerSlug, providerLabel }) => ({
             id,
             label,
             providerSlug,
             providerLabel,
-          })),
+          }),
+        ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
   });
+
+  /** An explicit `providerSlug` is a choice, not a hint: the turn's own
+   * resolution treats an unmatched provider as a preference and falls back
+   * to whichever connector serves the model id — right for the composer,
+   * which only offers real pairs, wrong for a machine caller that sent a
+   * typo and got a reply from a provider it never named. Null when the pair
+   * is one `GET /models` lists; otherwise the 400 naming what is wrong. */
+  const refuseUnlistedProvider = async (
+    c: Context<RestEnv>,
+    modelId: string,
+    providerSlug: string,
+  ): Promise<Response | null> => {
+    const models = await restModels(c);
+    if (!models.some((model) => model.providerSlug === providerSlug)) {
+      return c.json(
+        {
+          error: `Unknown provider "${providerSlug}". GET /api/v1/models lists the providers this key can send to.`,
+          code: 'CHAT_PROVIDER_UNKNOWN',
+        },
+        400,
+      );
+    }
+    if (
+      !models.some(
+        (model) => model.providerSlug === providerSlug && model.id === modelId,
+      )
+    ) {
+      return c.json(
+        {
+          error: `Provider "${providerSlug}" does not serve model "${modelId}". GET /api/v1/models lists each model with its provider.`,
+          code: 'CHAT_MODEL_NOT_ON_PROVIDER',
+        },
+        400,
+      );
+    }
+    return null;
+  };
 
   const threadView = (row: RestThreadRow, generating: boolean) => ({
     id: row.id,
@@ -363,6 +407,20 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const projectId = projectIdFor(c);
       const thread = await loadRestThread(c, threadIdFor(c), projectId);
       if (thread === null) return c.json({ error: 'Thread not found' }, 404);
+      // After the visibility gate — an invisible thread stays an opaque 404
+      // whatever the body says — and before the thread's own state answers.
+      if (body.data.providerSlug !== undefined) {
+        try {
+          const refusal = await refuseUnlistedProvider(
+            c,
+            body.data.model,
+            body.data.providerSlug,
+          );
+          if (refusal) return refusal;
+        } catch (error) {
+          return domainErrorResponse(c, error);
+        }
+      }
       if (thread.archived) {
         return c.json({ error: 'This conversation is archived.' }, 409);
       }
@@ -391,8 +449,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         expectedProjectId: projectId,
         userText: body.data.content,
         modelId: body.data.model,
+        // A named provider is the caller's choice all the way to the wire —
+        // the turn refuses a pair that stops resolving rather than falling
+        // back to another connector.
         ...(body.data.providerSlug !== undefined
-          ? { providerSlug: body.data.providerSlug }
+          ? { providerSlug: body.data.providerSlug, providerStrict: true }
           : {}),
         ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
       });

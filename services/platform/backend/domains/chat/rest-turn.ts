@@ -39,6 +39,10 @@ export interface ApiTurnPayload {
   userText: string;
   modelId: string;
   providerSlug?: string;
+  /** The named provider is a choice the turn must keep — no fallback to
+   * another connector, whatever the configuration does between the 202
+   * and the run. */
+  providerStrict?: boolean;
   locale?: string;
 }
 
@@ -148,6 +152,7 @@ export async function runApiTurn(
       ...(payload.providerSlug !== undefined
         ? { providerSlug: payload.providerSlug }
         : {}),
+      ...(payload.providerStrict === true ? { providerStrict: true } : {}),
       locale: payload.locale ?? 'en',
       onUserMessageAppended: async () => {
         userAppended = true;

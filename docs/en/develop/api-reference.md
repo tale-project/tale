@@ -174,7 +174,7 @@ The project in the URL is the context for the run's task and document tools. An 
 
 Project chat follows the same 202-then-poll shape. Use a project you can read, create a thread, post a message, poll the generation, then read the messages:
 
-List models before sending a message. Use an entry’s `id` as `model` and its `providerSlug` to select the provider. The list respects the organization’s model-access policy and includes only models callable directly through REST; an empty list means no chat model is available to this key holder.
+List models before sending a message. Use an entry’s `id` as `model` and its `providerSlug` to select the provider. The list respects the organization’s model-access policy and includes only models callable directly through REST; an empty list means no chat model is available to this key holder. The pair is checked on send: a `providerSlug` the list does not carry answers **400**, `CHAT_PROVIDER_UNKNOWN`, and one that does not serve the chosen `model` answers **400**, `CHAT_MODEL_NOT_ON_PROVIDER` — the turn never falls back to another provider behind your back.
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/models" \
@@ -210,7 +210,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 For a personal chat with no project, use `/api/v1/threads` and its corresponding detail, messages and generation paths. Those URLs cannot address project threads. A wrong project URL answers **404**. Both kinds use the built-in assistant; `projectId`, `agentSlug` and `agentId` in create or message bodies answer **400**. Project readers, including Members, may create and send; an archived project refuses these writes with **403**, and an archived thread refuses a message with **409**.
 
-A model failure can appear as an assistant message with readable `error` text and, when available, `errorCode`. The worker rechecks the accepted thread and project access before opening the turn. If the thread moves projects or access is lost while the request waits, it does not run or append an error in the new scope.
+A model failure can appear as an assistant message with readable `error` text and, when available, `errorCode`. The model list is the organization’s configured catalog, not a promise from the provider’s account, so two codes mean the account rather than the request: `credit_exhausted` (the balance is spent) and `model_not_entitled` (the provider’s plan excludes this model). Pick another model or fix the account — waiting changes nothing, and neither is a `rate_limited`. The worker rechecks the accepted thread and project access before opening the turn. If the thread moves projects or access is lost while the request waits, it does not run or append an error in the new scope.
 
 ## Search a project's files
 

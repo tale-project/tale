@@ -174,7 +174,7 @@ Das Projekt in der URL bestimmt den Kontext der Aufgaben- und Dokumentwerkzeuge 
 
 Projektchats folgen ebenfalls dem Ablauf 202, dann Statusabfrage. Wähle ein Projekt, das du lesen darfst, lege einen Thread an, sende eine Nachricht, frage den Status ab und lies die Antwort:
 
-Rufe vor dem Senden die Modelle ab. Übernimm `id` als `model` und `providerSlug` für die Auswahl des Anbieters. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung.
+Rufe vor dem Senden die Modelle ab. Übernimm `id` als `model` und `providerSlug` für die Auswahl des Anbieters. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung. Das Paar wird beim Senden geprüft: Ein `providerSlug`, den die Liste nicht kennt, ergibt **400**, `CHAT_PROVIDER_UNKNOWN`; einer, der das gewählte `model` nicht bedient, **400**, `CHAT_MODEL_NOT_ON_PROVIDER` — der Turn weicht nie stillschweigend auf einen anderen Anbieter aus.
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/models" \
@@ -210,7 +210,7 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 Für persönliche Chats ohne Projekt verwendest du `/api/v1/threads` sowie die zugehörigen Detail-, Nachrichten- und Statuspfade. Projektthreads sind dort nicht erreichbar. Ein falsches Projekt in der URL ergibt **404**. Beide Chatarten verwenden den eingebauten Assistenten; `projectId`, `agentSlug` oder `agentId` beim Anlegen oder Senden ergibt **400**. Projektleser einschließlich Mitgliedern dürfen Threads anlegen und Nachrichten senden. Ein archiviertes Projekt verweigert diese Aufrufe mit **403**, ein archivierter Thread das Senden mit **409**.
 
-Ein Modellfehler kann als Assistenten-Nachricht mit lesbarem `error` und, wenn verfügbar, `errorCode` erscheinen. Vor dem Öffnen des Turns prüft der Worker den angenommenen Thread und den Projektzugriff erneut. Wechselt der Thread während der Wartezeit das Projekt oder entfällt der Zugriff, führt er den Turn nicht aus und schreibt auch keine Fehlermeldung in den neuen Kontext.
+Ein Modellfehler kann als Assistenten-Nachricht mit lesbarem `error` und, wenn verfügbar, `errorCode` erscheinen. Die Modellliste ist der konfigurierte Katalog der Organisation, kein Versprechen des Anbieterkontos — zwei Codes meinen deshalb das Konto, nicht die Anfrage: `credit_exhausted` (Guthaben aufgebraucht) und `model_not_entitled` (der Tarif des Anbieters enthält dieses Modell nicht). Wähl ein anderes Modell oder bring das Konto in Ordnung — Warten ändert nichts, und keiner von beiden ist ein `rate_limited`. Vor dem Öffnen des Turns prüft der Worker den angenommenen Thread und den Projektzugriff erneut. Wechselt der Thread während der Wartezeit das Projekt oder entfällt der Zugriff, führt er den Turn nicht aus und schreibt auch keine Fehlermeldung in den neuen Kontext.
 
 ## Die Dateien eines Projekts durchsuchen
 

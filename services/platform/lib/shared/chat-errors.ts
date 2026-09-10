@@ -33,6 +33,7 @@ export function isStoppedReason(reason: string | undefined): boolean {
 export const CHAT_ERROR_CODES = [
   'missing_api_key',
   'credit_exhausted',
+  'model_not_entitled',
   'auth_error',
   'model_not_found',
   'unsupported_parameter',
@@ -60,6 +61,7 @@ export function isChatErrorCode(value: unknown): value is ChatErrorCode {
 export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
   missing_api_key: 'errorHintMissingApiKey',
   credit_exhausted: 'errorHintCreditExhausted',
+  model_not_entitled: 'errorHintModelNotEntitled',
   auth_error: 'errorHintAuthError',
   model_not_found: 'errorHintModelNotFound',
   unsupported_parameter: 'errorHintUnsupportedParameter',
@@ -83,6 +85,7 @@ export const CHAT_ERROR_I18N_KEY_NAMED: Readonly<
   Partial<Record<ChatErrorCode, string>>
 > = {
   credit_exhausted: 'errorHintCreditExhaustedNamed',
+  model_not_entitled: 'errorHintModelNotEntitledNamed',
   auth_error: 'errorHintAuthErrorNamed',
   provider_unreachable: 'errorHintProviderUnreachableNamed',
   model_not_found: 'errorHintModelNotFoundNamed',
@@ -112,18 +115,33 @@ function extractErrorFacts(error: unknown): ErrorFacts {
     err.data !== null && typeof err.data === 'object'
       ? (err.data as Record<string, unknown>)
       : undefined;
-  const code =
-    typeof err.code === 'string'
-      ? err.code
-      : typeof data?.code === 'string'
-        ? data.code
-        : undefined;
   const message =
     typeof data?.message === 'string'
       ? data.message
       : typeof err.message === 'string'
         ? err.message
         : '';
+  // A provider's own code rides in the `{error: {code, message}}` body. The
+  // direct wire wraps that body into the sentence it throws ("The model
+  // provider answered 429: {…}") with only the status attached, and an SDK
+  // error nests it under `error` — so the code is read from the top level,
+  // a platform refusal's `data`, a nested `error`, and last from the wrapped
+  // JSON text, before any wording is consulted.
+  const nested =
+    err.error !== null && typeof err.error === 'object'
+      ? (err.error as Record<string, unknown>)
+      : undefined;
+  const embedded = /"code"\s*:\s*"?([A-Za-z0-9_.-]+)"?/.exec(message);
+  const code =
+    typeof err.code === 'string'
+      ? err.code
+      : typeof data?.code === 'string'
+        ? data.code
+        : typeof nested?.code === 'string'
+          ? nested.code
+          : typeof nested?.code === 'number'
+            ? String(nested.code)
+            : embedded?.[1];
   return { status, code, message: message.toLowerCase() };
 }
 
@@ -169,6 +187,11 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   ) {
     return 'auth_error';
   }
+  // The organization lists no such model, or the chosen provider stopped
+  // serving it before the turn ran (the REST door's strict choice).
+  if (code === 'CHAT_MODEL_UNKNOWN' || code === 'CHAT_PROVIDER_UNAVAILABLE') {
+    return 'model_not_found';
+  }
 
   // Org has no usable provider / no API key at all — actionable setup error.
   if (
@@ -179,10 +202,27 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'missing_api_key';
   }
 
+  // The account's plan excludes THIS model while others still serve — Z.ai
+  // answers it as HTTP 429 (code 1311, "Your current subscription plan does
+  // not yet include access to …"), so this must precede the status-429
+  // rate-limit branch: no wait lifts it, and the remedy is another model or
+  // a plan change, not a retry.
+  if (
+    code === '1311' ||
+    /subscription plan does not (yet )?include|not included in your (plan|package|subscription)|plan does not (yet )?include access/i.test(
+      message,
+    )
+  ) {
+    return 'model_not_entitled';
+  }
+
   // Out of funds — account-level, every model on the provider fails the same.
+  // Z.ai's spent balance is also an HTTP 429 (code 1113), hence the message
+  // patterns and the code alongside the 402 every other provider answers.
   if (
     status === 402 ||
-    /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*(limit|reached)|\b402\b/i.test(
+    code === '1113' ||
+    /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*(limit|reached)|insufficient balance|no resource package|please recharge|\b402\b/i.test(
       message,
     )
   ) {

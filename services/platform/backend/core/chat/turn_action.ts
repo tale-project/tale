@@ -92,23 +92,35 @@ interface ResolvedModel {
  * The connector that lists it is the one whose wire the turn will speak.
  * A provider hint (the composer's picked section) is tried first, so two
  * providers serving the same id resolve to the copy the user chose; an
- * unmatched hint falls back to the id-only walk rather than refusing. A
+ * unmatched hint falls back to the id-only walk rather than refusing. With
+ * `strict` (the REST door, where the provider is a CHOICE the caller was
+ * promised) only the named connector is consulted, and a pair that no
+ * longer resolves — the connector removed or renamed, the model gone from
+ * its catalog between the 202 and the run — refuses the turn instead of
+ * sending the conversation to a provider the caller never named. A
  * catalog-less connector (Azure deployment names) serves its DEFAULT
  * credential's allowlist — the same credential the direct wire resolves. */
-async function resolveModel(
+export async function resolveModel(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
   providerSlug?: string,
+  strict = false,
 ): Promise<ResolvedModel> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
   const ordered =
     providerSlug === undefined
       ? connectors
-      : [
-          ...connectors.filter((connector) => connector.name === providerSlug),
-          ...connectors.filter((connector) => connector.name !== providerSlug),
-        ];
+      : strict
+        ? connectors.filter((connector) => connector.name === providerSlug)
+        : [
+            ...connectors.filter(
+              (connector) => connector.name === providerSlug,
+            ),
+            ...connectors.filter(
+              (connector) => connector.name !== providerSlug,
+            ),
+          ];
   for (const connector of ordered) {
     let allowlist: readonly string[] | undefined;
     if (connector.catalog.source === 'none') {
@@ -123,6 +135,12 @@ async function resolveModel(
     const catalog = await getServableCatalog(connector, allowlist);
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
+  }
+  if (strict && providerSlug !== undefined) {
+    throw new AppError({
+      code: 'CHAT_PROVIDER_UNAVAILABLE',
+      message: `Provider "${providerSlug}" no longer serves model "${modelId}" in this organization. Pick a pair GET /api/v1/models lists.`,
+    });
   }
   throw new AppError({
     code: 'CHAT_MODEL_UNKNOWN',
@@ -753,6 +771,11 @@ export interface ExecuteTurnArgs {
    * `modelSelection: 'auto'` is present. */
   readonly modelId?: string;
   readonly providerSlug?: string;
+  /** REST: the named provider is a CHOICE, not a hint — resolution never
+   * falls back to another connector serving the same id, and a pair that
+   * no longer resolves refuses the turn. The composer leaves this unset;
+   * its hint semantics stand. */
+  readonly providerStrict?: boolean;
   /** Auto — the chat lane's opt-in per-message pick: the server resolves a
    * concrete (provider, model) pair for THIS message before anything binds.
    * The REST and arena lanes never pass it; they stay explicit. */
@@ -1122,7 +1145,13 @@ export async function executeTurn(
         )
       : null;
   const pendingResolved = settled(
-    resolveModel(ctx, args.organizationId, modelId, providerSlug),
+    resolveModel(
+      ctx,
+      args.organizationId,
+      modelId,
+      providerSlug,
+      args.providerStrict === true,
+    ),
   );
   const pendingGovernanceCap = settled(
     ctx.runQuery(internal.governance.queries.getContextCapInternal, {

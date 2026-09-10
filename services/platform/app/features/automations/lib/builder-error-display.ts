@@ -11,6 +11,7 @@ const HARD_FAILURE_CODES = new Set<ChatErrorCode>([
   'missing_api_key',
   'auth_error',
   'credit_exhausted',
+  'model_not_entitled',
   'provider_unreachable',
   'model_not_found',
 ]);

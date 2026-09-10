@@ -150,6 +150,7 @@ export interface TaskPayloads {
     userText: string;
     modelId: string;
     providerSlug?: string;
+    providerStrict?: boolean;
     locale?: string;
   };
   /** One outbound conversation send — fired after the undo window; the
