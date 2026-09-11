@@ -1,5 +1,6 @@
 'use client';
 
+import { type ModerationCategoryMapping } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
@@ -15,7 +16,6 @@ import {
 import { Pencil, Plus } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { type ModerationCategoryMapping } from '@/lib/shared/schemas/governance';
 
 interface MappingListProps {
   mappings: readonly ModerationCategoryMapping[];

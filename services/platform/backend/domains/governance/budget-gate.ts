@@ -1,6 +1,6 @@
+import type { BudgetRule } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { BudgetRule } from '../../../lib/shared/schemas/governance';
 import {
   type BudgetCheckResult,
   checkRuleAgainstUsage,

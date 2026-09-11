@@ -38,6 +38,48 @@ async function create() {
 }
 
 describe('managed runtime credential adoption', () => {
+  test('fresh gateway passwords satisfy every required class even when entropy encodes without them', async () => {
+    const fixture = runtimeFixture();
+    fixtures.push(fixture);
+    // Isolate the deterministic entropy source from Bun's process-wide module
+    // mocks. The actual managed generator runs; only safe predicates leave it.
+    const program = `
+      import { mock } from 'bun:test';
+      import * as crypto from 'node:crypto';
+      mock.module('node:crypto', () => ({ ...crypto, randomBytes: size => Buffer.alloc(size) }));
+      const { prepareRuntimeEnvironment, parseRuntimeEnvironment } = await import(${JSON.stringify(new URL('./runtime-env.ts', import.meta.url).href)});
+      const result = prepareRuntimeEnvironment(${JSON.stringify(fixture.options)}, ${JSON.stringify(fixture.revision)}, false);
+      const password = parseRuntimeEnvironment(result.secrets, 'secrets').SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+      console.log(JSON.stringify({
+        upper: /[A-Z]/.test(password), lower: /[a-z]/.test(password),
+        digit: /[0-9]/.test(password), special: /[^A-Za-z0-9]/.test(password),
+        entropyPreserved: password.startsWith(Buffer.alloc(32).toString('base64url')),
+        composeRoundTrip: parseRuntimeEnvironment(result.environment, 'compose').SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD === password,
+      }));
+    `;
+    const child = Bun.spawn([process.execPath, '--eval', program], {
+      cwd: fixture.directory,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe('');
+    expect(JSON.parse(stdout)).toEqual({
+      upper: true,
+      lower: true,
+      digit: true,
+      special: true,
+      entropyPreserved: true,
+      composeRoundTrip: true,
+    });
+  });
+
   test('preserves the exact stable secret file and every secret value', async () => {
     const { fixture, legacy } = await create();
     const result = prepareRuntimeEnvironment(
@@ -55,6 +97,37 @@ describe('managed runtime credential adoption', () => {
     expect(readBootstrapPassword(fixture.options.stateDirectory)).toBe(
       legacy.values.TALE_BOOTSTRAP_PASSWORD,
     );
+  });
+
+  test('retains an existing gateway password below the new bootstrap policy on every replay', async () => {
+    const { fixture, legacy } = await create();
+    const retained = 'LEGACYONLY';
+    const secrets = legacy.secrets.replace(
+      /^SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=.*$/m,
+      `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${retained}`,
+    );
+    const environment = legacy.environment.replace(
+      /^SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=.*$/m,
+      `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${retained}`,
+    );
+    writeFileSync(join(fixture.options.stateDirectory, 'secrets.env'), secrets);
+    writeFileSync(
+      join(fixture.options.stateDirectory, 'src/.env'),
+      environment,
+    );
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = prepareRuntimeEnvironment(
+        fixture.options,
+        fixture.revision,
+        true,
+      );
+      expect(result.secrets).toBe(secrets);
+      expect(result.regeneratedSecrets).toEqual([]);
+      expect(
+        parseRuntimeEnvironment(result.environment, 'compose')
+          .SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
+      ).toBe(retained);
+    }
   });
 
   test('allows only supported missing-key top-ups and never silently rotates core secrets', async () => {

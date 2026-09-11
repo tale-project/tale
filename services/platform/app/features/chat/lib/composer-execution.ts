@@ -12,11 +12,12 @@
  * renders a localized sentence around it.
  */
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+
 import {
   resolveExecution,
   type CredentialAuth,
 } from '@/lib/shared/providers/resolve_execution';
-import type { ModelCatalogEntry } from '@/lib/shared/schemas/providers';
 
 /**
  * The direct arm of the case split never reads the harness table — it either

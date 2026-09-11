@@ -3,9 +3,9 @@
 // a write on the platform's own surface does not — so the matrix is pinned
 // here, together with the operator overrides that beat it.
 
+import { approvalPolicyConfigSchema } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import { approvalPolicyConfigSchema } from '../../../lib/shared/schemas/governance';
 import { resolveApprovalRequirement } from './policy';
 
 const platformWrite = {

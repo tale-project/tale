@@ -3,7 +3,7 @@ import {
   DEFAULT_LOGIN_MAX_ATTEMPTS,
   DEFAULT_TRUSTED_PROXIES,
   type LoginPolicyConfig,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
 
 export const DEFAULT_LOGIN_POLICY: LoginPolicyConfig = {
   enabled: true,

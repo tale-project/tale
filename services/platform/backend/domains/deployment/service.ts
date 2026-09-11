@@ -1,12 +1,12 @@
 import { unlink } from 'node:fs/promises';
 
-import type { Sql } from 'postgres';
-
-import type { DeploymentConfig } from '../../../lib/shared/schemas/deployment.ts';
+import type { DeploymentConfig } from '@tale/shared/schemas/deployment';
 import {
   DEPLOYMENT_CONFIG_VERSION,
   deploymentConfigSchema,
-} from '../../../lib/shared/schemas/deployment.ts';
+} from '@tale/shared/schemas/deployment';
+import type { Sql } from 'postgres';
+
 import { decideInstanceAdmin } from '../../core/deployment/auth_policy.ts';
 import { isDeploymentEditor } from '../../core/deployment/editors.ts';
 import {
@@ -180,7 +180,7 @@ export async function readDeploymentConfigView(
 export async function saveDeploymentConfig(
   sql: Sql,
   auth: InstanceAdminAuth,
-  args: { config: unknown; expectedHash?: string },
+  args: { config: unknown; expectedHash?: string | null },
 ): Promise<{ hash: string }> {
   const parsed = deploymentConfigSchema.safeParse(args.config);
   if (!parsed.success) {
@@ -211,6 +211,14 @@ export async function saveDeploymentConfig(
       // wins.
       if (args.expectedHash !== undefined) {
         const existing = await readDeploymentConfigFile();
+        // A malformed file may have appeared after the caller observed absence.
+        // Only ENOENT grants create permission; preserve every other preimage.
+        if (!existing.ok && existing.error !== 'not_found')
+          throw new DeploymentError(
+            'DEPLOYMENT_CONFIG_UNREADABLE',
+            'The current deployment configuration is unreadable.',
+            500,
+          );
         const currentHash = existing.ok ? existing.hash : null;
         if (currentHash !== args.expectedHash) {
           throw new DeploymentError(

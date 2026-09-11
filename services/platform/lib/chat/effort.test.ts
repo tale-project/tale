@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   modelCatalogEntrySchema,
   type ModelCatalogEntry,
-} from '../shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { describe, expect, it } from 'vitest';
+
 import {
   EFFORT_LEVELS,
   fitSamplingToWindow,

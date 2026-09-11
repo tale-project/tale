@@ -8,10 +8,10 @@
  * never displayed. This pins the refusal threshold to the shared constant.
  */
 
+import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@tale/shared/schemas/projects';
 import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '../../../lib/shared/schemas/projects.ts';
 import { ProjectError, updateProjectInstructions } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));

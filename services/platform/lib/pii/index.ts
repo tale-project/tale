@@ -4,7 +4,7 @@
  * Pattern and locale DEFINITIONS live as data in
  * `configs/platform/system/pii/{patterns,locales}/`; which of them an org
  * enables is the `pii_config` governance policy
- * (`lib/shared/schemas/pii.ts`). This library is the engine between the
+ * (`@tale/shared/schemas/pii`). This library is the engine between the
  * two:
  *
  *  1. Hot path — `createScrubber(options).scrub(text)`: patterns resolve

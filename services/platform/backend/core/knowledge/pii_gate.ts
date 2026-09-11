@@ -43,15 +43,13 @@
  *   placeholders, never a document-wide identity.
  */
 
+import { piiConfigSchema, type PiiConfig } from '@tale/shared/schemas/pii';
+
 import {
   createScrubberFromConfig,
   scrubDocument,
   type Scrubber,
 } from '../../../lib/pii';
-import {
-  piiConfigSchema,
-  type PiiConfig,
-} from '../../../lib/shared/schemas/pii';
 
 export type PiiIngestDecision =
   | { readonly kind: 'index'; readonly text: string }

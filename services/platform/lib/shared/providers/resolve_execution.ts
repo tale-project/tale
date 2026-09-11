@@ -36,7 +36,7 @@ import type {
   ExecutionConstraints,
   HarnessDefinition,
   ModelCatalogEntry,
-} from '../schemas/providers';
+} from '@tale/shared/schemas/providers';
 
 export type ExecutionMode = 'direct' | 'sandbox';
 

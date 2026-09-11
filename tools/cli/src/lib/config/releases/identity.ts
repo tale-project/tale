@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { MAX_SKILL_SLUG_LENGTH } from '../../../../../../services/platform/lib/shared/schemas/skills';
+import { MAX_SKILL_SLUG_LENGTH } from '@tale/shared/schemas/skills';
+
 import {
   clientSchema,
   insist,

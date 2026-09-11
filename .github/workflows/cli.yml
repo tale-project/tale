@@ -205,7 +205,9 @@ jobs:
         working-directory: tools/cli
         env:
           TALE_BINARY: dist/${{ matrix.artifact }}
-        run: bun test tests/smoke.test.ts tests/config-releases.test.ts tests/deployment.test.ts tests/provision.test.ts
+        # Discover the command suites together so newly added CLI commands
+        # cannot be tested only from source while their compiled cases skip.
+        run: bun test tests/
 
       - name: Upload artifact
         if: github.event_name != 'pull_request'

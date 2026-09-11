@@ -124,7 +124,7 @@ Managed bundle commands are unavailable on Windows, including `deploy verify-bun
 
 This synthetic specification targets an existing organization and project. Replace its public identifiers and set the named environment values. `revision` accepts a full commit SHA directly or an environment reference; credentials remain references and are resolved privately at the destination. `tlsMode: "external"` means an existing edge handles public TLS; `letsencrypt` additionally requires `tlsEmail`.
 
-For Linux GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, returns the `executable` output and adds the binary to `PATH`.
+For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, verifies the final executable, returns `executable` and adds the binary to `PATH`. macOS builds support general configuration preparation; managed Linux stack preparation still requires a matching Linux executable.
 
 `origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
 
@@ -195,11 +195,145 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy verify-bundle` checks the complete file inventory and hashes without a destination. `deploy --bundle --dry-run` checks configuration artifacts and destination preconditions without applying changes. Managed bundle deployment does not accept workspace-only overrides such as `--services`, `--host` or `--override-all`. It is a state-preserving stack rollout with health and provenance checks; the workspace blue-green behavior described above is a separate path.
 
-`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the existing local account and selected organization, and always signs out before reporting success. Its fields are `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra `tenantId`/`clientId`/`clientSecret`, and optional `nativeClients` entries with `key`, `name`, existing `clientId` and HTTPS `redirectUris`. Local-only mode never creates replacement accounts or organizations; enabled Entra mode requires its three credential fields and retains first-boot setup. A bundle also binds the public identity and staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
+`deploy provision [--bundle <directory>]` is the backend-local phase normally invoked by bundle deployment. It reads at most 64 KiB of private JSON from stdin, proves the local account and selected organization, and always signs out before reporting success. Its fields include `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra credentials, and `nativeClients`. Existing-account behavior remains the default. An explicit `identity.bootstrap: "fresh"` permits creation of the initial local account and organization. A bundle binds this choice and the staged configurations before native changes. `deploy provision` refuses workspace flags and `--dry-run`; use read-only bundle/config verification for review. Its optional `--cli-ref` and `--deployment-ref` expectations require `--bundle` and are checked before login.
 
-Managed native clients are existing clients only. Their IDs, security policy and secrets are preserved; only display name and callback URLs can converge. On maintained 0.5 backends, a required change uses the server-native auth adapter from the two fixed in-container modules, with both connections closed afterward. Exact no-ops load no backend modules. This does not enable the disabled public OAuth update route or allow arbitrary module paths, remote backend imports, registration or secret rotation.
+For an administratively verified fresh operator, explicitly declare `identity.emailVerification: "operator-attested"`. This is an operator assertion of the authenticated account’s email ownership, not proof of mailbox delivery. The backend uses a short-lived native verification token bound to that exact account and email, retaining native hooks without sending email, changing the address or creating another session. It is permitted only with `bootstrap: "fresh"`. Omit it to retain normal native email verification. A previously ready account whose verification changes holds for review.
 
-Keep the state directory, snapshots and native receipts. The ready receipt is written only after healthy runtime verification, native configuration readback and session cleanup. A failed later phase may leave earlier completed changes in place; inspect retained evidence before replay. Local locks coordinate one host, without cross-host compare-and-swap or protection against native admin edits.
+For a fresh target, replace a config's `projectId` with `project: { "key": "NORTH", "name": "Configuration" }`. Native project keys have 2–6 uppercase letters and names at most 80 characters. `skillOwner: "operator"` transfers a verified source capsule and compiles it for the authenticated native user inside the backend; the host independently checks the resulting artifact. Existing explicit IDs and owner-bound releases retain their exact behavior.
+
+Each native client chooses an existing `clientId` or explicit `managed: true`. Managed creation persists its private intent before the native request, then returns only a private handoff path and SHA for client credentials. Replays preserve IDs, security policy and secrets; uncertain request acceptance without a matching native object holds. Existing clients converge only their display name and HTTPS callback URLs. On maintained 0.5 backends, necessary create/update operations use fixed backend-local auth adapters and close their connections. This enables no public registration/update route, arbitrary module path or secret rotation.
+
+To hand a managed client’s credentials to a separate application, set `NATIVE_CLIENT_KEY` to its declared key and `PRIVATE_EXPORT_DIRECTORY` to a new private output directory. Its parent must already belong to your account, have mode `0700` and have trusted ancestors. Export from the same ready deployment without interpreting backend paths or container names:
+
+```bash
+tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
+  --client "$NATIVE_CLIENT_KEY" --output "$PRIVATE_EXPORT_DIRECTORY" \
+  --env-prefix TALE_OIDC --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+```
+
+The output directory has mode `0700`. Its regular `0600` files are `client.json`, `receipt.json` and, when `--env-prefix` is selected, `consumer-env.json`. The latter is a literal four-string map: `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` and `TALE_OIDC_ORG_SLUG`. The issuer is the Tale origin followed by `/api/auth`. Transfer these bytes through your private credential channel and let the application read JSON; do not source the file as shell or publish it as a CI artifact. Stdout contains only safe metadata, paths, sizes and hashes. An identical export is reused only after current ready-state and complete artifact checks; partial, stale or foreign output holds without overwrite.
+
+### Configure the platform
+
+Use `tale config` to manage existing platform settings through the native APIs. Save this declaration as `configuration.json` to set the accent color and a 45-minute idle timeout:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "branding",
+      "config": {
+        "accentColor": "#336699"
+      }
+    },
+    {
+      "kind": "governance",
+      "key": "session_idle_timeout",
+      "config": {
+        "enabled": true,
+        "idleTimeoutMinutes": 45
+      }
+    }
+  ]
+}
+```
+
+Set `TALE_URL` to the instance’s HTTPS origin and `TALE_ORG_ID` to the native organization ID. Provide an authorized session cookie through `TALE_CONFIG_COOKIE`; keep it out of arguments and committed files. Validate locally, save and review the plan, then apply it and compare native state:
+
+```bash
+tale --json config validate --file configuration.json
+tale --json config plan --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output configuration-plan.json
+tale --json --yes config apply --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan configuration-plan.json --receipt configuration-receipt.json
+tale --json config read --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+The output and receipt directories must already exist. A loopback HTTP connection also needs `--origin` with the instance’s public HTTPS origin. `read` reports `matches` for each declared resource. The plan identifies organization versus instance scope, current and desired hashes, and native side effects. Applying requires the exact declaration and target; a conflicting native edit refuses the write instead of overwriting it. Undeclared resources remain unchanged. There is no delete or arbitrary file-writing command.
+
+These resource kinds use the platform’s shared schemas and native permissions:
+
+| Kind | Configuration | Scope |
+| --- | --- | --- |
+| `branding` | Native branding fields | Organization |
+| `governance` | A file-backed policy `key` and its native `config` | Organization |
+| `provider` | A custom provider definition and optional `expectedModels` | Organization |
+| `provider-credential` | Named environment credential metadata | Organization |
+| `knowledge-embedding` | Provider, model, dimensions and endpoint | Organization |
+| `deployment` | Instance deployment settings, including sandbox runtime | Instance |
+
+Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing embedding configuration. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. An organization with documents or registered websites requires a separate native indexing migration. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
+
+Managed deployments use the same engine through `configuration`. Merge this example into the deployment declaration when an external operator already serves the provider. Replace the synthetic endpoint and catalog with verified values, and inject `EXTERNAL_PROVIDER_SECRET` from your secret manager:
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "configuration": {
+    "schemaVersion": 1,
+    "resources": [
+      {
+        "kind": "provider",
+        "config": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "expectedModels": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      },
+      {
+        "kind": "provider-credential",
+        "config": {
+          "providerSlug": "external-chat",
+          "authMethod": "env",
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL",
+          "modelAllowlist": [
+            "Example-chat"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+`envName` uses the native `TALE_PROVIDER_KEY_` prefix and 40-character limit. Each alias needs a required `environment` reference. Private endpoints additionally require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` reference whose value is `1`; native host restrictions still apply. `expectedModels` checks Tale’s freshly resolved catalog during readback. It does not prove inference capacity, latency or business output.
+
+Use `governance` with `key: "vision_model"` and native `providerSlug`/`modelId` fields for vision selection. Embedding uses `knowledge-embedding` with `providerSlug`, `model`, `dimensions` and `baseUrl`. To replace a default credential, also declare the existing environment credential with `isDefault: false`; the CLI applies that explicit change first. Credential values never enter the declaration or receipt.
+
+Native provisioning runs after identity and before configuration releases. The `native.configuration` receipt binds the declaration and bundle hashes, organization, resource hashes and native revisions. Writes retain a pending receipt before the first change; if a later resource fails, earlier changes may remain. Read the native state and retained receipt, then retry the same reviewed plan. Native compare-and-set protects each resource against concurrent admin changes; there is no cross-resource transaction. Keep deployment state, snapshots and receipts for recovery.
+
+Managed deployments also activate a declared `deployment` resource before reporting ready. The CLI records the pending activation, drains the verified sandbox spawner for up to five minutes, and restarts that container once sessions have finished. If sessions remain, the operation stays pending. The `configurationActivation` receipt records the mounted configuration and observed container boot; ready requires fresh health checks. Retrying an interrupted operation verifies an already accepted restart, and an unchanged ready replay does not restart the service again.
 
 ### Operate
 

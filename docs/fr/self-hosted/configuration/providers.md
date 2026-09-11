@@ -3,7 +3,7 @@ title: Fournisseurs
 description: Le versant opérateur des fournisseurs IA — les fichiers de connecteurs livrés avec la plateforme, et les variables d’environnement réservées qui laissent le déploiement porter les clés API à la place de la base de données.
 ---
 
-Un fournisseur IA dans Tale, ce sont deux moitiés qui vivent à deux endroits différents. Le **connecteur** — le format réseau, l’endpoint, la source du catalogue de modèles, les méthodes d’authentification acceptées — est livré avec la plateforme sous forme de fichier que tu lis sans le modifier. Les **identifiants** sont des données d’organisation, créées et renouvelées dans l’application sous **Paramètres > Fournisseurs IA**. Cette page couvre la moitié opérateur : ce que contiennent les fichiers livrés, et le seul levier qui appartienne vraiment au déploiement, à savoir porter les clés API des fournisseurs dans des variables d’environnement.
+Un fournisseur IA dans Tale associe un connecteur et des identifiants propres à une organisation. Le connecteur décrit l’endpoint, le catalogue et les méthodes d’authentification ; les identifiants portent les règles d’accès et une clé ou une référence d’environnement. Cette page décrit les connecteurs fournis et le déploiement générique d’un fournisseur exploité ailleurs.
 
 ## Où vivent les connecteurs
 
@@ -11,7 +11,7 @@ Les définitions de connecteurs sont des fichiers YAML sous `configs/platform/sy
 
 <Warning>
 
-Ces fichiers sont des entrées en lecture seule, pas de la configuration de déploiement. Modifier l’un d’eux dans un conteneur en cours d’exécution est écrasé à la mise à niveau suivante, et il n’existe aucune surcharge au niveau d’une organisation. Quand un fournisseur dont tu as besoin ne figure pas dans le jeu livré, c’est un changement de plateforme et non un changement de configuration.
+Les fichiers fournis sont des entrées d’image en lecture seule, remplacées lors des mises à niveau. Pour un fournisseur externe, utilise la déclaration vérifiée `configuration` décrite dans [Installation CLI](/fr/self-hosted/install/cli-install#configurer-la-plateforme). Elle crée un connecteur propre à l’organisation sous `TALE_CONFIG_DIR/<org>/providers/` avec le schéma natif ; les modifications d’identifiants et de politiques passent par les API natives.
 
 </Warning>
 
@@ -78,14 +78,14 @@ Des identifiants de type **Courtier d’abonnement** s’authentifient auprès d
 
 ## Ce qui relève de l’organisation et non du déploiement
 
-Les identifiants, leurs noms, leurs listes de modèles autorisés, celui qui fait office de défaut et ceux qui sont actifs sont tous des données d’organisation. Ils naissent dans l’application, ils appartiennent à une seule organisation, et aucun fichier sur disque ne sert à en ajouter — y compris sur une instance auto-hébergée.
+Identifiants, noms, modèles autorisés, valeurs par défaut et état actif restent des données d’organisation. L’application les gère normalement. Après avoir vérifié l’organisation et l’opérateur, un déploiement géré peut créer des identifiants exacts liés à l’environnement via l’API native ; il n’écrit pas directement dans les lignes de la base de données.
 
 <Tip>
 
-Cette séparation est le moyen le plus rapide de situer une tâche. Tout ce qui touche à _quel fournisseur existe et à ce qu’il sait faire_ est un connecteur livré ; tout ce qui touche à _qui peut l’appeler et avec quelle clé_ est un identifiant dans l’application. Le seul recouvrement est le chemin par variable d’environnement, où le déploiement porte le secret et l’identifiant n’en porte que le nom.
+Sépare les caractéristiques du connecteur, les accès et l’exploitation du serveur. Le déploiement géré vérifie le catalogue déclaré et les politiques natives ; il n’installe aucun serveur d’inférence et ne prouve pas le comportement réel du modèle.
 
 </Tip>
 
 ## Où cela s’inscrit
 
-Toute la surface d’un opérateur tient ici à provisionner des variables d’environnement et à savoir quels connecteurs la plateforme livre ; le reste se passe dans l’application. Le parcours d’interface — ajouter des identifiants, désigner un défaut, restreindre une liste, actualiser les catalogues — c’est [Fournisseurs IA](/fr/platform/admin/providers), ce que tes utilisateurs finissent par voir c’est le [Catalogue de modèles](/fr/platform/models), et les variables elles-mêmes figurent aux côtés du reste de la configuration dans la [Référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference).
+Utilise le déploiement géré pour les paramètres vérifiés de fournisseurs externes et la [Référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference) pour injecter les clés. [Fournisseurs IA](/fr/platform/admin/providers) décrit les identifiants, valeurs par défaut et catalogues dans l’application ; le [Catalogue de modèles](/fr/platform/models) explique ce que voient les membres.

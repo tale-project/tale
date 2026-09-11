@@ -1,14 +1,14 @@
 'use client';
 
+import {
+  type AutomationSettings,
+  isUploadsForm,
+} from '@tale/shared/schemas/automation-settings';
 import { useQuery } from '@tanstack/react-query';
 
 import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useSessionUser } from '@/app/hooks/use-session-user';
 import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/adapters';
-import {
-  type AutomationSettings,
-  isUploadsForm,
-} from '@/lib/shared/schemas/automation_settings';
 
 /** What each declared settings file currently holds, keyed by file name. A
  *  file that does not exist yet reads as `{}` (the action's own contract). */

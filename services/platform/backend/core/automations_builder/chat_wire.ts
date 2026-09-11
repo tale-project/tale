@@ -17,14 +17,12 @@
  *    costs a turn.
  */
 
+import type { ApiFormat, WireDialect } from '@tale/shared/schemas/providers';
+
 import { asRecord } from '../../../lib/automations_builder/results';
 import type { TurnSampling } from '../../../lib/chat/effort';
 import type { WireTool } from '../../../lib/chat/tools';
 import type { ChatWireMessage } from '../../../lib/chat/wire-parts';
-import type {
-  ApiFormat,
-  WireDialect,
-} from '../../../lib/shared/schemas/providers';
 
 export interface ChatWireRequest {
   url: string;

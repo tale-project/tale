@@ -1,7 +1,7 @@
+import { sessionExpiryMs } from '@tale/shared/utils/session-idle';
 import { generateId } from 'better-auth';
 import type { Sql } from 'postgres';
 
-import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { mapEntraRoleToPlatformRole } from '../../core/enterprise_sso/entra_id/role_mapping.ts';
 import type {
   PlatformRole,

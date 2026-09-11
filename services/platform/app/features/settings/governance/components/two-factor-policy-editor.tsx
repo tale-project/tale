@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  DEFAULT_TWO_FACTOR_POLICY,
+  twoFactorPolicyConfigSchema,
+  type TwoFactorPolicyConfig,
+} from '@tale/shared/schemas/governance';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -17,11 +22,6 @@ import { SettingsToggleRow } from '@/app/features/settings/components/settings-t
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  DEFAULT_TWO_FACTOR_POLICY,
-  twoFactorPolicyConfigSchema,
-  type TwoFactorPolicyConfig,
-} from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

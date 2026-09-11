@@ -7,7 +7,8 @@
 // stream is the same dialect) still attribute events to the harness that
 // ran.
 
-import type { ParserFamily } from '../../shared/schemas/providers';
+import type { ParserFamily } from '@tale/shared/schemas/providers';
+
 import type { HarnessEventParser, HarnessSlug } from '../types';
 import { createParser as claudeStreamJson } from './claude-stream-json';
 import { createParser as codexJsonl } from './codex-jsonl';

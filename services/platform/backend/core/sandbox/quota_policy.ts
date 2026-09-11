@@ -1,8 +1,9 @@
-import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   DEFAULT_SANDBOX_QUOTA,
   type SandboxQuotaConfig,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 
 /**
  * The per-org sandbox concurrency quota is the `sandbox_quota` governance

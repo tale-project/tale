@@ -1,4 +1,5 @@
-import { isPrivateIp } from '../shared/net/private-ip';
+import { isPrivateIp } from '@tale/shared/net/private-ip';
+
 import { BLOCKED_METADATA_HOSTS } from './host-policy';
 
 /**

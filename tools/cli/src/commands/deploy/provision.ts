@@ -3,17 +3,25 @@ import { resolve } from 'node:path';
 import { Command } from 'commander';
 
 import {
-  verifyDeploymentBundle,
+  withFrozenDeployment,
   type DeploymentBundle,
 } from '../../lib/deployment/bundle';
 import { provisionDeploymentConfigs } from '../../lib/deployment/configs';
+import { provisionDeploymentConfiguration } from '../../lib/deployment/configuration';
+import { createBackendEmailAttestation } from '../../lib/deployment/email-attestation';
 import {
   configureInstance,
   parsePrivateInstanceJson,
   PRIVATE_INPUT_LIMIT,
   type InstanceInput,
+  type InstanceOptions,
 } from '../../lib/deployment/identity';
-import { createBackendNativeUpdate } from '../../lib/deployment/native-client';
+import {
+  createBackendNativeClients,
+  createBackendNativeUpdate,
+} from '../../lib/deployment/native-client';
+import { nativeDeploymentStateDirectory } from '../../lib/deployment/provision-state';
+import { withLock } from '../../lib/state/with-lock';
 import {
   CliError,
   externalDepError,
@@ -73,6 +81,8 @@ export function verifyProvisionIdentity(
     identity.slug !== input.slug ||
     identity.name !== input.name ||
     identity.ssoEnabled !== input.ssoEnabled ||
+    identity.bootstrap !== input.bootstrap ||
+    identity.emailVerification !== input.emailVerification ||
     (typeof identity.email === 'string' &&
       identity.email.toLowerCase() !== input.email.toLowerCase()) ||
     identity.nativeClients.length !== input.nativeClients.length
@@ -87,6 +97,7 @@ export function verifyProvisionIdentity(
     if (
       !supplied ||
       supplied.name !== desired.name ||
+      supplied.managed !== desired.managed ||
       (typeof desired.clientId === 'string' &&
         supplied.clientId !== desired.clientId) ||
       JSON.stringify(supplied.redirectUris) !==
@@ -96,6 +107,67 @@ export function verifyProvisionIdentity(
         'Private native client identity differs from the deployment bundle.',
       );
   }
+}
+
+export interface ManagedProvisionDependencies {
+  dataDirectory?: string;
+  configure?: typeof configureInstance;
+  configs?: typeof provisionDeploymentConfigs;
+  configuration?: typeof provisionDeploymentConfiguration;
+  nativeUpdate?: InstanceOptions['nativeUpdate'];
+  managedClients?: InstanceOptions['managedClients'];
+  emailAttestation?: InstanceOptions['emailAttestation'];
+}
+
+/** One private native lock spans identity, credentials, configuration and configs.
+ * The verified source is copied before use; only safe metadata leaves the call. */
+export async function provisionManagedBundle(
+  directory: string,
+  input: InstanceInput,
+  pins: { cliRef?: string; deploymentRef?: string } = {},
+  dependencies: ManagedProvisionDependencies = {},
+) {
+  return withFrozenDeployment(directory, pins, async (frozen, bundle) => {
+    verifyProvisionIdentity(bundle, input);
+    const stateDirectory = nativeDeploymentStateDirectory(
+      dependencies.dataDirectory ?? '/app/data',
+      bundle.spec.name,
+    );
+    return withLock(stateDirectory, 'deploy provision', async () => {
+      let configs: unknown[] = [];
+      let configuration: Awaited<
+        ReturnType<typeof provisionDeploymentConfiguration>
+      >;
+      const identity = await (dependencies.configure ?? configureInstance)(
+        input,
+        {
+          stateDirectory,
+          emailAttestation:
+            dependencies.emailAttestation ??
+            createBackendEmailAttestation({ origin: input.origin }),
+          nativeUpdate:
+            dependencies.nativeUpdate ??
+            createBackendNativeUpdate({ origin: input.origin }),
+          managedClients:
+            dependencies.managedClients ??
+            createBackendNativeClients({ origin: input.origin }),
+          provision: async (context) => {
+            configuration = await (
+              dependencies.configuration ?? provisionDeploymentConfiguration
+            )(frozen, context);
+            configs = await (
+              dependencies.configs ?? provisionDeploymentConfigs
+            )(frozen, context);
+          },
+        },
+      );
+      return {
+        ...identity,
+        configs,
+        ...(configuration ? { configuration } : {}),
+      };
+    });
+  });
 }
 
 export function createProvisionCommand(): Command {
@@ -136,13 +208,13 @@ export function createProvisionCommand(): Command {
           const directory = selectedBundle
             ? resolve(selectedBundle)
             : undefined;
-          if (directory)
-            verifyProvisionIdentity(
-              await verifyDeploymentBundle(directory, {
-                cliRef: inherited?.cliRef,
-                deploymentRef: inherited?.deploymentRef,
-              }),
-              input,
+          if (
+            !directory &&
+            (input.bootstrap ||
+              input.nativeClients.some((client) => client.managed))
+          )
+            throw preconditionError(
+              'Fresh native provisioning requires a verified deployment bundle.',
             );
           if (
             !resolveConsent(inherited?.yes) &&
@@ -154,21 +226,19 @@ export function createProvisionCommand(): Command {
             throw new NonInteractiveError(
               'Native instance provisioning was not confirmed.',
             );
-          let configs: unknown[] = [];
-          const identity = await configureInstance(input, {
-            nativeUpdate: createBackendNativeUpdate({ origin: input.origin }),
-            ...(directory
-              ? {
-                  provision: async (context) => {
-                    configs = await provisionDeploymentConfigs(
-                      directory,
-                      context,
-                    );
-                  },
-                }
-              : {}),
-          });
-          result = { ...identity, configs };
+          result = directory
+            ? await provisionManagedBundle(directory, input, {
+                cliRef: inherited?.cliRef,
+                deploymentRef: inherited?.deploymentRef,
+              })
+            : {
+                ...(await configureInstance(input, {
+                  nativeUpdate: createBackendNativeUpdate({
+                    origin: input.origin,
+                  }),
+                })),
+                configs: [],
+              };
         } catch (error) {
           if (error instanceof CliError || error instanceof NonInteractiveError)
             throw error;

@@ -30,6 +30,7 @@
  * the last slice stamps it `completed`.
  */
 
+import type { PiiConfig } from '@tale/shared/schemas/pii';
 import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
 
@@ -41,7 +42,6 @@ import { planIngest, sliceToStore } from '../../../lib/knowledge/ingest-plan';
 import { logger } from '../../../lib/knowledge/logger';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
-import type { PiiConfig } from '../../../lib/shared/schemas/pii';
 import { assertVectorWidth } from './dimensions';
 import type { Embedder } from './embedding';
 import { assertCorpusWritable } from './index_health';

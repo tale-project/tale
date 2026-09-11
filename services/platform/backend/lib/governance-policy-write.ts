@@ -1,16 +1,26 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  POLICY_SCHEMAS,
+  policyTypeToFileBase,
+  type FilePolicyType,
+} from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
-import type { FilePolicyType } from '../../lib/shared/schemas/governance.ts';
 import {
   MAX_HISTORY_ENTRIES,
   resolveHistoryDir,
+  resolveGovernanceDir,
   resolvePolicyFilePath,
   resolvePolicyYamlFilePath,
   serializePolicyYaml,
 } from '../core/governance/file_utils.ts';
+import {
+  assertExpectedHash,
+  configSnapshot,
+} from '../core/lib/config_store/precondition';
+import { readDomainConfigFile } from '../core/lib/config_store/read_domain_file';
 import { withConfigWriteLock } from '../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
@@ -20,6 +30,21 @@ import {
   removeFileSafe,
 } from '../core/lib/file_io.ts';
 import { clearOrgConfigCaches } from './org-config.ts';
+
+/** Strict uncached canonical data and exact native file preimage. */
+export async function readGovernancePolicySnapshot(
+  orgSlug: string,
+  policyType: FilePolicyType,
+) {
+  return configSnapshot(
+    await readDomainConfigFile(
+      resolveGovernanceDir(orgSlug),
+      policyTypeToFileBase(policyType),
+      256 * 1024,
+      (data) => POLICY_SCHEMAS[policyType].parse(data),
+    ),
+  );
+}
 
 /**
  * Persist one governance policy file (the 0.4 `writePolicyFileAndSync`
@@ -46,8 +71,15 @@ export async function writeGovernancePolicyFile(
   orgSlug: string,
   policyType: FilePolicyType,
   config: unknown,
+  expectedHash?: string | null,
 ): Promise<void> {
   await withConfigWriteLock(sql, orgSlug, 'governance', async () => {
+    if (expectedHash !== undefined) {
+      assertExpectedHash(
+        (await readGovernancePolicySnapshot(orgSlug, policyType)).hash,
+        expectedHash,
+      );
+    }
     const yamlPath = resolvePolicyYamlFilePath(orgSlug, policyType);
     const jsonPath = resolvePolicyFilePath(orgSlug, policyType);
     const next = serializePolicyYaml(policyType, config);

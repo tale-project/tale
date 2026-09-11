@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { render, screen } from '@/tests/utils/render';
 
 // The declared deliverables are ANNOUNCED before a run files them, and the zone

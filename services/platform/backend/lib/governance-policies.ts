@@ -1,14 +1,14 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { Sql, TransactionSql } from 'postgres';
-
 import {
   DEFAULT_PASSWORD_POLICY,
   mergeStrictestPasswordPolicy,
   policyTypeToFileBase,
   type PasswordPolicyConfig,
-} from '../../lib/shared/schemas/governance.ts';
+} from '@tale/shared/schemas/governance';
+import type { Sql, TransactionSql } from 'postgres';
+
 import { resolveGovernanceDir } from '../core/governance/file_utils.ts';
 import { readGovernancePolicyForOrg, resolveOrgSlug } from './org-config.ts';
 

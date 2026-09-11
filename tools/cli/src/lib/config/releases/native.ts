@@ -1,13 +1,13 @@
+import { automationPackManifestSchema } from '@tale/shared/schemas/automation-pack';
+import { connectorSchema } from '@tale/shared/schemas/connectors';
 import { parse } from 'yaml';
 
 import { parseAutomationPackZip } from '../../../../../../services/platform/backend/core/automations/pack_zip';
 import { parseSkillBundleZip } from '../../../../../../services/platform/backend/core/skills/bundle_zip';
-import { automationPackManifestSchema } from '../../../../../../services/platform/lib/automations/packs';
 import { registerConnector } from '../../../../../../services/platform/lib/connectors/registry';
 import { setCodeRunner } from '../../../../../../services/platform/lib/engine/core/runner';
 import { validate } from '../../../../../../services/platform/lib/engine/core/validate';
 import { createSandboxExecRunner } from '../../../../../../services/platform/lib/engine/runners/sandbox-exec';
-import { connectorSchema } from '../../../../../../services/platform/lib/shared/schemas/connectors';
 import { EMBEDDED_CONNECTORS } from '../../../generated/embedded-files';
 import { assertNativeManifest } from './compiler';
 import { sha256, stableJson } from './identity';

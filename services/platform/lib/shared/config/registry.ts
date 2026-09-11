@@ -15,6 +15,12 @@
  * skill is a document.
  */
 
+import {
+  FILE_POLICY_TYPES,
+  isFilePolicyType,
+  POLICY_SCHEMAS,
+  policyTypeToFileBase,
+} from '@tale/shared/schemas/governance';
 import type { z } from 'zod/v4';
 
 import {
@@ -22,12 +28,6 @@ import {
   SSO_CONNECTION_KEY,
 } from '../schemas/enterprise_sso';
 import { ssoConnectionFileSchema } from '../schemas/enterprise_sso';
-import {
-  FILE_POLICY_TYPES,
-  isFilePolicyType,
-  POLICY_SCHEMAS,
-  policyTypeToFileBase,
-} from '../schemas/governance';
 
 /**
  * Scaffold copy semantics for domains seeded from the builtin catalog:

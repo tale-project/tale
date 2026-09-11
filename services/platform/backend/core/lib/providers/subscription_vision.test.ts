@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   providerDefinitionSchema,
   type ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { describe, expect, it } from 'vitest';
+
 import {
   isImageFileName,
   refuseBlindImageTurn,

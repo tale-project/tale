@@ -33,17 +33,17 @@
 
 import { createHash } from 'node:crypto';
 
+import type {
+  ConnectorAction,
+  Connector,
+  ConnectorEffect,
+} from '@tale/shared/schemas/connectors';
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { stableStringify } from '../engine/api/tests';
 import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { ConnectorContext } from '../engine/core/slots';
 import { closestName } from '../engine/core/validate/similar';
-import type {
-  ConnectorAction,
-  Connector,
-  ConnectorEffect,
-} from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
 import { createLiveHost, type ConnectorBlobSink } from './live-host';
 import {

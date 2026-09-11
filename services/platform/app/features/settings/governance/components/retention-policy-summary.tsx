@@ -1,10 +1,10 @@
 'use client';
 
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 
 import { useT } from '@/lib/i18n/client';
-import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
 import {
   type RetentionCategory,
   unitForCategory,

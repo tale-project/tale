@@ -1,7 +1,7 @@
 import type {
   FeatureFlagsConfig,
   FeatureFlagRule,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
 
 /**
  * What the `feature_flags` policy actually controls: the context-window cap

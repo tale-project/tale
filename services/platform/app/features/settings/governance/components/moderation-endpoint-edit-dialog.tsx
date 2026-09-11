@@ -1,5 +1,6 @@
 'use client';
 
+import { type ModerationResponseShape } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Plus, Trash2 } from 'lucide-react';
@@ -10,7 +11,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
-import { type ModerationResponseShape } from '@/lib/shared/schemas/governance';
 
 import { CustomJsonPathSection } from './moderation-custom-json-path-section';
 import type { EndpointDraft, HeaderRow } from './moderation-presets';

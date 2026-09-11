@@ -79,7 +79,7 @@ Prepare on Linux with a compiled CLI from a clean committed checkout, matching
 the destination's architecture. Preparation verifies source and image provenance
 through Git and Docker. Transfer the complete bundle and apply it on the
 destination with its local Docker daemon and retained state directory. Optional
-`--deployment-ref` records orchestration provenance. The Linux composite action
+`--deployment-ref` records orchestration provenance. The Linux/macOS ARM64 composite action
 `.github/actions/setup-cli` accepts the full Tale `revision`, builds with Bun
 1.4.2, exposes `executable` and adds it to `PATH`; pin both the action reference
 and its revision input. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
@@ -99,10 +99,67 @@ auth/SQL modules inside that backend when a change is required; both connections
 close afterward. It does not expose a remote update endpoint or accept module
 paths from input. Exact no-ops require no backend module loading.
 
+Fresh native targets are explicit: `identity.bootstrap: "fresh"` permits local
+account/organization creation; a configuration can use
+`project: { "key": "NORTH", "name": "Configuration" }` instead of `projectId`,
+and `skillOwner: "operator"` transfers verified source for compilation after
+the native operator is authenticated. The host independently verifies the
+owner-bound artifact. A native client chooses an existing `clientId` or
+`managed: true`; managed creation records intent before writing and returns only
+a private credential handoff path and SHA. Unknown acceptance holds; replay
+preserves IDs and secrets. Existing explicit-ID behavior is unchanged.
+
+Fresh-only `identity.emailVerification: "operator-attested"` records the
+operator's assertion of the authenticated account's email ownership. The
+short-lived native verification preserves hooks without mailbox delivery,
+email changes or another session. Omit it for normal native verification;
+ready-state verification drift holds. Use `deploy export-client --bundle DIR
+--client KEY --output NEW_PRIVATE_DIR --env-prefix TALE_OIDC --cli-ref FULL_SHA
+--deployment-ref FULL_SHA --json` for a private credential handoff. The CLI
+verifies the ready deployment and emits regular `0600` JSON files under an
+owned `0700` directory; its parent must already be account-owned `0700` with
+trusted ancestors. Stdout exposes only safe metadata and hashes. The
+optional `consumer-env.json` is a literal map whose issuer includes `/api/auth`, never a shell script or public
+CI artifact. Partial/stale output holds without replacement.
+
 Bundle deployment preserves supported existing state and verifies health; it
 does not inherit the workspace path's blue-green guarantees. The ready receipt
 is written only after native readback and session cleanup. Keep snapshots,
 stages and receipts for recovery, and coordinate all deployers sharing a target.
+
+### Platform configuration
+
+`config validate`, `config plan`, `config apply` and `config read` share one
+native configuration engine. A declaration selects branding, governance
+policies, custom providers, environment credential metadata, embedding
+configuration or instance deployment settings. Native schemas live in
+`@tale/shared/schemas/*`; the platform owns authorization, persistence, audit
+and domain effects. The CLI does not write arbitrary platform files.
+
+Save and review a plan before applying it with `--plan`, `--receipt` and
+`--yes`. The plan binds the exact target, declaration and native preimages.
+Native compare-and-set rejects concurrent edits. A failed operation retains a
+pending receipt for explicit recovery; completed earlier writes may remain.
+Undeclared resources are preserved. Secret values stay in environment
+variables. `read` compares the declared resources with native state.
+
+Managed deployments use the same engine through `configuration` after
+identity provisioning and before configuration releases. Their public
+`native.configuration` proof binds the declaration and deployment bundle.
+Managed boot-setting activation drains the verified sandbox spawner for up to
+five minutes, then restarts it and verifies the new boot, mounted configuration
+and health. Active sessions retain pending state. The `configurationActivation`
+receipt lets an interrupted apply reconcile an accepted restart without repeating
+it. Standalone boot-setting writes return `restartRequired`; native permissions,
+embedding migration requirements and explicit default-credential changes
+remain enforced. Model hardware and serving remain the endpoint operator’s
+responsibility. Pause uploads, synchronization and crawls during embedding
+changes; the CLI checks organization-wide document and website counts, but
+does not lock ingestion or migrate existing vectors.
+
+Use the worked JSON examples and command reference in
+[CLI installation](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
+and the [provider reference](../../docs/en/self-hosted/configuration/providers.md).
 
 ### Management Commands
 

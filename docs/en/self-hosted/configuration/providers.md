@@ -3,7 +3,7 @@ title: Providers
 description: The operator's side of AI providers — the connector files that ship with the platform, and the reserved environment variables that let a deployment hold the API keys instead of the database.
 ---
 
-An AI provider in Tale is two halves that live in two different places. The **connector** — the wire format, the endpoint, the model catalog source, the authentication methods a provider accepts — ships with the platform as a file you read but do not edit. The **credentials** are organisation data, created and rotated in the app under **Settings > AI providers**. This page is the operator's half: what the shipped files contain, and the one lever a deployment genuinely owns, which is holding provider API keys in environment variables.
+An AI provider in Tale has a connector and organization-scoped credentials. The connector declares its endpoint, catalog and authentication methods; credentials hold access policy and a key or environment reference. This page covers shipped connectors and the generic deployment path for an externally operated provider.
 
 ## Where the connectors live
 
@@ -11,7 +11,7 @@ Connector definitions are YAML files under `configs/platform/system/providers/`,
 
 <Warning>
 
-These files are read-only inputs, not deployment configuration. Editing one inside a running container is overwritten by the next upgrade, and there is no organisation-level override for them. When a provider you need is not in the shipped set, that is a platform change rather than a config change.
+Shipped files are read-only image inputs and are replaced on upgrade. For an external provider, use the reviewed `configuration` deployment declaration described in [CLI installation](/self-hosted/install/cli-install#configure-the-platform). It creates an organization-owned connector under `TALE_CONFIG_DIR/<org>/providers/` through the same native schema, while credential and policy changes use native APIs.
 
 </Warning>
 
@@ -78,14 +78,14 @@ A **Subscription broker** credential authenticates to the broker before it can f
 
 ## What is organisation data, not deployment config
 
-Credentials, their names, their model allowlists, which one is the default, and which are enabled are all organisation data. They are created in the app, they are scoped to one organisation, and there is no file on disk you edit to add one — including on a self-hosted instance.
+Credentials, names, model allowlists, defaults and enabled state remain organization data. The app manages them normally. Managed deployment can create exact environment-backed credentials through the native API after proving the declared organization and operator; it does not write credential database rows directly.
 
 <Tip>
 
-That split is the quickest way to place a task. Anything about _which provider exists and what it can do_ is a shipped connector; anything about _who may call it and with what key_ is a credential in the app. The only overlap is the environment-variable key path, where the deployment holds the secret and the credential holds its name.
+Keep connector facts, credential access and server operation separate. Managed deployment validates declared catalog and native policy state; it does not install an inference server or prove the model’s runtime behavior.
 
 </Tip>
 
 ## Where this fits
 
-An operator's whole surface here is provisioning environment variables and knowing which connectors the platform ships; everything else about providers happens in the app. The UI walkthrough — adding credentials, picking a default, narrowing an allowlist, refreshing catalogs — is [AI providers](/platform/admin/providers), what your users end up seeing is [Model catalog](/platform/models), and the variables themselves are listed alongside the rest of the deployment's configuration in the [environment reference](/self-hosted/configuration/environment-reference).
+Use managed deployment for reviewed external provider settings, and the [environment reference](/self-hosted/configuration/environment-reference) for secret injection. For app-managed credentials, defaults and catalog refresh, follow [AI providers](/platform/admin/providers); [Model catalog](/platform/models) explains what members see.

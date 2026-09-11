@@ -1,5 +1,6 @@
 'use client';
 
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import { Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
@@ -9,7 +10,6 @@ import { useMemo, useState } from 'react';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import { splitFolderFiles } from '../lib/folder-files';
 import { FileOpenButton } from './file-open-button';

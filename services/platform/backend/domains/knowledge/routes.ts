@@ -1,13 +1,15 @@
+import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
+import { knowledgeConnectionSchema } from '@tale/shared/schemas/knowledge';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import { knowledgeConnectionSchema } from '../../../lib/shared/schemas/knowledge.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { FETCH_WINDOW_CHARS, windowText } from '../../core/knowledge/fetch.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import { listCredentials } from '../provider_credentials/service.ts';
@@ -167,7 +169,10 @@ export function createKnowledgeRoutes(deps: {
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
   const handleAdminError = (c: Context<OrgEnv>, error: unknown): Response => {
-    if (error instanceof KnowledgeAdminError) {
+    if (
+      error instanceof KnowledgeAdminError ||
+      error instanceof ConfigurationError
+    ) {
       return c.json(
         { error: error.code, message: error.message },
         error.status,
@@ -252,7 +257,11 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    return c.json(await readKnowledgeEmbeddingView(orgSlug));
+    try {
+      return c.json(await readKnowledgeEmbeddingView(orgSlug));
+    } catch (error) {
+      return handleAdminError(c, error);
+    }
   });
 
   app.post('/embedding', async (c) => {
@@ -260,10 +269,20 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const body: unknown = await c.req.json().catch(() => null);
     if (body === null) return c.json({ error: 'invalid body' }, 400);
+    const input = z
+      .object({ expectedHash: expectedConfigurationHashSchema.optional() })
+      .catchall(z.unknown())
+      .safeParse(body);
+    if (!input.success)
+      return c.json({ error: 'INVALID_CONFIG_PRECONDITION' }, 400);
+    const { expectedHash, ...config } = input.data;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      await writeKnowledgeEmbedding(deps.sql, orgSlug, body);
+      if (expectedHash === undefined)
+        await writeKnowledgeEmbedding(deps.sql, orgSlug, config);
+      else
+        await writeKnowledgeEmbedding(deps.sql, orgSlug, config, expectedHash);
       // Configuring a model is only half the fix: every document that failed
       // while there was none stays `failed` until something re-queues it, and
       // the failure text tells the operator to configure one "then retry

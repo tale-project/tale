@@ -56,7 +56,7 @@
 import type {
   ModelCatalogEntry,
   ReasoningOff,
-} from '../shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
 
 /** The user-facing scale, in ascending order of effort. */
 export const EFFORT_LEVELS = ['low', 'medium', 'high', 'extra', 'max'] as const;

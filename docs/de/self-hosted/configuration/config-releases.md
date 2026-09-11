@@ -13,6 +13,8 @@ Installiere die [Tale-CLI](/de/self-hosted/install/cli-install) und lege eine Re
 
 Du brauchst einen committeten Client-Deskriptor und ein Paket, eine bestehende Organisation und ein Projekt sowie eine berechtigte native Sitzung. Trägt das Paket eigene Skills, verwende die native Benutzer-ID dieser Sitzung als Build-Inhaber. Projekt-, Organisations- und externe Identitäts-IDs sind davon getrennt.
 
+Für eine neue Instanz ohne native IDs nutzt du ein verwaltetes Deployment mit expliziter neuer Identität, symbolischem Projekt und `skillOwner: "operator"`. Es überträgt geprüfte Quellen und kompiliert erst nach dem Nachweis des nativen Betreibers; die eigenständigen Release-Befehle brauchen weiter aufgelöste IDs. Halte die Geschäftskonfiguration im eigenen Client-Quellbaum. Externe Modelleinstellungen gehören in die Deployment-Deklaration.
+
 Die Beispiele verwenden den synthetischen Client `example-team` mit der Automatisierung `document-review`. Übergib das vollständige Sitzungscookie über `TALE_CONFIG_COOKIE` aus deinem Secret Manager. Es gehört weder in Argumente und Quellen noch in Archive, Belege oder Logs.
 
 ## Schritt 1 — Inhalte im Client-Repository halten

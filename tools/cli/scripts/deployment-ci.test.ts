@@ -1,5 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,6 +90,94 @@ test.skipIf(process.platform === 'win32')(
 );
 
 test.skipIf(process.platform === 'win32')(
+  'setup action selects the host binary and seals only the final Mac executable',
+  async () => {
+    const action = parse(
+      await readFile(
+        join(repository, '.github/actions/setup-cli/action.yml'),
+        'utf8',
+      ),
+    ) as { runs: { steps: Step[] } };
+    const script = action.runs.steps.find((step) => step.id === 'build')?.run;
+    if (!script) throw new Error('Setup build script missing');
+    for (const [os, arch, build] of [
+      ['Linux', 'X64', 'build:linux'],
+      ['Linux', 'ARM64', 'build:linux-arm64'],
+      ['macOS', 'ARM64', 'build:mac'],
+    ]) {
+      const root = await realpath(
+        await mkdtemp(join(tmpdir(), 'tale-setup-build-')),
+      );
+      roots.push(root);
+      const bin = join(root, 'bin');
+      const log = join(root, 'commands');
+      const output = join(root, 'output');
+      const path = join(root, 'path');
+      await mkdir(bin);
+      await mkdir(join(root, 'tools/cli/dist'), { recursive: true });
+      await writeFile(log, '');
+      await writeFile(output, '');
+      await writeFile(path, '');
+      await writeFile(
+        join(bin, 'git'),
+        '#!/bin/sh\nif [ "$1" = rev-parse ]; then printf "%s\\n" "$TALE_CLI_REVISION"; fi\n',
+        { mode: 0o755 },
+      );
+      for (const command of ['bun', 'codesign'])
+        await writeFile(
+          join(bin, command),
+          `#!/bin/sh\nprintf '%s\\n' '${command}'" $*" >> "$TEST_COMMAND_LOG"\n`,
+          { mode: 0o755 },
+        );
+      await writeFile(
+        join(root, 'tools/cli/dist/tale'),
+        '#!/bin/sh\nexit 0\n',
+        { mode: 0o755 },
+      );
+      const child = Bun.spawn(
+        [process.platform === 'darwin' ? '/bin/bash' : 'bash', '-c', script],
+        {
+          cwd: root,
+          env: {
+            PATH: `${bin}:${process.env.PATH}`,
+            GITHUB_OUTPUT: output,
+            GITHUB_PATH: path,
+            TEST_COMMAND_LOG: log,
+            RUNNER_OS: os,
+            RUNNER_ARCH: arch,
+            TALE_CLI_REVISION: 'a'.repeat(40),
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code, stdout + stderr).toBe(0);
+      const calls = (await readFile(log, 'utf8')).trim().split('\n');
+      expect(calls).toContain(`bun run --filter @tale/cli ${build}`);
+      expect(calls.filter((call) => call.startsWith('codesign'))).toEqual(
+        os === 'macOS'
+          ? [
+              'codesign --remove-signature tools/cli/dist/tale',
+              'codesign -s - tools/cli/dist/tale',
+              'codesign --verify --strict --verbose=2 tools/cli/dist/tale',
+            ]
+          : [],
+      );
+      expect(calls.at(-1)).toBe('bun run --filter @tale/cli check:bundle');
+      expect(await readFile(output, 'utf8')).toBe(
+        `executable=${root}/tools/cli/dist/tale\n`,
+      );
+    }
+  },
+  30_000,
+);
+
+test.skipIf(process.platform === 'win32')(
   'setup action rejects mutable pins and unsupported runners before checkout or build',
   async () => {
     const action = parse(
@@ -102,11 +197,21 @@ test.skipIf(process.platform === 'win32')(
     expect(
       (await execute(script, { ...environment, RUNNER_ARCH: 'ARM64' })).code,
     ).toBe(0);
+    expect(
+      (
+        await execute(script, {
+          ...environment,
+          RUNNER_OS: 'macOS',
+          RUNNER_ARCH: 'ARM64',
+        })
+      ).code,
+    ).toBe(0);
     for (const changed of [
       { TALE_CLI_REVISION: 'main' },
       { TALE_CLI_REVISION: 'v1.2.3' },
       { TALE_CLI_REVISION: `${environment.TALE_CLI_REVISION}\n` },
-      { RUNNER_OS: 'macOS' },
+      { RUNNER_OS: 'Windows' },
+      { RUNNER_OS: 'macOS', RUNNER_ARCH: 'X64' },
       { RUNNER_ARCH: 'X86' },
     ]) {
       expect(

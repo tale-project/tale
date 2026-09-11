@@ -17,7 +17,7 @@
  * `connector`, and either beats the built-in default.
  */
 
-import type { ApprovalPolicyConfig } from '../../../lib/shared/schemas/governance';
+import type { ApprovalPolicyConfig } from '@tale/shared/schemas/governance';
 
 export type ApprovalRequirement = 'allow' | 'require';
 

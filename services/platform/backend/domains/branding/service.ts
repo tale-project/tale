@@ -1,9 +1,9 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
+import { brandingJsonSchema } from '@tale/shared/schemas/branding';
 import type { Sql } from 'postgres';
 
-import { brandingJsonSchema } from '../../../lib/shared/schemas/branding.ts';
 import {
   buildBrandingImageUrl,
   MAX_FILE_SIZE_BYTES,
@@ -21,6 +21,10 @@ import {
   type BrandingJsonConfig,
   type BrandingReadResult,
 } from '../../core/branding/file_utils.ts';
+import {
+  assertExpectedHash,
+  configSnapshot,
+} from '../../core/lib/config_store/precondition';
 import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
@@ -154,16 +158,32 @@ export async function readBranding(
   };
 }
 
+export async function readBrandingConfig(orgSlug: string) {
+  return configSnapshot(
+    await readJsonFile(
+      resolveBrandingFilePath(orgSlug),
+      MAX_FILE_SIZE_BYTES,
+      parseBrandingJson,
+    ),
+  );
+}
+
 export async function saveBranding(
   sql: Sql,
   orgSlug: string,
   config: unknown,
+  expectedHash?: string | null,
 ): Promise<{ hash: string }> {
   const parsed = brandingJsonSchema.parse(config);
   const content = serializeBrandingJson(parsed);
-  await withConfigWriteLock(sql, orgSlug, 'branding', () =>
-    atomicWrite(resolveBrandingFilePath(orgSlug), content),
-  );
+  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
+    if (expectedHash !== undefined)
+      assertExpectedHash(
+        (await readBrandingConfig(orgSlug)).hash,
+        expectedHash,
+      );
+    await atomicWrite(resolveBrandingFilePath(orgSlug), content);
+  });
   return { hash: sha256(content) };
 }
 

@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { Card } from '@tale/ui/card';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -7,7 +8,6 @@ import { GitBranch } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
-import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';

@@ -1,8 +1,9 @@
 # @tale/shared
 
-Dependency-light TypeScript infrastructure shared across Tale's Node-side code:
-the platform backend and the CLI. Cross-cutting plumbing only — a DB-retry
-wrapper, a logger, terminal output, and small utilities. No domain logic.
+TypeScript contracts and infrastructure shared by the Tale platform and CLI.
+The schemas and their pure helpers work in the browser and server; database,
+process and terminal modules have separate explicit subpaths. Native settings
+I/O, permissions and side effects remain in the platform backend.
 
 Source-only package: consumers import directly from `@tale/shared/<subpath>`.
 There is no build step.
@@ -17,6 +18,23 @@ log.info('ready');
 ## What it provides
 
 Every subpath below is declared in `package.json` `exports`.
+
+### Configuration contracts
+
+- **`@tale/shared/schemas/<name>`** — the native Zod schemas for governance,
+  branding, deployment, knowledge, providers, connectors, skills, agents and
+  projects. Platform forms/APIs and CLI validation import these same objects.
+- **`@tale/shared/schemas/configuration`** — opaque native configuration hash
+  preconditions. A null hash means an absent resource.
+- **`@tale/shared/schemas/{automation-pack,automation-settings,task-contract}`**
+  — automation package declarations and limits, operator settings forms and task
+  bindings. Catalog reads, ZIP decoding and engine validation stay in the platform.
+- **`@tale/shared/net/private-ip`** and **`@tale/shared/utils/{session-idle,model-ref,project-key}`**
+  — pure validation helpers used by those contracts and their consumers.
+
+Schemas never import from a service or tool workspace. The boundary guard walks
+all schema exports and their local dependencies; colocated tests preserve the
+same accepted values, defaults and refusal cases as the platform contracts.
 
 ### Database
 

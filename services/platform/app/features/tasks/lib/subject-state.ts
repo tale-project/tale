@@ -1,5 +1,6 @@
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
+
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 /**
  * The OPERATIONAL state of an automation-owned task, derived purely from the

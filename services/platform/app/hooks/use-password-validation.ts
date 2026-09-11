@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-
-import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_PASSWORD_POLICY,
   type PasswordPolicyConfig,
-} from '@/lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
+import { useMemo } from 'react';
+
+import { useT } from '@/lib/i18n/client';
 import {
   enabledValidationKeys,
   validatePassword,

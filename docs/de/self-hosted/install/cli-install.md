@@ -124,7 +124,7 @@ Verwaltete Bundle-Befehle sind unter Windows nicht verfügbar, einschließlich `
 
 Dieses synthetische Beispiel adressiert eine bestehende Organisation und ein Projekt. Ersetze die öffentlichen IDs und setze die benannten Umgebungswerte. `revision` nimmt einen vollständigen Commit-SHA oder einen Umgebungsverweis an. Zugangsdaten bleiben Verweise und werden am Ziel privat aufgelöst. `tlsMode: "external"` nutzt vorhandenes öffentliches TLS am vorgeschalteten Zugang; `letsencrypt` verlangt zusätzlich `tlsEmail`.
 
-Nutze für Linux-Jobs in GitHub Actions Tales Composite Action `.github/actions/setup-cli`. Lege sowohl die Action selbst als auch ihren Eingabewert `revision` auf denselben vollständigen Tale-Commit fest. Die Action baut mit Bun 1.4.2, liefert die Ausgabe `executable` und ergänzt das Binary im `PATH`.
+Nutze für Linux- oder macOS-ARM64-Jobs in GitHub Actions Tales Composite Action `.github/actions/setup-cli`. Lege die Action und `revision` auf denselben vollständigen Tale-Commit fest. Sie baut mit Bun 1.4.2, prüft das fertige Binary, liefert `executable` und ergänzt den `PATH`. macOS-Builds unterstützen die allgemeine Konfigurationsvorbereitung; ein verwalteter Linux-Stack braucht weiter ein passendes Linux-Binary.
 
 Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. So kann eine Deployment-Registry die öffentlichen Adressen verwalten. Die Vorbereitung löst sie zu geprüften wörtlichen HTTPS-URLs im Bundle auf.
 
@@ -195,11 +195,145 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
-`deploy provision [--bundle <directory>]` ist die lokale Backend-Phase, die normalerweise das Bundle-Deployment aufruft. Sie liest höchstens 64 KiB privates JSON von stdin, weist das bestehende lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor einer Erfolgsmeldung ab. Die Felder heißen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optional Entra `tenantId`/`clientId`/`clientSecret` sowie optional `nativeClients` mit `key`, `name`, bestehender `clientId` und HTTPS-`redirectUris`. Der rein lokale Modus erstellt keine Ersatzkonten oder Organisationen. Aktiviertes Entra verlangt seine drei Zugangsdatenfelder und erhält die Ersteinrichtung. Ein Bundle bindet zudem die öffentliche Identität und vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze zur Prüfung die lesenden Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und werden vor der Anmeldung geprüft.
+`deploy provision [--bundle <directory>]` ist die lokale Backend-Phase des Bundle-Deployments. Sie liest höchstens 64 KiB privates JSON von stdin, weist das lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor der Erfolgsmeldung ab. Die Felder umfassen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optionale Entra-Zugangsdaten und `nativeClients`. Standardmäßig bleibt das bestehende Konto erforderlich. Explizites `identity.bootstrap: "fresh"` erlaubt die Anlage des ersten lokalen Kontos und der Organisation. Ein Bundle bindet diese Wahl und die vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze lesende Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und greifen vor der Anmeldung.
 
-Verwaltete native Clients müssen bereits existieren. IDs, Sicherheitsrichtlinien und Secrets bleiben erhalten; nur Anzeigename und Callback-URLs lassen sich angleichen. Auf unterstützten 0.5-Backends verwendet eine nötige Änderung den servernativen Auth-Adapter aus zwei festgelegten Modulen im Container und schließt danach beide Verbindungen. Exakte Übereinstimmungen laden keine Backend-Module. Dieser Weg aktiviert weder die gesperrte öffentliche OAuth-Update-Route noch beliebige Modulpfade, entfernte Backend-Imports, Registrierung oder Secret-Rotation.
+Für einen administrativ geprüften neuen Betreiber deklarierst du ausdrücklich `identity.emailVerification: "operator-attested"`. Damit bestätigst du als Betreiber den Besitz der E-Mail-Adresse des authentifizierten Kontos; eine Postfachzustellung ist damit nicht nachgewiesen. Das Backend verwendet ein kurzlebiges natives Prüftoken für genau dieses Konto und diese Adresse und erhält native Hooks. Es verschickt keine E-Mail, ändert keine Adresse und erstellt keine weitere Sitzung. Die Option ist nur mit `bootstrap: "fresh"` zulässig. Ohne sie bleibt die normale native E-Mail-Prüfung bestehen. Ändert sich der Prüfstatus eines zuvor freigegebenen Kontos, stoppt der Ablauf zur Prüfung.
 
-Bewahre Zustandsverzeichnis, Snapshots und native Belege auf. Der Bereitschaftsbeleg entsteht erst nach Runtime-Zustandsprüfung, nativem Konfigurationsvergleich und Sitzungsbereinigung. Scheitert eine spätere Phase, können frühere Änderungen bestehen bleiben. Prüfe die erhaltenen Belege vor einem erneuten Aufruf. Lokale Sperren koordinieren einen Host, ohne hostübergreifendes Compare-and-swap oder Schutz vor nativen Admin-Änderungen.
+Ersetze für ein neues Ziel `projectId` einer Konfiguration durch `project: { "key": "NORTH", "name": "Configuration" }`. Native Projektschlüssel haben 2–6 Großbuchstaben, Namen höchstens 80 Zeichen. `skillOwner: "operator"` überträgt eine geprüfte Quellkapsel und kompiliert sie im Backend für den authentifizierten nativen Benutzer; der Host prüft das Ergebnis unabhängig. Explizite bestehende IDs und bereits an Besitzer gebundene Releases behalten ihr Verhalten.
+
+Jeder native Client wählt eine bestehende `clientId` oder explizites `managed: true`. Vor der nativen Anlage speichert die CLI eine private Absicht; danach liefert sie nur einen privaten Übergabepfad und SHA für die Zugangsdaten. Wiederholungen erhalten IDs, Sicherheitsrichtlinie und Secrets. Unklare Annahme ohne passendes natives Objekt stoppt. Bei bestehenden Clients lassen sich nur Anzeigename und HTTPS-Callback-URLs angleichen. Auf unterstützten 0.5-Backends verwenden nötige Anlagen oder Änderungen feste backendlokale Auth-Adapter, deren Verbindungen anschließend schließen. Es entstehen keine öffentliche Registrierungs- oder Update-Route, frei wählbaren Modulpfade oder Secret-Rotationen.
+
+Um Zugangsdaten eines verwalteten Clients an eine separate Anwendung zu übergeben, setze `NATIVE_CLIENT_KEY` auf den deklarierten Schlüssel und `PRIVATE_EXPORT_DIRECTORY` auf einen neuen privaten Ausgabeordner. Dessen übergeordneter Ordner muss bereits deinem Konto gehören, Modus `0700` haben und unter vertrauenswürdigen Verzeichnissen liegen. Exportiere aus demselben freigegebenen Deployment, ohne Backend-Pfade oder Containernamen auszuwerten:
+
+```bash
+tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
+  --client "$NATIVE_CLIENT_KEY" --output "$PRIVATE_EXPORT_DIRECTORY" \
+  --env-prefix TALE_OIDC --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+```
+
+Der Ausgabeordner hat Modus `0700`. Seine regulären Dateien `client.json`, `receipt.json` und optional `consumer-env.json` haben Modus `0600`. Mit `--env-prefix` entsteht die letzte Datei als wörtliche Zuordnung der vier Zeichenketten `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` und `TALE_OIDC_ORG_SLUG`. Der Issuer besteht aus der Tale-Origin und `/api/auth`. Übertrage die Bytes über deinen privaten Zugangsdatenkanal und lass die Anwendung JSON lesen; führe die Datei nicht als Shell aus und veröffentliche sie nicht als CI-Artefakt. Stdout enthält nur unkritische Metadaten, Pfade, Größen und Hashes. Eine identische Ausgabe wird erst nach erneuter Zustands- und vollständiger Artefaktprüfung wiederverwendet. Unvollständige, veraltete oder fremde Ausgaben stoppen ohne Überschreiben.
+
+### Plattform konfigurieren
+
+Mit `tale config` verwaltest du bestehende Plattform-Einstellungen über die nativen APIs. Speichere diese Deklaration als `configuration.json`, um Akzentfarbe und ein Inaktivitätslimit von 45 Minuten festzulegen:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "branding",
+      "config": {
+        "accentColor": "#336699"
+      }
+    },
+    {
+      "kind": "governance",
+      "key": "session_idle_timeout",
+      "config": {
+        "enabled": true,
+        "idleTimeoutMinutes": 45
+      }
+    }
+  ]
+}
+```
+
+Setze `TALE_URL` auf die HTTPS-Origin der Instanz und `TALE_ORG_ID` auf die native Organisations-ID. Übergib ein berechtigtes Sitzungscookie über `TALE_CONFIG_COOKIE`; es gehört weder in Argumente noch in versionierte Dateien. Prüfe die Deklaration lokal, speichere und prüfe den Plan, wende ihn an und vergleiche den nativen Zustand:
+
+```bash
+tale --json config validate --file configuration.json
+tale --json config plan --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output configuration-plan.json
+tale --json --yes config apply --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan configuration-plan.json --receipt configuration-receipt.json
+tale --json config read --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Die Ausgabe- und Belegordner müssen bereits existieren. Eine HTTP-Verbindung über Loopback braucht zusätzlich `--origin` mit der öffentlichen HTTPS-Origin. `read` meldet für jede deklarierte Ressource `matches`. Der Plan zeigt Organisations- oder Instanzumfang, aktuelle und gewünschte Hashes sowie native Folgewirkungen. Zum Anwenden müssen Deklaration und Ziel exakt stimmen. Eine konkurrierende native Änderung stoppt den Schreibvorgang. Nicht deklarierte Ressourcen bleiben bestehen. Die CLI bietet weder Löschbefehle noch beliebige Dateizugriffe.
+
+Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berechtigungen:
+
+| Art | Konfiguration | Geltungsbereich |
+| --- | --- | --- |
+| `branding` | Native Branding-Felder | Organisation |
+| `governance` | Dateibasierte Richtlinie mit `key` und nativer `config` | Organisation |
+| `provider` | Eigene Anbieterdefinition und optionale `expectedModels` | Organisation |
+| `provider-credential` | Metadaten benannter Umgebungszugangsdaten | Organisation |
+| `knowledge-embedding` | Anbieter, Modell, Dimensionen und Endpunkt | Organisation |
+| `deployment` | Instanz-Einstellungen einschließlich Sandbox-Runtime | Instanz |
+
+Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du die Embedding-Konfiguration änderst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht sie eine separate native Indexmigration. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
+
+Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze die Deployment-Deklaration um dieses Beispiel, wenn ein externer Betreiber den Anbieter bereits bereitstellt. Ersetze den synthetischen Endpunkt und Katalog durch geprüfte Werte und übergib `EXTERNAL_PROVIDER_SECRET` aus deinem Secret Manager:
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "configuration": {
+    "schemaVersion": 1,
+    "resources": [
+      {
+        "kind": "provider",
+        "config": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "expectedModels": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      },
+      {
+        "kind": "provider-credential",
+        "config": {
+          "providerSlug": "external-chat",
+          "authMethod": "env",
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL",
+          "modelAllowlist": [
+            "Example-chat"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+Für `envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht eine verpflichtende `environment`-Referenz. Private Endpunkte erfordern zusätzlich eine explizite Referenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; native Host-Regeln gelten weiter. `expectedModels` prüft Tales frisch aufgelösten Katalog beim Rücklesen. Das belegt weder Inferenzkapazität und Latenz noch fachliche Ergebnisse.
+
+Die Bildmodellauswahl nutzt `governance` mit `key: "vision_model"` und den nativen Feldern `providerSlug`/`modelId`. Embedding nutzt `knowledge-embedding` mit `providerSlug`, `model`, `dimensions` und `baseUrl`. Wenn du Standardzugangsdaten ersetzt, deklariere auch die bisherigen Umgebungszugangsdaten mit `isDefault: false`; die CLI wendet diese explizite Änderung zuerst an. Schlüsselwerte stehen weder in der Deklaration noch im Beleg.
+
+Die native Einrichtung folgt auf die Identitätsprüfung und läuft vor den Konfigurations-Releases. Der Beleg `native.configuration` bindet Deklarations- und Bundle-Hashes, Organisation, Ressourcen-Hashes und native Revisionen. Vor der ersten Änderung entsteht ein ausstehender Beleg. Scheitert eine spätere Ressource, können frühere Änderungen bestehen bleiben. Lies den nativen Zustand und den Beleg, bevor du denselben geprüften Plan erneut ausführst. Natives Compare-and-set schützt jede Ressource vor konkurrierenden Admin-Änderungen; eine ressourcenübergreifende Transaktion gibt es nicht. Bewahre Deployment-Zustand, Snapshots und Belege für die Wiederherstellung auf.
+
+Verwaltete Deployments aktivieren auch eine deklarierte `deployment`-Ressource, bevor sie Bereitschaft melden. Die CLI speichert die ausstehende Aktivierung, wartet bis zu fünf Minuten auf das Ende laufender Sitzungen im geprüften Sandbox-Spawner und startet dann diesen Container neu. Laufen noch Sitzungen, bleibt der Vorgang ausstehend. Der Beleg `configurationActivation` erfasst die eingebundene Konfiguration und den beobachteten Container-Start; Bereitschaft setzt erneute Gesundheitsprüfungen voraus. Bei einer Wiederholung prüft die CLI einen bereits angenommenen Neustart. Eine unveränderte Wiederholung nach erfolgreicher Aktivierung startet den Dienst nicht erneut.
 
 ### Betrieb
 

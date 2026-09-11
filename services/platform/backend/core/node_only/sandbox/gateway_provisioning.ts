@@ -27,8 +27,9 @@
  * org is a routing preference.
  */
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';

@@ -9,11 +9,12 @@
  * Layer A in spirit: pure data in, pure data out — no Convex imports.
  */
 
-import type { CredentialAuth } from '../../../../lib/shared/providers/resolve_execution';
 import type {
   ProviderAuthMethodName,
   ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
+import type { CredentialAuth } from '../../../../lib/shared/providers/resolve_execution';
 
 /**
  * Returns `null` when the provider does not offer the method the credential

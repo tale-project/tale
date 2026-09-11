@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import * as logger from '../../utils/logger';
 import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
+import { generateGatewayAdminPassword } from '../crypto/gateway-password';
 
 const isTTY = process.stdin.isTTY && process.stdout.isTTY;
 
@@ -18,24 +19,6 @@ function generateHexSecret(): string {
 
 function generatePassword(): string {
   return randomBytes(16).toString('base64url');
-}
-
-/**
- * Mint a sandbox-LLM-gateway admin password that satisfies Bifrost's policy
- * (>= v1.6.9: at least 12 chars with an uppercase, a lowercase, a digit and a
- * non-alphanumeric special char, enforced when auth is first established). A
- * random base64url string never guarantees each class — a special char is
- * absent ~half the time — so guarantee each on top of a strong random base.
- * `-` is base64url-safe: no .env quoting, safe in a Basic-auth header. Kept in
- * step with the host dev generator (scripts/dev.ts).
- */
-function generateGatewayAdminPassword(): string {
-  let pw = randomBytes(18).toString('base64url');
-  if (!/[A-Z]/.test(pw)) pw += 'A';
-  if (!/[a-z]/.test(pw)) pw += 'a';
-  if (!/[0-9]/.test(pw)) pw += '3';
-  if (!/[^A-Za-z0-9]/.test(pw)) pw += '-';
-  return pw;
 }
 
 /**

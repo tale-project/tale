@@ -18,7 +18,8 @@
 // caller loads the YAML facts — `loadHarnesses()` in
 // `convex/lib/providers/load_system_config.ts` — and passes them in.
 
-import type { HarnessDefinition } from '../shared/schemas/providers';
+import type { HarnessDefinition } from '@tale/shared/schemas/providers';
+
 import { buildHarnessExec } from './exec-builder';
 import { PARSER_FAMILIES } from './parsers';
 import type { HarnessGlue } from './types';

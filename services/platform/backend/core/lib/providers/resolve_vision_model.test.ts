@@ -1,6 +1,6 @@
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProviderDefinition } from '../../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
@@ -284,11 +284,7 @@ describe('resolveOrgVisionModel', () => {
     });
   });
 
-  it('falls back to automatic selection when the pin is no longer servable', async () => {
-    // The credential was rotated away, the allowlist narrowed, or the
-    // provider dropped the model. Vision is a convenience capability, so this
-    // degrades rather than leaving the agent unable to read images.
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('refuses when the pin is no longer servable instead of selecting another model', async () => {
     mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 1 })]);
     const ctx = fakeCtx(
@@ -298,19 +294,13 @@ describe('resolveOrgVisionModel', () => {
         modelId: 'model-that-went-away',
       },
     );
-    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
-      providerSlug: 'alpha',
-      modelId: 'cheap-vl',
-      source: 'cheapest',
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).rejects.toMatchObject({
+      name: 'VisionModelPolicyError',
+      code: 'VISION_MODEL_UNAVAILABLE',
     });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('is not currently servable'),
-    );
-    warn.mockRestore();
   });
 
-  it('treats an unparseable pin as Auto rather than failing the lane', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('refuses an unparseable pin before consulting a provider', async () => {
     mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 1 })]);
     // Half a pin: a provider with no model cannot be routed.
@@ -320,16 +310,12 @@ describe('resolveOrgVisionModel', () => {
         providerSlug: 'alpha',
       },
     );
-    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
-      providerSlug: 'alpha',
-      modelId: 'cheap-vl',
-      source: 'cheapest',
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).rejects.toMatchObject({
+      name: 'VisionModelPolicyError',
+      code: 'VISION_MODEL_POLICY_INVALID',
     });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('does not parse'),
-      expect.anything(),
-    );
-    warn.mockRestore();
+    expect(mockedResolveProviders).not.toHaveBeenCalled();
+    expect(mockedCatalog).not.toHaveBeenCalled();
   });
 
   it('a failing catalog skips that provider, not the whole resolution', async () => {
@@ -385,6 +371,208 @@ describe('resolveOrgVisionModel', () => {
       providerSlug: 'alpha',
       modelId: 'vl-a',
       source: 'cheapest',
+    });
+  });
+});
+
+describe('explicit vision policy boundaries', () => {
+  it.each([
+    'missing-provider',
+    'missing-model',
+    'missing-credential',
+    'disabled-credential',
+    'subscription-credential',
+    'excluded-model',
+    'text-model',
+    'media-generator',
+  ])('holds %s without trying the available hosted model', async (reason) => {
+    mockProviders([
+      provider('hosted'),
+      ...(reason === 'missing-provider' ? [] : [provider('local')]),
+    ]);
+    mockedCatalog.mockImplementation(async (candidate) =>
+      candidate.name === 'hosted'
+        ? [entry({ id: PREFERRED_VISION_MODELS[0] ?? '', inputPrice: 1 })]
+        : [
+            entry({ id: 'local-text', vision: false }),
+            entry({
+              id: reason === 'missing-model' ? 'other-vision' : 'chosen-vision',
+              vision: reason !== 'text-model',
+              outputsMedia: reason === 'media-generator',
+            }),
+          ],
+    );
+    const ctx = fakeCtx(
+      {
+        hosted: { authMethod: 'api-key', status: 'active' },
+        local:
+          reason === 'missing-credential'
+            ? null
+            : {
+                authMethod:
+                  reason === 'subscription-credential'
+                    ? 'subscription-key'
+                    : 'api-key',
+                status:
+                  reason === 'disabled-credential' ? 'disabled' : 'active',
+                ...(reason === 'excluded-model'
+                  ? { modelAllowlist: ['local-text'] }
+                  : {}),
+              },
+      },
+      { providerSlug: 'local', modelId: 'chosen-vision' },
+    );
+    for (const resolution of [
+      () => resolveOrgVisionModel(ctx, 'org_1'),
+      () =>
+        resolveTurnVisionModel(ctx, 'org_1', {
+          providerSlug: 'local',
+          modelId: 'local-text',
+        }),
+    ]) {
+      await expect(resolution()).rejects.toMatchObject({
+        name: 'VisionModelPolicyError',
+        code: 'VISION_MODEL_UNAVAILABLE',
+      });
+    }
+    expect(
+      mockedCatalog.mock.calls.some(([value]) => value.name === 'hosted'),
+    ).toBe(false);
+  });
+
+  it.each(['providers', 'credential', 'catalog'])(
+    'does not swallow a pinned %s resolver failure',
+    async (failure) => {
+      mockProviders([provider('local')]);
+      mockedCatalog.mockResolvedValue([
+        entry({ id: 'local-text', vision: false }),
+      ]);
+      const ctx = fakeCtx(
+        { local: { authMethod: 'api-key', status: 'active' } },
+        { providerSlug: 'local', modelId: 'chosen-vision' },
+      );
+      const privateError = new Error('private endpoint token=do-not-disclose');
+      if (failure === 'providers')
+        mockedResolveProviders.mockRejectedValue(privateError);
+      if (failure === 'catalog') mockedCatalog.mockRejectedValue(privateError);
+      if (failure === 'credential') {
+        vi.spyOn(ctx, 'runQuery').mockImplementation(async (_ref, args) => {
+          if (args.policyType)
+            return { providerSlug: 'local', modelId: 'chosen-vision' };
+          throw privateError;
+        });
+      }
+      for (const resolution of [
+        () => resolveOrgVisionModel(ctx, 'org_1'),
+        () =>
+          resolveTurnVisionModel(ctx, 'org_1', {
+            providerSlug: 'local',
+            modelId: 'local-text',
+          }),
+      ]) {
+        const error = await resolution().catch((caught: unknown) => caught);
+        expect(error).toMatchObject({
+          name: 'VisionModelPolicyError',
+          code: 'VISION_MODEL_RESOLUTION_FAILED',
+        });
+        expect(String(error)).not.toContain('do-not-disclose');
+      }
+    },
+  );
+
+  it('cannot assume Auto when an explicit polyfill policy read fails', async () => {
+    mockProviders([provider('local')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'omni' })]);
+    const ctx = fakeCtx({});
+    vi.spyOn(ctx, 'runQuery').mockRejectedValue(
+      new Error('private governance path'),
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).rejects.toMatchObject({
+      code: 'VISION_MODEL_POLICY_UNAVAILABLE',
+    });
+    expect(mockedResolveProviders).not.toHaveBeenCalled();
+  });
+
+  it.each(['invalid', 'unreadable'])(
+    'bypasses an unrelated %s polyfill policy when the serving model already reads images',
+    async (policy) => {
+      mockProviders([provider('local')]);
+      mockedCatalog.mockResolvedValue([entry({ id: 'omni' })]);
+      const ctx = fakeCtx({}, { providerSlug: 'incomplete-pin' });
+      const query = vi.spyOn(ctx, 'runQuery');
+      if (policy === 'unreadable')
+        query.mockRejectedValue(new Error('private governance path'));
+      await expect(
+        resolveTurnVisionModel(ctx, 'org_1', {
+          providerSlug: 'local',
+          modelId: 'omni',
+        }),
+      ).resolves.toBeNull();
+      expect(query).not.toHaveBeenCalled();
+      expect(mockedCatalog).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ name: 'local' }),
+      );
+    },
+  );
+
+  it.each([
+    'text-only',
+    'unknown-model',
+    'unknown-provider',
+    'failed-discovery',
+  ])(
+    'still refuses unreadable policy for a %s serving target',
+    async (target) => {
+      mockProviders([provider('local')]);
+      mockedCatalog.mockResolvedValue([
+        entry({ id: 'text-only', vision: false }),
+      ]);
+      if (target === 'failed-discovery')
+        mockedResolveProviders.mockRejectedValue(
+          new Error('private provider endpoint'),
+        );
+      const ctx = fakeCtx({});
+      const query = vi
+        .spyOn(ctx, 'runQuery')
+        .mockRejectedValue(new Error('private governance path'));
+      await expect(
+        resolveTurnVisionModel(ctx, 'org_1', {
+          providerSlug: target === 'unknown-provider' ? 'missing' : 'local',
+          modelId: target === 'unknown-model' ? 'missing' : 'text-only',
+        }),
+      ).rejects.toMatchObject({ code: 'VISION_MODEL_POLICY_UNAVAILABLE' });
+      expect(query).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+        organizationId: 'org_1',
+        policyType: 'vision_model',
+      });
+    },
+  );
+
+  it('does not force a polyfill for a serving model that already reads images', async () => {
+    mockProviders([provider('local')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'omni' })]);
+    const ctx = fakeCtx(
+      { local: { authMethod: 'api-key', status: 'active' } },
+      { providerSlug: 'local', modelId: 'chosen-polyfill' },
+    );
+    await expect(
+      resolveTurnVisionModel(ctx, 'org_1', {
+        providerSlug: 'local',
+        modelId: 'omni',
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('keeps explicit empty Auto policy selection unchanged', async () => {
+    mockProviders([provider('hosted')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'automatic-vision' })]);
+    const ctx = fakeCtx(
+      { hosted: { authMethod: 'api-key', status: 'active' } },
+      {},
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toMatchObject({
+      source: 'cheapest',
+      modelId: 'automatic-vision',
     });
   });
 });

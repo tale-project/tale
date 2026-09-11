@@ -19,7 +19,7 @@
 import type {
   ModelCatalogEntry,
   ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
 
 export type SubscriptionVision =
   | { readable: true }

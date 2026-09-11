@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle';
 import {
   requestSiteOrigin,
   resolveSiteOrigins,
@@ -18,7 +19,6 @@ import { createConfigWatcher } from './lib/config-watcher';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
-import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
 import { slaRulesResponse } from './sla-targets';
 import {
   buildStatusFeed,

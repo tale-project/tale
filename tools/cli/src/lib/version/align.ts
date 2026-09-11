@@ -51,6 +51,8 @@ const SELF_MANAGING_COMMANDS = new Set([
   'deploy prepare',
   'deploy verify-bundle',
   'deploy provision',
+  'deploy export-client',
+  'deploy export-client-native',
 ]);
 
 /**

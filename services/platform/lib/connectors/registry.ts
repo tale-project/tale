@@ -18,9 +18,13 @@
  * `registerNodeType`.
  */
 
+import type {
+  ConnectorAction,
+  Connector,
+} from '@tale/shared/schemas/connectors';
+
 import { codeRunner } from '../engine/core/runner';
 import { registerNodeType, type ConnectorLike } from '../engine/core/slots';
-import type { ConnectorAction, Connector } from '../shared/schemas/connectors';
 import { loadConnectorDefinitions } from './catalog';
 
 /** Mock bodies are pure data reshaping; a generous ceiling still bounds a

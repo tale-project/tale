@@ -12,8 +12,8 @@
  *  1. **Pinned** — the `vision_model` governance policy names a provider and
  *     model. An admin pinning one is the escape hatch from auto-selection
  *     drift, so it wins outright; it still has to be servable (same
- *     eligibility as below), and a pin that stopped being servable falls
- *     through with a warning rather than breaking image reading.
+ *     eligibility as below). A pin that stopped being servable refuses the
+ *     turn instead of sending images to an unselected provider or model.
  *  2. **Preferred** — the first {@link PREFERRED_VISION_MODELS} entry the org
  *     can reach. A curated known-good vision model beats an unknown model
  *     that merely prices lower.
@@ -35,12 +35,13 @@
  * free-tier 401 storms, each observed live).
  */
 
-import { visionModelConfigSchema } from '../../../../lib/shared/schemas/governance';
-import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
+import { visionModelConfigSchema } from '@tale/shared/schemas/governance';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import {
   modelAllowlistPermits,
   modelIdsEquivalent,
-} from '../../../../lib/shared/utils/model-ref';
+} from '@tale/shared/utils/model-ref';
+
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
@@ -76,20 +77,52 @@ export interface VisionModelPick {
   source: 'pinned' | 'preferred' | 'cheapest';
 }
 
+type VisionModelPolicyCode =
+  | 'VISION_MODEL_POLICY_INVALID'
+  | 'VISION_MODEL_POLICY_UNAVAILABLE'
+  | 'VISION_MODEL_UNAVAILABLE'
+  | 'VISION_MODEL_RESOLUTION_FAILED';
+
+/** Safe to carry into a failed agent node: no provider response or credentials. */
+export class VisionModelPolicyError extends Error {
+  constructor(
+    readonly code: VisionModelPolicyCode,
+    message: string,
+  ) {
+    super(`${code}: ${message}`);
+    this.name = 'VisionModelPolicyError';
+  }
+}
+
+type VisionModelPin = { providerSlug: string; modelId: string } | null;
+
+function pinnedResolutionFailure(error: unknown): VisionModelPolicyError {
+  return error instanceof VisionModelPolicyError
+    ? error
+    : new VisionModelPolicyError(
+        'VISION_MODEL_RESOLUTION_FAILED',
+        'The pinned vision model could not be resolved. Restore its provider or credential and retry the run.',
+      );
+}
+
 /**
  * The vision-polyfill pick for one MANAGED turn: `null` when the serving
  * model itself reads images (arming the polyfill would needlessly downgrade
  * them to text descriptions), else the org's auto-selected vision model.
- * Best-effort by design: any resolution failure logs and reads as "no
- * vision" — the turn proceeds text-only rather than failing to start.
+ * Auto remains best-effort. When native vision cannot be established, an
+ * explicit policy must resolve its required polyfill before inference.
  */
 export async function resolveTurnVisionModel(
   ctx: ActionCtx,
   organizationId: string,
   target: { providerSlug: string; modelId: string },
 ): Promise<VisionModelPick | null> {
+  let discovery:
+    | { providers: Awaited<ReturnType<typeof resolveProvidersForOrgId>> }
+    | { error: unknown };
   try {
-    const provider = (await resolveProvidersForOrgId(ctx, organizationId)).find(
+    const providers = await resolveProvidersForOrgId(ctx, organizationId);
+    const provider = providers.find(
       (entry) => entry.name === target.providerSlug,
     );
     if (provider) {
@@ -98,8 +131,24 @@ export async function resolveTurnVisionModel(
       );
       if (entry?.supportsVision) return null;
     }
-    return await resolveOrgVisionModel(ctx, organizationId);
+    discovery = { providers };
+  } catch (error) {
+    discovery = { error };
+  }
+
+  // A failed target lookup must not bypass an explicit routing policy.
+  // Only the proven native-vision return above can avoid this fresh read.
+  const pinned = await readPinnedVisionModel(ctx, organizationId);
+  try {
+    if ('error' in discovery) throw discovery.error;
+    return await resolveVisionModel(
+      ctx,
+      organizationId,
+      discovery.providers,
+      pinned,
+    );
   } catch (err) {
+    if (pinned !== null) throw pinnedResolutionFailure(err);
     console.warn(
       '[vision-model] turn vision resolution failed (turn proceeds text-only):',
       err,
@@ -157,6 +206,7 @@ async function eligibleEntriesFor(
   ctx: ActionCtx,
   organizationId: string,
   provider: Awaited<ReturnType<typeof resolveProvidersForOrgId>>[number],
+  pinned = false,
 ): Promise<readonly ModelCatalogEntry[] | null> {
   const row: DefaultCredentialFacts | null = await ctx.runQuery(
     internal.provider_credentials.queries.getDefaultCredentialInternal,
@@ -175,6 +225,7 @@ async function eligibleEntriesFor(
   try {
     entries = await getProviderCatalog(provider);
   } catch (err) {
+    if (pinned) throw err;
     console.warn(
       `[vision-model] catalog for ${provider.name} unavailable (skipping provider):`,
       err,
@@ -186,23 +237,30 @@ async function eligibleEntriesFor(
   );
 }
 
-/** The admin's pin, or `null` when the policy is absent/Auto/unparseable. */
+/** The admin's pin, or `null` only when the policy is absent or explicitly Auto. */
 async function readPinnedVisionModel(
   ctx: ActionCtx,
   organizationId: string,
-): Promise<{ providerSlug: string; modelId: string } | null> {
-  const raw: unknown = await ctx.runQuery(
-    internal.governance.internal_queries.getPolicyConfigInternal,
-    { organizationId, policyType: 'vision_model' },
-  );
+): Promise<VisionModelPin> {
+  let raw: unknown;
+  try {
+    raw = await ctx.runQuery(
+      internal.governance.internal_queries.getPolicyConfigInternal,
+      { organizationId, policyType: 'vision_model' },
+    );
+  } catch {
+    throw new VisionModelPolicyError(
+      'VISION_MODEL_POLICY_UNAVAILABLE',
+      'The vision policy could not be read. Restore valid governance configuration and retry the run.',
+    );
+  }
   if (raw === null || raw === undefined) return null;
   const parsed = visionModelConfigSchema.safeParse(raw);
   if (!parsed.success) {
-    console.warn(
-      '[vision-model] the vision_model policy does not parse (falling back to automatic selection):',
-      parsed.error.issues,
+    throw new VisionModelPolicyError(
+      'VISION_MODEL_POLICY_INVALID',
+      'The vision policy is invalid. Set both provider and model, or explicitly choose Auto, before retrying the run.',
     );
-    return null;
   }
   const { providerSlug, modelId } = parsed.data;
   if (providerSlug === undefined || modelId === undefined) return null;
@@ -213,8 +271,38 @@ export async function resolveOrgVisionModel(
   ctx: ActionCtx,
   organizationId: string,
 ): Promise<VisionModelPick | null> {
-  const providers = await resolveProvidersForOrgId(ctx, organizationId);
   const pinned = await readPinnedVisionModel(ctx, organizationId);
+  try {
+    const providers = await resolveProvidersForOrgId(ctx, organizationId);
+    return await resolveVisionModel(ctx, organizationId, providers, pinned);
+  } catch (error) {
+    if (pinned !== null) throw pinnedResolutionFailure(error);
+    throw error;
+  }
+}
+
+async function resolveVisionModel(
+  ctx: ActionCtx,
+  organizationId: string,
+  providers: Awaited<ReturnType<typeof resolveProvidersForOrgId>>,
+  pinned: VisionModelPin,
+): Promise<VisionModelPick | null> {
+  if (pinned !== null) {
+    const provider = providers.find(
+      (candidate) => candidate.name === pinned.providerSlug,
+    );
+    const entries =
+      provider === undefined
+        ? null
+        : await eligibleEntriesFor(ctx, organizationId, provider, true);
+    if (entries?.some((entry) => entry.id === pinned.modelId)) {
+      return { ...pinned, source: 'pinned' };
+    }
+    throw new VisionModelPolicyError(
+      'VISION_MODEL_UNAVAILABLE',
+      'The pinned vision model is not servable. Check its provider, active default credential, model allowlist and vision capability before retrying the run.',
+    );
+  }
 
   let preferred: { pick: VisionModelPick; rank: number } | null = null;
   let cheapest: { pick: VisionModelPick; price: number } | null = null;
@@ -224,16 +312,6 @@ export async function resolveOrgVisionModel(
     if (entries === null) continue;
 
     for (const entry of entries) {
-      // The pin wins outright — an admin chose it precisely so the sorts
-      // below stop deciding. Matched exactly: a pin names one catalog entry.
-      if (
-        pinned !== null &&
-        provider.name === pinned.providerSlug &&
-        entry.id === pinned.modelId
-      ) {
-        return { ...pinned, source: 'pinned' };
-      }
-
       const rank = PREFERRED_VISION_MODELS.findIndex((candidate) =>
         modelIdsEquivalent(candidate, entry.id),
       );
@@ -268,15 +346,6 @@ export async function resolveOrgVisionModel(
     }
   }
 
-  if (pinned !== null) {
-    // Pinned but not among the eligible entries: the credential was rotated
-    // away, the allowlist narrowed, or the provider dropped the model. Vision
-    // is a convenience capability, so this degrades to Auto rather than
-    // leaving the agent unable to read images at all.
-    console.warn(
-      `[vision-model] pinned vision model ${pinned.providerSlug}/${pinned.modelId} is not currently servable (falling back to automatic selection)`,
-    );
-  }
   const resolved = preferred?.pick ?? cheapest?.pick ?? null;
   if (resolved !== null) {
     // The one place every lane's pick is logged — the task, automation, and

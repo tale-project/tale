@@ -4,9 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import type { KnowledgeConnection } from '@tale/shared/schemas/knowledge';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { KnowledgeConnection } from '../../../lib/shared/schemas/knowledge';
 import {
   buildConnectionUrl,
   readOrgConnection,

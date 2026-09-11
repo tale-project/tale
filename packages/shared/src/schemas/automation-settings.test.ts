@@ -7,7 +7,7 @@ import {
   parseAutomationSettings,
   resolveSettingsFolder,
   settingsFormSatisfied,
-} from './automation_settings';
+} from './automation-settings';
 
 const fxForm = {
   file: 'validation-policy.yaml',

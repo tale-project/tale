@@ -40,7 +40,8 @@
  * to take effect; see docs/self-hosted/configuration/retention.md.
  */
 
-import type { RetentionPolicyConfig } from '../../../lib/shared/schemas/governance';
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
+
 import {
   RETENTION_CATEGORIES,
   type RetentionCategory,

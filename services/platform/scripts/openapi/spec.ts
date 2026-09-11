@@ -11,6 +11,11 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import {
+  PROJECT_AGENT_BINDINGS_MAX,
+  PROJECT_AGENT_MODEL_MAX,
+  projectAgentInputSchema,
+} from '@tale/shared/schemas/projects';
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
@@ -54,11 +59,6 @@ import {
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
-import {
-  PROJECT_AGENT_BINDINGS_MAX,
-  PROJECT_AGENT_MODEL_MAX,
-  projectAgentInputSchema,
-} from '../../lib/shared/schemas/projects.ts';
 
 export type Json = Record<string, unknown>;
 

@@ -9,7 +9,7 @@
  * mechanically rather than by convention.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -84,6 +84,9 @@ const NODE_FREE_ENTRIES = [
   resolve(SRC, 'terminal/index.ts'),
   resolve(SRC, 'terminal/live.ts'),
   resolve(SRC, 'classify/index.ts'),
+  ...readdirSync(resolve(SRC, 'schemas'))
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+    .map((file) => resolve(SRC, 'schemas', file)),
 ];
 
 describe('Convex V8 import boundary', () => {
@@ -91,6 +94,12 @@ describe('Convex V8 import boundary', () => {
     it(`${entry.replace(SRC, '@/')} stays node-free`, () => {
       const graph = collectGraph(entry);
       for (const [file, source] of graph) {
+        expect(
+          file,
+          `Shared contract reaches another workspace: ${file}`,
+        ).toMatch(
+          new RegExp(`^${SRC.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`),
+        );
         const offending = valueImportsNodeRuntime(source);
         expect(
           offending,

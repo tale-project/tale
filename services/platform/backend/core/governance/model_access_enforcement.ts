@@ -1,5 +1,5 @@
-import type { ModelAccessConfig } from '../../../lib/shared/schemas/governance';
-import { stripModelRefQualifier } from '../../../lib/shared/utils/model-ref';
+import type { ModelAccessConfig } from '@tale/shared/schemas/governance';
+import { stripModelRefQualifier } from '@tale/shared/utils/model-ref';
 
 export interface ModelAccessCheckResult {
   allowed: boolean;

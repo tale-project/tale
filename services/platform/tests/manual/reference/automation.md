@@ -17,6 +17,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [projects](../suites/projects.md) | Project-agent REST CRUD, project isolation, roles, secret grants and session parity | ✅ automated | `backend/rest/v1-project-agents.test.ts`, `backend/domains/projects/routes.test.ts`, `backend/rest/project-agents-check.ts` (43 real HTTP/Postgres checks in `checkRestProjectAgents`) |
 | [projects](../suites/projects.md) | REST project tasks, threads, files, installed automations, runs and token webhooks: path isolation, member/editor roles, archived-project refusals, strict bodies, MCP access and opaque private resources | ✅ automated | `backend/rest/project-scope-check.ts` (106 real HTTP/Postgres checks plus concurrent archive/queued-turn checks in `checkRestProjectAgents`), `backend/rest/v1-tasks.test.ts`, `backend/rest/v1-threads.scope.test.ts`, `backend/rest/v1-automations.project-scope.test.ts`, `backend/rest/v1-core.contract.test.ts` (knowledge scope), `backend/domains/chat/store.test.ts` (queued-turn scope) |
 | [settings](../suites/settings.md) | `SET-B11` (REST model discovery) | 🔶 backend | `backend/rest/v1-threads.contract.test.ts`, `backend/rest/v1-threads.test.ts` — org/user scoping, empty catalog, credential-free response, provider forwarded; live provider response stays manual |
+| [automations](../suites/automations.md) | Explicit vision-policy admission before a managed text-only turn | ✅ automated | `backend/core/lib/providers/resolve_vision_model.test.ts` (exact pin, missing model/provider, inactive or disallowed credentials, unavailable catalog/policy, safe diagnostics, Auto and native-vision preservation); `backend/domains/governance/vision-policy-read.test.ts` (real corrupt/oversize/symlink policy files, missing config root/org, fresh pin/slug reads, no cached Auto bypass); `backend/core/automations/agent_host.vision_policy.test.ts` (refusal before an operation, key or scheduled inference; exact successful pin carried to the turn). Actual model OCR quality and target connectivity remain deployment checks. |
 | [knowledge](../suites/knowledge.md) | REST knowledge search when the embedding provider fails (account refusal → 409 `EMBEDDING_CREDIT_EXHAUSTED`, never a 429; other provider failures → 503 `EMBEDDING_UPSTREAM_ERROR`; balance/plan refusals not retried) and `retry-indexing` skip reasons | ✅ automated | `backend/rest/v1-core.contract.test.ts`, `backend/core/knowledge/embedding.test.ts` |
 | [settings](../suites/settings.md) | `SET-F33` (MCP endpoint) — the wire contract behind the page: envelope validation, version negotiation, batches, tool-argument validation against the advertised schema (document tools included), `params` typing, the unissued `tools/list` cursor, 405 + `Allow` on other verbs, `isError` on failure-shaped results, `get_docs` serving a reference and never the builder prompt | ✅ automated | `backend/core/automations_builder/mcp_http.test.ts`, `lib/engine/selftest/dispatch.test.ts` |
 | [projects](../suites/projects.md) | REST chat lifecycle: door-side model resolution (`CHAT_MODEL_UNKNOWN` / `CHAT_MODEL_AMBIGUOUS`), model facts and the default marker on `GET /models`, message `status` and `usage`, archive / delete / cancel routes, blank-prompt and locale refusals | ✅ automated | `backend/rest/v1-threads.test.ts`, `backend/rest/v1-threads.contract.test.ts`, `backend/rest/v1-threads.scope.test.ts`, `scripts/openapi/spec.test.ts` |
@@ -195,6 +196,14 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [video-links](../suites/video-links.md) | `VID-B1`–`VID-B3` | 🔶 partial | `convex/video_links/ytdlp.test.ts` (stderr classifier, env-flag builders, log sanitizer); the live job-row/log behaviour is manual |
 
 ## Seams
+
+General native configuration is also covered by `tools/cli/tests/platform-configuration.test.ts`
+(real HTTP with source/compiled CLI commands), `tools/cli/src/lib/config/platform-apply.test.ts`
+(reviewed plans, stale preimages, default credential changes, partial failures and readback),
+and `backend/domains/configuration-writes.test.ts` plus the provider/credential route suites
+(actual local file/history behavior, native permissions and compare-and-set).
+`packages/shared/src/schemas/` owns the common schema tests and the node-free import guard.
+These suites do not prove inference hardware, actual model quality or production readiness.
 
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and

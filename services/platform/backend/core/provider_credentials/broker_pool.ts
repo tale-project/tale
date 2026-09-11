@@ -16,7 +16,8 @@ import type {
   BrokerAuth,
   BrokerResponseMapping,
   BrokerSelection,
-} from '../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
 import dayjs from '../../../lib/utils/date/dayjs-setup';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { readJsonPath } from '../lib/json/json_path';

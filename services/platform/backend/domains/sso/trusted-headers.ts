@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 
+import { sessionExpiryMs } from '@tale/shared/utils/session-idle';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { ADMIN_ROLES } from '../../auth/membership.ts';
 import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';

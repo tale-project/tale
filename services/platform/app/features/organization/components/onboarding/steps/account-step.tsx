@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { DEFAULT_PASSWORD_POLICY } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
@@ -20,7 +21,6 @@ import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
-import { DEFAULT_PASSWORD_POLICY } from '@/lib/shared/schemas/governance';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 

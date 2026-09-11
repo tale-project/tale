@@ -1,6 +1,6 @@
 // The ONE exec builder: interprets a harness YAML's declarative `exec` facts
 // (`harnessDefinitionSchema.exec` — see the vocabulary header in
-// `lib/shared/schemas/providers.ts`) over a `HarnessRunSpec` and produces the
+// `@tale/shared/schemas/providers`) over a `HarnessRunSpec` and produces the
 // `HarnessExec` the sandbox session-exec API runs. There is no per-harness
 // build code; the golden fixtures under `fixtures/exec/` prove this
 // interpreter reproduces the retired per-slug glue modules byte for byte.
@@ -17,7 +17,8 @@
 import type {
   HarnessDefinition,
   HarnessExecFacts,
-} from '../shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
 import { buildStdinUserMessage } from './parsers/claude-stream-json';
 import type { HarnessExec, HarnessRunSpec } from './types';
 import { DEFAULT_MAX_TURNS } from './types';

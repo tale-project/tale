@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  type VisionModelConfig,
+  visionModelConfigSchema,
+} from '@tale/shared/schemas/governance';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
@@ -21,10 +25,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useProviderCatalogs } from '@/app/features/settings/providers/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import {
-  type VisionModelConfig,
-  visionModelConfigSchema,
-} from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

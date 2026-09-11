@@ -26,13 +26,14 @@
 
 import path from 'node:path';
 
-import { stringifyYaml } from '../../../lib/shared/config/yaml';
 import {
   isFilePolicyType,
   POLICY_SCHEMAS,
   policyTypeToFileBase,
   type FilePolicyType,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
+
+import { stringifyYaml } from '../../../lib/shared/config/yaml';
 import {
   getConfigRoot,
   safeJoinWithinDir,

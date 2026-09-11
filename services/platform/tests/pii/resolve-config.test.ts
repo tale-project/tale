@@ -2,7 +2,7 @@
  * Governance policy → running scrubber, end to end.
  *
  * The chain under test: a raw org `pii_config` document validated by the
- * FROZEN policy schema (`lib/shared/schemas/pii.ts`) → resolved against
+ * FROZEN policy schema (`@tale/shared/schemas/pii`) → resolved against
  * the loaded registry (`resolveScrubberOptions`) → a scrubber whose
  * behaviour matches the policy. This is the wiring the chat guardrail
  * pipeline will call when it returns with the chat rebuild.
@@ -12,6 +12,7 @@
  * pipeline.
  */
 
+import { piiConfigSchema } from '@tale/shared/schemas/pii';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -20,7 +21,6 @@ import {
   createTokenizer,
   resolveScrubberOptions,
 } from '../../lib/pii';
-import { piiConfigSchema } from '../../lib/shared/schemas/pii';
 
 const REGISTRY = PatternRegistry.fromDefaults();
 

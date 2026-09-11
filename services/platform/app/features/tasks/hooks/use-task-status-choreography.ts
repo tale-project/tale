@@ -1,5 +1,6 @@
 'use client';
 
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useCallback } from 'react';
 
@@ -8,7 +9,6 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import { useCancelTaskAgentRun, useStartTaskAgentRun } from './mutations';
 import {

@@ -33,6 +33,7 @@
 import { z } from 'zod/v4';
 
 import { isPrivateIp } from '../net/private-ip';
+import { configurationHashSchema } from './configuration';
 
 /**
  * Reserved prefix every provider-key environment-variable name must carry.
@@ -330,6 +331,65 @@ export const providerDefinitionSchema = z
     { message: 'a models-endpoint catalog needs a fixed baseUrl to list from' },
   );
 export type ProviderDefinition = z.infer<typeof providerDefinitionSchema>;
+
+/** Public desired state for an environment credential; never secret material. */
+export const providerEnvironmentCredentialSchema = z.strictObject({
+  providerSlug: slugSchema,
+  authMethod: z.literal('env'),
+  name: z.string().trim().min(1).max(120),
+  envName: providerKeyEnvNameSchema,
+  endpointUrl: providerBaseUrlSchema.nullable().default(null),
+  modelAllowlist: z
+    .array(z.string().max(200))
+    .max(200)
+    .nullable()
+    .default(null),
+  status: z.enum(['active', 'disabled']).default('active'),
+  isDefault: z.boolean().default(true),
+});
+
+/** Existing native HTTP input shapes; shared with adapters, not new storage. */
+export const providerCredentialCreateSchema = z.object({
+  providerSlug: z.string().min(1).max(100),
+  authMethod: z.enum([
+    'api-key',
+    'env',
+    'subscription-key',
+    'subscription-broker',
+  ]),
+  name: z.string().min(1).max(120),
+  secret: z.string().max(100_000).optional(),
+  envName: z.string().max(80).optional(),
+  endpointUrl: z.string().max(2048).optional(),
+  modelAllowlist: z.array(z.string().max(200)).max(200).optional(),
+  status: z.enum(['active', 'disabled']).optional(),
+  isDefault: z.boolean().optional(),
+});
+export const providerCredentialUpdateSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  status: z.enum(['active', 'disabled']).optional(),
+  isDefault: z.boolean().optional(),
+  modelAllowlist: z.array(z.string().max(200)).max(200).nullable().optional(),
+  endpointUrl: z.string().max(2048).nullable().optional(),
+  envName: z.string().max(80).optional(),
+  secret: z.string().max(100_000).optional(),
+});
+
+/** Hash projection excludes masked previews, ciphertext and secret values. */
+export const providerCredentialMetadataSchema = z.object({
+  id: z.string(),
+  providerSlug: z.string(),
+  authMethod: z.string(),
+  name: z.string(),
+  envName: z.string().nullable(),
+  endpointUrl: z.string().nullable(),
+  modelAllowlist: z.array(z.string()).nullable(),
+  isDefault: z.boolean(),
+  status: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  hash: configurationHashSchema,
+});
 
 /**
  * How hard a reasoning model can be told to think — the two control surfaces
@@ -1112,7 +1172,7 @@ export const harnessDefinitionSchema = z
     // behavior-probing registry validator.
     const issue = (message: string) =>
       ctx.addIssue({ code: 'custom', message });
-    const slots = provider.exec.argv as ReadonlyArray<Record<string, unknown>>;
+    const slots = provider.exec.argv;
     const counts = new Map<string, number>();
     for (const slot of slots) {
       const kind = argvSlotKind(slot);
@@ -1157,9 +1217,7 @@ export const harnessDefinitionSchema = z
     const hasArgvPrompt = (counts.get('prompt') ?? 0) > 0;
     const envelope =
       provider.exec.stdin.mode === 'json-envelope'
-        ? (provider.exec.stdin.envelope as ReadonlyArray<
-            Record<string, unknown>
-          >)
+        ? provider.exec.stdin.envelope
         : [];
     const envelopeHasPrompt = envelope.some((e) => 'prompt' in e);
     switch (provider.promptTransport) {
@@ -1190,11 +1248,8 @@ export const harnessDefinitionSchema = z
 
     // Managed-only surfaces require the managed credential policy (and byo
     // chunks the byo policy) — a policy-false mode must build inert.
-    const modelSlot = slots.find((s) => argvSlotKind(s) === 'model')?.model as
-      | { managedPrefixArgs?: unknown; managedEnv?: unknown }
-      | undefined;
-    const toolDenySlot = slots.find((s) => argvSlotKind(s) === 'toolDeny')
-      ?.toolDeny as { managed?: unknown } | undefined;
+    const modelSlot = slots.find((slot) => 'model' in slot)?.model;
+    const toolDenySlot = slots.find((slot) => 'toolDeny' in slot)?.toolDeny;
     const usesManaged =
       (counts.get('managedArgs') ?? 0) > 0 ||
       provider.exec.env?.managed !== undefined ||
@@ -1224,17 +1279,10 @@ export const harnessDefinitionSchema = z
     // Collect doc fragments across every document sink.
     const fragmentLists: ReadonlyArray<Record<string, unknown>>[] = [];
     for (const entry of envelope) {
-      const doc = entry.doc as { fragments?: unknown } | undefined;
-      if (doc?.fragments) {
-        fragmentLists.push(
-          doc.fragments as ReadonlyArray<Record<string, unknown>>,
-        );
-      }
+      if ('doc' in entry) fragmentLists.push(entry.doc.fragments);
     }
     for (const doc of Object.values(provider.exec.envDocs ?? {})) {
-      fragmentLists.push(
-        doc.fragments as ReadonlyArray<Record<string, unknown>>,
-      );
+      fragmentLists.push(doc.fragments);
     }
     const fragments = fragmentLists.flat();
     const mcpFragmentCount = fragments.filter((f) => 'mcpServers' in f).length;

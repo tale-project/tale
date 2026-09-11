@@ -20,10 +20,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import { modelCatalogFileSchema } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
 import { parseYaml } from '../config/yaml';
-import { modelCatalogFileSchema } from './providers';
 
 const MODELS_DIR = path.join(
   path.dirname(new URL(import.meta.url).pathname),

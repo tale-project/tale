@@ -1,12 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { Sql } from 'postgres';
-
-import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
-import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
-import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import {
   KNOWLEDGE_CONNECTION_KEY,
   KNOWLEDGE_EMBEDDING_KEY,
@@ -16,7 +10,13 @@ import {
   type KnowledgeConnection,
   type KnowledgeConnectionSecrets,
   type KnowledgeEmbeddingConfig,
-} from '../../../lib/shared/schemas/knowledge.ts';
+} from '@tale/shared/schemas/knowledge';
+import type { Sql } from 'postgres';
+
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
+import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import {
   testDatastoreConnection,
   type DatastoreTestResult,
@@ -29,6 +29,10 @@ import {
   readPassword,
 } from '../../core/knowledge/connection.ts';
 import { invalidateOrgUrl } from '../../core/knowledge/pool.ts';
+import {
+  assertExpectedHash,
+  configSnapshot,
+} from '../../core/lib/config_store/precondition';
 import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
@@ -36,6 +40,7 @@ import {
   generateHistoryTimestamp,
   pruneHistory,
   readFileSafe,
+  readJsonFile,
   removeDirSafe,
   removeFileSafe,
   safeJoinWithinDir,
@@ -341,6 +346,8 @@ export async function probeKnowledgeConnection(args: {
 
 export interface KnowledgeEmbeddingView {
   configured: boolean;
+  config: KnowledgeEmbeddingConfig | null;
+  hash: string | null;
   providerSlug?: string;
   credentialId?: string;
   model?: string;
@@ -351,13 +358,20 @@ export interface KnowledgeEmbeddingView {
 export async function readKnowledgeEmbeddingView(
   orgSlug: string,
 ): Promise<KnowledgeEmbeddingView> {
-  const raw = await readFileSafe(embeddingFilePath(orgSlug));
-  if (raw === null) {
-    return { configured: false };
+  const snapshot = configSnapshot(
+    await readJsonFile(
+      embeddingFilePath(orgSlug),
+      256 * 1024,
+      parseEmbeddingJson,
+    ),
+  );
+  const config = snapshot.config;
+  if (config === null) {
+    return { configured: false, ...snapshot };
   }
-  const config = parseEmbeddingJson(raw);
   return {
     configured: true,
+    ...snapshot,
     providerSlug: config.providerSlug,
     ...(config.credentialId !== undefined
       ? { credentialId: config.credentialId }
@@ -372,6 +386,7 @@ export async function writeKnowledgeEmbedding(
   sql: Sql,
   orgSlug: string,
   config: unknown,
+  expectedHash?: string | null,
 ): Promise<void> {
   const parsed = knowledgeEmbeddingSchema.safeParse(config);
   if (!parsed.success) {
@@ -384,6 +399,11 @@ export async function writeKnowledgeEmbedding(
     assertHostAllowed(parsed.data.baseUrl);
   }
   await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    if (expectedHash !== undefined)
+      assertExpectedHash(
+        (await readKnowledgeEmbeddingView(orgSlug)).hash,
+        expectedHash,
+      );
     const filePath = embeddingFilePath(orgSlug);
     const serialized = serializeEmbeddingJson(parsed.data);
     const currentContent = await readFileSafe(filePath);

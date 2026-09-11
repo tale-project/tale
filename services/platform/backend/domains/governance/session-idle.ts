@@ -1,9 +1,9 @@
-import type { Sql } from 'postgres';
-
 import {
   parseSessionIdleTimeoutMinutes,
   resolveEffectiveIdleMinutes,
-} from '../../../lib/shared/session-idle.ts';
+} from '@tale/shared/utils/session-idle';
+import type { Sql } from 'postgres';
+
 import { shouldRevokeIdleSession } from '../../core/governance/session_idle_enforcement.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';

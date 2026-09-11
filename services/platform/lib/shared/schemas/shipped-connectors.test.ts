@@ -12,11 +12,14 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import {
+  connectorSchema,
+  type Connector,
+} from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../config/yaml';
-import { connectorSchema, type Connector } from './connectors';
 
 const CONNECTORS_DIR = path.join(
   path.dirname(new URL(import.meta.url).pathname),

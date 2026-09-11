@@ -1,6 +1,8 @@
 import { apiKey } from '@better-auth/api-key';
 import { passkey } from '@better-auth/passkey';
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { DEFAULT_TRUSTED_PROXIES } from '@tale/shared/schemas/governance';
+import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { jwt, organization, twoFactor } from 'better-auth/plugins';
@@ -13,9 +15,7 @@ import {
   ORG_SLUG_IMMUTABLE_MESSAGE,
 } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
-import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
-import { sessionIdleWindowSeconds } from '../../lib/shared/session-idle.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';

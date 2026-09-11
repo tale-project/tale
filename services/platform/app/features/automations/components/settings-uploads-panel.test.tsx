@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { SettingsUploadsForm } from '@tale/shared/schemas/automation-settings';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SettingsUploadsForm } from '@/lib/shared/schemas/automation_settings';
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
 const toastMock = vi.hoisted(() => vi.fn());

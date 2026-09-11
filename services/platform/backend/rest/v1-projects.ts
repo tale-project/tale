@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { projectAgentInputSchema } from '@tale/shared/schemas/projects';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 import {
   createDocumentFromUpload,
   DocumentError,

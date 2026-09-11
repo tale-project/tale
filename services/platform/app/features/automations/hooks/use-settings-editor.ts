@@ -13,17 +13,17 @@
  * its own.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-
-import { useBackendAction } from '@/app/hooks/use-backend-action';
 import {
   type AutomationSettings,
   type AnySettingsForm,
   isFieldsForm,
   type SettingsField,
   type SettingsForm,
-} from '@/lib/shared/schemas/automation_settings';
+} from '@tale/shared/schemas/automation-settings';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 import {
   settingsValuesQueryKey,

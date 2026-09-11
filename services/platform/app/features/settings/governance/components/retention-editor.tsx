@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  retentionPolicyConfigSchema,
+  type RetentionPolicyConfig,
+} from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -9,10 +13,6 @@ import { useMemo, useState } from 'react';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import {
-  retentionPolicyConfigSchema,
-  type RetentionPolicyConfig,
-} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useGovernancePolicy } from '../hooks/queries';

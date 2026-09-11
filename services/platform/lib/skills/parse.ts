@@ -15,15 +15,16 @@
  * Pure: no filesystem, no Convex. Callers hand in text they read themselves.
  */
 
-import { parseYaml, stringifyYaml } from '../shared/config/yaml';
-import { formatZodError } from '../shared/schemas/format-error';
 import {
   MAX_SKILL_FRONTMATTER_BYTES,
   MAX_SKILL_MD_BYTES,
   skillFrontmatterToRaw,
   validateSkillFrontmatter,
   type SkillFrontmatter,
-} from '../shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+
+import { parseYaml, stringifyYaml } from '../shared/config/yaml';
+import { formatZodError } from '../shared/schemas/format-error';
 
 /** A `SKILL.md` that could not be read as one, with the path that produced it. */
 export class SkillParseError extends Error {

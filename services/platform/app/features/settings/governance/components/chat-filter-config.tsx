@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  chatFilterConfigSchema,
+  type ChatFilterCategory,
+  type ChatFilterConfig,
+} from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
@@ -32,11 +37,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  chatFilterConfigSchema,
-  type ChatFilterCategory,
-  type ChatFilterConfig,
-} from '@/lib/shared/schemas/governance';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, relativePath, sha } from '../config/releases/model';
+import { verifyPreparedDeploymentConfig } from './config-source';
 import { deploymentSpecSchema } from './model';
 
 export const deploymentBundleSchema = z.strictObject({
@@ -156,6 +157,22 @@ export async function verifyDeploymentBundle(
     throw preconditionError(
       'Deployment bundle is missing its executable or runtime.',
     );
+  for (const config of bundle.spec.configs) {
+    const prepared = await verifyPreparedDeploymentConfig(
+      join(root, 'configs', config.client, config.automation),
+      {
+        clientId: config.client,
+        automationName: config.automation,
+        releaseRef: gitSha.parse(config.revision),
+        sourceRepository: config.repository,
+        deploymentRef: bundle.deploymentRef,
+      },
+    );
+    if ((prepared.kind === 'source') !== (config.skillOwner === 'operator'))
+      throw preconditionError(
+        'Prepared configuration does not match its declared skill owner binding.',
+      );
+  }
   return bundle;
 }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -18,7 +19,6 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   resolveFileType,
 } from '@/lib/shared/file-types';
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import { folderSubtreeIds, splitFolderFiles } from '../lib/folder-files';
 import { FileOpenButton } from './file-open-button';

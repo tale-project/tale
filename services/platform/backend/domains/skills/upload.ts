@@ -1,7 +1,7 @@
+import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/skills.ts';
 import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing.ts';
 import { SkillParseError } from '../../../lib/skills/parse.ts';
 import {

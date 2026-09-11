@@ -12,7 +12,8 @@ import path from 'node:path';
 import {
   brandingJsonSchema,
   type BrandingJsonConfig,
-} from '../../../lib/shared/schemas/branding';
+} from '@tale/shared/schemas/branding';
+
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error';
 import {
   getConfigRoot,

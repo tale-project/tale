@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle';
 import { resolveSiteOrigins } from '@tale/shared/utils/site-urls';
 import { type Plugin } from 'vite';
-
-import { parseSessionIdleTimeoutMinutes } from '../lib/shared/session-idle';
 
 interface EnvConfig {
   SITE_URL: string;

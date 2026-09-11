@@ -1,7 +1,7 @@
+import { DEFAULT_TRUSTED_PROXIES } from '@tale/shared/schemas/governance';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { DEFAULT_TRUSTED_PROXIES } from '../../../lib/shared/schemas/governance.ts';
 import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
 import { resolveSlackSigningSecret } from '../../core/http_connectors/deployment_config.ts';
 import {

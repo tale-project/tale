@@ -11,13 +11,13 @@
  * the same split is proven in `tasks/task_serving.test.ts`.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   harnessDefinitionSchema,
   providerDefinitionSchema,
   type ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ActionCtx } from '../ctx';
 
 const { getProviderCatalog, resolveConnectors, loadHarnesses } = vi.hoisted(

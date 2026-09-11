@@ -7,9 +7,9 @@
  * picker offers and what a turn resolves can never disagree on it.
  */
 
+import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { providerDefinitionSchema } from '../../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../ctx';
 
 const resolveProvidersMock = vi.fn();

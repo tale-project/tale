@@ -1,7 +1,7 @@
 import type {
   ModerationCategoryMapping,
   ModerationResponseShape,
-} from '@/lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
 
 export interface HeaderRow {
   key: string;

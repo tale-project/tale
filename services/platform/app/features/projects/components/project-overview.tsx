@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_NAME_MAX,
+} from '@tale/shared/schemas/projects';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod/v4';
@@ -19,10 +23,6 @@ import {
 import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
-import {
-  PROJECT_DESCRIPTION_MAX,
-  PROJECT_NAME_MAX,
-} from '@/lib/shared/schemas/projects';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';

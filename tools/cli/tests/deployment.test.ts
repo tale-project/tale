@@ -72,6 +72,20 @@ async function run(executable: string[], cwd: string, args: string[]) {
 }
 
 for (const [mode, executable] of modes) {
+  test(`help retains generic deployment commands and omits server lifecycle (${mode})`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tale-deployment-help-'));
+    roots.push(root);
+    for (const args of [['--help'], ['deploy', '--help']]) {
+      const result = await run(executable, root, args);
+      expect(result.code).toBe(0);
+      expect(result.stdout).not.toMatch(/inference|omlx|zerotier/i);
+      if (args[0] === 'deploy') {
+        expect(result.stdout).toContain('export-client');
+        expect(result.stdout).toContain('provision');
+        expect(result.stdout).toContain('verify-bundle');
+      }
+    }
+  }, 30000);
   test.skipIf(process.platform !== 'win32')(
     `managed deployment refuses Windows before filesystem or native work (${mode})`,
     async () => {
