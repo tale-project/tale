@@ -10,6 +10,11 @@
 # `minimal` where it answered "Reasoning is mandatory ... cannot be disabled"
 # (gemini-3.x, grok-4.x, kimi-k2.7-code). Entries without `off` were not
 # probe-verifiable; they keep the omit-the-parameter behavior.
+# `reasoning.knob` follows the CONNECTOR'S WIRE, not the model family: this
+# connector is apiFormat openai, so every entry here — the Claude ones
+# included — takes `reasoning_effort`. A `budget-tokens` knob would name a
+# parameter an OpenAI-compatible body cannot spell, and the pick would reach
+# the endpoint as nothing at all.
 - id: anthropic/claude-sonnet-5
   provider: openrouter
   tags:
@@ -18,7 +23,7 @@
   supportsTools: true
   supportsVision: true
   reasoning:
-    knob: budget-tokens
+    knob: effort
   contextWindow: 1000000
   maxOutputTokens: 128000
   pricing:
@@ -32,7 +37,7 @@
   supportsTools: true
   supportsVision: true
   reasoning:
-    knob: budget-tokens
+    knob: effort
   contextWindow: 1000000
   maxOutputTokens: 128000
   pricing:

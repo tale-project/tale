@@ -16,8 +16,16 @@
  *
  * The capability facts come from the source. The only local inference is the
  * reasoning KNOB — sources report reasoning yes/no but not which wire
- * parameter the model accepts: Anthropic-family models take a thinking
- * budget, everything else the openai-style effort parameter.
+ * parameter the model accepts — and it is always `effort`: a named level is
+ * what every wire spells (`reasoning_effort` on an OpenAI-compatible body,
+ * `output_config.effort` on the Anthropic one), whatever the model family.
+ * The thinking-token budget is the Anthropic wire's legacy manual mode — the
+ * generation that only took a budget is behind us, and the current one
+ * refuses it outright — so a live listing never infers it; a static catalog
+ * declares it deliberately, for a model known to take nothing else. Keying
+ * the knob on the model's name instead is how every Claude on OpenRouter
+ * ended up declaring a knob its connector could not spell, which silently
+ * dropped the user's pick from the body.
  *
  * Entries without a usable id or a positive context window are dropped and
  * counted, never guessed: the catalog contract requires both, and a model the
@@ -26,7 +34,6 @@
 
 import type { ModelCatalogEntry } from '../schemas/providers';
 import { modelCatalogEntrySchema } from '../schemas/providers';
-import { stripProviderPrefix } from '../utils/model-ref';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -59,17 +66,6 @@ function priceToCentsPerMillion(raw: unknown): number | undefined {
 function positiveInt(value: unknown): number | undefined {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
-}
-
-/**
- * The reasoning-control knob for a model the source reports as
- * reasoning-capable. Anthropic-family models expect a thinking token budget;
- * everything else on an openai-compatible surface takes the effort parameter.
- */
-function reasoningKnobFor(modelId: string): 'effort' | 'budget-tokens' {
-  return stripProviderPrefix(modelId).startsWith('claude-')
-    ? 'budget-tokens'
-    : 'effort';
 }
 
 /**
@@ -188,7 +184,8 @@ export function normalizeCatalogModel(
     supportsTools,
     supportsVision,
     ...(outputsMedia && { outputsMedia }),
-    ...(reportsReasoning && { reasoning: { knob: reasoningKnobFor(m.id) } }),
+    // The named-level knob, whatever the family — see the module doc.
+    ...(reportsReasoning && { reasoning: { knob: 'effort' as const } }),
     contextWindow,
     ...(maxOutputTokens !== undefined && { maxOutputTokens }),
     ...(inputCentsPerMillion !== undefined &&

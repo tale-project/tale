@@ -56,9 +56,10 @@ export interface ChatWireArgs {
   /**
    * Whether the model declares a reasoning capability in its catalog entry —
    * absent when no catalog entry exists (credential-allowlist connectors like
-   * Azure, or a free-typed model id). Only the `openai-modern` dialect reads
-   * it: reasoning models there reject any non-default temperature, so unknown
-   * is treated as reasoning.
+   * Azure, or a free-typed model id). Two surfaces read it, and both treat
+   * unknown as reasoning: the `openai-modern` dialect, where reasoning models
+   * reject any non-default temperature, and the Anthropic wire, where every
+   * model after Claude Opus 4.6 does (and an older one does while it thinks).
    */
   reasoningModel?: boolean;
   /** The connector's API origin, with or without a trailing slash. */
@@ -75,9 +76,11 @@ export interface ChatWireArgs {
   temperature?: number;
   maxTokens: number;
   /**
-   * The turn's reasoning control, when one was resolved. Each dialect spells
-   * only its own knob: Anthropic takes a thinking budget, OpenAI-compatible
-   * endpoints a named effort level; the other kind is ignored by that body.
+   * The turn's reasoning control, when one was resolved. BOTH dialects spell
+   * an effort level — `reasoning_effort` on the OpenAI surface,
+   * `output_config.effort` on the Anthropic one — each folding the step to
+   * its own vocabulary. A thinking-token budget is an Anthropic-wire control
+   * alone; an OpenAI body cannot spell it and drops it loudly.
    */
   reasoning?: TurnSampling['reasoning'];
   /** Provider attribution headers the platform sends where they apply. */
@@ -86,6 +89,88 @@ export interface ChatWireArgs {
 
 /** The Anthropic messages API is versioned by header, not by path. */
 const ANTHROPIC_VERSION = '2023-06-01';
+
+/** The effort values a resolved turn can carry — the user's five steps plus
+ * the catalog's off literals. */
+type EffortValue = Extract<
+  NonNullable<TurnSampling['reasoning']>,
+  { kind: 'effort' }
+>['value'];
+
+/**
+ * The effort step as each surface spells it — the fold the resolver
+ * deliberately does NOT apply, so neither endpoint is capped by the other's
+ * vocabulary.
+ *
+ * OpenAI-compatible endpoints take three levels, so the top three steps all
+ * land on `high`; the `off` literals a catalog may declare (`none`,
+ * `minimal`) pass straight through, which is the whole point of declaring
+ * them. Anthropic's `output_config.effort` takes all five, spelling the
+ * fourth `xhigh` — but has no off literal at all, so an `off` declaration on
+ * an Anthropic-wire model resolves to `undefined` and the parameter is left
+ * off the body rather than guessed at.
+ */
+const OPENAI_EFFORT_LEVELS = {
+  none: 'none',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  extra: 'high',
+  max: 'high',
+} as const satisfies Record<EffortValue, string>;
+
+const ANTHROPIC_EFFORT_LEVELS = {
+  none: undefined,
+  minimal: undefined,
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  extra: 'xhigh',
+  max: 'max',
+} as const satisfies Record<EffortValue, string | undefined>;
+
+/**
+ * The reasoning parameter for one body, or `{}` when this dialect cannot
+ * spell the resolved knob.
+ *
+ * A drop is a MISCONFIGURATION, never a routine outcome: the catalog entry
+ * declares a knob the connector's wire has no parameter for, so the user's
+ * pick reaches the endpoint as nothing at all. The shipped catalogs are held
+ * to the pairing by a guard over the shipped tree
+ * (`lib/providers/load_system_config.test.ts`); a custom org catalog is not,
+ * so a drop says so on the console rather than degrading in silence — which
+ * is exactly how both shipped mismatches went unnoticed.
+ */
+function reasoningParameter(
+  apiFormat: ApiFormat,
+  reasoning: TurnSampling['reasoning'],
+  modelId: string,
+): Record<string, unknown> {
+  if (reasoning === undefined) return {};
+  if (apiFormat === 'anthropic') {
+    if (reasoning.kind === 'thinking') {
+      return {
+        thinking: { type: 'enabled', budget_tokens: reasoning.budgetTokens },
+      };
+    }
+    const effort = ANTHROPIC_EFFORT_LEVELS[reasoning.value];
+    if (effort === undefined) {
+      console.warn(
+        `[chat-wire] model "${modelId}" resolved reasoning to "${reasoning.value}", which the Anthropic messages wire has no effort level for — the turn runs at the endpoint's own default`,
+      );
+      return {};
+    }
+    return { output_config: { effort } };
+  }
+  if (reasoning.kind === 'thinking') {
+    console.warn(
+      `[chat-wire] model "${modelId}" declares the budget-tokens knob, which an OpenAI-compatible wire cannot spell — the turn runs at the endpoint's own default; the catalog entry should declare the effort knob for this connector`,
+    );
+    return {};
+  }
+  return { reasoning_effort: OPENAI_EFFORT_LEVELS[reasoning.value] };
+}
 
 function stripTrailingSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
@@ -229,6 +314,15 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
               content: message.content,
             })),
         );
+    // Models released after Claude Opus 4.6 refuse every temperature but the
+    // default (400: "Models released after Claude Opus 4.6 do not support
+    // setting temperature"), and the older ones refuse it while thinking is
+    // on. The catalog's reasoning declaration is the wire's only handle on
+    // the generation, so the platform's default temperature rides only a
+    // model KNOWN not to reason — unknown counts as reasoning, exactly as on
+    // the openai-modern dialect.
+    const sendTemperature =
+      args.temperature !== undefined && args.reasoningModel === false;
     return {
       url: `${base}/v1/messages`,
       headers: {
@@ -240,17 +334,8 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
       body: JSON.stringify({
         model: args.modelId,
         max_tokens: args.maxTokens,
-        ...(args.temperature !== undefined
-          ? { temperature: args.temperature }
-          : {}),
-        ...(args.reasoning?.kind === 'thinking'
-          ? {
-              thinking: {
-                type: 'enabled',
-                budget_tokens: args.reasoning.budgetTokens,
-              },
-            }
-          : {}),
+        ...(sendTemperature ? { temperature: args.temperature } : {}),
+        ...reasoningParameter('anthropic', args.reasoning, args.modelId),
         ...(system ? { system } : {}),
         ...(args.tools !== undefined && args.tools.length > 0
           ? {
@@ -336,9 +421,7 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
         ? { max_completion_tokens: args.maxTokens }
         : { max_tokens: args.maxTokens }),
       ...(sendTemperature ? { temperature: args.temperature } : {}),
-      ...(args.reasoning?.kind === 'effort'
-        ? { reasoning_effort: args.reasoning.value }
-        : {}),
+      ...reasoningParameter('openai', args.reasoning, args.modelId),
       ...(args.tools !== undefined && args.tools.length > 0
         ? {
             tools: args.tools.map((tool) => ({

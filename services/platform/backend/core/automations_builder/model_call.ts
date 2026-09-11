@@ -56,9 +56,10 @@ interface WireTarget {
   apiFormat: ApiFormat;
   wireDialect?: WireDialect;
   /** Whether the model declares reasoning per its catalog entry — absent
-   * when no entry exists (Azure deployment names, free-typed ids). Read only
-   * by the `openai-modern` dialect: unknown counts as reasoning, so a custom
-   * temperature is never sent at a model that might reject it. */
+   * when no entry exists (Azure deployment names, free-typed ids). Read by
+   * the `openai-modern` dialect and the Anthropic wire: unknown counts as
+   * reasoning, so a custom temperature is never sent at a model that might
+   * reject it. */
   reasoningModel?: boolean;
   /** The catalog's declared reasoning-OFF value, when the model has one. The
    * builder never wants a thinking pass — an authoring turn is a document,
@@ -109,7 +110,10 @@ async function resolveWireTarget(
   // catalog fact, and the catalog is cached anyway.
   let reasoningModel: boolean | undefined;
   let reasoningOff: WireTarget['reasoningOff'];
-  if (connector.wireDialect !== undefined) {
+  if (
+    connector.wireDialect !== undefined ||
+    connector.apiFormat === 'anthropic'
+  ) {
     const entry = (await getProviderCatalog(connector)).find(
       (candidate) => candidate.id === target.modelId,
     );

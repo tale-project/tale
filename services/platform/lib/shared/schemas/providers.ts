@@ -333,8 +333,12 @@ export type ProviderDefinition = z.infer<typeof providerDefinitionSchema>;
 
 /**
  * How hard a reasoning model can be told to think — the two control surfaces
- * in the wild: `effort` (a named level riding `reasoning_effort`) and
- * `budget-tokens` (an explicit thinking-token budget).
+ * in the wild: `effort` (a named level — `reasoning_effort` on an
+ * OpenAI-compatible wire, `output_config.effort` on the Anthropic one) and
+ * `budget-tokens` (an explicit thinking-token budget, which only the
+ * Anthropic wire can spell). A knob names a WIRE PARAMETER, so it must be one
+ * the connector's `apiFormat` carries; the shipped catalogs are held to that
+ * pairing by a guard, and the wire builder warns when a custom one is not.
  */
 const reasoningKnobSchema = z.enum(['effort', 'budget-tokens']);
 
@@ -349,6 +353,8 @@ const reasoningKnobSchema = z.enum(['effort', 'budget-tokens']);
  * value: a wrong declaration breaks every default-effort turn on that model.
  */
 const reasoningOffSchema = z.enum(['none', 'minimal', 'low']);
+/** The off literals a turn may send in place of an effort step. */
+export type ReasoningOff = z.infer<typeof reasoningOffSchema>;
 
 /**
  * One normalized model-catalog entry — the single shape every catalog source

@@ -68,7 +68,11 @@ describe('normalizeCatalogModel', () => {
       tags: ['chat', 'vision'],
       supportsTools: true,
       supportsVision: true,
-      reasoning: { knob: 'budget-tokens' },
+      // A Claude gets the named-level knob like every other listing: the
+      // OpenAI-compatible body it rides here has no thinking-budget
+      // parameter, and declaring one dropped the user's pick from every
+      // OpenRouter Claude turn.
+      reasoning: { knob: 'effort' },
       contextWindow: 1_000_000,
       maxOutputTokens: 128_000,
       // $/token strings × 1e8 → cents per million tokens.
