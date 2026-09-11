@@ -215,7 +215,9 @@ describe('one general native configuration lifecycle', () => {
         'provider/private-vision',
         'provider/private-embedding',
       ]);
-      expect((await stat(f.receipt)).mode & 0o777).toBe(0o600);
+      // Windows stat exposes no POSIX owner/group permission bits.
+      if (process.platform !== 'win32')
+        expect((await stat(f.receipt)).mode & 0o777).toBe(0o600);
       const writeCount = f.writes.length;
       expect(
         (
