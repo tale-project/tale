@@ -97,96 +97,111 @@ function createFixture() {
   };
 }
 
-test('fresh clients journal before create, preserve exact credentials and replay with no write', async () =>
-  fixture(async (f) => {
-    const first = await reconcileNativeClients(
-      f.context,
-      [desired],
-      undefined,
-      f.managed,
-    );
-    const credentials = first[0].credentials!;
-    const bytes = readFileSync(credentials.path);
-    const saved = JSON.parse(bytes.toString());
-    expect(first[0].changed).toBe(true);
-    expect(saved.phase).toBe('ready');
-    expect(first[0].clientId).toBe(saved.credentials.clientId);
-    expect(JSON.stringify(first)).not.toContain(saved.credentials.clientSecret);
-    expect(Bun.CryptoHasher.hash('sha256', bytes, 'hex')).toBe(
-      credentials.sha256,
-    );
-    const repeated = await reconcileNativeClients(
-      f.context,
-      [desired],
-      undefined,
-      f.managed,
-    );
-    expect(repeated[0]).toEqual({ ...first[0], changed: false });
-    expect(f.creates).toHaveLength(1);
-    expect(readFileSync(credentials.path)).toEqual(bytes);
-  }));
+// These native-intent cases need POSIX private-file durability, as required by
+// the public managed command's Windows refusal. Adapter/policy tests stay portable.
+const testPosix = test.skipIf(process.platform === 'win32');
 
-test('accepted response loss recovers the same client and secret without another create', async () =>
-  fixture(async (f) => {
-    f.loseResponse();
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow('retained intent');
-    const file = join(f.root, 'private/client-portal.json');
-    const pending = JSON.parse(readFileSync(file, 'utf8'));
-    expect(pending.phase).toBe('pending');
-    const recovered = await reconcileNativeClients(
-      f.context,
-      [desired],
-      undefined,
-      f.managed,
-    );
-    expect(recovered[0].clientId).toBe(pending.credentials.clientId);
-    expect(JSON.parse(readFileSync(file, 'utf8')).credentials).toEqual(
-      pending.credentials,
-    );
-    expect(f.creates).toHaveLength(1);
-  }));
+testPosix(
+  'fresh clients journal before create, preserve exact credentials and replay with no write',
+  async () =>
+    fixture(async (f) => {
+      const first = await reconcileNativeClients(
+        f.context,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      const credentials = first[0].credentials!;
+      const bytes = readFileSync(credentials.path);
+      const saved = JSON.parse(bytes.toString());
+      expect(first[0].changed).toBe(true);
+      expect(saved.phase).toBe('ready');
+      expect(first[0].clientId).toBe(saved.credentials.clientId);
+      expect(JSON.stringify(first)).not.toContain(
+        saved.credentials.clientSecret,
+      );
+      expect(Bun.CryptoHasher.hash('sha256', bytes, 'hex')).toBe(
+        credentials.sha256,
+      );
+      const repeated = await reconcileNativeClients(
+        f.context,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      expect(repeated[0]).toEqual({ ...first[0], changed: false });
+      expect(f.creates).toHaveLength(1);
+      expect(readFileSync(credentials.path)).toEqual(bytes);
+    }),
+);
 
-test('unknown acceptance, lost state, rotated secrets and target drift hold without replacement', async () =>
-  fixture(async (f) => {
-    f.managed.create = async () => {
-      throw new Error('request-not-accepted');
-    };
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow();
-    const file = join(f.root, 'private/client-portal.json');
-    const retained = readFileSync(file);
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow('identity');
-    expect(readFileSync(file)).toEqual(retained);
-    const saved = JSON.parse(retained.toString());
-    f.clients.push({
-      ...expectedPolicy,
-      software_id: desired.key,
-      client_id: saved.credentials.clientId,
-      client_name: desired.name,
-      redirect_uris: desired.redirectUris,
-    });
-    f.secrets.set(saved.credentials.clientId, 'rotated-secret');
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow('credential verification');
-    expect(readFileSync(file)).toEqual(retained);
-    f.secrets.set(saved.credentials.clientId, saved.credentials.clientSecret);
-    f.context.user = { id: 'other-operator' };
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow('target');
-    f.context.user = { id: 'operator-north' };
-    rmSync(file);
-    await expect(
-      reconcileNativeClients(f.context, [desired], undefined, f.managed),
-    ).rejects.toThrow('identity');
-    expect(readdirSync(join(f.root, 'private'))).toEqual([]);
-  }));
+testPosix(
+  'accepted response loss recovers the same client and secret without another create',
+  async () =>
+    fixture(async (f) => {
+      f.loseResponse();
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow('retained intent');
+      const file = join(f.root, 'private/client-portal.json');
+      const pending = JSON.parse(readFileSync(file, 'utf8'));
+      expect(pending.phase).toBe('pending');
+      const recovered = await reconcileNativeClients(
+        f.context,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      expect(recovered[0].clientId).toBe(pending.credentials.clientId);
+      expect(JSON.parse(readFileSync(file, 'utf8')).credentials).toEqual(
+        pending.credentials,
+      );
+      expect(f.creates).toHaveLength(1);
+    }),
+);
+
+testPosix(
+  'unknown acceptance, lost state, rotated secrets and target drift hold without replacement',
+  async () =>
+    fixture(async (f) => {
+      f.managed.create = async () => {
+        throw new Error('request-not-accepted');
+      };
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow();
+      const file = join(f.root, 'private/client-portal.json');
+      const retained = readFileSync(file);
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow('identity');
+      expect(readFileSync(file)).toEqual(retained);
+      const saved = JSON.parse(retained.toString());
+      f.clients.push({
+        ...expectedPolicy,
+        software_id: desired.key,
+        client_id: saved.credentials.clientId,
+        client_name: desired.name,
+        redirect_uris: desired.redirectUris,
+      });
+      f.secrets.set(saved.credentials.clientId, 'rotated-secret');
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow('credential verification');
+      expect(readFileSync(file)).toEqual(retained);
+      f.secrets.set(saved.credentials.clientId, saved.credentials.clientSecret);
+      f.context.user = { id: 'other-operator' };
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow('target');
+      f.context.user = { id: 'operator-north' };
+      rmSync(file);
+      await expect(
+        reconcileNativeClients(f.context, [desired], undefined, f.managed),
+      ).rejects.toThrow('identity');
+      expect(readdirSync(join(f.root, 'private'))).toEqual([]);
+    }),
+);
 
 test('all client conflicts are admitted before any earlier fresh client is created', async () =>
   fixture(async (f) => {
@@ -222,32 +237,35 @@ test('all client conflicts are admitted before any earlier fresh client is creat
       ).rejects.toThrow('input');
   }));
 
-test('retained managed callbacks can converge without rotating their secret', async () =>
-  fixture(async (f) => {
-    const first = await reconcileNativeClients(
-      f.context,
-      [desired],
-      undefined,
-      f.managed,
-    );
-    const bytes = readFileSync(first[0].credentials!.path);
-    const renamed = {
-      ...desired,
-      name: 'North portal revised',
-      redirectUris: ['https://portal.example.org/new/callback'],
-    };
-    const result = await reconcileNativeClients(
-      f.context,
-      [renamed],
-      async ({ body }) => {
-        Object.assign(f.clients[0], body.update);
-      },
-      f.managed,
-    );
-    expect(result[0].changed).toBe(true);
-    expect(f.creates).toHaveLength(1);
-    expect(readFileSync(first[0].credentials!.path)).toEqual(bytes);
-  }));
+testPosix(
+  'retained managed callbacks can converge without rotating their secret',
+  async () =>
+    fixture(async (f) => {
+      const first = await reconcileNativeClients(
+        f.context,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      const bytes = readFileSync(first[0].credentials!.path);
+      const renamed = {
+        ...desired,
+        name: 'North portal revised',
+        redirectUris: ['https://portal.example.org/new/callback'],
+      };
+      const result = await reconcileNativeClients(
+        f.context,
+        [renamed],
+        async ({ body }) => {
+          Object.assign(f.clients[0], body.update);
+        },
+        f.managed,
+      );
+      expect(result[0].changed).toBe(true);
+      expect(f.creates).toHaveLength(1);
+      expect(readFileSync(first[0].credentials!.path)).toEqual(bytes);
+    }),
+);
 
 test('actual pinned provider closures honor intent callbacks and authenticate retained secrets without issuing tokens', async () => {
   const records = new Map<string, Record<string, unknown>>();

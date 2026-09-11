@@ -8,7 +8,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import {
   launchAgentMatches,
@@ -57,7 +57,7 @@ describe('macOS runtime adapter without launching bundled code', () => {
       node,
       state,
       release,
-      join(state, 'runtimes', OMLX_RUNTIME.sha256, 'oMLX.app'),
+      posix.join(state, 'runtimes', OMLX_RUNTIME.sha256, 'oMLX.app'),
     );
     let content: string | undefined;
     let loaded = false;
@@ -225,7 +225,9 @@ describe('macOS runtime adapter without launching bundled code', () => {
       f.app,
       node,
       async (command, args, options) => {
-        expect(command).toEndWith('Python/cpython-3.11/bin/python3');
+        expect(command).toBe(
+          join(f.app, 'Contents/Resources/Python/cpython-3.11/bin/python3'),
+        );
         expect(args).toContain('-s');
         expect(args.at(-1)).toContain('native_kernel_status()');
         expect(options?.env?.HF_HUB_OFFLINE).toBe('1');

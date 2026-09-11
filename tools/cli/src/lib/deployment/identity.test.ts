@@ -356,175 +356,201 @@ describe('reviewed deployment identity admission', () => {
 });
 
 describe('native instance provisioning over real local HTTP', () => {
-  test('explicit fresh local bootstrap creates its account/org once and retains native identities across replay', async () => {
-    const stateDirectory = mkdtempSync(join(tmpdir(), 'tale-fresh-bootstrap-'));
-    const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
-    try {
-      const first = await withFixture(
-        { loginStatus: 401, organizations: [], connection: ABSENT },
-        async (f) => {
-          const result = await configureInstance(input, {
-            fetchImpl: f.fetchImpl,
-            stateDirectory,
-          });
-          expect(
-            f.calls.filter((call) => call.path.includes('sign-up')),
-          ).toHaveLength(1);
-          expect(
-            f.calls.filter((call) => call.path.includes('organization/create')),
-          ).toHaveLength(1);
-          return result;
-        },
+  // Only fresh bootstrap needs the POSIX intent store. The public managed
+  // command refuses Windows; exact-ID HTTP and preflight tests remain portable.
+  const testPosix = test.skipIf(process.platform === 'win32');
+
+  testPosix(
+    'explicit fresh local bootstrap creates its account/org once and retains native identities across replay',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-fresh-bootstrap-'),
       );
-      const file = join(stateDirectory, 'private/bootstrap.json');
-      const retained = readFileSync(file);
-      expect(JSON.parse(retained.toString())).toMatchObject({
-        phase: 'ready',
-        userId: first.userId,
-        organizationId: first.organizationId,
-      });
-      expect(retained.includes(INPUT.password)).toBe(false);
-      await withFixture({ connection: ABSENT }, async (f) => {
-        expect(
-          await configureInstance(input, {
-            fetchImpl: f.fetchImpl,
-            stateDirectory,
-          }),
-        ).toEqual(first);
-        expect(
-          f.calls.some((call) =>
-            /sign-up|organization\/create/.test(call.path),
-          ),
-        ).toBe(false);
-      });
-      expect(readFileSync(file)).toEqual(retained);
-      for (const options of [
-        { loginStatus: 401 },
-        { organizations: [] },
-        {
-          session: {
-            user: { id: 'replacement-user', email: INPUT.email },
-            session: { userId: 'replacement-user' },
+      const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
+      try {
+        const first = await withFixture(
+          { loginStatus: 401, organizations: [], connection: ABSENT },
+          async (f) => {
+            const result = await configureInstance(input, {
+              fetchImpl: f.fetchImpl,
+              stateDirectory,
+            });
+            expect(
+              f.calls.filter((call) => call.path.includes('sign-up')),
+            ).toHaveLength(1);
+            expect(
+              f.calls.filter((call) =>
+                call.path.includes('organization/create'),
+              ),
+            ).toHaveLength(1);
+            return result;
           },
-        },
-      ])
-        await withFixture({ ...options, connection: ABSENT }, async (f) => {
-          await expect(
-            configureInstance(input, {
+        );
+        const file = join(stateDirectory, 'private/bootstrap.json');
+        const retained = readFileSync(file);
+        expect(JSON.parse(retained.toString())).toMatchObject({
+          phase: 'ready',
+          userId: first.userId,
+          organizationId: first.organizationId,
+        });
+        expect(retained.includes(INPUT.password)).toBe(false);
+        await withFixture({ connection: ABSENT }, async (f) => {
+          expect(
+            await configureInstance(input, {
               fetchImpl: f.fetchImpl,
               stateDirectory,
             }),
-          ).rejects.toThrow();
+          ).toEqual(first);
           expect(
             f.calls.some((call) =>
               /sign-up|organization\/create/.test(call.path),
             ),
           ).toBe(false);
         });
-      expect(readFileSync(file)).toEqual(retained);
-    } finally {
-      rmSync(stateDirectory, { recursive: true, force: true });
-    }
-  });
+        expect(readFileSync(file)).toEqual(retained);
+        for (const options of [
+          { loginStatus: 401 },
+          { organizations: [] },
+          {
+            session: {
+              user: { id: 'replacement-user', email: INPUT.email },
+              session: { userId: 'replacement-user' },
+            },
+          },
+        ])
+          await withFixture({ ...options, connection: ABSENT }, async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow();
+            expect(
+              f.calls.some((call) =>
+                /sign-up|organization\/create/.test(call.path),
+              ),
+            ).toBe(false);
+          });
+        expect(readFileSync(file)).toEqual(retained);
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 
-  test('fresh organization response loss retains the verified account and recovers by slug/session readback', async () => {
-    const stateDirectory = mkdtempSync(
-      join(tmpdir(), 'tale-fresh-bootstrap-loss-'),
-    );
-    const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
-    try {
-      await withFixture(
-        {
-          organizations: [],
-          failedPath: '/api/auth/organization/create',
-          connection: ABSENT,
-        },
-        async (f) => {
+  testPosix(
+    'fresh organization response loss retains the verified account and recovers by slug/session readback',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-fresh-bootstrap-loss-'),
+      );
+      const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
+      try {
+        await withFixture(
+          {
+            organizations: [],
+            failedPath: '/api/auth/organization/create',
+            connection: ABSENT,
+          },
+          async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow('Organization bootstrap');
+          },
+        );
+        const pending = JSON.parse(
+          readFileSync(join(stateDirectory, 'private/bootstrap.json'), 'utf8'),
+        );
+        expect(pending).toMatchObject({
+          phase: 'pending',
+          userId: 'native-user',
+        });
+        await withFixture(
+          { organizations: [], connection: ABSENT },
+          async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow('uncertain');
+            expect(
+              f.calls.some((call) => call.path.includes('organization/create')),
+            ).toBe(false);
+          },
+        );
+        await withFixture({ connection: ABSENT }, async (f) => {
+          const result = await configureInstance(input, {
+            fetchImpl: f.fetchImpl,
+            stateDirectory,
+          });
+          expect(result.userId).toBe(pending.userId);
+          expect(
+            f.calls.some((call) =>
+              /sign-up|organization\/create/.test(call.path),
+            ),
+          ).toBe(false);
+        });
+        await withFixture({ connection: ABSENT }, async (f) => {
           await expect(
-            configureInstance(input, {
-              fetchImpl: f.fetchImpl,
-              stateDirectory,
-            }),
-          ).rejects.toThrow('Organization bootstrap');
-        },
+            configureInstance(
+              { ...input, slug: 'other-team' },
+              { fetchImpl: f.fetchImpl, stateDirectory },
+            ),
+          ).rejects.toThrow('intent differs');
+          expect(f.calls).toEqual([]);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'an uncertain initial account request cannot create again without authenticated readback',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-fresh-signup-loss-'),
       );
-      const pending = JSON.parse(
-        readFileSync(join(stateDirectory, 'private/bootstrap.json'), 'utf8'),
-      );
-      expect(pending).toMatchObject({
-        phase: 'pending',
-        userId: 'native-user',
-      });
-      await withFixture(
-        { organizations: [], connection: ABSENT },
-        async (f) => {
+      const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
+      try {
+        await withFixture(
+          { loginStatus: 401, signupStatus: 503 },
+          async (f) => {
+            await expect(
+              configureInstance(input, {
+                fetchImpl: f.fetchImpl,
+                stateDirectory,
+              }),
+            ).rejects.toThrow();
+            expect(
+              f.calls.filter((call) => call.path.includes('sign-up')),
+            ).toHaveLength(1);
+          },
+        );
+        const file = join(stateDirectory, 'private/bootstrap.json');
+        const bytes = readFileSync(file);
+        expect(JSON.parse(bytes.toString()).signupAttempted).toBe(true);
+        await withFixture({ loginStatus: 401 }, async (f) => {
           await expect(
             configureInstance(input, {
               fetchImpl: f.fetchImpl,
               stateDirectory,
             }),
           ).rejects.toThrow('uncertain');
-          expect(
-            f.calls.some((call) => call.path.includes('organization/create')),
-          ).toBe(false);
-        },
-      );
-      await withFixture({ connection: ABSENT }, async (f) => {
-        const result = await configureInstance(input, {
-          fetchImpl: f.fetchImpl,
-          stateDirectory,
+          expect(f.calls.some((call) => call.path.includes('sign-up'))).toBe(
+            false,
+          );
         });
-        expect(result.userId).toBe(pending.userId);
-        expect(
-          f.calls.some((call) =>
-            /sign-up|organization\/create/.test(call.path),
-          ),
-        ).toBe(false);
-      });
-      await withFixture({ connection: ABSENT }, async (f) => {
-        await expect(
-          configureInstance(
-            { ...input, slug: 'other-team' },
-            { fetchImpl: f.fetchImpl, stateDirectory },
-          ),
-        ).rejects.toThrow('intent differs');
-        expect(f.calls).toEqual([]);
-      });
-    } finally {
-      rmSync(stateDirectory, { recursive: true, force: true });
-    }
-  });
-
-  test('an uncertain initial account request cannot create again without authenticated readback', async () => {
-    const stateDirectory = mkdtempSync(
-      join(tmpdir(), 'tale-fresh-signup-loss-'),
-    );
-    const input = { ...INPUT, ssoEnabled: false, bootstrap: 'fresh' };
-    try {
-      await withFixture({ loginStatus: 401, signupStatus: 503 }, async (f) => {
-        await expect(
-          configureInstance(input, { fetchImpl: f.fetchImpl, stateDirectory }),
-        ).rejects.toThrow();
-        expect(
-          f.calls.filter((call) => call.path.includes('sign-up')),
-        ).toHaveLength(1);
-      });
-      const file = join(stateDirectory, 'private/bootstrap.json');
-      const bytes = readFileSync(file);
-      expect(JSON.parse(bytes.toString()).signupAttempted).toBe(true);
-      await withFixture({ loginStatus: 401 }, async (f) => {
-        await expect(
-          configureInstance(input, { fetchImpl: f.fetchImpl, stateDirectory }),
-        ).rejects.toThrow('uncertain');
-        expect(f.calls.some((call) => call.path.includes('sign-up'))).toBe(
-          false,
-        );
-      });
-      expect(readFileSync(file)).toEqual(bytes);
-    } finally {
-      rmSync(stateDirectory, { recursive: true, force: true });
-    }
-  });
+        expect(readFileSync(file)).toEqual(bytes);
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 
   test('fresh admission requires private state and exact fresh/client mode before authentication', async () => {
     await withFixture({}, async (f) => {
@@ -562,79 +588,85 @@ describe('native instance provisioning over real local HTTP', () => {
     ).toThrow('differs');
   });
 
-  test('fresh operator attestation binds the authenticated pending account before organization provisioning', async () => {
-    const stateDirectory = mkdtempSync(
-      join(tmpdir(), 'tale-operator-attestation-'),
-    );
-    const input = {
-      ...INPUT,
-      ssoEnabled: false,
-      bootstrap: 'fresh',
-      emailVerification: 'operator-attested',
-    };
-    try {
-      await withFixture({ connection: ABSENT }, async (f) => {
-        await expect(
-          configureInstance(input, { fetchImpl: f.fetchImpl, stateDirectory }),
-        ).rejects.toThrow('private managed native');
-        expect(f.calls).toEqual([]);
-        let attestations = 0;
-        const emailAttestation: NonNullable<
-          InstanceOptions['emailAttestation']
-        > = async (args) => {
-          attestations++;
-          expect(args).toMatchObject({
-            userId: 'native-user',
-            email: INPUT.email,
-            stateDirectory,
-          });
-          expect(args.headers.get('cookie')).toContain('synthetic-');
-          const bootstrap = JSON.parse(
-            readFileSync(
-              join(stateDirectory, 'private/bootstrap.json'),
-              'utf8',
-            ),
-          );
-          expect(bootstrap).toMatchObject({
-            phase: 'pending',
-            userId: 'native-user',
-            email: INPUT.email,
-            emailVerification: 'operator-attested',
-          });
-          expect(
-            f.calls.some((call) => call.path.includes('organization/')),
-          ).toBe(false);
-          return {
-            method: 'operator-attested',
-            userId: args.userId,
-            email: args.email,
-            emailVerified: true,
-            receipt: {
-              path: join(stateDirectory, 'private/email-attestation.json'),
-              sha256: 'a'.repeat(64),
-            },
+  testPosix(
+    'fresh operator attestation binds the authenticated pending account before organization provisioning',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-operator-attestation-'),
+      );
+      const input = {
+        ...INPUT,
+        ssoEnabled: false,
+        bootstrap: 'fresh',
+        emailVerification: 'operator-attested',
+      };
+      try {
+        await withFixture({ connection: ABSENT }, async (f) => {
+          await expect(
+            configureInstance(input, {
+              fetchImpl: f.fetchImpl,
+              stateDirectory,
+            }),
+          ).rejects.toThrow('private managed native');
+          expect(f.calls).toEqual([]);
+          let attestations = 0;
+          const emailAttestation: NonNullable<
+            InstanceOptions['emailAttestation']
+          > = async (args) => {
+            attestations++;
+            expect(args).toMatchObject({
+              userId: 'native-user',
+              email: INPUT.email,
+              stateDirectory,
+            });
+            expect(args.headers.get('cookie')).toContain('synthetic-');
+            const bootstrap = JSON.parse(
+              readFileSync(
+                join(stateDirectory, 'private/bootstrap.json'),
+                'utf8',
+              ),
+            );
+            expect(bootstrap).toMatchObject({
+              phase: 'pending',
+              userId: 'native-user',
+              email: INPUT.email,
+              emailVerification: 'operator-attested',
+            });
+            expect(
+              f.calls.some((call) => call.path.includes('organization/')),
+            ).toBe(false);
+            return {
+              method: 'operator-attested',
+              userId: args.userId,
+              email: args.email,
+              emailVerified: true,
+              receipt: {
+                path: join(stateDirectory, 'private/email-attestation.json'),
+                sha256: 'a'.repeat(64),
+              },
+            };
           };
-        };
-        const result = await configureInstance(input, {
-          fetchImpl: f.fetchImpl,
-          stateDirectory,
-          emailAttestation,
+          const result = await configureInstance(input, {
+            fetchImpl: f.fetchImpl,
+            stateDirectory,
+            emailAttestation,
+          });
+          expect(attestations).toBe(1);
+          expect(result.emailVerification).toMatchObject({
+            userId: result.userId,
+            email: INPUT.email,
+            emailVerified: true,
+          });
+          expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+          expect(
+            f.calls.some((call) => call.path.includes('verify-email')),
+          ).toBe(false);
         });
-        expect(attestations).toBe(1);
-        expect(result.emailVerification).toMatchObject({
-          userId: result.userId,
-          email: INPUT.email,
-          emailVerified: true,
-        });
-        expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
-        expect(f.calls.some((call) => call.path.includes('verify-email'))).toBe(
-          false,
-        );
-      });
-    } finally {
-      rmSync(stateDirectory, { force: true, recursive: true });
-    }
-  });
+      } finally {
+        rmSync(stateDirectory, { force: true, recursive: true });
+      }
+    },
+  );
 
   test('removes managed Entra once, proves the selected session and preserves partial cookie refresh', async () =>
     withFixture({}, async (f) => {

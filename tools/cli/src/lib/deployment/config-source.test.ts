@@ -10,7 +10,7 @@ import path from 'node:path';
 
 import { archive, unpack } from '../config/releases/archive';
 import { verifyArtifactBytes } from '../config/releases/artifacts';
-import { sha256 } from '../config/releases/identity';
+import { repoPath, sha256 } from '../config/releases/identity';
 import { stageRelease, verifyStage } from '../config/releases/stage';
 import { fixture, temporary } from '../config/releases/tests/fixture';
 import {
@@ -25,7 +25,7 @@ async function capsule(client = 'north-labs', skills = ['invoice']) {
   const output = path.join(temporary(), 'source');
   const options = {
     repoRoot: f.root,
-    descriptorPath: path.relative(f.root, f.descriptorPath),
+    descriptorPath: repoPath(f.root, f.descriptorPath),
     automationName: f.name,
     configRef: f.options.sourceCommit,
     catalogueRepository: f.descriptor.sourceRepository,

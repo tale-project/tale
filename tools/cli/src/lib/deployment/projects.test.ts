@@ -116,118 +116,138 @@ function makeFixture() {
   };
 }
 
-test('native symbolic projects create once with exact source identity and preserve existing projects', async () =>
-  fixture(async (f) => {
-    const old: Project = {
-      id: 'original-project',
-      organizationId: 'org-north',
-      key: 'OLD',
-      name: 'Original',
-      externalItemId: null,
-      createdBy: 'old-owner',
-      archivedAt: null,
-    };
-    f.projects.push(old);
-    const configs = [
-      target,
-      { ...target, client: 'south' },
-      { ...target, project: undefined, projectId: old.id },
-    ];
-    const first = await resolveDeploymentProjects(
-      f.context,
-      configs,
-      'north-native',
-      f.root,
-    );
-    expect(first).toEqual(['new-native-project', 'new-native-project', old.id]);
-    const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
-    expect(JSON.parse(bytes.toString()).phase).toBe('ready');
-    expect(
-      await resolveDeploymentProjects(
+// Native project creation journals POSIX-owned, fsynced intents. The managed
+// command refuses Windows; conflict admission before an intent remains portable.
+const testPosix = test.skipIf(process.platform === 'win32');
+
+testPosix(
+  'native symbolic projects create once with exact source identity and preserve existing projects',
+  async () =>
+    fixture(async (f) => {
+      const old: Project = {
+        id: 'original-project',
+        organizationId: 'org-north',
+        key: 'OLD',
+        name: 'Original',
+        externalItemId: null,
+        createdBy: 'old-owner',
+        archivedAt: null,
+      };
+      f.projects.push(old);
+      const configs = [
+        target,
+        { ...target, client: 'south' },
+        { ...target, project: undefined, projectId: old.id },
+      ];
+      const first = await resolveDeploymentProjects(
         f.context,
         configs,
         'north-native',
         f.root,
-      ),
-    ).toEqual(first);
-    expect(f.creates()).toBe(1);
-    expect(f.projects[0]).toEqual(old);
-    expect(readFileSync(join(f.root, 'private/project-NORTH.json'))).toEqual(
-      bytes,
-    );
-  }));
+      );
+      expect(first).toEqual([
+        'new-native-project',
+        'new-native-project',
+        old.id,
+      ]);
+      const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
+      expect(JSON.parse(bytes.toString()).phase).toBe('ready');
+      expect(
+        await resolveDeploymentProjects(
+          f.context,
+          configs,
+          'north-native',
+          f.root,
+        ),
+      ).toEqual(first);
+      expect(f.creates()).toBe(1);
+      expect(f.projects[0]).toEqual(old);
+      expect(readFileSync(join(f.root, 'private/project-NORTH.json'))).toEqual(
+        bytes,
+      );
+    }),
+);
 
-test('accepted project response loss recovers native ID without issuing another create', async () =>
-  fixture(async (f) => {
-    f.loseResponse();
-    await expect(
-      resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
-    ).rejects.toThrow('retained intent');
-    expect(
-      JSON.parse(
-        readFileSync(join(f.root, 'private/project-NORTH.json'), 'utf8'),
-      ).phase,
-    ).toBe('pending');
-    expect(
-      await resolveDeploymentProjects(
-        f.context,
-        [target],
-        'north-native',
-        f.root,
-      ),
-    ).toEqual(['new-native-project']);
-    expect(f.creates()).toBe(1);
-  }));
+testPosix(
+  'accepted project response loss recovers native ID without issuing another create',
+  async () =>
+    fixture(async (f) => {
+      f.loseResponse();
+      await expect(
+        resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
+      ).rejects.toThrow('retained intent');
+      expect(
+        JSON.parse(
+          readFileSync(join(f.root, 'private/project-NORTH.json'), 'utf8'),
+        ).phase,
+      ).toBe('pending');
+      expect(
+        await resolveDeploymentProjects(
+          f.context,
+          [target],
+          'north-native',
+          f.root,
+        ),
+      ).toEqual(['new-native-project']);
+      expect(f.creates()).toBe(1);
+    }),
+);
 
-test('a later project write cannot hide drift in an earlier resolved target', async () =>
-  fixture(async (f) => {
-    const request = f.context.request;
-    f.context.request = async (path, method, body) => {
-      if (method === 'POST' && (body as { key: string }).key === 'SOUTH') {
-        f.projects[0]!.archivedAt = '2026-09-11T00:00:00Z';
-        f.projects.push({
-          id: 'south-project',
-          organizationId: 'org-north',
-          createdBy: 'operator-north',
-          archivedAt: null,
-          ...(body as { key: string; name: string; externalItemId: string }),
-        });
-        return Response.json({ projectId: 'south-project' });
-      }
-      return request(path, method, body);
-    };
-    await expect(
-      resolveDeploymentProjects(
-        f.context,
-        [
-          target,
-          {
-            ...target,
-            automation: 'second-desk',
-            project: { key: 'SOUTH', name: 'South document desk' },
-          },
-        ],
-        'north-native',
-        f.root,
-      ),
-    ).rejects.toThrow('changed');
-  }));
+testPosix(
+  'a later project write cannot hide drift in an earlier resolved target',
+  async () =>
+    fixture(async (f) => {
+      const request = f.context.request;
+      f.context.request = async (path, method, body) => {
+        if (method === 'POST' && (body as { key: string }).key === 'SOUTH') {
+          f.projects[0]!.archivedAt = '2026-09-11T00:00:00Z';
+          f.projects.push({
+            id: 'south-project',
+            organizationId: 'org-north',
+            createdBy: 'operator-north',
+            archivedAt: null,
+            ...(body as { key: string; name: string; externalItemId: string }),
+          });
+          return Response.json({ projectId: 'south-project' });
+        }
+        return request(path, method, body);
+      };
+      await expect(
+        resolveDeploymentProjects(
+          f.context,
+          [
+            target,
+            {
+              ...target,
+              automation: 'second-desk',
+              project: { key: 'SOUTH', name: 'South document desk' },
+            },
+          ],
+          'north-native',
+          f.root,
+        ),
+      ).rejects.toThrow('changed');
+    }),
+);
 
-test('unaccepted project request remains a review hold and retains its intent', async () =>
-  fixture(async (f) => {
-    f.noAcceptance();
-    await expect(
-      resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
-    ).rejects.toThrow();
-    const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
-    await expect(
-      resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
-    ).rejects.toThrow('uncertain');
-    expect(f.creates()).toBe(1);
-    expect(readFileSync(join(f.root, 'private/project-NORTH.json'))).toEqual(
-      bytes,
-    );
-  }));
+testPosix(
+  'unaccepted project request remains a review hold and retains its intent',
+  async () =>
+    fixture(async (f) => {
+      f.noAcceptance();
+      await expect(
+        resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
+      ).rejects.toThrow();
+      const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
+      await expect(
+        resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
+      ).rejects.toThrow('uncertain');
+      expect(f.creates()).toBe(1);
+      expect(readFileSync(join(f.root, 'private/project-NORTH.json'))).toEqual(
+        bytes,
+      );
+    }),
+);
 
 test('conflicting later targets and same-name foreign projects refuse before writes', async () =>
   fixture(async (f) => {
@@ -261,30 +281,38 @@ test('conflicting later targets and same-name foreign projects refuse before wri
     expect(f.creates()).toBe(0);
   }));
 
-test('retained project archive, external identity and operator drift refuse without rewriting', async () =>
-  fixture(async (f) => {
-    await resolveDeploymentProjects(
-      f.context,
-      [target],
-      'north-native',
-      f.root,
-    );
-    const original = { ...f.projects[0] };
-    const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
-    for (const change of [
-      { archivedAt: '2026-01-01' },
-      { createdBy: 'other' },
-      { externalItemId: 'foreign' },
-      { id: 'replacement' },
-      { name: 'Reassigned' },
-    ]) {
-      f.projects[0] = { ...original, ...change };
-      await expect(
-        resolveDeploymentProjects(f.context, [target], 'north-native', f.root),
-      ).rejects.toThrow();
-      expect(readFileSync(join(f.root, 'private/project-NORTH.json'))).toEqual(
-        bytes,
+testPosix(
+  'retained project archive, external identity and operator drift refuse without rewriting',
+  async () =>
+    fixture(async (f) => {
+      await resolveDeploymentProjects(
+        f.context,
+        [target],
+        'north-native',
+        f.root,
       );
-    }
-    expect(f.creates()).toBe(1);
-  }));
+      const original = { ...f.projects[0] };
+      const bytes = readFileSync(join(f.root, 'private/project-NORTH.json'));
+      for (const change of [
+        { archivedAt: '2026-01-01' },
+        { createdBy: 'other' },
+        { externalItemId: 'foreign' },
+        { id: 'replacement' },
+        { name: 'Reassigned' },
+      ]) {
+        f.projects[0] = { ...original, ...change };
+        await expect(
+          resolveDeploymentProjects(
+            f.context,
+            [target],
+            'north-native',
+            f.root,
+          ),
+        ).rejects.toThrow();
+        expect(
+          readFileSync(join(f.root, 'private/project-NORTH.json')),
+        ).toEqual(bytes);
+      }
+      expect(f.creates()).toBe(1);
+    }),
+);

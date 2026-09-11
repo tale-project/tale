@@ -7,10 +7,14 @@ import { z } from 'zod';
 import { resolveInferenceSpec } from './model';
 import { inferenceFixture } from './tests/fixture';
 
-test.each(['en', 'de', 'fr'])(
-  'the %s role-dedicated topology example resolves through the production schema',
-  async (locale) => {
-    const text = await readFile(
+test.each(
+  ['en', 'de', 'fr'].flatMap((locale) =>
+    ['LF', 'CRLF'].map((lineEnding) => ({ locale, lineEnding })),
+  ),
+)(
+  'the $locale role-dedicated topology example resolves with $lineEnding through the production schema',
+  async ({ locale, lineEnding }) => {
+    const original = await readFile(
       resolve(
         import.meta.dir,
         '../../../../../docs',
@@ -19,9 +23,13 @@ test.each(['en', 'de', 'fr'])(
       ),
       'utf8',
     );
-    const fragments = [...text.matchAll(/```json\n([\s\S]*?)\n```/gu)].map(
-      (match) => JSON.parse(match[1]!) as unknown,
+    const text = original.replace(
+      /\r?\n/g,
+      lineEnding === 'CRLF' ? '\r\n' : '\n',
     );
+    const fragments = [
+      ...text.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/gu),
+    ].map((match) => JSON.parse(match[1]!) as unknown);
     const declaration = fragments.find(
       (value) =>
         z.object({ nodes: z.array(z.unknown()) }).safeParse(value).success,

@@ -238,50 +238,58 @@ async function createFixture() {
   };
 }
 
-test('native public signup remains unverified; explicit attestation preserves hooks and sessions and replays without a write', async () =>
-  fixture(async (f) => {
-    expect(f.user.emailVerified).toBe(false);
-    let queried = false;
-    await expect(
-      oidcOrganizationClaims(
-        (async () => {
-          queried = true;
-          return [];
-        }) as never,
-        { id: String(f.user.id), emailVerified: false },
-        'org',
-      ),
-    ).rejects.toThrow('IDENTITY_NOT_ELIGIBLE');
-    expect(queried).toBe(false);
-    const result = await f.run();
-    expect(result).toMatchObject({
-      method: 'operator-attested',
-      userId: f.user.id,
-      email,
-      emailVerified: true,
-    });
-    expect(f.user.emailVerified).toBe(true);
-    expect(f.database.session.length).toBe(f.sessionCount);
-    expect(f.counts()).toEqual({ before: 1, after: 1, writes: 1, closed: 2 });
-    expect(f.calls[0]).toMatchObject({
-      model: 'user',
-      update: { emailVerified: true },
-      where: [
-        { field: 'email', value: email },
-        { field: 'id', value: f.user.id, connector: 'AND' },
-        { field: 'emailVerified', value: false, connector: 'AND' },
-      ],
-    });
-    const saved = readFileSync(result.receipt.path);
-    expect(JSON.stringify(result)).not.toContain(password);
-    expect(saved.toString()).not.toContain(secret);
-    expect(saved.toString()).not.toContain('token');
-    expect((await f.run()).receipt).toEqual(result.receipt);
-    expect(readFileSync(result.receipt.path)).toEqual(saved);
-    expect(f.counts().writes).toBe(1);
-  }));
+// The native attestation intent is fsynced under POSIX ownership/permissions.
+// The public managed command refuses Windows. Pre-intent policy stays portable;
+// later failures must not pass merely because the directory fsync failed first.
+const testPosix = test.skipIf(process.platform === 'win32');
 
-test.each(['expired', 'signature'])(
+testPosix(
+  'native public signup remains unverified; explicit attestation preserves hooks and sessions and replays without a write',
+  async () =>
+    fixture(async (f) => {
+      expect(f.user.emailVerified).toBe(false);
+      let queried = false;
+      await expect(
+        oidcOrganizationClaims(
+          (async () => {
+            queried = true;
+            return [];
+          }) as never,
+          { id: String(f.user.id), emailVerified: false },
+          'org',
+        ),
+      ).rejects.toThrow('IDENTITY_NOT_ELIGIBLE');
+      expect(queried).toBe(false);
+      const result = await f.run();
+      expect(result).toMatchObject({
+        method: 'operator-attested',
+        userId: f.user.id,
+        email,
+        emailVerified: true,
+      });
+      expect(f.user.emailVerified).toBe(true);
+      expect(f.database.session.length).toBe(f.sessionCount);
+      expect(f.counts()).toEqual({ before: 1, after: 1, writes: 1, closed: 2 });
+      expect(f.calls[0]).toMatchObject({
+        model: 'user',
+        update: { emailVerified: true },
+        where: [
+          { field: 'email', value: email },
+          { field: 'id', value: f.user.id, connector: 'AND' },
+          { field: 'emailVerified', value: false, connector: 'AND' },
+        ],
+      });
+      const saved = readFileSync(result.receipt.path);
+      expect(JSON.stringify(result)).not.toContain(password);
+      expect(saved.toString()).not.toContain(secret);
+      expect(saved.toString()).not.toContain('token');
+      expect((await f.run()).receipt).toEqual(result.receipt);
+      expect(readFileSync(result.receipt.path)).toEqual(saved);
+      expect(f.counts().writes).toBe(1);
+    }),
+);
+
+testPosix.each(['expired', 'signature'])(
   'native %s token is refused without verification or token disclosure',
   async (mode) =>
     fixture(async (f) => {
@@ -295,22 +303,25 @@ test.each(['expired', 'signature'])(
     }),
 );
 
-test('accepted response loss reconciles only the retained authenticated account with no second native write', async () =>
-  fixture(async (f) => {
-    f.setLoseResponse();
-    await expect(f.run()).rejects.toThrow('attestation failed');
-    expect(f.user.emailVerified).toBe(true);
-    expect(
-      JSON.parse(
-        readFileSync(join(f.root, 'private/email-attestation.json'), 'utf8'),
-      ).phase,
-    ).toBe('pending');
-    await f.run();
-    expect(f.counts().writes).toBe(1);
-    f.user.emailVerified = false;
-    await expect(f.run()).rejects.toThrow('attestation failed');
-    expect(f.counts().writes).toBe(1);
-  }));
+testPosix(
+  'accepted response loss reconciles only the retained authenticated account with no second native write',
+  async () =>
+    fixture(async (f) => {
+      f.setLoseResponse();
+      await expect(f.run()).rejects.toThrow('attestation failed');
+      expect(f.user.emailVerified).toBe(true);
+      expect(
+        JSON.parse(
+          readFileSync(join(f.root, 'private/email-attestation.json'), 'utf8'),
+        ).phase,
+      ).toBe('pending');
+      await f.run();
+      expect(f.counts().writes).toBe(1);
+      f.user.emailVerified = false;
+      await expect(f.run()).rejects.toThrow('attestation failed');
+      expect(f.counts().writes).toBe(1);
+    }),
+);
 
 test('wrong account, email, session and unsafe native options refuse before an intent or write', async () =>
   fixture(async (f) => {
@@ -332,39 +343,48 @@ test('wrong account, email, session and unsafe native options refuse before an i
     expect(f.counts().writes).toBe(0);
   }));
 
-test('concurrent email reassignment cannot verify a different ID and keeps native failure hooks intact', async () =>
-  fixture(async (f) => {
-    f.setChangeAtWrite(() => {
-      f.user.email = 'renamed@example.org';
-      f.database.user.push({
-        ...f.user,
-        id: 'different-user',
-        email,
-        emailVerified: false,
+testPosix(
+  'concurrent email reassignment cannot verify a different ID and keeps native failure hooks intact',
+  async () =>
+    fixture(async (f) => {
+      f.setChangeAtWrite(() => {
+        f.user.email = 'renamed@example.org';
+        f.database.user.push({
+          ...f.user,
+          id: 'different-user',
+          email,
+          emailVerified: false,
+        });
       });
-    });
-    await expect(f.run()).rejects.toThrow('attestation failed');
-    expect(f.database.user.every((user) => user.emailVerified === false)).toBe(
-      true,
-    );
-    expect(f.counts().writes).toBe(0);
-  }));
+      await expect(f.run()).rejects.toThrow('attestation failed');
+      expect(
+        f.database.user.every((user) => user.emailVerified === false),
+      ).toBe(true);
+      expect(f.counts().writes).toBe(0);
+    }),
+);
 
-test('unavailable native adapter scope refuses before verifyEmail can make an unguarded write', async () =>
-  fixture(async (f) => {
-    f.disableScope();
-    await expect(f.run()).rejects.toThrow('attestation failed');
-    expect(f.counts().writes).toBe(0);
-    expect(f.user.emailVerified).toBe(false);
-  }));
+testPosix(
+  'unavailable native adapter scope refuses before verifyEmail can make an unguarded write',
+  async () =>
+    fixture(async (f) => {
+      f.disableScope();
+      await expect(f.run()).rejects.toThrow('attestation failed');
+      expect(f.counts().writes).toBe(0);
+      expect(f.user.emailVerified).toBe(false);
+    }),
+);
 
-test('retained intent mutation cannot turn a successful native write into a trusted receipt', async () =>
-  fixture(async (f) => {
-    f.setChangeAtWrite(() => {
-      const file = join(f.root, 'private/email-attestation.json');
-      const intent = JSON.parse(readFileSync(file, 'utf8'));
-      writeFileSync(file, JSON.stringify({ ...intent, phase: 'ready' }));
-    });
-    await expect(f.run()).rejects.toThrow('attestation failed');
-    expect(f.counts().writes).toBe(1);
-  }));
+testPosix(
+  'retained intent mutation cannot turn a successful native write into a trusted receipt',
+  async () =>
+    fixture(async (f) => {
+      f.setChangeAtWrite(() => {
+        const file = join(f.root, 'private/email-attestation.json');
+        const intent = JSON.parse(readFileSync(file, 'utf8'));
+        writeFileSync(file, JSON.stringify({ ...intent, phase: 'ready' }));
+      });
+      await expect(f.run()).rejects.toThrow('attestation failed');
+      expect(f.counts().writes).toBe(1);
+    }),
+);

@@ -271,7 +271,10 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         h = Harness(requestTimeoutSeconds=0.025)
         a = h.request(hold=True)
         await h.wait.wait()
-        await asyncio.sleep(0.04)
+        # Observe the actual timeout response. Windows' coarser timer resolution
+        # can resume a nearby fixed sleep before the timeout continuation runs.
+        await asyncio.wait_for(a[3].wait(), timeout=1)
+        self.assertEqual(a[2][0]["status"], 503)
         self.assertTrue(h.gate.held)
         self.assertEqual(h.active, 1)
         b = h.request("vision")
