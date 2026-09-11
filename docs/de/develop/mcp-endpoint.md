@@ -45,25 +45,25 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
 }
 ```
 
-`tools/list` liefert das volle Inventar; `GET` auf den Endpoint antwortet **405** — es gibt keinen Event-Stream zum Abonnieren. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
+`tools/list` liefert das volle Inventar; jedes Verb außer `POST` antwortet **405** mit einer `Allow: POST`-Kopfzeile — es gibt keinen Event-Stream zum Abonnieren und keine Session zum Löschen. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
 
 ## Die Tools
 
-Zweiundzwanzig Tools, in drei Gruppen. Die vier Tools, die ein ganzes Automatisierungsdokument nehmen — validate, run, test, save — validieren es selbst: Ihre Schemas sind auf dem Draht offen, und `get_docs` ist die Referenz, die ein Modell zuerst liest. Jedes andere Tool nimmt einfache Argumente und deklariert ein echtes JSON-Schema, und der Endpoint hält jeden Aufruf daran fest — Argumente, die nicht passen, ergeben den JSON-RPC-Fehler `-32602` mit dem Feldnamen, nie ein stillschweigend leeres Ergebnis.
+Zweiundzwanzig Tools, in drei Gruppen, jedes mit einem echten JSON-Schema, an dem der Endpoint jeden Aufruf festhält — Argumente, die nicht passen, ergeben den JSON-RPC-Fehler `-32602` mit dem Feldnamen, nie ein stillschweigend leeres Ergebnis. Die vier Tools, die ein ganzes Automatisierungsdokument nehmen — validate, run, test, save — deklarieren ihren Aufruf-Umschlag (`automation`, dazu `input`, `mode` oder `message`, wo sie gelten) und lassen das Dokument selbst offen: Seine Grammatik lehrt `get_docs`, und die Engine validiert es im Band.
 
 ### Autorieren
 
 | Tool                  | Was es tut                                                               |
 | --------------------- | ------------------------------------------------------------------------ |
-| `get_docs`            | Die Automatisierungsgrammatik und der Autoring-Leitfaden, als Text.      |
-| `get_catalog`         | Jeder Knotentyp, den dieses Deployment ausführen kann.                   |
+| `get_docs`            | Die Autoring-Referenz für Automatisierungen — Grammatik, Knotenarten, Capability-Knoten und die Methodentabelle im `tools/call`-Dialekt dieses Endpoints — als Text. |
+| `get_catalog`         | Jeder Knotentyp, den dieses Deployment ausführen kann; `kind` engt auf eine Knotenart ein, `compact: true` lässt die Eingabeschemas weg. |
 | `search_catalog`      | Den Knotentyp-Katalog per Stichwort durchsuchen.                         |
 | `validate_automation` | Ein Automatisierungsdokument validieren, ohne es zu speichern.           |
 | `run_automation`      | Ein Automatisierungsdokument direkt gegen die deterministischen Mocks ausführen. |
 | `test_automation`     | Die eigenen Abnahmetests einer Automatisierung ausführen.                |
 | `save_automation`     | Ein Automatisierungsdokument als neue unveränderliche Version speichern. |
 | `get_automation`      | Eine gespeicherte Version lesen (ohne Angabe die neueste).               |
-| `list_automations`    | Die Automatisierungen der Organisation mit ihren neuesten Versionen.     |
+| `list_automations`    | Die Automatisierungen der Organisation mit ihrer neuesten und ihrer deployten Version und den Projekten, in denen jede installiert ist (`projectIds`). |
 | `deploy_automation`   | Eine gespeicherte Version zur Live-Version befördern.                    |
 
 ### Lauf- & Trigger-Verwaltung
@@ -72,8 +72,8 @@ Zweiundzwanzig Tools, in drei Gruppen. Die vier Tools, die ein ganzes Automatisi
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `run_deployed`   | Die deployte Version live ausführen und auf das fertige Ergebnis WARTEN — Output, Trace und Effekte in einer Antwort; ein Lauf, der länger braucht, antwortet mit seiner `runId` zum Pollen. |
 | `start_run`      | Die deployte Version im Hintergrund starten und sofort einen Lauf-Handle zurückgeben; das Ergebnis über get_run pollen. |
-| `list_runs`      | Die letzten Läufe, neueste zuerst — einer Automatisierung oder der ganzen Organisation.                                 |
-| `get_run`        | Ein Lauf in voller Tiefe: Status, Output, Trace und Effekte.                                                            |
+| `list_runs`      | Die letzten Läufe, die der Schlüssel lesen darf, neueste zuerst — einer Automatisierung oder über die Projekte der Organisation hinweg; jeder nennt seine `projectId`. |
+| `get_run`        | Ein Lauf in voller Tiefe: Status, Output, Trace, Effekte und `projectId` — die ID eines Projektlaufs ist die, die `GET /api/v1/projects/{id}/runs/{runId}` nimmt. |
 | `cancel_run`     | Einen Lauf an seiner nächsten Knotengrenze stoppen.                                                                     |
 | `list_versions`  | Die unveränderliche Versionshistorie einer Automatisierung.                                                             |
 | `list_triggers`  | Was die Automatisierungen startet (nie das Webhook-Geheimnis).                                                          |
@@ -82,7 +82,7 @@ Zweiundzwanzig Tools, in drei Gruppen. Die vier Tools, die ein ganzes Automatisi
 
 Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mit der Antwort darin willst — es wartet bis zu 30 Sekunden auf den Lauf und gibt dir danach die `runId` statt eines halbfertigen Ergebnisses. Nimm `start_run`, wenn der Lauf Minuten dauern darf — er gibt sofort eine `runId` zurück, und `get_run` pollt sie. Beide laufen live auf demselben dauerhaften Runner, autorisieren, führen aus und protokollieren den Lauf also identisch. `run_automation` ist das Tool der Authoring-Schleife: Es führt ein ungespeichertes Dokument gegen die deterministischen Mocks aus, und `mode: "live"` antwortet mit einer Ablehnung, die auf `run_deployed` zeigt — ein ungespeichertes Dokument hat keinen Live-Pfad.
 
-`start_run` nimmt außerdem eine optionale `projectId` — das Projekt, in dem der Lauf arbeitet, sodass seine Aufgaben- und Dokument-Tools dort wirken. Lass sie weg für einen organisationsweiten Lauf oder, wenn die Automatisierung an ein einzelnes Projekt gebunden ist, für dieses. Eine gebundene Automatisierung akzeptiert nur ein Projekt, an das sie gebunden ist.
+`start_run` nimmt außerdem eine optionale `projectId` — das Projekt, in dem der Lauf arbeitet, sodass seine Aufgaben- und Dokument-Tools dort wirken. Lass sie weg für einen organisationsweiten Lauf oder, wenn die Automatisierung an ein einzelnes Projekt gebunden ist, für dieses. Eine gebundene Automatisierung akzeptiert nur ein Projekt, an das sie gebunden ist. Der zurückgegebene Handle nennt die `projectId`, die der Lauf bekommen hat, und `list_automations` zeigt die `projectIds` jeder Automatisierung — ein Client muss also nie raten, welche Projekt-URL den Lauf auf der REST-Seite zurückliest.
 
 ### Capabilities & Wissen
 
@@ -101,7 +101,7 @@ Der Schlüssel beweist, wer anruft; die Rolle seines Besitzers entscheidet, was 
 - **Jeder Mitglieds-Schlüssel** — jedes Lese-Tool, `run_automation` (immer gegen die Mocks), `search_capabilities`, `get_knowledge`.
 - **Entwickler-Fähigkeit nötig** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run` und Live-Ausführung (`run_deployed`, `start_run`).
 
-Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "hint": "..."}` — damit das aufrufende Modell sich anpassen kann, statt abzustürzen, und das Ergebnis trägt `isError: true`, damit ein generischer Client den Fehlschlag erkennt, ohne den Text zu lesen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments, Rollenablehnungen und eine Wissensdatenbank, die sich nicht durchsuchen ließ, kommen als Daten mit gesetztem Flag zurück — genau wie ein Aufruf, der wirklich geworfen hat. Eine Capability, die `pending` antwortet — eine Erinnerung, die auf die Freigabe eines Menschen wartet —, ist ein Ergebnis, kein Fehlschlag, und lässt `isError` auf false; eine `refused` Capability (unbekannte ID, Argumente, die ihr Schema ablehnt, kein Deployment) ist ein Fehlschlag und trägt das Flag.
+Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "code": "...", "hint": "..."}`, wobei `code` der stabile Wert zum Verzweigen ist (`AUTOMATION_NOT_FOUND`, …) und `hint` sagt, was zu tun ist — damit das aufrufende Modell sich anpassen kann, statt abzustürzen, und das Ergebnis trägt `isError: true`, damit ein generischer Client den Fehlschlag erkennt, ohne den Text zu lesen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments, Rollenablehnungen und eine Wissensdatenbank, die sich nicht durchsuchen ließ, kommen als Daten mit gesetztem Flag zurück — genau wie ein Aufruf, der wirklich geworfen hat. Eine Capability, die `pending` antwortet — eine Erinnerung, die auf die Freigabe eines Menschen wartet —, ist ein Ergebnis, kein Fehlschlag, und lässt `isError` auf false; eine `refused` Capability (unbekannte ID, Argumente, die ihr Schema ablehnt, kein Deployment) ist ein Fehlschlag und trägt das Flag.
 
 ## Wo das hingehört
 

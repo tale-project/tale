@@ -96,6 +96,14 @@ export interface KnowledgeSource {
   /** The conversation an emailed attachment arrived on. Present only for those;
    * the re-check uses it to decide the hit by assignment. */
   readonly conversationId?: string | null;
+  /**
+   * The document record that currently exposes `ref`, for a documents-corpus
+   * hit the org's search resolved — the id `GET /api/v1/documents/{id}`
+   * takes, where `ref` is the blob reference the corpus is keyed by. Absent
+   * for web pages and for a ref no active document holds in the hit's own
+   * project scope (a thread upload, an emailed attachment).
+   */
+  readonly documentId?: string;
 }
 
 /** A hit after fusion, carrying the rank-based score it was ordered by. */

@@ -1,10 +1,16 @@
 // @vitest-environment node
 
 /**
- * A knowledge entry is deleted once. The regression under test: the delete
- * looked the row up without its `deleted_at_ms IS NULL` guard, so a second
- * DELETE found the soft-deleted row, re-ran an UPDATE that matched nothing,
- * and answered 204 where the API reference promises 404.
+ * What a delete removes depends on the row it names. The regression under
+ * test: the delete soft-deleted every row sharing the addressed row's
+ * TOPIC KEY and trashed the document whichever row was named — so a
+ * retention job pruning a superseded version off the REST door's
+ * `?status=superseded` listing destroyed the live fact and its Knowledge
+ * Hub document, answering 204. Now a superseded row is pruned alone, the
+ * active row retires the chain keyed by its DOCUMENT (a topic rename
+ * leaves older rows' keys behind and frees the key for a stranger), and a
+ * second delete of the same row answers 404, not a 204 that re-stamps
+ * nothing.
  */
 
 import type { Sql } from 'postgres';
@@ -22,7 +28,7 @@ function fakeSql(lookup: unknown[]): { sql: Sql; statements: Statement[] } {
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
-    if (text.startsWith('SELECT topic_key')) return Promise.resolve(lookup);
+    if (text.startsWith('SELECT status')) return Promise.resolve(lookup);
     return Promise.resolve([]);
   };
   const sql = {
@@ -33,6 +39,9 @@ function fakeSql(lookup: unknown[]): { sql: Sql; statements: Statement[] } {
 }
 
 const args = { organizationId: 'org-1', entryId: 'k-1', role: 'admin' };
+
+const updates = (statements: Statement[]) =>
+  statements.filter((s) => s.text.startsWith('UPDATE'));
 
 describe('deleteKnowledgeEntry', () => {
   it('looks only at live rows, and answers 404 for one already deleted', async () => {
@@ -49,18 +58,49 @@ describe('deleteKnowledgeEntry', () => {
       status: 404,
     });
     expect(fake.statements[0]?.text).toContain('deleted_at_ms IS NULL');
-    expect(fake.statements.some((s) => s.text.startsWith('UPDATE'))).toBe(
-      false,
-    );
+    expect(updates(fake.statements)).toEqual([]);
   });
 
-  it('soft-deletes the live chain', async () => {
-    const fake = fakeSql([{ topicKey: 'refunds', documentId: null }]);
+  it('prunes a superseded row alone — the active fact and its document stay', async () => {
+    const fake = fakeSql([
+      { status: 'superseded', topicKey: 'refunds', documentId: 'doc-1' },
+    ]);
     await deleteKnowledgeEntry(fake.sql, args);
-    expect(
-      fake.statements.some((s) =>
-        s.text.startsWith('UPDATE app.knowledge_entries'),
-      ),
-    ).toBe(true);
+    const writes = updates(fake.statements);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.text).toMatch(
+      /^UPDATE app\.knowledge_entries SET deleted_at_ms = \? WHERE id = \?/,
+    );
+    expect(writes[0]?.values).toContain('k-1');
+    expect(writes[0]?.text).not.toContain('document_id');
+    expect(writes[0]?.text).not.toContain('topic_key');
+  });
+
+  it('retires the whole chain by DOCUMENT and trashes it when the active row goes', async () => {
+    const fake = fakeSql([
+      { status: 'active', topicKey: 'refunds', documentId: 'doc-1' },
+    ]);
+    await deleteKnowledgeEntry(fake.sql, args);
+    const writes = updates(fake.statements);
+    expect(writes).toHaveLength(2);
+    expect(writes[0]?.text).toContain('UPDATE app.knowledge_entries');
+    expect(writes[0]?.text).toContain('document_id = ?');
+    expect(writes[0]?.text).not.toContain('topic_key');
+    expect(writes[0]?.values).toContain('doc-1');
+    expect(writes[1]?.text).toContain('UPDATE app.documents');
+    expect(writes[1]?.text).toContain("lifecycle_status = 'trashed'");
+    expect(writes[1]?.values).toContain('doc-1');
+  });
+
+  it('falls back to the topic key only for a legacy chain without a document', async () => {
+    const fake = fakeSql([
+      { status: 'active', topicKey: 'refunds', documentId: null },
+    ]);
+    await deleteKnowledgeEntry(fake.sql, args);
+    const writes = updates(fake.statements);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.text).toContain('topic_key = ?');
+    expect(writes[0]?.text).toContain('document_id IS NULL');
+    expect(writes[0]?.values).toContain('refunds');
   });
 });

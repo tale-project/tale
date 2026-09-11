@@ -189,7 +189,7 @@ describe('updateConversation (the PATCH door)', () => {
     await expect(
       updateConversation(tx, ORG, 'c1', { contactId: 'ct_foreign' }, actor),
     ).rejects.toMatchObject({
-      code: 'contact_not_found',
+      code: 'CONTACT_NOT_FOUND',
       status: 404,
     } satisfies Partial<ConversationError>);
     const lookup = statements.find((s) =>

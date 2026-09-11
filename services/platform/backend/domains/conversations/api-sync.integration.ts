@@ -224,10 +224,6 @@ export async function checkConversationApi(
       },
     ],
   });
-  assert.equal(
-    (await machine('/conversations/sync', payload, false)).status,
-    400,
-  );
   const created = await Promise.all([
     machine('/conversations/sync', payload),
     machine('/conversations/sync', payload),
@@ -240,6 +236,14 @@ export async function checkConversationApi(
   );
   assert.equal(new Set(results.map((value) => value.conversationId)).size, 1);
   assert.equal(results.filter((value) => value.applied).length, 1);
+  // The tenant rule the projects and tasks families share: a key whose
+  // holder belongs to ONE organization may omit `X-Organization-Slug`; a
+  // multi-organization key must name it (400 ORG_SLUG_REQUIRED). This
+  // user has one membership, so the bare replay is accepted.
+  assert.equal(
+    (await machine('/conversations/sync', payload, false)).status,
+    200,
+  );
   const firstResult = results[0];
   assert.ok(firstResult);
   const conversationId = firstResult.conversationId;

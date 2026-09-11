@@ -2,13 +2,23 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.2.0",
+    "version": "1.3.0",
+    "contact": {
+      "name": "Tale",
+      "url": "https://tale.dev"
+    },
     "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API):\n\n```\nAuthorization: Bearer tale_...\n```\n\nInbound automation webhooks authenticate with their URL token.\n\nIf you belong to several organizations, send `X-Organization-Slug` to\nselect one explicitly. Project reads require this header too.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<message>\"}` (domain\nrefusals add a stable `code`).\n\n## Pagination\n\nThe keyset-paginated lists — contacts, products, documents, knowledge\nentries, threads, messages, websites — take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`\nuntil `isDone`. Lists that answer a named array (`{automations}`,\n`{runs}`, `{agents}`, `{skills}`, `{folders}`, `{comments}`) are complete\nsets or bounded windows, except comments, which include isDone and\ncontinueCursor for older pages. Project files answer `{files, cursor?}`.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget. A 429 carries `Retry-After` in whole seconds.\n\n## Quick start\n\n```bash\n# 1. List automations installed in an existing project\ncurl -H \"Authorization: Bearer tale_...\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start a deployed automation in that project\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/billing__dunning/runs\"\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer tale_...\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
-      "url": "",
-      "description": "Same origin"
+      "url": "{origin}",
+      "description": "The deployment this document describes — `GET /openapi.json` on a running instance fills it in",
+      "variables": {
+        "origin": {
+          "default": "https://your-host.example.com",
+          "description": "Scheme and host of the Tale deployment"
+        }
+      }
     }
   ],
   "security": [
@@ -17,6 +27,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Organization",
+      "description": "The key holder and the organizations it may act in — where a multi-organization client learns the slug to send."
+    },
     {
       "name": "Documents",
       "description": "Documents in the knowledge base."
@@ -75,6 +89,72 @@
     }
   ],
   "paths": {
+    "/api/v1/me": {
+      "get": {
+        "tags": ["Organization"],
+        "summary": "Who this key acts as",
+        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — and every organization the holder belongs to.",
+        "operationId": "getMe",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller and its organizations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/conversations/sync": {
       "get": {
         "tags": ["Conversations"],
@@ -87,11 +167,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           },
           {
             "name": "source",
@@ -186,7 +266,17 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The contact `externalContactId` names does not exist (`CONTACT_NOT_FOUND`), or the delivery or attachment is absent (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -196,7 +286,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -206,7 +296,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -238,11 +328,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           }
         ],
         "operationId": "synchronizeConversationSource",
@@ -469,7 +559,17 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The contact `externalContactId` names does not exist (`CONTACT_NOT_FOUND`), or the delivery or attachment is absent (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -479,7 +579,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -489,7 +589,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -523,11 +623,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           }
         ],
         "operationId": "claimConversationDeliveries",
@@ -661,7 +761,17 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The contact `externalContactId` names does not exist (`CONTACT_NOT_FOUND`), or the delivery or attachment is absent (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -671,7 +781,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -681,7 +791,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -715,11 +825,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           },
           {
             "name": "id",
@@ -808,7 +918,7 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -818,7 +928,7 @@
             }
           },
           "404": {
-            "description": "No delivery owned by this user",
+            "description": "No delivery owned by this user (`DELIVERY_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -828,7 +938,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -838,7 +948,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -872,11 +982,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           },
           {
             "name": "id",
@@ -952,7 +1062,7 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -962,7 +1072,7 @@
             }
           },
           "404": {
-            "description": "No claimed delivery owned by this user",
+            "description": "No claimed delivery owned by this user (`DELIVERY_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -972,7 +1082,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -982,7 +1092,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1016,11 +1126,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           },
           {
             "name": "id",
@@ -1078,7 +1188,7 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1088,7 +1198,7 @@
             }
           },
           "404": {
-            "description": "No owned, claimed attachment",
+            "description": "No owned, claimed attachment (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1098,7 +1208,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1108,7 +1218,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1142,11 +1252,11 @@
           {
             "name": "X-Organization-Slug",
             "in": "header",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Required on every conversation API request, including single-organization keys."
+            "description": "The organization to operate on. STRICTLY REQUIRED on every conversation call, reads included, when the key holder belongs to more than one organization (400 `ORG_SLUG_REQUIRED` without it); a single-organization key may omit it. `GET /api/v1/me` answers the slug to send."
           }
         ],
         "operationId": "uploadConversationSourceAttachment",
@@ -1201,7 +1311,17 @@
             }
           },
           "403": {
-            "description": "Read-only role or another service user owns this binding",
+            "description": "A read-only role (`ROLE_FORBIDDEN`), an integration another service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an unverified author (`AUTHOR_UNVERIFIED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The contact `externalContactId` names does not exist (`CONTACT_NOT_FOUND`), or the delivery or attachment is absent (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1211,7 +1331,7 @@
             }
           },
           "409": {
-            "description": "Conflicting identity, revision, or receipt",
+            "description": "Conflicting identity, revision, or receipt: `CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, `CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, `DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, `CONVERSATION_CLOSED`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1221,7 +1341,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds its byte limit",
+            "description": "Request body exceeds its byte limit (`BODY_TOO_LARGE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1256,6 +1376,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -1269,7 +1398,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
@@ -1438,7 +1570,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/documents/{id}": {
@@ -1453,6 +1596,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -1527,6 +1679,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -1625,6 +1786,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -1679,7 +1849,7 @@
             }
           },
           "409": {
-            "description": "A protected record (`DOCUMENT_RECORD_PROTECTED`) or a legal hold",
+            "description": "A protected record (`DOCUMENT_RECORD_PROTECTED`) or a legal hold (`LEGAL_HOLD_ACTIVE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1690,6 +1860,16 @@
           },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The purge could not remove every dead surface (`PURGE_INCOMPLETE`): the row was kept so the delete can be retried",
             "content": {
               "application/json": {
                 "schema": {
@@ -1713,6 +1893,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -1811,6 +2000,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -1824,7 +2022,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 25
             },
             "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
@@ -1927,6 +2128,22 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "With `urls`, the domain was already registered as a list: its URLs were extended and this is the EXISTING website’s id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "201": {
             "description": "Created — the website’s id",
             "content": {
@@ -1944,7 +2161,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`), a `domain` that names no http(s) host (`WEBSITE_DOMAIN_INVALID`), a domain the crawl policy refuses — loopback, link-local, private-network or cloud metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL off the domain (`WEBSITE_INVALID_LIST_URL`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1963,6 +2180,16 @@
               }
             }
           },
+          "409": {
+            "description": "The domain is already registered as a whole-site crawl (`WEBSITE_DUPLICATE_DOMAIN`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
@@ -1973,7 +2200,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/websites/{id}": {
@@ -1987,6 +2225,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2029,7 +2276,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2060,6 +2307,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2105,7 +2361,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2137,6 +2393,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2172,7 +2437,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2206,6 +2471,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2266,7 +2540,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2300,6 +2574,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2349,7 +2632,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2384,6 +2667,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -2400,9 +2692,12 @@
               "schema": {
                 "type": "object",
                 "required": ["query"],
+                "additionalProperties": false,
                 "properties": {
                   "query": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
                   },
                   "limit": {
                     "type": "integer",
@@ -2445,7 +2740,7 @@
             }
           },
           "404": {
-            "description": "Website not found",
+            "description": "Website not found (`WEBSITE_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2528,7 +2823,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/browser-sessions/import": {
@@ -2609,7 +2915,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/products": {
@@ -2625,6 +2942,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -2638,7 +2964,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 25
             },
             "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
@@ -2782,7 +3111,7 @@
             }
           },
           "409": {
-            "description": "Duplicate external id",
+            "description": "Duplicate name (`DUPLICATE_PRODUCT_NAME`) or external id (`DUPLICATE_EXTERNAL_ID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2801,7 +3130,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/products/{id}": {
@@ -2815,6 +3155,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -2889,6 +3238,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -2903,7 +3261,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductInput"
+                "$ref": "#/components/schemas/ProductPatch"
               }
             }
           }
@@ -2940,7 +3298,7 @@
             }
           },
           "404": {
-            "description": "Product not found",
+            "description": "Product not found (`PRODUCT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2950,7 +3308,7 @@
             }
           },
           "409": {
-            "description": "Duplicate external id",
+            "description": "Duplicate name (`DUPLICATE_PRODUCT_NAME`) or external id (`DUPLICATE_EXTERNAL_ID`), or a stale `expectedUpdatedAt` (`PRODUCT_STALE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2981,6 +3339,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -3051,6 +3418,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -3064,7 +3440,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 25
             },
             "description": "Page size, 1..200 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
@@ -3195,7 +3574,7 @@
             }
           },
           "409": {
-            "description": "Duplicate email or external id",
+            "description": "Duplicate email (`CONTACT_DUPLICATE_EMAIL`) or external id (`CONTACT_DUPLICATE_EXTERNAL_ID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3214,14 +3593,25 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/contacts/bulk": {
       "post": {
         "tags": ["Contacts"],
         "summary": "Create contacts in bulk",
-        "description": "Up to 500 contacts per call, each needing an `email`. Rows are created independently: the result counts successes and failures and names each failed row with its reason.",
+        "description": "Up to 500 contacts per call, each carrying at least one of name, email or externalId (a blank email reads as none); the per-row duplicate check keys on email and externalId. Rows are created independently: the result counts successes and failures and names each failed row with its reason.",
         "operationId": "bulkCreateContacts",
         "security": [
           {
@@ -3289,7 +3679,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/contacts/{id}": {
@@ -3303,6 +3704,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -3378,6 +3788,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
@@ -3392,21 +3811,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ContactInput"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "expectedUpdatedAt": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    }
-                  }
-                ]
+                "$ref": "#/components/schemas/ContactPatch"
               }
             }
           }
@@ -3443,7 +3848,7 @@
             }
           },
           "404": {
-            "description": "Contact not found",
+            "description": "Contact not found (`CONTACT_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3453,7 +3858,7 @@
             }
           },
           "409": {
-            "description": "Duplicate email/external id or stale expectedUpdatedAt",
+            "description": "Duplicate email (`CONTACT_DUPLICATE_EMAIL`) or external id (`CONTACT_DUPLICATE_EXTERNAL_ID`), or a stale `expectedUpdatedAt` (`CONTACT_STALE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3484,6 +3889,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -3627,7 +4041,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Create a project",
-        "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a name no key can be derived from creates the project keyless. A key collision answers 409; choose an explicit unused key.",
+        "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a derived key that is already taken gets a numeric suffix, and a name no key can be derived from creates the project keyless — a name-only create never fails on a key the caller did not choose. Only an EXPLICIT `key` that is taken answers 409.",
         "operationId": "createProject",
         "security": [
           {
@@ -3665,7 +4079,7 @@
                   },
                   "key": {
                     "type": "string",
-                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name, keyless when underivable. Letters and digits only; normalized to uppercase, never truncated. A collision is a 409.",
+                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name (suffixed when taken), keyless when underivable. Letters and digits only; normalized to uppercase, never truncated. An explicit key that is taken is a 409.",
                     "maxLength": 6
                   },
                   "description": {
@@ -3715,7 +4129,7 @@
             }
           },
           "403": {
-            "description": "The key holder is not an org editor",
+            "description": "The key holder is not an org editor (`ROLE_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3725,7 +4139,7 @@
             }
           },
           "409": {
-            "description": "Duplicate externalItemId or project key",
+            "description": "Duplicate externalItemId (`PROJECT_DUPLICATE_EXTERNAL_ID`) or an explicit project key that is taken (`PROJECT_KEY_TAKEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3890,7 +4304,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3999,7 +4413,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4108,7 +4522,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4226,7 +4640,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4320,7 +4734,7 @@
             "description": "Deleted"
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4597,7 +5011,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Mint an upload handoff",
-        "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
+        "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. The signed URL is valid for exactly as long as the intent — `expiresAt` is the one deadline for both. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
         "security": [
           {
@@ -4634,7 +5048,9 @@
                 "properties": {
                   "fileName": {
                     "type": "string",
-                    "maxLength": 1024
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "Optional. Checked against the bind’s own rule (a file name — no path separators, no `..`, no control characters) so a bad name fails here, before the bytes are uploaded; the bind’s `fileName` is what is stored."
                   },
                   "contentType": {
                     "type": "string",
@@ -4849,7 +5265,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
@@ -4861,7 +5280,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["files"],
+                  "required": ["files", "isDone"],
                   "properties": {
                     "files": {
                       "type": "array",
@@ -4869,9 +5288,13 @@
                         "$ref": "#/components/schemas/ProjectFile"
                       }
                     },
+                    "isDone": {
+                      "type": "boolean",
+                      "description": "True when no more pages remain"
+                    },
                     "cursor": {
                       "type": "string",
-                      "description": "Present while more pages remain"
+                      "description": "Present while more pages remain — pass back as `cursor`"
                     }
                   }
                 }
@@ -4923,7 +5346,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
-        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, MIME or extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE`, and the organization’s `file:upload` budget answers 429. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
+        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s extension; a declared `contentType` is a hint resolved against it), and the organization’s `file:upload` budget answers 429. `fileName` must be a file name — no path separators, no `..`, no control characters. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
         "security": [
           {
@@ -5065,7 +5488,7 @@
             }
           },
           "409": {
-            "description": "The upload intent is unknown, expired, already consumed, or does not match `fileId`",
+            "description": "The upload intent is unknown, expired or already consumed — mint a new handoff (`UPLOAD_INTENT_INVALID`) — or `fileId` is not the `s3Ref` it was minted for (`UPLOAD_FILE_MISMATCH`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5091,7 +5514,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a project task from an external ref (idempotent)",
-        "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200). An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task; imported titles are truncated to the board cap. `automationSlug` must name a deployed automation applicable to this project and fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its executionId at `GET /api/v1/projects/{id}/runs/{runId}`. An undeployed workflow or a start failure after the task committed returns executionId null. An idempotent repeat omits executionId. Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body.",
+        "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200). An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name a deployed automation applicable to this project and fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its executionId at `GET /api/v1/projects/{id}/runs/{runId}`. An undeployed workflow or a start failure after the task committed returns executionId null. An idempotent repeat omits executionId and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body.",
         "operationId": "createTask",
         "security": [
           {
@@ -5141,7 +5564,8 @@
                   "title": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 2000
+                    "maxLength": 200,
+                    "description": "The board’s title cap; a longer title is refused with 400 `INVALID_BODY`, never clipped"
                   },
                   "description": {
                     "type": "string",
@@ -5158,8 +5582,14 @@
                   },
                   "externalUrl": {
                     "type": "string",
+                    "format": "uri",
                     "maxLength": 2048,
-                    "description": "External reference stored verbatim"
+                    "description": "An absolute http(s) URL to the source item, rendered as a link; any other scheme is refused. Changes only when supplied."
+                  },
+                  "externalState": {
+                    "type": "string",
+                    "enum": ["open", "closed"],
+                    "description": "The source item’s lifecycle (default `open`). `closed` parks the task for review — done, when the caller may complete it; `open` reopens a done task. Local triage owns every other status."
                   },
                   "runWorkflowSlug": {
                     "type": "string",
@@ -5392,22 +5822,25 @@
             "description": "Task ID in this project"
           },
           {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Page size from 1 to 500; default 200"
-          },
-          {
             "name": "cursor",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "The previous page’s continueCursor; omit for the newest page"
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 200
+            },
+            "description": "Page size, 1..500 (default 200; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
         ],
         "responses": {
@@ -5785,7 +6218,7 @@
       "get": {
         "tags": ["Automations"],
         "summary": "List automations",
-        "description": "The organization’s automation definitions, by name, as a complete set. Project binding IDs are omitted. Read `/api/v1/projects/{id}/automations` for the automations installed in a visible project.",
+        "description": "The organization’s automation definitions, by name, as a complete set (not paginated). Each carries the ids of the projects it is installed in that the key holder can see — the scope a project-bound automation must be started in. Read `/api/v1/projects/{id}/automations` for the automations installed in one visible project.",
         "operationId": "listAutomations",
         "security": [
           {
@@ -5842,7 +6275,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/automations/{name}": {
@@ -5856,6 +6300,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "name",
             "in": "path",
@@ -5907,7 +6360,103 @@
             }
           },
           "404": {
-            "description": "Automation not found",
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Automations"],
+        "summary": "Delete an automation",
+        "description": "Retires the automation: every version, its trigger and its project installations. Run history is kept. Requires the developer capability. A run still in flight refuses the delete — cancel or wait for it first.",
+        "operationId": "deleteAutomation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder lacks the developer capability (`ROLE_FORBIDDEN`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is still in flight (`AUTOMATION_HAS_ACTIVE_RUNS`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5941,6 +6490,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "name",
             "in": "path",
@@ -5994,6 +6552,16 @@
               }
             }
           },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
@@ -6011,7 +6579,7 @@
       "get": {
         "tags": ["Automations"],
         "summary": "List automations installed in a project",
-        "description": "The definitions explicitly bound to the URL project. Requires project read access and omits all project binding IDs. Organization-wide definitions are available from the global catalog.",
+        "description": "The definitions explicitly bound to the URL project, each with the ids of the projects it is installed in that the key holder can see. Requires project read access. Organization-wide definitions are available from the global catalog.",
         "operationId": "listProjectAutomations",
         "security": [
           {
@@ -6102,6 +6670,101 @@
       }
     },
     "/api/v1/projects/{id}/automations/{name}": {
+      "delete": {
+        "tags": ["Automations"],
+        "summary": "Uninstall an automation from a project",
+        "description": "Removes the binding to the URL project — the inverse of the install. The definition, its other installations and its run history stay. Requires the developer capability and write access to an active project.",
+        "operationId": "unbindAutomationProject",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Uninstalled"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires developer capability and write access to an active project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Automation or visible project not found (`AUTOMATION_NOT_FOUND`, `PROJECT_NOT_FOUND`), or the automation is not installed here (`AUTOMATION_NOT_INSTALLED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": ["Automations"],
         "summary": "Install an automation in a project",
@@ -6327,6 +6990,16 @@
               }
             }
           },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
@@ -6463,7 +7136,7 @@
             }
           },
           "409": {
-            "description": "Project scope is required, no version is deployed, or the requested live version is not deployed",
+            "description": "Project scope is required (`AUTOMATION_PROJECT_SCOPE_REQUIRED` — `data.projectIds` names the visible projects the automation is installed in; start it at `/api/v1/projects/{id}/automations/{name}/runs`), no version is deployed (`AUTOMATION_NOT_DEPLOYED`), or the requested live version is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6575,7 +7248,7 @@
             }
           },
           "404": {
-            "description": "Project missing or invisible",
+            "description": "Project missing or invisible (`PROJECT_NOT_FOUND`), or automation not found (`AUTOMATION_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6729,7 +7402,7 @@
             }
           },
           "409": {
-            "description": "No deployed version, or the requested live version is not deployed",
+            "description": "No deployed version (`AUTOMATION_NOT_DEPLOYED`), or the requested live version is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6763,6 +7436,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "name",
             "in": "path",
@@ -6816,6 +7498,16 @@
               }
             }
           },
+          "404": {
+            "description": "Automation not found (`AUTOMATION_NOT_FOUND`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
@@ -6831,7 +7523,7 @@
       "put": {
         "tags": ["Automations"],
         "summary": "Bind what starts the automation",
-        "description": "Requires the developer capability. For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash.",
+        "description": "Requires the developer capability. For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash. Unknown keys are refused (`INVALID_BODY`).",
         "operationId": "setAutomationTrigger",
         "security": [
           {
@@ -6839,6 +7531,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "name",
             "in": "path",
@@ -6856,6 +7557,7 @@
               "schema": {
                 "type": "object",
                 "required": ["kind"],
+                "additionalProperties": false,
                 "properties": {
                   "kind": {
                     "type": "string",
@@ -6970,6 +7672,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "name",
             "in": "path",
@@ -7455,7 +8166,7 @@
       "get": {
         "tags": ["Threads"],
         "summary": "List available chat models",
-        "description": "The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.",
+        "description": "The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model when sending a message, and providerSlug when the same id is listed under more than one provider. Each entry carries what a client needs to choose — context window, output cap, capabilities, price when the catalog publishes one, tags — and `default: true` marks the organization’s default pick for this key holder. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.",
         "operationId": "listChatModels",
         "security": [
           {
@@ -7474,27 +8185,7 @@
                     "models": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "required": [
-                          "id",
-                          "label",
-                          "providerSlug",
-                          "providerLabel"
-                        ],
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "label": {
-                            "type": "string"
-                          },
-                          "providerSlug": {
-                            "type": "string"
-                          },
-                          "providerLabel": {
-                            "type": "string"
-                          }
-                        }
+                        "$ref": "#/components/schemas/ChatModel"
                       }
                     }
                   }
@@ -7532,7 +8223,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/threads": {
@@ -7570,7 +8272,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
@@ -7806,13 +8511,199 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": ["Threads"],
+        "summary": "Archive or restore a thread",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it.",
+        "operationId": "updateThread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["archived"],
+                "properties": {
+                  "archived": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The thread after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Threads"],
+        "summary": "Delete a thread",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running answers 409 `CHAT_TURN_IN_PROGRESS` — cancel the turn first.",
+        "operationId": "deleteThread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A turn is running on the thread (`CHAT_TURN_IN_PROGRESS`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/threads/{id}/messages": {
       "get": {
         "tags": ["Threads"],
         "summary": "Read a thread’s messages",
-        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Messages are in sequence order; use the previous continueCursor as cursor for the next page.",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Messages are in sequence order; use the previous continueCursor as cursor for the next page. While a turn runs, its assistant row is already on the page with status `pending` and empty parts — the row GET /api/v1/threads/{id}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final.",
         "operationId": "listMessages",
         "security": [
           {
@@ -7852,7 +8743,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
@@ -7968,24 +8862,27 @@
                   "content": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 100000
+                    "maxLength": 100000,
+                    "description": "The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn."
                   },
                   "model": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
-                    "description": "Model ID from GET /api/v1/models; never auto-selected"
+                    "description": "Model ID from GET /api/v1/models; never auto-selected. Checked at the door: an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN`."
                   },
                   "providerSlug": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
-                    "description": "Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider."
+                    "description": "Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider. Optional when exactly one listed provider serves the model; a model listed under several providers answers 400 `CHAT_MODEL_AMBIGUOUS` with `data.providers` until one is named. The 202 names the provider the turn runs on either way."
                   },
                   "locale": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 20
+                    "minLength": 2,
+                    "maxLength": 20,
+                    "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in. Defaults to `en`."
                   }
                 }
               }
@@ -7999,7 +8896,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["threadId", "status", "model", "poll"],
+                  "required": [
+                    "threadId",
+                    "status",
+                    "model",
+                    "providerSlug",
+                    "poll"
+                  ],
                   "properties": {
                     "threadId": {
                       "type": "string"
@@ -8011,6 +8914,10 @@
                     "model": {
                       "type": "string"
                     },
+                    "providerSlug": {
+                      "type": "string",
+                      "description": "The provider the turn runs on — named in the request, or resolved from the model list"
+                    },
                     "poll": {
                       "type": "string",
                       "description": "Poll URL under /api/v1/threads/{id}/generation"
@@ -8021,7 +8928,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)",
+            "description": "Invalid body (`INVALID_BODY`), a model the list does not carry (`CHAT_MODEL_UNKNOWN`), a model listed under several providers with none named (`CHAT_MODEL_AMBIGUOUS`), an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8051,7 +8958,7 @@
             }
           },
           "409": {
-            "description": "Archived or non-direct thread, or a turn is already running",
+            "description": "The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), or a turn is already running (`CHAT_TURN_IN_PROGRESS`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8167,6 +9074,100 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": ["Threads"],
+        "summary": "Cancel the running turn",
+        "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. No running turn answers 404 `CHAT_TURN_NOT_RUNNING`.",
+        "operationId": "cancelGeneration",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cancellation requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["cancelling"]
+                    },
+                    "messageId": {
+                      "type": "string",
+                      "description": "The assistant message the turn was writing"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no turn is running (`CHAT_TURN_NOT_RUNNING`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{id}/threads": {
@@ -8213,7 +9214,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
@@ -8497,13 +9501,237 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": ["Threads"],
+        "summary": "Archive or restore a thread",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it.",
+        "operationId": "updateProjectThread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["archived"],
+                "properties": {
+                  "archived": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The thread after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The project is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Threads"],
+        "summary": "Delete a thread",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running answers 409 `CHAT_TURN_IN_PROGRESS` — cancel the turn first.",
+        "operationId": "deleteProjectThread",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The project is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A turn is running on the thread (`CHAT_TURN_IN_PROGRESS`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{id}/threads/{threadId}/messages": {
       "get": {
         "tags": ["Threads"],
         "summary": "Read a thread’s messages",
-        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Messages are in sequence order; use the previous continueCursor as cursor for the next page.",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Messages are in sequence order; use the previous continueCursor as cursor for the next page. While a turn runs, its assistant row is already on the page with status `pending` and empty parts — the row GET /api/v1/projects/{id}/threads/{threadId}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final.",
         "operationId": "listProjectThreadMessages",
         "security": [
           {
@@ -8552,7 +9780,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           }
@@ -8677,24 +9908,27 @@
                   "content": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 100000
+                    "maxLength": 100000,
+                    "description": "The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn."
                   },
                   "model": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
-                    "description": "Model ID from GET /api/v1/models; never auto-selected"
+                    "description": "Model ID from GET /api/v1/models; never auto-selected. Checked at the door: an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN`."
                   },
                   "providerSlug": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
-                    "description": "Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider."
+                    "description": "Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider. Optional when exactly one listed provider serves the model; a model listed under several providers answers 400 `CHAT_MODEL_AMBIGUOUS` with `data.providers` until one is named. The 202 names the provider the turn runs on either way."
                   },
                   "locale": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 20
+                    "minLength": 2,
+                    "maxLength": 20,
+                    "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in. Defaults to `en`."
                   }
                 }
               }
@@ -8708,7 +9942,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["threadId", "status", "model", "poll"],
+                  "required": [
+                    "threadId",
+                    "status",
+                    "model",
+                    "providerSlug",
+                    "poll"
+                  ],
                   "properties": {
                     "threadId": {
                       "type": "string"
@@ -8720,6 +9960,10 @@
                     "model": {
                       "type": "string"
                     },
+                    "providerSlug": {
+                      "type": "string",
+                      "description": "The provider the turn runs on — named in the request, or resolved from the model list"
+                    },
                     "poll": {
                       "type": "string",
                       "description": "Poll URL under /api/v1/projects/{id}/threads/{threadId}/generation"
@@ -8730,7 +9974,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)",
+            "description": "Invalid body (`INVALID_BODY`), a model the list does not carry (`CHAT_MODEL_UNKNOWN`), a model listed under several providers with none named (`CHAT_MODEL_AMBIGUOUS`), an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8770,7 +10014,7 @@
             }
           },
           "409": {
-            "description": "Archived or non-direct thread, or a turn is already running",
+            "description": "The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), or a turn is already running (`CHAT_TURN_IN_PROGRESS`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8895,6 +10139,119 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": ["Threads"],
+        "summary": "Cancel the running turn",
+        "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. No running turn answers 404 `CHAT_TURN_NOT_RUNNING`.",
+        "operationId": "cancelProjectThreadGeneration",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cancellation requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["cancelling"]
+                    },
+                    "messageId": {
+                      "type": "string",
+                      "description": "The assistant message the turn was writing"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The project is archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no turn is running (`CHAT_TURN_NOT_RUNNING`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/skills": {
@@ -8925,9 +10282,22 @@
                     },
                     "failures": {
                       "type": "array",
+                      "description": "Skill bundles on disk that could not be read — each names the bundle and why",
                       "items": {
                         "type": "object",
-                        "additionalProperties": true
+                        "required": ["slug", "path", "message"],
+                        "properties": {
+                          "slug": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "The bundle’s path inside the organization’s skills tree"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }
@@ -8965,7 +10335,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/skills/{slug}": {
@@ -8979,6 +10360,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "slug",
             "in": "path",
@@ -9053,6 +10443,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "slug",
             "in": "path",
             "required": true,
@@ -9116,7 +10515,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "Invalid body (`INVALID_BODY`), a slug the file layer refuses (`INVALID_SKILL_SLUG`), an invalid skill (`INVALID_SKILL`), the retired private visibility (`SKILL_PRIVATE_RETIRED`), or a team id the organization does not have (`SKILL_TEAM_UNKNOWN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9136,7 +10535,7 @@
             }
           },
           "403": {
-            "description": "Not editable with this key",
+            "description": "Not editable with this key (`SKILL_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9146,7 +10545,7 @@
             }
           },
           "422": {
-            "description": "The skill body is malformed",
+            "description": "The skill body is malformed (`SKILL_MALFORMED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9177,6 +10576,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "slug",
             "in": "path",
@@ -9212,7 +10620,7 @@
             }
           },
           "403": {
-            "description": "Not deletable with this key",
+            "description": "Not deletable with this key (`SKILL_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9222,7 +10630,7 @@
             }
           },
           "404": {
-            "description": "No such skill",
+            "description": "No such skill (`SKILL_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9257,6 +10665,15 @@
         ],
         "parameters": [
           {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -9270,7 +10687,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             },
             "description": "Page size, 1..100 (default 25; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
           },
@@ -9360,14 +10780,18 @@
               "schema": {
                 "type": "object",
                 "required": ["topic", "content"],
+                "additionalProperties": false,
                 "properties": {
                   "topic": {
                     "type": "string",
-                    "maxLength": 200
+                    "minLength": 1,
+                    "maxLength": 120
                   },
                   "content": {
                     "type": "string",
-                    "maxLength": 100000
+                    "minLength": 1,
+                    "maxLength": 8000,
+                    "description": "Markdown"
                   }
                 }
               }
@@ -9412,7 +10836,7 @@
             }
           },
           "409": {
-            "description": "An active entry with this topic exists",
+            "description": "An active entry with this topic exists (`KNOWLEDGE_ENTRY_DUPLICATE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9431,7 +10855,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/v1/knowledge-entries/{id}": {
@@ -9445,6 +10880,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -9487,7 +10931,7 @@
             }
           },
           "404": {
-            "description": "Entry not found",
+            "description": "Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9511,7 +10955,7 @@
       "patch": {
         "tags": ["Knowledge"],
         "summary": "Supersede a knowledge entry",
-        "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`. Both `topic` and `content` are required.",
+        "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`. Both `topic` and `content` are required. Only the ACTIVE row of a topic takes an update — a superseded row answers 409 naming the row that replaced it.",
         "operationId": "updateKnowledgeEntry",
         "security": [
           {
@@ -9519,6 +10963,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -9536,14 +10989,18 @@
               "schema": {
                 "type": "object",
                 "required": ["topic", "content"],
+                "additionalProperties": false,
                 "properties": {
                   "topic": {
                     "type": "string",
-                    "maxLength": 200
+                    "minLength": 1,
+                    "maxLength": 120
                   },
                   "content": {
                     "type": "string",
-                    "maxLength": 100000
+                    "minLength": 1,
+                    "maxLength": 8000,
+                    "description": "Markdown"
                   }
                 }
               }
@@ -9588,7 +11045,7 @@
             }
           },
           "404": {
-            "description": "Entry not found",
+            "description": "Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9598,7 +11055,7 @@
             }
           },
           "409": {
-            "description": "Entry is not active",
+            "description": "Entry is not active — it was superseded (`KNOWLEDGE_ENTRY_SUPERSEDED`), or the new topic collides with another active entry (`KNOWLEDGE_ENTRY_DUPLICATE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9622,6 +11079,7 @@
       "delete": {
         "tags": ["Knowledge"],
         "summary": "Delete a knowledge entry",
+        "description": "What a delete removes depends on the row it names. The ACTIVE row is the fact itself: deleting it retires the whole topic — every version is deleted and the Knowledge Hub document behind it is moved to trash. A SUPERSEDED row is history: deleting it prunes that one version and leaves the active fact and its document untouched, so a retention job can walk `?status=superseded` and delete row by row.",
         "operationId": "deleteKnowledgeEntry",
         "security": [
           {
@@ -9629,6 +11087,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
           {
             "name": "id",
             "in": "path",
@@ -9664,7 +11131,7 @@
             }
           },
           "404": {
-            "description": "Entry not found",
+            "description": "Entry not found, including one already deleted (`KNOWLEDGE_ENTRY_NOT_FOUND`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9748,22 +11215,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": ["hits"],
-                  "properties": {
-                    "hits": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "diagnostics": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  },
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/KnowledgeSearchResult"
                 }
               }
             }
@@ -9892,22 +11344,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": ["hits"],
-                  "properties": {
-                    "hits": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "diagnostics": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  },
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/KnowledgeSearchResult"
                 }
               }
             }
@@ -10270,7 +11707,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ]
       }
     },
     "/api/automations/webhook/{token}": {
@@ -10336,7 +11784,7 @@
             }
           },
           "400": {
-            "description": "Invalid project scope, forbidden projectId query parameter, or input that does not match the automation inputs schema",
+            "description": "Invalid project scope (the automation’s own code, e.g. `AUTOMATION_PROJECT_FORBIDDEN`), a forbidden `projectId` query parameter (`INVALID_QUERY`), or input that does not match the automation inputs schema",
             "content": {
               "application/json": {
                 "schema": {
@@ -10346,17 +11794,17 @@
             }
           },
           "404": {
-            "description": "Unknown or disabled token",
+            "description": "Unknown or disabled token (`NOT_FOUND`)",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
           "409": {
-            "description": "The automation has no deployed version",
+            "description": "The automation has no deployed version (`AUTOMATION_NOT_DEPLOYED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10366,11 +11814,11 @@
             }
           },
           "413": {
-            "description": "Body exceeds 256 KiB",
+            "description": "Body exceeds 256 KiB (`BODY_TOO_LARGE`)",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10450,7 +11898,7 @@
             }
           },
           "400": {
-            "description": "Invalid project scope, forbidden projectId query parameter, or input that does not match the automation inputs schema",
+            "description": "Invalid project scope (the automation’s own code, e.g. `AUTOMATION_PROJECT_FORBIDDEN`), a forbidden `projectId` query parameter (`INVALID_QUERY`), or input that does not match the automation inputs schema",
             "content": {
               "application/json": {
                 "schema": {
@@ -10460,17 +11908,17 @@
             }
           },
           "404": {
-            "description": "Unknown or disabled token",
+            "description": "Unknown or disabled token (`NOT_FOUND`)",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
           "409": {
-            "description": "The automation has no deployed version",
+            "description": "The automation has no deployed version (`AUTOMATION_NOT_DEPLOYED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10480,11 +11928,11 @@
             }
           },
           "413": {
-            "description": "Body exceeds 256 KiB",
+            "description": "Body exceeds 256 KiB (`BODY_TOO_LARGE`)",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10512,7 +11960,120 @@
           },
           "code": {
             "type": "string",
-            "description": "A stable refusal code, when the domain has one"
+            "enum": [
+              "ATTACHMENT_NOT_FOUND",
+              "ATTACHMENT_NOT_OWNED",
+              "AUTHOR_UNVERIFIED",
+              "AUTOMATION_HAS_ACTIVE_RUNS",
+              "AUTOMATION_NOT_DEPLOYED",
+              "AUTOMATION_NOT_FOUND",
+              "AUTOMATION_NOT_INSTALLED",
+              "AUTOMATION_PROJECT_FORBIDDEN",
+              "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+              "AUTOMATION_VERSION_NOT_DEPLOYED",
+              "AUTOMATION_VERSION_UNKNOWN",
+              "BODY_TOO_LARGE",
+              "CHAT_MODEL_AMBIGUOUS",
+              "CHAT_MODEL_NOT_ON_PROVIDER",
+              "CHAT_MODEL_UNKNOWN",
+              "CHAT_PROVIDER_UNKNOWN",
+              "CHAT_THREAD_ARCHIVED",
+              "CHAT_THREAD_NOT_DIRECT",
+              "CHAT_TURN_IN_PROGRESS",
+              "CHAT_TURN_NOT_RUNNING",
+              "CONTACT_AMBIGUOUS",
+              "CONTACT_DUPLICATE_EMAIL",
+              "CONTACT_DUPLICATE_EXTERNAL_ID",
+              "CONTACT_NOT_FOUND",
+              "CONTACT_STALE",
+              "CONVERSATION_CLOSED",
+              "CONVERSATION_CONTACT_CONFLICT",
+              "CONVERSATION_SNAPSHOT_CONFLICT",
+              "DELIVERY_NOT_FOUND",
+              "DELIVERY_RECEIPT_CONFLICT",
+              "DELIVERY_RETRY_UNAVAILABLE",
+              "DELIVERY_UNACKNOWLEDGED",
+              "DOCUMENT_NOT_FOUND",
+              "DOCUMENT_RECORD_FROZEN",
+              "DOCUMENT_RECORD_PROTECTED",
+              "DOCUMENT_RECORD_REPLACEMENT_REQUIRED",
+              "DUPLICATE_EXTERNAL_ID",
+              "DUPLICATE_PRODUCT_NAME",
+              "EMBEDDING_CREDENTIAL_REJECTED",
+              "EMBEDDING_CREDIT_EXHAUSTED",
+              "EMBEDDING_NOT_CONFIGURED",
+              "EMBEDDING_UPSTREAM_ERROR",
+              "FILE_NOT_FOUND",
+              "FILE_TOO_LARGE",
+              "FOLDER_NOT_FOUND",
+              "FORBIDDEN_DEPLOYMENT_EDITOR",
+              "FORBIDDEN_INSTANCE_ADMIN",
+              "HTTP_ERROR",
+              "INTEGRATION_NOT_OWNED",
+              "INTERNAL_ERROR",
+              "INVALID_BODY",
+              "INVALID_CURSOR",
+              "INVALID_LIMIT",
+              "INVALID_QUERY",
+              "INVALID_SKILL",
+              "INVALID_SKILL_SLUG",
+              "INVALID_URL",
+              "KNOWLEDGE_ENTRY_DUPLICATE",
+              "KNOWLEDGE_ENTRY_NOT_FOUND",
+              "KNOWLEDGE_ENTRY_SUPERSEDED",
+              "LEGAL_HOLD_ACTIVE",
+              "METHOD_NOT_ALLOWED",
+              "NOT_FOUND",
+              "ORG_FORBIDDEN",
+              "ORG_NOT_FOUND",
+              "ORG_SLUG_INVALID",
+              "ORG_SLUG_REQUIRED",
+              "PRODUCT_NOT_FOUND",
+              "PRODUCT_STALE",
+              "PROJECT_AGENT_CONNECTOR_UNKNOWN",
+              "PROJECT_AGENT_HARNESS_INVALID",
+              "PROJECT_AGENT_LIMIT",
+              "PROJECT_AGENT_MODEL_INVALID",
+              "PROJECT_AGENT_NAME_TAKEN",
+              "PROJECT_AGENT_NOT_FOUND",
+              "PROJECT_AGENT_PROVIDER_UNKNOWN",
+              "PROJECT_AGENT_SECRETS_FORBIDDEN",
+              "PROJECT_AGENT_SKILL_UNKNOWN",
+              "PROJECT_AGENT_TOOL_UNKNOWN",
+              "PROJECT_ARCHIVED",
+              "PROJECT_DUPLICATE_EXTERNAL_ID",
+              "PROJECT_KEY_TAKEN",
+              "PROJECT_NOT_FOUND",
+              "PURGE_INCOMPLETE",
+              "RATE_LIMITED",
+              "RBAC_FORBIDDEN",
+              "ROLE_FORBIDDEN",
+              "RUN_NOT_FOUND",
+              "SKILL_FORBIDDEN",
+              "SKILL_MALFORMED",
+              "SKILL_NOT_FOUND",
+              "SKILL_PRIVATE_RETIRED",
+              "SKILL_TEAM_UNKNOWN",
+              "STORAGE_NOT_FOUND",
+              "STORAGE_NOT_OWNED",
+              "TASK_NOT_FOUND",
+              "TEAM_ACCESS_DENIED",
+              "THREAD_NOT_FOUND",
+              "THREAD_SCOPE_CHANGED",
+              "UNAUTHORIZED",
+              "UNSUPPORTED_FILE_TYPE",
+              "UPLOAD_FILE_MISMATCH",
+              "UPLOAD_INTENT_INVALID",
+              "UPLOAD_POLICY_REJECTED",
+              "WEBSITE_DOMAIN_IMMUTABLE",
+              "WEBSITE_DOMAIN_INVALID",
+              "WEBSITE_DOMAIN_NOT_CRAWLABLE",
+              "WEBSITE_DUPLICATE_DOMAIN",
+              "WEBSITE_INVALID_LIST_URL",
+              "WEBSITE_NOT_FOUND",
+              "WRITE_FAILED"
+            ],
+            "description": "A stable refusal code — every refusal the door itself makes carries one, and so does every domain refusal it lets through. The set is additive: a new code is a minor change, so treat a value you do not know as a generic refusal of the status you got."
           },
           "data": {
             "type": "object",
@@ -10763,41 +12324,103 @@
       "WebsiteInput": {
         "type": "object",
         "required": ["domain", "scanInterval"],
+        "additionalProperties": false,
         "properties": {
           "domain": {
             "type": "string",
-            "description": "A hostname or URL"
+            "maxLength": 2048,
+            "description": "A public hostname or http(s) URL (`docs.example.com`, `https://www.example.com/docs`); the host is what is registered. Loopback, link-local, private-network and cloud metadata hosts are refused — the crawler dials the target from inside the deployment’s network."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000
           },
           "scanInterval": {
-            "type": "string"
+            "type": "string",
+            "enum": ["60m", "6h", "12h", "1d", "5d", "7d", "30d"],
+            "description": "How often the site is re-crawled"
           },
           "urls": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 2048
             },
-            "description": "Registers a curated URL list on the domain instead of a whole-site crawl. Every entry must be an http(s) URL on the domain or its www/apex sibling; re-posting merges new URLs into the existing list."
+            "maxItems": 10000,
+            "description": "Registers a curated URL list on the domain instead of a whole-site crawl. Every entry must be an http(s) URL on the domain or its www/apex sibling; re-posting merges new URLs into the existing list and answers 200 with the existing id."
           }
         }
       },
       "WebsitePatch": {
         "type": "object",
-        "description": "The domain is immutable after create (the crawl registration is keyed by it): a body carrying `domain` is refused with 400 — delete the website and re-add it under the new domain.",
+        "additionalProperties": false,
+        "description": "The domain is immutable after create (the crawl registration is keyed by it): a body carrying `domain` is refused with 400 `WEBSITE_DOMAIN_IMMUTABLE` — delete the website and re-add it under the new domain.",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000
           },
           "scanInterval": {
+            "type": "string",
+            "enum": ["60m", "6h", "12h", "1d", "5d", "7d", "30d"]
+          }
+        }
+      },
+      "WebsitePage": {
+        "type": "object",
+        "required": [
+          "url",
+          "title",
+          "wordCount",
+          "status",
+          "contentHash",
+          "lastCrawledAt",
+          "discoveredAt",
+          "chunksCount",
+          "indexed"
+        ],
+        "properties": {
+          "url": {
             "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "wordCount": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "description": "The page’s crawl status"
+          },
+          "contentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastCrawledAt": {
+            "type": "number",
+            "description": "Epoch ms",
+            "nullable": true
+          },
+          "discoveredAt": {
+            "type": "number",
+            "description": "Epoch ms",
+            "nullable": true
+          },
+          "chunksCount": {
+            "type": "integer"
+          },
+          "indexed": {
+            "type": "boolean"
           }
         }
       },
@@ -10808,8 +12431,7 @@
           "pages": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/WebsitePage"
             }
           },
           "total": {
@@ -10823,6 +12445,30 @@
           }
         }
       },
+      "WebsiteSearchHit": {
+        "type": "object",
+        "required": ["url", "title", "content", "chunkIndex", "score"],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "description": "The matching passage"
+          },
+          "chunkIndex": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "number",
+            "description": "Relevance; higher is better"
+          }
+        }
+      },
       "WebsiteSearchResults": {
         "type": "object",
         "required": ["results", "total"],
@@ -10830,8 +12476,7 @@
           "results": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/WebsiteSearchHit"
             }
           },
           "total": {
@@ -10966,9 +12611,35 @@
           },
           "translations": {
             "type": "array",
+            "description": "Per-language overrides of the catalog fields",
             "items": {
               "type": "object",
-              "additionalProperties": true
+              "required": ["language"],
+              "properties": {
+                "language": {
+                  "type": "string",
+                  "description": "A BCP 47 language tag (`de`, `fr-CH`)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
             },
             "nullable": true
           },
@@ -10993,44 +12664,183 @@
       },
       "ProductInput": {
         "type": "object",
-        "description": "`name` is required on create; every field is optional on update",
+        "description": "`name` is required on create; every field is optional on update. Unknown keys are refused (`INVALID_BODY`).",
+        "additionalProperties": false,
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 4000
           },
           "imageUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2048
           },
           "stock": {
-            "type": "number"
+            "type": "number",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "price": {
-            "type": "number"
+            "type": "number",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 3,
+            "description": "ISO 4217 code"
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100
           },
           "tags": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "maxLength": 60
+            },
+            "maxItems": 50
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": ["active", "inactive", "draft", "archived"]
           },
           "externalId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 256
           },
           "metadata": {
             "type": "object",
             "additionalProperties": true
+          }
+        }
+      },
+      "ProductPatch": {
+        "type": "object",
+        "description": "Every field optional. Send `expectedUpdatedAt` from the last product read to update only that revision: a stale one answers 409 `PRODUCT_STALE` without changing any field, and every successful update advances `updatedAt`.",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "imageUrl": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "stock": {
+            "type": "number",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "price": {
+            "type": "number",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "description": "ISO 4217 code"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "maxItems": 50
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "draft", "archived"]
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "expectedUpdatedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The `updatedAt` of the revision this update is based on"
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "required": ["user", "organization", "organizations"],
+        "properties": {
+          "user": {
+            "type": "object",
+            "required": ["id", "email"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            }
+          },
+          "organization": {
+            "type": "object",
+            "description": "The organization this request resolved to",
+            "required": ["id", "slug", "role"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string",
+                "description": "The `X-Organization-Slug` value for it"
+              },
+              "role": {
+                "type": "string"
+              }
+            }
+          },
+          "organizations": {
+            "type": "array",
+            "description": "Every organization the key holder belongs to (disabled memberships excluded)",
+            "items": {
+              "type": "object",
+              "required": ["id", "slug", "name", "role"],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -11110,15 +12920,21 @@
       },
       "ContactInput": {
         "type": "object",
+        "description": "Unknown keys are refused (`INVALID_BODY`). A create needs at least one of `name`, `email` or `externalId` to file the contact under.",
+        "additionalProperties": false,
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
           },
           "phone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 50
           },
           "source": {
             "type": "string",
@@ -11152,7 +12968,8 @@
             "description": "Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed"
           },
           "locale": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20
           },
           "address": {
             "type": "object",
@@ -11161,38 +12978,156 @@
           "externalId": {
             "oneOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 256
               },
               {
-                "type": "number"
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             ],
-            "description": "Stored as a string"
+            "description": "Stored as a string. Send a source system’s id as a string: a number beyond 2^53 − 1 cannot be carried exactly and is refused"
           },
           "tags": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "maxLength": 60
+            },
+            "maxItems": 50
           },
           "metadata": {
             "type": "object",
             "additionalProperties": true
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 10000
+          }
+        }
+      },
+      "ContactPatch": {
+        "type": "object",
+        "description": "Every field optional. Send `expectedUpdatedAt` from the last contact read to update only that revision: a stale one answers 409 `CONTACT_STALE` without changing any field.",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual_import",
+              "file_upload",
+              "api_import",
+              "conversation",
+              "shopify",
+              "woocommerce",
+              "magento",
+              "bigcommerce",
+              "prestashop",
+              "chargebee",
+              "stripe",
+              "recurly",
+              "salesforce",
+              "hubspot",
+              "pipedrive",
+              "zoho",
+              "sap",
+              "oracle",
+              "netsuite",
+              "mailchimp",
+              "klaviyo",
+              "sendgrid",
+              "webhook",
+              "zapier",
+              "custom"
+            ],
+            "description": "Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed"
+          },
+          "locale": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "address": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "externalId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            ],
+            "description": "Stored as a string. Send a source system’s id as a string: a number beyond 2^53 − 1 cannot be carried exactly and is refused"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "maxItems": 50
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "expectedUpdatedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The `updatedAt` of the revision this update is based on"
           }
         }
       },
       "BulkCreateResult": {
         "type": "object",
-        "required": ["success", "failed", "errors"],
+        "required": ["success", "failed", "created", "errors"],
+        "description": "A body the schema refuses fails the whole call with 400; a row the directory refuses (a duplicate email or external id) fails that row alone and is listed under `errors` with its code.",
         "properties": {
           "success": {
             "type": "integer"
           },
           "failed": {
             "type": "integer"
+          },
+          "created": {
+            "type": "array",
+            "description": "The rows that landed, by input index",
+            "items": {
+              "type": "object",
+              "required": ["index", "id"],
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "errors": {
             "type": "array",
@@ -11207,7 +13142,13 @@
                   "type": "string"
                 },
                 "errorCode": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "CONTACT_DUPLICATE_EMAIL",
+                    "CONTACT_DUPLICATE_EXTERNAL_ID",
+                    "CONTACT_CREATE_FAILED",
+                    "unknown"
+                  ]
                 },
                 "contact": {
                   "$ref": "#/components/schemas/ContactInput"
@@ -11291,7 +13232,7 @@
           },
           "expiresAt": {
             "type": "number",
-            "description": "Epoch ms; the intent dies of old age after this"
+            "description": "Epoch ms; the intent AND the signed `url` both die of old age after this (30 minutes from the mint)"
           }
         }
       },
@@ -11406,7 +13347,7 @@
       "AutomationSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "latestVersion", "deployedVersion"],
+        "required": ["name", "latestVersion", "deployedVersion", "projectIds"],
         "properties": {
           "name": {
             "type": "string",
@@ -11422,12 +13363,27 @@
           },
           "presentation": {
             "description": "The newest version’s display block, if authored"
+          },
+          "projectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The projects this automation is installed in, limited to those the key holder can see. Empty for an organization-wide automation — and for one installed only in projects hidden from the key holder, which then refuses to start at the organization URL. A project-bound automation runs at `/api/v1/projects/{id}/automations/{name}/runs`."
           }
         }
       },
       "Automation": {
         "type": "object",
-        "required": ["name", "version", "document", "createdBy", "createdAt"],
+        "required": [
+          "name",
+          "version",
+          "document",
+          "deployedVersion",
+          "projectIds",
+          "createdBy",
+          "createdAt"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -11437,17 +13393,62 @@
           },
           "document": {
             "type": "object",
-            "description": "The authored content (nodes and acceptance tests). The MCP `get_docs` tool is the grammar reference."
+            "description": "The authored content: `name`, optional `description`, `inputs`, `nodes` (the node grammar the MCP `get_docs` tool documents), optional `output` and `tests`.",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "inputs": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "output": {},
+              "tests": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "ui": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
           },
           "message": {
             "type": "string"
           },
           "testsPassed": {
             "type": "boolean",
+            "description": "null: no verdict (no tests, or never gated); true: the deploy gate ran the tests and they passed; false: saved with failing tests",
             "nullable": true
           },
           "deployedVersion": {
-            "type": "integer"
+            "type": "integer",
+            "description": "null while nothing is deployed",
+            "nullable": true
+          },
+          "projectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The projects this automation is installed in, limited to those the key holder can see"
           },
           "createdBy": {
             "type": "string"
@@ -11595,6 +13596,108 @@
           }
         }
       },
+      "KnowledgeHit": {
+        "type": "object",
+        "required": ["id", "corpus", "text", "source", "chunkIndex", "score"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable row identity within its corpus"
+          },
+          "corpus": {
+            "type": "string",
+            "enum": ["documents", "web"]
+          },
+          "text": {
+            "type": "string",
+            "description": "The passage, contextual header included"
+          },
+          "source": {
+            "type": "object",
+            "required": ["ref", "title"],
+            "properties": {
+              "ref": {
+                "type": "string",
+                "description": "The blob reference the corpus keys a document by, or the page URL for a web hit — cite `documentId` to open a document"
+              },
+              "title": {
+                "type": "string",
+                "nullable": true
+              },
+              "url": {
+                "type": "string",
+                "nullable": true,
+                "description": "Present for web pages"
+              },
+              "modifiedAt": {
+                "type": "number",
+                "description": "Epoch ms",
+                "nullable": true
+              },
+              "projectId": {
+                "type": "string",
+                "nullable": true,
+                "description": "The project the document is filed under; null for a Hub document and for a web page"
+              },
+              "conversationId": {
+                "type": "string",
+                "nullable": true,
+                "description": "The conversation an emailed attachment arrived on; present only for those"
+              },
+              "documentId": {
+                "type": "string",
+                "description": "The document `GET /api/v1/documents/{id}` takes, for a documents-corpus hit an active document exposes in the hit’s project scope; absent for web pages, thread uploads and emailed attachments"
+              }
+            }
+          },
+          "chunkIndex": {
+            "type": "integer",
+            "description": "Position of the passage inside its document"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Character position of the passage within the document’s full text; absent when it cannot be established"
+          },
+          "score": {
+            "type": "number",
+            "description": "The producing leg’s own relevance score (BM25 or cosine); scales differ per leg"
+          }
+        }
+      },
+      "KnowledgeSearchResult": {
+        "type": "object",
+        "required": ["hits", "diagnostics"],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeHit"
+            },
+            "description": "Best first, one passage per repeated text"
+          },
+          "diagnostics": {
+            "type": "object",
+            "required": ["bm25", "reranked", "cached", "legs"],
+            "properties": {
+              "bm25": {
+                "type": "boolean",
+                "description": "False when the keyword index was unavailable and only the vector leg ran"
+              },
+              "reranked": {
+                "type": "boolean"
+              },
+              "cached": {
+                "type": "boolean"
+              },
+              "legs": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Per-leg timings and counts, keyed by leg"
+              }
+            }
+          }
+        }
+      },
       "Thread": {
         "type": "object",
         "required": [
@@ -11641,27 +13744,267 @@
           }
         }
       },
+      "ChatModel": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "providerSlug",
+          "providerLabel",
+          "contextWindow",
+          "capabilities",
+          "tags"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Send as `model`"
+          },
+          "label": {
+            "type": "string"
+          },
+          "providerSlug": {
+            "type": "string",
+            "description": "Send as `providerSlug` when the same id is listed under more than one provider"
+          },
+          "providerLabel": {
+            "type": "string"
+          },
+          "contextWindow": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Total context window in tokens"
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The largest reply the model produces, in tokens"
+          },
+          "capabilities": {
+            "type": "object",
+            "required": ["tools", "vision", "reasoning"],
+            "additionalProperties": false,
+            "properties": {
+              "tools": {
+                "type": "boolean",
+                "description": "Accepts function tools"
+              },
+              "vision": {
+                "type": "boolean",
+                "description": "Reads images"
+              },
+              "reasoning": {
+                "type": "boolean",
+                "description": "Has a controllable reasoning depth"
+              }
+            }
+          },
+          "pricing": {
+            "type": "object",
+            "required": ["inputCentsPerMillion", "outputCentsPerMillion"],
+            "additionalProperties": false,
+            "description": "The catalog price in US cents per million tokens; absent when the source publishes none",
+            "properties": {
+              "inputCentsPerMillion": {
+                "type": "number",
+                "minimum": 0
+              },
+              "outputCentsPerMillion": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The catalog’s capability tags (`chat`, `vision`, …) — an open, additive vocabulary"
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Present and true on the organization’s default pick for this key holder, when one is configured and accessible"
+          }
+        }
+      },
+      "MessagePart": {
+        "description": "One ordered piece of a message, discriminated by `type`. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.",
+        "discriminator": {
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "text"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["text"]
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "text"],
+            "description": "The model’s reasoning ahead of its reply — display-only, never replayed to the model; it may quote the assistant’s own instructions verbatim, so it is not safe to render as the answer.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["reasoning"]
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "name", "mediaType"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["attachment"]
+              },
+              "name": {
+                "type": "string"
+              },
+              "mediaType": {
+                "type": "string"
+              },
+              "fileId": {
+                "type": "string"
+              },
+              "sizeBytes": {
+                "type": "integer"
+              },
+              "url": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "description": "Extracted text, when any"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "callId", "capabilityId", "input"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["tool-call"]
+              },
+              "callId": {
+                "type": "string"
+              },
+              "capabilityId": {
+                "type": "string"
+              },
+              "input": {}
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "callId",
+              "capabilityId",
+              "output",
+              "structured"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["tool-result"]
+              },
+              "callId": {
+                "type": "string"
+              },
+              "capabilityId": {
+                "type": "string"
+              },
+              "output": {},
+              "structured": {
+                "type": "boolean",
+                "description": "False when the capability declares no output schema"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "approvalId", "question"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["approval"]
+              },
+              "approvalId": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "decision": {
+                "type": "string",
+                "enum": ["approved", "rejected"]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "requestId", "question"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["human-input"]
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "questionCount": {
+                "type": "integer"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": ["answered", "skipped"]
+              }
+            }
+          }
+        ]
+      },
       "Message": {
         "type": "object",
-        "required": ["id", "role", "parts", "sequence", "createdAt"],
+        "required": ["id", "role", "parts", "sequence", "status", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "enum": ["user", "assistant"]
           },
           "parts": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/MessagePart"
             },
-            "description": "The message parts (text, tool calls, files)"
+            "description": "The message parts, in order"
           },
           "sequence": {
             "type": "integer",
             "description": "The paging key"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "complete", "failed", "cancelled"],
+            "description": "`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `failed` carries `error`."
           },
           "model": {
             "type": "string"
@@ -11673,15 +14016,52 @@
             "type": "string"
           },
           "error": {
-            "type": "string"
+            "type": "string",
+            "description": "Why a failed turn produced no reply"
           },
           "errorCode": {
             "type": "string",
-            "description": "Stable chat error classification when available"
+            "enum": [
+              "missing_api_key",
+              "credit_exhausted",
+              "model_not_entitled",
+              "auth_error",
+              "model_not_found",
+              "unsupported_parameter",
+              "output_cap_too_high",
+              "token_limit",
+              "rate_limited",
+              "content_filter",
+              "context_length",
+              "tool_failure",
+              "provider_unreachable",
+              "provider_error",
+              "generic"
+            ],
+            "description": "Stable chat error classification when available. `credit_exhausted` and `model_not_entitled` mean the provider account, not the request; neither is `rate_limited`."
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The token counters the finished turn recorded; absent until then",
+            "properties": {
+              "inputTokens": {
+                "type": "integer"
+              },
+              "outputTokens": {
+                "type": "integer"
+              },
+              "cachedInputTokens": {
+                "type": "integer"
+              },
+              "reasoningTokens": {
+                "type": "integer"
+              }
+            }
           },
           "createdAt": {
             "type": "number",
-            "description": "Epoch ms"
+            "description": "Epoch ms — when the row was created (for an assistant row, when its turn started)"
           }
         }
       },
@@ -11701,32 +14081,51 @@
           "model": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "description": "A model id `GET /api/v1/models` lists for this organization — with `modelProvider`, the exact (provider, model) pair"
           },
           "modelProvider": {
             "type": "string",
-            "maxLength": 200
+            "maxLength": 200,
+            "description": "The provider slug serving `model`, from `GET /api/v1/models`; omitted, any provider serving the id is accepted"
           },
           "skills": {
-            "maxItems": 25,
             "type": "array",
+            "maxItems": 25,
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Skill slugs the project can see (`GET /api/v1/skills`); an unknown slug is refused"
           },
           "connectors": {
-            "maxItems": 25,
             "type": "array",
+            "maxItems": 25,
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Connector slugs the organization has connected; an unknown or unconnected one is refused"
           },
           "tools": {
-            "maxItems": 25,
             "type": "array",
+            "maxItems": 25,
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "enum": [
+                "task_find",
+                "task_get",
+                "task_create",
+                "task_comment",
+                "task_update_status",
+                "task_upsert_by_external_ref",
+                "document_find",
+                "document_create",
+                "knowledge_entry_find",
+                "contact_find",
+                "product_find",
+                "website_find"
+              ]
+            },
+            "description": "Workspace tool grants, from the catalog above; omitted resets to none"
           },
           "secrets": {
             "maxItems": 25,
@@ -11742,7 +14141,7 @@
         },
         "required": ["name", "harness", "model", "skills", "connectors"],
         "additionalProperties": false,
-        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants. Unknown secret names are pruned."
+        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants. Unknown secret names are pruned."
       },
       "ProjectAgent": {
         "type": "object",

@@ -5,7 +5,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../jobs/enqueue.ts';
-import type { RestEnv } from './shared.ts';
+import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
@@ -22,6 +22,9 @@ vi.mock('../domains/chat/composer.ts', () => ({
           providerSlug: 'provider-a',
           providerLabel: 'Provider A',
           credential: { authMethod: 'api-key' },
+          tools: true,
+          contextWindow: 128_000,
+          tags: ['chat'],
         },
       ],
       harnesses: [],
@@ -237,13 +240,14 @@ describe('REST thread paths enforce project scope', () => {
     const { app } = mount();
     const first = await app.request('/projects/p-a/threads?limit=1');
     expect(first.status).toBe(200);
+    const cursor = mintCursorFor('org-1', 'threads:p-a', '30:t-a');
     expect(await first.json()).toMatchObject({
       page: [{ id: 't-a' }],
       isDone: false,
-      continueCursor: '30:t-a',
+      continueCursor: cursor,
     });
     const second = await app.request(
-      '/projects/p-a/threads?limit=1&cursor=30:t-a',
+      `/projects/p-a/threads?limit=1&cursor=${encodeURIComponent(cursor)}`,
     );
     expect(await second.json()).toMatchObject({
       page: [{ id: 't-a-older' }],
@@ -353,6 +357,7 @@ describe('REST thread paths enforce project scope', () => {
       threadId: 't-a',
       status: 'accepted',
       model: 'model-a',
+      providerSlug: 'provider-a',
       poll: '/api/v1/projects/p-a/threads/t-a/generation',
     });
     expect(addJobInTx).toHaveBeenCalledWith(
@@ -437,12 +442,32 @@ describe('REST thread paths enforce project scope', () => {
     expect((await app.request('/projects/p-a/threads/t-a')).status).toBe(400);
   });
 
-  it('reads archived projects but cannot create or send into them', async () => {
+  it('reads archived projects but cannot create, send, archive, delete or cancel in them', async () => {
     const { app } = mount({ archivedProject: true });
     expect((await app.request('/projects/p-a/threads/t-a')).status).toBe(200);
     expect((await send(app, '/projects/p-a/threads', {})).status).toBe(403);
     expect(
       (await send(app, '/projects/p-a/threads/t-a/messages', message)).status,
+    ).toBe(403);
+    expect(
+      (
+        await app.request('/projects/p-a/threads/t-a', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ archived: true }),
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (await app.request('/projects/p-a/threads/t-a', { method: 'DELETE' }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await app.request('/projects/p-a/threads/t-a/generation', {
+          method: 'DELETE',
+        })
+      ).status,
     ).toBe(403);
     expect(addJobInTx).not.toHaveBeenCalled();
   });

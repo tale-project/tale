@@ -8,6 +8,11 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
+  CONTACT_EMAIL_MAX,
+  CONTACT_EXTERNAL_ID_MAX,
+  contactFieldsShape,
+} from './input-schema.ts';
+import {
   bulkCreateContacts,
   CONTACT_SOURCES,
   ContactError,
@@ -23,17 +28,13 @@ import {
 
 const sourceSchema = z.enum(CONTACT_SOURCES);
 
+/** The shared field shape (`input-schema.ts`) with this door's own rule:
+ * the app always names the source. Unknown keys are stripped, as the
+ * adapters expect; the REST door composes the same shape strict. */
 const contactInputSchema = z.object({
-  name: z.string().max(300).optional(),
-  email: z.string().email().max(320).optional(),
-  phone: z.string().max(50).optional(),
-  externalId: z.string().max(256).optional(),
+  ...contactFieldsShape,
+  externalId: z.string().max(CONTACT_EXTERNAL_ID_MAX).optional(),
   source: sourceSchema,
-  locale: z.string().max(20).optional(),
-  address: z.record(z.string(), z.unknown()).optional(),
-  tags: z.array(z.string().max(60)).max(50).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  notes: z.string().max(10_000).optional(),
 });
 
 function handleError<E extends OrgEnv>(
@@ -142,7 +143,11 @@ export function createContactRoutes(deps: {
       // per-row check uses, and a row without one cannot be deduplicated.
       .object({
         contacts: z
-          .array(contactInputSchema.extend({ email: z.string().max(320) }))
+          .array(
+            contactInputSchema.extend({
+              email: z.string().max(CONTACT_EMAIL_MAX),
+            }),
+          )
           .max(1000),
       })
       .safeParse(await c.req.json().catch(() => null));

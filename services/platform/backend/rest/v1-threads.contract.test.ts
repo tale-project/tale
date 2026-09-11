@@ -22,6 +22,11 @@ import { createThreadRestRoutes } from './v1-threads.ts';
 vi.mock('../domains/chat/composer.ts', () => ({
   listComposerModels: vi.fn(),
 }));
+vi.mock('../domains/governance/service.ts', () => ({
+  resolveModelGovernanceForUser: vi.fn(() =>
+    Promise.resolve({ accessibleModelRefs: [] }),
+  ),
+}));
 
 const thread = {
   id: 't-1',
@@ -62,6 +67,8 @@ function fakeSql(storedError = failedTurn): { sql: Sql; queries: string[] } {
           providerSlug: null,
           blockedReason: null,
           error: storedError,
+          status: 'failed',
+          usage: null,
           createdAt: 1_700_000_000_002,
         },
       ]);
@@ -114,6 +121,13 @@ describe('GET /models', () => {
           providerSlug: 'provider-a',
           providerLabel: 'Provider A',
           credential: { authMethod: 'api-key' },
+          tools: true,
+          contextWindow: 200_000,
+          maxOutputTokens: 8_192,
+          pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+          tags: ['chat', 'vision'],
+          vision: true,
+          reasoning: { knob: 'effort' },
         },
         {
           id: 'sandbox-model',
@@ -124,6 +138,9 @@ describe('GET /models', () => {
             authMethod: 'subscription-key',
             constraints: { execution: 'sandbox', harness: 'claude-code' },
           },
+          tools: true,
+          contextWindow: 128_000,
+          tags: ['chat'],
         },
       ],
       harnesses: [],
@@ -143,6 +160,11 @@ describe('GET /models', () => {
           label: 'Model A',
           providerSlug: 'provider-a',
           providerLabel: 'Provider A',
+          contextWindow: 200_000,
+          maxOutputTokens: 8_192,
+          capabilities: { tools: true, vision: true, reasoning: true },
+          pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+          tags: ['chat', 'vision'],
         },
       ],
     });

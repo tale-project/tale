@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/node';
-import type { ErrorHandler } from 'hono';
+import type { Context, ErrorHandler } from 'hono';
 
 import { routeClass } from './telemetry.ts';
 
@@ -95,20 +95,40 @@ export async function flushErrorReporting(timeoutMs = 2000): Promise<void> {
  * signals expected 4xx via `c.json(..., 4xx)` returns, so an error object
  * reaching this handler is always report-worthy.
  */
-export const appErrorHandler: ErrorHandler = (err, c) => {
-  if ('getResponse' in err) {
-    const res = err.getResponse();
-    return c.newResponse(res.body, res);
-  }
+/** The request id the app-level `requestId` middleware stamped, when any —
+ * the one handle a caller can quote back from an error response. */
+export function requestIdOf(c: Context): string | undefined {
+  const value: unknown = c.get('requestId');
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/**
+ * Report an error a handler let escape — Sentry (no-op without a DSN) plus
+ * the console — tagged by method and the bounded route class, with the
+ * request id so a report and the response the caller saw correlate. The
+ * reporting half of `appErrorHandler`, shared with doors that answer their
+ * own 500 shape (the REST door's JSON envelope).
+ */
+export function reportRequestError(err: Error, c: Context): void {
+  const requestId = requestIdOf(c);
   reportError(err, {
     tags: {
       'http.method': c.req.method,
       // The bounded route vocabulary, never the raw path — same cardinality
       // rule as the Prometheus labels.
       'http.route_class': routeClass(c.req.path),
+      ...(requestId === undefined ? {} : { 'http.request_id': requestId }),
     },
     extra: { path: c.req.path },
   });
   console.error(err);
+}
+
+export const appErrorHandler: ErrorHandler = (err, c) => {
+  if ('getResponse' in err) {
+    const res = err.getResponse();
+    return c.newResponse(res.body, res);
+  }
+  reportRequestError(err, c);
   return c.text('Internal Server Error', 500);
 };

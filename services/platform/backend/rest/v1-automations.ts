@@ -4,12 +4,16 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
+import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import {
+  AutomationError,
   beginRun,
   beginRunInTx,
+  bindingProjectIds,
   bindProjectInTx,
   cancelRun,
   cancelRunInTx,
+  deleteAutomationCascade,
   deleteTrigger,
   deployedVersion,
   getRun,
@@ -18,14 +22,18 @@ import {
   listTriggers,
   listVersions,
   setTrigger,
+  unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
+import { listProjects } from '../domains/projects/service.ts';
 import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
   invalidBodyResponse,
+  invalidQueryResponse,
   loadRestProject,
+  notFound,
   readJsonBody,
   readOptionalJsonBody,
   readPageLimit,
@@ -48,9 +56,33 @@ import {
 export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
-  const decodeName = (c: Context<RestEnv>): string =>
-    paramToAutomationSlug(c.req.param('name') ?? '');
+  /** The automation the URL names (`__` for `/`) — or the 404 for a
+   * segment that is not a name at all (`../../models`, five hundred
+   * characters of garbage), so no query ever sees it. The answer is the
+   * one an unknown automation gets: existence is not revealed either way.
+   * The path is a SINGLE segment: a raw `billing/dunning` used to match a
+   * multi-segment pattern and silently resolve to `billing` alone. */
+  const decodeName = (c: Context<RestEnv>): string | Response => {
+    const name = paramToAutomationSlug(c.req.param('name') ?? '');
+    return isValidAutomationName(name)
+      ? name
+      : notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+  };
   const emptyBody = z.object({}).strict();
+
+  /** The projects the key holder may see, archived ones included — the
+   * filter every binding listing goes through, so a catalog read never
+   * reveals a hidden project's installations. */
+  const visibleProjectIds = async (
+    c: Context<RestEnv>,
+  ): Promise<Set<string>> => {
+    const auth = await restProjectAuth(deps.sql, c);
+    return new Set(
+      (await listProjects(deps.sql, auth, { includeArchived: true })).map(
+        (project) => project.id,
+      ),
+    );
+  };
   const runBody = z
     .object({
       input: z.unknown().optional(),
@@ -76,25 +108,62 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     null;
 
   app.get('/automations', async (c) => {
+    // Definitions are shared by the organization. Their project install
+    // ids are the caller's only way to start a project-bound automation
+    // (the org URL refuses it) — answered as the projects the caller can
+    // SEE, so a catalog read never reveals a hidden project.
+    const visible = await visibleProjectIds(c);
     return c.json({
-      // Definitions are shared by the organization. Their project install
-      // ids are not: a catalog read must not reveal hidden projects.
       automations: (
         await listAutomations(deps.sql, c.get('organizationId'))
-      ).map(({ projectIds: _projectIds, ...definition }) => definition),
+      ).map((definition) =>
+        Object.assign(definition, {
+          projectIds: definition.projectIds.filter((id) => visible.has(id)),
+        }),
+      ),
     });
   });
 
-  app.get('/automations/:name{.+?}/versions', async (c) => {
+  /** Retire an automation: every version, its trigger, its installations.
+   * A run still in flight refuses the delete (409) — the stepper needs the
+   * versions it would remove. */
+  app.delete('/automations/:name', async (c) => {
+    try {
+      requireDeveloper(c);
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      if (!(await automationExists(c, name))) {
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+      }
+      await deleteAutomationCascade(deps.sql, {
+        organizationId: c.get('organizationId'),
+        name,
+        actor: c.get('userId'),
+      });
+      return c.body(null, 204);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.get('/automations/:name/versions', async (c) => {
     const name = decodeName(c);
+    if (name instanceof Response) return name;
+    if (!(await automationExists(c, name))) {
+      return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+    }
     return c.json({
       name,
       versions: await listVersions(deps.sql, c.get('organizationId'), name),
     });
   });
 
-  app.get('/automations/:name{.+?}/triggers', async (c) => {
+  app.get('/automations/:name/triggers', async (c) => {
     const name = decodeName(c);
+    if (name instanceof Response) return name;
+    if (!(await automationExists(c, name))) {
+      return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+    }
     return c.json({
       name,
       triggers: await listTriggers(deps.sql, c.get('organizationId'), name),
@@ -103,7 +172,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   /** Bind what starts the automation. `token` is present exactly once per
    * minted webhook secret — the row keeps only its hash. */
-  app.put('/automations/:name{.+?}/triggers', async (c) => {
+  app.put('/automations/:name/triggers', async (c) => {
     const body = z
       .object({
         kind: z.enum(['schedule', 'webhook', 'event']),
@@ -113,18 +182,17 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         enabled: z.boolean().optional(),
         rotateToken: z.boolean().optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
-      return c.json(
-        { error: '"kind" must be one of: schedule, webhook, event' },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     try {
       requireDeveloper(c);
       const name = decodeName(c);
+      if (name instanceof Response) return name;
       if (!(await automationExists(c, name))) {
-        return c.json({ error: 'Automation not found' }, 404);
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
       }
       const result = await setTrigger(deps.sql, {
         organizationId: c.get('organizationId'),
@@ -141,12 +209,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** Unbind the automation's trigger — idempotent for an automation that
    * exists (204 whether or not a trigger was bound); an unknown name is a
    * 404, so a typo never reads as "unbound". Versions and run history stay. */
-  app.delete('/automations/:name{.+?}/triggers', async (c) => {
+  app.delete('/automations/:name/triggers', async (c) => {
     try {
       requireDeveloper(c);
       const name = decodeName(c);
+      if (name instanceof Response) return name;
       if (!(await automationExists(c, name))) {
-        return c.json({ error: 'Automation not found' }, 404);
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
       }
       await deleteTrigger(deps.sql, c.get('organizationId'), name);
       return c.body(null, 204);
@@ -159,11 +228,58 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadRestProject(deps.sql, auth, c.req.param('id'));
+      const visible = await visibleProjectIds(c);
       return c.json({
         automations: (await listAutomations(deps.sql, auth.organizationId))
           .filter((definition) => definition.projectIds.includes(project.id))
-          .map(({ projectIds: _projectIds, ...definition }) => definition),
+          .map((definition) =>
+            Object.assign(definition, {
+              projectIds: definition.projectIds.filter((id) => visible.has(id)),
+            }),
+          ),
       });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** Uninstall from the URL project — the inverse of the install: the
+   * binding goes, the definition, its other installations and its run
+   * history stay. 404 when the automation is unknown or not installed here. */
+  app.delete('/projects/:id/automations/:name', async (c) => {
+    try {
+      requireDeveloper(c);
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
+      const auth = await restProjectAuth(deps.sql, c);
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        const project = await loadRestProject(
+          tx,
+          auth,
+          c.req.param('id') ?? '',
+          { write: true },
+        );
+        if (
+          (await versionRow(tx, auth.organizationId, name, undefined)) === null
+        )
+          return null;
+        return unbindProjectInTx(tx, {
+          organizationId: auth.organizationId,
+          name,
+          projectId: project.id,
+        });
+      });
+      if (result === null) {
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+      }
+      if (!result.unbound) {
+        return notFound(
+          c,
+          `"${name}" is not installed in this project`,
+          'AUTOMATION_NOT_INSTALLED',
+        );
+      }
+      return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -179,6 +295,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       requireDeveloper(c);
       const name = decodeName(c);
+      if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
       const result = await transactSerializable(deps.sql, async (tx) => {
         const project = await loadRestProject(
@@ -199,7 +316,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         });
       });
       if (result === null) {
-        return c.json({ error: 'Automation not found' }, 404);
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
       }
       return c.json({ name, added: result.bound }, result.bound ? 201 : 200);
     } catch (error) {
@@ -210,16 +327,21 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** A bounded window inside exactly the URL scope. */
   const readRuns = async (c: Context<RestEnv>) => {
     try {
+      const name = decodeName(c);
+      if (name instanceof Response) return name;
       const projectId = c.req.param('id');
       if (projectId !== undefined) {
         const auth = await restProjectAuth(deps.sql, c);
         await loadRestProject(deps.sql, auth, projectId);
       }
+      if (!(await automationExists(c, name))) {
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+      }
       const limit = readPageLimit(c, { fallback: 50, max: 200 });
       if (limit instanceof Response) return limit;
       return c.json({
         runs: await listRuns(deps.sql, c.get('organizationId'), {
-          name: decodeName(c),
+          name,
           projectId: projectId ?? null,
           limit,
         }),
@@ -228,8 +350,8 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return domainErrorResponse(c, error);
     }
   };
-  app.get('/automations/:name{.+?}/runs', readRuns);
-  app.get('/projects/:id/automations/:name{.+?}/runs', readRuns);
+  app.get('/automations/:name/runs', readRuns);
+  app.get('/projects/:id/automations/:name/runs', readRuns);
 
   /** Start a run of the deployed version (or a named one). Answers 202 with
    * the run's identity; poll its detail URL in the same scope. A live
@@ -243,9 +365,10 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return invalidBodyResponse(c, body.error);
     }
     const mode = body.data.mode ?? 'live';
+    const name = decodeName(c);
+    if (name instanceof Response) return name;
     try {
       if (mode === 'live') requireDeveloper(c);
-      const name = decodeName(c);
       const organizationId = c.get('organizationId');
       const projectId = c.req.param('id');
       const auth =
@@ -254,7 +377,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         await loadRestProject(deps.sql, auth, projectId, { write: true });
       }
       if (!(await automationExists(c, name))) {
-        return c.json({ error: 'Automation not found' }, 404);
+        return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
       }
       if (body.data.version !== undefined) {
         const named = await versionRow(
@@ -320,22 +443,45 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       return c.json({ ...started, name, mode }, 202);
     } catch (error) {
+      // The refusal names its precondition: the projects this automation
+      // is installed in (those the caller can see), so the recovery —
+      // start it at `/api/v1/projects/{id}/automations/{name}/runs` — is
+      // in the answer rather than only in the product UI.
+      if (
+        error instanceof AutomationError &&
+        error.code === 'AUTOMATION_PROJECT_SCOPE_REQUIRED'
+      ) {
+        const visible = await visibleProjectIds(c);
+        const projectIds = (
+          await bindingProjectIds(deps.sql, c.get('organizationId'), name)
+        ).filter((id) => visible.has(id));
+        return c.json(
+          { error: error.message, code: error.code, data: { projectIds } },
+          409,
+        );
+      }
       return domainErrorResponse(c, error);
     }
   };
-  app.post('/automations/:name{.+?}/runs', startRun);
-  app.post('/projects/:id/automations/:name{.+?}/runs', startRun);
-  app.post('/projects/:id/automations/:name{.+?}', installAutomation);
+  app.post('/automations/:name/runs', startRun);
+  app.post('/projects/:id/automations/:name/runs', startRun);
+  app.post('/projects/:id/automations/:name', installAutomation);
 
   /** One version's document — the latest deployed-aware read. */
-  app.get('/automations/:name{.+?}', async (c) => {
+  app.get('/automations/:name', async (c) => {
     const name = decodeName(c);
+    if (name instanceof Response) return name;
     const versionParam = c.req.query('version');
     let version: number | undefined;
     if (versionParam !== undefined) {
       const parsed = Number(versionParam);
       if (!Number.isInteger(parsed) || parsed < 1) {
-        return c.json({ error: '"version" must be a positive integer' }, 400);
+        return invalidQueryResponse(
+          c,
+          'INVALID_QUERY',
+          'invalid query: "version" must be a positive integer',
+          [{ path: 'version', message: 'must be a positive integer' }],
+        );
       }
       version = parsed;
     }
@@ -345,12 +491,17 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       name,
       version,
     );
-    if (row === null) return c.json({ error: 'Automation not found' }, 404);
+    if (row === null)
+      return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
     const deployed = await deployedVersion(
       deps.sql,
       c.get('organizationId'),
       name,
     );
+    const visible = await visibleProjectIds(c);
+    const projectIds = (
+      await bindingProjectIds(deps.sql, c.get('organizationId'), name)
+    ).filter((id) => visible.has(id));
     return c.json({
       name: row.name,
       version: row.version,
@@ -359,7 +510,10 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       ...(row.testsPassed !== undefined
         ? { testsPassed: row.testsPassed }
         : {}),
-      ...(deployed !== undefined ? { deployedVersion: deployed } : {}),
+      // One spelling of "nothing deployed" on both the listing and this
+      // read: null, never an absent key.
+      deployedVersion: deployed ?? null,
+      projectIds,
       createdBy: row.createdBy,
       createdAt: row.createdAt,
     });
@@ -379,7 +533,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.req.param('runId') ?? '',
       );
       if (run === null || run.projectId !== (projectId ?? null))
-        return c.json({ error: 'Run not found' }, 404);
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
       return c.json(run);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -392,8 +546,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * 404 — `{cancelled: false}` is reserved for a run that exists and had
    * already finished, so a mistyped id never reads as "nothing to cancel". */
   const stopRun = async (c: Context<RestEnv>) => {
-    if (!emptyBody.safeParse(await readOptionalJsonBody(c)).success) {
-      return c.json({ error: 'invalid body' }, 400);
+    const body = emptyBody.safeParse(await readOptionalJsonBody(c));
+    if (!body.success) {
+      return invalidBodyResponse(c, body.error);
     }
     try {
       requireDeveloper(c);
@@ -408,12 +563,12 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           return cancelRunInTx(tx, auth.organizationId, runId);
         });
         return result === null
-          ? c.json({ error: 'Run not found' }, 404)
+          ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
           : c.json(result);
       }
       const run = await getRun(deps.sql, c.get('organizationId'), runId);
       if (run === null || run.projectId !== null) {
-        return c.json({ error: 'Run not found' }, 404);
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
       }
       return c.json(await cancelRun(deps.sql, c.get('organizationId'), runId));
     } catch (error) {

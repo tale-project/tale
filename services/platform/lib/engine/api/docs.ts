@@ -113,7 +113,24 @@ function connectorLines(): string {
     : '   (none registered on this engine yet — discover with search_catalog once the host installs connectors)';
 }
 
-/** The full engine guide an agent needs to author automations. */
+/** The example document, indented to sit under a two-level yaml key. */
+function exampleDocumentYaml(): string {
+  return stringifyYaml(DOC_EXAMPLE.automation)
+    .trimEnd()
+    .split('\n')
+    .map((l) => `    ${l}`)
+    .join('\n');
+}
+
+/**
+ * The builder session's system prompt: the persona, the one-action protocol
+ * the session's parser reads, the authoring reference, and how to work.
+ * This is the prompt — it instructs the model that runs the session. The
+ * REFERENCE half is what the MCP `get_docs` tool serves (`authoringReference`
+ * below); the instructions never leave this function, because a tool output
+ * that told a client's model how to reply, in a dialect the endpoint does
+ * not even speak, was a system prompt leaking through a documentation tool.
+ */
 export function agentDocs(): string {
   return `You are an autonomous automation builder operating the automation engine. There is no human in the loop.
 
@@ -124,33 +141,70 @@ Every reply MUST contain exactly ONE action in a fenced yaml block (a short sent
 method: run_automation
 params:
   automation:
-${stringifyYaml(DOC_EXAMPLE.automation)
-  .trimEnd()
-  .split('\n')
-  .map((l) => `    ${l}`)
-  .join('\n')}
+${exampleDocumentYaml()}
   input: ${JSON.stringify(DOC_EXAMPLE.input)}
 \`\`\`
 
+${authoringReference()}
+
+## How to work
+1. Draft the complete automation, then call run_automation with a realistic test input.
+2. If it fails, read error + hint + trace, fix the automation, run again.
+3. When the run output and effects EXACTLY match the requirements, attach a tests: block and verify with test_automation.
+4. Finish per your task's instructions (save_automation after tests pass, then deploy_automation when asked).
+
+## Pre-submit checklist — run through it EVERY time before finishing
+1. Did run_automation succeed with a realistic test input?
+2. Does the output match the required shape and strings EXACTLY (character by character, correct types)?
+3. Do the effects match exactly — right channel/recipient, exact text, correct count, nothing extra?
+4. Only if all three are yes → finish. Otherwise fix and re-run first.
+
+## Reflection rule
+Whenever a result shows a failure (validation error, execution error, wrong output, rejected finish), begin your reply with exactly one line "CAUSE: <one-sentence diagnosis>", then output the corrected action.`;
+}
+
+/**
+ * The automation authoring reference — the grammar and the method table,
+ * addressed to whoever reads it and instructing nobody. Served whole by the
+ * MCP endpoint's \`get_docs\` tool (where each method is a \`tools/call\`
+ * tool) and embedded in the builder session's prompt; the reference itself
+ * names no dialect but the one its readers use.
+ */
+export function authoringReference(): string {
+  return `# Automation authoring reference
+
+## Calling the methods
+Every method below takes one params object. Over the MCP endpoint each method is a tool: send \`tools/call\` with \`name\` set to the method and \`arguments\` set to its params — for example:
+
+\`\`\`yaml
+name: run_automation
+arguments:
+  automation:
+${exampleDocumentYaml()}
+  input: ${JSON.stringify(DOC_EXAMPLE.input)}
+\`\`\`
+
+A refusal comes back as data — \`{error, code?, hint?}\` — never as a protocol error, so read \`error\` and \`hint\` and adjust.
+
 Authoring methods:
-- get_docs             params {}                      → this guide
-- get_catalog          params {}                      → the registered capability list (compact)
+- get_docs             params {}                      → this reference
+- get_catalog          params {kind?, compact?}       → every node type this deployment can execute — large in full; kind narrows to one node kind, compact drops the input schemas
 - search_catalog       params {query}                 → find capabilities by keywords
 - validate_automation  params {automation}            → static analysis only
 - run_automation       params {automation, input}     → validate + execute against the deterministic mocks with a test input; returns output, per-node trace, effects
 - test_automation      params {automation}            → run the automation's own tests: block
 - save_automation      params {automation, message?}  → save as a new immutable version
 - get_automation       params {name, version?}        → fetch a saved version
-- list_automations     params {}                      → saved automations with their latest versions
+- list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
 - deploy_automation    params {name, version}         → mark the version triggers run
 - set_trigger          params {name, trigger}         → host-managed trigger binding
 - run_deployed         params {name, input}           → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:
-- start_run            params {name, input?, version?, projectId?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run (projectId scopes the run to an active project the caller may edit; a project-bound automation requires that explicit scope unless the host already pins it; omit for org-wide)
-- list_runs            params {name?, limit?}         → recent runs, newest first
-- get_run              params {runId}                 → one run in full: status, output, trace, effects
+- start_run            params {name, input?, version?, projectId?} → hand the run to the host and return {runId, version, projectId} IMMEDIATELY; poll get_run (projectId scopes the run to an active project the caller may edit; a project-bound automation requires that explicit scope unless the host already pins it — list_automations shows each automation's projectIds; omit for org-wide)
+- list_runs            params {name?, limit?}         → recent runs the caller can read across every project, newest first; each carries its projectId (null for an organization run)
+- get_run              params {runId}                 → one run in full: status, output, trace, effects, projectId
 - cancel_run           params {runId}                 → stop a run at its next node boundary
 - list_versions        params {name}                  → the immutable version history
 - list_triggers        params {name?}                 → what starts the automations (never the webhook secret)
@@ -214,18 +268,6 @@ run_automation returns {status, output, trace, effects}:
 - effects: every external call (message/email/llm/…) with its input.
 Compare output and effects to the requirements character by character.
 
-## How to work
-1. Draft the complete automation, then call run_automation with a realistic test input.
-2. If it fails, read error + hint + trace, fix the automation, run again.
-3. When the run output and effects EXACTLY match the requirements, attach a tests: block and verify with test_automation.
-4. Finish per your task's instructions (save_automation after tests pass, then deploy_automation when asked).
-
-## Pre-submit checklist — run through it EVERY time before finishing
-1. Did run_automation succeed with a realistic test input?
-2. Does the output match the required shape and strings EXACTLY (character by character, correct types)?
-3. Do the effects match exactly — right channel/recipient, exact text, correct count, nothing extra?
-4. Only if all three are yes → finish. Otherwise fix and re-run first.
-
-## Reflection rule
-Whenever a result shows a failure (validation error, execution error, wrong output, rejected finish), begin your reply with exactly one line "CAUSE: <one-sentence diagnosis>", then output the corrected action.`;
+## Authoring loop
+Draft the complete automation, run it with run_automation and a realistic test input, read error + hint + trace when it fails and run again; once the output and effects match the requirements exactly, attach a tests: block, verify with test_automation, then save_automation and deploy_automation.`;
 }

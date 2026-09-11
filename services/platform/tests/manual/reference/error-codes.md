@@ -22,6 +22,15 @@ Never a rendered message — seeing one of these in the UI is itself a bug.
 |---|---|
 | `SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT` (400) | Save a `sandbox_quota` policy whose three limits add up above the spawner's current `maxSessions`. The error data includes `total` and `maxSessions`; the existing policy remains unchanged. The UI renders a localized explanation, never the raw code. |
 | `SANDBOX_CAPACITY_UNAVAILABLE` (503) | Save a `sandbox_quota` policy whose total is HIGHER than the saved total while the authoritative deployment capacity cannot be read. A total that does not grow saves without the capacity. The existing policy remains unchanged; retry after the service recovers. |
+| `CHAT_MODEL_UNKNOWN` / `CHAT_MODEL_AMBIGUOUS` (400) | `POST /api/v1/threads/{id}/messages` with a `model` that `GET /api/v1/models` does not list, or one listed under two providers with no `providerSlug`. Nothing is queued; the 202 of a good send names the resolved `providerSlug`. |
+| `CHAT_TURN_NOT_RUNNING` (404) | `DELETE /api/v1/threads/{id}/generation` while the poll says `idle`. During a turn the same call answers 202 `cancelling`. |
+| `CHAT_TURN_IN_PROGRESS` (409) on delete | `DELETE /api/v1/threads/{id}` while a turn runs; cancel the turn first, then the delete answers 204. |
+| `KNOWLEDGE_ENTRY_SUPERSEDED` (409) | `PATCH /api/v1/knowledge-entries/{id}` on an entry a newer version replaced; edit the active one. Deleting a superseded entry removes that row only; deleting the active entry removes the chain. |
+| `PROJECT_KEY_TAKEN` (409) | `POST /api/v1/projects` with an explicit `key` another project holds. A derived key that collides is re-derived instead. |
+| `WEBSITE_DOMAIN_NOT_CRAWLABLE` (400) | `POST /api/v1/websites` naming `localhost`, a link-local or RFC 1918 host, or a cloud metadata address, with `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` unset. |
+| `METHOD_NOT_ALLOWED` (405) | Any `/api/v1` route with a verb it does not serve (`DELETE /api/v1/models`), and any verb but `POST` on `/api/v1/mcp`; `Allow` lists the verbs served. |
+| `INVALID_BODY` for a NUL byte (400) | Any REST write whose JSON carries `\u0000` in a string; `data.issues` names the field. Used to be a 500 from Postgres. |
+| `invalid_token` on OIDC userinfo (401 + `WWW-Authenticate: Bearer`) | `GET /api/auth/oauth2/userinfo` with an expired or made-up bearer token. The token endpoint answers an unknown grant as `unsupported_grant_type`. |
 
 ## Must never appear
 

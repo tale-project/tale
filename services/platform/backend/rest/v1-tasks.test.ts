@@ -4,10 +4,11 @@ import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RestEnv } from './shared.ts';
+import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 
 const service = vi.hoisted(() => ({
+  findTaskByExternalRef: vi.fn(),
   upsertTaskByExternalRef: vi.fn(),
   startWorkflowForTask: vi.fn(),
   startWorkflowForTaskInTx: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('../domains/tasks/external-ref.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../domains/tasks/external-ref.ts')
   >()),
+  findTaskByExternalRef: service.findTaskByExternalRef,
   upsertTaskByExternalRef: service.upsertTaskByExternalRef,
   startWorkflowForTask: service.startWorkflowForTask,
   startWorkflowForTaskInTx: service.startWorkflowForTaskInTx,
@@ -202,6 +204,7 @@ function mount(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  service.findTaskByExternalRef.mockResolvedValue(null);
   service.upsertTaskByExternalRef.mockResolvedValue({
     taskId: 't-1',
     created: true,
@@ -284,6 +287,89 @@ describe('project-scoped task intake', () => {
   ])('rejects %s without creating a task', async (_name, body) => {
     const { request } = mount();
     expect((await request(collection, 'POST', body)).status).toBe(400);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The door is a validating boundary: an over-long title is refused by
+   * name, never stored clipped (the spec used to promise 2000 characters
+   * while the board clipped at 200 with an ellipsis and answered 201); a
+   * non-http(s) `externalUrl` never reaches the link it is rendered as.
+   */
+  it('refuses a title over the board cap and a non-http externalUrl by field', async () => {
+    const { request } = mount();
+    const long = await request(collection, 'POST', {
+      ...input,
+      title: 'B'.repeat(201),
+    });
+    expect(long.status).toBe(400);
+    expect(await long.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [expect.objectContaining({ path: 'title' })] },
+    });
+    const url = await request(collection, 'POST', {
+      ...input,
+      externalUrl: 'javascript:alert(1)',
+    });
+    expect(url.status).toBe(400);
+    expect(await url.json()).toMatchObject({
+      data: { issues: [expect.objectContaining({ path: 'externalUrl' })] },
+    });
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    const ok = await request(collection, 'POST', {
+      ...input,
+      title: 'B'.repeat(200),
+      externalUrl: 'https://crm.example/items/4711',
+    });
+    expect(ok.status).toBe(201);
+  });
+
+  it('carries the external lifecycle state into the intake, open by default', async () => {
+    const { request } = mount();
+    await request(collection, 'POST', { ...input, externalState: 'closed' });
+    expect(service.upsertTaskByExternalRef.mock.calls[0]?.[1]).toMatchObject({
+      externalState: 'closed',
+    });
+    await request(collection, 'POST', input);
+    expect(service.upsertTaskByExternalRef.mock.calls[1]?.[1]).toMatchObject({
+      externalState: 'open',
+    });
+  });
+
+  /**
+   * A repeat is a reconcile of the existing task, and the docs ask for a
+   * stable payload on retry: the run workflow only ever starts a create,
+   * so only a create validates its project binding. A repeat that carried
+   * a workflow bound to another project used to 403 — and drop the
+   * title/description update the retry carried.
+   */
+  it('does not re-validate runWorkflowSlug on a repeat, and reconciles the task', async () => {
+    service.findTaskByExternalRef.mockResolvedValue({ id: 't-1' });
+    service.upsertTaskByExternalRef.mockResolvedValue({
+      taskId: 't-1',
+      created: false,
+    });
+    const { request } = mount({ boundProjectIds: ['p-other'] });
+    const res = await request(collection, 'POST', {
+      ...input,
+      title: 'Renamed upstream',
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ task: { id: 't-1', created: false } });
+    const upsert = service.upsertTaskByExternalRef.mock.calls[0]?.[1];
+    expect(upsert).toMatchObject({ title: 'Renamed upstream' });
+    expect(upsert).not.toHaveProperty('runWorkflowSlug');
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a create whose workflow is bound to another project', async () => {
+    const { request } = mount({ boundProjectIds: ['p-other'] });
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(403);
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
@@ -548,7 +634,11 @@ describe('project-scoped task reads and operations', () => {
 
   it('preserves comment pagination and rejects malformed cursors', async () => {
     const { request, sql } = mount();
-    const res = await request(`${item}/comments?limit=100&cursor=25`);
+    const list = 'task-comments:t-1';
+    const cursor = mintCursorFor('org-1', list, '25');
+    const res = await request(
+      `${item}/comments?limit=100&cursor=${encodeURIComponent(cursor)}`,
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       comments: [
@@ -561,7 +651,7 @@ describe('project-scoped task reads and operations', () => {
         },
       ],
       isDone: false,
-      continueCursor: '12',
+      continueCursor: mintCursorFor('org-1', list, '12'),
     });
     expect(service.listTaskComments).toHaveBeenCalledWith(
       sql,
@@ -569,7 +659,14 @@ describe('project-scoped task reads and operations', () => {
       't-1',
       { limit: 100, before: 25 },
     );
-    expect((await request(`${item}/comments?cursor=abc`)).status).toBe(400);
+    for (const bad of ['abc', '25', mintCursorFor('org-1', 'other', '25')]) {
+      const refused = await request(`${item}/comments?cursor=${bad}`);
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+    }
+    const limit = await request(`${item}/comments?limit=abc`);
+    expect(limit.status).toBe(400);
+    expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
   });
 
   it('refuses a member workflow start', async () => {

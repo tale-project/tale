@@ -161,6 +161,7 @@ function toRunSummary(row: {
   id: string;
   name: string;
   version: number;
+  projectId: string | null;
   status: string;
   mode: string;
   startedBy: string;
@@ -172,6 +173,10 @@ function toRunSummary(row: {
     runId: row.id,
     name: row.name,
     version: row.version,
+    // The scope a REST read of the same run needs: a project run answers
+    // only at `/api/v1/projects/{projectId}/runs/{runId}`, and MCP used to
+    // hand out run handles without saying which project they belong to.
+    projectId: row.projectId,
     status: row.status,
     mode: row.mode,
     startedBy: row.startedBy,
@@ -220,10 +225,15 @@ export function pgAutomationStore(
     });
   };
   return {
+    // The deployed version and the installations ride along: `latest` alone
+    // hid whether an automation was live at all, and the bindings are the
+    // one thing a caller needs to start a project-bound automation.
     list: async () =>
       (await listAutomations(sql, organizationId)).map((row) => ({
         name: row.name,
         latest: row.latestVersion,
+        deployedVersion: row.deployedVersion,
+        projectIds: row.projectIds,
       })),
     get: async (name, version) => {
       const row = await versionRow(sql, organizationId, name, version);
@@ -358,13 +368,19 @@ export function pgAutomationStore(
         startedBy: actor,
         ...(version !== undefined ? { version } : {}),
       };
+      // The handle names its scope too: a project run is read back at the
+      // project URL, an organization run at the flat one.
       if (effectiveProjectId !== undefined) {
-        return transactSerializable(sql, async (tx) => {
+        const started = await transactSerializable(sql, async (tx) => {
           await writableActorProject(tx, auth, effectiveProjectId);
           return beginRunInTx(tx, { ...args, projectId: effectiveProjectId });
         });
+        return started === null
+          ? null
+          : { ...started, projectId: effectiveProjectId };
       }
-      return beginRun(sql, { ...args, requireOrgScope: true });
+      const started = await beginRun(sql, { ...args, requireOrgScope: true });
+      return started === null ? null : { ...started, projectId: null };
     },
     cancelRun: async (runId) => {
       const auth = await authorizeActorRun(

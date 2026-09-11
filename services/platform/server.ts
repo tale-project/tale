@@ -542,6 +542,33 @@ export interface CreateAppOptions {
    * Production uses the TTL-cached `TALE_CONFIG_DIR` scan.
    */
   orgStorageOrigins?: () => readonly string[];
+  /**
+   * Test seam for the OpenAPI document `/openapi.json` answers. Production
+   * reads the built `dist/openapi.json` once.
+   */
+  openapiDocument?: () => Promise<Record<string, unknown> | null>;
+}
+
+let openapiDocumentPromise: Promise<Record<string, unknown> | null> | null =
+  null;
+
+/** The built OpenAPI document, parsed once per process (re-read in dev). */
+function builtOpenapiDocument(): Promise<Record<string, unknown> | null> {
+  if (openapiDocumentPromise !== null && !DEV_HOT_RELOAD) {
+    return openapiDocumentPromise;
+  }
+  openapiDocumentPromise = (async () => {
+    const file = Bun.file(join(distDir, 'openapi.json'));
+    if (!(await file.exists())) return null;
+    const parsed: unknown = JSON.parse(await file.text());
+    return typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON object
+        (parsed as Record<string, unknown>)
+      : null;
+  })();
+  return openapiDocumentPromise;
 }
 
 export function createApp(
@@ -854,9 +881,53 @@ export function createApp(
     );
   }
 
+  // The OpenAPI document with `servers` bound to the origin this request
+  // arrived on: the static copy carries an `{origin}` template a reader
+  // fills in by hand; a running instance answers its own, so a client
+  // generated from a fetched document — and Swagger UI's "try it out" —
+  // targets this deployment. Before the SPA catch-all, or the raw static
+  // file would answer first.
+  const loadOpenapi = opts.openapiDocument ?? builtOpenapiDocument;
+  app.get('/openapi.json', async (c) => {
+    const document = await loadOpenapi();
+    if (document === null) {
+      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+    }
+    const origin =
+      requestSiteOrigin(
+        {
+          url: c.req.url,
+          host: c.req.header('host'),
+          forwardedProto: c.req.header('x-forwarded-proto'),
+        },
+        env.SITE_ORIGINS,
+      ) ??
+      siteOriginFromUrl(env.SITE_URL) ??
+      new URL(c.req.url).origin;
+    return c.json(
+      {
+        ...document,
+        servers: [
+          { url: `${origin}${env.BASE_PATH}`, description: 'This deployment' },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'public, max-age=300' },
+    );
+  });
+
   // Static files + index.html fallback (TanStack Router SPA).
   app.get('*', async (c) => {
     const pathname = new URL(c.req.url).pathname;
+
+    // An API-shaped path no route owns is a 404 in the API's own JSON
+    // envelope, never the SPA shell: the proxy hands `/api/*` to the
+    // backend, so what lands here is a lane the proxy did not route (or a
+    // stack without the proxy) — and an HTML 200 read as "the API
+    // answered", with no key asked.
+    if (pathname.startsWith('/api/')) {
+      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+    }
 
     if (pathname !== '/') {
       const filePath = resolve(distDir, pathname.slice(1));

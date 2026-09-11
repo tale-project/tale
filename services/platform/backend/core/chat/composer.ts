@@ -59,6 +59,15 @@ export interface ComposerModelOption {
   /** The model can see images (catalog `vision` tag) — the composer warns
    * when attachments are staged for a model without it. */
   vision?: boolean;
+  /** The model accepts function tools (catalog `supportsTools`). */
+  tools: boolean;
+  /** Total context window in tokens (catalog `contextWindow`). */
+  contextWindow: number;
+  maxOutputTokens?: number;
+  /** The catalog price, when its source publishes one. */
+  pricing?: { inputCentsPerMillion: number; outputCentsPerMillion: number };
+  /** The catalog's capability tags (`chat`, `vision`, …) — open vocabulary. */
+  tags: readonly string[];
 }
 /**
  * The per-hit projection behind the model picker — pure, so the 0.5 backend
@@ -116,6 +125,13 @@ export function collectComposerOptions(
           }
         : {}),
       ...(entry.supportsVision ? { vision: true } : {}),
+      tools: entry.supportsTools,
+      contextWindow: entry.contextWindow,
+      ...(entry.maxOutputTokens !== undefined
+        ? { maxOutputTokens: entry.maxOutputTokens }
+        : {}),
+      ...(entry.pricing !== undefined ? { pricing: entry.pricing } : {}),
+      tags: entry.tags,
     });
   }
   return { byId, ttsAvailable, transcriptionAvailable };

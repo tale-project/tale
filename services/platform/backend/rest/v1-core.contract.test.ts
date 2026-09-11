@@ -188,7 +188,10 @@ describe('a trashed contact', () => {
     const { app } = mount();
     const res = await app.request('http://localhost/contacts/c-1');
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Contact not found' });
+    expect(await res.json()).toEqual({
+      error: 'Contact not found',
+      code: 'CONTACT_NOT_FOUND',
+    });
   });
 
   it('refuses a PATCH with 404 and writes nothing', async () => {
@@ -427,8 +430,10 @@ describe('a refused body names the field that failed', () => {
       content: 'Synthetic test',
       projectId: '00000000-0000-4000-8000-000000000009',
     });
+    // The stray key is named as the issue's own path — the field to fix,
+    // not a sentence about the body as a whole.
     expect(issues).toEqual([
-      { path: '', message: expect.stringContaining('projectId') },
+      { path: 'projectId', message: 'is not a field this body takes' },
     ]);
     expect(error).not.toContain('title');
   });
@@ -557,7 +562,10 @@ describe('a hub document outside the active lifecycle', () => {
     const { app } = mount();
     const res = await app.request('http://localhost/documents/doc-expired');
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Document not found' });
+    expect(await res.json()).toEqual({
+      error: 'Document not found',
+      code: 'DOCUMENT_NOT_FOUND',
+    });
   });
 });
 

@@ -1,9 +1,11 @@
 import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import { Hono } from 'hono';
+import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
 import type { Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
+import { withOAuthConformance } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
@@ -72,6 +74,11 @@ import {
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
+import {
+  apiNotFound,
+  backendSecureHeaders,
+  nulUrlGuard,
+} from './lib/http-hygiene.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { mountRestV1Routes } from './rest/v1.ts';
@@ -98,6 +105,17 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Hono's default 500 behavior plus Sentry capture (no-op without a DSN);
   // sub-app errors bubble up here unless a sub-app registers its own.
   app.onError(appErrorHandler);
+  // The JSON 404 for the API prefix (lib/http-hygiene.ts).
+  app.notFound(apiNotFound);
+  // One id per request, echoed as `X-Request-Id` on every response and
+  // carried into error reports — the handle a caller quotes in a ticket.
+  // An inbound id (a client's or the proxy's) is kept when it is a sane
+  // token; anything else is replaced.
+  app.use(requestId());
+  // The NUL-byte refusal and the transport-security headers every response
+  // carries (lib/http-hygiene.ts).
+  app.use(nulUrlGuard());
+  app.use(backendSecureHeaders(process.env.SITE_URL));
   // LIVENESS: the process is up. Docker's HEALTHCHECK reads this, so it must
   // stay 200 while a replica drains — a draining container is doing exactly
   // what it was asked to; killing it mid-drain cuts the generations the drain
@@ -145,7 +163,20 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   });
   // Better Auth owns everything under its basePath (sign-up/in/out, session,
   // organization plugin endpoints, api-key/two-factor/passkey, …).
-  app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw));
+  // The OAuth/OIDC answers under /api/auth/oauth2/* in their RFC envelopes
+  // (401 + challenge for a bad bearer, `invalid_request` for a schema
+  // refusal); every other auth route passes through as the library made it.
+  // The realm is the issuer — the auth instance's own base URL, the one
+  // discovery and the tokens name.
+  const oidcRealm = () =>
+    `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
+  app.on(['GET', 'POST'], '/api/auth/*', async (c) =>
+    withOAuthConformance(
+      c.req.raw,
+      await deps.auth.handler(c.req.raw),
+      oidcRealm(),
+    ),
+  );
   app.route('/api/app/identity', createIdentityRoutes(deps));
   app.get('/.well-known/oauth-authorization-server/api/auth', (c) =>
     oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),

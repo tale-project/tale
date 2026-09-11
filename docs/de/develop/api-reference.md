@@ -7,7 +7,7 @@ i18nLintExclude:
 
 Die Tale-API ist die Oberfläche für alle, die außerhalb des Produkts stehen und es skripten wollen: Wissensressourcen, Projekte mit ihren Dateien und Aufgaben, Automatisierungen und ihre Läufe, Chat-Threads, Agenten und Skills — alles als JSON über HTTPS, mit einem API-Schlüssel im Header. Derselbe Schlüssel öffnet auch den [MCP-Endpoint](/de/develop/mcp-endpoint) — diese Seite behandelt die REST-Hälfte.
 
-Diese Seite ist das kanonische Inventar der Oberfläche, des Auth-Modells und der Fehlerform. Request- und Response-Schemas auf Feldebene liefert das OpenAPI-Dokument deiner Instanz unter `/docs` — lade es dort, wenn du jede Property brauchst; lies diese Seite, um zu verstehen, wie sich die API verhält.
+Diese Seite ist das kanonische Inventar der Oberfläche, des Auth-Modells und der Fehlerform. Request- und Response-Schemas auf Feldebene liefert das OpenAPI-Dokument deiner Instanz unter `/openapi.json` — sein `servers`-Eintrag nennt genau diese Instanz, ein daraus generierter Client zielt also auf den richtigen Host — und `/docs` rendert es. Lade es, wenn du jede Property brauchst; lies diese Seite, um zu verstehen, wie sich die API verhält.
 
 ## Eine erste Anfrage
 
@@ -24,7 +24,7 @@ Eine erfolgreiche Antwort ist eine benannte Liste: `{ "automations": [ { "name":
 
 API-Schlüssel erzeugt jeder mit Admin- oder Entwickler-Berechtigungen im Produkt — [API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Panel. Ein Schlüssel wird bei der Erstellung genau einmal gezeigt und nie wieder; er gehört dem Benutzer, der ihn erzeugt hat — jeder Aufruf handelt als dieser Benutzer.
 
-Sende den Schlüssel als Bearer-Token: `Authorization: Bearer <key>`. Jeder Aufruf handelt als sein Besitzer in einer Organisation, der dieser angehört. Die Kopfzeile `X-Organization-Slug` wählt die Organisation; Tale prüft die Mitgliedschaft auch bei einer expliziten Auswahl. Bei einer einzigen Mitgliedschaft kannst du sie weglassen. Bei mehreren ist sie für jedes Schreiben und jeden Aufruf unter `/api/v1/projects/...` Pflicht, auch beim Lesen; fehlt sie, lautet die Antwort **400**. Andere Lesezugriffe können die zuletzt im Dashboard aktive Organisation verwenden. Die nötigen Rechte hängen von Projekt und Aktion ab: Projektleser dürfen chatten und kommentieren, Änderungen an Projektressourcen und Aufgabenstarts verlangen Bearbeitungsrechte. Frei gestartete Live-Läufe brauchen zusätzlich die Entwickler-Fähigkeit. Die Abschnitte unten nennen die Regeln je Aktion.
+Sende den Schlüssel als Bearer-Token: `Authorization: Bearer <key>`. Jeder Aufruf handelt als sein Besitzer in einer Organisation, der dieser angehört. Die Kopfzeile `X-Organization-Slug` wählt die Organisation; Tale prüft die Mitgliedschaft auch bei einer expliziten Auswahl. Bei einer einzigen Mitgliedschaft kannst du sie weglassen. Bei mehreren ist sie für jedes Schreiben, jeden Aufruf unter `/api/v1/projects/...` und jeden Gesprächsaufruf Pflicht, auch beim Lesen; fehlt sie, lautet die Antwort **400**, `ORG_SLUG_REQUIRED`. Andere Lesezugriffe können die zuletzt im Dashboard aktive Organisation verwenden, und `GET /api/v1/me` nennt die Slugs, die ein Schlüssel senden darf. Jede Operation im OpenAPI-Dokument deklariert die Kopfzeile. Die nötigen Rechte hängen von Projekt und Aktion ab: Projektleser dürfen chatten und kommentieren, Änderungen an Projektressourcen und Aufgabenstarts verlangen Bearbeitungsrechte. Frei gestartete Live-Läufe brauchen zusätzlich die Entwickler-Fähigkeit. Die Abschnitte unten nennen die Regeln je Aktion.
 
 ## Mit Tale bei einer Anwendung anmelden
 
@@ -56,6 +56,8 @@ Verwende einen gepflegten OIDC-Client mit Authorization Code Flow, S256 PKCE, ei
 
 Zugriffstokens gelten nur für die native Userinfo-Schnittstelle; externe Ressourcenzielgruppen sind deaktiviert. Verwende für REST-Anfragen native API-Schlüssel.
 
+Fehler folgen RFC 6749 und RFC 6750 — genau das, was ein gepflegter Client erwartet. `userinfo` antwortet auf ein ungültiges oder abgelaufenes Zugriffstoken mit **401** `invalid_token` und einer `WWW-Authenticate: Bearer`-Challenge — jeder Ablauf nach fünf Minuten nimmt diesen Weg, behandle ihn also als erneute Anmeldung, nicht als Wiederholung — und ohne Token mit **401** und der bloßen Challenge; ein Token ohne den Scope `openid` ergibt **403** `insufficient_scope`. Token- und Autorisierungs-Endpoint antworten mit `{ "error", "error_description" }`: Ein anderer Grant als `authorization_code` ist `unsupported_grant_type`, eine fehlerhafte Anfrage `invalid_request`. Discovery führt `https://tale.dev/organization` unter `claims_supported`; sie nennt außerdem die Introspection-, Revocation- und End-Session-Endpoints des Providers, die der Ablauf oben nicht braucht.
+
 Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` mit `{}` einmalig ein neues `client_secret` und macht das alte ungültig. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` mit `{ "disabled": true }` sperrt neue Autorisierungen; `false` aktiviert denselben Client wieder. Beide Aufrufe benötigen wie die Registrierung dieselbe aktuelle Organisation, eine Admin-Sitzung, den Origin-Header und JSON als Inhaltstyp. Beim Löschen einer Organisation werden ihre Clients und Einwilligungen entfernt.
 
 ## Endpoint-Gruppen
@@ -64,11 +66,11 @@ Bei Projektressourcen unter `/api/v1` steht die Projekt-ID in der URL. Ein `proj
 
 | Gruppe            | Pfad                                    | Was sie abdeckt                                                                                                                      |
 | ----------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Automatisierungen | `/api/v1/automations/...` | Definitionen, Versionen und Trigger der Organisation; Läufe ohne Projekt starten und auflisten. |
-| Projekt-Automatisierungen | `/api/v1/projects/{id}/automations/...` | Installierte Automatisierungen auflisten, eine installieren und Läufe dieses Projekts starten oder lesen. |
+| Automatisierungen | `/api/v1/automations/...` | Definitionen, Versionen, Trigger und die Projekte, in denen jede installiert ist; eine Definition löschen; Läufe ohne Projekt starten und auflisten. |
+| Projekt-Automatisierungen | `/api/v1/projects/{id}/automations/...` | Installierte Automatisierungen auflisten, eine installieren oder wieder entfernen und Läufe dieses Projekts starten oder lesen. |
 | Läufe | `/api/v1/projects/{id}/runs/{runId}` oder `/api/v1/runs/{runId}` | Status, Ausgabe, Trace, Effekte und `POST .../cancel`; Projektläufe verwenden den Projektpfad. |
-| Threads | `/api/v1/projects/{id}/threads/...` oder `/api/v1/threads/...` | Eigene Chats innerhalb eines Projekts oder ohne Projekt: auflisten, anlegen, lesen, Nachrichten senden und den Status abfragen. |
-| Modelle | `GET /api/v1/models` | Konfigurierte Chat-Modelle, die dem Schlüsselbesitzer in dieser Organisation zur Verfügung stehen. |
+| Threads | `/api/v1/projects/{id}/threads/...` oder `/api/v1/threads/...` | Eigene Chats innerhalb eines Projekts oder ohne Projekt: auflisten, anlegen, lesen, archivieren oder wiederherstellen, löschen, Nachrichten senden, den Turn abfragen und abbrechen. |
+| Modelle | `GET /api/v1/models` | Konfigurierte Chat-Modelle, die dem Schlüsselbesitzer in dieser Organisation zur Verfügung stehen — mit Kontextfenster, Ausgabegrenze, Fähigkeiten, Preis und der Standardwahl der Organisation. |
 | Agenten | `/api/v1/projects/{id}/agents/...` | Agenten im angegebenen Projekt auflisten, lesen, anlegen, ändern und löschen. |
 | Skills | `/api/v1/skills/...` | Skill-Bundles der Organisation auflisten, lesen, anlegen oder ändern und löschen. |
 | Wissenseinträge   | `/api/v1/knowledge-entries/...`         | Themen-Fakten: auflisten, anlegen, ablösen, löschen.                                                                                 |
@@ -134,7 +136,7 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 `POST` und `PUT` verlangen `name`, `harness`, `model`, `skills` und `connectors`. Optional sind `modelProvider`, `tools`, `secrets` und `instructions`. Ein `PUT` speichert die gesamte Konfiguration: Ausgelassene Anbieter- und Anweisungsfelder werden `null`, ausgelassene Tool- und Secret-Listen werden leer. Die Agenten-ID muss bereits existieren; ein `PUT` legt keinen neuen Agenten an.
 
-Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration, ein belegter Name oder eine überschrittene Grenze ergibt **400**. `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; unbekannte Namen entfallen. Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
+Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration, ein belegter Name oder eine überschrittene Grenze ergibt **400**. `model` muss ein Modell aus dem Katalog der Organisation sein (nenne `modelProvider`, wenn mehrere Anbieter es bedienen), und `tools` darf nur bekannte Tool-Freigaben nennen — ein falscher Wert ergibt **400** mit `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` oder `PROJECT_AGENT_TOOL_UNKNOWN`, das sagt, was zu korrigieren ist, statt eines Agenten, der an seiner ersten Aufgabe scheitert. `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; unbekannte Namen entfallen. Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
 
 Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
 
@@ -148,6 +150,8 @@ curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/vers
 ```
 
 Antworten tragen immer den echten Namen (`"name": "billing/dunning"`); die `__`-Form existiert nur in URLs. Skill-Slugs sind flach und brauchen keine Kodierung. Projekt-Agenten verwenden die Projekt-ID und die Agenten-ID.
+
+`GET /api/v1/automations` listet jede Automatisierung mit `latestVersion`, `deployedVersion` und `projectIds` — den Projekten, in denen sie installiert ist und die die Lauf-Routen unten verlangen. `DELETE /api/v1/automations/{name}` entfernt die Automatisierung samt Versionen, Triggern und Projektbindungen und antwortet mit **409** `AUTOMATION_HAS_ACTIVE_RUNS`, solange ein Lauf in Arbeit ist. Beides verlangt die Entwickler-Fähigkeit.
 
 ## Einen Lauf starten, dann pollen
 
@@ -174,7 +178,7 @@ Das Projekt in der URL bestimmt den Kontext der Aufgaben- und Dokumentwerkzeuge 
 
 Projektchats folgen ebenfalls dem Ablauf 202, dann Statusabfrage. Wähle ein Projekt, das du lesen darfst, lege einen Thread an, sende eine Nachricht, frage den Status ab und lies die Antwort:
 
-Rufe vor dem Senden die Modelle ab. Übernimm `id` als `model` und `providerSlug` für die Auswahl des Anbieters. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung. Das Paar wird beim Senden geprüft: Ein `providerSlug`, den die Liste nicht kennt, ergibt **400**, `CHAT_PROVIDER_UNKNOWN`; einer, der das gewählte `model` nicht bedient, **400**, `CHAT_MODEL_NOT_ON_PROVIDER` — der Turn weicht nie stillschweigend auf einen anderen Anbieter aus.
+Rufe vor dem Senden die Modelle ab. Jeder Eintrag trägt, was ein Client zum Auswählen braucht — `contextWindow`, `maxOutputTokens`, `capabilities` (`tools`, `vision`, `reasoning`), `pricing`, wenn der Katalog einen Preis kennt, `tags` — und `default: true` markiert die Wahl der Organisation für diesen Schlüsselbesitzer. Übernimm `id` als `model`; ergänze `providerSlug`, wenn dieselbe ID unter mehreren Anbietern gelistet ist. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung. Das Paar wird beim Senden geprüft, direkt an der Tür: Eine ID, die die Liste nicht kennt, ergibt **400**, `CHAT_MODEL_UNKNOWN`; eine ID, die mehrere Anbieter bedienen, ohne dass einer genannt ist, **400**, `CHAT_MODEL_AMBIGUOUS` mit den Kandidaten in `data.providers`; ein `providerSlug`, den die Liste nicht kennt, **400**, `CHAT_PROVIDER_UNKNOWN`; einer, der das gewählte `model` nicht bedient, **400**, `CHAT_MODEL_NOT_ON_PROVIDER`. Die 202 nennt den Anbieter, auf dem der Turn läuft — er weicht nie stillschweigend auf einen anderen aus.
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/models" \
@@ -197,7 +201,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/thre
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "content": "Fasse mir dieses Quartal zusammen.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
-# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/projects/<projectId>/threads/<threadId>/generation" }
+# → 202 { "threadId": "...", "status": "accepted", "model": "...", "providerSlug": "...", "poll": "/api/v1/projects/<projectId>/threads/<threadId>/generation" }
 
 # 3. Bis idle pollen, dann lesen
 curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/generation" \
@@ -208,7 +212,11 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<thr
 
 `{"status": "idle"}` bedeutet, dass gerade kein Turn läuft. Lies die Antwort mit `GET /api/v1/projects/{id}/threads/{threadId}/messages`. Listen, Threaddetails, Nachrichten und Statusabfragen zeigen nur die eigenen Threads des Schlüsselbesitzers in diesem Projekt. Die Threads anderer Benutzer bleiben unsichtbar, auch im gemeinsamen Projekt. `GET /api/v1/projects/{id}/threads` listet deine Threads; `GET /api/v1/projects/{id}/threads/{threadId}` liest einen davon.
 
-Für persönliche Chats ohne Projekt verwendest du `/api/v1/threads` sowie die zugehörigen Detail-, Nachrichten- und Statuspfade. Projektthreads sind dort nicht erreichbar. Ein falsches Projekt in der URL ergibt **404**. Beide Chatarten verwenden den eingebauten Assistenten; `projectId`, `agentSlug` oder `agentId` beim Anlegen oder Senden ergibt **400**. Projektleser einschließlich Mitgliedern dürfen Threads anlegen und Nachrichten senden. Ein archiviertes Projekt verweigert diese Aufrufe mit **403**, ein archivierter Thread das Senden mit **409**.
+`content` wird vor der Prüfung getrimmt — ein leerer Prompt ergibt **400**, statt einen Turn zu verbrauchen; `locale` ist ein BCP-47-Tag (`de`, `en-GB`) und nennt die Sprache, in der der Assistent antwortet. Jede Nachricht trägt einen `status`: Solange ein Turn läuft, steht seine Assistenten-Zeile bereits als `pending` mit leeren `parts` auf der Seite — die Zeile, die `.../generation` als `messageId` nennt — und wird am Ende des Turns `complete` oder `failed` mit `error` und `errorCode`, die Token-Zähler landen in `usage`. `parts` ist eine geordnete Liste, unterschieden nach `type` — `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, `approval`, `human-input` —, und das OpenAPI-Dokument typisiert jede Art. Ein `reasoning`-Teil ist das Denken des Modells und kann die eigenen Anweisungen des Assistenten wörtlich zitieren: Zeig ihn als das, was er ist, nie als die Antwort. Das Vokabular ist additiv — eine Art, die du nicht kennst, gibst du opak wieder.
+
+Für persönliche Chats ohne Projekt verwendest du `/api/v1/threads` sowie die zugehörigen Detail-, Nachrichten- und Statuspfade. Projektthreads sind dort nicht erreichbar. Ein falsches Projekt in der URL ergibt **404**. Beide Chatarten verwenden den eingebauten Assistenten; `projectId`, `agentSlug` oder `agentId` beim Anlegen oder Senden ergibt **400**. Projektleser einschließlich Mitgliedern dürfen Threads anlegen und Nachrichten senden. Ein archiviertes Projekt verweigert diese Aufrufe mit **403**. Ein archivierter Thread verweigert eine Nachricht mit **409**, `CHAT_THREAD_ARCHIVED`, ein Sandbox-Thread mit **409**, `CHAT_THREAD_NOT_DIRECT`, und ein Thread, dessen Turn noch läuft, mit **409**, `CHAT_TURN_IN_PROGRESS` — den letzten wiederholst du, sobald die Abfrage idle meldet, die anderen beiden nie.
+
+Den Lebenszyklus steuerst du über dieselben URLs. `PATCH .../threads/{threadId}` mit `{ "archived": true }` archiviert einen Thread, `false` holt ihn zurück; `DELETE .../threads/{threadId}` verschiebt ihn in den Papierkorb (**409**, `CHAT_TURN_IN_PROGRESS`, solange ein Turn läuft); `DELETE .../threads/{threadId}/generation` bittet den laufenden Turn zu stoppen — **202** `{ "status": "cancelling" }`, danach pollst du bis idle; läuft nichts, **404**, `CHAT_TURN_NOT_RUNNING`. Ein archiviertes Projekt verweigert alle drei mit **403**.
 
 Ein Modellfehler kann als Assistenten-Nachricht mit lesbarem `error` und, wenn verfügbar, `errorCode` erscheinen. Die Modellliste ist der konfigurierte Katalog der Organisation, kein Versprechen des Anbieterkontos — zwei Codes meinen deshalb das Konto, nicht die Anfrage: `credit_exhausted` (Guthaben aufgebraucht) und `model_not_entitled` (der Tarif des Anbieters enthält dieses Modell nicht). Wähl ein anderes Modell oder bring das Konto in Ordnung — Warten ändert nichts, und keiner von beiden ist ein `rate_limited`. Vor dem Öffnen des Turns prüft der Worker den angenommenen Thread und den Projektzugriff erneut. Wechselt der Thread während der Wartezeit das Projekt oder entfällt der Zugriff, führt er den Turn nicht aus und schreibt auch keine Fehlermeldung in den neuen Kontext.
 
@@ -224,7 +232,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/know
   -d '{ "query": "Frist für die Q1-Meldung", "limit": 10 }'
 ```
 
-Pflicht ist `query`; optional sind `limit` (1–50) und `minSimilarity` (0–1). Ohne Embedding-Modell lautet die Antwort **409**, `EMBEDDING_NOT_CONFIGURED`. Dieselbe **409** kommt als `EMBEDDING_CREDIT_EXHAUSTED`, wenn der Embedding-Anbieter aus Kontogründen ablehnt — Guthaben aufgebraucht, Ausgabenlimit erreicht oder ein Tarif, der das Modell nicht enthält. Lehnt der Anbieter den Schlüssel ab oder verweigert ihm das Modell, lautet sie **409**, `EMBEDDING_CREDENTIAL_REJECTED` — dann sind die Anbieter-Einstellungen zu korrigieren. Beides ist kein Rate-Limit: Warten hilft nicht, ein Admin muss handeln. Jeder andere Fehler beim Anbieter ergibt **503**, `EMBEDDING_UPSTREAM_ERROR` mit `Retry-After` — den wiederholst du mit Backoff. Für sichtbare Dokumente der Wissensdatenbank und von Teams ohne Projektzuordnung sowie registrierte Websites verwendest du `POST /api/v1/knowledge/search`. Dort akzeptiert `corpus` die Werte `"documents"`, `"web"` und `"all"` als Standard. Projektdateien und E-Mail-Anhänge sind von dieser Suche ausgeschlossen. Beide Suchen finden nur Dokumente mit einer Datei dahinter — Inline-`content` landet nie im Index.
+Pflicht ist `query`; optional sind `limit` (1–50) und `minSimilarity` (0–1). Jeder Treffer trägt seine Passage, seinen `score` und seine `source`; ein Dokument-Treffer zusätzlich `source.documentId` — die ID, die die Datei- und Dokumentrouten nehmen — neben der Blob-`ref`, unter der der Index ihn führt. Ohne Embedding-Modell lautet die Antwort **409**, `EMBEDDING_NOT_CONFIGURED`. Dieselbe **409** kommt als `EMBEDDING_CREDIT_EXHAUSTED`, wenn der Embedding-Anbieter aus Kontogründen ablehnt — Guthaben aufgebraucht, Ausgabenlimit erreicht oder ein Tarif, der das Modell nicht enthält. Lehnt der Anbieter den Schlüssel ab oder verweigert ihm das Modell, lautet sie **409**, `EMBEDDING_CREDENTIAL_REJECTED` — dann sind die Anbieter-Einstellungen zu korrigieren. Beides ist kein Rate-Limit: Warten hilft nicht, ein Admin muss handeln. Jeder andere Fehler beim Anbieter ergibt **503**, `EMBEDDING_UPSTREAM_ERROR` mit `Retry-After` — den wiederholst du mit Backoff. Für sichtbare Dokumente der Wissensdatenbank und von Teams ohne Projektzuordnung sowie registrierte Websites verwendest du `POST /api/v1/knowledge/search`. Dort akzeptiert `corpus` die Werte `"documents"`, `"web"` und `"all"` als Standard. Projektdateien und E-Mail-Anhänge sind von dieser Suche ausgeschlossen. Beide Suchen finden nur Dokumente mit einer Datei dahinter — Inline-`content` landet nie im Index.
 
 ## Ein externes System in ein Projekt spiegeln
 
@@ -256,7 +264,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
 
 `key` (das Präfix der Aufgaben-Kennungen) und `description` sind optional — der Key leitet sich aus dem Namen ab, wenn du ihn weglässt. Ein zweites Anlegen mit derselben `externalItemId` antwortet **409**; derselbe String in einer anderen Organisation ist in Ordnung, die Eindeutigkeit gilt pro Organisation.
 
-Ein expliziter Projekt-`key` besteht aus 2–6 Buchstaben oder Ziffern und landet in Großbuchstaben. Ungültige Werte ergeben **400**, ohne Kürzung. Lässt sich aus dem Namen kein gültiger Key ableiten, entsteht das Projekt ohne Key. Bei einem belegten Key folgt **409**; sende einen freien Key mit.
+Ein expliziter Projekt-`key` besteht aus 2–6 Buchstaben oder Ziffern und landet in Großbuchstaben. Ungültige Werte ergeben **400**, ohne Kürzung. Lässt sich aus dem Namen kein gültiger Key ableiten, entsteht das Projekt ohne Key. Kollidiert ein abgeleiteter Key, leitet Tale so lange neu ab, bis er frei ist; ein expliziter Key, der kollidiert, ergibt **409**, `PROJECT_KEY_TAKEN` — sende einen freien mit. Dieselbe `externalItemId` ein zweites Mal ergibt **409**, `PROJECT_DUPLICATE_EXTERNAL_ID`.
 
 ### Ordner anlegen
 
@@ -297,7 +305,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/file
 # → 201 { "file": { "id": "...", "fileName": "ledger-2026-q1.pdf", "folderId": "<folderId>", "projectId": "<projectId>" } }
 ```
 
-Die `uploadId` ist einmalig verwendbar und läuft nach 30 Minuten ab — ein Worker, der mitten im Upload abgestürzt ist, holt einen frischen Handoff, statt den alten zu wiederholen. Beim Binden gilt die Upload-Policy: ein zu großer Blob oder ein Typ außerhalb der erlaubten Liste wird mit **400** und einem Reason-Code abgewiesen.
+Die `uploadId` ist einmalig verwendbar und läuft nach 30 Minuten ab, und die vorsignierte `url` läuft mit ihr ab — `expiresAt` ist die eine Frist für beide —, ein Worker, der mitten im Upload abgestürzt ist, holt also einen frischen Handoff, statt den alten zu wiederholen. `fileName` ist ein einfacher Name: Ein Pfadtrenner oder ein Steuerzeichen darin ergibt **400**. Beim Binden gilt die Upload-Policy: ein zu großer Blob oder ein Typ außerhalb der erlaubten Liste wird mit **400** und einem Reason-Code abgewiesen.
 
 Dateien durch diesen Zugang sind Arbeitsmaterial des Projekts, kein Organisationswissen: sie werden standardmäßig nicht für die Wissenssuche indexiert (`skipRagIndexing` ist beim Binden standardmäßig `true`; sende `false`, um sie aufzunehmen), und sie tauchen nie unter `/api/v1/documents` auf — diese Familie bleibt die Oberfläche der Wissensdatenbank.
 
@@ -325,7 +333,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/auto
 # → 201 { "name": "vat-return", "added": true }
 ```
 
-`GET /api/v1/projects/{id}/automations` listet die in diesem Projekt installierten Automatisierungen. Eine Automatisierung ganz ohne Projektbindungen darf ebenfalls in einem zugänglichen Projekt laufen, wenn der Aufrufer die nötigen Bearbeitungsrechte hat; in der Liste der installierten Automatisierungen erscheint sie jedoch nicht. Bindungen entfernst du weiterhin im Dashboard.
+`GET /api/v1/projects/{id}/automations` listet die in diesem Projekt installierten Automatisierungen. Eine Automatisierung ganz ohne Projektbindungen darf ebenfalls in einem zugänglichen Projekt laufen, wenn der Aufrufer die nötigen Bearbeitungsrechte hat; in der Liste der installierten Automatisierungen erscheint sie jedoch nicht. `DELETE /api/v1/projects/{id}/automations/{name}` entfernt eine Installation wieder — **204**, oder **404** `AUTOMATION_NOT_INSTALLED`, wenn sie dort nicht installiert war — unter derselben Entwickler-Fähigkeit und denselben Bearbeitungsrechten.
 
 Das Anlegen einer Aufgabe ist pro `(projectId, externalSystem, externalId)` idempotent: Der erste Aufruf legt sie an (**201**, `created: true`), ein erneuter liefert dieselbe Aufgabe (**200**, `created: false`). Die `projectId` kommt aus der URL; im Anfrageinhalt ergibt sie **400**. Zum Anlegen brauchst du Bearbeitungsrechte auf ein aktives Projekt.
 
@@ -340,7 +348,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/task
 
 Ein erneuter Aufruf mit derselben externen Referenz einer aktiven Aufgabe aktualisiert Titel und Beschreibung. Ohne `description` wird die Beschreibung gelöscht; Labels ändern sich nur, wenn du sie mitsendest. Archivierte Aufgaben bleiben unverändert. Die Aufgaben-ID bleibt gleich; `runWorkflowSlug` startet dabei keinen weiteren Lauf. Sende beim Wiederholen nach einer verlorenen Antwort dieselben Daten.
 
-`description`, `labels` und `externalUrl` sind optional. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` startet im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe — der Lauf startet inline, sodass die Antwort seine `executionId` trägt (die zu pollende Lauf-ID), oder `executionId: null`, wenn der Slug keine deployte Automatisierung benennt. Starte stattdessen explizit, wenn du den Workflow in einem eigenen Aufruf benennen willst. Die zuständige `automationSlug` muss eine bereitgestellte Automatisierung benennen, sonst lautet die Antwort **404**. Ein Workflow, der nur an andere Projekte gebunden ist, ergibt **403**.
+`description`, `labels` und `externalUrl` sind optional; `title` fasst bis zu 200 Zeichen, und `externalUrl` muss eine absolute `http(s)`-URL sein — ein längerer Titel oder ein anderes Schema ergibt **400** statt einer stillschweigend veränderten Aufgabe. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` startet im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe — der Lauf startet inline, sodass die Antwort seine `executionId` trägt (die zu pollende Lauf-ID), oder `executionId: null`, wenn der Slug keine deployte Automatisierung benennt. Starte stattdessen explizit, wenn du den Workflow in einem eigenen Aufruf benennen willst. Die zuständige `automationSlug` muss eine bereitgestellte Automatisierung benennen, sonst lautet die Antwort **404**. Ein Workflow, der nur an andere Projekte gebunden ist, ergibt **403**.
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/start" \
@@ -389,25 +397,28 @@ curl -sSL "https://your-host.example.com/api/v1/projects/<projectId>/files/<docu
 Jede Nicht-2xx-Antwort trägt einen flachen Umschlag:
 
 ```json
-{ "error": "Automation not found" }
+{ "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
-Verzweige auf den HTTP-Status; die Meldung ist für Menschen:
+`error` ist ein Satz für Menschen; `code` ist der stabile Wert zum Verzweigen — jede Ablehnung, die die API selbst ausspricht, trägt einen, und das OpenAPI-Dokument listet den vollständigen Satz als Enum von `Error.code`. Der Satz wächst additiv: Ein neuer Code ist eine Minor-Änderung, einen unbekannten Wert behandelst du also als allgemeine Ablehnung mit dem Status, den du bekommen hast. Manche Ablehnungen tragen zusätzlich `data` — `issues` bei einem abgelehnten Body, `retryAfterMs` bei einem Rate-Limit, `providers` bei einem mehrdeutigen Modell. Verzweige auf den Code, wo unten einer steht, sonst auf den Status:
 
-- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, unbekannter Schlüssel, nicht parsebarer Body — die Antwort trägt `code: "INVALID_BODY"` und listet unter `data.issues` jedes Problem mit Feld (`price`, `contacts.2.email`) und Grund, also korrigier, was sie benennt; ein `cursor`, den die Liste nie geliefert hat (`INVALID_CURSOR`), oder ein `limit`, das keine Zahl ist (`INVALID_LIMIT`) — beides wird nie als erste Seite gelesen; oder ein Multi-Org-Schlüssel, der seine Organisation nicht benannt hat (erforderlich bei jedem Schreiben und auf allen Projekt- und Aufgaben-Routen).
-- **401** — fehlender oder ungültiger API-Schlüssel.
-- **403** — die Rolle oder Projektbearbeitungsrechte fehlen, die gewünschte Änderung betrifft ein archiviertes Projekt oder eine archivierte Aufgabe, oder die Automatisierung darf in diesem Projekt nicht laufen.
-- **404** — die Ressource fehlt, ist für den Schlüsselbesitzer unsichtbar, gehört einem anderen Threadbenutzer oder liegt in einem anderen Projekt als dem der URL.
-- **409** — der Zustand verhindert die Aktion: keine bereitgestellte Version, eine gebundene Automatisierung ohne Projekt-URL, ein archivierter Thread oder laufender Turn, ein doppeltes Thema, eine doppelte E-Mail oder `externalItemId`, oder eine Suche ohne Embedding-Modell.
-- **413** — der Body ist zu groß; nur der Webhook-Trigger gibt ihn zurück, bei seiner 256-KB-Grenze. Eine hochgeladene Datei, die die Größen- oder Typ-Policy verletzt, wird beim Binden stattdessen mit **400** und einem Reason-Code abgewiesen.
-- **429** — Rate-Limit erreicht; die Antwort trägt `Retry-After` in ganzen Sekunden — siehe [Rate-Limits](/de/develop/rate-limits).
-- **500** — interner Fehler.
+- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, unbekannter Schlüssel, nicht parsebarer Body, ein String mit NUL-Zeichen — die Antwort trägt `code: "INVALID_BODY"` und listet unter `data.issues` jedes Problem mit Feld (`price`, `contacts.2.email`; ein unbekannter Schlüssel ist ein eigenes Problem unter seinem Namen) und Grund, also korrigier, was sie benennt; ein `cursor`, den die Liste nie geliefert hat (`INVALID_CURSOR`), ein `limit`, das keine Zahl ist (`INVALID_LIMIT`), oder ein anderer Query-Parameter, den die Route ablehnt (`INVALID_QUERY`) — nichts davon wird als erste Seite gelesen; oder ein Multi-Org-Schlüssel, der seine Organisation nicht benannt hat (`ORG_SLUG_REQUIRED`).
+- **401** — fehlender oder ungültiger API-Schlüssel (`UNAUTHORIZED`), mit einer `WWW-Authenticate: Bearer`-Challenge.
+- **403** — die Rolle (`ROLE_FORBIDDEN`) oder Projektbearbeitungsrechte fehlen, die gewünschte Änderung betrifft ein archiviertes Projekt oder eine archivierte Aufgabe (`PROJECT_ARCHIVED`), oder die Automatisierung darf in diesem Projekt nicht laufen.
+- **404** — die Ressource fehlt, ist für den Schlüsselbesitzer unsichtbar, gehört einem anderen Threadbenutzer oder liegt in einem anderen Projekt als dem der URL; jede Familie nennt ihren eigenen Code (`PROJECT_NOT_FOUND`, `THREAD_NOT_FOUND`, …), eine unbekannte Route antwortet `NOT_FOUND`.
+- **405** — die Route existiert, aber nicht für dieses Verb (`METHOD_NOT_ALLOWED`); `Allow` nennt die Verben, die sie bedient.
+- **409** — der Zustand verhindert die Aktion: keine bereitgestellte Version, eine gebundene Automatisierung ohne Projekt-URL, ein archivierter Thread oder laufender Turn, ein doppeltes Thema, eine doppelte E-Mail oder `externalItemId`, ein abgelöster Wissenseintrag (`KNOWLEDGE_ENTRY_SUPERSEDED`), ein veraltetes `expectedUpdatedAt` (`CONTACT_STALE`, `PRODUCT_STALE`), oder eine Suche ohne Embedding-Modell.
+- **413** — der Body ist zu groß (`BODY_TOO_LARGE`): der Webhook-Trigger bei seiner 256-KB-Grenze, die Gesprächsrouten bei ihrer. Eine hochgeladene Datei, die die Größen- oder Typ-Policy verletzt, wird beim Binden stattdessen mit **400** und einem Reason-Code abgewiesen.
+- **422** — ein Skill-Body, den die Dateischicht nicht lesen kann (`SKILL_MALFORMED`).
+- **429** — Rate-Limit erreicht (`RATE_LIMITED`); die Antwort trägt `Retry-After` in ganzen Sekunden und `data.retryAfterMs` — siehe [Rate-Limits](/de/develop/rate-limits).
+- **500** — interner Fehler (`INTERNAL_ERROR`); der Umschlag trägt eine `requestId`, die du beim Melden nennst.
+- **503** — eine Abhängigkeit, die die Anfrage brauchte, ist nicht erreichbar: der Embedding-Anbieter (`EMBEDDING_UPSTREAM_ERROR`, mit `Retry-After`) oder eine Dokumentbereinigung, die nicht abschließen konnte (`PURGE_INCOMPLETE`) — wiederhole mit Backoff.
 
 Das Lösen eines Triggers einer vorhandenen Automatisierung (`DELETE .../triggers`) antwortet mit **204**, auch wenn kein Trigger gebunden war. Eine unbekannte Automatisierung ergibt **404**. Das Löschen einer fehlenden Ressource ergibt ebenfalls **404**, auch bei einem Kontakt im Papierkorb oder einem bereits gelöschten Wissenseintrag. Ein unbekannter Lauf ergibt beim Abbrechen **404**; `{cancelled: false}` bedeutet, dass der Lauf existiert und bereits beendet ist.
 
 ## Versionierung
 
-Der aktuelle REST-Präfix lautet `/api/v1/`. Das OpenAPI-Dokument unter `/docs` beschreibt die Routen sowie Anfrage- und Antwortschemas der laufenden Instanz. Verwende es als Vertrag für deinen Client.
+Der aktuelle REST-Präfix lautet `/api/v1/`. Das OpenAPI-Dokument unter `/openapi.json` beschreibt die Routen sowie Anfrage- und Antwortschemas der laufenden Instanz, mit `servers` auf genau diese Instanz gesetzt; `/docs` rendert es. Verwende es als Vertrag für deinen Client.
 
 ## Wo das hingehört
 

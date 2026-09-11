@@ -40,6 +40,12 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import {
+  AGENT_TOOL_GRANT_NAMES,
+  agentEquipmentRefusal,
+  agentModelRefusal,
+  unknownToolGrants,
+} from './agent-equipment.ts';
 
 /**
  * Projects domain — ported from `convex/projects/*` with the pure access
@@ -1419,6 +1425,16 @@ function validateProjectAgentFields(args: {
       'Agent instructions too long',
     );
   }
+  // A grant the catalog does not carry is refused by name — it used to be
+  // dropped in silence, so a caller that sent `["bash", "web_search"]` got
+  // a 201 and an agent with no tools at all.
+  const unknownTools = unknownToolGrants(args.tools ?? []);
+  if (unknownTools.length > 0) {
+    throw new ProjectError(
+      'PROJECT_AGENT_TOOL_UNKNOWN',
+      `Unknown tools: ${unknownTools.join(', ')}. The grantable tools are: ${AGENT_TOOL_GRANT_NAMES.join(', ')}.`,
+    );
+  }
   return {
     name,
     harness: args.harness,
@@ -1436,6 +1452,42 @@ function validateProjectAgentFields(args: {
         ? instructions
         : undefined,
   };
+}
+
+/**
+ * The model, skills and connectors an agent is being equipped with must be
+ * ones this organization can actually serve — the same listings the dialog
+ * offers (`agent-equipment.ts`). A provider that does not exist or a model
+ * the organization cannot call used to be stored with a 201 and fail
+ * unattended at the first task start; unknown skills and connectors were
+ * stored verbatim.
+ */
+async function assertAgentEquipment(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  fields: ProjectAgentFields,
+): Promise<void> {
+  const refusal =
+    (await agentModelRefusal(tx, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      harness: fields.harness,
+      model: fields.model,
+      ...(fields.modelProvider !== undefined
+        ? { modelProvider: fields.modelProvider }
+        : {}),
+    })) ??
+    (await agentEquipmentRefusal(tx, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      projectId,
+      skills: fields.skills,
+      connectors: fields.connectors,
+    }));
+  if (refusal !== null) {
+    throw new ProjectError(refusal.code, refusal.message);
+  }
 }
 
 /**
@@ -1546,6 +1598,7 @@ export async function createProjectAgent(
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
+  await assertAgentEquipment(tx, auth, args.projectId, fields);
   fields.secrets = await pruneMissingSecrets(
     tx,
     auth.organizationId,
@@ -1639,6 +1692,7 @@ export async function updateProjectAgent(
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
+  await assertAgentEquipment(tx, auth, agent.projectId, fields);
   // Prune BEFORE the gate: a set that only lost a deleted secret is not a
   // privileged change, so an editor's unrelated save must not be refused.
   fields.secrets = await pruneMissingSecrets(

@@ -62,11 +62,14 @@ interface Statement {
 }
 
 interface Script {
-  /** The active entry `updateKnowledgeEntry` loads (with its document). */
+  /** The entry `updateKnowledgeEntry` loads (with its document); active
+   * unless the script says otherwise. */
   current?: {
     id: string;
     topicKey: string;
     documentId: string | null;
+    status?: string;
+    supersededBy?: string | null;
   };
   /** The blob ref the file row carried before a rotation. */
   previousRef?: string;
@@ -102,7 +105,11 @@ function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
       );
     }
     if (text.includes('LEFT JOIN app.documents')) {
-      return Promise.resolve(script.current ? [script.current] : []);
+      return Promise.resolve(
+        script.current
+          ? [{ status: 'active', supersededBy: null, ...script.current }]
+          : [],
+      );
     }
     if (text.includes('UPDATE app.knowledge_entries SET deleted_at_ms')) {
       return Promise.resolve(Object.assign([], { count: 3 }));
@@ -262,6 +269,49 @@ describe('storing the entry blob', () => {
         content: 'Open 9-5',
       }),
     ).rejects.toThrow('fetch failed');
+  });
+});
+
+/**
+ * A superseded row is manifestly there — it reads, it lists under
+ * `?status=superseded` — so a new version written onto it is refused by
+ * its STATE (the documented 409, naming the row that replaced it), not by
+ * the 404 a missing row answers. The lookup used to fold `status =
+ * 'active'` into its predicate, so the two were indistinguishable.
+ */
+describe('a superseded entry', () => {
+  it('refuses a new version with 409 naming its successor, and writes nothing', async () => {
+    const { sql, statements } = fakeSql({
+      current: {
+        id: 'entry-old',
+        topicKey: 'refunds',
+        documentId: 'doc-1',
+        status: 'superseded',
+        supersededBy: 'entry-new',
+      },
+    });
+    let caught: unknown;
+    try {
+      await updateKnowledgeEntry(sql, {
+        ...WRITER,
+        entryId: 'entry-old',
+        topic: 'Refunds',
+        content: 'v3',
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(KnowledgeEntryError);
+    expect(caught).toMatchObject({
+      code: 'KNOWLEDGE_ENTRY_SUPERSEDED',
+      status: 409,
+      message: expect.stringContaining('entry-new'),
+    });
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.knowledge_entries'),
+      ),
+    ).toBe(false);
   });
 });
 

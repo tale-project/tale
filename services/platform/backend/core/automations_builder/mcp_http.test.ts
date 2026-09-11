@@ -182,14 +182,15 @@ describe('tools/list', () => {
     'get_knowledge',
   ];
 
-  /** The four methods that take an automation document — the engine teaches
-   * their grammar in band, so their schema stays open on the wire. */
-  const OPEN_SCHEMA_TOOLS = [
+  /** The four methods that take an automation document declare their call
+   * envelope — the document itself stays an open object inside it, since
+   * the engine teaches and validates its grammar in band. */
+  const DOCUMENT_TOOLS = new Set([
     'validate_automation',
     'run_automation',
     'test_automation',
     'save_automation',
-  ];
+  ]);
 
   it('advertises exactly the documented tools, in order', async () => {
     const { payload } = await call({
@@ -215,7 +216,7 @@ describe('tools/list', () => {
     }
   });
 
-  it('keeps only the automation-document methods open and gives every other tool a real schema', async () => {
+  it('gives every tool a real schema — the document tools declare their envelope around an open document', async () => {
     const { payload } = await call({
       jsonrpc: '2.0',
       id: 3,
@@ -231,16 +232,34 @@ describe('tools/list', () => {
     const open = tools
       .filter((tool) => tool.inputSchema.properties === undefined)
       .map((tool) => tool.name);
-    expect(open).toEqual(OPEN_SCHEMA_TOOLS);
+    expect(open).toEqual([]);
 
     for (const tool of tools) {
-      if (open.includes(tool.name)) {
-        expect(tool.inputSchema, tool.name).toEqual({ type: 'object' });
-      } else {
-        // A typo must fail at the client, not be dropped silently.
-        expect(tool.inputSchema.additionalProperties, tool.name).toBe(false);
+      // A typo must fail at the client, not be dropped silently.
+      expect(tool.inputSchema.additionalProperties, tool.name).toBe(false);
+      if (DOCUMENT_TOOLS.has(tool.name)) {
+        expect(tool.inputSchema.required, tool.name).toEqual(['automation']);
+        const properties = tool.inputSchema.properties as Record<
+          string,
+          Record<string, unknown>
+        >;
+        expect(properties.automation?.type).toBe('object');
+        expect(properties.automation?.properties).toBeUndefined();
       }
     }
+  });
+
+  it('refuses a document tool called without its document at the transport', async () => {
+    const { payload } = await call({
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: { name: 'run_automation', arguments: { input: { n: 1 } } },
+    });
+    expect(payload.error).toMatchObject({
+      code: -32602,
+      message: expect.stringContaining('automation'),
+    });
   });
 
   it('renders the same inventory the settings page renders', async () => {
@@ -542,12 +561,29 @@ describe('tools/call — arguments are held to the advertised schema', () => {
     expect(message).toContain('must be an object');
   });
 
-  it('leaves an automation-document tool to the engine', async () => {
+  it('leaves the automation DOCUMENT to the engine but holds the envelope around it', async () => {
     const runAction = vi.fn().mockResolvedValue({ ok: true, errors: [] });
-    const { payload } = await call(
+    // Inside the document anything goes: the engine validates the grammar.
+    const open = await call(
       {
         jsonrpc: '2.0',
         id: 21,
+        method: 'tools/call',
+        params: {
+          name: 'validate_automation',
+          arguments: { automation: { name: 'x', nodes: [], anything: 1 } },
+        },
+      },
+      runAction,
+    );
+    expect(open.payload.error).toBeUndefined();
+    expect(runAction).toHaveBeenCalledTimes(1);
+
+    // A stray key BESIDE the document is a typo the client hears about.
+    const strict = await call(
+      {
+        jsonrpc: '2.0',
+        id: 22,
         method: 'tools/call',
         params: {
           name: 'validate_automation',
@@ -556,7 +592,10 @@ describe('tools/call — arguments are held to the advertised schema', () => {
       },
       runAction,
     );
-    expect(payload.error).toBeUndefined();
+    expect(strict.payload.error).toMatchObject({
+      code: -32602,
+      message: expect.stringContaining('anything'),
+    });
     expect(runAction).toHaveBeenCalledTimes(1);
   });
 });
@@ -674,7 +713,11 @@ describe('protocol errors', () => {
       });
     const refused = await handleMcpRequest(rc, request('2024-11-05'));
     expect(refused.status).toBe(400);
+    // The body is read before the header is judged, so the refusal carries
+    // the message's own id — a client matching replies by id used to get
+    // `null` here.
     expect(await refused.json()).toMatchObject({
+      id: 1,
       error: { code: -32600, message: expect.stringContaining('2024-11-05') },
     });
     const accepted = await handleMcpRequest(rc, request('2025-03-26'));
@@ -727,12 +770,58 @@ describe('protocol errors', () => {
     });
   });
 
-  it('answers GET with 405 — there is no SSE stream here', async () => {
+  it('answers GET with 405, an Allow header and the JSON envelope — there is no SSE stream here', async () => {
     const response = mcpGetNotAllowed();
     expect(response.status).toBe(405);
+    expect(response.headers.get('allow')).toBe('POST');
     await expect(response.json()).resolves.toEqual({
       error: 'Use POST with a JSON-RPC message',
+      code: 'METHOD_NOT_ALLOWED',
     });
+  });
+
+  it('refuses params that are neither an object nor an array (-32600)', async () => {
+    for (const params of ['ping', 7, true]) {
+      const { status, payload } = await call({
+        jsonrpc: '2.0',
+        id: 21,
+        method: 'ping',
+        params,
+      });
+      // An envelope the endpoint cannot act on answers 400, like every
+      // other -32600 here; the id is still echoed.
+      expect(status, JSON.stringify(params)).toBe(400);
+      expect(payload.id).toBe(21);
+      expect(payload.error).toMatchObject({
+        code: -32600,
+        message: expect.stringContaining('params must be an object'),
+      });
+    }
+  });
+
+  it('refuses a tools/list cursor it never issued (-32602) and answers the list whole otherwise', async () => {
+    const refused = await call({
+      jsonrpc: '2.0',
+      id: 22,
+      method: 'tools/list',
+      params: { cursor: 'page-2' },
+    });
+    expect(refused.payload.id).toBe(22);
+    expect(refused.payload.error).toMatchObject({
+      code: -32602,
+      message: expect.stringContaining('cursor'),
+    });
+
+    const whole = await call({
+      jsonrpc: '2.0',
+      id: 23,
+      method: 'tools/list',
+      params: {},
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted below
+    const result = whole.payload.result as Record<string, unknown>;
+    expect(result.nextCursor).toBeUndefined();
+    expect(Array.isArray(result.tools)).toBe(true);
   });
 });
 

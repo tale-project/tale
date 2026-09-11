@@ -4,14 +4,23 @@ import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
-import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
+import {
+  CONTENT_MAX_LENGTH,
+  TOPIC_MAX_LENGTH,
+} from '../core/knowledge_entries/constants.ts';
 import {
   deleteSkillForViewer,
   listSkillsForViewer,
   readSkillForViewer,
   saveSkillForViewer,
 } from '../core/skills/file_actions.ts';
+import {
+  contactBulkItemSchema,
+  contactCreateSchema,
+  contactExternalIdText,
+  contactFieldsSchema,
+} from '../domains/contacts/input-schema.ts';
 import {
   bulkCreateContacts,
   createContact,
@@ -45,6 +54,11 @@ import {
   deleteKnowledgeEntry,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
+import { listUserOrganizations } from '../domains/organizations/service.ts';
+import {
+  productCreateSchema,
+  productPatchSchema,
+} from '../domains/products/input-schema.ts';
 import {
   createProduct,
   deleteProduct,
@@ -54,18 +68,22 @@ import {
   type ProductScope,
 } from '../domains/products/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
-import { skillErrorResponse } from '../domains/skills/errors.ts';
+import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
-import { purgeIncompleteResponse } from '../lib/purge-incomplete-response.ts';
 import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   assertExplicitOrg,
+  codedRefusalResponse,
   domainErrorResponse,
   formatKeysetCursor,
   invalidBodyResponse,
+  invalidQueryResponse,
   loadRestProject,
+  mintCursor,
+  noteRestErrorCode,
+  notFound,
   readIntegerCursor,
   readJsonBody,
   readKeysetCursor,
@@ -90,24 +108,37 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     role: c.get('role'),
   });
 
-  // ---- contacts -----------------------------------------------------------
-  const contactInput = z.object({
-    name: z.string().optional(),
-    email: z.string().optional(),
-    phone: z.string().optional(),
-    source: dataSourceSchema.optional(),
-    locale: z.string().optional(),
-    address: z.record(z.string(), z.unknown()).optional(),
-    externalId: z.union([z.string(), z.number()]).optional(),
-    tags: z.array(z.string()).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-    notes: z.string().optional(),
+  // ---- the key holder -----------------------------------------------------
+  /** Who the key acts as and where: the organization this request resolved
+   * to (its slug is the `X-Organization-Slug` value a multi-org key must
+   * send) and every organization the holder belongs to — no other route
+   * tells a client its own slug. */
+  app.get('/me', async (c) => {
+    const memberships = await listUserOrganizations(deps.sql, c.get('userId'));
+    return c.json({
+      user: { id: c.get('userId'), email: c.get('userEmail') },
+      organization: {
+        id: c.get('organizationId'),
+        slug: c.get('orgSlug'),
+        role: c.get('role'),
+      },
+      organizations: memberships.map((membership) => ({
+        id: membership.organizationId,
+        slug: membership.slug ?? null,
+        name: membership.name,
+        role: membership.role,
+      })),
+    });
   });
+
+  // ---- contacts -----------------------------------------------------------
+  // The shared field shape (domains/contacts/input-schema.ts), strict: an
+  // unknown key answers the documented INVALID_BODY instead of vanishing.
 
   /** Keyset-paginated (`cursor` = the previous page's `continueCursor`,
    * `<updatedAt>:<id>`); `limit` 1..200, default 25. */
   app.get('/contacts', async (c) => {
-    const cursor = readKeysetCursor(c);
+    const cursor = readKeysetCursor(c, 'contacts');
     if (cursor instanceof Response) return cursor;
     const limit = readPageLimit(c, { fallback: 25, max: 200 });
     if (limit instanceof Response) return limit;
@@ -127,9 +158,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         continueCursor:
           result.nextCursor === null
             ? ''
-            : formatKeysetCursor(
-                result.nextCursor.updatedAt,
-                result.nextCursor.id,
+            : mintCursor(
+                c,
+                'contacts',
+                formatKeysetCursor(
+                  result.nextCursor.updatedAt,
+                  result.nextCursor.id,
+                ),
               ),
       });
     } catch (error) {
@@ -138,7 +173,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/contacts', async (c) => {
-    const body = contactInput.safeParse(await readJsonBody(c));
+    const body = contactCreateSchema.safeParse(await readJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
@@ -146,10 +181,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await deps.sql.begin((tx) =>
         createContact(tx, scope(c), {
           ...body.data,
-          externalId:
-            body.data.externalId === undefined
-              ? undefined
-              : String(body.data.externalId),
+          externalId: contactExternalIdText(body.data.externalId),
           source: body.data.source ?? 'api_import',
         }),
       );
@@ -162,8 +194,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/contacts/bulk', async (c) => {
     const body = z
       .object({
-        contacts: z.array(contactInput.extend({ email: z.string() })).max(500),
+        contacts: z.array(contactBulkItemSchema).max(500),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
@@ -190,7 +223,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   ): Promise<Awaited<ReturnType<typeof getContact>> | Response> => {
     const contact = await getContact(deps.sql, scope(c), contactId);
     if (contact.lifecycleStatus === 'trashed') {
-      return c.json({ error: 'Contact not found' }, 404);
+      return notFound(c, 'Contact not found', 'CONTACT_NOT_FOUND');
     }
     return contact;
   };
@@ -206,8 +239,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.patch('/contacts/:id', async (c) => {
-    const body = contactInput
-      .partial()
+    const body = contactFieldsSchema
       .extend({
         expectedUpdatedAt: z
           .number()
@@ -226,10 +258,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await deps.sql.begin((tx) =>
         updateContact(tx, scope(c), current.id, {
           ...body.data,
-          externalId:
-            body.data.externalId === undefined
-              ? undefined
-              : String(body.data.externalId),
+          externalId: contactExternalIdText(body.data.externalId),
           source: body.data.source,
         }),
       );
@@ -252,25 +281,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- products -----------------------------------------------------------
-  const productInput = z.object({
-    name: z.string().optional(),
-    description: z.string().optional(),
-    imageUrl: z.string().optional(),
-    stock: z.number().optional(),
-    price: z.number().optional(),
-    currency: z.string().optional(),
-    category: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    status: z.string().optional(),
-    externalId: z.string().optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  });
-  /** Create requires the name; update leaves every field optional. */
-  const productCreateInput = productInput.extend({ name: z.string() });
+  // The shared field shape (domains/products/input-schema.ts), strict and
+  // capped at the domain's own limits; the patch also takes the contacts
+  // precondition (`expectedUpdatedAt`).
 
   /** Keyset-paginated like /contacts; `status` and `category` narrow. */
   app.get('/products', async (c) => {
-    const cursor = readKeysetCursor(c);
+    const cursor = readKeysetCursor(c, 'products');
     if (cursor instanceof Response) return cursor;
     const limit = readPageLimit(c, { fallback: 25, max: 200 });
     if (limit instanceof Response) return limit;
@@ -293,9 +310,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         continueCursor:
           result.nextCursor === null
             ? ''
-            : formatKeysetCursor(
-                result.nextCursor.updatedAt,
-                result.nextCursor.id,
+            : mintCursor(
+                c,
+                'products',
+                formatKeysetCursor(
+                  result.nextCursor.updatedAt,
+                  result.nextCursor.id,
+                ),
               ),
       });
     } catch (error) {
@@ -304,14 +325,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = productCreateInput.safeParse(await readJsonBody(c));
+    const body = productCreateSchema.safeParse(await readJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
     try {
       const id = await deps.sql.begin((tx) =>
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the service validates status/currency vocabularies
-        createProduct(tx, scope(c), body.data as never),
+        createProduct(tx, scope(c), body.data),
       );
       return c.json({ id }, 201);
     } catch (error) {
@@ -322,7 +342,8 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/products/:id', async (c) => {
     try {
       const product = await getProduct(deps.sql, scope(c), c.req.param('id'));
-      if (!product) return c.json({ error: 'Product not found' }, 404);
+      if (!product)
+        return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
       return c.json(product);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -330,17 +351,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.patch('/products/:id', async (c) => {
-    const body = productInput.safeParse(await readJsonBody(c));
+    const body = productPatchSchema.safeParse(await readJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
     try {
       await deps.sql.begin((tx) =>
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the service validates status/currency vocabularies
-        updateProduct(tx, scope(c), c.req.param('id'), body.data as never),
+        updateProduct(tx, scope(c), c.req.param('id'), body.data),
       );
       const updated = await getProduct(deps.sql, scope(c), c.req.param('id'));
-      if (!updated) return c.json({ error: 'Product not found' }, 404);
+      if (!updated)
+        return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
       return c.json(updated);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -381,9 +402,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/documents', async (c) => {
-    // The service decodes the `<createdAt>:<id>` token itself; the shape is
-    // checked here so a mangled one is refused, never read as page one.
-    const cursor = readKeysetCursor(c);
+    // The service decodes the `<createdAt>:<id>` position itself; the
+    // signature is checked here so a token this list never answered is
+    // refused, never read as page one.
+    const cursor = readKeysetCursor(c, 'documents');
     if (cursor instanceof Response) return cursor;
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
@@ -396,13 +418,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(c.req.query('folderId') !== undefined
           ? { folderId: c.req.query('folderId') ?? '' }
           : {}),
-        cursor: c.req.query('cursor') ?? null,
+        cursor:
+          cursor === null ? null : formatKeysetCursor(cursor.at, cursor.id),
         limit,
       });
       return c.json({
         page: result.page.map((doc) => hubDocumentPayload(doc, null)),
         isDone: result.isDone,
-        continueCursor: result.continueCursor,
+        continueCursor:
+          result.continueCursor === ''
+            ? ''
+            : mintCursor(c, 'documents', result.continueCursor),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -451,7 +477,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       doc.projectId !== null ||
       (doc.lifecycleStatus ?? 'active') !== 'active'
     ) {
-      return c.json({ error: 'Document not found' }, 404);
+      return notFound(c, 'Document not found', 'DOCUMENT_NOT_FOUND');
     }
     return doc;
   };
@@ -517,21 +543,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await deleteDocumentHard(deps.sql, auth, doc.id);
       return c.body(null, 204);
     } catch (error) {
-      // Wire parity: this door has always refused protected records as 409.
+      // Wire parity: this door has always refused protected records as 409
+      // — in the door's own `{error, code}` envelope.
       if (
         error instanceof DocumentError &&
         error.code === 'DOCUMENT_RECORD_PROTECTED'
       ) {
-        return c.json(
-          { error: 'DOCUMENT_RECORD_PROTECTED', message: error.message },
-          409,
-        );
+        return c.json({ error: error.message, code: error.code }, 409);
       }
       // The purge could not remove every dead surface: the row was kept for
       // a retry — the same 503 the session and folder doors answer, not the
       // bare 500 an unmapped error becomes.
       if (error instanceof PurgeIncompleteError) {
-        return purgeIncompleteResponse(c, error);
+        noteRestErrorCode(error.code);
+        return c.json({ error: error.message, code: error.code }, 503);
       }
       return domainErrorResponse(c, error);
     }
@@ -717,11 +742,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/knowledge-entries', async (c) => {
     const status = c.req.query('status') ?? 'active';
     if (status !== 'active' && status !== 'superseded') {
-      return c.json({ error: '"status" must be active or superseded' }, 400);
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        'invalid query: "status" must be active or superseded',
+        [{ path: 'status', message: 'must be active or superseded' }],
+      );
     }
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
-    const cursor = readIntegerCursor(c);
+    const cursor = readIntegerCursor(c, 'knowledge-entries');
     if (cursor instanceof Response) return cursor;
     const rows = await deps.sql<RestEntryRow[]>`
       SELECT ${deps.sql.unsafe(ENTRY_VIEW_COLUMNS)}
@@ -734,17 +764,26 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     `;
     const page = rows.slice(0, limit);
     const isDone = rows.length <= limit;
+    const last = page.at(-1);
     return c.json({
       page: page.map(entryView),
       isDone,
-      continueCursor: isDone ? '' : String(page.at(-1)?.seq ?? ''),
+      continueCursor:
+        isDone || last === undefined
+          ? ''
+          : mintCursor(c, 'knowledge-entries', String(last.seq)),
     });
   });
 
-  const entryBody = z.object({
-    topic: z.string().min(1).max(200),
-    content: z.string().min(1).max(100_000),
-  });
+  /** The one cap set the domain enforces (`validate`), so the schema
+   * refuses with `INVALID_BODY` naming the field instead of the domain's
+   * bare `KNOWLEDGE_ENTRY_TOPIC_TOO_LONG`; unknown keys are refused too. */
+  const entryBody = z
+    .object({
+      topic: z.string().min(1).max(TOPIC_MAX_LENGTH),
+      content: z.string().min(1).max(CONTENT_MAX_LENGTH),
+    })
+    .strict();
 
   /** The per-org `knowledge:mutate` budget the in-app entry writes share —
    * answered as the standard 429 (`RATE_LIMITED` + `Retry-After`): the
@@ -798,7 +837,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/knowledge-entries/:id', async (c) => {
     const entry = await loadEntry(c, c.req.param('id'));
     if (entry === null) {
-      return c.json({ error: 'Knowledge entry not found' }, 404);
+      return notFound(c, 'Entry not found', 'KNOWLEDGE_ENTRY_NOT_FOUND');
     }
     return c.json(entryView(entry));
   });
@@ -870,10 +909,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(await skillCaller(c)),
         slug: c.req.param('slug'),
       });
-      if (!skill) return c.json({ error: 'Skill not found' }, 404);
+      if (!skill) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       return c.json(skill);
     } catch (error) {
-      return skillErrorResponse(c, error);
+      return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
   });
 
@@ -925,7 +964,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       );
       return c.json(saved);
     } catch (error) {
-      return skillErrorResponse(c, error);
+      return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
   });
 
@@ -939,10 +978,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         slug,
         () => deleteSkillForViewer({ ...who, slug }),
       );
-      if (!deleted) return c.json({ error: 'Skill not found' }, 404);
+      if (!deleted) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       return c.body(null, 204);
     } catch (error) {
-      return skillErrorResponse(c, error);
+      return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
   });
 

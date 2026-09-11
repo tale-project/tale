@@ -5,6 +5,10 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  CONTENT_MAX_LENGTH,
+  TOPIC_MAX_LENGTH,
+} from '../../core/knowledge_entries/constants.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -62,9 +66,11 @@ function describeIssues(error: z.ZodError): string {
     .join('; ');
 }
 
+/** The domain's own caps (the dialogs enforce the same constants), so an
+ * over-long body is named by field here rather than refused generically. */
 const entryBodySchema = z.object({
-  topic: z.string().max(500),
-  content: z.string().max(20_000),
+  topic: z.string().max(TOPIC_MAX_LENGTH),
+  content: z.string().max(CONTENT_MAX_LENGTH),
 });
 
 export function createKnowledgeEntryRoutes(deps: {

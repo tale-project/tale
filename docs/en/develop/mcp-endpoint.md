@@ -45,25 +45,25 @@ The server identifies as `tale-platform`. In a client that takes a config block,
 }
 ```
 
-`tools/list` returns the full inventory; `GET` on the endpoint answers **405** — there is no event stream to subscribe to. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
+`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST` header — there is no event stream to subscribe to and no session to delete. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
 
 ## The tools
 
-Twenty-two tools, in three groups. The four tools that take a whole automation document — validate, run, test, save — validate it themselves: their schemas are open on the wire, and `get_docs` is the reference a model reads first. Every other tool takes simple arguments and declares a real JSON schema, and the endpoint holds a call to it — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result.
+Twenty-two tools, in three groups, each with a real JSON schema the endpoint holds a call to — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result. The four tools that take a whole automation document — validate, run, test, save — declare their call envelope (`automation`, plus `input`, `mode` or `message` where they apply) and leave the document itself open: its grammar is what `get_docs` teaches, and the engine validates it in band.
 
 ### Authoring
 
 | Tool                  | What it does                                               |
 | --------------------- | ---------------------------------------------------------- |
-| `get_docs`            | The automation grammar and authoring guide, as text.       |
-| `get_catalog`         | Every node type this deployment can execute.               |
+| `get_docs`            | The automation authoring reference — grammar, node kinds, capability nodes and the method table in this endpoint's own `tools/call` dialect — as text. |
+| `get_catalog`         | Every node type this deployment can execute; `kind` narrows to one node kind and `compact: true` drops the input schemas. |
 | `search_catalog`      | Search the node-type catalog by keyword.                   |
 | `validate_automation` | Validate an automation document without saving it.         |
 | `run_automation`      | Run an automation document directly against the deterministic mocks. |
 | `test_automation`     | Run an automation's own acceptance tests.                  |
 | `save_automation`     | Save an automation document as a new immutable version.    |
 | `get_automation`      | Read one saved version (the latest when unversioned).      |
-| `list_automations`    | The organization's automations with their latest versions. |
+| `list_automations`    | The organization's automations with their latest and deployed versions and the projects each is installed in (`projectIds`). |
 | `deploy_automation`   | Promote one saved version to be the live version.          |
 
 ### Run & trigger management
@@ -72,8 +72,8 @@ Twenty-two tools, in three groups. The four tools that take a whole automation d
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | `run_deployed`   | Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its `runId` to poll. |
 | `start_run`      | Start the deployed version in the background and return a run handle immediately; poll get_run for the result. |
-| `list_runs`      | Recent runs, newest first — of one automation or of the whole organization.                                    |
-| `get_run`        | One run in full: status, output, trace and effects.                                                            |
+| `list_runs`      | Recent runs the key may read, newest first — of one automation or across the organization's projects; each names its `projectId`. |
+| `get_run`        | One run in full: status, output, trace, effects and `projectId` — a project run's id is the one `GET /api/v1/projects/{id}/runs/{runId}` takes. |
 | `cancel_run`     | Stop a run at its next node boundary.                                                                          |
 | `list_versions`  | One automation's immutable version history.                                                                    |
 | `list_triggers`  | What starts the automations (never the webhook secret).                                                        |
@@ -82,7 +82,7 @@ Twenty-two tools, in three groups. The four tools that take a whole automation d
 
 Pick `run_deployed` when the automation is quick and you want one call with the answer in it — it waits up to 30 seconds for the run, then hands you the `runId` instead of a half-finished result. Pick `start_run` when the run may take minutes — it returns a `runId` immediately, and `get_run` polls it. Both run live on the same durable runner, so both authorize, execute and record the run identically. `run_automation` is the authoring loop's tool: it runs an unsaved document against the deterministic mocks, and `mode: "live"` answers a refusal that points you at `run_deployed` — an unsaved document has no live lane.
 
-`start_run` also takes an optional `projectId` — the project the run operates in, so its task and document tools act there. Omit it for an organization-wide run, or, when the automation is bound to a single project, that one. A bound automation accepts only a project it is bound to.
+`start_run` also takes an optional `projectId` — the project the run operates in, so its task and document tools act there. Omit it for an organization-wide run, or, when the automation is bound to a single project, that one. A bound automation accepts only a project it is bound to. The handle it returns names the `projectId` the run got, and `list_automations` shows each automation's `projectIds`, so a client never has to guess which project URL reads the run back on the REST side.
 
 ### Capabilities & knowledge
 
@@ -101,7 +101,7 @@ The key proves who is calling; the key holder's role decides what the call may d
 - **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
 - **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
 
-A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
+A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "code": "...", "hint": "..."}`, where `code` is the stable value to branch on (`AUTOMATION_NOT_FOUND`, …) and `hint` what to do — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
 
 ## Where this fits
 

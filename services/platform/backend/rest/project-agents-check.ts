@@ -80,17 +80,52 @@ export async function checkProjectAgentRest(args: {
   });
   const richConfig = {
     ...config,
-    modelProvider: 'test-provider',
+    modelProvider: 'itestagent',
     instructions: 'Review the task.',
-    tools: [],
+    tools: ['task_find', 'document_find'],
     secrets: [secretName],
   };
+  // Equipment is checked against what the organization can serve, and
+  // refused by name: a model or provider `GET /models` does not list, a
+  // tool grant outside the catalog, a skill or connector nobody has.
+  const refusedEquipment: [Record<string, unknown>, string][] = [
+    [
+      { ...config, model: 'gpt-4-turbo-does-not-exist' },
+      'PROJECT_AGENT_MODEL_INVALID',
+    ],
+    [
+      { ...config, modelProvider: 'not-a-real-provider' },
+      'PROJECT_AGENT_PROVIDER_UNKNOWN',
+    ],
+    [
+      { ...config, tools: ['bash', 'web_search'] },
+      'PROJECT_AGENT_TOOL_UNKNOWN',
+    ],
+    [
+      { ...config, skills: ['not-a-real-skill-xyz'] },
+      'PROJECT_AGENT_SKILL_UNKNOWN',
+    ],
+    [
+      { ...config, connectors: ['not-a-real-connector-xyz'] },
+      'PROJECT_AGENT_CONNECTOR_UNKNOWN',
+    ],
+  ];
+  for (const [body, code] of refusedEquipment) {
+    const refused = await expectStatus(rest('POST', path, body), 400);
+    assert.equal(
+      z.object({ code: z.string() }).parse(await refused.json()).code,
+      code,
+    );
+  }
   const created = agentEnvelope.parse(
     await (await expectStatus(rest('POST', path, richConfig), 201)).json(),
   ).agent;
   assert.equal(created.projectId, projectId);
   assert.equal(created.organizationId, orgId);
   assert.deepEqual(created.secrets, [secretName]);
+  // Tool grants round-trip in catalog order, as the contract says.
+  assert.deepEqual(created.tools, ['task_find', 'document_find']);
+  assert.equal(created.modelProvider, 'itestagent');
   assert.equal(JSON.stringify(created).includes(secretValue), false);
   const itemPath = `${path}/${created.id}`;
   const listed = roster.parse(

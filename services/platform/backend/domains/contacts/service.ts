@@ -626,7 +626,8 @@ export interface BulkCreateContactItem extends Omit<
   ContactInput,
   'email' | 'source' | 'externalId'
 > {
-  email: string;
+  /** The duplicate key when present; a row may be keyed by externalId alone. */
+  email?: string;
   /** Defaults to 'api_import' — the REST door's provenance. */
   source?: ContactSource;
   externalId?: string | number;
@@ -635,6 +636,9 @@ export interface BulkCreateContactItem extends Omit<
 export interface BulkCreateResult {
   success: number;
   failed: number;
+  /** The rows that landed, by input index — the ids a caller needs to
+   * link what it just imported (they used to be minted and dropped). */
+  created: { index: number; id: string }[];
   errors: {
     index: number;
     error: string;
@@ -659,7 +663,12 @@ export async function bulkCreateContacts(
   contacts: BulkCreateContactItem[],
 ): Promise<BulkCreateResult> {
   assertContactAccess(scope, 'write');
-  const result: BulkCreateResult = { success: 0, failed: 0, errors: [] };
+  const result: BulkCreateResult = {
+    success: 0,
+    failed: 0,
+    created: [],
+    errors: [],
+  };
   for (const [index, contact] of contacts.entries()) {
     try {
       const email = normalizeContactEmail(contact.email);
@@ -667,7 +676,7 @@ export async function bulkCreateContacts(
         contact.externalId === undefined || contact.externalId === ''
           ? undefined
           : String(contact.externalId);
-      await sql.begin(async (tx) => {
+      const id = await sql.begin(async (tx) => {
         if (email !== undefined) {
           await lockContactEmail(tx, scope.organizationId, email);
           if (
@@ -677,9 +686,12 @@ export async function bulkCreateContacts(
               email,
             )) !== null
           ) {
+            // The single create's own codes, so a client reads one
+            // vocabulary whichever door refused the twin.
             throw new ContactError(
-              'duplicate_email',
+              'CONTACT_DUPLICATE_EMAIL',
               `Contact with email ${email} already exists`,
+              409,
             );
           }
         }
@@ -693,12 +705,13 @@ export async function bulkCreateContacts(
             )) !== null
           ) {
             throw new ContactError(
-              'duplicate_external_id',
+              'CONTACT_DUPLICATE_EXTERNAL_ID',
               `Contact with external ID ${externalId} already exists`,
+              409,
             );
           }
         }
-        await insertContactRow(tx, {
+        return insertContactRow(tx, {
           organizationId: scope.organizationId,
           name: contact.name?.trim() ?? null,
           email: email ?? null,
@@ -713,6 +726,7 @@ export async function bulkCreateContacts(
         });
       });
       result.success += 1;
+      result.created.push({ index, id });
     } catch (error) {
       result.failed += 1;
       result.errors.push({

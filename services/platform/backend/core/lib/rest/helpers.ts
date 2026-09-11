@@ -2,10 +2,12 @@
  * Helpers of the two 0.4-era HTTP doors that still parse raw requests: the
  * SCIM door (`core/scim/http_actions.ts` — `extractPathParts`,
  * `parseIntParam`) and the MCP protocol layer
- * (`core/automations_builder/mcp_http.ts` — `jsonError`,
- * `requireRestDeveloper`, `RestContext`). The `/api/v1` REST families do NOT
- * come through here: `backend/rest/` authenticates, rate limits, validates
- * and maps errors on its own (`rest/shared.ts`).
+ * (`core/automations_builder/mcp_http.ts` — `requireRestDeveloper`,
+ * `RestContext`). The `/api/v1` REST families do NOT come through here:
+ * `backend/rest/` authenticates, rate limits, validates and maps errors on
+ * its own (`rest/shared.ts`). The 0.4 CORS-bearing `jsonError` is gone
+ * with the last door that used it: a Bearer key is not ambient authority a
+ * browser page could use, so no `/api/v1` response grants an origin.
  */
 
 import { defineAbilityFor } from '../../../../lib/permissions/ability';
@@ -40,37 +42,6 @@ export interface RestContext {
   ctx: HttpCtx;
   user: AuthUser;
   org: OrgInfo;
-}
-
-// ---------------------------------------------------------------------------
-// CORS
-// ---------------------------------------------------------------------------
-
-const REST_CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Organization-Slug',
-  'Access-Control-Max-Age': '86400',
-};
-
-// ---------------------------------------------------------------------------
-// Response builders
-// ---------------------------------------------------------------------------
-
-export function jsonError(
-  message: string,
-  status: number,
-  headers?: Record<string, string>,
-): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...REST_CORS_HEADERS,
-      ...headers,
-    },
-  });
 }
 
 // ---------------------------------------------------------------------------

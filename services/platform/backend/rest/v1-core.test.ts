@@ -5,7 +5,12 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
-import { parseKeysetCursor, type RestEnv } from './shared.ts';
+import {
+  mintCursorFor,
+  parseKeysetCursor,
+  type RestEnv,
+  verifyCursorFor,
+} from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
 
 // The documents door is driven against the real routes with only its two
@@ -146,8 +151,13 @@ const FAMILIES = [
 describe.each(FAMILIES)('GET $route pagination', ({ route, table, row }) => {
   it('passes ?cursor= through to the service as the keyset bounds', async () => {
     const { sql, queries } = fakeSql([row(3), row(4)]);
+    const cursor = mintCursorFor(
+      'org-1',
+      table,
+      `1699999999998:${table === 'contacts' ? 'c-2' : 'p-2'}`,
+    );
     const res = await mount(sql).request(
-      `http://localhost${route}?cursor=1699999999998:${table === 'contacts' ? 'c-2' : 'p-2'}&limit=2`,
+      `http://localhost${route}?cursor=${encodeURIComponent(cursor)}&limit=2`,
     );
     expect(res.status).toBe(200);
     const { values } = listQuery(queries, table);
@@ -170,10 +180,29 @@ describe.each(FAMILIES)('GET $route pagination', ({ route, table, row }) => {
     );
     expect(body.isDone).toBe(false);
     const last = row(2);
-    expect(parseKeysetCursor(body.continueCursor)).toEqual({
+    // Signed for THIS list in THIS organization: the position inside it is
+    // the previous page's last row, and no other list redeems it.
+    const position = verifyCursorFor('org-1', table, body.continueCursor);
+    expect(parseKeysetCursor(position)).toEqual({
       at: last.updatedAt,
       id: last.id,
     });
+    expect(verifyCursorFor('org-2', table, body.continueCursor)).toBeNull();
+    expect(
+      verifyCursorFor('org-1', 'documents', body.continueCursor),
+    ).toBeNull();
+  });
+
+  it('refuses a well-formed position this list never signed', async () => {
+    const { sql, queries } = fakeSql([row(3)]);
+    const res = await mount(sql).request(
+      `http://localhost${route}?cursor=9999999999999:00000000-0000-0000-0000-000000000000`,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+    expect(queries.some((q) => q.text.includes(`FROM app.${table}`))).toBe(
+      false,
+    );
   });
 
   it('answers isDone with an empty cursor on the last page', async () => {
@@ -250,7 +279,8 @@ describe('GET /products filters', () => {
  * throws PurgeIncompleteError — an error without a 4xx status, which
  * `domainErrorResponse` rethrows as a bare 500. The session and folder doors
  * answer it as 503 PURGE_INCOMPLETE; this pins the REST door to the same
- * shape so the three never drift.
+ * status and code — in the door's own `{error, code}` envelope — so the
+ * three never drift.
  */
 describe('DELETE /documents/:id purge mapping', () => {
   it('answers an incomplete purge as 503 PURGE_INCOMPLETE', async () => {
@@ -259,7 +289,10 @@ describe('DELETE /documents/:id purge mapping', () => {
       { method: 'DELETE' },
     );
     expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ error: 'PURGE_INCOMPLETE' });
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('Purge incomplete'),
+      code: 'PURGE_INCOMPLETE',
+    });
   });
 });
 

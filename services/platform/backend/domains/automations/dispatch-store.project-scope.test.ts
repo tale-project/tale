@@ -134,7 +134,7 @@ describe('MCP and engine actor project scope', () => {
   it('starts the explicit readable project within the project authorization transaction', async () => {
     await expect(
       store().startRun?.('billing/dunning', { invoice: 1 }, 'live', 1, 'p-1'),
-    ).resolves.toEqual({ runId: 'run-1', version: 1 });
+    ).resolves.toEqual({ runId: 'run-1', version: 1, projectId: 'p-1' });
     expect(beginRunInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

@@ -55,11 +55,7 @@ import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { internal } from '../lib/handler_names';
-import {
-  jsonError,
-  requireRestDeveloper,
-  type RestContext,
-} from '../lib/rest/helpers';
+import { requireRestDeveloper, type RestContext } from '../lib/rest/helpers';
 
 type McpTool = (typeof MCP_TOOLS)[number];
 
@@ -291,6 +287,18 @@ async function handleMessage(
       400,
     );
   }
+  // JSON-RPC 2.0 §4.2: `params` is a structured value — an object or an
+  // array — or absent. A scalar used to be refused only where a method
+  // happened to read it (`tools/call` needs an object) and silently
+  // ignored elsewhere.
+  if (params !== undefined && !isRecord(params) && !Array.isArray(params)) {
+    return rpcError(
+      id ?? null,
+      -32600,
+      'Invalid request: params must be an object or an array',
+      400,
+    );
+  }
   if (id === undefined) return null;
 
   switch (method) {
@@ -314,6 +322,15 @@ async function handleMessage(
       return rpcResult(id, {});
 
     case 'tools/list':
+      // The list is answered whole: no cursor is ever issued, so one that
+      // arrives was never ours — refused, not silently read as page one.
+      if (isRecord(params) && params.cursor !== undefined) {
+        return rpcError(
+          id,
+          -32602,
+          'Invalid params: this server answers tools/list whole and never issues a cursor',
+        );
+      }
       return rpcResult(id, {
         tools: MCP_TOOLS.map((tool) => ({
           name: tool.name,
@@ -421,26 +438,30 @@ export async function handleMcpRequest(
   request: Request,
   options: McpRequestOptions = {},
 ): Promise<Response> {
-  // 2025-06-18 clients name the negotiated revision on every request; one
-  // this endpoint never negotiates is a client mistake the transport answers
-  // with 400, as that revision specifies. Older clients send nothing.
-  const claimed = request.headers.get('mcp-protocol-version');
-  if (claimed !== null && !PROTOCOL_VERSIONS.includes(claimed)) {
-    return respond(
-      rpcError(
-        null,
-        -32600,
-        `Unsupported MCP-Protocol-Version "${claimed}" — this endpoint speaks ${PROTOCOL_VERSIONS.join(' and ')}`,
-        400,
-      ),
-    );
-  }
   let message: unknown;
   try {
     message = await request.json();
   } catch {
     return respond(
       rpcError(null, -32700, 'Parse error: the body is not JSON', 400),
+    );
+  }
+  // 2025-06-18 clients name the negotiated revision on every request; one
+  // this endpoint never negotiates is a client mistake the transport answers
+  // with 400, as that revision specifies. Older clients send nothing. The
+  // body is read first so the refusal can echo the message's own id (null
+  // for a batch) — a client matching replies by id used to get `null`.
+  const claimed = request.headers.get('mcp-protocol-version');
+  if (claimed !== null && !PROTOCOL_VERSIONS.includes(claimed)) {
+    const echoed =
+      isRecord(message) && isJsonRpcId(message.id) ? message.id : null;
+    return respond(
+      rpcError(
+        echoed,
+        -32600,
+        `Unsupported MCP-Protocol-Version "${claimed}" — this endpoint speaks ${PROTOCOL_VERSIONS.join(' and ')}`,
+        400,
+      ),
     );
   }
   const state: RequestState = { toolCalls: 0 };
@@ -475,7 +496,16 @@ export async function handleMcpRequest(
   return reply === null ? new Response(null, { status: 202 }) : respond(reply);
 }
 
-/** GET is not served — this endpoint offers JSON responses, not an SSE stream. */
+/** Only POST is served — this endpoint offers JSON responses, not an SSE
+ * stream, and holds no session to DELETE. The 405 names the one verb it
+ * takes (RFC 9110 §15.5.6) in the door's flat envelope, with no CORS
+ * grant: a Bearer key is not ambient authority a browser page could use. */
 export function mcpGetNotAllowed(): Response {
-  return jsonError('Use POST with a JSON-RPC message', 405);
+  return Response.json(
+    {
+      error: 'Use POST with a JSON-RPC message',
+      code: 'METHOD_NOT_ALLOWED',
+    },
+    { status: 405, headers: { allow: 'POST' } },
+  );
 }

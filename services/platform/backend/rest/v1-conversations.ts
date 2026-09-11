@@ -26,9 +26,12 @@ import {
 } from '../domains/files/service.ts';
 import { recordUploadIntent } from '../domains/files/upload-intents.ts';
 import {
+  assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
   invalidBodyResponse,
+  invalidQueryFromSchema,
+  notFound,
   readJsonBody,
   type RestEnv,
 } from './shared.ts';
@@ -38,11 +41,23 @@ export function createConversationRestRoutes(deps: {
   sql: Sql;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
+  // The strict-org posture the projects and tasks families share: a
+  // multi-org key names its organization on every conversation call (reads
+  // too), a single-org key's one organization is unambiguous and passes
+  // without the header — as the API reference promises. The family used
+  // to demand the header of every key, which no other route does and no
+  // route can tell a client the value of.
   app.use('/conversations/*', async (c, next) => {
-    if (!c.get('orgExplicit'))
-      return c.json({ error: 'X-Organization-Slug is required' }, 400);
+    const refusal = await assertExplicitOrg(deps.sql, c);
+    if (refusal) return refusal;
     if (!viewerCanWrite(c.get('role')))
-      return c.json({ error: 'FORBIDDEN' }, 403);
+      return c.json(
+        {
+          error: `Role "${c.get('role')}" cannot manage conversations.`,
+          code: 'ROLE_FORBIDDEN',
+        },
+        403,
+      );
     return next();
   });
   const viewer = (c: {
@@ -60,7 +75,7 @@ export function createConversationRestRoutes(deps: {
         externalId: z.string().min(1).max(256),
       })
       .safeParse(c.req.query());
-    if (!query.success) return c.json({ error: 'invalid query' }, 400);
+    if (!query.success) return invalidQueryFromSchema(c, query.error);
     try {
       return c.json({
         snapshot: await apiSnapshotState(
@@ -167,7 +182,11 @@ export function createConversationRestRoutes(deps: {
       .min(0)
       .max(9)
       .safeParse(c.req.param('index'));
-    if (!index.success) return c.json({ error: 'invalid index' }, 400);
+    // A delivery carries at most ten attachments; a segment that names no
+    // whole number in that range names no attachment at all.
+    if (!index.success) {
+      return notFound(c, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
+    }
     try {
       const attachment = await apiDeliveryAttachment(
         deps.sql,

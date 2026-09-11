@@ -854,6 +854,88 @@ describe('SSE /events/file', () => {
   });
 });
 
+/**
+ * An API-shaped path the platform tier does not own answers the API's
+ * JSON 404, never the SPA shell. The regression under test: a request the
+ * proxy failed to route to the backend (`/api/v1/../etc/passwd` collapsed
+ * past every lane) fell into the `*` fallback and got `index.html` with a
+ * 200 — an authenticated surface apparently answering without a key.
+ */
+/**
+ * `/openapi.json` names the deployment it describes: the static document
+ * carries an `{origin}` server template, and the served copy binds it to the
+ * origin the request arrived on — a client generated from a fetched
+ * document targets this instance, not a placeholder.
+ */
+describe('GET /openapi.json', () => {
+  const document = {
+    openapi: '3.0.3',
+    info: { title: 'Tale Platform API', version: '1.3.0' },
+    servers: [{ url: '{origin}', variables: { origin: { default: 'x' } } }],
+    paths: {},
+  };
+
+  test('binds servers to the request origin when it is a configured site origin', async () => {
+    const app = createApp(
+      {
+        ...baseEnv,
+        SITE_ORIGINS: [
+          'https://tale.example.com',
+          'https://tale.partner.example',
+        ],
+      },
+      { openapiDocument: () => Promise.resolve(document) },
+    );
+    const res = await app.fetch(
+      new Request('https://tale.partner.example/openapi.json'),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = (await res.json()) as { servers: unknown; paths: unknown };
+    expect(body.servers).toEqual([
+      { url: 'https://tale.partner.example', description: 'This deployment' },
+    ]);
+    expect(body.paths).toEqual({});
+  });
+
+  test('falls back to the canonical site origin, with the base path, for a foreign host', async () => {
+    const app = createApp(
+      { ...baseEnv, BASE_PATH: '/tale' },
+      { openapiDocument: () => Promise.resolve(document) },
+    );
+    const res = await app.fetch(new Request('http://localhost/openapi.json'));
+    const body = (await res.json()) as { servers: unknown };
+    expect(body.servers).toEqual([
+      { url: 'https://tale.example.com/tale', description: 'This deployment' },
+    ]);
+  });
+
+  test('answers the JSON 404 when no document was built', async () => {
+    const app = createApp(baseEnv, {
+      openapiDocument: () => Promise.resolve(null),
+    });
+    const res = await app.fetch(new Request('http://localhost/openapi.json'));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
+  });
+});
+
+describe('unrouted /api paths', () => {
+  test('answer the JSON 404 envelope instead of the SPA shell', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/api/v2/nope'));
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
+  });
+
+  test('keep /api/health as the platform-owned exception', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    expect(res.status).toBe(200);
+  });
+});
+
 describe('shouldDeliverSseEvent — fan-out predicate', () => {
   const allowed = new Set(['acme']);
 

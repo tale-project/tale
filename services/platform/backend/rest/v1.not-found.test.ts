@@ -74,16 +74,48 @@ describe('/api/v1 door — unknown paths', () => {
     const res = await root().request('http://localhost/api/v1/nope', bearer);
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ error: 'Not found' });
+    expect(await res.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
   });
 
-  it('answers a method a collection does not take the same way', async () => {
+  /**
+   * RFC 9110 §15.5.6: a path a family serves, asked with a method it does
+   * not take, is 405 with `Allow` — the door used to answer 404, telling a
+   * client the collection did not exist rather than which verbs it takes.
+   */
+  it('answers 405 with Allow for a method a served path does not take', async () => {
     const res = await root().request('http://localhost/api/v1/automations', {
       method: 'PATCH',
       ...bearer,
     });
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET, HEAD');
+    expect(await res.json()).toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
+  });
+
+  it('lists every verb a parameterised path takes', async () => {
+    const res = await root().request(
+      'http://localhost/api/v1/knowledge-entries/some-id',
+      { method: 'PUT', ...bearer },
+    );
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET, PATCH, DELETE, HEAD');
+  });
+
+  it('answers OPTIONS on a served path with the same Allow list and no body', async () => {
+    const res = await root().request('http://localhost/api/v1/automations', {
+      method: 'OPTIONS',
+      ...bearer,
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('GET, HEAD');
+  });
+
+  it('keeps 404 for a method on a path nobody serves', async () => {
+    const res = await root().request('http://localhost/api/v1/nope', {
+      method: 'OPTIONS',
+      ...bearer,
+    });
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Not found' });
   });
 
   it('still lets the door refuse an unauthenticated request first', async () => {

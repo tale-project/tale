@@ -150,6 +150,8 @@ describe('project automation REST scope', () => {
       '/api/v1/projects/p-1/automations',
     );
     expect(response.status).toBe(200);
+    // `private-project` is not among the caller's projects: the listing
+    // names the installations they can see, and only those.
     expect(await response.json()).toEqual({
       automations: [
         {
@@ -157,6 +159,7 @@ describe('project automation REST scope', () => {
           latestVersion: 1,
           deployedVersion: 1,
           presentation: null,
+          projectIds: ['p-1'],
         },
       ],
     });
@@ -335,6 +338,10 @@ describe('organization run scope', () => {
       },
     ]);
     const response = await mount().app.request('/api/v1/automations');
+    // The catalog names the installations the key holder can SEE — the
+    // scope a project-bound automation must be started in — and only
+    // those: `private-project` is not among the caller's projects, so the
+    // list is empty, never a leak of the hidden id.
     expect(await response.json()).toEqual({
       automations: [
         {
@@ -342,8 +349,25 @@ describe('organization run scope', () => {
           latestVersion: 1,
           deployedVersion: 1,
           presentation: null,
+          projectIds: [],
         },
       ],
+    });
+  });
+
+  it('names the visible installations, so a caller can pick the project URL', async () => {
+    vi.mocked(listAutomations).mockResolvedValue([
+      {
+        name: 'shared',
+        latestVersion: 1,
+        deployedVersion: 1,
+        presentation: null,
+        projectIds: ['p-1', 'private-project'],
+      },
+    ]);
+    const response = await mount().app.request('/api/v1/automations');
+    expect(await response.json()).toMatchObject({
+      automations: [{ name: 'shared', projectIds: ['p-1'] }],
     });
   });
 
