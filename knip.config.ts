@@ -157,7 +157,6 @@ export default {
         '@types/seedrandom',
         '@types/turndown',
         'bcryptjs',
-        'cron-parser',
         'diff',
         'hast-util-to-html',
         'json-diff-kit',
@@ -259,7 +258,7 @@ export default {
       ignoreDependencies: ['ajv'],
     },
     'tools/plop': {
-      entry: ['plopfile.ts', 'generators/**/*.ts', 'helpers/**/*.ts'],
+      entry: ['generators/**/*.ts', 'helpers/**/*.ts'],
       project: ['**/*.ts', '!templates/**'],
     },
   },

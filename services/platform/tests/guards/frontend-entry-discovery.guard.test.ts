@@ -5,6 +5,7 @@ import {
   globSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -26,7 +27,11 @@ const REPO_ROOT = path.resolve(PLATFORM_ROOT, '../..');
 
 describe('frontend entry discovery', () => {
   it('reports orphan modules while following route imports in every frontend directory', () => {
-    const fixture = mkdtempSync(path.join(tmpdir(), 'tale-knip-entries-'));
+    // TypeScript resolves imports through real paths. Match its canonical
+    // root so macOS's /var alias cannot make connected files look orphaned.
+    const fixture = realpathSync(
+      mkdtempSync(path.join(tmpdir(), 'tale-knip-entries-')),
+    );
     const directories = ['features', 'hooks', 'components'];
 
     try {
