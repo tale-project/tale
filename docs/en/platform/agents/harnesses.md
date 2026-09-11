@@ -63,7 +63,7 @@ Skills bound to the agent are staged into the session as files rather than fetch
 
 ## Cost and metering
 
-A harness turn can be long and call the model many times, so it costs more than a single chat reply. Managed turns run through the gateway, which is what makes them meterable: they land in [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other turn, and the organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap what they may spend.
+A harness turn can be long and call the model many times, so it costs more than a single chat reply. Managed turns run through the gateway, which is what makes them meterable: they land in [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other turn, and the organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap what they may spend. The cap is applied before a turn starts, not after: the turn's gateway allowance is whatever remains under the rules that bind the person who started the run, with the turns already in flight counted, and a cap that is already reached refuses the start with the rule's own reason. The run fails rather than retries, until the period rolls over or an admin raises the rule.
 
 Turns on a subscription credential bypass the gateway by design, since the secret goes into the container and the vendor's own tooling talks to the vendor directly. Those turns are not metered and the organization's spend caps do not reach them — the accounting lives with whoever owns the subscription.
 

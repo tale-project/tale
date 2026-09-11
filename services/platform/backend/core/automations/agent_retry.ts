@@ -29,7 +29,10 @@ export type WorkflowAgentFailureCode =
   | 'harvest_failed'
   | 'resume_failed'
   | 'deadline'
-  | 'ask_expired';
+  | 'ask_expired'
+  /** The org's spend cap refused the start — the cap only moves with the
+   * period or an admin, so a retry would only be refused again. */
+  | 'budget_exceeded';
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
@@ -40,6 +43,7 @@ export type WorkflowAgentFailureCode =
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'ask_expired',
+  'budget_exceeded',
 ] satisfies WorkflowAgentFailureCode[]);
 
 export function isWorkflowAgentRetryable(code: string | undefined): boolean {

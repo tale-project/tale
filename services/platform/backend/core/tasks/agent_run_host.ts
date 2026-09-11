@@ -48,6 +48,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  sessionExecStatus,
   sessionListFiles,
   sessionStageFiles,
   sessionWriteExecStdin,
@@ -62,6 +63,11 @@ import {
   harvestSessionOutput,
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
+import {
+  isTurnBudgetExceededError,
+  readReserveTurnBudgetResult,
+  TurnBudgetExceededError,
+} from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { hashBrokerToken } from '../provider_credentials/token_hash';
@@ -464,6 +470,8 @@ async function mintTurnServing(
   args: {
     organizationId: string;
     sessionId: string;
+    /** The exec the minted key serves — the reservation's op row. */
+    execId: string;
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
@@ -498,7 +506,27 @@ async function mintTurnServing(
             vision.modelId,
           ).gatewayModel
         : undefined;
-    const budgetCents = workflowAgentBudgetCents();
+    // The org's spend cap sizes the key: the deployment default, capped by
+    // what remains under every cost rule binding the run's starter after
+    // the spend booked this period and every unsettled turn's reservation —
+    // and a cap already reached refuses the start (`budget_exceeded`).
+    const reservation = readReserveTurnBudgetResult(
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.reserveTurnBudget,
+        {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          kind: 'task-agent',
+          defaultBudgetCents: workflowAgentBudgetCents(),
+          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+        },
+      ),
+    );
+    if (!reservation.allowed) {
+      throw new TurnBudgetExceededError(reservation.reason);
+    }
+    const budgetCents = reservation.budgetCents;
     const key = await provisionSessionGatewayKey(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -556,6 +584,57 @@ async function mintTurnServing(
   };
 }
 
+/** How long a start waits for a cancelled predecessor to actually be gone
+ * before launching beside it. runnerd's cancel is a process-group SIGTERM
+ * with a 5 s SIGKILL grace, so a live predecessor is gone well inside this;
+ * past it the launch proceeds anyway (a start must never wedge on a reap). */
+const PREDECESSOR_REAP_WAIT_MS = 15_000;
+const PREDECESSOR_REAP_POLL_MS = 500;
+
+/**
+ * Cancel a predecessor exec and wait (bounded) until runnerd no longer
+ * reports it running. Best-effort end to end: a spawner error on the cancel
+ * or a status probe is logged and the launch goes ahead — the usual case is a
+ * long-dead exec that answers `exited`/`gone` on the first probe.
+ */
+async function reapPredecessorExec(
+  sessionId: string,
+  execId: string,
+): Promise<void> {
+  try {
+    await sessionCancelExec(sessionId, execId);
+  } catch (err) {
+    console.warn(
+      `[task-agent] predecessor ${execId} reap failed (continuing):`,
+      err,
+    );
+    return;
+  }
+  const deadline = Date.now() + PREDECESSOR_REAP_WAIT_MS;
+  for (;;) {
+    let liveness;
+    try {
+      liveness = await sessionExecStatus(sessionId, execId);
+    } catch (err) {
+      console.warn(
+        `[task-agent] predecessor ${execId} status probe failed (continuing):`,
+        err,
+      );
+      return;
+    }
+    if (liveness.state !== 'running') return;
+    if (Date.now() >= deadline) {
+      console.warn(
+        `[task-agent] predecessor ${execId} still running ${PREDECESSOR_REAP_WAIT_MS}ms after cancel — launching anyway`,
+      );
+      return;
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, PREDECESSOR_REAP_POLL_MS),
+    );
+  }
+}
+
 /** The start's full argument shape — `turnArgs` plus the kick shaping. */
 export interface StartTaskAgentTurnArgs extends TurnKeys {
   model: string;
@@ -569,7 +648,8 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
-  resumePredecessorExecId?: string;
+  /** See `TaskKickStartPlanArgs.predecessorExecId`. */
+  predecessorExecId?: string;
   sweep?: boolean;
   inspectNote?: boolean;
   excludeBrokerTokenHashes?: string[];
@@ -650,21 +730,18 @@ export async function startTaskAgentTurnImpl(
           resume = undefined;
         }
       }
-      if (resume !== undefined && args.resumePredecessorExecId !== undefined) {
-        // Reap the predecessor's exec before forking its conversation: a
-        // cancel-then-Retry can reach here while the old CLI is still inside
-        // its kill grace, and two processes must not write one conversation.
-        // Same posture as the steer restart lane's kill-before-resume;
-        // idempotent for the common long-dead case, best-effort like it.
-        await sessionCancelExec(
-          args.sessionId,
-          args.resumePredecessorExecId,
-        ).catch((err) =>
-          console.warn(
-            '[task-agent] predecessor reap before resume failed (continuing):',
-            err,
-          ),
-        );
+      if (args.predecessorExecId !== undefined) {
+        // Reap the predecessor's exec before this turn launches — resumed or
+        // not. A cancel-then-Retry can reach here while the old CLI is still
+        // inside its kill grace, a drain that died on a transport failure
+        // settled its run with the CLI still alive, and a harness switch
+        // starts a fresh conversation beside it: two processes must never
+        // write one workspace, one conversation, or one delivery box. Same
+        // posture as the steer restart lane's kill-before-resume; idempotent
+        // for the common long-dead case, best-effort like it — and the
+        // launch waits (bounded) for the predecessor to actually be gone,
+        // since runnerd's cancel is a SIGTERM with a kill grace.
+        await reapPredecessorExec(args.sessionId, args.predecessorExecId);
       }
 
       // The STANDING session serves every task of this agent, so the
@@ -1000,11 +1077,16 @@ export async function startTaskAgentTurnImpl(
         return null;
       }
       console.error('[task-agent] turn start failed:', err);
+      // A cap refusal is the org's decision, not a fault: named as such,
+      // and never retried (the cap only moves with the period or an admin).
+      const budgetRefused = isTurnBudgetExceededError(err);
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
-        reason: `the agent run could not start: ${err instanceof Error ? err.message : String(err)}`,
+        reason: budgetRefused
+          ? `the agent run was refused by the organization's spend cap: ${err.reason}`
+          : `the agent run could not start: ${err instanceof Error ? err.message : String(err)}`,
         text: '',
-        failureCode: 'start_failed',
+        failureCode: budgetRefused ? 'budget_exceeded' : 'start_failed',
       });
     }
     return null;
@@ -1085,6 +1167,17 @@ export async function driveTaskAgentTurnImpl(
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
       await progress.flush();
+      // The run settles failed below, so the process must not keep working
+      // unobserved: a drain that died on a transport failure (an exhausted
+      // re-attach budget) says nothing about the CLI, which is typically
+      // still alive — and a Retry would otherwise launch beside it on the
+      // same workspace and delivery box. Best-effort, like every reap.
+      await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+        console.warn(
+          '[task-agent] exec cancel after drive failure failed:',
+          cancelErr,
+        ),
+      );
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent run stopped unexpectedly',
@@ -1268,6 +1361,9 @@ async function continueOrSettle(
     ...(errored && ended?.apiErrorStatus !== undefined
       ? { apiErrorStatus: ended.apiErrorStatus }
       : {}),
+    ...(ended?.usageTotals !== undefined
+      ? { usageTotals: ended.usageTotals }
+      : {}),
   });
 }
 
@@ -1349,6 +1445,8 @@ async function settleTaskAgentTurn(
     failureCode?: TaskRunFailureCode;
     /** The harness-reported provider HTTP status, when there was one. */
     apiErrorStatus?: number;
+    /** The harness's own token totals, booked alongside the gateway spend. */
+    usageTotals?: { inputTokens: number; outputTokens: number };
   },
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -1356,6 +1454,9 @@ async function settleTaskAgentTurn(
     sessionId: args.sessionId,
     execId: args.execId,
     status: result.errored ? 'failed' : 'completed',
+    ...(result.usageTotals !== undefined
+      ? { usageTotals: result.usageTotals }
+      : {}),
   });
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
@@ -1800,7 +1901,8 @@ export async function steerTaskAgentTurnImpl(
         ? { kind: 'org' }
         : { kind: 'project', teamIds: projectScope.teamIds },
     );
-    const prepared = await mintTurnServing(ctx, args, resolved);
+    // The reservation belongs to the ROTATED exec, like every stamp below.
+    const prepared = await mintTurnServing(ctx, { ...args, execId }, resolved);
     if (prepared.brokerTokenHash !== undefined) {
       // Same stamp as the fresh start — but fenced on the ROTATED execId:
       // rotateTaskAgentRunExec already moved the run off args.execId, so

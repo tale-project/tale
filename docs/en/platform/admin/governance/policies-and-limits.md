@@ -13,7 +13,7 @@ Policies and limits is the surface where you cap what your members and agents ca
 
 ## A worked budget
 
-To cap an Editor's monthly spend, open **Settings > Governance > Policies & Limits** and click **Add rule** under **Budget rules**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and once an Editor's period spend crosses the cap, the chat composer blocks new sends with a budget-exceeded notice — and voice requests are refused outright. A warning threshold below the cap surfaces a warning banner before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.
+To cap an Editor's monthly spend, open **Settings > Governance > Policies & Limits** and click **Add rule** under **Budget rules**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and once an Editor's period spend crosses the cap, the chat composer blocks new sends with a budget-exceeded notice — and voice requests are refused outright. A managed agent run — a project agent's task, an automation's agent node — is refused at its start the same way, and a run that does start may spend only what remains under the cap. A warning threshold below the cap surfaces a warning banner before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.
 
 ## The four policy layers
 

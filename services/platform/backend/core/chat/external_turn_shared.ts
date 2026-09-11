@@ -363,6 +363,8 @@ export async function drainHarnessWindow(args: {
   /** Called once on a start window, after staging and just before the exec
    * launches — the moment "queued" stops being true. */
   onStarted?: () => Promise<void>;
+  /** The drain window length — `DRAIN_WINDOW_MS` unless a test shortens it. */
+  windowMs?: number;
 }): Promise<HarnessWindowResult> {
   const glue = getHarnessGlue(
     isHarnessSlug(args.harness) ? args.harness : 'claude-code',
@@ -378,6 +380,27 @@ export async function drainHarnessWindow(args: {
   // exit deliver its terminal result (and exit code) first.
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
+  let turnEndedSeen = false;
+  // The background-task ledger (`types.ts` contract): a harness that
+  // launched background work reports `task-started`/`task-settled` pairs,
+  // and a `turn-ended` whose ledger is still open is a LINGERING turn — the
+  // main reply is in, but a deliverable may still be being written. The turn
+  // is done only when the reply is in AND the ledger is empty; until then
+  // the process stays alive and the next window keeps draining it. (Every
+  // window re-parses from seq 0, so the ledger is rebuilt consistently.)
+  const pendingTasks = new Set<string>();
+  const armTurnEndedCut = () => {
+    if (turnEndedGrace !== undefined) return;
+    turnEndedGrace = setTimeout(
+      () => turnEndedCut.abort(),
+      TURN_ENDED_EXIT_GRACE_MS,
+    );
+  };
+  const disarmTurnEndedCut = () => {
+    if (turnEndedGrace === undefined) return;
+    clearTimeout(turnEndedGrace);
+    turnEndedGrace = undefined;
+  };
 
   let lastNotifiedText = '';
   let lastNotifiedEventCount = 0;
@@ -410,12 +433,17 @@ export async function drainHarnessWindow(args: {
   const onStdout = (chunk: string) => {
     for (const e of parser.feed(chunk)) {
       events.push(e);
-      if (e.type === 'turn-ended' && turnEndedGrace === undefined) {
-        turnEndedGrace = setTimeout(
-          () => turnEndedCut.abort(),
-          TURN_ENDED_EXIT_GRACE_MS,
-        );
+      if (e.type === 'task-started') {
+        pendingTasks.add(e.taskId);
+        // A task launched inside the grace (reply in, cut armed) reopens the
+        // ledger — the cut must wait for it.
+        disarmTurnEndedCut();
+      } else if (e.type === 'task-settled') {
+        pendingTasks.delete(e.taskId);
+      } else if (e.type === 'turn-ended') {
+        turnEndedSeen = true;
       }
+      if (turnEndedSeen && pendingTasks.size === 0) armTurnEndedCut();
     }
     notifyTextSoFar();
   };
@@ -469,7 +497,7 @@ export async function drainHarnessWindow(args: {
     await args.onStarted();
   }
 
-  const windowSignal = AbortSignal.timeout(DRAIN_WINDOW_MS);
+  const windowSignal = AbortSignal.timeout(args.windowMs ?? DRAIN_WINDOW_MS);
   const drainSignal = AbortSignal.any([windowSignal, turnEndedCut.signal]);
   let exited = false;
   let execResult: SessionExecResult | undefined;
@@ -488,16 +516,33 @@ export async function drainHarnessWindow(args: {
     // Window elapsed with the exec still live, or the turn ended under a
     // lingering exec — either way not a drain failure.
   } finally {
-    if (turnEndedGrace !== undefined) clearTimeout(turnEndedGrace);
+    disarmTurnEndedCut();
   }
-  for (const e of parser.end()) events.push(e);
+  // `end()` is the parser's EOF: the process has exited and whatever it
+  // buffered is final — a family that HOLDS a result until the stream ends
+  // (pi's retry hold) finalizes it here. A window that merely elapsed under a
+  // live exec is not an EOF: flushing it would turn a mid-tool assistant stop
+  // into a completed turn and cut the process under it. The next window
+  // re-parses from seq 0, so nothing buffered here is lost.
+  if (exited) {
+    for (const e of parser.end()) events.push(e);
+  }
 
   const text = textFromEvents(events);
   const timeline = timelineFromEvents(events);
   const ended = lastTurnEnded(events);
   const agentSessionId = harnessSessionIdFromEvents(events);
-  const terminal = exited || ended !== undefined;
+  // Reply in, background ledger still open: the harness is still working
+  // (a deliverable may be mid-write) — keep draining, never reap.
+  const lingeringOnTasks =
+    !exited && ended !== undefined && pendingTasks.size > 0;
+  const terminal = exited || (ended !== undefined && !lingeringOnTasks);
   if (!terminal) {
+    if (lingeringOnTasks) {
+      console.warn(
+        `[harness-window] ${args.execId}: turn ended with ${pendingTasks.size} background task(s) still running — draining on`,
+      );
+    }
     return {
       kind: 'running',
       text,

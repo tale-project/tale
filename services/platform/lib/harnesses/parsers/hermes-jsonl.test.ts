@@ -108,6 +108,28 @@ describe('hermes-jsonl parser', () => {
     });
   });
 
+  it('carries the provider HTTP status of a failed run onto turn-ended', () => {
+    const events = collectEvents(
+      createParser('hermes'),
+      `${JSON.stringify({
+        type: 'run_end',
+        status: 'error',
+        session_id: 'h-401',
+        final_text: 'HTTP 401: invalid api key',
+        error: 'HTTP 401: invalid api key',
+        api_error_status: 401,
+      })}\n`,
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'error',
+      sessionId: 'h-401',
+      finalText: 'HTTP 401: invalid api key',
+      isError: true,
+      apiErrorStatus: 401,
+    });
+  });
+
   it('carries tool failure output and passes unknown events through as raw', () => {
     const unknown = { type: 'novel_hermes_event', n: 2 };
     const text = `${[

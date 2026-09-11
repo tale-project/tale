@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import { sleep } from './lib/docker';
 // =============================================================================
 // Tale — Sandbox Runtime Image Conformance Test
 // =============================================================================
@@ -17,6 +16,12 @@ import { sleep } from './lib/docker';
 //   SKIP_BUILD=true     reuse an existing tale-sandbox-runtime:contest image
 //   IMAGE=<ref>         test a prebuilt image instead of building
 // =============================================================================
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { parse as parseYaml } from 'yaml';
+
+import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
 
@@ -225,6 +230,43 @@ await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
 await assertOk('hermes --version runs', 10001, 'hermes --version');
 await assertOk('codex --version runs', 10001, 'codex --version');
+await assertOk('gemini --version runs', 10001, 'gemini --version');
+await assertOk('pi --version runs', 10001, 'pi --version');
+await assertOk('openclaw --version runs', 10001, 'openclaw --version');
+await assertOk('qwen --version runs', 10001, 'qwen --version');
+await assertOk(
+  'tale-qwen-run wrapper present',
+  10001,
+  'test -x /usr/local/bin/tale-qwen-run',
+);
+// The registry is the contract: every harness the platform advertises as
+// runnable on a managed credential must have its exec binary on the agent
+// PATH — a harness.yml added (or a wrapper renamed) without the image
+// following fails here, not on a user's first task.
+{
+  const harnessesDir = join(PROJECT_ROOT, 'configs/platform/system/harnesses');
+  const slugs = readdirSync(harnessesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+  for (const slug of slugs) {
+    const facts = parseYaml(
+      readFileSync(join(harnessesDir, slug, 'harness.yml'), 'utf8'),
+    ) as {
+      credentialPolicy?: { managed?: boolean };
+      exec?: { bin?: string };
+    };
+    const bin = facts.exec?.bin;
+    if (facts.credentialPolicy?.managed !== true || bin === undefined) {
+      continue;
+    }
+    await assertOk(
+      `registry: managed harness "${slug}" exec "${bin}" is on the agent PATH`,
+      10001,
+      `command -v ${bin}`,
+    );
+  }
+}
 // The wrapper's hermes-agent integration: ast-parse tale-hermes-run (also
 // proves it is valid Python), collect every kwarg it passes to AIAgent(...)
 // and agent.run_conversation(...), and assert the PINNED hermes-agent's real

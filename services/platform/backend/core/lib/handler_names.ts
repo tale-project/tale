@@ -257,6 +257,9 @@ interface HandlerNames {
     };
   };
   sandbox: FunctionRef & {
+    gateway_reconcile: FunctionRef & {
+      reconcileSessionOpKey: FunctionRef;
+    };
     session_mutations: FunctionRef & {
       bumpSessionOpHeartbeat: FunctionRef;
       claimSessionOpFinalize: FunctionRef;
@@ -269,6 +272,7 @@ interface HandlerNames {
       recordToolCall: FunctionRef;
       releaseProjectAgentSessionSlot: FunctionRef;
       reserveSessionSlotAndInsert: FunctionRef;
+      reserveTurnBudget: FunctionRef;
       resumeSessionSlotWithCapCheck: FunctionRef;
       setSessionStatus: FunctionRef;
       upsertSessionOp: FunctionRef;

@@ -5,6 +5,22 @@ The platform adapter (hermes/adapter.ts) sends the prompt and optional system
 prompt as one JSON object on stdin ({"prompt": ..., "system_prompt"?: ...});
 hermes/parse.ts normalizes the stdout lines into AgentEvent[]. All
 human-oriented Hermes CLI output stays on stderr; stdout is JSONL only.
+
+Two SDK facts this wrapper exists to honour (verified on the pinned
+hermes-agent 0.18.0):
+
+  - `AIAgent.run_conversation` reports most failures by RETURNING, not
+    raising: a nonretryable API error (401, exhausted retries), a blocked
+    request, or a truncated/partial answer comes back as
+    {completed: False, failed?: True, error, final_response}. The wrapper
+    reads those fields and ends the run as an error (exit 1) — otherwise the
+    error text would be posted as a successful report.
+  - A session id alone carries no history: the agent persists messages only
+    through the `session_db` it is handed, and a resumed turn starts from
+    `conversation_history` (empty when omitted). The wrapper opens the
+    SDK's own SessionDB (state.db under HERMES_HOME, which lives in the
+    standing session's HOME) and, on --resume, restores the stored
+    conversation exactly the way the vendor CLI's own resume does.
 """
 
 from __future__ import annotations
@@ -12,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -28,6 +45,10 @@ def emit(event: dict[str, Any]) -> None:
     event.setdefault("ts", _ts())
     sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
     sys.stdout.flush()
+
+
+def warn(message: str) -> None:
+    print(f"[tale-hermes-run] {message}", file=sys.stderr, flush=True)
 
 
 def _sanitize(value: Any, *, max_len: int = 240) -> str:
@@ -54,6 +75,89 @@ def read_stdin_payload() -> tuple[str, str | None] | None:
     if not isinstance(system_prompt, str) or not system_prompt.strip():
         system_prompt = None
     return prompt, system_prompt
+
+
+_HTTP_STATUS_RE = re.compile(r"\bHTTP[ _-]?(\d{3})\b")
+_STATUS_CODE_RE = re.compile(
+    r"\b(?:status(?:[ _]code)?|error code)\s*[:=]?\s*(\d{3})\b", re.IGNORECASE
+)
+
+
+def api_error_status(result: dict[str, Any], message: str) -> int | None:
+    """The provider HTTP status behind a failed turn, when the SDK's result or
+    its error text carries one (`HTTP 401: …`, `Error code: 429 …`)."""
+    code = result.get("status_code")
+    if isinstance(code, int) and 100 <= code <= 599:
+        return code
+    for pattern in (_HTTP_STATUS_RE, _STATUS_CODE_RE):
+        match = pattern.search(message)
+        if match:
+            value = int(match.group(1))
+            if 100 <= value <= 599:
+                return value
+    return None
+
+
+def failure_message(result: dict[str, Any]) -> str | None:
+    """The failure behind a returned result, or None for a completed turn.
+
+    `failed: True` is the SDK's explicit verdict (API refusal, exhausted
+    retries, blocked request); `completed: False` without it is a partial or
+    interrupted turn (truncated output, compression exhausted) — work that
+    did not finish is not a success either way."""
+    error = result.get("error")
+    if result.get("failed") is True or result.get("completed") is False:
+        return str(error) if error else "Hermes ended the turn without completing it"
+    if result.get("completed") is None and error:
+        return str(error)
+    return None
+
+
+def open_session_store() -> Any | None:
+    """The SDK's own session store. Best-effort: a turn without persistence
+    still runs (and says so), it just cannot be resumed later."""
+    try:
+        from hermes_state import SessionDB
+    except ImportError as exc:
+        warn(f"session store unavailable — this turn cannot be resumed later: {exc}")
+        return None
+    try:
+        return SessionDB()
+    except Exception as exc:  # noqa: BLE001 — any store failure degrades, never aborts the turn
+        warn(f"session store unavailable — this turn cannot be resumed later: {exc}")
+        return None
+
+
+def load_history(
+    session_db: Any, session_id: str
+) -> tuple[str, list[dict[str, Any]] | None]:
+    """Restore a --resume conversation: redirect to the session that holds the
+    messages (context compression forks a child session) and load them in the
+    conversation format `run_conversation` consumes — the vendor CLI's own
+    resume path (hermes_cli.cli_agent_setup_mixin)."""
+    try:
+        resolved = session_db.resolve_resume_session_id(session_id) or session_id
+        stored = session_db.get_messages_as_conversation(resolved)
+    except Exception as exc:  # noqa: BLE001 — a broken store must not kill the turn
+        warn(
+            f"could not load history for session {session_id}; starting a fresh conversation: {exc}"
+        )
+        return session_id, None
+    history = [
+        message
+        for message in stored or []
+        if isinstance(message, dict) and message.get("role") != "session_meta"
+    ]
+    if not history:
+        warn(
+            f"no stored history for session {session_id}; continuing under the same id with a fresh conversation"
+        )
+        return session_id, None
+    if resolved != session_id:
+        warn(
+            f"session {session_id} was compressed into {resolved}; resuming the descendant"
+        )
+    return resolved, history
 
 
 def main() -> int:
@@ -90,7 +194,12 @@ def main() -> int:
         )
         return 1
 
+    session_db = open_session_store()
     session_id = args.resume
+    conversation_history: list[dict[str, Any]] | None = None
+    if session_id and session_db is not None:
+        session_id, conversation_history = load_history(session_db, session_id)
+
     run_started = False
     tool_starts: dict[str, float] = {}
 
@@ -154,6 +263,7 @@ def main() -> int:
             quiet_mode=True,
             max_iterations=args.max_turns,
             session_id=session_id,
+            session_db=session_db,
             ephemeral_system_prompt=system_prompt,
             skip_memory=True,
             skip_context_files=False,
@@ -171,19 +281,43 @@ def main() -> int:
     ensure_run_start()
 
     try:
-        result = agent.run_conversation(user_message=prompt)
+        result = agent.run_conversation(
+            user_message=prompt, conversation_history=conversation_history
+        )
     except Exception as exc:
         emit({"type": "run_end", "status": "error", "error": str(exc)})
         traceback.print_exc(file=sys.stderr)
         return 1
 
+    if not isinstance(result, dict):
+        result = {"final_response": str(result) if result is not None else ""}
     final_text = (result.get("final_response") or "").strip()
     sid = getattr(agent, "session_id", None) or session_id
 
-    if final_text:
-        emit({"type": "assistant_message", "text": final_text})
     if sid:
         emit({"type": "session_id", "session_id": sid})
+
+    failure = failure_message(result)
+    if failure is not None:
+        # The SDK's own words are the run error; the status code (when the
+        # text carries one) lets the platform tell a rejected credential from
+        # a refused conversation.
+        event: dict[str, Any] = {
+            "type": "run_end",
+            "status": "error",
+            "session_id": sid,
+            "error": failure,
+        }
+        if final_text:
+            event["final_text"] = final_text
+        status = api_error_status(result, failure)
+        if status is not None:
+            event["api_error_status"] = status
+        emit(event)
+        return 1
+
+    if final_text:
+        emit({"type": "assistant_message", "text": final_text})
 
     emit(
         {

@@ -30715,17 +30715,31 @@ async function checkSandboxGatewayKeyReclaim(
   const { createServer } = await import('node:http');
   const deleted: string[] = [];
   const attempted: string[] = [];
+  const spendReads: string[] = [];
   const gateway = createServer((req, res) => {
     const url = req.url ?? '';
     res.setHeader('content-type', 'application/json');
+    if (
+      req.method === 'GET' &&
+      url.startsWith('/api/governance/virtual-keys/')
+    ) {
+      // Every key carries 25 cents of spend — the figure a teardown must
+      // read and book BEFORE it deletes the key.
+      spendReads.push(decodeURIComponent(url.split('/').at(-1) ?? ''));
+      res.end(
+        JSON.stringify({ virtual_key: { budgets: [{ current_usage: 0.25 }] } }),
+      );
+      return;
+    }
     if (
       req.method === 'DELETE' &&
       url.startsWith('/api/governance/virtual-keys/')
     ) {
       const keyId = decodeURIComponent(url.split('/').at(-1) ?? '');
       attempted.push(keyId);
-      if (keyId === 'vk-gk-boom') {
-        // The one key whose revoke fails — the posture lane below.
+      if (keyId.startsWith('vk-gk-boom')) {
+        // The keys whose revoke fails — the expiry hand-back and the
+        // posture lane below.
         res.statusCode = 503;
         res.end('{}');
         return;
@@ -30815,6 +30829,12 @@ async function checkSandboxGatewayKeyReclaim(
       keyId: 'vk-gk-live',
     });
     await seedToken('gk-ttl-live', 'gk-hash-live', 'vk-gk-live-token');
+    // An expired session whose key the gateway refuses to delete: the sweep
+    // must hand the claim back (the token reads unrevoked again) so the
+    // next sweep retries the still-live key — expiry does not destroy the
+    // session, so nothing else invalidates that token.
+    await seedSession('gk-ttl-boom', { expiresAt: now - 3_600_000 });
+    await seedToken('gk-ttl-boom', 'gk-hash-ttl-boom', 'vk-gk-boom-ttl');
     const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
     await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
     const expiryOk =
@@ -30825,7 +30845,10 @@ async function checkSandboxGatewayKeyReclaim(
       count('vk-gk-live') === 0 &&
       count('vk-gk-live-token') === 0 &&
       (await sessionKeyId('gk-ttl-live')) === 'vk-gk-live' &&
-      !(await tokenRevoked('gk-hash-live'));
+      !(await tokenRevoked('gk-hash-live')) &&
+      attempted.includes('vk-gk-boom-ttl') &&
+      !deleted.includes('vk-gk-boom-ttl') &&
+      !(await tokenRevoked('gk-hash-ttl-boom'));
 
     // --- edge 2: destroy / phantom heal, driven twice --------------------
     const sessions = await import('./domains/sandbox/sessions.ts');
@@ -30907,11 +30930,164 @@ async function checkSandboxGatewayKeyReclaim(
     }
     const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
     await taskWatchdogs.runTaskAgentWatchdog(sql);
+    // The deadline teardown settles the run's key: its spend is read and
+    // booked (op row + the starter's usage ledger) BEFORE the delete.
+    const overdueOp = await sql<
+      {
+        spentCents: number | null;
+        spendSettled: boolean;
+        keyRevoked: boolean;
+      }[]
+    >`
+      SELECT spent_cents::float8 AS "spentCents",
+             spend_settled_at_ms IS NOT NULL AS "spendSettled",
+             key_revoked_at_ms IS NOT NULL AS "keyRevoked"
+      FROM app.sandbox_session_ops
+      WHERE session_id = 'pa-gk-agent' AND exec_id = 'exec-gk-overdue'
+    `;
+    const monthlyKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+    const starterLedger = async (): Promise<number> => {
+      const rows = await sql<{ cents: number }[]>`
+        SELECT coalesce(sum(cost_estimate_cents), 0)::float8 AS cents
+        FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND user_id = 'itest:gk'
+          AND granularity = 'monthly' AND period_key = ${monthlyKey}
+      `;
+      return rows[0]?.cents ?? 0;
+    };
+    const bookedByDeadline = await starterLedger();
     const deadlineOk =
+      spendReads.includes('vk-gk-run') &&
+      spendReads.indexOf('vk-gk-run') < attempted.indexOf('vk-gk-run') &&
       count('vk-gk-run') === 1 &&
+      overdueOp[0]?.spentCents === 25 &&
+      (overdueOp[0]?.spendSettled ?? false) &&
+      (overdueOp[0]?.keyRevoked ?? false) &&
+      Math.abs(bookedByDeadline - 25) < 0.001 &&
       (await tokenRevoked('gk-hash-exec-gk-overdue')) &&
       count('vk-gk-sibling') === 0 &&
       !(await tokenRevoked('gk-hash-exec-gk-sibling'));
+
+    // --- edge 4: the spend cap sizes a turn's key; the settle frees it -----
+    // Under a monthly org cap with 700 cents of headroom, two starts of the
+    // standing agent reserve 500 (the deployment default) and 200 (what is
+    // left after the first's reservation), a third is refused, and once the
+    // first turn's spend is booked (30 cents) the next start sees the
+    // reservation gone: 700 − 30 − 200 = 470.
+    const turnBudget = await import('./domains/sandbox/turn-budget.ts');
+    const settlement = await import('./domains/sandbox/spend-settlement.ts');
+    const orgConfig = await import('./lib/org-config.ts');
+    const slugRows = await sql<{ slug: string | null }[]>`
+      SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+    `;
+    const governanceDir = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      slugRows[0]?.slug ?? '',
+      'governance',
+    );
+    await mkdir(governanceDir, { recursive: true });
+    const budgetsPath = path.join(governanceDir, 'budgets.yml');
+    const orgMonthly = await sql<{ cents: number }[]>`
+      SELECT coalesce(sum(cost_estimate_cents), 0)::float8 AS cents
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND granularity = 'monthly'
+        AND period_key = ${monthlyKey}
+    `;
+    const orgCap = Math.ceil(orgMonthly[0]?.cents ?? 0) + 700;
+    await writeFile(
+      budgetsPath,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: org',
+        '    period: monthly',
+        `    maxCostCents: ${orgCap}`,
+      ].join('\n'),
+    );
+    orgConfig.clearOrgConfigCaches();
+    for (const execId of [
+      'exec-gk-budget-1',
+      'exec-gk-budget-2',
+      'exec-gk-budget-3',
+      'exec-gk-budget-4',
+    ]) {
+      // Terminal rows: the reservation reads a run only for its starter and
+      // agent, and the schema allows one LIVE run per task.
+      await sql`
+        INSERT INTO app.project_agent_runs (
+          org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+          harness, model, started_by, started_at_ms, settled_at_ms,
+          deadline_at_ms, updated_at_ms
+        ) VALUES (
+          ${orgId}, ${projectId}, ${taskId}, 'gk-agent', ${execId},
+          'pa-gk-agent', 'settled', 'claude-code', 'itest-model', 'itest:gk',
+          ${now}, ${now}, ${now + 3_600_000}, ${now}
+        )
+      `;
+    }
+    const reserve = (execId: string) =>
+      turnBudget.reserveTurnBudget(sql, {
+        organizationId: orgId,
+        sessionId: 'pa-gk-agent',
+        execId,
+        kind: 'task-agent',
+        defaultBudgetCents: 500,
+        modelRef: 'itestchat/itestchat/itest-model',
+      });
+    const firstReservation = await reserve('exec-gk-budget-1');
+    const secondReservation = await reserve('exec-gk-budget-2');
+    const thirdReservation = await reserve('exec-gk-budget-3');
+    const firstSettled = await settlement.settleSessionOpSpend(sql, {
+      sessionId: 'pa-gk-agent',
+      execId: 'exec-gk-budget-1',
+      spentCents: 30,
+      usage: { inputTokens: 1_000, outputTokens: 100 },
+    });
+    const firstReplayed = await settlement.settleSessionOpSpend(sql, {
+      sessionId: 'pa-gk-agent',
+      execId: 'exec-gk-budget-1',
+      spentCents: 30,
+    });
+    const fourthReservation = await reserve('exec-gk-budget-4');
+    const bookedByTurns = (await starterLedger()) - bookedByDeadline;
+    // The sweep closes a finalized, keyless op's open settlement (which frees
+    // its reservation) — driven with a clock past the grace.
+    await sql`
+      UPDATE app.sandbox_session_ops SET
+        status = 'cancelled', finished_at_ms = ${Date.now()},
+        finalized_at_ms = ${Date.now()}
+      WHERE session_id = 'pa-gk-agent' AND exec_id = 'exec-gk-budget-2'
+    `;
+    const sweep = await settlement.reconcilePendingSessionOpKeys(sql, {
+      batch: 25,
+      now: Date.now() + 10 * 60_000,
+    });
+    const secondFreed = await sql<{ settled: boolean }[]>`
+      SELECT spend_settled_at_ms IS NOT NULL AS settled
+      FROM app.sandbox_session_ops
+      WHERE session_id = 'pa-gk-agent' AND exec_id = 'exec-gk-budget-2'
+    `;
+    await rm(budgetsPath, { force: true });
+    orgConfig.clearOrgConfigCaches();
+    record(
+      'spend cap sizes a turn (reservations, refusal, settle frees, sweep closes)',
+      firstReservation.allowed &&
+        firstReservation.budgetCents === 500 &&
+        secondReservation.allowed &&
+        secondReservation.budgetCents === 200 &&
+        !thirdReservation.allowed &&
+        /Cost limit reached/.test(
+          thirdReservation.allowed ? '' : thirdReservation.reason,
+        ) &&
+        firstSettled === 'settled' &&
+        firstReplayed === 'already_settled' &&
+        fourthReservation.allowed &&
+        fourthReservation.budgetCents === 470 &&
+        Math.abs(bookedByTurns - 30) < 0.001 &&
+        sweep.settled >= 1 &&
+        (secondFreed[0]?.settled ?? false),
+      `first=${JSON.stringify(firstReservation)} second=${JSON.stringify(secondReservation)} third=${JSON.stringify(thirdReservation)} settle=${firstSettled}/${firstReplayed} fourth=${JSON.stringify(fourthReservation)} (want 470) ledger=+${bookedByTurns} (want 30) sweep=${JSON.stringify(sweep)} secondFreed=${secondFreed[0]?.settled}`,
+    );
 
     // --- posture: a failing gateway must not wedge the teardown ----------
     await seedSession('gk-boom', { expiresAt: now + 3_600_000 });
@@ -30928,12 +31104,16 @@ async function checkSandboxGatewayKeyReclaim(
       boomDestroyed &&
       boomStatus[0]?.status === 'destroyed' &&
       attempted.includes('vk-gk-boom') &&
-      !deleted.includes('vk-gk-boom');
+      !deleted.includes('vk-gk-boom') &&
+      // A destroyed session's tokens are dead regardless of the gateway's
+      // answer (the destroy flips them after the reclaim) — the key's own
+      // retry rides its op row, never the token.
+      (await tokenRevoked('gk-hash-boom'));
 
     record(
       'sandbox teardown revokes the session gateway key (expiry/destroy/deadline)',
       expiryOk && destroyOk && deadlineOk && postureOk,
-      `expiry(gone=${count('vk-gk-row')}/${count('vk-gk-token')} col=${await sessionKeyId('gk-ttl-gone')} live=${count('vk-gk-live')}/${count('vk-gk-live-token')}), destroy(first=${destroyedFirst} again=${destroyedTwice} keys=${count('vk-gk-destroy')}/${count('vk-gk-destroy-row')}), deadline(run=${count('vk-gk-run')} sibling=${count('vk-gk-sibling')}), posture(destroyed=${boomDestroyed} status=${boomStatus[0]?.status} attempted=${attempted.includes('vk-gk-boom')}), deleted=${deleted.join(',')}`,
+      `expiry(gone=${count('vk-gk-row')}/${count('vk-gk-token')} col=${await sessionKeyId('gk-ttl-gone')} live=${count('vk-gk-live')}/${count('vk-gk-live-token')}), destroy(first=${destroyedFirst} again=${destroyedTwice} keys=${count('vk-gk-destroy')}/${count('vk-gk-destroy-row')}), deadline(run=${count('vk-gk-run')} spendRead=${spendReads.includes('vk-gk-run')} op=${JSON.stringify(overdueOp[0])} ledger=${bookedByDeadline} sibling=${count('vk-gk-sibling')}), posture(destroyed=${boomDestroyed} status=${boomStatus[0]?.status} attempted=${attempted.includes('vk-gk-boom')} tokenDead=${await tokenRevoked('gk-hash-boom')}), expiryHandBack(attempted=${attempted.includes('vk-gk-boom-ttl')} deleted=${deleted.includes('vk-gk-boom-ttl')} tokenRevoked=${await tokenRevoked('gk-hash-ttl-boom')}), deleted=${deleted.join(',')}`,
     );
     // Hand the seeded slots back: the sibling op stays `running` on purpose
     // (that is what keeps its key alive), and the watchdog's running-op
@@ -30942,15 +31122,22 @@ async function checkSandboxGatewayKeyReclaim(
     await sql`
       UPDATE app.sandbox_session_ops SET
         status = 'cancelled', finished_at_ms = ${Date.now()},
-        finalized_at_ms = coalesce(finalized_at_ms, ${Date.now()})
+        finalized_at_ms = coalesce(finalized_at_ms, ${Date.now()}),
+        spend_settled_at_ms = coalesce(spend_settled_at_ms, ${Date.now()})
       WHERE session_id = 'pa-gk-agent' AND status = 'running'
+    `;
+    await sql`
+      UPDATE app.project_agent_runs SET
+        status = 'cancelled', settled_at_ms = ${Date.now()},
+        updated_at_ms = ${Date.now()}
+      WHERE session_id = 'pa-gk-agent' AND status IN ('queued', 'running')
     `;
     await sql`
       UPDATE app.sandbox_sessions SET
         status = 'destroyed', destroyed_at_ms = ${Date.now()}
       WHERE org_id = ${orgId}
-        AND session_id IN ('gk-ttl-gone', 'gk-ttl-live', 'pa-gk-agent',
-                           'gk-boom')
+        AND session_id IN ('gk-ttl-gone', 'gk-ttl-live', 'gk-ttl-boom',
+                           'pa-gk-agent', 'gk-boom')
     `;
   } finally {
     if (previousGatewayUrl === undefined) {
@@ -41766,7 +41953,7 @@ async function checkAutoRetryAndKickPlan(
       !first.inspectNote &&
       afterSettled.resume === 'conv-plan-1' &&
       afterSettled.sweep &&
-      afterSettled.resumePredecessorExecId === 'exec-plan-1' &&
+      afterSettled.predecessorExecId === 'exec-plan-1' &&
       afterFailed.resume === 'conv-plan-2' &&
       !afterFailed.sweep &&
       afterFailed.inspectNote &&

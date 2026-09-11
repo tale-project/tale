@@ -171,8 +171,20 @@ async function pushModelPricing(
         outputCentsPerMillion: pricing.outputCentsPerMillion,
       });
     } catch (err) {
+      if (!isStandardGatewayProvider(ref.providerSlug)) {
+        // A custom upstream has NO price on the gateway's own datasheet:
+        // without the override every request bills at 0, the key's cap
+        // never trips, and the org's spend ledger stays empty for the whole
+        // turn — the exact metering the cap promises. Refuse the session
+        // rather than run it unmetered; a standard provider (priced by the
+        // datasheet, the override only corrects drift) still runs.
+        throw new Error(
+          `Provider "${ref.providerSlug}" cannot serve this session: the price of ${ref.modelId} could not be pushed to the sandbox LLM gateway, and a custom upstream bills at 0 without it (${describeFailure(err)})`,
+          { cause: err },
+        );
+      }
       console.warn(
-        `[gateway-provisioning] pricing for ${ref.providerSlug}/${ref.modelId} could not be pushed to the sandbox LLM gateway; its turns bill at the gateway's own price (0 for a custom upstream):`,
+        `[gateway-provisioning] pricing for ${ref.providerSlug}/${ref.modelId} could not be pushed to the sandbox LLM gateway; its turns bill at the gateway's own datasheet price until the next push:`,
         err,
       );
     }

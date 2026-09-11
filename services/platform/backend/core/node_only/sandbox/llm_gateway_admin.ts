@@ -38,6 +38,7 @@ import { createHash } from 'node:crypto';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
+import type { GatewaySpendReading } from './gateway_key_settlement';
 
 /**
  * Read a `SANDBOX_LLM_GATEWAY_*` env var, falling back to the pre-rename
@@ -370,13 +371,15 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
  * budget on a key meters the same requests over its own reset window, so the
  * largest figure is the key's spend. The budget figure is the gateway's only
  * authoritative spend signal — and the only usage source that works where a
- * harness's own stream reports 0 tokens. Returns null on error, or for a key
- * the gateway holds without any budget; the caller degrades to whatever the
- * agent stream reported.
+ * harness's own stream reports 0 tokens. The three answers are the
+ * settlement's three branches: a figure, a key the gateway no longer knows
+ * (its figure is gone — book nothing and move on), or a gateway that could
+ * not answer (try again later; never delete the key before its spend is
+ * read). A key held without any budget answers 0, flagged `unmetered`.
  */
-export async function getVirtualKeySpendCents(
+export async function readVirtualKeySpend(
   keyId: string,
-): Promise<number | null> {
+): Promise<GatewaySpendReading> {
   const res = await fetch(
     `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
     {
@@ -385,15 +388,14 @@ export async function getVirtualKeySpendCents(
       signal: AbortSignal.timeout(15_000),
     },
   );
+  if (res.status === 404) return { status: 'gone' };
   if (!res.ok) {
-    // Degrade to the agent-stream spend, but make the gateway failure
-    // visible — a down gateway is otherwise indistinguishable from "key not
-    // found" and would silently stamp a zero cost. keyId is an id, not a
-    // secret.
+    // A down gateway is not "key not found" — say so, and let the caller
+    // defer instead of stamping a zero cost. keyId is an id, not a secret.
     console.warn(
-      `[llm-gateway] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
+      `[llm-gateway] spend read failed (${res.status}) for key ${keyId}; settlement deferred`,
     );
-    return null;
+    return { status: 'unavailable' };
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
@@ -420,10 +422,21 @@ export async function getVirtualKeySpendCents(
     console.warn(
       `[llm-gateway] key ${keyId} carries no budget; its spend is unknown`,
     );
-    return null;
+    return { status: 'ok', cents: 0, unmetered: true };
   }
   // Sub-cent spends are real with cheap models — keep the precision.
-  return Math.max(...usages) * 100;
+  return { status: 'ok', cents: Math.max(...usages) * 100 };
+}
+
+/** The cumulative spend as a plain figure, or null when the gateway could
+ * not give one (unavailable, key gone, or unmetered). */
+export async function getVirtualKeySpendCents(
+  keyId: string,
+): Promise<number | null> {
+  const reading = await readVirtualKeySpend(keyId);
+  return reading.status === 'ok' && reading.unmetered !== true
+    ? reading.cents
+    : null;
 }
 
 /** The price the gateway should bill one model at, in the catalog's unit

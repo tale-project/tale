@@ -32,7 +32,10 @@ export type TaskRunFailureCode =
   | 'deadline'
   | 'park_deadline'
   | 'agent_deleted'
-  | 'agent_model_missing';
+  | 'agent_model_missing'
+  /** The org's spend cap refused the start — the cap only moves with the
+   * period or an admin, so a retry would only be refused again. */
+  | 'budget_exceeded';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
  * (either executing or parked), or the agent configuration itself is gone.
@@ -44,6 +47,7 @@ const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'park_deadline',
   'agent_deleted',
   'agent_model_missing',
+  'budget_exceeded',
 ] satisfies TaskRunFailureCode[]);
 
 export function isAutoRetryableFailure(code: string | undefined): boolean {

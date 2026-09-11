@@ -12,6 +12,7 @@ import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { listFilesByFolder } from '../documents/agent-list.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
+import { scheduleGatewayKeyReconcile } from '../sandbox/spend-settlement.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -713,6 +714,11 @@ export function automationShimScheduler(sql: Sql): ShimScheduler {
     const payload = args as Record<string, unknown>;
     const startAfter =
       delayMs > 0 ? { startAfter: new Date(Date.now() + delayMs) } : {};
+    if (
+      await scheduleGatewayKeyReconcile(sql, functionName, delayMs, payload)
+    ) {
+      return;
+    }
     if (functionName === 'automations/agent_host:startWorkflowAgentTurn') {
       await addJobInTx(
         sql,

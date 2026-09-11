@@ -670,7 +670,8 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 /** The stream-parser families under `lib/harnesses/parsers/` — the one
  * genuinely stateful per-harness part that stays code. Every harness YAML
  * names the family that parses its stdout dialect; families are reusable
- * (qwen-code, a gemini-cli fork, shares `gemini-stream`). */
+ * (qwen-code's headless stream is the Claude dialect, so it shares
+ * `claude-stream-json`). */
 export const parserFamilySchema = z.enum([
   'claude-stream-json',
   'codex-jsonl',

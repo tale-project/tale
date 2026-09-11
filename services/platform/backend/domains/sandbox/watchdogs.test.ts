@@ -258,7 +258,12 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       spawner,
     });
 
-    expect(result).toEqual({ expired: 0, healed: 0, reclaimed: 0 });
+    expect(result).toEqual({
+      expired: 0,
+      healed: 0,
+      reclaimed: 0,
+      settled: 0,
+    });
     expect(reconcileSession).not.toHaveBeenCalled();
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
     expect(

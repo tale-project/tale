@@ -201,7 +201,7 @@ describe('provisionSessionGatewayKey', () => {
     });
   });
 
-  it('still mints when a pricing push fails (accounting never refuses a session)', async () => {
+  it('still mints when a STANDARD provider’s pricing push fails (the datasheet prices it)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedResolve.mockResolvedValue(apiKeyResolution());
     vi.mocked(ensureModelPricingOverride).mockRejectedValueOnce(
@@ -221,6 +221,35 @@ describe('provisionSessionGatewayKey', () => {
       expect.any(Error),
     );
     warn.mockRestore();
+  });
+
+  it("refuses the session when a CUSTOM upstream's pricing push fails (it would bill at 0)", async () => {
+    // deepseek is not a standard gateway provider: without the override its
+    // per-model record has no price on the gateway's datasheet, so every
+    // request would cost 0 — the key's cap never trips and the org ledger
+    // stays empty. The turn must not run unmetered.
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      {
+        id: 'deepseek-v4-flash',
+        pricing: { inputCentsPerMillion: 14, outputCentsPerMillion: 28 },
+      },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    vi.mocked(ensureModelPricingOverride).mockRejectedValueOnce(
+      new Error('llm-gateway create pricing override failed (503)'),
+    );
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-ds',
+        allowedModels: [
+          { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+        ],
+        budgetCents: 500,
+      }),
+    ).rejects.toThrow(/custom upstream bills at 0 without it/);
+    expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 
   it("provisions a custom provider under the org's per-model record so the mint can bind", async () => {

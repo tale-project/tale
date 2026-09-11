@@ -17,6 +17,12 @@ import {
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
+  markSessionOpKeyRevoked,
+  scheduleGatewayKeyReconcile,
+  settleSessionOpSpend,
+} from '../sandbox/spend-settlement.ts';
+import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
+import {
   failAgentRunFromTurn,
   kickAgentRun,
   launchAgentRun,
@@ -432,17 +438,22 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         lastSeq?: number;
         mintedKeyId?: string;
         spentCents?: number;
+        budgetCents?: number;
       };
       const now = Date.now();
       const terminal = args.status !== 'running';
+      // An op that ends without ever minting a key has no spend to settle:
+      // its spend fact closes at the terminal stamp, which also releases the
+      // budget reservation it may hold.
+      const keyless = args.mintedKeyId === undefined;
       const rows = await sql<{ id: string }[]>`
         INSERT INTO app.sandbox_session_ops (
           org_id, session_id, thread_id, exec_id, kind, status,
           progress_text, live_timeline, agent_session_id, exit_code,
           agent_result_status, user_id, model_ref, vision_model_ref,
           agent_slug, deadline_ms, heartbeat_at_ms, last_event_at_ms,
-          last_seq, minted_key_id, spent_cents, started_at_ms,
-          finished_at_ms
+          last_seq, minted_key_id, spent_cents, budget_cents,
+          spend_settled_at_ms, started_at_ms, finished_at_ms
         ) VALUES (
           ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
           ${args.execId}, ${args.kind}, ${args.status},
@@ -454,7 +465,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
           ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
           ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
-          ${args.spentCents ?? null}, ${now},
+          ${args.spentCents ?? null}, ${args.budgetCents ?? null},
+          ${terminal && keyless ? now : null}, ${now},
           ${terminal ? now : null}
         )
         ON CONFLICT (session_id, exec_id) DO UPDATE SET
@@ -501,6 +513,16 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             app.sandbox_session_ops.minted_key_id),
           spent_cents = coalesce(EXCLUDED.spent_cents,
             app.sandbox_session_ops.spent_cents),
+          budget_cents = coalesce(EXCLUDED.budget_cents,
+            app.sandbox_session_ops.budget_cents),
+          spend_settled_at_ms = CASE
+            WHEN app.sandbox_session_ops.spend_settled_at_ms IS NOT NULL
+              THEN app.sandbox_session_ops.spend_settled_at_ms
+            WHEN EXCLUDED.status <> 'running'
+              AND coalesce(EXCLUDED.minted_key_id,
+                app.sandbox_session_ops.minted_key_id) IS NULL
+              THEN ${now}
+            ELSE NULL END,
           finished_at_ms = CASE WHEN EXCLUDED.status <> 'running'
             THEN ${now} ELSE app.sandbox_session_ops.finished_at_ms END
         RETURNING id
@@ -531,31 +553,36 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
 
+    // The spend fact: books the figure on the op row AND into the org usage
+    // ledger in one transaction, once — a replay finds the fact closed.
     'sandbox/session_mutations:recordSessionOpSpend': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {
         sessionId: string;
         execId: string;
-        spentCents: number;
+        spentCents: number | null;
+        usage?: { inputTokens: number; outputTokens: number };
       };
-      const rows = await sql<{ id: string }[]>`
-        UPDATE app.sandbox_session_ops SET spent_cents = ${args.spentCents}
-        WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
-        RETURNING id
-      `;
-      return rows.length > 0;
+      return (await settleSessionOpSpend(sql, args)) === 'settled';
     },
 
+    // The revoke fact — only ever after the gateway confirmed the delete.
     'sandbox/session_mutations:markSessionTokenRevokedByKeyId': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { sessionId: string; llmGatewayKeyId: string };
-      await sql`
-        UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${Date.now()}
-        WHERE session_id = ${args.sessionId}
-          AND llm_gateway_key_id = ${args.llmGatewayKeyId}
-          AND revoked_at_ms IS NULL
-      `;
+      await markSessionOpKeyRevoked(sql, {
+        sessionId: args.sessionId,
+        keyId: args.llmGatewayKeyId,
+      });
       return null;
+    },
+
+    // The org spend cap's allowance for a turn about to mint its key — see
+    // `turn-budget.ts`.
+    'sandbox/session_mutations:reserveTurnBudget': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as Parameters<typeof reserveTurnBudget>[1];
+      return reserveTurnBudget(sql, args);
     },
 
     'sandbox/session_mutations:insertSessionToken': async (raw) => {
@@ -665,12 +692,16 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           finalizedAt: number | null;
           startedAt: number;
           resumedBy: string | null;
+          spendSettledAt: number | null;
+          keyRevokedAt: number | null;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
                finalized_at_ms::float8 AS "finalizedAt",
                started_at_ms::float8 AS "startedAt",
-               resumed_by AS "resumedBy"
+               resumed_by AS "resumedBy",
+               spend_settled_at_ms::float8 AS "spendSettledAt",
+               key_revoked_at_ms::float8 AS "keyRevokedAt"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -682,6 +713,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         ...(row.finalizedAt !== null ? { finalizedAt: row.finalizedAt } : {}),
         startedAt: row.startedAt,
         ...(row.resumedBy !== null ? { resumedBy: row.resumedBy } : {}),
+        // The settlement facts a replayed settle resumes from.
+        spendSettled: row.spendSettledAt !== null,
+        keyRevoked: row.keyRevokedAt !== null,
       };
     },
 
@@ -735,6 +769,9 @@ export function taskAgentShimScheduler(sql: Sql): ShimScheduler {
     if (functionName === 'tasks/agent_run_host:steerTaskAgentTurn') {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the steer host replays its own args with attempt+1
       await addJobInTx(sql, 'task.agent_steer', args as never, startAfter);
+      return;
+    }
+    if (await scheduleGatewayKeyReconcile(sql, functionName, delayMs, args)) {
       return;
     }
     throw new Error(

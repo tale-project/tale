@@ -39,6 +39,9 @@ const RUN_DISPATCH = {
 const SCHEDULED_REFS = new Set([
   'automations/agent_host:startWorkflowAgentTurn',
   'automations/agent_host:driveWorkflowAgentTurn',
+  // The settle's gateway-key settlement retry — mapped to the
+  // `sandbox.gateway_key_reconcile` job by `scheduleGatewayKeyReconcile`.
+  'sandbox/gateway_reconcile:reconcileSessionOpKey',
 ]);
 
 describe('automationShimHandlers', () => {

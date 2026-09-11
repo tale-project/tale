@@ -226,9 +226,10 @@ describe('shipped harnesses', () => {
       expect(harness.exec.bin.length).toBeGreaterThan(0);
       expect(harness.exec.argv.length).toBeGreaterThan(0);
     }
-    // qwen-code is the gemini-cli fork: it reuses the gemini stream family
-    // over its own wrapper binary.
-    expect(table.get('qwen-code')?.parser).toBe('gemini-stream');
+    // qwen-code is a gemini-cli fork, but its headless stream is the
+    // Claude-style stream-json dialect — it shares claude-code's family over
+    // its own wrapper binary.
+    expect(table.get('qwen-code')?.parser).toBe('claude-stream-json');
     expect(table.get('qwen-code')?.exec.bin).toBe('tale-qwen-run');
     expect(table.get('gemini')?.parser).toBe('gemini-stream');
     expect(table.get('claude-code')?.parser).toBe('claude-stream-json');

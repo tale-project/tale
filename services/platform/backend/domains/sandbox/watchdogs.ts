@@ -8,6 +8,7 @@ import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { reconcileSession } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
+import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
 
 /**
  * The spawner verbs the sweep's spawner-facing passes use. Injectable so the
@@ -43,6 +44,9 @@ export interface SandboxWatchdogOptions {
   /** Ended-run sessions reclaimed per tick. */
   reclaimBatch?: number;
   reclaimGraceMs?: number;
+  /** Finalized ops whose gateway-key settlement is still open, settled per
+   * tick. */
+  settleBatch?: number;
   /** Skip BOTH spawner-facing passes (reconcile + reclaim) — for callers
    * with no spawner to ask. */
   skipReconcile?: boolean;
@@ -53,6 +57,9 @@ export interface SandboxWatchdogResult {
   expired: number;
   healed: number;
   reclaimed: number;
+  /** Finalized ops whose gateway-key settlement (spend booked, key revoked)
+   * the sweep closed this tick. */
+  settled: number;
 }
 
 /**
@@ -129,7 +136,21 @@ export async function runSandboxWatchdog(
     });
   }
 
-  return { expired: expired.length, healed, reclaimed };
+  // SETTLE: finalized ops whose gateway-key settlement is still open past
+  // the grace — the backstop behind the settle's own retry ladder (a
+  // backend restart between retries, a gateway down for longer than it).
+  let settled = 0;
+  try {
+    const sweep = await reconcilePendingSessionOpKeys(sql, {
+      batch: options.settleBatch ?? 25,
+      now,
+    });
+    settled = sweep.settled;
+  } catch (error: unknown) {
+    console.error('[watchdog] gateway key settlement sweep failed:', error);
+  }
+
+  return { expired: expired.length, healed, reclaimed, settled };
 }
 
 interface Candidate {
