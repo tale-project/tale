@@ -139,8 +139,43 @@ describe('shipped static model catalogs', () => {
     for (const model of anthropic ?? []) {
       expect(model.supportsTools).toBe(true);
       expect(model.supportsVision).toBe(true);
-      expect(model.reasoning).toEqual({ knob: 'effort' });
+      // Haiku 4.5 has no effort parameter (see the docs-list guard below)
+      // and stays knob-less until the chat lane can replay thinking blocks.
+      expect(model.reasoning).toEqual(
+        model.id === 'claude-haiku-4-5' ? undefined : { knob: 'effort' },
+      );
     }
+  });
+
+  // `output_config.effort` exists on a documented set of models
+  // (platform.claude.com/docs/en/build-with-claude/effort, read 2026-09-11):
+  // the 5-series, Opus 4.5+ and Sonnet 4.6+. The wire sends it for every
+  // `effort`-knob entry on this connector, and a model outside the set
+  // refuses the whole request — Haiku 4.5, which reasons only through a
+  // manual thinking budget, was the shipped case. Extend the list from the
+  // docs when a new model ships, never from the model's name.
+  it('the anthropic catalog declares the effort knob only where the vendor documents it', () => {
+    const EFFORT_MODELS = new Set([
+      'claude-fable-5-1',
+      'claude-mythos-5-1',
+      'claude-fable-5',
+      'claude-mythos-5',
+      'claude-mythos-preview',
+      'claude-opus-5',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-5',
+      'claude-sonnet-4-6',
+    ]);
+    const undocumented: string[] = [];
+    for (const entry of loadStaticCatalogs().get('anthropic') ?? []) {
+      if (entry.reasoning?.knob === 'effort' && !EFFORT_MODELS.has(entry.id)) {
+        undocumented.push(entry.id);
+      }
+    }
+    expect(undocumented).toEqual([]);
   });
 
   it('zai curates embedding-3 as its knowledge-embedding pick', () => {
@@ -183,6 +218,30 @@ describe('shipped static model catalogs', () => {
       'openrouter/qwen/qwen3-embedding-8b',
       'zai/embedding-3',
     ]);
+  });
+
+  // A declared knob names a WIRE PARAMETER, so it is only meaningful on a
+  // connector whose dialect can spell it: `budget-tokens` is
+  // `thinking.budget_tokens`, which exists on the Anthropic messages wire
+  // alone. An OpenAI-format connector declaring it drops the user's effort
+  // pick from the body with nothing to show for it — which is exactly what
+  // every Claude entry in the openrouter catalog did until this guard
+  // existed. `effort` is spellable on both (`reasoning_effort` /
+  // `output_config.effort`), so it never pairs wrong.
+  it('every catalog entry declares a knob its connector can spell', () => {
+    const formatBySlug = new Map(
+      loadProviderDefinitions().map((p) => [p.name, p.apiFormat] as const),
+    );
+    const unspellable: string[] = [];
+    for (const [provider, entries] of loadStaticCatalogs()) {
+      for (const entry of entries) {
+        if (entry.reasoning?.knob !== 'budget-tokens') continue;
+        if (formatBySlug.get(provider) !== 'anthropic') {
+          unspellable.push(`${provider}/${entry.id}`);
+        }
+      }
+    }
+    expect(unspellable).toEqual([]);
   });
 });
 
