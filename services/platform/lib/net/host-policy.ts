@@ -25,7 +25,7 @@ import { isPrivateIp } from './safe-fetch';
  * Cloud metadata endpoints, including public-IP variants (Alibaba, Oracle)
  * that slip past the RFC1918 / link-local `isPrivateIp` check.
  */
-const BLOCKED_METADATA_HOSTS = new Set<string>([
+export const BLOCKED_METADATA_HOSTS = new Set<string>([
   '169.254.169.254', // AWS, GCP, Azure, DigitalOcean, Oracle (link-local)
   'fd00:ec2::254', // AWS IMDSv2 IPv6
   'metadata.google.internal', // GCP

@@ -276,6 +276,60 @@ async function filterRetrievableRagFileIds(
 }
 
 /**
+ * Name the document behind each documents-corpus hit. The corpus keys a
+ * chunk by its BLOB reference (`source.ref` = `file_ref`), which no document
+ * route takes — a caller that wanted to open, cite or delete what it found
+ * had to search `GET /documents` by title. The retrievable filter has
+ * already admitted the ref for this caller's scope; this reads the active
+ * document that exposes it in the hit's own project scope (newest first
+ * when the same blob was published twice) and stamps its id on the hit.
+ * One query for the whole page; hits whose ref no document holds (a thread
+ * upload, an emailed attachment) and web hits pass through unchanged.
+ */
+export async function withDocumentIds<
+  H extends {
+    readonly corpus: string;
+    readonly source: {
+      readonly ref: string;
+      readonly projectId?: string | null;
+    };
+  },
+>(sql: Sql, organizationId: string, hits: readonly H[]): Promise<H[]> {
+  const refs = [
+    ...new Set(
+      hits
+        .filter((hit) => hit.corpus === 'documents')
+        .map((hit) => hit.source.ref),
+    ),
+  ];
+  if (refs.length === 0) return [...hits];
+  const rows = await sql<
+    { id: string; fileRef: string; projectId: string | null }[]
+  >`
+    SELECT id, file_ref AS "fileRef", project_id AS "projectId"
+    FROM app.documents
+    WHERE org_id = ${organizationId}
+      AND file_ref = ANY(${refs})
+      AND coalesce(lifecycle_status, 'active') = 'active'
+    ORDER BY created_at_ms DESC
+  `;
+  const byRefAndProject = new Map<string, string>();
+  for (const row of rows) {
+    const key = `${row.fileRef}\u0000${row.projectId ?? ''}`;
+    if (!byRefAndProject.has(key)) byRefAndProject.set(key, row.id);
+  }
+  return hits.map((hit) => {
+    if (hit.corpus !== 'documents') return hit;
+    const documentId = byRefAndProject.get(
+      `${hit.source.ref}\u0000${hit.source.projectId ?? ''}`,
+    );
+    return documentId === undefined
+      ? hit
+      : { ...hit, source: { ...hit.source, documentId } };
+  });
+}
+
+/**
  * Who is asking, for the conversation branch of the retrievable filter: the
  * caller's member row decides whether they are an admin (every conversation)
  * or a member (their assignments). The reused search/fetch modules carry the
@@ -420,11 +474,15 @@ export async function searchKnowledgeForOrg(
   const { folder: rawFolder, ...rest } = args;
   const folder = normalizeFolderPath(rawFolder);
   try {
-    return await searchKnowledge(
+    const result = await searchKnowledge(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module; ctx usage covered by the shim handlers
       shim as unknown as Parameters<typeof searchKnowledge>[0],
       { ...rest, orgSlug, ...(folder !== null ? { folder } : {}) },
     );
+    return {
+      ...result,
+      hits: await withDocumentIds(sql, args.organizationId, result.hits),
+    };
   } catch (error) {
     if (error instanceof EmbeddingNotConfigured) {
       throw new KnowledgeError(

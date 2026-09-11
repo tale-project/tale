@@ -74,7 +74,7 @@ describe('PATCH /websites/{id} body shape', () => {
     const { app, queries } = mount();
     const res = await app.request('http://localhost/websites/w-1', patch('[]'));
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'Invalid JSON body' });
+    expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
     expect(queries.some((q) => q.startsWith('UPDATE app.websites'))).toBe(
       false,
     );
