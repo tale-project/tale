@@ -124,7 +124,7 @@ Managed bundle commands are unavailable on Windows, including `deploy verify-bun
 
 This synthetic specification targets an existing organization and project. Replace its public identifiers and set the named environment values. `revision` accepts a full commit SHA directly or an environment reference; credentials remain references and are resolved privately at the destination. `tlsMode: "external"` means an existing edge handles public TLS; `letsencrypt` additionally requires `tlsEmail`.
 
-For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, verifies the final executable, returns `executable` and adds the binary to `PATH`. macOS builds support [private inference](/self-hosted/configuration/private-inference); managed Linux stack preparation still requires a matching Linux executable.
+For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-cli` composite action. Pin the action itself to a full Tale commit and pass that full commit as its `revision` input. It builds with Bun 1.4.2, verifies the final executable, returns `executable` and adds the binary to `PATH`. macOS builds support general configuration preparation; managed Linux stack preparation still requires a matching Linux executable.
 
 `origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
 
@@ -214,7 +214,64 @@ tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
 
 The output directory has mode `0700`. Its regular `0600` files are `client.json`, `receipt.json` and, when `--env-prefix` is selected, `consumer-env.json`. The latter is a literal four-string map: `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` and `TALE_OIDC_ORG_SLUG`. The issuer is the Tale origin followed by `/api/auth`. Transfer these bytes through your private credential channel and let the application read JSON; do not source the file as shell or publish it as a CI artifact. Stdout contains only safe metadata, paths, sizes and hashes. An identical export is reused only after current ready-state and complete artifact checks; partial, stale or foreign output holds without overwrite.
 
-For local models, the optional deployment `inference` section selects a committed client declaration and hash-bound readiness observations. The CLI owns router provisioning and verifies native provider, vision and embedding bindings before the ready receipt. [Private inference](/self-hosted/configuration/private-inference) covers Mac activation and the separate target acceptance boundary.
+### Configure external providers
+
+Use `modelSettings` when an external operator already serves the declared models. Merge this example into your reviewed deployment declaration, replace its synthetic endpoint and model facts with the actual catalog, and inject `EXTERNAL_PROVIDER_SECRET` through your secret manager:
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "modelSettings": {
+    "schemaVersion": 1,
+    "exclusiveProviders": true,
+    "providers": [
+      {
+        "definition": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "credential": {
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL"
+        },
+        "models": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The native `TALE_PROVIDER_KEY_` prefix and 40-character limit apply to `credential.envName`. Each alias needs a required entry in `environment`; no credential value belongs in the public bundle. Private endpoints also require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` environment reference whose value is `1`; native host-policy restrictions still apply. The CLI checks the unauthenticated `/models` metadata against the exact normalized `models` entries before its first settings write. It never attaches a provider credential to this catalog request.
+
+Optional `vision: { "providerSlug": "external-vision", "modelId": "Example-vision" }` must select a declared vision-capable model. Optional `embedding` uses the native fields `providerSlug`, `model`, `dimensions` and `baseUrl`; it must select a declared embedding model and its exact endpoint. Initial embedding setup requires an empty document corpus. Existing policy, credential or provider-file conflicts hold without replacement; a missing or changed object after a ready receipt also holds.
+
+`exclusiveProviders: true` requires every active native credential to belong to the declared providers. Native provisioning runs after identity and before configuration releases under the same lock. It retains a pending intent before writes and reconciles an exact retry without rotating credentials. The safe `native.modelSettings` receipt binds the declaration and deployment bundle hashes, organization, model IDs, provider-file hashes and policies. It proves native configuration; server installation, routing, model weights, capacity and OCR accuracy remain the endpoint operator’s responsibility.
 
 Keep the state directory, snapshots and native receipts. The ready receipt is written only after healthy runtime verification, native configuration readback and session cleanup. A failed later phase may leave earlier completed changes in place; inspect retained evidence before replay. Local locks coordinate one host, without cross-host compare-and-swap or protection against native admin edits.
 

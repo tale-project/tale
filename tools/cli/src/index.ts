@@ -9,7 +9,6 @@ import { createConfigCommand } from './commands/config';
 import { createDaemonCommand } from './commands/daemon';
 import { createDeployCommand } from './commands/deploy';
 import { createDevCommand } from './commands/dev';
-import { createInferenceCommand } from './commands/inference';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createMigrateCommand } from './commands/migrate';
@@ -74,9 +73,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   // workspace deployment retains its existing version-alignment policy.
   const parentName = actionCommand.parent?.name();
   const commandName =
-    parentName === 'config' ||
-    parentName === 'deploy' ||
-    parentName === 'inference'
+    parentName === 'config' || parentName === 'deploy'
       ? `${parentName} ${actionCommand.name()}`
       : actionCommand.name() === 'deploy' &&
           actionCommand.opts().bundle !== undefined
@@ -95,7 +92,6 @@ const ADVANCED = 'Advanced:';
 program.addCommand(createInitCommand().helpGroup(SETUP));
 program.addCommand(createDevCommand().helpGroup(SETUP));
 program.addCommand(createDeployCommand().helpGroup(SETUP));
-program.addCommand(createInferenceCommand().helpGroup(SETUP));
 
 program.addCommand(createStatusCommand().helpGroup(OPERATE));
 program.addCommand(createLogsCommand().helpGroup(OPERATE));

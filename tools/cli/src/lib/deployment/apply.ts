@@ -26,14 +26,8 @@ import {
   verifyPreparedDeploymentConfig,
 } from './config-source';
 import { parseInstanceInput, type InstanceInput } from './identity';
-import { verifyManagedInference } from './inference';
-import {
-  applyManagedInference,
-  inferenceEnvironment,
-  INFERENCE_NATIVE_KEY_ENV,
-} from './inference-apply';
-import { verifyNativeInferenceProof } from './inference-native-proof';
 import { resolveValue } from './model';
+import { verifyNativeModelSettingsProof } from './model-settings-proof';
 import { nativeProvisionProofSchema } from './native-proof';
 import {
   applyRuntime,
@@ -60,7 +54,6 @@ type Dependencies = {
   verifySnapshot?: typeof verifySnapshot;
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
-  inference?: typeof applyManagedInference;
 };
 
 const recoverySnapshotSchema = z.object({
@@ -332,21 +325,18 @@ async function provisionBackend(
       throw externalDepError(
         'Native provisioning receipt differs from the reviewed deployment.',
       );
-    let inference;
-    if (bundle.spec.inference) {
-      const companion = await verifyManagedInference(
-        join(directory, 'inference'),
-        bundle.spec,
-      );
-      inference = verifyNativeInferenceProof(
-        parsed.data.data.inference,
-        companion.bundle.spec,
-        companion.identity,
+    let modelSettings;
+    if (bundle.spec.modelSettings) {
+      modelSettings = verifyNativeModelSettingsProof(
+        parsed.data.data.modelSettings,
+        bundle.spec.modelSettings,
+        sha256(await readFile(join(directory, 'deployment.json'))),
         parsed.data.data.organizationId,
+        input.slug,
       );
-    } else if (parsed.data.data.inference !== undefined) {
+    } else if (parsed.data.data.modelSettings !== undefined) {
       throw externalDepError(
-        'Native inference receipt has no declared deployment companion.',
+        'Native model settings receipt has no declared settings.',
       );
     }
     for (const [index, config] of parsed.data.data.configs.entries()) {
@@ -362,7 +352,7 @@ async function provisionBackend(
         );
       proof.artifactSha256 = artifact;
     }
-    return { ...parsed.data.data, inference };
+    return { ...parsed.data.data, modelSettings };
   } finally {
     let cleaned = false;
     try {
@@ -419,36 +409,6 @@ async function applyVerifiedDeployment(
       resolveValue(reference),
     ]),
   );
-  const inferenceDirectory = join(directory, 'inference');
-  if (bundle.spec.inference) {
-    const prepared = await verifyManagedInference(
-      inferenceDirectory,
-      bundle.spec,
-    );
-    const values = inferenceEnvironment(
-      bundle.spec,
-      prepared.bundle.spec.serviceKey.env,
-    );
-    for (const name of [
-      INFERENCE_NATIVE_KEY_ENV,
-      'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
-    ]) {
-      if (environment[name] !== undefined && environment[name] !== values[name])
-        throw preconditionError(
-          'Declared native inference environment conflicts with the verified router.',
-        );
-      environment[name] = values[name];
-    }
-  }
-  const applyInference = (dryRun: boolean) =>
-    bundle.spec.inference
-      ? (dependencies.inference ?? applyManagedInference)(
-          inferenceDirectory,
-          bundle.spec,
-          dryRun,
-          { exec: dependencies.exec },
-        )
-      : undefined;
   const runtimeOptions = {
     bundleDirectory: join(directory, 'runtime'),
     stateDirectory: bundle.spec.stateDirectory,
@@ -464,16 +424,12 @@ async function applyVerifiedDeployment(
     return {
       dryRun: true,
       runtime: await runtime({ ...runtimeOptions, dryRun: true }),
-      inference: await applyInference(true),
       configs,
     };
   }
   return withLock(bundle.spec.stateDirectory, 'deploy bundle', async () => {
     setProjectId(bundle.spec.composeProject);
     const preview = await runtime({ ...runtimeOptions, dryRun: true });
-    // Refuse foreign inference state before the base runtime can change. Its
-    // bridge is verified after runtime convergence under this same lock.
-    await applyInference(true);
     const receiptPath = join(
       bundle.spec.stateDirectory,
       '.tale',
@@ -543,7 +499,6 @@ async function applyVerifiedDeployment(
       atomicRuntimeFile(intentPath, `${JSON.stringify(intent, null, 2)}\n`);
     }
     const applied = await runtime(runtimeOptions);
-    const inference = await applyInference(false);
     const native = await provisionBackend(
       bundle,
       directory,
@@ -562,7 +517,6 @@ async function applyVerifiedDeployment(
       images: applied.images,
       configs,
       native,
-      inference,
       snapshotId:
         snapshot?.id ??
         (previous?.bundleSha256 === bundleSha256

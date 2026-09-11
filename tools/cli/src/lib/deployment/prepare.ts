@@ -6,7 +6,6 @@ import { gitSha } from '../config/releases/model';
 import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
 import { prepareDeploymentConfig } from './config-source';
-import { prepareManagedInference } from './inference';
 import { resolveDeploymentSpec, resolveValue } from './model';
 import { prepareRuntime } from './runtime';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
@@ -26,7 +25,6 @@ export async function prepareDeployment(
     runtime?: typeof prepareRuntime;
     config?: typeof prepareDeploymentConfig;
     sources?: typeof withDeploymentSources;
-    inference?: typeof prepareManagedInference;
   } = {},
 ) {
   const build = (dependencies.build ?? deploymentBuild)();
@@ -47,14 +45,6 @@ export async function prepareDeployment(
       repository: config.repository,
       revision: resolveValue(config.revision),
     })),
-    ...(spec.inference
-      ? [
-          {
-            repository: spec.inference.repository,
-            revision: resolveValue(spec.inference.revision),
-          },
-        ]
-      : []),
   ];
   const output = resolve(options.output);
   await mkdir(dirname(output), { recursive: true });
@@ -99,17 +89,6 @@ export async function prepareDeployment(
           deploymentRef,
           output: join(output, 'configs', config.client, config.automation),
         });
-      }
-      if (spec.inference) {
-        const request = {
-          repository: spec.inference.repository,
-          revision: resolveValue(spec.inference.revision),
-        };
-        await (dependencies.inference ?? prepareManagedInference)(
-          source(request),
-          join(output, 'inference'),
-          spec,
-        );
       }
       return writeDeploymentBundle(output, {
         schemaVersion: 1,

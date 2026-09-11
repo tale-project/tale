@@ -5,6 +5,7 @@ import { stringify } from 'yaml';
 import { z } from 'zod';
 
 import { readDomainConfigFile } from '../../../../../services/platform/backend/core/lib/config_store/read_domain_file';
+import { checkProviderHostPolicy } from '../../../../../services/platform/lib/net/host-policy';
 import { normalizeCatalogPayload } from '../../../../../services/platform/lib/shared/providers/catalog_normalize';
 import {
   policyTypeToFileBase,
@@ -30,16 +31,11 @@ import {
   readOptionalJson,
   readPrivateJson,
   writePrivateJson,
-} from '../inference/files';
-import { boundedResponse } from '../inference/http';
-import { type InferenceFetch, type InferenceSpec } from '../inference/model';
-import { inferenceModelCatalog } from '../inference/router';
-import { inferenceApiKey } from '../inference/settings';
+} from '../state/private-files';
 import { verifyDeploymentBundle } from './bundle';
 import { type ProvisionContext } from './identity';
-import { verifyManagedInference } from './inference';
-import { INFERENCE_NATIVE_KEY_ENV } from './inference-apply';
-import { desiredNativeInference } from './inference-native-proof';
+import { modelSettingsSchema, type ModelSettings } from './model-settings';
+import { boundedResponse } from './model-settings-http';
 
 const credentialSchema = z.object({
   id: z.string().min(1).max(256),
@@ -57,20 +53,21 @@ const credentialsSchema = z.object({
 });
 const receiptSchema = z.strictObject({
   schemaVersion: z.literal(1),
-  kind: z.literal('tale-native-inference'),
+  kind: z.literal('tale-native-model-settings'),
   phase: z.enum(['pending', 'ready']),
   organizationId: z.string(),
   organizationSlug: slug,
   userId: z.string(),
-  companionSha256: sha,
-  desiredSha256: sha,
+  deploymentBundleSha256: sha,
+  settingsSha256: sha,
 });
 type Options = {
-  companionSha256: string;
+  deploymentBundleSha256: string;
+  organizationSlug: string;
   stateDirectory: string;
   configRoot?: string;
   environment?: NodeJS.ProcessEnv;
-  catalogFetch?: InferenceFetch;
+  catalogFetch?: (input: string, init: RequestInit) => Promise<Response>;
 };
 
 async function configDirectory(
@@ -84,7 +81,7 @@ async function configDirectory(
     rootInput === '/'
   )
     throw preconditionError(
-      'Native inference requires the backend TALE_CONFIG_DIR.',
+      'Native model-settings requires the backend TALE_CONFIG_DIR.',
     );
   const root = await lstat(rootInput);
   if (
@@ -94,7 +91,7 @@ async function configDirectory(
     (await realpath(rootInput)) !== rootInput
   )
     throw preconditionError(
-      'Native inference configuration root is not a safe owned directory.',
+      'Native model-settings configuration root is not a safe owned directory.',
     );
   const org = join(rootInput, organization);
   const info = await lstat(org);
@@ -105,7 +102,7 @@ async function configDirectory(
     (info.mode & 0o022) !== 0
   )
     throw preconditionError(
-      'Native inference organization config directory differs.',
+      'Native model-settings organization config directory differs.',
     );
   return org;
 }
@@ -122,7 +119,7 @@ async function directoryExistsSafe(
       (info.mode & 0o022) !== 0
     )
       throw preconditionError(
-        'Native inference config has a foreign or writable directory.',
+        'Native model-settings config has a foreign or writable directory.',
       );
     return true;
   } catch (error) {
@@ -144,7 +141,7 @@ async function privateStateDirectory(directory: string, owner: number) {
     (await realpath(directory)) !== directory
   )
     throw preconditionError(
-      'Native inference recovery state is not a canonical owned directory.',
+      'Native model-settings recovery state is not a canonical owned directory.',
     );
   let current = directory;
   for (;;) {
@@ -158,7 +155,7 @@ async function privateStateDirectory(directory: string, owner: number) {
         (info.uid !== owner || (info.mode & 0o077) !== 0))
     )
       throw preconditionError(
-        'Native inference recovery state has an unsafe owner, mode or ancestor.',
+        'Native model-settings recovery state has an unsafe owner, mode or ancestor.',
       );
     const parent = dirname(current);
     if (parent === current) break;
@@ -168,45 +165,55 @@ async function privateStateDirectory(directory: string, owner: number) {
 
 /** Caller holds the native deployment lock and has proved this session's exact
  * organization/user. No existing provider/policy is overwritten to force a fit. */
-export async function configureNativeInference(
-  spec: InferenceSpec,
+export async function configureNativeModelSettings(
+  spec: ModelSettings,
   context: ProvisionContext,
   options: Options,
 ) {
   try {
-    return await configureNativeInferenceInternal(spec, context, options);
+    slug.parse(options.organizationSlug);
+    return await configureNativeModelSettingsInternal(
+      modelSettingsSchema.parse(spec),
+      context,
+      options,
+    );
   } catch (error) {
     if (error instanceof CliError) throw error;
     // Files and external JSON may contain private/untrusted text. Their parser
     // diagnostics never become CLI output, including verbose error rendering.
     throw preconditionError(
-      'Native inference metadata is invalid or unreadable. Review the retained state.',
+      'Native model-settings metadata is invalid or unreadable. Review the retained state.',
     );
   }
 }
 
-async function configureNativeInferenceInternal(
-  spec: InferenceSpec,
+async function configureNativeModelSettingsInternal(
+  spec: ModelSettings,
   context: ProvisionContext,
   options: Options,
 ) {
   if (
-    context.organization.slug !== spec.organization ||
+    context.organization.slug !== options.organizationSlug ||
     !context.organization.id ||
     !context.user.id
   )
     throw preconditionError(
-      'Native inference context belongs to another organization.',
+      'Native model-settings context belongs to another organization.',
     );
   const environment = options.environment ?? process.env;
-  inferenceApiKey(environment[INFERENCE_NATIVE_KEY_ENV]);
-  if (environment.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS !== '1')
-    throw preconditionError(
-      'Native inference requires the explicit private provider-host policy.',
-    );
+  for (const { definition, credential } of spec.providers) {
+    const key = environment[credential.envName];
+    if (!key || key.length > 8192 || /[\x00-\x1f\x7f]/.test(key))
+      throw preconditionError(
+        'A declared provider credential environment value is missing or invalid.',
+      );
+    if (!definition.baseUrl)
+      throw preconditionError('Declared provider endpoint is missing.');
+    checkProviderHostPolicy(definition.baseUrl);
+  }
   const orgDirectory = await configDirectory(
     options.configRoot ?? environment.TALE_CONFIG_DIR,
-    spec.organization,
+    options.organizationSlug,
   );
   const owner = (await lstat(orgDirectory)).uid;
   await privateStateDirectory(options.stateDirectory, owner);
@@ -219,36 +226,23 @@ async function configureNativeInferenceInternal(
     knowledgeDirectory,
   ])
     await directoryExistsSafe(directory, owner);
-  if (
-    new Set(spec.models.map((model) => model.capability)).size !==
-    spec.models.length
-  )
-    throw preconditionError(
-      'Native inference requires one declared model per capability; use replicas for multiple nodes.',
-    );
   const {
     providers,
     vision: desiredVision,
     embedding: desiredEmbedding,
-  } = desiredNativeInference(spec);
-  const desiredSha256 = valueHash({
-    providers: providers.map((entry) => entry.definition),
-    models: spec.models,
-    vision: desiredVision ?? null,
-    embedding: desiredEmbedding ?? null,
-    envName: INFERENCE_NATIVE_KEY_ENV,
-  });
+  } = spec;
+  const settingsSha256 = valueHash(spec);
   const planned = receiptSchema.parse({
     schemaVersion: 1,
-    kind: 'tale-native-inference',
+    kind: 'tale-native-model-settings',
     phase: 'pending',
     organizationId: context.organization.id,
-    organizationSlug: spec.organization,
+    organizationSlug: options.organizationSlug,
     userId: context.user.id,
-    companionSha256: options.companionSha256,
-    desiredSha256,
+    deploymentBundleSha256: options.deploymentBundleSha256,
+    settingsSha256,
   });
-  const receiptPath = join(options.stateDirectory, 'inference.json');
+  const receiptPath = join(options.stateDirectory, 'model-settings.json');
   const previousRaw = await readOptionalJson(receiptPath);
   const previous =
     previousRaw === undefined
@@ -265,7 +259,7 @@ async function configureNativeInferenceInternal(
       (previous.phase === 'pending' && !same(previous, planned)))
   )
     throw preconditionError(
-      'Native inference receipt differs from this bundle, organization or operator. Review the retained state.',
+      'Native model-settings receipt differs from this bundle, organization or operator. Review the retained state.',
     );
   const request = async (path: string, method = 'GET', body?: unknown) =>
     context.requireJson(
@@ -274,7 +268,7 @@ async function configureNativeInferenceInternal(
         method,
         body,
       ),
-      'Native inference configuration',
+      'Native model-settings configuration',
     );
   const listCredentials = async () =>
     credentialsSchema.parse(await request('/api/app/provider-credentials/'))
@@ -294,9 +288,9 @@ async function configureNativeInferenceInternal(
       )
     )
       throw preconditionError(
-        'An active unmanaged provider credential prevents exclusive local inference provisioning.',
+        'An active unmanaged provider credential prevents exclusive provider provisioning.',
       );
-    for (const { definition, model } of providers) {
+    for (const { definition, models, credential } of providers) {
       const matches = rows.filter(
         (row) => row.providerSlug === definition.name,
       );
@@ -305,17 +299,20 @@ async function configureNativeInferenceInternal(
         (complete && matches.length !== 1) ||
         matches.some(
           (row) =>
-            row.name !== 'Tale local inference' ||
+            row.name !== credential.name ||
             row.authMethod !== 'env' ||
-            row.envName !== INFERENCE_NATIVE_KEY_ENV ||
+            row.envName !== credential.envName ||
             row.endpointUrl !== null ||
-            !same(row.modelAllowlist, [model.apiModel]) ||
+            !same(
+              row.modelAllowlist,
+              models.map((model) => model.id),
+            ) ||
             row.status !== 'active' ||
             !row.isDefault,
         )
       )
         throw preconditionError(
-          'An existing native inference credential differs; no key or default was changed.',
+          'An existing native model-settings credential differs; no key or default was changed.',
         );
     }
   };
@@ -434,10 +431,38 @@ async function configureNativeInferenceInternal(
         'Initial embedding setup requires an empty native document corpus; existing documents need a reviewed indexing migration.',
       );
   }
+  for (const entry of providerFiles) {
+    const url = `${entry.definition.baseUrl}/models`;
+    let response: Response;
+    try {
+      response = await (options.catalogFetch ?? fetch)(url, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(10000),
+        headers: { accept: 'application/json' },
+      });
+    } catch {
+      throw externalDepError(
+        'Declared provider catalog is unavailable. No catalog fallback was attempted.',
+      );
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw externalDepError('Declared provider catalog refused its readback.');
+    }
+    const actualCatalog = normalizeCatalogPayload(
+      await boundedResponse(response, 65536),
+      entry.definition.name,
+    );
+    const expectedCatalog = { entries: entry.models, droppedCount: 0 };
+    if (!same(actualCatalog, expectedCatalog))
+      throw preconditionError(
+        'Declared provider catalog differs from the exact declared model capabilities.',
+      );
+  }
   // All known conflicts are checked before the first write. A lost response
   // retains pending state; the next invocation re-reads exact unique names.
   if (previous?.phase === 'ready' && !unchanged) {
-    const history = join(options.stateDirectory, 'inference-history');
+    const history = join(options.stateDirectory, 'model-settings-history');
     await privateDirectory(history, options.stateDirectory, owner);
     const retained = await readFile(receiptPath);
     createImmutable(join(history, `${sha256(retained)}.json`), retained);
@@ -459,46 +484,15 @@ async function configureNativeInferenceInternal(
       !same(actual.data, entry.definition)
     )
       throw preconditionError('Native provider file did not converge.');
-    const url = `${entry.definition.baseUrl}/models`;
-    let response: Response;
-    try {
-      response = await (options.catalogFetch ?? fetch)(url, {
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
-        headers: { accept: 'application/json' },
-      });
-    } catch {
-      throw externalDepError(
-        'Internal inference catalog is unavailable. No public catalog fallback was attempted.',
-      );
-    }
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw externalDepError(
-        'Internal inference catalog refused its readback.',
-      );
-    }
-    const actualCatalog = normalizeCatalogPayload(
-      await boundedResponse(response, 65536),
-      entry.definition.name,
-    );
-    const expectedCatalog = normalizeCatalogPayload(
-      inferenceModelCatalog(entry.model),
-      entry.definition.name,
-    );
-    if (!same(actualCatalog, expectedCatalog))
-      throw preconditionError(
-        'Internal inference catalog differs from the exact declared model capabilities.',
-      );
     if (
       !credentials.some((row) => row.providerSlug === entry.definition.name)
     ) {
       await request('/api/app/provider-credentials/', 'POST', {
         providerSlug: entry.definition.name,
         authMethod: 'env',
-        name: 'Tale local inference',
-        envName: INFERENCE_NATIVE_KEY_ENV,
-        modelAllowlist: [entry.model.apiModel],
+        name: entry.credential.name,
+        envName: entry.credential.envName,
+        modelAllowlist: entry.models.map((model) => model.id),
       });
       credentials = await listCredentials();
       assertCredentials(credentials);
@@ -506,7 +500,7 @@ async function configureNativeInferenceInternal(
         !credentials.some((row) => row.providerSlug === entry.definition.name)
       )
         throw preconditionError(
-          'Native inference credential creation was not observed.',
+          'Native model-settings credential creation was not observed.',
         );
     }
   }
@@ -598,35 +592,38 @@ async function configureNativeInferenceInternal(
   return {
     configured: true as const,
     organizationId: context.organization.id,
-    organizationSlug: spec.organization,
-    companionSha256: options.companionSha256,
+    organizationSlug: options.organizationSlug,
+    deploymentBundleSha256: options.deploymentBundleSha256,
     providers: await Promise.all(
       providerFiles.map(async (entry) => ({
         name: entry.definition.name,
-        model: entry.model.apiModel,
-        capability: entry.model.capability,
+        models: entry.models.map((model) => model.id),
         providerFileSha256: sha256(await readFile(entry.file)),
       })),
     ),
     vision: desiredVision ?? null,
     embedding: desiredEmbedding ?? null,
     unchanged,
-    runtimeReadiness: 'reported-separately-by-the-inference-node',
+    settingsSha256,
   };
 }
 
-export async function provisionDeploymentInference(
+export async function provisionDeploymentModelSettings(
   directory: string,
   context: ProvisionContext,
 ) {
   const deployment = await verifyDeploymentBundle(directory);
-  if (!deployment.spec.inference) return undefined;
-  const companion = await verifyManagedInference(
-    join(directory, 'inference'),
-    deployment.spec,
-  );
-  return configureNativeInference(companion.bundle.spec, context, {
-    companionSha256: companion.identity,
+  if (!deployment.spec.modelSettings) return undefined;
+  const identity = deployment.spec.identity;
+  if (!identity)
+    throw preconditionError(
+      'Native model settings require a declared organization identity.',
+    );
+  return configureNativeModelSettings(deployment.spec.modelSettings, context, {
+    organizationSlug: identity.slug,
+    deploymentBundleSha256: sha256(
+      await readFile(join(directory, 'deployment.json')),
+    ),
     stateDirectory: join(
       '/app/data/ops/tale-deployments',
       deployment.spec.name,

@@ -23,6 +23,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   verification, bundle preparation, rollout, native identity provisioning, configuration
   releases and deployment receipts. Ops selects destinations, full source commits and
   credential references, then calls the CLI; do not duplicate Tale deployment internals there.
+  Model-server installation, hardware, model artifacts, routing and readiness are internal Ops
+  responsibilities. Tale accepts only generic external `modelSettings` declarations, validates
+  them with native provider/governance/knowledge schemas and uses native credential APIs.
   New client configuration releases use their full source commit as identity and need no
   generated catalogue commit. Retained historical releases remain byte-preserved. Keep client
   names, fixtures, business rules and deployment targets out of the shared implementation;

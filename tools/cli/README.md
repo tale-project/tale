@@ -127,66 +127,26 @@ does not inherit the workspace path's blue-green guarantees. The ready receipt
 is written only after native readback and session cleanup. Keep snapshots,
 stages and receipts for recovery, and coordinate all deployers sharing a target.
 
-### Private Inference
+### External model settings
 
-The same CLI prepares client-owned model declarations and operates dedicated
-macOS 15+ Apple Silicon nodes. Host admission, OS policy and transport stay with
-deployment automation; Tale owns the pinned signed oMLX application, data-only
-model verification, native kernel checks, LaunchAgent, private settings,
-readiness and retained release recovery. No model is installed on the machine
-running preparation.
+Managed deployments accept `modelSettings` for an externally operated
+OpenAI-compatible provider. Declare its exact connector, normalized model
+catalog, native credential environment reference, and optional vision and
+knowledge-embedding policy. The existing deployment bundle binds these public
+settings; secrets remain required `environment` references. Tale configures
+native organization settings after verified identity under the same lock as
+configuration release deployment.
 
-```bash
-tale inference prepare --repository "$INFERENCE_REPOSITORY" \
-  --source-ref "$INFERENCE_SOURCE_COMMIT" --spec tale/inference/spec.json \
-  --output "$INFERENCE_BUNDLE" --json
-tale inference validate --bundle "$INFERENCE_BUNDLE" --bundle-sha "$INFERENCE_BUNDLE_SHA" --json
-tale inference plan --bundle "$INFERENCE_BUNDLE" --bundle-sha "$INFERENCE_BUNDLE_SHA" --json
-```
+The catalog must match exactly before the first settings write. Active
+credentials outside the declared providers, conflicting native files or
+policies, and a nonempty corpus before initial embedding setup stop
+provisioning. Interrupted writes retain a pending receipt; exact replay
+reconciles without credential rotation. Ready-state drift holds for review.
+The receipt proves native settings, not endpoint capacity, model weights,
+latency or business output. Server lifecycle remains with its operator.
 
-Record the returned bundle hash. `prepare` accepts optional `--sources <file>`
-for an exact offline source map and resolves public node-address environment
-references; the bundle binds the original committed declaration. It downloads
-no weights. On the admitted Mac, `plan --observe` checks actual resources.
-`apply`, `benchmark` and `status` take the same bundle/hash plus `--node <key>`;
-the first two require consent (`--yes` for automation). Rollback additionally
-selects `--release <retained-sha256>`. Separate admin/service keys come from
-declared environment references and remain in private `0600` files.
-
-The optional managed `inference` source section generates pinned private
-Caddy/ZeroTier companions and verifies native provider, vision and embedding
-bindings. An empty admitted roster returns `503`, and computation requires the
-service key; internal catalog metadata is credential-free. Replicas are
-independent exact-model servers, without cross-organization fallback or retries
-of started streams. Experimental sharding is refused. Native configuration
-proof and actual Mac model readiness are separate receipt fields.
-
-`deploy inference-status --bundle DIR --cli-ref FULL_SHA --deployment-ref
-FULL_SHA --json` reports the verified namespace node/network identity and
-assigned addresses without container details or keys. The fleet authorizes
-the exact private node and repeats observation to compare its declared CIDR.
-The command performs no join or controller write; network readiness and model
-readiness remain separate.
-
-Admission uses actual effective Metal capacity, RAM, disk and native kernels;
-the CLI never writes host memory or power settings. Models are evictable and
-load on demand. The complete hash-bound `runtime-admission.py` adapter uses
-the signed application's public middleware seam; it leaves signed bytes
-unchanged. One native FIFO/compute slot covers every role, retaining accepted
-work through disconnect until native/Metal settlement. Uncertain cleanup
-holds the node. Bounded baseline/mixed tests include text, inert tool-call
-responses, vision, 64 ordered embeddings within the native 60-second budget,
-and sampled pressure/swap refusal. Receipts separate loaded roles from
-readiness and report cold-request wall time. Synthetic CI does not prove
-target throughput or business OCR accuracy; role-dedicated Macs avoid shared
-cold-switch contention. Read the complete
-[private inference journey](../../docs/en/self-hosted/configuration/private-inference.md)
-before activation or recovery.
-
-The model-free admission tests require Python 3.11+ (`TALE_TEST_PYTHON` can
-select an isolated interpreter). The router integration uses Caddy 2.11.4
-(`TALE_TEST_CADDY` can select its executable). These tests exercise synthetic
-upstreams and the packaged adapter without installing oMLX or loading weights.
+Use the complete JSON example in [CLI installation](../../docs/en/self-hosted/install/cli-install.md#configure-external-providers)
+and the [provider reference](../../docs/en/self-hosted/configuration/providers.md).
 
 ### Management Commands
 

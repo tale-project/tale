@@ -743,14 +743,6 @@
       "description": "Die Env-Vars und Flags, die Logs, Metriken und Error-Tracking aktivieren — und was jede davon wohin routet."
     }
   },
-  "de:self-hosted/configuration/private-inference": {
-    "slug": "self-hosted/configuration/private-inference",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Private Inferenz auf einem Mac betreiben",
-      "description": "Bereite festgelegte Modellartefakte vor, prüfe einen dedizierten Apple-Silicon-Mac und verbinde verifizierte private Modellrouten mit Tale."
-    }
-  },
   "de:self-hosted/configuration/providers": {
     "slug": "self-hosted/configuration/providers",
     "locale": "de",
@@ -1840,14 +1832,6 @@
       "description": "The env vars and flags that turn on logs, metrics, and error tracking — and what each one routes where."
     }
   },
-  "en:self-hosted/configuration/private-inference": {
-    "slug": "self-hosted/configuration/private-inference",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Run private inference on a Mac",
-      "description": "Prepare pinned model artifacts, admit a dedicated Apple Silicon Mac, and connect verified private model routes to Tale."
-    }
-  },
   "en:self-hosted/configuration/providers": {
     "slug": "self-hosted/configuration/providers",
     "locale": "en",
@@ -2935,14 +2919,6 @@
     "frontmatter": {
       "title": "Configuration de l'observabilité",
       "description": "Les variables d'env et flags qui activent les logs, les métriques et le suivi d'erreurs — et où chacune route quoi."
-    }
-  },
-  "fr:self-hosted/configuration/private-inference": {
-    "slug": "self-hosted/configuration/private-inference",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Exécuter une inférence privée sur Mac",
-      "description": "Prépare des artefacts de modèles figés, vérifie un Mac Apple Silicon dédié et relie les routes privées vérifiées à Tale."
     }
   },
   "fr:self-hosted/configuration/providers": {

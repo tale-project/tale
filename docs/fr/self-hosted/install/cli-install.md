@@ -124,7 +124,7 @@ Les commandes de bundle géré ne sont pas disponibles sous Windows, y compris `
 
 Cet exemple synthétique cible une organisation et un projet existants. Remplace les ID publics et définis les variables nommées. `revision` accepte un SHA de commit complet ou une référence d’environnement. Les identifiants restent des références, résolues en privé sur la destination. `tlsMode: "external"` suppose qu’un point d’entrée existant gère le TLS public ; `letsencrypt` demande aussi `tlsEmail`.
 
-Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composite Tale `.github/actions/setup-cli`. Fixe l’action et `revision` au même commit Tale complet. Elle compile avec Bun 1.4.2, vérifie le binaire final, fournit `executable` et complète le `PATH`. Les builds macOS prennent en charge l’[inférence privée](/fr/self-hosted/configuration/private-inference) ; la pile Linux gérée exige toujours un binaire Linux correspondant.
+Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composite Tale `.github/actions/setup-cli`. Fixe l’action et `revision` au même commit Tale complet. Elle compile avec Bun 1.4.2, vérifie le binaire final, fournit `executable` et complète le `PATH`. Les builds macOS prennent en charge la préparation générale de configuration ; la pile Linux gérée exige toujours un binaire Linux correspondant.
 
 `origin` et chaque entrée native `redirectUris` acceptent aussi des références d’environnement. Un registre de déploiement peut ainsi posséder les adresses publiques. La préparation les résout en URL HTTPS littérales validées dans le bundle.
 
@@ -214,7 +214,64 @@ tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
 
 Le répertoire de sortie a le mode `0700`. Ses fichiers réguliers `client.json`, `receipt.json` et, avec `--env-prefix`, `consumer-env.json` ont le mode `0600`. Le dernier contient quatre chaînes littérales : `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` et `TALE_OIDC_ORG_SLUG`. L’issuer correspond à l’origine Tale suivie de `/api/auth`. Transfère ces octets par ton canal privé d’identifiants et fais lire le JSON par l’application ; ne charge pas le fichier comme script shell et ne le publie pas comme artefact CI. Stdout contient uniquement des métadonnées non sensibles, chemins, tailles et hashes. Une sortie identique n’est réutilisée qu’après vérification de l’état prêt actuel et de tous les artefacts. Une sortie partielle, périmée ou étrangère bloque sans écrasement.
 
-Pour les modèles locaux, la section facultative `inference` sélectionne une déclaration client commitée et des observations de disponibilité liées à leur hash. La CLI prépare le routeur et vérifie les liens natifs des fournisseurs, de vision et d’embedding avant le reçu final. L’[inférence privée](/fr/self-hosted/configuration/private-inference) décrit l’activation Mac et la validation distincte sur la cible.
+### Configurer des fournisseurs externes
+
+Utilise `modelSettings` quand un opérateur externe sert déjà les modèles déclarés. Ajoute cet exemple à ta déclaration de déploiement vérifiée, remplace son endpoint synthétique et ses caractéristiques par le catalogue réel, puis injecte `EXTERNAL_PROVIDER_SECRET` depuis ton gestionnaire de secrets :
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "modelSettings": {
+    "schemaVersion": 1,
+    "exclusiveProviders": true,
+    "providers": [
+      {
+        "definition": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "credential": {
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL"
+        },
+        "models": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Le préfixe natif `TALE_PROVIDER_KEY_` et la limite de 40 caractères s’appliquent à `credential.envName`. Chaque alias exige une entrée obligatoire dans `environment` ; aucune clé ne doit figurer dans le bundle public. Un endpoint privé exige aussi une référence explicite `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` dont la valeur est `1` ; les restrictions natives d’hôtes restent applicables. Avant toute écriture de paramètres, la CLI compare exactement les métadonnées `/models` sans authentification aux entrées normalisées `models`. Cette requête de catalogue ne transporte jamais les identifiants du fournisseur.
+
+Le champ facultatif `vision: { "providerSlug": "external-vision", "modelId": "Example-vision" }` doit sélectionner un modèle déclaré capable de traiter des images. Le champ facultatif `embedding` utilise les champs natifs `providerSlug`, `model`, `dimensions` et `baseUrl` ; il doit sélectionner un modèle d’embedding déclaré et son endpoint exact. La configuration initiale exige un corpus documentaire vide. Un conflit de politique, d’identifiants ou de fichier fournisseur suspend l’opération sans remplacement ; un objet absent ou modifié après un reçu prêt la suspend aussi.
+
+`exclusiveProviders: true` impose que tous les identifiants natifs actifs appartiennent aux fournisseurs déclarés. La configuration native suit la vérification d’identité et précède les versions de configuration sous le même verrou. Elle enregistre son intention avant les écritures et réconcilie une reprise exacte sans renouveler les clés. Le reçu public `native.modelSettings` lie les hashes de déclaration et de bundle, l’organisation, les ID de modèles, les hashes des fichiers fournisseurs et les politiques. Il prouve la configuration native ; l’installation des serveurs, le routage, les poids, la capacité et la précision OCR restent la responsabilité de l’opérateur de l’endpoint.
 
 Conserve le répertoire d’état, les snapshots et les reçus natifs. Le reçu final n’est écrit qu’après vérification du runtime sain, relecture de la configuration native et fermeture de session. Si une phase tardive échoue, les changements déjà terminés peuvent rester en place ; examine les preuves conservées avant de relancer. Les verrous locaux coordonnent un hôte, sans compare-and-swap entre hôtes ni protection contre les modifications d’un admin natif.
 

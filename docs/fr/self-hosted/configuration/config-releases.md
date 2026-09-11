@@ -13,7 +13,7 @@ Installe la [CLI Tale](/fr/self-hosted/install/cli-install) et fixe une révisio
 
 Il te faut un descripteur et un paquet committés, une organisation et un projet existants, ainsi qu’une session native autorisée. Si le paquet possède ses propres skills, utilise l’ID natif de cet opérateur comme propriétaire du build. Cet ID est distinct de ceux du projet, de l’organisation et d’une identité externe.
 
-Pour une instance neuve sans ID natifs, utilise un déploiement géré avec une nouvelle identité explicite, un projet symbolique et `skillOwner: "operator"`. Il transfère des sources vérifiées et compile après avoir prouvé l’opérateur natif ; les commandes de version autonomes exigent toujours des ID résolus. Garde les [déclarations d’inférence privée](/fr/self-hosted/configuration/private-inference) dans le même arbre source client.
+Pour une instance neuve sans ID natifs, utilise un déploiement géré avec une nouvelle identité explicite, un projet symbolique et `skillOwner: "operator"`. Il transfère des sources vérifiées et compile après avoir prouvé l’opérateur natif ; les commandes de version autonomes exigent toujours des ID résolus. Garde la configuration métier dans l’arbre source du client. Les paramètres de modèles externes appartiennent à la déclaration de déploiement.
 
 Les exemples utilisent le client synthétique `example-team` et l’automatisation `document-review`. Injecte le cookie complet de session dans `TALE_CONFIG_COOKIE` depuis ton gestionnaire de secrets. Garde-le hors des arguments, sources, archives, reçus et logs.
 

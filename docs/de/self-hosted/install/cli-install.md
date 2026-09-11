@@ -124,7 +124,7 @@ Verwaltete Bundle-Befehle sind unter Windows nicht verfügbar, einschließlich `
 
 Dieses synthetische Beispiel adressiert eine bestehende Organisation und ein Projekt. Ersetze die öffentlichen IDs und setze die benannten Umgebungswerte. `revision` nimmt einen vollständigen Commit-SHA oder einen Umgebungsverweis an. Zugangsdaten bleiben Verweise und werden am Ziel privat aufgelöst. `tlsMode: "external"` nutzt vorhandenes öffentliches TLS am vorgeschalteten Zugang; `letsencrypt` verlangt zusätzlich `tlsEmail`.
 
-Nutze für Linux- oder macOS-ARM64-Jobs in GitHub Actions Tales Composite Action `.github/actions/setup-cli`. Lege die Action und `revision` auf denselben vollständigen Tale-Commit fest. Sie baut mit Bun 1.4.2, prüft das fertige Binary, liefert `executable` und ergänzt den `PATH`. macOS-Builds unterstützen [private Inferenz](/de/self-hosted/configuration/private-inference); ein verwalteter Linux-Stack braucht weiter ein passendes Linux-Binary.
+Nutze für Linux- oder macOS-ARM64-Jobs in GitHub Actions Tales Composite Action `.github/actions/setup-cli`. Lege die Action und `revision` auf denselben vollständigen Tale-Commit fest. Sie baut mit Bun 1.4.2, prüft das fertige Binary, liefert `executable` und ergänzt den `PATH`. macOS-Builds unterstützen die allgemeine Konfigurationsvorbereitung; ein verwalteter Linux-Stack braucht weiter ein passendes Linux-Binary.
 
 Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. So kann eine Deployment-Registry die öffentlichen Adressen verwalten. Die Vorbereitung löst sie zu geprüften wörtlichen HTTPS-URLs im Bundle auf.
 
@@ -214,7 +214,64 @@ tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
 
 Der Ausgabeordner hat Modus `0700`. Seine regulären Dateien `client.json`, `receipt.json` und optional `consumer-env.json` haben Modus `0600`. Mit `--env-prefix` entsteht die letzte Datei als wörtliche Zuordnung der vier Zeichenketten `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` und `TALE_OIDC_ORG_SLUG`. Der Issuer besteht aus der Tale-Origin und `/api/auth`. Übertrage die Bytes über deinen privaten Zugangsdatenkanal und lass die Anwendung JSON lesen; führe die Datei nicht als Shell aus und veröffentliche sie nicht als CI-Artefakt. Stdout enthält nur unkritische Metadaten, Pfade, Größen und Hashes. Eine identische Ausgabe wird erst nach erneuter Zustands- und vollständiger Artefaktprüfung wiederverwendet. Unvollständige, veraltete oder fremde Ausgaben stoppen ohne Überschreiben.
 
-Für lokale Modelle wählt der optionale Deployment-Abschnitt `inference` eine committete Client-Deklaration und hashgebundene Bereitschaftsbeobachtungen. Die CLI betreibt den Router und prüft native Anbieter-, Bild- und Embedding-Bindungen vor dem Bereitschaftsbeleg. [Private Inferenz](/de/self-hosted/configuration/private-inference) beschreibt die Mac-Aktivierung und die separate Abnahme auf dem Ziel.
+### Externe Anbieter konfigurieren
+
+Nutze `modelSettings`, wenn ein externer Betreiber die deklarierten Modelle bereits bereitstellt. Ergänze deine geprüfte Deployment-Deklaration um dieses Beispiel, ersetze den synthetischen Endpunkt und die Modellangaben durch den tatsächlichen Katalog und übergib `EXTERNAL_PROVIDER_SECRET` aus deinem Secret Manager:
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "modelSettings": {
+    "schemaVersion": 1,
+    "exclusiveProviders": true,
+    "providers": [
+      {
+        "definition": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "credential": {
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL"
+        },
+        "models": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Für `credential.envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht einen verpflichtenden Eintrag in `environment`; Schlüsselwerte gehören nicht ins öffentliche Bundle. Private Endpunkte brauchen zusätzlich eine explizite Umgebungsreferenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; die nativen Host-Regeln gelten weiter. Vor der ersten Einstellungsänderung vergleicht die CLI die frei lesbaren `/models`-Metadaten exakt mit den normalisierten `models`-Einträgen. Diese Kataloganfrage trägt keine Anbieter-Zugangsdaten.
+
+Optionales `vision: { "providerSlug": "external-vision", "modelId": "Example-vision" }` muss ein deklariertes bildfähiges Modell auswählen. Optionales `embedding` nutzt die nativen Felder `providerSlug`, `model`, `dimensions` und `baseUrl`; es muss ein deklariertes Embedding-Modell mit seinem exakten Endpunkt auswählen. Die erste Embedding-Einrichtung setzt einen leeren Dokumentbestand voraus. Konflikte bei Richtlinien, Zugangsdaten oder Anbieter-Dateien stoppen den Vorgang ohne Ersetzung; nach einem Bereitschaftsbeleg gilt das auch für fehlende oder geänderte Objekte.
+
+`exclusiveProviders: true` verlangt, dass alle aktiven nativen Zugangsdaten zu deklarierten Anbietern gehören. Die native Einrichtung läuft nach der Identitätsprüfung und vor Konfigurations-Releases unter derselben Sperre. Vor Änderungen hält sie die Absicht fest und gleicht eine exakte Wiederholung ohne Schlüsselrotation ab. Der öffentliche Beleg `native.modelSettings` bindet Deklarations- und Bundle-Hashes, Organisation, Modell-IDs, Anbieter-Dateihashes und Richtlinien. Er belegt die native Konfiguration; Server-Installation, Routing, Modellgewichte, Kapazität und OCR-Genauigkeit bleiben Aufgabe des Endpunktbetreibers.
 
 Bewahre Zustandsverzeichnis, Snapshots und native Belege auf. Der Bereitschaftsbeleg entsteht erst nach Runtime-Zustandsprüfung, nativem Konfigurationsvergleich und Sitzungsbereinigung. Scheitert eine spätere Phase, können frühere Änderungen bestehen bleiben. Prüfe die erhaltenen Belege vor einem erneuten Aufruf. Lokale Sperren koordinieren einen Host, ohne hostübergreifendes Compare-and-swap oder Schutz vor nativen Admin-Änderungen.
 

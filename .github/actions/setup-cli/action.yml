@@ -1,5 +1,5 @@
 name: Set up Tale CLI from a commit
-description: Build and install the existing Tale CLI from one exact source commit for Linux deployment or macOS Apple Silicon inference jobs.
+description: Build and install the existing Tale CLI from one exact source commit for Linux or macOS Apple Silicon configuration and deployment jobs.
 
 inputs:
   revision:

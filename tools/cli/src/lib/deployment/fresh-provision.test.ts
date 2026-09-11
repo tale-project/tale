@@ -100,7 +100,7 @@ async function fixture() {
 }
 
 testPosix(
-  'fresh managed command freezes source and holds one native lock through identity, inference and config callbacks',
+  'fresh managed command freezes source and holds one native lock through identity, modelSettings and config callbacks',
   async () => {
     const f = await fixture();
     const events: string[] = [];
@@ -143,9 +143,9 @@ testPosix(
           nativeClients: [],
         };
       },
-      inference: async (directory: string) => {
+      modelSettings: async (directory: string) => {
         expect(await ownsGuard(stateDirectory)).toBe(true);
-        events.push('inference');
+        events.push('modelSettings');
         frozenDirectory = directory;
         expect(directory).not.toBe(f.directory);
         // Source mutation cannot alter what the following config callback sees.
@@ -172,7 +172,7 @@ testPosix(
       {},
       dependencies,
     );
-    expect(events).toEqual(['identity', 'inference', 'configs']);
+    expect(events).toEqual(['identity', 'modelSettings', 'configs']);
     expect(result.userId).toBe('verified-new-user');
     expect(JSON.stringify(result)).not.toContain(f.input.password);
     expect(await ownsGuard(stateDirectory)).toBe(false);

@@ -13,7 +13,7 @@ Install the [Tale CLI](/self-hosted/install/cli-install) and pin a revision that
 
 You need a committed client descriptor and pack, an existing organization and project, and an authorized native operator session. If the pack owns skills, use that user's native ID as the build owner. The ID is distinct from a project, organization or external identity ID.
 
-For a new instance without native IDs, use managed deployment with an explicit fresh identity, symbolic project and `skillOwner: "operator"`. It carries verified source and compiles only after proving the native operator; these standalone release commands still require resolved IDs. Keep [private inference declarations](/self-hosted/configuration/private-inference) in the same client-owned source tree.
+For a new instance without native IDs, use managed deployment with an explicit fresh identity, symbolic project and `skillOwner: "operator"`. It carries verified source and compiles only after proving the native operator; these standalone release commands still require resolved IDs. Keep business configuration in its client-owned source tree. External model settings belong to the deployment declaration.
 
 The examples use the synthetic `example-team` client and `document-review` automation. Inject the full operator session cookie through `TALE_CONFIG_COOKIE` from your secret manager. Keep it out of arguments, source, archives, receipts and logs.
 

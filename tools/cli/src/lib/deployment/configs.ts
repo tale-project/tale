@@ -7,7 +7,7 @@ import { loadClient, sha256 } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { validateNativeRelease } from '../config/releases/native';
 import type { NativeValidator } from '../config/releases/release';
-import { privateDirectory } from '../inference/files';
+import { privateDirectory } from '../state/private-files';
 import { verifyDeploymentBundle } from './bundle';
 import {
   buildCapsuleStage,

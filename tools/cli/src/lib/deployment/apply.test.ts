@@ -3,7 +3,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
-import { loadClient } from '../config/releases/identity';
+import { sha256, valueHash, loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { commandFixture } from '../config/releases/tests/command-fixture';
 import { applyDeployment } from './apply';
@@ -13,10 +13,8 @@ import {
   prepareDeploymentConfig,
   verifyPreparedDeploymentConfig,
 } from './config-source';
-import { prepareManagedInference, verifyManagedInference } from './inference';
-import { desiredNativeInference } from './inference-native-proof';
-import { managedInferenceFixture } from './inference-test-helper';
 import { deploymentSpecSchema } from './model';
+import { modelSettingsFixture } from './model-settings-fixture';
 import { prepareDeployment } from './prepare';
 import { applyRuntime, prepareRuntime } from './runtime';
 import {
@@ -30,16 +28,12 @@ import { TALE_REPOSITORY, withDeploymentSources } from './sources';
 const describePosix = describe.skipIf(process.platform === 'win32');
 
 const fixtures: RuntimeFixture[] = [];
-const inferenceRoots: string[] = [];
 afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
-  for (const root of inferenceRoots.splice(0))
-    rmSync(root, { recursive: true, force: true });
   delete process.env.TALE_TEST_NATIVE_PASSWORD;
   delete process.env.TALE_TEST_UNUSED_SECRET;
-  delete process.env.TALE_APP_NETWORK;
-  delete process.env.TALE_SECRETS_INFERENCE_API_KEY;
+  delete process.env.TALE_TEST_PROVIDER_KEY;
 });
 
 /** Real Git, staging, manifests, state files and lock; only the Docker boundary
@@ -430,17 +424,11 @@ describePosix('fresh native receipt custody', () => {
   }, 30_000);
 });
 
-async function attachInference(run: Awaited<ReturnType<typeof create>>) {
-  const f = await managedInferenceFixture('example-team');
-  inferenceRoots.push(f.root);
-  run.spec.inference = f.spec.inference;
-  await prepareManagedInference(
-    f.repo,
-    join(run.bundle, 'inference'),
-    run.spec,
-    f.dependencies,
-    f.environment,
-  );
+async function attachModelSettings(run: Awaited<ReturnType<typeof create>>) {
+  run.spec.modelSettings = modelSettingsFixture();
+  run.spec.environment.TALE_PROVIDER_KEY_EXAMPLE = {
+    env: 'TALE_TEST_PROVIDER_KEY',
+  };
   const metadata = JSON.parse(
     readFileSync(join(run.bundle, 'deployment.json'), 'utf8'),
   );
@@ -452,48 +440,30 @@ async function attachInference(run: Awaited<ReturnType<typeof create>>) {
     deploymentRef: metadata.deploymentRef,
     spec: run.spec,
   });
-  process.env.TALE_APP_NETWORK = '0123456789abcdef';
-  process.env.TALE_SECRETS_INFERENCE_API_KEY =
-    'synthetic-local-inference-key-32-characters';
-  run.dependencies.inference = async (_directory, _spec, dryRun = false) => {
-    run.events.push(dryRun ? 'inference-preview' : 'inference-apply');
-    return {
-      configured: !dryRun,
-      dryRun,
-      modelReadiness: 'no-admitted-nodes',
-      admittedNodes: [],
-      companionSha256: 'a'.repeat(64),
-      composeProject: 'tale-inference',
-      unchanged: false,
-      hostPorts: [],
-    };
-  };
-  const verified = await verifyManagedInference(
-    join(run.bundle, 'inference'),
-    run.spec,
-  );
-  const desired = desiredNativeInference(verified.bundle.spec);
+  process.env.TALE_TEST_PROVIDER_KEY = 'synthetic-external-provider-secret';
+  const desired = run.spec.modelSettings;
   const proof = {
     configured: true,
     organizationId: run.native.organizationId,
-    organizationSlug: verified.bundle.spec.organization,
-    companionSha256: verified.identity,
-    providers: desired.providers.map(({ definition, model }) => ({
+    organizationSlug: run.spec.identity!.slug,
+    deploymentBundleSha256: sha256(
+      readFileSync(join(run.bundle, 'deployment.json')),
+    ),
+    settingsSha256: valueHash(desired),
+    providers: desired.providers.map(({ definition, models }) => ({
       name: definition.name,
-      model: model.apiModel,
-      capability: model.capability,
+      models: models.map((model) => model.id),
       providerFileSha256: 'a'.repeat(64),
     })),
     vision: desired.vision ?? null,
     embedding: desired.embedding ?? null,
     unchanged: false,
-    runtimeReadiness: 'reported-separately-by-the-inference-node',
   };
   run.nativeOutput(() =>
     JSON.stringify({
       ok: true,
       command: 'deploy provision',
-      data: { ...run.native, inference: proof },
+      data: { ...run.native, modelSettings: proof },
     }),
   );
   return proof;
@@ -501,49 +471,45 @@ async function attachInference(run: Awaited<ReturnType<typeof create>>) {
 
 // Real Git, file modes and runtime state require the supported POSIX host.
 describePosix('complete managed deployment lifecycle', () => {
-  test('validates inference before rollout and configures its companion before native provisioning', async () => {
+  test('passes explicit provider env references and preserves verified generic native model settings', async () => {
     const run = await create();
-    const proof = await attachInference(run);
+    const proof = await attachModelSettings(run);
     const runtime = run.dependencies.runtime!;
     run.dependencies.runtime = async (options) => {
-      expect(options.environment?.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS).toBe('1');
-      expect(options.environment?.TALE_PROVIDER_KEY_LOCAL_INFERENCE).toBe(
-        process.env.TALE_SECRETS_INFERENCE_API_KEY,
+      expect(options.environment?.TALE_PROVIDER_KEY_EXAMPLE).toBe(
+        process.env.TALE_TEST_PROVIDER_KEY,
       );
-      expect(options.environment).not.toHaveProperty('TALE_APP_NETWORK');
+      expect(options.environment).not.toHaveProperty(
+        'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
+      );
       return runtime(options);
     };
     const result = await run.apply();
     expect(result).toMatchObject({
       phase: 'ready',
-      inference: { configured: true, modelReadiness: 'no-admitted-nodes' },
-      native: { inference: proof },
+      native: { modelSettings: proof },
     });
-    expect(run.events).toEqual([
-      'inference-preview',
-      'up',
-      'inference-apply',
-      'provision',
-      'cleanup',
-    ]);
+    expect(run.events).toEqual(['up', 'provision', 'cleanup']);
     expect(JSON.stringify(result)).not.toContain(
-      process.env.TALE_SECRETS_INFERENCE_API_KEY!,
+      process.env.TALE_TEST_PROVIDER_KEY!,
     );
   }, 30000);
   test.each([
     'missing',
     'organization',
-    'companion',
+    'bundle',
+    'settings',
     'model',
     'policy',
   ] as const)(
-    'refuses %s native inference evidence before a ready deployment receipt',
+    'refuses %s native model settings evidence before a ready deployment receipt',
     async (kind) => {
       const run = await create();
-      const proof = await attachInference(run);
+      const proof = await attachModelSettings(run);
       const changed: Record<string, unknown> = structuredClone(proof);
       if (kind === 'organization') changed.organizationId = 'another-org';
-      if (kind === 'companion') changed.companionSha256 = 'f'.repeat(64);
+      if (kind === 'bundle') changed.deploymentBundleSha256 = 'f'.repeat(64);
+      if (kind === 'settings') changed.settingsSha256 = 'f'.repeat(64);
       if (kind === 'model') changed.providers = [];
       if (kind === 'policy')
         changed.vision = { providerSlug: 'hosted', modelId: 'fallback' };
@@ -553,40 +519,23 @@ describePosix('complete managed deployment lifecycle', () => {
           command: 'deploy provision',
           data: {
             ...run.native,
-            inference: kind === 'missing' ? undefined : changed,
+            modelSettings: kind === 'missing' ? undefined : changed,
           },
         }),
       );
-      await expect(run.apply()).rejects.toThrow('inference receipt');
+      await expect(run.apply()).rejects.toThrow('model settings receipt');
       expect(existsSync(run.receiptPath)).toBe(false);
       expect(run.events.at(-1)).toBe('cleanup');
     },
     30000,
   );
-  test('inference refusal stops the stack before mutation and a later companion failure stops native provisioning', async () => {
+  test('missing required provider secret stops before runtime or native mutation', async () => {
     const run = await create();
-    await attachInference(run);
-    const inference = run.dependencies.inference!;
-    run.dependencies.inference = async () => {
-      throw new Error('Synthetic inference preflight refusal');
-    };
-    await expect(run.apply()).rejects.toThrow('preflight refusal');
+    await attachModelSettings(run);
+    delete process.env.TALE_TEST_PROVIDER_KEY;
+    await expect(run.apply()).rejects.toThrow('environment variable');
     expect(run.events).toEqual([]);
-    run.dependencies.inference = async (...args) => {
-      if (!args[2]) throw new Error('Synthetic companion activation refusal');
-      return inference(...args);
-    };
-    await expect(run.apply()).rejects.toThrow('activation refusal');
-    expect(run.events).toEqual(['inference-preview', 'up']);
     expect(existsSync(run.receiptPath)).toBe(false);
-    expect(
-      existsSync(
-        join(
-          run.fixture.options.stateDirectory,
-          '.tale/deployment-pending.json',
-        ),
-      ),
-    ).toBe(true);
   }, 30000);
   test('a bundle modified during rollout cannot replace the executable receiving private credentials', async () => {
     const run = await create();

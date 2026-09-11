@@ -8,7 +8,6 @@ import {
   createExportClientCommand,
   createNativeExportClientCommand,
 } from './export-client';
-import { createInferenceStatusCommand } from './inference-status';
 import {
   createPrepareCommand,
   createVerifyBundleCommand,
@@ -70,7 +69,6 @@ export function createDeployCommand(): Command {
     .addCommand(createProvisionCommand())
     .addCommand(createExportClientCommand())
     .addCommand(createNativeExportClientCommand(), { hidden: true })
-    .addCommand(createInferenceStatusCommand())
     .action(
       action(async (options) => {
         if (options.bundle !== undefined) {
