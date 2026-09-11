@@ -250,7 +250,14 @@ export async function checkProjectResourceRest(args: {
   const definitions = catalog.parse(
     await (await expectStatus('GET', '/automations', 200)).json(),
   );
-  assert.ok(definitions.automations.every((row) => !('projectIds' in row)));
+  // The catalog names the projects an automation is installed in, filtered
+  // to what the caller can see: the URL project is listed, the foreign one
+  // never leaks through the listing.
+  const listed = definitions.automations.find((row) => row.name === name);
+  assert.ok(listed !== undefined);
+  const installedIn = z.array(z.string()).parse(listed.projectIds);
+  assert.ok(installedIn.includes(projectId));
+  assert.ok(!installedIn.includes(otherId));
   await expectStatus('POST', `${otherPath}/runs/${run.runId}/cancel`, 404);
   await expectStatus('POST', `/runs/${run.runId}/cancel`, 404);
 
@@ -366,22 +373,30 @@ export async function checkProjectResourceRest(args: {
               method: 'tools/call',
               params: {
                 name: tool,
+                // start_run takes no `mode` (the transport refuses a key
+                // its schema does not declare); the project scope is what
+                // is under test here.
                 arguments:
                   tool === 'get_run'
                     ? { runId: run.runId }
-                    : { name, mode: 'mock', version: 1, projectId },
+                    : { name, version: 1, projectId },
               },
             })
           ).json(),
         ).result;
+      // A refusal comes back as data, flagged `isError` so a generic client
+      // tells it from success, with the stable code beside the sentence.
       if (tool === 'get_run') {
-        assert.equal(rpc.isError, false);
+        assert.equal(rpc.isError, true);
         assert.deepEqual(JSON.parse(rpc.content[0]?.text ?? '{}'), {
           error: `no run "${run.runId}"`,
+          code: 'RUN_NOT_FOUND',
         });
       } else {
+        assert.equal(rpc.isError, true);
         assert.deepEqual(JSON.parse(rpc.content[0]?.text ?? '{}'), {
           error: 'Project not found.',
+          code: 'PROJECT_NOT_FOUND',
         });
       }
     }
