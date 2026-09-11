@@ -192,6 +192,7 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Name of the request header carrying team memberships as comma-separated `id:name` entries. Absent = teams untouched; present = the proxy's list is authoritative for the memberships it granted (empty revokes them). |
 | `TALE_FILE_EVENTS`                | `false`                  | Streams config-file changes under `TALE_CONFIG_DIR` to open browser tabs (`/events/file`), so an agent, skill, or branding file edited on disk shows up without a reload. On in the dev compose, off in production.   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Comma-separated email allowlist of operators allowed to write the deployment config file (`deployment.yml`, today the sandbox runtime section) through the API. Empty/unset = read-only for all admins. Data residency is configured per organization and is not gated by this list. |
+| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | unset                    | Lets a website crawl target (`POST /api/v1/websites`, and every fetch the crawler makes) name a loopback, link-local or private-network host (RFC 1918, CGNAT, ULA, `.internal`, `.local`, single-label). Unset, such a target answers **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` — the crawler dials from inside the deployment's own network. Set to `1` only on a deployment that crawls its own intranet; the cloud metadata endpoints stay refused regardless. |
 
 ## RAG retrieval tuning
 

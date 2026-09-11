@@ -826,6 +826,14 @@
       "description": "Où une installation Tale auto-hébergée garde ses données, comment tu fixes les défauts du déploiement au moment du déploiement, et comment une organisation pointe son corpus de connaissances et ses fichiers téléversés vers sa propre infrastructure — à chaud, sans redémarrage."
     }
   },
+  "fr:self-hosted/configuration/config-releases": {
+    "slug": "self-hosted/configuration/config-releases",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Publier les configurations d’un client",
+      "description": "Créer, vérifier et déployer un paquet d’automatisation versionné depuis un repository client avec la CLI Tale, puis vérifier les octets du workflow et des skills natifs."
+    }
+  },
   "fr:self-hosted/configuration/environment-reference": {
     "slug": "self-hosted/configuration/environment-reference",
     "locale": "fr",
@@ -1905,6 +1913,14 @@
     "frontmatter": {
       "title": "Data residency",
       "description": "Where a self-hosted Tale deployment keeps its data, how the deployment defaults are set at deploy time, and how a single organization points its knowledge corpus and uploaded files at infrastructure of its own — live, without a restart."
+    }
+  },
+  "en:self-hosted/configuration/config-releases": {
+    "slug": "self-hosted/configuration/config-releases",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Release client configurations",
+      "description": "Build, verify and deploy a versioned automation pack from a client repository with the Tale CLI, then verify its native workflow and skill bytes."
     }
   },
   "en:self-hosted/configuration/environment-reference": {
@@ -2988,6 +3004,14 @@
       "description": "Wo eine selbst gehostete Tale-Installation ihre Daten hält, wie du die Deployment-Defaults beim Deploy setzt und wie eine einzelne Organisation ihren Wissens-Korpus und ihre hochgeladenen Dateien auf eigene Infrastruktur ausrichtet — live, ohne Neustart."
     }
   },
+  "de:self-hosted/configuration/config-releases": {
+    "slug": "self-hosted/configuration/config-releases",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Client-Konfigurationen veröffentlichen",
+      "description": "Ein versioniertes Automatisierungspaket mit der Tale-CLI aus einem Client-Repository erstellen, prüfen und bereitstellen und danach die nativen Workflow- und Skill-Dateien verifizieren."
+    }
+  },
   "de:self-hosted/configuration/environment-reference": {
     "slug": "self-hosted/configuration/environment-reference",
     "locale": "de",
@@ -3240,30 +3264,6 @@
     "frontmatter": {
       "title": "Contributor-Setup",
       "description": "Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung."
-    }
-  },
-  "de:self-hosted/configuration/config-releases": {
-    "slug": "self-hosted/configuration/config-releases",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Client-Konfigurationen veröffentlichen",
-      "description": "Ein versioniertes Automatisierungspaket mit der Tale-CLI aus einem Client-Repository erstellen, prüfen und bereitstellen und danach die nativen Workflow- und Skill-Dateien verifizieren."
-    }
-  },
-  "en:self-hosted/configuration/config-releases": {
-    "slug": "self-hosted/configuration/config-releases",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Release client configurations",
-      "description": "Build, verify and deploy a versioned automation pack from a client repository with the Tale CLI, then verify its native workflow and skill bytes."
-    }
-  },
-  "fr:self-hosted/configuration/config-releases": {
-    "slug": "self-hosted/configuration/config-releases",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Publier les configurations d’un client",
-      "description": "Créer, vérifier et déployer un paquet d’automatisation versionné depuis un repository client avec la CLI Tale, puis vérifier les octets du workflow et des skills natifs."
     }
   }
 }
