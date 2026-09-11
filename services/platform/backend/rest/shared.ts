@@ -1,3 +1,5 @@
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+
 import type { Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import type { ZodError } from 'zod';
@@ -15,6 +17,10 @@ import {
   type ProjectRow,
 } from '../domains/projects/service.ts';
 import {
+  codedAppError,
+  type CodedRefusalStatus,
+} from '../lib/app-error-response.ts';
+import {
   rateLimitedResponse,
   rateLimitExceededCause,
 } from '../lib/rate-limit-response.ts';
@@ -23,6 +29,7 @@ import {
   checkUserRateLimit,
   type RateLimitName,
 } from '../lib/rate-limit.ts';
+import { isRestErrorCode } from './error-codes.ts';
 
 /**
  * Shared plumbing of the `/api/v1` REST families: the request variables the
@@ -42,18 +49,43 @@ export interface RestVars {
   /** The trusted-proxy-derived client IP (the door's pre-auth limiter key;
    * kept for attribution — authenticated budgets key on the user). */
   clientIp: string;
+  /** Why `readJsonBody` refused a body that parsed as JSON but carried a
+   * value no field accepts (a U+0000) — `invalidBodyResponse` names it. */
+  bodyIssue?: { path: string; message: string };
+  /** The request id the app-level middleware stamped (`X-Request-Id`),
+   * echoed by the door's JSON 500 so a caller can quote it. */
+  requestId?: string;
 }
 
 export type RestEnv = { Variables: RestVars };
 
+/** A route's own refusal: the documented status, the human message, and
+ * the stable `code` a client branches on (every 4xx on this door carries
+ * one, so a consumer never has to parse the sentence). */
 export class RestRefusal extends Error {
   readonly status: 400 | 401 | 403 | 404 | 409;
+  readonly code: string | undefined;
 
-  constructor(message: string, status: 400 | 401 | 403 | 404 | 409) {
+  constructor(
+    message: string,
+    status: 400 | 401 | 403 | 404 | 409,
+    code?: string,
+  ) {
     super(message);
     this.name = 'RestRefusal';
     this.status = status;
+    this.code = code;
   }
+}
+
+/** The 404 every family answers for a resource that is absent or invisible:
+ * the flat envelope with a stable code, never a bare sentence. */
+export function notFound(
+  c: Context<RestEnv>,
+  message: string,
+  code: string,
+): Response {
+  return c.json({ error: message, code }, 404);
 }
 
 /** The `{code, 4xx status}` shape every domain error class carries. */
@@ -71,12 +103,51 @@ export function isDomainError(
   );
 }
 
+/** Codes a deeper layer answered that the registry does not carry — each
+ * warned about once per process, so the registry (and with it the
+ * published `Error.code` enum) is told what it is missing. */
+const unregisteredCodes = new Set<string>();
+
+export function noteRestErrorCode(code: string): void {
+  if (isRestErrorCode(code) || unregisteredCodes.has(code)) return;
+  unregisteredCodes.add(code);
+  console.warn(
+    `[rest] error code "${code}" is not registered in backend/rest/error-codes.ts — add it so the OpenAPI Error.code enum stays true`,
+  );
+}
+
+/**
+ * A coded `AppError` in the REST envelope — `{error: <sentence>, code}` at
+ * the status the family's map gives its code. The app doors answer the
+ * same errors as `{error: <code>, message}` (`appErrorResponse`); this
+ * door documents one envelope, so it speaks one. Anything else is
+ * rethrown for the door's 500.
+ */
+export function codedRefusalResponse(
+  c: Context<RestEnv>,
+  error: unknown,
+  statusByCode: Readonly<Record<string, CodedRefusalStatus>>,
+): Response {
+  const coded = codedAppError(error);
+  const status = coded === null ? undefined : statusByCode[coded.code];
+  if (coded === null || status === undefined) throw error;
+  noteRestErrorCode(coded.code);
+  return c.json({ error: coded.message, code: coded.code }, status);
+}
+
 export function domainErrorResponse(
   c: Context<RestEnv>,
   error: unknown,
 ): Response {
   if (error instanceof RestRefusal) {
-    return c.json({ error: error.message }, error.status);
+    if (error.code !== undefined) noteRestErrorCode(error.code);
+    return c.json(
+      {
+        error: error.message,
+        ...(error.code === undefined ? {} : { code: error.code }),
+      },
+      error.status,
+    );
   }
   // A domain wrapper around a spent budget (a `DocumentError` coded
   // `RATE_LIMITED`) answers the one 429 every door speaks, `Retry-After`
@@ -88,6 +159,7 @@ export function domainErrorResponse(
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish
     // codes read as 404 rather than leaking existence semantics.
+    noteRestErrorCode(error.code);
     return c.json(
       { error: error.message, code: error.code },
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- isDomainError pinned the closed 4xx set
@@ -109,8 +181,9 @@ export const INVALID_JSON: unique symbol = Symbol('invalid-json');
  * documented 400 envelope instead.
  */
 export async function readJsonBody(c: Context<RestEnv>): Promise<unknown> {
+  let parsed: unknown;
   try {
-    return await c.req.json();
+    parsed = await c.req.json();
   } catch (error) {
     console.warn(
       '[rest] unparseable JSON body:',
@@ -118,6 +191,61 @@ export async function readJsonBody(c: Context<RestEnv>): Promise<unknown> {
     );
     return INVALID_JSON;
   }
+  return refuseNulBytes(c, parsed);
+}
+
+/**
+ * The dotted path of the first string — a value or an object key — in a
+ * parsed JSON body that carries a U+0000, or null when none does. Postgres
+ * refuses a NUL in any text or jsonb value (`22021`), so a body that
+ * carries one can never be stored; letting it reach the driver turned a
+ * client mistake into a text/plain 500. Iterative, so a deeply nested body
+ * cannot exhaust the stack.
+ */
+export function findNulByte(value: unknown): string | null {
+  const stack: { value: unknown; path: string }[] = [{ value, path: '' }];
+  while (stack.length > 0) {
+    const item = stack.pop();
+    if (item === undefined) break;
+    const current = item.value;
+    if (typeof current === 'string') {
+      if (current.includes('\0')) return item.path;
+      continue;
+    }
+    if (Array.isArray(current)) {
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: current[index],
+          path: item.path === '' ? String(index) : `${item.path}.${index}`,
+        });
+      }
+      continue;
+    }
+    if (current !== null && typeof current === 'object') {
+      const entries = Object.entries(current);
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const entry = entries[index];
+        if (entry === undefined) continue;
+        const [key, child] = entry;
+        const path = item.path === '' ? key : `${item.path}.${key}`;
+        if (key.includes('\0')) return path;
+        stack.push({ value: child, path });
+      }
+    }
+  }
+  return null;
+}
+
+/** A parsed body that carries a NUL anywhere reads as `INVALID_JSON`, with
+ * the offending path recorded for `invalidBodyResponse` to name. */
+function refuseNulBytes(c: Context<RestEnv>, parsed: unknown): unknown {
+  const path = findNulByte(parsed);
+  if (path === null) return parsed;
+  c.set('bodyIssue', {
+    path,
+    message: 'must not contain a NUL character (U+0000)',
+  });
+  return INVALID_JSON;
 }
 
 /**
@@ -132,8 +260,9 @@ export async function readOptionalJsonBody(
 ): Promise<unknown> {
   const raw = await c.req.text();
   if (raw.trim() === '') return {};
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as unknown;
+    parsed = JSON.parse(raw);
   } catch (error) {
     console.warn(
       '[rest] unparseable JSON body:',
@@ -141,6 +270,7 @@ export async function readOptionalJsonBody(
     );
     return INVALID_JSON;
   }
+  return refuseNulBytes(c, parsed);
 }
 
 /** How many schema problems one 400 lists — enough to fix a body in one
@@ -169,11 +299,30 @@ export function invalidBodyResponse(
       issue.message.endsWith('received symbol'),
   );
   const issues = notJson
-    ? [{ path: '', message: 'The body is not valid JSON' }]
-    : error.issues.slice(0, MAX_BODY_ISSUES).map((issue) => ({
-        path: issue.path.map(String).join('.'),
-        message: issue.message,
-      }));
+    ? [
+        c.get('bodyIssue') ?? {
+          path: '',
+          message: 'The body is not valid JSON',
+        },
+      ]
+    : error.issues
+        .flatMap((issue) =>
+          // zod reports every unknown key of an object as ONE issue at the
+          // object's path; the envelope names each key as its own problem,
+          // so a client can fix what it named rather than search a list.
+          issue.code === 'unrecognized_keys'
+            ? issue.keys.map((key) => ({
+                path: [...issue.path.map(String), key].join('.'),
+                message: 'is not a field this body takes',
+              }))
+            : [
+                {
+                  path: issue.path.map(String).join('.'),
+                  message: issue.message,
+                },
+              ],
+        )
+        .slice(0, MAX_BODY_ISSUES);
   const first = issues[0] ?? {
     path: '',
     message: 'does not match the schema',
@@ -200,6 +349,7 @@ export function requireDeveloper(c: Context<RestEnv>): void {
     throw new RestRefusal(
       `Role "${c.get('role')}" lacks the developer capability required here.`,
       403,
+      'ROLE_FORBIDDEN',
     );
   }
 }
@@ -210,6 +360,7 @@ export function requireEditor(c: Context<RestEnv>): void {
     throw new RestRefusal(
       `Role "${c.get('role')}" cannot modify this resource.`,
       403,
+      'ROLE_FORBIDDEN',
     );
   }
 }
@@ -292,17 +443,142 @@ export function parseKeysetCursor(
   return Number.isSafeInteger(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
-/** The 400 for a query parameter a list cannot act on. */
-function invalidQueryResponse(
+/** The 400 for a query parameter a list cannot act on: the stable code,
+ * the sentence, and — when a schema refused it — every problem under
+ * `data.issues`, the same shape `invalidBodyResponse` gives a body. */
+export function invalidQueryResponse(
   c: Context<RestEnv>,
-  code: 'INVALID_CURSOR' | 'INVALID_LIMIT',
+  code: 'INVALID_CURSOR' | 'INVALID_LIMIT' | 'INVALID_QUERY',
   message: string,
+  issues?: { path: string; message: string }[],
 ): Response {
-  return c.json({ error: message, code }, 400);
+  return c.json(
+    {
+      error: message,
+      code,
+      ...(issues === undefined ? {} : { data: { issues } }),
+    },
+    400,
+  );
+}
+
+/** The 400 for a query string a zod schema refused (`INVALID_QUERY`), every
+ * problem named by parameter — the query-side twin of `invalidBodyResponse`. */
+export function invalidQueryFromSchema(
+  c: Context<RestEnv>,
+  error: ZodError,
+): Response {
+  const issues = error.issues.slice(0, MAX_BODY_ISSUES).map((issue) => ({
+    path: issue.path.map(String).join('.'),
+    message: issue.message,
+  }));
+  const first = issues[0] ?? { path: '', message: 'does not match the schema' };
+  return invalidQueryResponse(
+    c,
+    'INVALID_QUERY',
+    first.path === ''
+      ? `invalid query: ${first.message}`
+      : `invalid query: "${first.path}" ${first.message}`,
+    issues,
+  );
 }
 
 const CURSOR_MESSAGE =
   'The "cursor" query parameter is not a cursor this list answered — pass the cursor the previous page answered, unchanged, or omit it for the first page';
+
+/**
+ * Page cursors are SIGNED: `<position>.<tag>`, the tag an HMAC over the
+ * list's scope (its name and the organization) and the position. A
+ * consumer passes `continueCursor` back unchanged, so the format is opaque
+ * to it — and a token this list never answered (a synthesised position,
+ * another list's or another organization's cursor, a hand-edited one) is
+ * refused with `INVALID_CURSOR` instead of being executed as a position:
+ * a well-formed but fabricated keyset cursor used to read as page one, the
+ * silent restart the API reference promises never happens.
+ *
+ * The key derives from the deployment's `INSTANCE_SECRET` (the same root
+ * as the WebDAV app-password key, so every replica of a colour and both
+ * colours of a rollout agree), else from `BETTER_AUTH_SECRET`; a bare dev
+ * process with neither signs with a public constant — cursors are
+ * positions, not credentials, so the constant costs nothing but provenance.
+ */
+const CURSOR_TAG_BYTES = 16;
+let cursorKeyCache: Buffer | null = null;
+
+function cursorKey(): Buffer {
+  if (cursorKeyCache !== null) return cursorKeyCache;
+  const root =
+    process.env.INSTANCE_SECRET ??
+    process.env.BETTER_AUTH_SECRET ??
+    'tale-dev-cursor-key';
+  cursorKeyCache = createHash('sha256')
+    .update(`${root}:rest-cursor:v1`)
+    .digest();
+  return cursorKeyCache;
+}
+
+/** Test seam: forget the derived key so a changed secret is picked up. */
+export function resetCursorKeyForTests(): void {
+  cursorKeyCache = null;
+}
+
+function cursorTag(scope: string, position: string): string {
+  return createHmac('sha256', cursorKey())
+    .update(`${scope}\n${position}`)
+    .digest()
+    .subarray(0, CURSOR_TAG_BYTES)
+    .toString('base64url');
+}
+
+/** The signed cursor of `list` in `organizationId` for `position` — the
+ * context-free form the routes' `mintCursor` and the tests share. */
+export function mintCursorFor(
+  organizationId: string,
+  list: string,
+  position: string,
+): string {
+  return `${position}.${cursorTag(`${list}:${organizationId}`, position)}`;
+}
+
+/** The position inside a cursor `list` in `organizationId` answered, or
+ * null for a token that is not one of its own (constant-time comparison). */
+export function verifyCursorFor(
+  organizationId: string,
+  list: string,
+  token: string,
+): string | null {
+  const dot = token.lastIndexOf('.');
+  if (dot <= 0 || dot === token.length - 1) return null;
+  const position = token.slice(0, dot);
+  const tag = Buffer.from(token.slice(dot + 1));
+  const expected = Buffer.from(
+    cursorTag(`${list}:${organizationId}`, position),
+  );
+  return tag.length === expected.length && timingSafeEqual(tag, expected)
+    ? position
+    : null;
+}
+
+/** The signed `continueCursor` a list answers for `position` (a keyset
+ * `formatKeysetCursor` token or a whole number as text). `list` names the
+ * list — with the project id for a project-scoped one (`files:<id>`) — so
+ * the cursor redeems only there. */
+export function mintCursor(
+  c: Context<RestEnv>,
+  list: string,
+  position: string,
+): string {
+  return mintCursorFor(c.get('organizationId'), list, position);
+}
+
+/** The position inside a signed cursor this list answered, or null. */
+export function verifyCursor(
+  c: Context<RestEnv>,
+  list: string,
+  token: string,
+): string | null {
+  return verifyCursorFor(c.get('organizationId'), list, token);
+}
 
 /**
  * The `cursor` query of a keyset-paginated list: null for the first page
@@ -314,11 +590,13 @@ const CURSOR_MESSAGE =
  */
 export function readKeysetCursor(
   c: Context<RestEnv>,
+  list: string,
 ): { at: number; id: string } | null | Response {
   const raw = c.req.query('cursor');
   if (raw === undefined || raw === '') return null;
+  const position = verifyCursor(c, list, raw);
   return (
-    parseKeysetCursor(raw) ??
+    (position === null ? null : parseKeysetCursor(position)) ??
     invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE)
   );
 }
@@ -330,12 +608,15 @@ export function readKeysetCursor(
  */
 export function readIntegerCursor(
   c: Context<RestEnv>,
+  list: string,
   bounds: { max?: number } = {},
 ): number | null | Response {
   const raw = c.req.query('cursor');
   if (raw === undefined || raw.trim() === '') return null;
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) &&
+  const position = verifyCursor(c, list, raw);
+  const parsed = position === null ? Number.NaN : Number(position);
+  return /^\d{1,15}$/.test(position ?? '') &&
+    Number.isInteger(parsed) &&
     parsed >= 0 &&
     parsed <= (bounds.max ?? Number.MAX_SAFE_INTEGER)
     ? parsed
@@ -351,7 +632,11 @@ export function pageLimit(
   raw: string | number | undefined,
   defaults: { fallback: number; max: number },
 ): number {
-  const parsed = Number(raw ?? String(defaults.fallback));
+  // A blank `limit=` is an absent one — `Number('')` is 0, which floored to
+  // a single row and silently answered one-row pages.
+  const absent =
+    raw === undefined || (typeof raw === 'string' && raw.trim() === '');
+  const parsed = absent ? defaults.fallback : Number(raw);
   const limit = Number.isFinite(parsed)
     ? Math.trunc(parsed)
     : defaults.fallback;
@@ -407,13 +692,13 @@ export async function loadRestProject(
       error instanceof ProjectError &&
       (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
     ) {
-      throw new RestRefusal('Project not found', 404);
+      throw new RestRefusal('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
     throw error;
   }
   if (options.write) assertWritable(project, auth);
   if ((options.write || options.active) && project.archivedAt !== null) {
-    throw new RestRefusal('Project is archived', 403);
+    throw new RestRefusal('Project is archived', 403, 'PROJECT_ARCHIVED');
   }
   return project;
 }

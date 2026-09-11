@@ -2,6 +2,10 @@ import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
 import {
+  isValidOrgSlug,
+  MAX_ORG_SLUG_LENGTH,
+} from '../../lib/shared/constants/org-slug.ts';
+import {
   API_KEY_RATE_LIMIT,
   loadTrustedProxies,
   type Auth,
@@ -9,6 +13,7 @@ import {
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
+import { reportRequestError, requestIdOf } from '../error-reporting.ts';
 import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
@@ -72,7 +77,7 @@ function unauthorized(
   message: string,
   challenge: 'bearer' | 'invalid_token' = 'bearer',
 ): Response {
-  return c.json({ error: message }, 401, {
+  return c.json({ error: message, code: 'UNAUTHORIZED' }, 401, {
     'www-authenticate':
       challenge === 'invalid_token' ? 'Bearer error="invalid_token"' : 'Bearer',
   });
@@ -105,6 +110,57 @@ export function createRestV1Routes(deps: {
   auth: Auth;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
+
+  // Every non-2xx on this door is the one flat JSON envelope — including
+  // the 500 an escaped error answers. The app-level handler's text/plain
+  // `Internal Server Error` broke every client that read the body as JSON;
+  // the error is still reported the same way, and the response carries the
+  // request id a caller can quote. A thrown HTTPException (a body-size
+  // middleware's 413, say) keeps its status but speaks the envelope too.
+  app.onError((err, c) => {
+    const requestId = requestIdOf(c);
+    if ('getResponse' in err) {
+      const refused = err.getResponse();
+      // The exception's own headers ride along (a challenge, a wait) — its
+      // text/plain body framing does not.
+      const headers: Record<string, string> = {};
+      refused.headers.forEach((value, name) => {
+        if (name !== 'content-type' && name !== 'content-length') {
+          headers[name] = value;
+        }
+      });
+      return c.json(
+        {
+          error: err.message || refused.statusText || 'Request refused',
+          code: refused.status === 413 ? 'BODY_TOO_LARGE' : 'HTTP_ERROR',
+          ...(requestId === undefined ? {} : { requestId }),
+        },
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an HTTPException carries a valid status
+        refused.status as 400,
+        headers,
+      );
+    }
+    reportRequestError(err, c);
+    return c.json(
+      {
+        error: 'Internal Server Error',
+        code: 'INTERNAL_ERROR',
+        ...(requestId === undefined ? {} : { requestId }),
+      },
+      500,
+    );
+  });
+
+  // Every answer on this door is per-caller and per-moment — a key holder's
+  // own rows, a signed handoff, a turn's state — so nothing between the
+  // caller and the door may cache it. Routes that set their own directive
+  // (the attachment lane's `private, no-store`) keep it.
+  app.use(async (c, next) => {
+    await next();
+    if (!c.res.headers.has('cache-control')) {
+      c.res.headers.set('cache-control', 'no-store');
+    }
+  });
 
   // ---- the door: API key → key holder's budget → org resolution → role ---
   app.use(async (c, next) => {
@@ -166,6 +222,22 @@ export function createRestV1Routes(deps: {
     }
 
     const orgSlugHeader = c.req.header('x-organization-slug')?.trim();
+    // A header that cannot be a slug at all names no organization: the
+    // domain's own 404, answered here without a lookup and without echoing
+    // an unbounded value back (the message used to quote whatever arrived).
+    if (orgSlugHeader && !isValidOrgSlug(orgSlugHeader)) {
+      const shown =
+        orgSlugHeader.length > MAX_ORG_SLUG_LENGTH
+          ? `${orgSlugHeader.slice(0, MAX_ORG_SLUG_LENGTH)}…`
+          : orgSlugHeader;
+      return c.json(
+        {
+          error: `Organization not found: ${shown}`,
+          code: 'ORG_SLUG_INVALID',
+        },
+        404,
+      );
+    }
     let resolved;
     try {
       resolved = await resolveUserOrganization(deps.sql, {
@@ -190,7 +262,10 @@ export function createRestV1Routes(deps: {
     );
     if (member === null || member.role === 'disabled') {
       return c.json(
-        { error: `Not a member of organization "${resolved.orgSlug}".` },
+        {
+          error: `Not a member of organization "${resolved.orgSlug}".`,
+          code: 'ORG_FORBIDDEN',
+        },
         403,
       );
     }
@@ -218,17 +293,63 @@ export function createRestV1Routes(deps: {
   return app;
 }
 
+const REST_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+
 /**
- * Mount the door at `/api/v1`, followed by the JSON 404 for a path no
- * family serves — every non-2xx on this door is the one flat envelope, never
- * the app's text/plain `404 Not Found`. The catch-all lives on the PARENT,
- * registered after the families, so a served route always wins and the
- * door middleware (401 first) still runs ahead of it.
+ * Which methods the door's families serve on a path — from the routes
+ * they registered (middleware, registered as `ALL`, names no method). The
+ * probe router matches the families' own patterns, so `/documents/:id`
+ * and `/automations/:name` answer for any id without listing them.
+ */
+function methodsServedOn(door: Hono<RestEnv>): (path: string) => string[] {
+  const probe = new Hono();
+  for (const route of door.routes) {
+    if (route.method === 'ALL') continue;
+    probe.on(route.method, route.path, () => new Response(null));
+  }
+  return (path) => {
+    const served = REST_METHODS.filter(
+      (method) => (probe.router.match(method, path)[0] ?? []).length > 0,
+    );
+    // Hono answers HEAD with the GET handler, body dropped.
+    return served.includes('GET') ? [...served, 'HEAD'] : [...served];
+  };
+}
+
+/**
+ * Mount the door at `/api/v1`, followed by the JSON catch-all for a
+ * request no family serves — every non-2xx on this door is the one flat
+ * envelope, never the app's text/plain `404 Not Found`. A path a family
+ * does serve, asked with a method it does not take, answers 405 with the
+ * `Allow` list RFC 9110 §15.5.6 requires (an `OPTIONS` on it answers 204
+ * with the same list); a path nobody serves answers 404. The catch-all
+ * lives on the PARENT, registered after the families, so a served route
+ * always wins and the door middleware (401 first) still runs ahead of it.
  */
 export function mountRestV1Routes<E extends Env>(
   app: Hono<E>,
   deps: { sql: Sql; auth: Auth },
 ): void {
-  app.route('/api/v1', createRestV1Routes(deps));
-  app.all('/api/v1/*', (c) => c.json({ error: 'Not found' }, 404));
+  const door = createRestV1Routes(deps);
+  const servedOn = methodsServedOn(door);
+  app.route('/api/v1', door);
+  app.all('/api/v1/*', (c) => {
+    const path = c.req.path.slice('/api/v1'.length) || '/';
+    const allowed = servedOn(path);
+    if (allowed.length === 0) {
+      return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+    }
+    const allow = allowed.join(', ');
+    if (c.req.method === 'OPTIONS') {
+      return c.body(null, 204, { allow });
+    }
+    return c.json(
+      {
+        error: `Method ${c.req.method} is not allowed here — this path takes ${allow}`,
+        code: 'METHOD_NOT_ALLOWED',
+      },
+      405,
+      { allow },
+    );
+  });
 }

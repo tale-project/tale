@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { HTTPException } from 'hono/http-exception';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -386,5 +387,85 @@ describe('/api/v1 door — organization resolution statuses', () => {
     const res = await app.request('http://localhost/probe', bearer(GOOD_KEY));
     expect(res.status).toBe(500);
     expect(await res.text()).toBe('handled: connection refused');
+  });
+
+  it('answers 404 ORG_SLUG_INVALID for a header that cannot be a slug, without a lookup and without echoing it whole', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const monster = `Not A Slug ${'x'.repeat(500)}`;
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': monster }),
+    );
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string; code: string };
+    expect(body.code).toBe('ORG_SLUG_INVALID');
+    expect(body.error.length).toBeLessThan(120);
+  });
+});
+
+/**
+ * Every non-2xx on this door is the documented flat JSON envelope — the
+ * 500 an escaped error answers included. The app-level handler's text/plain
+ * `Internal Server Error` broke every client that read the body as JSON,
+ * and carried no handle the caller could quote back.
+ */
+describe('/api/v1 door — escaped errors and response hygiene', () => {
+  it('answers a thrown error as a JSON 500 carrying the request id', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.use(async (c, next) => {
+      c.set('requestId', 'req-123');
+      await next();
+    });
+    app.get('/boom', () => {
+      throw new Error('driver exploded');
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await app.request('http://localhost/boom', bearer(GOOD_KEY));
+      expect(res.status).toBe(500);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      expect(await res.json()).toEqual({
+        error: 'Internal Server Error',
+        code: 'INTERNAL_ERROR',
+        requestId: 'req-123',
+      });
+      expect(errors).toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it('turns a thrown HTTPException into the envelope with its own status', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.get('/huge', () => {
+      throw new HTTPException(413, { message: 'Payload Too Large' });
+    });
+    const res = await app.request('http://localhost/huge', bearer(GOOD_KEY));
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({
+      error: 'Payload Too Large',
+      code: 'BODY_TOO_LARGE',
+    });
+  });
+
+  it('marks every response uncacheable unless the route chose a directive', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.get('/blob', (c) =>
+      c.body('bytes', 200, { 'cache-control': 'private, no-store' }),
+    );
+    const probe = await app.request('http://localhost/probe', bearer(GOOD_KEY));
+    expect(probe.headers.get('cache-control')).toBe('no-store');
+    const refused = await app.request('http://localhost/probe');
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get('cache-control')).toBe('no-store');
+    const blob = await app.request('http://localhost/blob', bearer(GOOD_KEY));
+    expect(blob.headers.get('cache-control')).toBe('private, no-store');
   });
 });
