@@ -36,6 +36,11 @@ bun run build:linux
 # Binary at: dist/tale
 ```
 
+`build:linux` targets `bun-linux-x64`, which requires AVX2. For a host whose CPU
+lacks it (Intel before Haswell, for example — the default binary dies there with
+`Illegal instruction`), run `bun run build:linux-baseline` instead: it compiles
+the same sources for Bun's `bun-linux-x64-baseline` target.
+
 ## Usage
 
 ### Deploy Commands
@@ -82,7 +87,9 @@ destination with its local Docker daemon and retained state directory. Optional
 `--deployment-ref` records orchestration provenance. The Linux/macOS ARM64 composite action
 `.github/actions/setup-cli` accepts the full Tale `revision`, builds with Bun
 1.4.2, exposes `executable` and adds it to `PATH`; pin both the action reference
-and its revision input. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
+and its revision input. Its optional `linux-baseline: 'true'` input builds the
+baseline executable for x64 CPUs without AVX2 and is accepted on Linux x64
+runners only. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
 contains the specification and environment-reference example.
 
 Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.

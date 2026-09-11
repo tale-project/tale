@@ -90,7 +90,7 @@ test.skipIf(process.platform === 'win32')(
 );
 
 test.skipIf(process.platform === 'win32')(
-  'setup action selects the host binary and seals only the final Mac executable',
+  'setup action selects the host binary, honours linux-baseline on x64 only and seals only the final Mac executable',
   async () => {
     const action = parse(
       await readFile(
@@ -100,11 +100,16 @@ test.skipIf(process.platform === 'win32')(
     ) as { runs: { steps: Step[] } };
     const script = action.runs.steps.find((step) => step.id === 'build')?.run;
     if (!script) throw new Error('Setup build script missing');
-    for (const [os, arch, build] of [
-      ['Linux', 'X64', 'build:linux'],
-      ['Linux', 'ARM64', 'build:linux-arm64'],
-      ['macOS', 'ARM64', 'build:mac'],
-    ]) {
+    // Without a build script, the runner/baseline pair is one the step refuses.
+    const cases: Array<[string, string, string, string?]> = [
+      ['Linux', 'X64', 'false', 'build:linux'],
+      ['Linux', 'X64', 'true', 'build:linux-baseline'],
+      ['Linux', 'ARM64', 'false', 'build:linux-arm64'],
+      ['Linux', 'ARM64', 'true'],
+      ['macOS', 'ARM64', 'false', 'build:mac'],
+      ['macOS', 'ARM64', 'true'],
+    ];
+    for (const [os, arch, baseline, build] of cases) {
       const root = await realpath(
         await mkdtemp(join(tmpdir(), 'tale-setup-build-')),
       );
@@ -146,6 +151,7 @@ test.skipIf(process.platform === 'win32')(
             RUNNER_OS: os,
             RUNNER_ARCH: arch,
             TALE_CLI_REVISION: 'a'.repeat(40),
+            TALE_CLI_LINUX_BASELINE: baseline,
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -156,8 +162,15 @@ test.skipIf(process.platform === 'win32')(
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ]);
-      expect(code, stdout + stderr).toBe(0);
       const calls = (await readFile(log, 'utf8')).trim().split('\n');
+      if (!build) {
+        expect(code, stdout + stderr).not.toBe(0);
+        expect(stdout).toContain('::error::');
+        expect(calls.some((call) => call.includes(' build:'))).toBe(false);
+        expect(await readFile(output, 'utf8')).toBe('');
+        continue;
+      }
+      expect(code, stdout + stderr).toBe(0);
       expect(calls).toContain(`bun run --filter @tale/cli ${build}`);
       expect(calls.filter((call) => call.startsWith('codesign'))).toEqual(
         os === 'macOS'
@@ -192,6 +205,7 @@ test.skipIf(process.platform === 'win32')(
       TALE_CLI_REVISION: 'a'.repeat(40),
       RUNNER_OS: 'Linux',
       RUNNER_ARCH: 'X64',
+      TALE_CLI_LINUX_BASELINE: 'false',
     };
     expect((await execute(script, environment)).code).toBe(0);
     expect(
@@ -206,6 +220,23 @@ test.skipIf(process.platform === 'win32')(
         })
       ).code,
     ).toBe(0);
+    expect(
+      (
+        await execute(script, {
+          ...environment,
+          TALE_CLI_LINUX_BASELINE: 'true',
+        })
+      ).code,
+    ).toBe(0);
+    const refused = await execute(script, {
+      ...environment,
+      TALE_CLI_LINUX_BASELINE: 'true',
+      RUNNER_ARCH: 'ARM64',
+    });
+    expect(refused.code).not.toBe(0);
+    expect(refused.stdout).toContain(
+      '::error::Tale setup linux-baseline requires a Linux x64 runner',
+    );
     for (const changed of [
       { TALE_CLI_REVISION: 'main' },
       { TALE_CLI_REVISION: 'v1.2.3' },
@@ -213,6 +244,12 @@ test.skipIf(process.platform === 'win32')(
       { RUNNER_OS: 'Windows' },
       { RUNNER_OS: 'macOS', RUNNER_ARCH: 'X64' },
       { RUNNER_ARCH: 'X86' },
+      {
+        TALE_CLI_LINUX_BASELINE: 'true',
+        RUNNER_OS: 'macOS',
+        RUNNER_ARCH: 'ARM64',
+      },
+      { TALE_CLI_LINUX_BASELINE: 'yes' },
     ]) {
       expect(
         (await execute(script, { ...environment, ...changed })).code,
