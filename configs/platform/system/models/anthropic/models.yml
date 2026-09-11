@@ -3,6 +3,13 @@
 # Anthropic's API directly). Context windows are the standard 200K tier; the
 # opt-in 1M beta window is a per-session concern, not a catalog fact. Pricing
 # is cents per million tokens and omitted where not reliably known.
+#
+# `reasoning.knob: effort` is `output_config.effort` on this wire, which the
+# vendor documents for the 5-series, Opus 4.5+ and Sonnet 4.6+ — never for
+# Haiku (platform.claude.com/docs/en/build-with-claude/effort). The guard in
+# backend/core/lib/providers/load_system_config.test.ts holds this file to
+# that list: a model with no parameter for the knob refuses the whole
+# request, not just the pick.
 - id: claude-fable-5
   provider: anthropic
   tags:
@@ -39,14 +46,17 @@
     knob: effort
   contextWindow: 200000
   maxOutputTokens: 64000
+# Haiku 4.5 takes no effort parameter and reasons only through a manual
+# `thinking.budget_tokens` budget, whose tool-use turns must replay the
+# signed thinking blocks — a replay the chat lane does not do yet. Until it
+# does, the entry declares no knob: the picker shows no effort section and
+# the turn samples at the model's own default.
 - id: claude-haiku-4-5
   provider: anthropic
   tags:
     - chat
   supportsTools: true
   supportsVision: true
-  reasoning:
-    knob: effort
   contextWindow: 200000
   maxOutputTokens: 64000
   pricing:

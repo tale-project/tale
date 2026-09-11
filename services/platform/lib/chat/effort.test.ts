@@ -99,17 +99,14 @@ describe('resolveTurnSampling — the default (no effort, or no reasoning)', () 
 });
 
 describe("resolveTurnSampling — the 'effort' knob", () => {
-  it.each([
-    ['low', 'low'],
-    ['medium', 'medium'],
-    ['high', 'high'],
-    ['extra', 'high'],
-    ['max', 'high'],
-  ] as const)('folds %s onto the provider level %s', (effort, wire) => {
+  // The step travels UNFOLDED. Each wire dialect folds it to its own
+  // vocabulary (`chat_wire.test.ts`) — folding here capped Anthropic, which
+  // takes all five levels, at the three the OpenAI surface knows.
+  it.each(EFFORT_LEVELS)('carries the %s step through unfolded', (effort) => {
     expect(resolveTurnSampling(EFFORT_MODEL, effort)).toEqual({
       maxTokens: 4096,
       temperature: 0.7,
-      reasoning: { kind: 'effort', value: wire },
+      reasoning: { kind: 'effort', value: effort },
     });
   });
 });

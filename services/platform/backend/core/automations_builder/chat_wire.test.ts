@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { BuilderMessage } from '../../../lib/automations_builder/session';
 import { buildChatRequest, parseChatReply } from './chat_wire';
@@ -20,6 +20,9 @@ function request(apiFormat: 'openai' | 'anthropic', baseUrl: string) {
     messages,
     temperature: 0.1,
     maxTokens: 8000,
+    // A model KNOWN not to reason: the one case in which the Anthropic body
+    // keeps its temperature (see "temperature on the Anthropic wire").
+    reasoningModel: false,
   });
 }
 
@@ -83,6 +86,45 @@ describe('the Anthropic shape', () => {
       content:
         'CAUSE: the node had no code.\n```yaml\nmethod: run_automation\n```',
       usage: { prompt: 900, completion: 210 },
+    });
+  });
+});
+
+describe('temperature on the Anthropic wire', () => {
+  function anthropicRequest(reasoningModel?: boolean) {
+    return buildChatRequest({
+      apiFormat: 'anthropic',
+      ...(reasoningModel !== undefined ? { reasoningModel } : {}),
+      baseUrl: 'https://api.example.test',
+      modelId: 'claude-sonnet-5',
+      apiKey: 'secret-key',
+      messages,
+      temperature: 0.7,
+      maxTokens: 8000,
+    });
+  }
+
+  it('drops the platform temperature for a reasoning model', () => {
+    // Every model after Claude Opus 4.6 refuses a temperature other than the
+    // default on every request, thinking or not — the platform's 0.7 would
+    // 400 the whole turn before any reasoning pick mattered.
+    expect(JSON.parse(anthropicRequest(true).body)).not.toHaveProperty(
+      'temperature',
+    );
+  });
+
+  it('drops it when the model is unknown', () => {
+    // No catalog entry (a free-typed id on a custom connector): unknown
+    // counts as reasoning, as on the openai-modern dialect — a non-reasoning
+    // model merely samples at its own default.
+    expect(JSON.parse(anthropicRequest(undefined).body)).not.toHaveProperty(
+      'temperature',
+    );
+  });
+
+  it('keeps it for a known non-reasoning model', () => {
+    expect(JSON.parse(anthropicRequest(false).body)).toMatchObject({
+      temperature: 0.7,
     });
   });
 });
@@ -158,9 +200,68 @@ describe('reasoning controls on the body', () => {
     });
   });
 
+  // The OpenAI surface knows three levels, so the top three steps land on
+  // `high`; an off literal passes through, which is why a catalog declares it.
+  it.each([
+    ['low', 'low'],
+    ['medium', 'medium'],
+    ['high', 'high'],
+    ['extra', 'high'],
+    ['max', 'high'],
+    ['none', 'none'],
+    ['minimal', 'minimal'],
+  ] as const)('folds the %s step onto the OpenAI level %s', (step, level) => {
+    const wire = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://example.test/api/v1/',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      maxTokens: 4096,
+      reasoning: { kind: 'effort', value: step },
+    });
+    expect(JSON.parse(wire.body)).toMatchObject({ reasoning_effort: level });
+  });
+
+  // Anthropic's `output_config.effort` takes all five, so the picker's top
+  // steps are NOT capped at high the way the OpenAI surface caps them — this
+  // is the whole reason the fold lives here rather than in the resolver.
+  it.each([
+    ['low', 'low'],
+    ['medium', 'medium'],
+    ['high', 'high'],
+    ['extra', 'xhigh'],
+    ['max', 'max'],
+  ] as const)(
+    'spells the %s step as the Anthropic effort %s',
+    (step, level) => {
+      const wire = buildChatRequest({
+        apiFormat: 'anthropic',
+        reasoningModel: true,
+        baseUrl: 'https://api.example.test',
+        modelId: 'claude-sonnet-5',
+        apiKey: 'secret-key',
+        messages,
+        temperature: 0.7,
+        maxTokens: 4096,
+        reasoning: { kind: 'effort', value: step },
+      });
+      const body: unknown = JSON.parse(wire.body);
+      expect(body).toMatchObject({ output_config: { effort: level } });
+      // The effort parameter is NOT a thinking budget: an effort pick must
+      // never enable extended thinking behind the user's back — and the
+      // model that takes effort is one that refuses a custom temperature.
+      expect(body).not.toHaveProperty('thinking');
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('temperature');
+    },
+  );
+
   it('ignores the knob the dialect cannot spell, and omits an absent temperature', () => {
-    // A thinking budget means no OpenAI `reasoning_effort` — and the omitted
-    // temperature stays omitted rather than defaulting.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A thinking budget is an Anthropic-wire control: the OpenAI body has no
+    // parameter for it — and the omitted temperature stays omitted rather
+    // than defaulting.
     const openai = buildChatRequest({
       apiFormat: 'openai',
       baseUrl: 'https://example.test/api/v1/',
@@ -175,21 +276,27 @@ describe('reasoning controls on the body', () => {
       max_tokens: 4096,
       messages,
     });
-    // And an effort level means no Anthropic `thinking` block.
+    // And Anthropic has no off literal, so a catalog `reasoning.off` on an
+    // anthropic-wire model leaves the parameter off rather than guessing.
     const anthropic = buildChatRequest({
       apiFormat: 'anthropic',
+      reasoningModel: true,
       baseUrl: 'https://api.example.test',
-      modelId: 'vendor/model-1',
+      modelId: 'claude-sonnet-5',
       apiKey: 'secret-key',
       messages,
       temperature: 0.7,
       maxTokens: 4096,
-      reasoning: { kind: 'effort', value: 'low' },
+      reasoning: { kind: 'effort', value: 'none' },
     });
     const body: unknown = JSON.parse(anthropic.body);
+    expect(body).not.toHaveProperty('output_config');
     expect(body).not.toHaveProperty('thinking');
-    expect(body).not.toHaveProperty('reasoning_effort');
-    expect(body).toMatchObject({ temperature: 0.7 });
+    expect(body).not.toHaveProperty('temperature');
+    // A drop is a misconfiguration, and says so — silence is what let both
+    // shipped knob/wire mismatches survive unnoticed.
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
   });
 });
 
@@ -496,11 +603,12 @@ describe('the openai-modern dialect', () => {
   it('never leaks into the anthropic body', () => {
     // max_tokens is MANDATORY on /v1/messages — the dialect refines the
     // openai format only (the schema refuses the combination on a connector;
-    // the builder simply ignores it).
+    // the builder simply ignores it). The temperature follows the Anthropic
+    // wire's own gate, not the dialect's.
     const wire = buildChatRequest({
       apiFormat: 'anthropic',
       wireDialect: 'openai-modern',
-      reasoningModel: true,
+      reasoningModel: false,
       baseUrl: 'https://api.example.test',
       modelId: 'vendor/model-1',
       apiKey: 'secret-key',
@@ -508,9 +616,8 @@ describe('the openai-modern dialect', () => {
       temperature: 0.1,
       maxTokens: 8000,
     });
-    expect(JSON.parse(wire.body)).toMatchObject({
-      max_tokens: 8000,
-      temperature: 0.1,
-    });
+    const body: unknown = JSON.parse(wire.body);
+    expect(body).toMatchObject({ max_tokens: 8000, temperature: 0.1 });
+    expect(body).not.toHaveProperty('max_completion_tokens');
   });
 });

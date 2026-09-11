@@ -23,9 +23,12 @@
  *    including every `budget-tokens` model — keeps the parameter off the
  *    wire exactly as before.
  *
- *  - Knob `effort` (OpenAI-style `reasoning_effort`): providers accept only
- *    three named levels, so the five steps fold to low → low, medium →
- *    medium, and high / extra / max → high. Temperature and the default
+ *  - Knob `effort` (a named level the endpoint takes): the step travels
+ *    UNFOLDED and each wire dialect folds it to its own vocabulary — the
+ *    OpenAI surface knows three levels (`reasoning_effort`, so high / extra /
+ *    max all land on high), the Anthropic one all five (`output_config.
+ *    effort`, where extra is spelled `xhigh`). Folding here instead would cap
+ *    every endpoint at the narrowest of them. Temperature and the default
  *    `maxTokens` stay as in the default case.
  *
  *  - Knob `budget-tokens` (Anthropic-style extended thinking): each step
@@ -50,7 +53,10 @@
  * regenerate) resolves sampling through the same call.
  */
 
-import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import type {
+  ModelCatalogEntry,
+  ReasoningOff,
+} from '@tale/shared/schemas/providers';
 
 /** The user-facing scale, in ascending order of effort. */
 export const EFFORT_LEVELS = ['low', 'medium', 'high', 'extra', 'max'] as const;
@@ -74,9 +80,12 @@ export interface TurnSampling {
   reasoning?:
     | {
         kind: 'effort';
-        /** A named provider level. The picker produces low/medium/high; the
-         * off values come only from a catalog `reasoning.off` declaration. */
-        value: 'none' | 'minimal' | 'low' | 'medium' | 'high';
+        /** The user's own step, UNFOLDED — or a catalog `reasoning.off`
+         * literal when the turn switches reasoning off. Folding belongs to
+         * the wire, not here: the OpenAI surface accepts three levels and the
+         * Anthropic one all five, so a fold applied at this layer would cap
+         * every endpoint at the narrowest of them (it did, at `high`). */
+        value: ReasoningEffort | ReasoningOff;
       }
     | { kind: 'thinking'; budgetTokens: number };
 }
@@ -91,15 +100,6 @@ const DEFAULT_TEMPERATURE = 0.7;
  * usable budget. */
 const THINKING_ANSWER_HEADROOM = 4096;
 const MIN_THINKING_BUDGET = 1024;
-
-/** Five steps → three provider levels: the wire knows only low/medium/high. */
-const EFFORT_KNOB_LEVELS: Record<ReasoningEffort, 'low' | 'medium' | 'high'> = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-  extra: 'high',
-  max: 'high',
-};
 
 /** Five steps → thinking-token budgets, before the per-model clamp. */
 const THINKING_BUDGETS: Record<ReasoningEffort, number> = {
@@ -167,10 +167,7 @@ export function resolveTurnSampling(
       : undefined;
     return {
       ...defaultSampling(model),
-      reasoning: {
-        kind: 'effort',
-        value: forcedOff ?? EFFORT_KNOB_LEVELS[effort],
-      },
+      reasoning: { kind: 'effort', value: forcedOff ?? effort },
     };
   }
 
