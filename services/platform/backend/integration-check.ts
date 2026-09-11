@@ -2529,6 +2529,33 @@ async function checkTasks(
       afterProjectArchive.some((h) => h.taskId === archivedTaskId),
     `archivedHit=${JSON.stringify(archivedHit)}, liveHit=${JSON.stringify(liveHit)}, liveFirst=${liveSortsFirst}, afterProjectArchive=${JSON.stringify(afterProjectArchive.map((h) => [h.taskId === liveTaskId ? 'live' : 'archived', h.archived, h.projectArchived]))}`,
   );
+
+  // The SQL ORDER BY, on its own. The page is capped at SEARCH_MAX_RESULTS
+  // (25); fill it with live rows so an archived row can only appear by
+  // displacing one. Archiving bumps `updated_at_ms`, so a recency-only sort
+  // puts the archived row first. At exactly 25 field hits the comment leg —
+  // and with it the merge sort — never runs, leaving the SQL key alone.
+  const CAP = 25;
+  const crowdIds: string[] = [];
+  for (let i = 0; i < CAP; i += 1) {
+    crowdIds.push(await mkTask(`Crowdable live ${i}`));
+  }
+  const crowdArchivedId = await mkTask('Crowdable archived');
+  await send(
+    'POST',
+    `/api/app/tasks/${crowdArchivedId}/archive?orgId=${orgId}`,
+  );
+  const crowded = hitSchema.safeParse(
+    await get(`/api/app/tasks/search?q=Crowdable&orgId=${orgId}`),
+  );
+  const crowdedRows = crowded.success ? crowded.data.results : [];
+  record(
+    'a capped page keeps live tasks and drops the archived one (#2999)',
+    crowdedRows.length === CAP &&
+      !crowdedRows.some((h) => h.taskId === crowdArchivedId) &&
+      crowdIds.every((id) => crowdedRows.some((h) => h.taskId === id)),
+    `rows=${crowdedRows.length} (want ${CAP}), archivedPresent=${crowdedRows.some((h) => h.taskId === crowdArchivedId)} (want false), liveMissing=${crowdIds.filter((id) => !crowdedRows.some((h) => h.taskId === id)).length} (want 0)`,
+  );
 }
 
 /**
