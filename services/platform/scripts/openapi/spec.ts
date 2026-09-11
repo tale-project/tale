@@ -15,15 +15,55 @@
 import { z } from 'zod';
 
 import {
+  CONTENT_MAX_LENGTH,
+  TOPIC_MAX_LENGTH,
+} from '../../backend/core/knowledge_entries/constants.ts';
+import {
+  PRODUCT_CATEGORY_MAX,
+  PRODUCT_CURRENCY_MAX,
+  PRODUCT_DESCRIPTION_MAX,
+  PRODUCT_IMAGE_URL_MAX,
+  PRODUCT_NAME_MAX,
+} from '../../backend/core/products/field_limits.ts';
+import {
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+} from '../../backend/core/tasks/helpers.ts';
+import { SCAN_INTERVAL_VALUES } from '../../backend/core/websites/types.ts';
+import {
+  CONTACT_EMAIL_MAX,
+  CONTACT_EXTERNAL_ID_MAX,
+  CONTACT_LOCALE_MAX,
+  CONTACT_NAME_MAX,
+  CONTACT_NOTES_MAX,
+  CONTACT_PHONE_MAX,
+  CONTACT_TAG_MAX,
+  CONTACT_TAGS_MAX,
+} from '../../backend/domains/contacts/input-schema.ts';
+import {
+  PRODUCT_EXTERNAL_ID_MAX,
+  PRODUCT_TAG_MAX,
+  PRODUCT_TAGS_MAX,
+} from '../../backend/domains/products/input-schema.ts';
+import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
+import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equipment.ts';
+import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
+import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
+import {
   apiDeliveryFailureSchema,
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
-import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
+import {
+  PROJECT_AGENT_BINDINGS_MAX,
+  PROJECT_AGENT_MODEL_MAX,
+  projectAgentInputSchema,
+} from '../../lib/shared/schemas/projects.ts';
 
 export type Json = Record<string, unknown>;
 
 const sec = [{ bearerAuth: [] }];
+const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
 /** The flat error envelope every non-2xx response carries. */
 function errorResponse(description: string) {
@@ -107,11 +147,13 @@ function paginationParams(
       'cursor',
       `The previous page’s \`${cursorField}\`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 \`INVALID_CURSOR\` rather than read as the first page`,
     ),
-    queryParam(
-      'limit',
-      `Page size, 1..${max} (default ${fallback}; out-of-range numbers are clamped, a value that is not a number answers 400 \`INVALID_LIMIT\`)`,
-      { type: 'integer' },
-    ),
+    {
+      ...queryParam(
+        'limit',
+        `Page size, 1..${max} (default ${fallback}; out-of-range numbers are clamped, a value that is not a number answers 400 \`INVALID_LIMIT\`)`,
+      ),
+      schema: { type: 'integer', minimum: 1, maximum: max, default: fallback },
+    },
   ];
 }
 
@@ -149,6 +191,117 @@ const int: Json = { type: 'integer' };
 const bool: Json = { type: 'boolean' };
 const obj: Json = { type: 'object', additionalProperties: true };
 const strArray: Json = { type: 'array', items: str };
+/** A number whose magnitude JSON can carry exactly: beyond 2^53 − 1 the
+ * parser rounds it before any schema sees it, so the door refuses it. */
+const safeNumber: Json = {
+  type: 'number',
+  minimum: -Number.MAX_SAFE_INTEGER,
+  maximum: Number.MAX_SAFE_INTEGER,
+};
+
+/** The project-agent body: the shared zod schema rendered to JSON Schema,
+ * with the closed tool-grant vocabulary the catalog carries — a name
+ * outside it is refused (`PROJECT_AGENT_TOOL_UNKNOWN`), never dropped. */
+const projectAgentInputSpec: Json = (() => {
+  const rendered = z.toJSONSchema(projectAgentInputSchema.strict(), {
+    target: 'openapi-3.0',
+    io: 'input',
+  });
+  const properties =
+    typeof rendered.properties === 'object' && rendered.properties !== null
+      ? { ...rendered.properties }
+      : {};
+  properties.tools = {
+    type: 'array',
+    maxItems: PROJECT_AGENT_BINDINGS_MAX,
+    items: { type: 'string', enum: [...AGENT_TOOL_GRANT_NAMES] },
+    description:
+      'Workspace tool grants, from the catalog above; omitted resets to none',
+  };
+  properties.model = {
+    type: 'string',
+    minLength: 1,
+    maxLength: PROJECT_AGENT_MODEL_MAX,
+    description:
+      'A model id `GET /api/v1/models` lists for this organization — with ' +
+      '`modelProvider`, the exact (provider, model) pair',
+  };
+  properties.modelProvider = {
+    type: 'string',
+    maxLength: PROJECT_AGENT_MODEL_MAX,
+    description:
+      'The provider slug serving `model`, from `GET /api/v1/models`; ' +
+      'omitted, any provider serving the id is accepted',
+  };
+  properties.skills = {
+    type: 'array',
+    maxItems: PROJECT_AGENT_BINDINGS_MAX,
+    items: { type: 'string' },
+    description:
+      'Skill slugs the project can see (`GET /api/v1/skills`); an unknown ' +
+      'slug is refused',
+  };
+  properties.connectors = {
+    type: 'array',
+    maxItems: PROJECT_AGENT_BINDINGS_MAX,
+    items: { type: 'string' },
+    description:
+      'Connector slugs the organization has connected; an unknown or ' +
+      'unconnected one is refused',
+  };
+  return {
+    ...rendered,
+    properties,
+    description:
+      'Full project-agent configuration. name, harness, model, skills and ' +
+      'connectors are required. Harness must support project-agent ' +
+      'execution (Cursor is excluded). Every equipment field is checked ' +
+      'against what this organization can serve — the model pair against ' +
+      '`GET /api/v1/models`, skills against `GET /api/v1/skills`, ' +
+      'connectors against the connected set, tools against the grant ' +
+      'catalog — and refused by name otherwise. Omitted ' +
+      'modelProvider/instructions reset to null; omitted tools/secrets reset ' +
+      'to empty arrays. secrets contains organization secret NAMES, never ' +
+      'values; only organization admins may change these grants. Unknown ' +
+      'secret names are pruned.',
+  };
+})();
+
+/** The contact write fields (`domains/contacts/input-schema.ts`), shared
+ * by the create body and the patch body. */
+const contactInputProperties: Json = {
+  name: { ...str, maxLength: CONTACT_NAME_MAX },
+  email: { ...str, format: 'email', maxLength: CONTACT_EMAIL_MAX },
+  phone: { ...str, maxLength: CONTACT_PHONE_MAX },
+  source: {
+    type: 'string',
+    enum: [...dataSourceSchema.options],
+    description:
+      'Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed',
+  },
+  locale: { ...str, maxLength: CONTACT_LOCALE_MAX },
+  address: obj,
+  externalId: {
+    oneOf: [
+      { type: 'string', maxLength: CONTACT_EXTERNAL_ID_MAX },
+      {
+        type: 'integer',
+        minimum: -Number.MAX_SAFE_INTEGER,
+        maximum: Number.MAX_SAFE_INTEGER,
+      },
+    ],
+    description:
+      'Stored as a string. Send a source system’s id as a string: a number ' +
+      'beyond 2^53 − 1 cannot be carried exactly and is refused',
+  },
+  tags: {
+    type: 'array',
+    items: { ...str, maxLength: CONTACT_TAG_MAX },
+    maxItems: CONTACT_TAGS_MAX,
+  },
+  metadata: obj,
+  notes: { ...str, maxLength: CONTACT_NOTES_MAX },
+};
 
 const automationNameParam = pathParam(
   'name',
@@ -176,19 +329,41 @@ const orgSlugHeaderParam = {
 export function buildSpec(): Json {
   const paths: Record<string, Json> = {};
 
+  /** The tenant header on every conversation call, reads included — the
+   * strict posture the projects and tasks families share: a multi-org key
+   * must name its organization, a single-org key may omit it. */
   const conversationOrg = {
     ...orgSlugHeaderParam,
-    required: true,
     description:
-      'Required on every conversation API request, including single-organization keys.',
+      'The organization to operate on. STRICTLY REQUIRED on every ' +
+      'conversation call, reads included, when the key holder belongs to ' +
+      'more than one organization (400 `ORG_SLUG_REQUIRED` without it); a ' +
+      'single-organization key may omit it. `GET /api/v1/me` answers the ' +
+      'slug to send.',
   };
   const conversationErrors = {
     ...standardErrors,
     '403': errorResponse(
-      'Read-only role or another service user owns this binding',
+      'A read-only role (`ROLE_FORBIDDEN`), an integration another ' +
+        'service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is ' +
+        'not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an ' +
+        'unverified author (`AUTHOR_UNVERIFIED`)',
     ),
-    '409': errorResponse('Conflicting identity, revision, or receipt'),
-    '413': errorResponse('Request body exceeds its byte limit'),
+    '404': errorResponse(
+      'The contact `externalContactId` names does not exist ' +
+        '(`CONTACT_NOT_FOUND`), or the delivery or attachment is absent ' +
+        '(`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)',
+    ),
+    '409': errorResponse(
+      'Conflicting identity, revision, or receipt: ' +
+        '`CONVERSATION_SNAPSHOT_CONFLICT`, `CONVERSATION_CONTACT_CONFLICT`, ' +
+        '`CONTACT_AMBIGUOUS`, `DELIVERY_UNACKNOWLEDGED`, ' +
+        '`DELIVERY_RECEIPT_CONFLICT`, `DELIVERY_RETRY_UNAVAILABLE`, ' +
+        '`CONVERSATION_CLOSED`',
+    ),
+    '413': errorResponse(
+      'Request body exceeds its byte limit (`BODY_TOO_LARGE`)',
+    ),
   };
   const conversationOperation = {
     tags: ['Conversations'],
@@ -212,6 +387,24 @@ export function buildSpec(): Json {
       },
     },
   };
+  paths['/api/v1/me'] = {
+    get: {
+      tags: ['Organization'],
+      summary: 'Who this key acts as',
+      description:
+        'The key holder, the organization this request resolved to — its ' +
+        '`slug` is the `X-Organization-Slug` value a multi-organization key ' +
+        'sends — and every organization the holder belongs to.',
+      operationId: 'getMe',
+      security: sec,
+      parameters: [orgSlugHeaderParam],
+      responses: {
+        '200': jsonResponse('The caller and its organizations', ref('Me')),
+        ...standardErrors,
+      },
+    },
+  };
+
   paths['/api/v1/conversations/sync'] = {
     get: {
       ...conversationOperation,
@@ -344,8 +537,10 @@ export function buildSpec(): Json {
           required: ['ok'],
           properties: { ok: bool },
         }),
-        '404': errorResponse('No delivery owned by this user'),
         ...conversationErrors,
+        '404': errorResponse(
+          'No delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+        ),
       },
     },
   };
@@ -378,8 +573,10 @@ export function buildSpec(): Json {
           required: ['ok'],
           properties: { ok: bool },
         }),
-        '404': errorResponse('No claimed delivery owned by this user'),
         ...conversationErrors,
+        '404': errorResponse(
+          'No claimed delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+        ),
       },
     },
   };
@@ -409,8 +606,10 @@ export function buildSpec(): Json {
             },
           },
         },
-        '404': errorResponse('No owned, claimed attachment'),
         ...conversationErrors,
+        '404': errorResponse(
+          'No owned, claimed attachment (`DELIVERY_NOT_FOUND`, `ATTACHMENT_NOT_FOUND`)',
+        ),
       },
     },
   };
@@ -538,7 +737,10 @@ export function buildSpec(): Json {
         '403': errorResponse('The key holder’s role cannot write documents'),
         '404': errorResponse('Document not found'),
         '409': errorResponse(
-          'A protected record (`DOCUMENT_RECORD_PROTECTED`) or a legal hold',
+          'A protected record (`DOCUMENT_RECORD_PROTECTED`) or a legal hold (`LEGAL_HOLD_ACTIVE`)',
+        ),
+        '503': errorResponse(
+          'The purge could not remove every dead surface (`PURGE_INCOMPLETE`): the row was kept so the delete can be retried',
         ),
         ...standardErrors,
       },
@@ -610,7 +812,27 @@ export function buildSpec(): Json {
       requestBody: jsonBody(ref('WebsiteInput')),
       responses: {
         '201': createdId('Created — the website’s id'),
+        '200': jsonResponse(
+          'With `urls`, the domain was already registered as a list: its ' +
+            'URLs were extended and this is the EXISTING website’s id',
+          {
+            type: 'object',
+            required: ['id'],
+            properties: { id: { type: 'string' } },
+          },
+        ),
+        '409': errorResponse(
+          'The domain is already registered as a whole-site crawl ' +
+            '(`WEBSITE_DUPLICATE_DOMAIN`)',
+        ),
         ...standardErrors,
+        '400': errorResponse(
+          'A body the schema refuses (`INVALID_BODY`), a `domain` that names ' +
+            'no http(s) host (`WEBSITE_DOMAIN_INVALID`), a domain the crawl ' +
+            'policy refuses — loopback, link-local, private-network or cloud ' +
+            'metadata hosts (`WEBSITE_DOMAIN_NOT_CRAWLABLE`) — or a list URL ' +
+            'off the domain (`WEBSITE_INVALID_LIST_URL`)',
+        ),
       },
     },
   };
@@ -624,7 +846,7 @@ export function buildSpec(): Json {
       parameters: [pathParam('id', 'Website ID')],
       responses: {
         '200': jsonResponse('The website', ref('Website')),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -637,7 +859,7 @@ export function buildSpec(): Json {
       requestBody: jsonBody(ref('WebsitePatch')),
       responses: {
         '204': noContent('Updated'),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -650,7 +872,7 @@ export function buildSpec(): Json {
       parameters: [pathParam('id', 'Website ID')],
       responses: {
         '204': noContent('Deleted'),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -680,7 +902,7 @@ export function buildSpec(): Json {
       ],
       responses: {
         '200': jsonResponse('The pages window', ref('WebsitePageList')),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -702,7 +924,7 @@ export function buildSpec(): Json {
           required: ['status'],
           properties: { status: { type: 'string', enum: ['syncing'] } },
         }),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -721,8 +943,9 @@ export function buildSpec(): Json {
       requestBody: jsonBody({
         type: 'object',
         required: ['query'],
+        additionalProperties: false,
         properties: {
-          query: str,
+          query: { ...str, minLength: 1, maxLength: 1000 },
           limit: {
             type: 'integer',
             description:
@@ -732,7 +955,7 @@ export function buildSpec(): Json {
       }),
       responses: {
         '200': jsonResponse('Matches', ref('WebsiteSearchResults')),
-        '404': errorResponse('Website not found'),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -821,7 +1044,9 @@ export function buildSpec(): Json {
       }),
       responses: {
         '201': createdId('Created — the product’s id'),
-        '409': errorResponse('Duplicate external id'),
+        '409': errorResponse(
+          'Duplicate name (`DUPLICATE_PRODUCT_NAME`) or external id (`DUPLICATE_EXTERNAL_ID`)',
+        ),
         ...standardErrors,
       },
     },
@@ -846,11 +1071,15 @@ export function buildSpec(): Json {
       operationId: 'updateProduct',
       security: sec,
       parameters: [pathParam('id', 'Product ID')],
-      requestBody: jsonBody(ref('ProductInput')),
+      requestBody: jsonBody(ref('ProductPatch')),
       responses: {
         '200': jsonResponse('The updated product', ref('Product')),
-        '404': errorResponse('Product not found'),
-        '409': errorResponse('Duplicate external id'),
+        '404': errorResponse('Product not found (`PRODUCT_NOT_FOUND`)'),
+        '409': errorResponse(
+          'Duplicate name (`DUPLICATE_PRODUCT_NAME`) or external id ' +
+            '(`DUPLICATE_EXTERNAL_ID`), or a stale `expectedUpdatedAt` ' +
+            '(`PRODUCT_STALE`)',
+        ),
         ...standardErrors,
       },
     },
@@ -895,7 +1124,10 @@ export function buildSpec(): Json {
       requestBody: jsonBody(ref('ContactInput')),
       responses: {
         '201': createdId('Created — the contact’s id'),
-        '409': errorResponse('Duplicate email or external id'),
+        '409': errorResponse(
+          'Duplicate email (`CONTACT_DUPLICATE_EMAIL`) or external id ' +
+            '(`CONTACT_DUPLICATE_EXTERNAL_ID`)',
+        ),
         ...standardErrors,
       },
     },
@@ -906,7 +1138,7 @@ export function buildSpec(): Json {
       tags: ['Contacts'],
       summary: 'Create contacts in bulk',
       description:
-        'Up to 500 contacts per call, each needing an `email`. Rows are ' +
+        'Up to 500 contacts per call, each carrying at least one of name, email or externalId (a blank email reads as none); the per-row duplicate check keys on email and externalId. Rows are ' +
         'created independently: the result counts successes and failures ' +
         'and names each failed row with its reason.',
       operationId: 'bulkCreateContacts',
@@ -950,26 +1182,14 @@ export function buildSpec(): Json {
       operationId: 'patchContact',
       security: sec,
       parameters: [pathParam('id', 'Contact ID')],
-      requestBody: jsonBody({
-        allOf: [
-          ref('ContactInput'),
-          {
-            type: 'object',
-            properties: {
-              expectedUpdatedAt: {
-                type: 'integer',
-                minimum: 0,
-                maximum: Number.MAX_SAFE_INTEGER,
-              },
-            },
-          },
-        ],
-      }),
+      requestBody: jsonBody(ref('ContactPatch')),
       responses: {
         '200': jsonResponse('The updated contact', ref('Contact')),
-        '404': errorResponse('Contact not found'),
+        '404': errorResponse('Contact not found (`CONTACT_NOT_FOUND`)'),
         '409': errorResponse(
-          'Duplicate email/external id or stale expectedUpdatedAt',
+          'Duplicate email (`CONTACT_DUPLICATE_EMAIL`) or external id ' +
+            '(`CONTACT_DUPLICATE_EXTERNAL_ID`), or a stale ' +
+            '`expectedUpdatedAt` (`CONTACT_STALE`)',
         ),
         ...standardErrors,
       },
@@ -1031,8 +1251,10 @@ export function buildSpec(): Json {
         'regardless of lifecycle — a conflict against an archived project ' +
         'is still a 409. A blank or over-long value is a 400. `key` (the ' +
         'task-identifier prefix) is derived from the name when omitted; a ' +
-        'name no key can be derived from creates the project keyless. ' +
-        'A key collision answers 409; choose an explicit unused key.',
+        'derived key that is already taken gets a numeric suffix, and a ' +
+        'name no key can be derived from creates the project keyless — a ' +
+        'name-only create never fails on a key the caller did not choose. ' +
+        'Only an EXPLICIT `key` that is taken answers 409.',
       operationId: 'createProject',
       security: sec,
       parameters: [orgSlugHeaderParam],
@@ -1047,8 +1269,9 @@ export function buildSpec(): Json {
             type: 'string',
             description:
               'Immutable 2-6 char task-key prefix. Omitted: derived from ' +
-              'the name, keyless when underivable. Letters and digits only; ' +
-              'normalized to uppercase, never truncated. A collision is a 409.',
+              'the name (suffixed when taken), keyless when underivable. ' +
+              'Letters and digits only; normalized to uppercase, never ' +
+              'truncated. An explicit key that is taken is a 409.',
             maxLength: 6,
           },
           description: { type: 'string', maxLength: 500 },
@@ -1060,8 +1283,13 @@ export function buildSpec(): Json {
           required: ['project'],
           properties: { project: ref('Project') },
         }),
-        '403': errorResponse('The key holder is not an org editor'),
-        '409': errorResponse('Duplicate externalItemId or project key'),
+        '403': errorResponse(
+          'The key holder is not an org editor (`ROLE_FORBIDDEN`)',
+        ),
+        '409': errorResponse(
+          'Duplicate externalItemId (`PROJECT_DUPLICATE_EXTERNAL_ID`) or ' +
+            'an explicit project key that is taken (`PROJECT_KEY_TAKEN`)',
+        ),
         ...standardErrors,
       },
     },
@@ -1096,6 +1324,20 @@ export function buildSpec(): Json {
   ];
   const projectAgentErrors = {
     ...standardErrors,
+    '400': errorResponse(
+      'A body the schema refuses (`INVALID_BODY`); a harness that cannot ' +
+        'run project agents (`PROJECT_AGENT_HARNESS_INVALID`); a provider ' +
+        'this organization has no credential for ' +
+        '(`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or ' +
+        'that only a subscription bound to another harness serves ' +
+        '(`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the ' +
+        'pairs; a tool grant outside the catalog ' +
+        '(`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see ' +
+        '(`PROJECT_AGENT_SKILL_UNKNOWN`) or a connector the organization ' +
+        'has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`); a duplicate ' +
+        'name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit ' +
+        '(`PROJECT_AGENT_LIMIT`)',
+    ),
     '403': errorResponse(
       'Project is not editable, is archived, or the caller cannot change secret grants',
     ),
@@ -1256,7 +1498,9 @@ export function buildSpec(): Json {
         '`Content-Type` header (omit `contentType` and the PUT has no ' +
         'header requirement). The `uploadId` is a single-use intent valid ' +
         'until `expiresAt` (30 minutes); complete the upload with ' +
-        '`POST /api/v1/projects/{id}/files`. Requires the org editor ' +
+        '`POST /api/v1/projects/{id}/files`. The signed URL is valid for ' +
+        'exactly as long as the intent — `expiresAt` is the one deadline ' +
+        'for both. Requires the org editor ' +
         'role and project edit access. Uses the upload lane bucket ' +
         '(240/min — one logical upload is several calls; keyed on the key ' +
         'holder like every REST budget).',
@@ -1268,7 +1512,16 @@ export function buildSpec(): Json {
           type: 'object',
           additionalProperties: false,
           properties: {
-            fileName: { type: 'string', maxLength: 1024 },
+            fileName: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 1024,
+              description:
+                'Optional. Checked against the bind’s own rule (a file ' +
+                'name — no path separators, no `..`, no control ' +
+                'characters) so a bad name fails here, before the bytes ' +
+                'are uploaded; the bind’s `fileName` is what is stored.',
+            },
             contentType: { type: 'string', maxLength: 255 },
           },
         },
@@ -1333,12 +1586,17 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse('The files', {
           type: 'object',
-          required: ['files'],
+          required: ['files', 'isDone'],
           properties: {
             files: { type: 'array', items: ref('ProjectFile') },
+            isDone: {
+              type: 'boolean',
+              description: 'True when no more pages remain',
+            },
             cursor: {
               type: 'string',
-              description: 'Present while more pages remain',
+              description:
+                'Present while more pages remain — pass back as `cursor`',
             },
           },
         }),
@@ -1357,11 +1615,14 @@ export function buildSpec(): Json {
         'DEFAULTS TO TRUE — project ledger files are working material, not ' +
         'organization knowledge; pass `false` explicitly to index the file ' +
         'into the knowledge corpus. The organization’s upload policy applies ' +
-        'to the landed bytes (authoritative size): a size cap, MIME or ' +
-        'extension allowlist, or per-user volume refusal answers 400 with ' +
+        'to the landed bytes (authoritative size): a size cap, extension ' +
+        'allowlist, or per-user volume refusal answers 400 with ' +
         'code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / ' +
-        '`UNSUPPORTED_FILE_TYPE`, and the organization’s `file:upload` ' +
-        'budget answers 429. A refusal rolls the ' +
+        '`UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s ' +
+        'extension; a declared `contentType` is a hint resolved against ' +
+        'it), and the organization’s `file:upload` ' +
+        'budget answers 429. `fileName` must be a file name — no path ' +
+        'separators, no `..`, no control characters. A refusal rolls the ' +
         'intent consume back, so the handshake survives a corrected retry. ' +
         'Uses the upload lane bucket (240/min, keyed on the key holder).',
       operationId: 'bindProjectFile',
@@ -1407,8 +1668,9 @@ export function buildSpec(): Json {
             '(`UPLOAD_POLICY_REJECTED`, `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`)',
         ),
         '409': errorResponse(
-          'The upload intent is unknown, expired, already consumed, or ' +
-            'does not match `fileId`',
+          'The upload intent is unknown, expired or already consumed — mint ' +
+            'a new handoff (`UPLOAD_INTENT_INVALID`) — or `fileId` is not ' +
+            'the `s3Ref` it was minted for (`UPLOAD_FILE_MISMATCH`)',
         ),
       },
     },
@@ -1437,12 +1699,13 @@ export function buildSpec(): Json {
         'returns the same task (200). An active task takes the new title and description ' +
         '(omitting description clears it); labels change only when supplied. An archived ' +
         'task stays unchanged. An archived project refuses intake. The key holder creates ' +
-        'the task; imported titles are truncated to the board cap. `automationSlug` must ' +
+        'the task. `automationSlug` must ' +
         'name a deployed automation applicable to this project and fills an empty assignee ' +
         'without replacing an existing one. `runWorkflowSlug` starts only a freshly created ' +
         'task; poll its executionId at `GET /api/v1/projects/{id}/runs/{runId}`. An undeployed ' +
         'workflow or a start failure after the task committed returns executionId null. ' +
-        'An idempotent repeat omits executionId. Supplying runWorkflowSlug charges the ' +
+        'An idempotent repeat omits executionId and does not re-validate `runWorkflowSlug` ' +
+        '(a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the ' +
         'execute bucket before intake, in addition to the general REST bucket. Scope ' +
         'selectors such as projectId are refused in the body.',
       operationId: 'createTask',
@@ -1461,18 +1724,37 @@ export function buildSpec(): Json {
             description:
               'Caller-owned idempotency key within this project and external system',
           },
-          title: { type: 'string', minLength: 1, maxLength: 2000 },
+          title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: TASK_TITLE_MAX,
+            description:
+              'The board’s title cap; a longer title is refused with 400 ' +
+              '`INVALID_BODY`, never clipped',
+          },
           description: { type: 'string', maxLength: 20000 },
           labels: {
             type: 'array',
-            items: { type: 'string', maxLength: 50 },
+            items: { type: 'string', maxLength: TASK_LABEL_CHARS_MAX },
             maxItems: 50,
             description: 'Names resolved against the project label catalog',
           },
           externalUrl: {
             type: 'string',
+            format: 'uri',
             maxLength: 2048,
-            description: 'External reference stored verbatim',
+            description:
+              'An absolute http(s) URL to the source item, rendered as a ' +
+              'link; any other scheme is refused. Changes only when supplied.',
+          },
+          externalState: {
+            type: 'string',
+            enum: ['open', 'closed'],
+            description:
+              'The source item’s lifecycle (default `open`). `closed` parks ' +
+              'the task for review — done, when the caller may complete it; ' +
+              '`open` reopens a done task. Local triage owns every other ' +
+              'status.',
           },
           runWorkflowSlug: {
             type: 'string',
@@ -1534,16 +1816,7 @@ export function buildSpec(): Json {
         'The newest page first, chronological within each page. The default is 200 comments, at most 500. While isDone is false, pass continueCursor as cursor to read older comments. The task must belong to this project and be visible to the key holder.',
       operationId: 'listTaskComments',
       security: sec,
-      parameters: [
-        ...taskParameters,
-        queryParam('limit', 'Page size from 1 to 500; default 200', {
-          type: 'integer',
-        }),
-        queryParam(
-          'cursor',
-          'The previous page’s continueCursor; omit for the newest page',
-        ),
-      ],
+      parameters: [...taskParameters, ...paginationParams(500, 200)],
       responses: {
         '200': jsonResponse('The discussion page', {
           type: 'object',
@@ -1665,9 +1938,11 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations',
       description:
-        'The organization’s automation definitions, by name, as a complete set. ' +
-        'Project binding IDs are omitted. Read `/api/v1/projects/{id}/automations` ' +
-        'for the automations installed in a visible project.',
+        'The organization’s automation definitions, by name, as a complete set ' +
+        '(not paginated). Each carries the ids of the projects it is installed ' +
+        'in that the key holder can see — the scope a project-bound automation ' +
+        'must be started in. Read `/api/v1/projects/{id}/automations` for the ' +
+        'automations installed in one visible project.',
       operationId: 'listAutomations',
       security: sec,
       responses: {
@@ -1694,7 +1969,30 @@ export function buildSpec(): Json {
       ],
       responses: {
         '200': jsonResponse('The automation version', ref('Automation')),
-        '404': errorResponse('Automation not found'),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+    delete: {
+      tags: ['Automations'],
+      summary: 'Delete an automation',
+      description:
+        'Retires the automation: every version, its trigger and its project ' +
+        'installations. Run history is kept. Requires the developer ' +
+        'capability. A run still in flight refuses the delete — cancel or ' +
+        'wait for it first.',
+      operationId: 'deleteAutomation',
+      security: sec,
+      parameters: [automationNameParam],
+      responses: {
+        '204': noContent('Deleted'),
+        '403': errorResponse(
+          'The key holder lacks the developer capability (`ROLE_FORBIDDEN`)',
+        ),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
+        '409': errorResponse(
+          'A run is still in flight (`AUTOMATION_HAS_ACTIVE_RUNS`)',
+        ),
         ...standardErrors,
       },
     },
@@ -1713,6 +2011,7 @@ export function buildSpec(): Json {
           'Immutable version history',
           listOf('versions', ref('AutomationVersion'), { name: str }),
         ),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -1727,7 +2026,10 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations installed in a project',
       description:
-        'The definitions explicitly bound to the URL project. Requires project read access and omits all project binding IDs. Organization-wide definitions are available from the global catalog.',
+        'The definitions explicitly bound to the URL project, each with the ' +
+        'ids of the projects it is installed in that the key holder can see. ' +
+        'Requires project read access. Organization-wide definitions are ' +
+        'available from the global catalog.',
       operationId: 'listProjectAutomations',
       security: sec,
       parameters: projectAutomationParameters,
@@ -1742,6 +2044,30 @@ export function buildSpec(): Json {
     },
   };
   paths['/api/v1/projects/{id}/automations/{name}'] = {
+    delete: {
+      tags: ['Automations'],
+      summary: 'Uninstall an automation from a project',
+      description:
+        'Removes the binding to the URL project — the inverse of the install. ' +
+        'The definition, its other installations and its run history stay. ' +
+        'Requires the developer capability and write access to an active ' +
+        'project.',
+      operationId: 'unbindAutomationProject',
+      security: sec,
+      parameters: [...projectAutomationParameters, automationNameParam],
+      responses: {
+        '204': noContent('Uninstalled'),
+        '403': errorResponse(
+          'Requires developer capability and write access to an active project',
+        ),
+        '404': errorResponse(
+          'Automation or visible project not found (`AUTOMATION_NOT_FOUND`, ' +
+            '`PROJECT_NOT_FOUND`), or the automation is not installed here ' +
+            '(`AUTOMATION_NOT_INSTALLED`)',
+        ),
+        ...standardErrors,
+      },
+    },
     post: {
       tags: ['Automations'],
       summary: 'Install an automation in a project',
@@ -1804,9 +2130,11 @@ export function buildSpec(): Json {
         ],
         responses: {
           '200': jsonResponse('Newest runs first', listOf('runs', ref('Run'))),
-          ...(scope.project
-            ? { '404': errorResponse('Project missing or invisible') }
-            : {}),
+          '404': errorResponse(
+            scope.project
+              ? 'Project missing or invisible (`PROJECT_NOT_FOUND`), or automation not found (`AUTOMATION_NOT_FOUND`)'
+              : 'Automation not found (`AUTOMATION_NOT_FOUND`)',
+          ),
           ...standardErrors,
         },
       },
@@ -1864,8 +2192,8 @@ export function buildSpec(): Json {
           ),
           '409': errorResponse(
             scope.project
-              ? 'No deployed version, or the requested live version is not deployed'
-              : 'Project scope is required, no version is deployed, or the requested live version is not deployed',
+              ? 'No deployed version (`AUTOMATION_NOT_DEPLOYED`), or the requested live version is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`)'
+              : 'Project scope is required (`AUTOMATION_PROJECT_SCOPE_REQUIRED` — `data.projectIds` names the visible projects the automation is installed in; start it at `/api/v1/projects/{id}/automations/{name}/runs`), no version is deployed (`AUTOMATION_NOT_DEPLOYED`), or the requested live version is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`)',
           ),
           ...standardErrors,
         },
@@ -1888,6 +2216,7 @@ export function buildSpec(): Json {
           'The trigger binding',
           listOf('triggers', ref('Trigger'), { name: str }),
         ),
+        '404': errorResponse('Automation not found (`AUTOMATION_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -1897,13 +2226,15 @@ export function buildSpec(): Json {
       description:
         'Requires the developer capability. For a webhook trigger the ' +
         'plaintext token is returned ONCE in this response (and again only ' +
-        'with `rotateToken: true`); the platform stores a hash.',
+        'with `rotateToken: true`); the platform stores a hash. Unknown ' +
+        'keys are refused (`INVALID_BODY`).',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
       requestBody: jsonBody({
         type: 'object',
         required: ['kind'],
+        additionalProperties: false,
         properties: {
           kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
           cron: {
@@ -2032,22 +2363,13 @@ export function buildSpec(): Json {
       tags: ['Threads'],
       summary: 'List available chat models',
       description:
-        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.',
+        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model when sending a message, and providerSlug when the same id is listed under more than one provider. Each entry carries what a client needs to choose — context window, output cap, capabilities, price when the catalog publishes one, tags — and `default: true` marks the organization’s default pick for this key holder. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.',
       operationId: 'listChatModels',
       security: sec,
       responses: {
         '200': jsonResponse(
           'Available models',
-          listOf('models', {
-            type: 'object',
-            required: ['id', 'label', 'providerSlug', 'providerLabel'],
-            properties: {
-              id: str,
-              label: str,
-              providerSlug: str,
-              providerLabel: str,
-            },
-          }),
+          listOf('models', ref('ChatModel')),
         ),
         ...standardErrors,
       },
@@ -2127,6 +2449,9 @@ export function buildSpec(): Json {
         },
       },
     };
+    const archivedProject = scope.project
+      ? { '403': errorResponse('The project is archived') }
+      : {};
     paths[scope.item] = {
       get: {
         tags: ['Threads'],
@@ -2141,12 +2466,49 @@ export function buildSpec(): Json {
           ...standardErrors,
         },
       },
+      patch: {
+        tags: ['Threads'],
+        summary: 'Archive or restore a thread',
+        description: `${visibility} Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 \`CHAT_THREAD_ARCHIVED\`; \`archived: false\` restores it.`,
+        operationId: scope.project ? 'updateProjectThread' : 'updateThread',
+        security: sec,
+        parameters: itemParameters,
+        requestBody: jsonBody({
+          type: 'object',
+          additionalProperties: false,
+          required: ['archived'],
+          properties: { archived: bool },
+        }),
+        responses: {
+          '200': jsonResponse('The thread after the change', ref('Thread')),
+          ...archivedProject,
+          '404': notFound,
+          ...standardErrors,
+        },
+      },
+      delete: {
+        tags: ['Threads'],
+        summary: 'Delete a thread',
+        description: `${visibility} Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running answers 409 \`CHAT_TURN_IN_PROGRESS\` — cancel the turn first.`,
+        operationId: scope.project ? 'deleteProjectThread' : 'deleteThread',
+        security: sec,
+        parameters: itemParameters,
+        responses: {
+          '204': noContent('Deleted'),
+          ...archivedProject,
+          '404': notFound,
+          '409': errorResponse(
+            'A turn is running on the thread (`CHAT_TURN_IN_PROGRESS`)',
+          ),
+          ...standardErrors,
+        },
+      },
     };
     paths[`${scope.item}/messages`] = {
       get: {
         tags: ['Threads'],
         summary: 'Read a thread’s messages',
-        description: `${visibility} Messages are in sequence order; use the previous continueCursor as cursor for the next page.`,
+        description: `${visibility} Messages are in sequence order; use the previous continueCursor as cursor for the next page. While a turn runs, its assistant row is already on the page with status \`pending\` and empty parts — the row GET ${scope.item}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final.`,
         operationId: scope.project
           ? 'listProjectThreadMessages'
           : 'listMessages',
@@ -2170,48 +2532,64 @@ export function buildSpec(): Json {
           additionalProperties: false,
           required: ['content', 'model'],
           properties: {
-            content: { type: 'string', minLength: 1, maxLength: 100000 },
+            content: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100000,
+              description:
+                'The prompt, trimmed before the length check — a blank prompt is 400 `INVALID_BODY`, not a turn.',
+            },
             model: {
               type: 'string',
               minLength: 1,
               maxLength: 200,
               description:
-                'Model ID from GET /api/v1/models; never auto-selected',
+                'Model ID from GET /api/v1/models; never auto-selected. Checked at the door: an id the list does not carry answers 400 `CHAT_MODEL_UNKNOWN`.',
             },
             providerSlug: {
               type: 'string',
               minLength: 1,
               maxLength: 200,
               description:
-                'Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider.',
+                'Provider slug returned with the model. Checked against GET /api/v1/models: a slug the list does not carry answers 400 `CHAT_PROVIDER_UNKNOWN`, one that does not serve the model 400 `CHAT_MODEL_NOT_ON_PROVIDER` — never a silent fallback to another provider. Optional when exactly one listed provider serves the model; a model listed under several providers answers 400 `CHAT_MODEL_AMBIGUOUS` with `data.providers` until one is named. The 202 names the provider the turn runs on either way.',
             },
-            locale: { type: 'string', minLength: 1, maxLength: 20 },
+            locale: {
+              type: 'string',
+              minLength: 2,
+              maxLength: 20,
+              pattern: '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$',
+              description:
+                'A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in. Defaults to `en`.',
+            },
           },
         }),
         responses: {
           '202': jsonResponse('Turn accepted', {
             type: 'object',
-            required: ['threadId', 'status', 'model', 'poll'],
+            required: ['threadId', 'status', 'model', 'providerSlug', 'poll'],
             properties: {
               threadId: str,
               status: { type: 'string', enum: ['accepted'] },
               model: str,
+              providerSlug: {
+                ...str,
+                description:
+                  'The provider the turn runs on — named in the request, or resolved from the model list',
+              },
               poll: {
                 type: 'string',
                 description: `Poll URL under ${scope.item}/generation`,
               },
             },
           }),
-          ...(scope.project
-            ? { '403': errorResponse('The project is archived') }
-            : {}),
+          ...archivedProject,
           '404': notFound,
           '409': errorResponse(
-            'Archived or non-direct thread, or a turn is already running',
+            'The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), or a turn is already running (`CHAT_TURN_IN_PROGRESS`)',
           ),
           ...standardErrors,
           '400': errorResponse(
-            'Invalid body, an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)',
+            'Invalid body (`INVALID_BODY`), a model the list does not carry (`CHAT_MODEL_UNKNOWN`), a model listed under several providers with none named (`CHAT_MODEL_AMBIGUOUS`), an unknown providerSlug (`CHAT_PROVIDER_UNKNOWN`), or a provider that does not serve the model (`CHAT_MODEL_NOT_ON_PROVIDER`)',
           ),
         },
       },
@@ -2248,6 +2626,34 @@ export function buildSpec(): Json {
           ...standardErrors,
         },
       },
+      delete: {
+        tags: ['Threads'],
+        summary: 'Cancel the running turn',
+        description: `${visibility} Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. No running turn answers 404 \`CHAT_TURN_NOT_RUNNING\`.`,
+        operationId: scope.project
+          ? 'cancelProjectThreadGeneration'
+          : 'cancelGeneration',
+        security: sec,
+        parameters: itemParameters,
+        responses: {
+          '202': jsonResponse('Cancellation requested', {
+            type: 'object',
+            required: ['status'],
+            properties: {
+              status: { type: 'string', enum: ['cancelling'] },
+              messageId: {
+                type: 'string',
+                description: 'The assistant message the turn was writing',
+              },
+            },
+          }),
+          ...archivedProject,
+          '404': errorResponse(
+            'Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no turn is running (`CHAT_TURN_NOT_RUNNING`)',
+          ),
+          ...standardErrors,
+        },
+      },
     };
   }
 
@@ -2267,7 +2673,24 @@ export function buildSpec(): Json {
         '200': jsonResponse(
           'The organization’s skills',
           listOf('skills', ref('SkillSummary'), {
-            failures: { type: 'array', items: obj },
+            failures: {
+              type: 'array',
+              description:
+                'Skill bundles on disk that could not be read — each names the bundle and why',
+              items: {
+                type: 'object',
+                required: ['slug', 'path', 'message'],
+                properties: {
+                  slug: str,
+                  path: {
+                    ...str,
+                    description:
+                      'The bundle’s path inside the organization’s skills tree',
+                  },
+                  message: str,
+                },
+              },
+            },
           }),
         ),
         ...standardErrors,
@@ -2308,9 +2731,12 @@ export function buildSpec(): Json {
       }),
       responses: {
         '200': jsonResponse('The saved skill', ref('Skill')),
-        '403': errorResponse('Not editable with this key'),
-        '422': errorResponse('The skill body is malformed'),
+        '403': errorResponse('Not editable with this key (`SKILL_FORBIDDEN`)'),
+        '422': errorResponse('The skill body is malformed (`SKILL_MALFORMED`)'),
         ...standardErrors,
+        '400': errorResponse(
+          'Invalid body (`INVALID_BODY`), a slug the file layer refuses (`INVALID_SKILL_SLUG`), an invalid skill (`INVALID_SKILL`), the retired private visibility (`SKILL_PRIVATE_RETIRED`), or a team id the organization does not have (`SKILL_TEAM_UNKNOWN`)',
+        ),
       },
     },
     delete: {
@@ -2321,14 +2747,31 @@ export function buildSpec(): Json {
       parameters: [pathParam('slug', 'The skill slug')],
       responses: {
         '204': noContent('Deleted'),
-        '403': errorResponse('Not deletable with this key'),
-        '404': errorResponse('No such skill'),
+        '403': errorResponse('Not deletable with this key (`SKILL_FORBIDDEN`)'),
+        '404': errorResponse('No such skill (`SKILL_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
   };
 
   // ── Knowledge ─────────────────────────────────────────────────────────────
+
+  /** The body both entry writes take — the domain's own caps, unknown keys
+   * refused (`INVALID_BODY`). */
+  const knowledgeEntryBody: Json = {
+    type: 'object',
+    required: ['topic', 'content'],
+    additionalProperties: false,
+    properties: {
+      topic: { type: 'string', minLength: 1, maxLength: TOPIC_MAX_LENGTH },
+      content: {
+        type: 'string',
+        minLength: 1,
+        maxLength: CONTENT_MAX_LENGTH,
+        description: 'Markdown',
+      },
+    },
+  };
 
   paths['/api/v1/knowledge-entries'] = {
     get: {
@@ -2355,17 +2798,12 @@ export function buildSpec(): Json {
         'the in-app editor shares.',
       operationId: 'createKnowledgeEntry',
       security: sec,
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['topic', 'content'],
-        properties: {
-          topic: { type: 'string', maxLength: 200 },
-          content: { type: 'string', maxLength: 100_000 },
-        },
-      }),
+      requestBody: jsonBody(knowledgeEntryBody),
       responses: {
         '201': createdId('Created — the entry’s id'),
-        '409': errorResponse('An active entry with this topic exists'),
+        '409': errorResponse(
+          'An active entry with this topic exists (`KNOWLEDGE_ENTRY_DUPLICATE`)',
+        ),
         ...standardErrors,
       },
     },
@@ -2380,7 +2818,7 @@ export function buildSpec(): Json {
       parameters: [pathParam('id', 'Entry ID')],
       responses: {
         '200': jsonResponse('The entry', ref('KnowledgeEntry')),
-        '404': errorResponse('Entry not found'),
+        '404': errorResponse('Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -2390,38 +2828,46 @@ export function buildSpec(): Json {
       description:
         'Entries are immutable: an update writes a NEW row and answers its ' +
         'id; the old row becomes `superseded`. Both `topic` and `content` ' +
-        'are required.',
+        'are required. Only the ACTIVE row of a topic takes an update — a ' +
+        'superseded row answers 409 naming the row that replaced it.',
       operationId: 'updateKnowledgeEntry',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['topic', 'content'],
-        properties: {
-          topic: { type: 'string', maxLength: 200 },
-          content: { type: 'string', maxLength: 100_000 },
-        },
-      }),
+      requestBody: jsonBody(knowledgeEntryBody),
       responses: {
         '200': jsonResponse('The NEW row', {
           type: 'object',
           required: ['id'],
           properties: { id: { type: 'string' } },
         }),
-        '404': errorResponse('Entry not found'),
-        '409': errorResponse('Entry is not active'),
+        '404': errorResponse('Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)'),
+        '409': errorResponse(
+          'Entry is not active — it was superseded (`KNOWLEDGE_ENTRY_SUPERSEDED`), ' +
+            'or the new topic collides with another active entry ' +
+            '(`KNOWLEDGE_ENTRY_DUPLICATE`)',
+        ),
         ...standardErrors,
       },
     },
     delete: {
       tags: ['Knowledge'],
       summary: 'Delete a knowledge entry',
+      description:
+        'What a delete removes depends on the row it names. The ACTIVE row ' +
+        'is the fact itself: deleting it retires the whole topic — every ' +
+        'version is deleted and the Knowledge Hub document behind it is ' +
+        'moved to trash. A SUPERSEDED row is history: deleting it prunes ' +
+        'that one version and leaves the active fact and its document ' +
+        'untouched, so a retention job can walk `?status=superseded` and ' +
+        'delete row by row.',
       operationId: 'deleteKnowledgeEntry',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
       responses: {
         '204': noContent('Deleted'),
-        '404': errorResponse('Entry not found'),
+        '404': errorResponse(
+          'Entry not found, including one already deleted (`KNOWLEDGE_ENTRY_NOT_FOUND`)',
+        ),
         ...standardErrors,
       },
     },
@@ -2464,15 +2910,10 @@ export function buildSpec(): Json {
           },
         }),
         responses: {
-          '200': jsonResponse('Hits and diagnostics', {
-            type: 'object',
-            required: ['hits'],
-            properties: {
-              hits: { type: 'array', items: obj },
-              diagnostics: obj,
-            },
-            additionalProperties: true,
-          }),
+          '200': jsonResponse(
+            'Hits and diagnostics',
+            ref('KnowledgeSearchResult'),
+          ),
           ...(scope.project
             ? { '404': errorResponse('Project missing or invisible') }
             : {}),
@@ -2674,28 +3115,49 @@ export function buildSpec(): Json {
               },
             },
           ),
-          '404': {
-            description: 'Unknown or disabled token',
-            content: { 'text/plain': { schema: { type: 'string' } } },
-          },
+          '404': errorResponse('Unknown or disabled token (`NOT_FOUND`)'),
           '400': errorResponse(
-            'Invalid project scope, forbidden projectId query parameter, or input that does not match the automation inputs schema',
+            'Invalid project scope (the automation’s own code, e.g. ' +
+              '`AUTOMATION_PROJECT_FORBIDDEN`), a forbidden `projectId` query ' +
+              'parameter (`INVALID_QUERY`), or input that does not match the ' +
+              'automation inputs schema',
           ),
-          '409': errorResponse('The automation has no deployed version'),
-          '413': {
-            description: 'Body exceeds 256 KiB',
-            content: { 'text/plain': { schema: { type: 'string' } } },
-          },
+          '409': errorResponse(
+            'The automation has no deployed version (`AUTOMATION_NOT_DEPLOYED`)',
+          ),
+          '413': errorResponse('Body exceeds 256 KiB (`BODY_TOO_LARGE`)'),
         },
       },
     };
+  }
+
+  // The tenant header is a property of the door, not of a family: every
+  // `/api/v1` operation reads it (a multi-organization key MUST send it on
+  // writes and on every project, task and conversation call; a
+  // single-organization key may omit it anywhere), so every operation
+  // documents it — the builders above that already name it, with their own
+  // stricter wording, keep theirs.
+  for (const [path, operations] of Object.entries(paths)) {
+    if (!path.startsWith('/api/v1/')) continue;
+    for (const [method, operation] of Object.entries(operations)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      const op = operation as { parameters?: Json[] };
+      const parameters = op.parameters ?? [];
+      const declared = parameters.some(
+        (parameter) =>
+          parameter.in === 'header' &&
+          parameter.name === orgSlugHeaderParam.name,
+      );
+      if (!declared) op.parameters = [orgSlugHeaderParam, ...parameters];
+    }
   }
 
   return {
     openapi: '3.0.3',
     info: {
       title: 'Tale Platform API',
-      version: '1.2.0',
+      version: '1.3.0',
+      contact: { name: 'Tale', url: 'https://tale.dev' },
       description: `
 REST access to a Tale deployment: knowledge resources, automations and their
 runs, chat threads, agents, and skills — plus an MCP endpoint exposing the
@@ -2767,9 +3229,29 @@ curl -H "Authorization: Bearer tale_..." \\
 \`\`\`
 `.trim(),
     },
-    servers: [{ url: '', description: 'Same origin' }],
+    // The static document carries a template; a running instance's
+    // `/openapi.json` answers its own origin here, filled in per request.
+    servers: [
+      {
+        url: '{origin}',
+        description:
+          'The deployment this document describes — `GET /openapi.json` on a running instance fills it in',
+        variables: {
+          origin: {
+            default: 'https://your-host.example.com',
+            description: 'Scheme and host of the Tale deployment',
+          },
+        },
+      },
+    ],
     security: sec,
     tags: [
+      {
+        name: 'Organization',
+        description:
+          'The key holder and the organizations it may act in — where a ' +
+          'multi-organization client learns the slug to send.',
+      },
       { name: 'Documents', description: 'Documents in the knowledge base.' },
       { name: 'Websites', description: 'Crawled website sources.' },
       {
@@ -2828,7 +3310,9 @@ curl -H "Authorization: Bearer tale_..." \\
             error: { type: 'string', description: 'What went wrong' },
             code: {
               type: 'string',
-              description: 'A stable refusal code, when the domain has one',
+              enum: [...REST_ERROR_CODES],
+              description:
+                'A stable refusal code — every refusal the door itself makes carries one, and so does every domain refusal it lets through. The set is additive: a new code is a minor change, so treat a value you do not know as a generic refusal of the status you got.',
             },
             data: {
               type: 'object',
@@ -2952,49 +3436,105 @@ curl -H "Authorization: Bearer tale_..." \\
         WebsiteInput: {
           type: 'object',
           required: ['domain', 'scanInterval'],
+          additionalProperties: false,
           properties: {
-            domain: { ...str, description: 'A hostname or URL' },
-            title: str,
-            description: str,
-            scanInterval: str,
+            domain: {
+              ...str,
+              maxLength: 2048,
+              description:
+                'A public hostname or http(s) URL (`docs.example.com`, ' +
+                '`https://www.example.com/docs`); the host is what is ' +
+                'registered. Loopback, link-local, private-network and cloud ' +
+                'metadata hosts are refused — the crawler dials the target ' +
+                'from inside the deployment’s network.',
+            },
+            title: { ...str, maxLength: 200 },
+            description: { ...str, maxLength: 2000 },
+            scanInterval: {
+              type: 'string',
+              enum: [...SCAN_INTERVAL_VALUES],
+              description: 'How often the site is re-crawled',
+            },
             urls: {
               type: 'array',
-              items: str,
+              items: { ...str, maxLength: 2048 },
+              maxItems: 10_000,
               description:
                 'Registers a curated URL list on the domain instead of a ' +
                 'whole-site crawl. Every entry must be an http(s) URL on the ' +
                 'domain or its www/apex sibling; re-posting merges new URLs ' +
-                'into the existing list.',
+                'into the existing list and answers 200 with the existing id.',
             },
           },
         },
         WebsitePatch: {
           type: 'object',
+          additionalProperties: false,
           description:
             'The domain is immutable after create (the crawl registration ' +
-            'is keyed by it): a body carrying `domain` is refused with 400 — ' +
-            'delete the website and re-add it under the new domain.',
+            'is keyed by it): a body carrying `domain` is refused with 400 ' +
+            '`WEBSITE_DOMAIN_IMMUTABLE` — delete the website and re-add it ' +
+            'under the new domain.',
           properties: {
-            title: str,
-            description: str,
-            scanInterval: str,
+            title: { ...str, maxLength: 200 },
+            description: { ...str, maxLength: 2000 },
+            scanInterval: {
+              type: 'string',
+              enum: [...SCAN_INTERVAL_VALUES],
+            },
+          },
+        },
+        WebsitePage: {
+          type: 'object',
+          required: [
+            'url',
+            'title',
+            'wordCount',
+            'status',
+            'contentHash',
+            'lastCrawledAt',
+            'discoveredAt',
+            'chunksCount',
+            'indexed',
+          ],
+          properties: {
+            url: str,
+            title: nullable(str),
+            wordCount: int,
+            status: { ...str, description: 'The page’s crawl status' },
+            contentHash: nullable(str),
+            lastCrawledAt: nullable({ ...num, description: 'Epoch ms' }),
+            discoveredAt: nullable({ ...num, description: 'Epoch ms' }),
+            chunksCount: int,
+            indexed: bool,
           },
         },
         WebsitePageList: {
           type: 'object',
           required: ['pages', 'total', 'offset', 'hasMore'],
           properties: {
-            pages: { type: 'array', items: obj },
+            pages: { type: 'array', items: ref('WebsitePage') },
             total: int,
             offset: int,
             hasMore: bool,
+          },
+        },
+        WebsiteSearchHit: {
+          type: 'object',
+          required: ['url', 'title', 'content', 'chunkIndex', 'score'],
+          properties: {
+            url: str,
+            title: nullable(str),
+            content: { ...str, description: 'The matching passage' },
+            chunkIndex: int,
+            score: { ...num, description: 'Relevance; higher is better' },
           },
         },
         WebsiteSearchResults: {
           type: 'object',
           required: ['results', 'total'],
           properties: {
-            results: { type: 'array', items: obj },
+            results: { type: 'array', items: ref('WebsiteSearchHit') },
             total: int,
           },
         },
@@ -3076,7 +3616,25 @@ curl -H "Authorization: Bearer tale_..." \\
             category: nullable(str),
             tags: strArray,
             status: nullable(str),
-            translations: nullable({ type: 'array', items: obj }),
+            translations: nullable({
+              type: 'array',
+              description: 'Per-language overrides of the catalog fields',
+              items: {
+                type: 'object',
+                required: ['language'],
+                properties: {
+                  language: {
+                    ...str,
+                    description: 'A BCP 47 language tag (`de`, `fr-CH`)',
+                  },
+                  name: str,
+                  description: str,
+                  category: str,
+                  tags: strArray,
+                  metadata: obj,
+                },
+              },
+            }),
             externalId: nullable(str),
             metadata: nullable(obj),
             createdAt: { ...num, description: 'Epoch ms' },
@@ -3086,19 +3644,107 @@ curl -H "Authorization: Bearer tale_..." \\
         ProductInput: {
           type: 'object',
           description:
-            '`name` is required on create; every field is optional on update',
+            '`name` is required on create; every field is optional on update. ' +
+            'Unknown keys are refused (`INVALID_BODY`).',
+          additionalProperties: false,
           properties: {
-            name: str,
-            description: str,
-            imageUrl: str,
-            stock: num,
-            price: num,
-            currency: str,
-            category: str,
-            tags: strArray,
-            status: str,
-            externalId: str,
+            name: { ...str, minLength: 1, maxLength: PRODUCT_NAME_MAX },
+            description: { ...str, maxLength: PRODUCT_DESCRIPTION_MAX },
+            imageUrl: { ...str, maxLength: PRODUCT_IMAGE_URL_MAX },
+            stock: safeNumber,
+            price: safeNumber,
+            currency: {
+              ...str,
+              maxLength: PRODUCT_CURRENCY_MAX,
+              description: 'ISO 4217 code',
+            },
+            category: { ...str, maxLength: PRODUCT_CATEGORY_MAX },
+            tags: {
+              type: 'array',
+              items: { ...str, maxLength: PRODUCT_TAG_MAX },
+              maxItems: PRODUCT_TAGS_MAX,
+            },
+            status: { type: 'string', enum: [...PRODUCT_STATUSES] },
+            externalId: { ...str, maxLength: PRODUCT_EXTERNAL_ID_MAX },
             metadata: obj,
+          },
+        },
+        ProductPatch: {
+          type: 'object',
+          description:
+            'Every field optional. Send `expectedUpdatedAt` from the last ' +
+            'product read to update only that revision: a stale one answers ' +
+            '409 `PRODUCT_STALE` without changing any field, and every ' +
+            'successful update advances `updatedAt`.',
+          additionalProperties: false,
+          properties: {
+            name: { ...str, minLength: 1, maxLength: PRODUCT_NAME_MAX },
+            description: { ...str, maxLength: PRODUCT_DESCRIPTION_MAX },
+            imageUrl: { ...str, maxLength: PRODUCT_IMAGE_URL_MAX },
+            stock: safeNumber,
+            price: safeNumber,
+            currency: {
+              ...str,
+              maxLength: PRODUCT_CURRENCY_MAX,
+              description: 'ISO 4217 code',
+            },
+            category: { ...str, maxLength: PRODUCT_CATEGORY_MAX },
+            tags: {
+              type: 'array',
+              items: { ...str, maxLength: PRODUCT_TAG_MAX },
+              maxItems: PRODUCT_TAGS_MAX,
+            },
+            status: { type: 'string', enum: [...PRODUCT_STATUSES] },
+            externalId: { ...str, maxLength: PRODUCT_EXTERNAL_ID_MAX },
+            metadata: obj,
+            expectedUpdatedAt: {
+              type: 'integer',
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
+              description:
+                'The `updatedAt` of the revision this update is based on',
+            },
+          },
+        },
+
+        // ── The key holder ──
+        Me: {
+          type: 'object',
+          required: ['user', 'organization', 'organizations'],
+          properties: {
+            user: {
+              type: 'object',
+              required: ['id', 'email'],
+              properties: { id: str, email: str },
+            },
+            organization: {
+              type: 'object',
+              description: 'The organization this request resolved to',
+              required: ['id', 'slug', 'role'],
+              properties: {
+                id: str,
+                slug: {
+                  ...str,
+                  description: 'The `X-Organization-Slug` value for it',
+                },
+                role: str,
+              },
+            },
+            organizations: {
+              type: 'array',
+              description:
+                'Every organization the key holder belongs to (disabled memberships excluded)',
+              items: {
+                type: 'object',
+                required: ['id', 'slug', 'name', 'role'],
+                properties: {
+                  id: str,
+                  slug: nullable(str),
+                  name: str,
+                  role: str,
+                },
+              },
+            },
           },
         },
 
@@ -3133,33 +3779,50 @@ curl -H "Authorization: Bearer tale_..." \\
         },
         ContactInput: {
           type: 'object',
+          description:
+            'Unknown keys are refused (`INVALID_BODY`). A create needs at ' +
+            'least one of `name`, `email` or `externalId` to file the ' +
+            'contact under.',
+          additionalProperties: false,
+          properties: contactInputProperties,
+        },
+        ContactPatch: {
+          type: 'object',
+          description:
+            'Every field optional. Send `expectedUpdatedAt` from the last ' +
+            'contact read to update only that revision: a stale one answers ' +
+            '409 `CONTACT_STALE` without changing any field.',
+          additionalProperties: false,
           properties: {
-            name: str,
-            email: str,
-            phone: str,
-            source: {
-              type: 'string',
-              enum: [...dataSourceSchema.options],
+            ...contactInputProperties,
+            expectedUpdatedAt: {
+              type: 'integer',
+              minimum: 0,
+              maximum: Number.MAX_SAFE_INTEGER,
               description:
-                'Where the contact came from — one of the platform’s data sources; defaults to `api_import`, and `custom` is the catch-all for anything not listed',
+                'The `updatedAt` of the revision this update is based on',
             },
-            locale: str,
-            address: obj,
-            externalId: {
-              oneOf: [{ type: 'string' }, { type: 'number' }],
-              description: 'Stored as a string',
-            },
-            tags: strArray,
-            metadata: obj,
-            notes: str,
           },
         },
         BulkCreateResult: {
           type: 'object',
-          required: ['success', 'failed', 'errors'],
+          required: ['success', 'failed', 'created', 'errors'],
+          description:
+            'A body the schema refuses fails the whole call with 400; a row ' +
+            'the directory refuses (a duplicate email or external id) fails ' +
+            'that row alone and is listed under `errors` with its code.',
           properties: {
             success: int,
             failed: int,
+            created: {
+              type: 'array',
+              description: 'The rows that landed, by input index',
+              items: {
+                type: 'object',
+                required: ['index', 'id'],
+                properties: { index: int, id: str },
+              },
+            },
             errors: {
               type: 'array',
               items: {
@@ -3168,7 +3831,15 @@ curl -H "Authorization: Bearer tale_..." \\
                 properties: {
                   index: int,
                   error: str,
-                  errorCode: str,
+                  errorCode: {
+                    type: 'string',
+                    enum: [
+                      'CONTACT_DUPLICATE_EMAIL',
+                      'CONTACT_DUPLICATE_EXTERNAL_ID',
+                      'CONTACT_CREATE_FAILED',
+                      'unknown',
+                    ],
+                  },
                   contact: ref('ContactInput'),
                 },
               },
@@ -3236,7 +3907,9 @@ curl -H "Authorization: Bearer tale_..." \\
             },
             expiresAt: {
               type: 'number',
-              description: 'Epoch ms; the intent dies of old age after this',
+              description:
+                'Epoch ms; the intent AND the signed `url` both die of old ' +
+                'age after this (30 minutes from the mint)',
             },
           },
         },
@@ -3325,7 +3998,7 @@ curl -H "Authorization: Bearer tale_..." \\
         AutomationSummary: {
           type: 'object',
           additionalProperties: false,
-          required: ['name', 'latestVersion', 'deployedVersion'],
+          required: ['name', 'latestVersion', 'deployedVersion', 'projectIds'],
           properties: {
             name: { type: 'string', description: 'The real `/`-slug' },
             latestVersion: int,
@@ -3336,23 +4009,70 @@ curl -H "Authorization: Bearer tale_..." \\
             presentation: {
               description: 'The newest version’s display block, if authored',
             },
+            projectIds: {
+              type: 'array',
+              items: str,
+              description:
+                'The projects this automation is installed in, limited to ' +
+                'those the key holder can see. Empty for an ' +
+                'organization-wide automation — and for one installed only ' +
+                'in projects hidden from the key holder, which then refuses ' +
+                'to start at the organization URL. A project-bound ' +
+                'automation runs at `/api/v1/projects/{id}/automations/{name}/runs`.',
+            },
           },
         },
         Automation: {
           type: 'object',
-          required: ['name', 'version', 'document', 'createdBy', 'createdAt'],
+          required: [
+            'name',
+            'version',
+            'document',
+            'deployedVersion',
+            'projectIds',
+            'createdBy',
+            'createdAt',
+          ],
           properties: {
             name: { type: 'string' },
             version: { type: 'integer' },
             document: {
               type: 'object',
               description:
-                'The authored content (nodes and acceptance tests). The MCP ' +
-                '`get_docs` tool is the grammar reference.',
+                'The authored content: `name`, optional `description`, ' +
+                '`inputs`, `nodes` (the node grammar the MCP `get_docs` ' +
+                'tool documents), optional `output` and `tests`.',
+              properties: {
+                version: str,
+                name: str,
+                description: str,
+                inputs: obj,
+                nodes: { type: 'array', items: obj },
+                output: {},
+                tests: { type: 'array', items: obj },
+                ui: obj,
+              },
+              additionalProperties: true,
             },
             message: { type: 'string' },
-            testsPassed: nullable(bool),
-            deployedVersion: { type: 'integer' },
+            testsPassed: nullable({
+              ...bool,
+              description:
+                'null: no verdict (no tests, or never gated); true: the ' +
+                'deploy gate ran the tests and they passed; false: saved ' +
+                'with failing tests',
+            }),
+            deployedVersion: nullable({
+              ...int,
+              description: 'null while nothing is deployed',
+            }),
+            projectIds: {
+              type: 'array',
+              items: str,
+              description:
+                'The projects this automation is installed in, limited to ' +
+                'those the key holder can see',
+            },
             createdBy: { type: 'string' },
             createdAt: { type: 'number' },
           },
@@ -3440,6 +4160,95 @@ curl -H "Authorization: Bearer tale_..." \\
           },
         },
 
+        // ── Knowledge search ──
+        KnowledgeHit: {
+          type: 'object',
+          required: ['id', 'corpus', 'text', 'source', 'chunkIndex', 'score'],
+          properties: {
+            id: {
+              ...str,
+              description: 'Stable row identity within its corpus',
+            },
+            corpus: { type: 'string', enum: ['documents', 'web'] },
+            text: {
+              ...str,
+              description: 'The passage, contextual header included',
+            },
+            source: {
+              type: 'object',
+              required: ['ref', 'title'],
+              properties: {
+                ref: {
+                  ...str,
+                  description:
+                    'The blob reference the corpus keys a document by, or the page URL for a web hit — cite `documentId` to open a document',
+                },
+                title: nullable(str),
+                url: { ...nullable(str), description: 'Present for web pages' },
+                modifiedAt: nullable({ ...num, description: 'Epoch ms' }),
+                projectId: {
+                  ...nullable(str),
+                  description:
+                    'The project the document is filed under; null for a Hub document and for a web page',
+                },
+                conversationId: {
+                  ...nullable(str),
+                  description:
+                    'The conversation an emailed attachment arrived on; present only for those',
+                },
+                documentId: {
+                  ...str,
+                  description:
+                    'The document `GET /api/v1/documents/{id}` takes, for a documents-corpus hit an active document exposes in the hit’s project scope; absent for web pages, thread uploads and emailed attachments',
+                },
+              },
+            },
+            chunkIndex: {
+              ...int,
+              description: 'Position of the passage inside its document',
+            },
+            offset: {
+              ...int,
+              description:
+                'Character position of the passage within the document’s full text; absent when it cannot be established',
+            },
+            score: {
+              ...num,
+              description:
+                'The producing leg’s own relevance score (BM25 or cosine); scales differ per leg',
+            },
+          },
+        },
+        KnowledgeSearchResult: {
+          type: 'object',
+          required: ['hits', 'diagnostics'],
+          properties: {
+            hits: {
+              type: 'array',
+              items: ref('KnowledgeHit'),
+              description: 'Best first, one passage per repeated text',
+            },
+            diagnostics: {
+              type: 'object',
+              required: ['bm25', 'reranked', 'cached', 'legs'],
+              properties: {
+                bm25: {
+                  ...bool,
+                  description:
+                    'False when the keyword index was unavailable and only the vector leg ran',
+                },
+                reranked: bool,
+                cached: bool,
+                legs: {
+                  type: 'object',
+                  additionalProperties: true,
+                  description: 'Per-leg timings and counts, keyed by leg',
+                },
+              },
+            },
+          },
+        },
+
         // ── Threads ──
         Thread: {
           type: 'object',
@@ -3468,39 +4277,215 @@ curl -H "Authorization: Bearer tale_..." \\
             updatedAt: { ...num, description: 'Epoch ms' },
           },
         },
+        ChatModel: {
+          type: 'object',
+          required: [
+            'id',
+            'label',
+            'providerSlug',
+            'providerLabel',
+            'contextWindow',
+            'capabilities',
+            'tags',
+          ],
+          properties: {
+            id: { ...str, description: 'Send as `model`' },
+            label: str,
+            providerSlug: {
+              ...str,
+              description:
+                'Send as `providerSlug` when the same id is listed under more than one provider',
+            },
+            providerLabel: str,
+            contextWindow: {
+              ...int,
+              minimum: 1,
+              description: 'Total context window in tokens',
+            },
+            maxOutputTokens: {
+              ...int,
+              minimum: 1,
+              description: 'The largest reply the model produces, in tokens',
+            },
+            capabilities: {
+              type: 'object',
+              required: ['tools', 'vision', 'reasoning'],
+              additionalProperties: false,
+              properties: {
+                tools: { ...bool, description: 'Accepts function tools' },
+                vision: { ...bool, description: 'Reads images' },
+                reasoning: {
+                  ...bool,
+                  description: 'Has a controllable reasoning depth',
+                },
+              },
+            },
+            pricing: {
+              type: 'object',
+              required: ['inputCentsPerMillion', 'outputCentsPerMillion'],
+              additionalProperties: false,
+              description:
+                'The catalog price in US cents per million tokens; absent when the source publishes none',
+              properties: {
+                inputCentsPerMillion: { ...num, minimum: 0 },
+                outputCentsPerMillion: { ...num, minimum: 0 },
+              },
+            },
+            tags: {
+              ...strArray,
+              description:
+                'The catalog’s capability tags (`chat`, `vision`, …) — an open, additive vocabulary',
+            },
+            default: {
+              ...bool,
+              description:
+                'Present and true on the organization’s default pick for this key holder, when one is configured and accessible',
+            },
+          },
+        },
+        MessagePart: {
+          description:
+            'One ordered piece of a message, discriminated by `type`. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.',
+          discriminator: { propertyName: 'type' },
+          oneOf: [
+            {
+              type: 'object',
+              required: ['type', 'text'],
+              properties: {
+                type: { type: 'string', enum: ['text'] },
+                text: str,
+              },
+            },
+            {
+              type: 'object',
+              required: ['type', 'text'],
+              description:
+                'The model’s reasoning ahead of its reply — display-only, never replayed to the model; it may quote the assistant’s own instructions verbatim, so it is not safe to render as the answer.',
+              properties: {
+                type: { type: 'string', enum: ['reasoning'] },
+                text: str,
+              },
+            },
+            {
+              type: 'object',
+              required: ['type', 'name', 'mediaType'],
+              properties: {
+                type: { type: 'string', enum: ['attachment'] },
+                name: str,
+                mediaType: str,
+                fileId: str,
+                sizeBytes: int,
+                url: str,
+                text: { ...str, description: 'Extracted text, when any' },
+              },
+            },
+            {
+              type: 'object',
+              required: ['type', 'callId', 'capabilityId', 'input'],
+              properties: {
+                type: { type: 'string', enum: ['tool-call'] },
+                callId: str,
+                capabilityId: str,
+                input: {},
+              },
+            },
+            {
+              type: 'object',
+              required: [
+                'type',
+                'callId',
+                'capabilityId',
+                'output',
+                'structured',
+              ],
+              properties: {
+                type: { type: 'string', enum: ['tool-result'] },
+                callId: str,
+                capabilityId: str,
+                output: {},
+                structured: {
+                  ...bool,
+                  description:
+                    'False when the capability declares no output schema',
+                },
+              },
+            },
+            {
+              type: 'object',
+              required: ['type', 'approvalId', 'question'],
+              properties: {
+                type: { type: 'string', enum: ['approval'] },
+                approvalId: str,
+                question: str,
+                decision: { type: 'string', enum: ['approved', 'rejected'] },
+              },
+            },
+            {
+              type: 'object',
+              required: ['type', 'requestId', 'question'],
+              properties: {
+                type: { type: 'string', enum: ['human-input'] },
+                requestId: str,
+                question: str,
+                questionCount: int,
+                outcome: { type: 'string', enum: ['answered', 'skipped'] },
+              },
+            },
+          ],
+        },
         Message: {
           type: 'object',
-          required: ['id', 'role', 'parts', 'sequence', 'createdAt'],
+          required: ['id', 'role', 'parts', 'sequence', 'status', 'createdAt'],
           properties: {
             id: str,
-            role: str,
+            role: { type: 'string', enum: ['user', 'assistant'] },
             parts: {
               type: 'array',
-              items: obj,
-              description: 'The message parts (text, tool calls, files)',
+              items: ref('MessagePart'),
+              description: 'The message parts, in order',
             },
             sequence: { ...int, description: 'The paging key' },
+            status: {
+              type: 'string',
+              enum: ['pending', 'complete', 'failed', 'cancelled'],
+              description:
+                '`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `failed` carries `error`.',
+            },
             model: str,
             providerSlug: str,
             blockedReason: str,
-            error: str,
+            error: {
+              ...str,
+              description: 'Why a failed turn produced no reply',
+            },
             errorCode: {
               type: 'string',
-              description: 'Stable chat error classification when available',
+              enum: [...CHAT_ERROR_CODES],
+              description:
+                'Stable chat error classification when available. `credit_exhausted` and `model_not_entitled` mean the provider account, not the request; neither is `rate_limited`.',
             },
-            createdAt: { ...num, description: 'Epoch ms' },
+            usage: {
+              type: 'object',
+              additionalProperties: false,
+              description:
+                'The token counters the finished turn recorded; absent until then',
+              properties: {
+                inputTokens: int,
+                outputTokens: int,
+                cachedInputTokens: int,
+                reasoningTokens: int,
+              },
+            },
+            createdAt: {
+              ...num,
+              description:
+                'Epoch ms — when the row was created (for an assistant row, when its turn started)',
+            },
           },
         },
 
         // ── Agents & skills ──
-        ProjectAgentInput: {
-          ...z.toJSONSchema(projectAgentInputSchema.strict(), {
-            target: 'openapi-3.0',
-            io: 'input',
-          }),
-          description:
-            'Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants. Unknown secret names are pruned.',
-        },
+        ProjectAgentInput: projectAgentInputSpec,
         ProjectAgent: {
           type: 'object',
           required: [

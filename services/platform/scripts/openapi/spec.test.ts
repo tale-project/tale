@@ -60,8 +60,12 @@ function openapiPath(honoPath: string, prefix = '/api/v1'): string {
 
 /** Routes the router registers that the spec deliberately leaves out. */
 const UNDOCUMENTED_ROUTES = new Set([
-  // A 405 stub so a browser hitting the MCP URL learns it is POST-only.
+  // 405 stubs so a client hitting the MCP URL with the wrong verb learns it
+  // is POST-only (JSON envelope + Allow), never the door's 404.
   'GET /api/v1/mcp',
+  'DELETE /api/v1/mcp',
+  'PUT /api/v1/mcp',
+  'PATCH /api/v1/mcp',
 ]);
 
 describe('openapi spec ↔ /api/v1 router', () => {
@@ -129,6 +133,36 @@ describe('openapi spec ↔ /api/v1 router', () => {
       ),
     );
     expect(published).toEqual(spec);
+  });
+
+  it('documents the tenant header on every /api/v1 operation', () => {
+    const missing = Object.entries(paths).flatMap(([path, ops]) =>
+      Object.entries(ops)
+        .filter(
+          ([method]) => HTTP_METHODS.has(method) && path.startsWith('/api/v1/'),
+        )
+        .filter(([, op]) => {
+          const parameters = (op.parameters ?? []) as Json[];
+          return !parameters.some(
+            (parameter) =>
+              parameter.in === 'header' &&
+              parameter.name === 'X-Organization-Slug',
+          );
+        })
+        .map(([method]) => `${method.toUpperCase()} ${path}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('names the deployment origin as a server template a running instance fills in', () => {
+    expect(spec.servers).toEqual([
+      expect.objectContaining({
+        url: '{origin}',
+        variables: {
+          origin: expect.objectContaining({ default: expect.any(String) }),
+        },
+      }),
+    ]);
   });
 
   it('gives every operation a unique operationId', () => {
@@ -349,7 +383,27 @@ describe('handler responses validate against the spec', () => {
     },
     {
       name: 'GET /automations',
-      routes: () => createAutomationRestRoutes({ sql: fakeSql([automation]) }),
+      // The catalog filters bindings through the caller's visible projects,
+      // so the project listing must answer with project rows — never the
+      // automation row, which the listing would stamp access flags onto.
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([automation], (text) =>
+            text.includes('FROM app.projects')
+              ? [
+                  {
+                    id: 'p-1',
+                    organizationId: 'org-1',
+                    teamId: null,
+                    sharedWithTeamIds: [],
+                    archivedAt: null,
+                  },
+                ]
+              : text.includes('FROM app.automation_project_bindings')
+                ? []
+                : undefined,
+          ),
+        }),
       rows: [automation],
       request: '/automations',
       spec: ['/api/v1/automations', 'get', '200'],
@@ -723,14 +777,18 @@ describe('token-authenticated webhook contracts', () => {
     const validateResponse = responseValidator(path, 'post', '202');
     expect(validateResponse({ runId: 'run-1', duplicate: true })).toBe(true);
     expect(validateResponse({ runId: 'run-1', duplicate: 'yes' })).toBe(false);
+    // Every refusal on the webhook door is the flat JSON envelope — the 404
+    // and 413 used to be the one place a sender's JSON error handling could
+    // not parse.
     const responses = operation?.responses as Record<string, Json> | undefined;
-    for (const status of ['404', '413']) {
+    for (const status of ['404', '413', '400', '409']) {
       const responseContent = responses?.[status]?.content as
         | Record<string, Json>
         | undefined;
-      expect(responseContent?.['text/plain']?.schema).toEqual({
-        type: 'string',
+      expect(responseContent?.['application/json']?.schema).toEqual({
+        $ref: '#/components/schemas/Error',
       });
+      expect(responseContent?.['text/plain']).toBeUndefined();
     }
   });
 });
@@ -750,13 +808,16 @@ describe('new project routes answer the published wire schemas', () => {
   const projectThread = { ...thread, projectId: 'p-1' };
   const projectRun = { ...run, projectId: 'p-1' };
   const sql = fakeSql([], (text) => {
-    if (text.includes('FROM app.projects WHERE id')) return [project];
+    if (text.includes('FROM app.projects')) return [project];
     if (text.includes('FROM app.tasks WHERE id')) return [task];
     if (text.includes('FROM app.threads t')) return [projectThread];
     if (text.includes('FROM app.automation_runs')) return [projectRun];
     if (text.includes('FROM app.automation_project_bindings'))
       return [{ automationName: automation.name, projectId: 'p-1' }];
     if (text.includes('FROM app.automations a')) return [automation];
+    // The version lookup the runs door answers 404 without.
+    if (text.includes('FROM app.automations'))
+      return [{ name: automation.name, version: 3, document: {} }];
     return [];
   });
   const cases = [
@@ -813,7 +874,9 @@ describe('new project routes answer the published wire schemas', () => {
       JSON.stringify({ errors: validate.errors, body }),
     ).toBe(true);
     if (route.endsWith('/automations'))
-      expect(body).toEqual({ automations: [automation] });
+      expect(body).toEqual({
+        automations: [{ ...automation, projectIds: ['p-1'] }],
+      });
   });
 });
 
