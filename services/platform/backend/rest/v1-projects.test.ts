@@ -10,10 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDocumentFromUpload } from '../domains/documents/service.ts';
 import {
+  createRestUploadHandoff,
   getFileUrl,
   registerUpload,
   statOrgBlob,
 } from '../domains/files/service.ts';
+import { createProject } from '../domains/projects/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { RestEnv } from './shared.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -28,10 +30,22 @@ vi.mock('../domains/files/service.ts', async (importOriginal) => ({
   statOrgBlob: vi.fn(() => Promise.resolve({ size: 1234 })),
   registerUpload: vi.fn(() => Promise.resolve({ fileId: 'f-1', size: 1234 })),
   getFileUrl: vi.fn(() => Promise.resolve('https://blobs.example.com/signed')),
+  createRestUploadHandoff: vi.fn(() =>
+    Promise.resolve({
+      storageRef: 's3:acme/blob-new',
+      uploadUrl: 'https://blobs.example.com/put',
+    }),
+  ),
 }));
 vi.mock('../domains/documents/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/documents/service.ts')>()),
   createDocumentFromUpload: vi.fn(() => Promise.resolve('d-1')),
+}));
+// The create core runs for real elsewhere; here only what the door hands
+// it — and how it answers the core's refusals — is under test.
+vi.mock('../domains/projects/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/projects/service.ts')>()),
+  createProject: vi.fn(() => Promise.resolve('p-1')),
 }));
 
 interface Captured {
@@ -101,6 +115,8 @@ function fakeSql(
     documentError?: Error;
     document?: Record<string, unknown>;
     project?: () => Record<string, unknown>;
+    /** The upload intent the bind finds; null for none. */
+    intent?: Record<string, unknown> | null;
   } = {},
 ): {
   sql: Sql;
@@ -118,6 +134,18 @@ function fakeSql(
     if (text.includes('FROM app.documents WHERE id')) {
       if (opts.documentError) return Promise.reject(opts.documentError);
       return Promise.resolve([{ ...document, ...opts.document }]);
+    }
+    if (text.includes('FROM app.rest_upload_intents')) {
+      if (opts.intent === null) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          id: 'u-1',
+          s3Ref: 's3:acme/blob-1',
+          consumedAt: null,
+          expiresAt: Date.now() + 60_000,
+          ...opts.intent,
+        },
+      ]);
     }
     if (text.startsWith('UPDATE app.rest_upload_intents')) {
       return Promise.resolve([{ id: 'u-1' }]);
@@ -171,6 +199,196 @@ const bind = (sql: Sql, body: Record<string, unknown>) =>
       ...body,
     }),
   });
+
+/**
+ * A name-only create never fails on a key the caller did not choose. The
+ * regression under test: the door never asked the create core for its
+ * derive-on-collision mode, so a derived key that was taken (`Tale Eval
+ * 2026` → `TE2`, already held by an unrelated project) answered 409 for
+ * an `externalItemId` nobody had — and the documented lookup-else-create
+ * worker looped forever on it. The race two concurrent creates can lose
+ * (both pass the SELECT-then-INSERT checks, one hits the unique index) is
+ * answered as the documented 409, or retried onto the next free suffix.
+ */
+describe('POST /projects', () => {
+  const create = (sql: Sql, body: Record<string, unknown>) =>
+    mount(sql).request('http://localhost/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const unique = (constraint: string) =>
+    Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+      constraint_name: constraint,
+    });
+
+  beforeEach(() => {
+    vi.mocked(createProject).mockReset();
+    vi.mocked(createProject).mockResolvedValue('p-1');
+  });
+
+  it('asks the core to suffix a derived key that is taken', async () => {
+    const { sql } = fakeSql();
+    const res = await create(sql, {
+      name: 'Tale Eval 2026',
+      externalItemId: 'crm-4711',
+    });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(createProject).mock.calls[0]?.[2]).toEqual({
+      name: 'Tale Eval 2026',
+      externalItemId: 'crm-4711',
+      deriveKeyOnCollision: true,
+    });
+  });
+
+  it('retries a derived-key race onto the next free suffix', async () => {
+    vi.mocked(createProject)
+      .mockRejectedValueOnce(unique('projects_org_key'))
+      .mockResolvedValueOnce('p-1');
+    const { sql } = fakeSql();
+    const res = await create(sql, { name: 'Tale Eval 2026' });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(createProject)).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers 409 PROJECT_KEY_TAKEN for an explicit key that loses the race', async () => {
+    vi.mocked(createProject).mockRejectedValueOnce(unique('projects_org_key'));
+    const { sql } = fakeSql();
+    const res = await create(sql, { name: 'Tale Eval 2026', key: 'te2' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'PROJECT_KEY_TAKEN',
+      error: expect.stringContaining('TE2'),
+    });
+    expect(vi.mocked(createProject)).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers 409 for an externalItemId that loses the race', async () => {
+    vi.mocked(createProject).mockRejectedValueOnce(
+      unique('projects_org_external_item'),
+    );
+    const { sql } = fakeSql();
+    const res = await create(sql, {
+      name: 'Tale Eval 2026',
+      externalItemId: 'crm-4711',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'PROJECT_DUPLICATE_EXTERNAL_ID',
+    });
+  });
+
+  it('names a missing externalItemId on the lookup door with a code', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request('http://localhost/projects');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'externalItemId', message: 'is required' }] },
+    });
+  });
+});
+
+/**
+ * The upload handoff is one deadline: the signed PUT lives exactly as long
+ * as the intent it is handed out with. The regression under test: the URL
+ * was signed for the store's 15-minute default beside a 30-minute
+ * `expiresAt`, so a PUT inside the advertised window answered 403 from
+ * the bucket. A file name is checked at the mint too, so a bad one fails
+ * before the bytes are uploaded.
+ */
+describe('POST /projects/{id}/uploads', () => {
+  const mint = (sql: Sql, body?: Record<string, unknown>) =>
+    mount(sql).request('http://localhost/projects/p-1/uploads', {
+      method: 'POST',
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+    });
+
+  it('signs the PUT for the intent lifetime and answers the same deadline', async () => {
+    vi.mocked(createRestUploadHandoff).mockClear();
+    const { sql } = fakeSql();
+    const before = Date.now();
+    const res = await mint(sql, { contentType: 'text/csv' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { expiresAt: number; url: string };
+    expect(body.expiresAt - before).toBeGreaterThanOrEqual(30 * 60_000 - 50);
+    expect(body.expiresAt - before).toBeLessThanOrEqual(30 * 60_000 + 5000);
+    expect(vi.mocked(createRestUploadHandoff)).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      { contentType: 'text/csv', expiresInSec: 1800 },
+    );
+  });
+
+  it.each(['../secret.csv', 'dir/ledger.csv', 'a b.csv', '..'])(
+    'refuses the file name %j at the mint with INVALID_BODY',
+    async (fileName) => {
+      vi.mocked(createRestUploadHandoff).mockClear();
+      const { sql } = fakeSql();
+      const res = await mint(sql, { fileName });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: { issues: [expect.objectContaining({ path: 'fileName' })] },
+      });
+      expect(vi.mocked(createRestUploadHandoff)).not.toHaveBeenCalled();
+    },
+  );
+});
+
+/**
+ * The bind tells the caller which half of the handshake failed: an intent
+ * that is unknown, consumed or expired needs a new handoff; a `fileId`
+ * other than the one the intent was minted for is the caller's plumbing.
+ * One UPDATE used to fold every case into one sentence.
+ */
+describe('POST /projects/{id}/files intent consume', () => {
+  beforeEach(() => {
+    vi.mocked(registerUpload).mockClear();
+  });
+
+  it.each([
+    ['unknown', { intent: null }, 'Unknown uploadId'],
+    ['consumed', { intent: { consumedAt: 1 } }, 'already used'],
+    ['expired', { intent: { expiresAt: 1 } }, 'expired'],
+  ])(
+    'answers 409 UPLOAD_INTENT_INVALID for a %s intent',
+    async (_case, opts, reason) => {
+      const { sql } = fakeSql(opts);
+      const res = await bind(sql, {});
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        code: 'UPLOAD_INTENT_INVALID',
+        error: expect.stringContaining(reason),
+      });
+      expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers 409 UPLOAD_FILE_MISMATCH when fileId is another blob', async () => {
+    const { sql } = fakeSql();
+    const res = await bind(sql, { fileId: 's3:acme/other' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'UPLOAD_FILE_MISMATCH' });
+    expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
+  });
+
+  it('refuses a path as the file name before consuming anything', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await bind(sql, { fileName: '../../etc/passwd' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    expect(
+      queries.some((q) => q.text.includes('app.rest_upload_intents')),
+    ).toBe(false);
+  });
+});
 
 describe('project REST resource boundaries', () => {
   it.each([

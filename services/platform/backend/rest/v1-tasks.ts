@@ -3,6 +3,8 @@ import { Hono, type Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import { isHttpUrl } from '../../lib/utils/url.ts';
+import { TASK_LABEL_CHARS_MAX, TASK_TITLE_MAX } from '../core/tasks/helpers.ts';
 import {
   AutomationError,
   bindingProjectIds,
@@ -13,10 +15,11 @@ import {
   addTaskComment,
   listTaskComments,
   TASK_COMMENT_MAX,
+  TASK_COMMENT_PAGE_DEFAULT,
   TASK_COMMENT_PAGE_MAX,
-  taskCommentCursorSchema,
 } from '../domains/tasks/comments.ts';
 import {
+  findTaskByExternalRef,
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from '../domains/tasks/external-ref.ts';
@@ -32,7 +35,10 @@ import {
   domainErrorResponse,
   invalidBodyResponse,
   loadRestProject,
+  mintCursor,
+  readIntegerCursor,
   readJsonBody,
+  readPageLimit,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -159,12 +165,28 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         externalSystem: z.string().min(1).max(100),
         externalId: z.string().min(1).max(500),
-        // External titles are truncated by the domain; the transport only
-        // refuses an absurdly large import before attempting a write.
-        title: z.string().min(1).max(2000),
+        // The board's own cap: a validating door refuses an over-long
+        // title by name rather than storing a silently clipped one (the
+        // domain's ellipsis truncation stays for the lanes that import
+        // titles nobody chose — a GitHub issue, a sandbox native).
+        title: z.string().min(1).max(TASK_TITLE_MAX),
         description: z.string().max(TASK_DESCRIPTION_MAX).optional(),
-        labels: z.array(z.string().max(100)).max(50).optional(),
-        externalUrl: z.string().max(2048).optional(),
+        labels: z
+          .array(z.string().max(TASK_LABEL_CHARS_MAX))
+          .max(50)
+          .optional(),
+        // Rendered as a link to the source item — http(s) only, so a
+        // stored `javascript:` URL can never reach an anchor.
+        externalUrl: z
+          .string()
+          .max(2048)
+          .refine(isHttpUrl, { message: 'must be an absolute http(s) URL' })
+          .optional(),
+        // The source item's lifecycle: `closed` parks the task for review
+        // (done, when the actor may complete it), `open` reopens a done
+        // task — the domain's external-state rule, exposed as the mirror
+        // worker's close/reopen verb. Defaults to `open`.
+        externalState: z.enum(['open', 'closed']).optional(),
         runWorkflowSlug: z.string().min(1).max(200).optional(),
         automationSlug: z.string().min(1).max(200).optional(),
       })
@@ -183,15 +205,39 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const limited = await chargeLane(deps.sql, c, 'rest:execute');
         if (limited) return limited;
       }
+      const { externalState, runWorkflowSlug, ...intake } = body.data;
       const result = await transactSerializable(deps.sql, async (tx) => {
         await loadRestProject(tx, auth, projectId, { write: true });
-        await assertIntakeAutomations(tx, auth, projectId, body.data);
+        // A repeat is a reconcile of the existing task, and the docs ask
+        // for a stable payload on retry: the run workflow only ever starts
+        // a CREATE, so only a create validates its project binding — a
+        // repeat used to 403 on it and drop the title/description update.
+        // The owner (`automationSlug`) is validated either way: a repeat
+        // may still backfill an empty assignee with it.
+        const existing = await findTaskByExternalRef(tx, {
+          organizationId: auth.organizationId,
+          projectId,
+          externalSystem: intake.externalSystem,
+          externalId: intake.externalId,
+          dedupeScope: 'project',
+        });
+        await assertIntakeAutomations(
+          tx,
+          auth,
+          projectId,
+          existing === null
+            ? { ...intake, runWorkflowSlug }
+            : { automationSlug: intake.automationSlug },
+        );
         return upsertTaskByExternalRef(tx, {
-          ...body.data,
+          ...intake,
+          ...(existing === null && runWorkflowSlug !== undefined
+            ? { runWorkflowSlug }
+            : {}),
           organizationId: auth.organizationId,
           actorId: auth.userId,
           projectId,
-          externalState: 'open',
+          externalState: externalState ?? 'open',
           creatorType: 'user',
           dedupeScope: 'project',
         });
@@ -251,28 +297,16 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** The newest page is chronological within the page; continueCursor
    * walks toward the beginning of the task's discussion. */
   app.get('/projects/:id/tasks/:taskId/comments', async (c) => {
-    const query = z
-      .object({
-        limit: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(TASK_COMMENT_PAGE_MAX)
-          .optional(),
-        cursor: taskCommentCursorSchema,
-      })
-      .safeParse({
-        limit: c.req.query('limit'),
-        cursor: c.req.query('cursor'),
-      });
-    if (!query.success) {
-      return c.json(
-        {
-          error: `Invalid query: limit must be 1..${TASK_COMMENT_PAGE_MAX} and cursor a continueCursor from a previous page`,
-        },
-        400,
-      );
-    }
+    // The same page-size and cursor posture as every other list on the
+    // door: a clamped `limit`, `INVALID_LIMIT` for a non-number, and a
+    // SIGNED cursor this task's discussion answered (`INVALID_CURSOR` for
+    // any other) — this route used to hand-roll its own 400 sentence and
+    // read any well-formed number as a position.
+    const limit = readPageLimit(c, {
+      fallback: TASK_COMMENT_PAGE_DEFAULT,
+      max: TASK_COMMENT_PAGE_MAX,
+    });
+    if (limit instanceof Response) return limit;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const task = await loadVisibleTask(
@@ -281,11 +315,12 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.req.param('id'),
         c.req.param('taskId'),
       );
+      const list = `task-comments:${task.id}`;
+      const cursor = readIntegerCursor(c, list, { max: 2_147_483_647 });
+      if (cursor instanceof Response) return cursor;
       const page = await listTaskComments(deps.sql, auth, task.id, {
-        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
-        ...(query.data.cursor !== undefined
-          ? { before: query.data.cursor }
-          : {}),
+        limit,
+        ...(cursor !== null ? { before: cursor } : {}),
       });
       return c.json({
         comments: page.comments.map((comment) => ({
@@ -297,7 +332,10 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ...(comment.editedAt !== null ? { editedAt: comment.editedAt } : {}),
         })),
         isDone: !page.hasMore,
-        continueCursor: page.nextCursor === null ? '' : String(page.nextCursor),
+        continueCursor:
+          page.nextCursor === null
+            ? ''
+            : mintCursor(c, list, String(page.nextCursor)),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
