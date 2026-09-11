@@ -15,15 +15,8 @@ import {
 } from '../../../lib/shared/constants/tts.ts';
 import { TTS_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
-import {
-  checkRuleAgainstUsage,
-  collectAllApplicableRules,
-  resolveEffectiveLimits,
-  teamLimitsHasCap,
-  type BudgetCheckResult,
-} from '../../core/governance/budget_enforcement.ts';
+import type { BudgetCheckResult } from '../../core/governance/budget_enforcement.ts';
 import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
-import { buildPeriodKey } from '../../core/governance/helpers.ts';
 import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import { AUDIO_MIME_BY_FORMAT } from '../../core/tts/audio_mime.ts';
@@ -48,6 +41,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
+import { checkOrgBudget } from '../governance/budget-gate.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -237,39 +231,11 @@ export async function setThreadVoiceOutputOverride(
 
 // ----------------------------------------------------------------- budget
 
-interface UsageTotals {
-  totalTokens: number;
-  costEstimate: number;
-  requestCount: number;
-}
-
-async function periodUsage(
-  sql: Sql | TransactionSql,
-  organizationId: string,
-  periodKey: string,
-  scope: { userId?: string; teamId?: string },
-): Promise<UsageTotals> {
-  const rows = await sql<
-    { totalTokens: number; costEstimate: number; requestCount: number }[]
-  >`
-    SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
-           coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-           coalesce(sum(request_count), 0)::float8 AS "requestCount"
-    FROM app.usage_ledger
-    WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-      AND (${scope.userId ?? null}::text IS NULL
-        OR user_id = ${scope.userId ?? null})
-      AND (${scope.teamId ?? null}::text IS NULL
-        OR team_id = ${scope.teamId ?? null})
-  `;
-  return rows[0] ?? { totalTokens: 0, costEstimate: 0, requestCount: 0 };
-}
-
 /**
- * The 0.4 budget check over the policy FILE + `app.usage_ledger`,
- * with the pure rule collectors/evaluators REUSED. The api-key bucket is
- * omitted: the TTS lane never carries one (the REST lane's budget wiring
- * rides its own increment).
+ * The org budget gate as the TTS/transcription reservations, the video-link
+ * lane and the budget-status banner consume it. The evaluation itself is the
+ * shared `governance/budget-gate.ts` — the managed harness turns ride the
+ * same rules through `resolveTurnAllowance` — so the lanes cannot drift.
  */
 export async function checkTtsBudget(
   sql: Sql | TransactionSql,
@@ -282,102 +248,7 @@ export async function checkTtsBudget(
     prospectiveRequests: number;
   },
 ): Promise<BudgetCheckResult> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    args.organizationId,
-    'budgets',
-  );
-  if (!config || !config.enabled || config.rules.length === 0) {
-    return { allowed: true };
-  }
-  const applicableRules = collectAllApplicableRules(
-    config.rules,
-    args.userId,
-    args.userTeamIds,
-    args.userRole,
-    undefined,
-  );
-  if (applicableRules.length === 0) return { allowed: true };
-
-  const periods = new Set(applicableRules.map((rule) => rule.period));
-  for (const period of periods) {
-    const periodRules = applicableRules.filter((r) => r.period === period);
-    const periodKey = buildPeriodKey(period);
-    const limits = resolveEffectiveLimits(
-      periodRules,
-      args.userId,
-      args.userTeamIds,
-      args.userRole,
-      undefined,
-    );
-    const userUsage = await periodUsage(sql, args.organizationId, periodKey, {
-      userId: args.userId,
-    });
-    const violation = checkRuleAgainstUsage(
-      { scope: 'default', period, ...limitsTriple(limits) },
-      userUsage,
-      args.prospectiveCostCents,
-      args.prospectiveRequests,
-    );
-    if (violation) return violation;
-    // Each team's SHARED cap against that team's aggregate — the team rule's
-    // own values, never the personal triple (see `EffectiveLimits.teamLimits`).
-    for (const teamLimit of limits.teamLimits) {
-      if (!teamLimitsHasCap(teamLimit)) continue;
-      const teamUsage = await periodUsage(sql, args.organizationId, periodKey, {
-        teamId: teamLimit.teamId,
-      });
-      const teamViolation = checkRuleAgainstUsage(
-        {
-          scope: 'team',
-          scopeId: teamLimit.teamId,
-          period,
-          maxTokens: teamLimit.maxTokens,
-          maxCostCents: teamLimit.maxCostCents,
-          maxRequests: teamLimit.maxRequests,
-        },
-        teamUsage,
-        args.prospectiveCostCents,
-        args.prospectiveRequests,
-      );
-      if (teamViolation) return teamViolation;
-    }
-    if (
-      limits.orgMaxTokens != null ||
-      limits.orgMaxCostCents != null ||
-      limits.orgMaxRequests != null
-    ) {
-      const orgUsage = await periodUsage(
-        sql,
-        args.organizationId,
-        periodKey,
-        {},
-      );
-      const orgViolation = checkRuleAgainstUsage(
-        {
-          scope: 'org',
-          period,
-          maxTokens: limits.orgMaxTokens,
-          maxCostCents: limits.orgMaxCostCents,
-          maxRequests: limits.orgMaxRequests,
-        },
-        orgUsage,
-        args.prospectiveCostCents,
-        args.prospectiveRequests,
-      );
-      if (orgViolation) return orgViolation;
-    }
-  }
-  return { allowed: true };
-}
-
-type Limits = ReturnType<typeof resolveEffectiveLimits>;
-function limitsTriple(limits: Limits) {
-  return {
-    maxTokens: limits.maxTokens,
-    maxCostCents: limits.maxCostCents,
-    maxRequests: limits.maxRequests,
-  };
+  return checkOrgBudget(sql, args);
 }
 
 // ---------------------------------------------------------------- reserve

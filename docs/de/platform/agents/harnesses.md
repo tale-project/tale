@@ -63,7 +63,7 @@ An den Agenten gebundene Skills werden als Dateien in die Sitzung gelegt statt �
 
 ## Kosten und Messung
 
-Ein Harness-Zug kann lang sein und das Modell viele Male aufrufen, er kostet also mehr als eine einzelne Chat-Antwort. Verwaltete Züge laufen über das Gateway, und genau das macht sie messbar: Sie landen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) neben jedem anderen Zug, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation deckeln, was sie ausgeben dürfen.
+Ein Harness-Zug kann lang sein und das Modell viele Male aufrufen, er kostet also mehr als eine einzelne Chat-Antwort. Verwaltete Züge laufen über das Gateway, und genau das macht sie messbar: Sie landen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) neben jedem anderen Zug, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation deckeln, was sie ausgeben dürfen. Der Deckel greift vor dem Start eines Zuges, nicht danach: Sein Gateway-Budget ist, was unter den Regeln für die Person, die den Lauf gestartet hat, noch übrig ist — die bereits laufenden Züge mitgezählt —, und ein bereits erreichter Deckel verweigert den Start mit der Begründung der Regel. Der Lauf schlägt fehl statt neu zu starten, bis die Periode wechselt oder ein Admin die Regel anhebt.
 
 Züge auf einem Abo-Zugang umgehen das Gateway von Bauart her, weil das Geheimnis in den Container geht und das Werkzeug des Anbieters direkt mit ihm spricht. Diese Züge werden nicht gemessen, und die Ausgabendeckel der Organisation greifen nicht — die Abrechnung liegt bei dem, dem das Abonnement gehört.
 

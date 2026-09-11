@@ -168,6 +168,16 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
+- [ ] `TASK-F17` · **Retry after switching the agent's harness** — Let a run
+  fail mid-work (stop the sandbox's spawner while the CLI is busy), then
+  change the agent's **Harness** (e.g. Claude Code → Codex) and **Retry**
+  (`tasks.agentRun.retry`) → The new run starts a fresh conversation on the
+  preserved workspace (the transcript opens by inspecting the delivery box
+  rather than resuming), and the previous CLI process is gone before the new
+  one launches: `docker exec` into the agent's session container shows a
+  single harness process, and the backend log carries the
+  `predecessor … reap` line ahead of the new exec's start — never two CLIs
+  writing one workspace.
 
 ## Boundary & error tests
 
@@ -199,6 +209,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (`tasks.detail.addSubtask`) and set the parent to Done → The parent is
   blocked with **Finish all subtasks before closing this task.**
   (`tasks.detail.parentCloseGuard`) and keeps its status after reload.
+- [ ] `TASK-B5` · **Spend cap refuses a run** — Under **Settings > Governance
+  > Policies & Limits**, add an org-scoped monthly budget rule whose max cost
+  is below the org's spend so far this month; then **Start agent** on a task
+  of a managed-credential agent → The Run row flips to **Failed** with the
+  banner **Agent couldn't start this task** (`tasks.runFailure.title`) naming
+  the cap (`Cost limit reached for this monthly period …`); **Retry** is
+  offered but no automatic retry follows (the run stays failed); raising the
+  rule and retrying starts the run, and the run's cost then appears under
+  **Governance > Usage** for the person who started it.
 
 ## Accessibility (WCAG 2.1 AA)
 

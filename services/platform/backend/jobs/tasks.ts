@@ -196,6 +196,15 @@ export interface TaskPayloads {
     agentId: string;
     expectedRunId: string;
   };
+  /** Finish a settled turn's gateway-key settlement (book its spend, revoke
+   * the key) that the host's own settle could not complete — scheduled by
+   * the settle, retried with backoff; the sandbox watchdog sweep is the
+   * backstop past the ladder. */
+  'sandbox.gateway_key_reconcile': {
+    organizationId: string;
+    sessionId: string;
+    execId: string;
+  };
   /** An answered human ask hands the turn back to the agent host, which
    * resumes the SAME harness conversation with the answer as its next
    * message. Enqueued in the answer's transaction. */
@@ -426,6 +435,14 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
   'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
+  // A gateway still down when the settle ran: 30s, 60s, 2m, 4m, 8m, 16m —
+  // then the sandbox watchdog sweep owns the leftover.
+  'sandbox.gateway_key_reconcile': {
+    retryLimit: 6,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 120,
+  },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },
   'governance.retention_cleanup': { retryLimit: 1, expireInSeconds: 1_500 },

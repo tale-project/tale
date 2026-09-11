@@ -63,7 +63,7 @@ Les skills liés à l’agent sont déposés dans la session sous forme de fichi
 
 ## Coût et mesure
 
-Un tour sur harness peut être long et appeler le modèle de nombreuses fois : il coûte donc plus qu’une simple réponse de chat. Les tours gérés passent par la passerelle, et c’est ce qui les rend mesurables : ils atterrissent dans l’[Analytique d’usage](/fr/platform/admin/governance/usage-analytics) au même titre que tous les autres, et les [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) de l’organisation plafonnent ce qu’ils peuvent dépenser.
+Un tour sur harness peut être long et appeler le modèle de nombreuses fois : il coûte donc plus qu’une simple réponse de chat. Les tours gérés passent par la passerelle, et c’est ce qui les rend mesurables : ils atterrissent dans l’[Analytique d’usage](/fr/platform/admin/governance/usage-analytics) au même titre que tous les autres, et les [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) de l’organisation plafonnent ce qu’ils peuvent dépenser. Le plafond s’applique avant le démarrage du tour, pas après : l’allocation du tour sur la passerelle est ce qui reste sous les règles qui s’appliquent à la personne qui a lancé le run, tours déjà en cours compris, et un plafond déjà atteint refuse le démarrage avec la raison de la règle. Le run échoue au lieu de réessayer, jusqu’à ce que la période change ou qu’un admin relève la règle.
 
 Les tours sur un accès par abonnement contournent la passerelle par construction, puisque le secret entre dans le conteneur et que l’outillage du fournisseur lui parle directement. Ces tours ne sont pas mesurés et les plafonds de dépense de l’organisation ne les atteignent pas — la comptabilité revient à qui détient l’abonnement.
 

@@ -48,6 +48,10 @@ import {
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import {
+  settleGatewayKey,
+  settlementPending,
+} from '../node_only/sandbox/gateway_key_settlement';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   sessionCancelExec,
@@ -57,12 +61,17 @@ import {
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
-  getVirtualKeySpendCents,
+  readVirtualKeySpend,
   hashVirtualKey,
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
+import {
+  isTurnBudgetExceededError,
+  readReserveTurnBudgetResult,
+  TurnBudgetExceededError,
+} from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { hashBrokerToken } from '../provider_credentials/token_hash';
@@ -491,10 +500,20 @@ export function automationAgentHost(
   };
 }
 
+/** How long after a settle that could not finish its key's settlement the
+ * reconcile job first retries; the job's own backoff and the sandbox
+ * watchdog's sweep take it from there. */
+const GATEWAY_KEY_RECONCILE_DELAY_MS = 30_000;
+
 /**
- * Claim the finalize, record + revoke the turn's gateway key spend, and stamp
- * the op row terminal. Safe to race — `claimSessionOpFinalize` elects one
- * winner and a loser does nothing.
+ * Claim the finalize, settle the turn's gateway key (book its spend, then
+ * revoke it), and stamp the op row terminal. Safe to race —
+ * `claimSessionOpFinalize` elects one winner and a loser does nothing.
+ *
+ * The settlement is the shared `settleGatewayKey` choreography over the ctx
+ * shim: each of its two facts (spend booked, key revoked) is stamped only
+ * when it actually happened, and a fact this attempt could not close is
+ * handed to the reconcile job — the claim never stands in for the work.
  */
 export async function releaseTurnKey(
   ctx: ActionCtx,
@@ -505,6 +524,9 @@ export async function releaseTurnKey(
     status: 'completed' | 'failed' | 'cancelled';
     exitCode?: number;
     agentResultStatus?: string;
+    /** The harness's own token totals for the turn, booked alongside the
+     * gateway's spend figure. */
+    usageTotals?: { inputTokens: number; outputTokens: number };
   },
 ): Promise<{ won: boolean; spentCents?: number }> {
   const { sessionId, execId } = args;
@@ -518,23 +540,45 @@ export async function releaseTurnKey(
     { sessionId, execId },
   );
   let spentCents: number | undefined;
+  let pending = false;
   const mintedKeyId = op?.mintedKeyId;
   if (mintedKeyId !== undefined) {
-    const spent = await getVirtualKeySpendCents(mintedKeyId);
-    if (spent !== null) {
-      spentCents = spent;
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.recordSessionOpSpend,
-        { sessionId, execId, spentCents: spent },
-      );
-    }
-    await revokeVirtualKey(mintedKeyId).catch((err) =>
-      console.warn(`[agent-host] revoke VK ${mintedKeyId} failed:`, err),
+    const outcome = await settleGatewayKey(
+      {
+        spendSettled: op?.spendSettled === true,
+        keyRevoked: op?.keyRevoked === true,
+      },
+      {
+        readSpend: () => readVirtualKeySpend(mintedKeyId),
+        recordSpend: async (cents) => {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.recordSessionOpSpend,
+            {
+              sessionId,
+              execId,
+              spentCents: cents,
+              ...(args.usageTotals !== undefined
+                ? { usage: args.usageTotals }
+                : {}),
+            },
+          );
+        },
+        revokeKey: () => revokeVirtualKey(mintedKeyId),
+        markKeyRevoked: async () => {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
+            { sessionId, llmGatewayKeyId: mintedKeyId },
+          );
+        },
+      },
+      (message, err) =>
+        console.warn(
+          `[agent-host] ${sessionId}/${execId} key ${mintedKeyId}: ${message}`,
+          ...(err !== undefined ? [err] : []),
+        ),
     );
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
-      { sessionId, llmGatewayKeyId: mintedKeyId },
-    );
+    spentCents = outcome.spentCents;
+    pending = settlementPending(outcome);
   }
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
@@ -547,6 +591,20 @@ export async function releaseTurnKey(
       ? { agentResultStatus: args.agentResultStatus }
       : {}),
   });
+  if (pending) {
+    await ctx.scheduler
+      .runAfter(
+        GATEWAY_KEY_RECONCILE_DELAY_MS,
+        internal.sandbox.gateway_reconcile.reconcileSessionOpKey,
+        { organizationId: args.organizationId, sessionId, execId },
+      )
+      .catch((err) =>
+        console.error(
+          `[agent-host] ${sessionId}/${execId}: could not schedule the key settlement retry — the sandbox watchdog sweep will pick it up:`,
+          err,
+        ),
+      );
+  }
   return { won: true, ...(spentCents !== undefined ? { spentCents } : {}) };
 }
 
@@ -830,6 +888,7 @@ async function mintWorkflowTurnAuth(
   args: {
     organizationId: string;
     sessionId: string;
+    execId: string;
     lane: 'gateway' | 'subscription';
     providerSlug: string;
     modelId: string;
@@ -844,7 +903,27 @@ async function mintWorkflowTurnAuth(
   },
 ): Promise<WorkflowTurnAuth> {
   if (args.lane === 'gateway') {
-    const budgetCents = workflowAgentBudgetCents();
+    // The org's spend cap sizes the key: the deployment default, capped by
+    // what remains under every cost rule binding the run's starter after
+    // the spend booked this period and every unsettled turn's reservation —
+    // and a cap already reached refuses the start (`budget_exceeded`).
+    const reservation = readReserveTurnBudgetResult(
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.reserveTurnBudget,
+        {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          kind: 'workflow-agent',
+          defaultBudgetCents: workflowAgentBudgetCents(),
+          modelRef: `${args.providerSlug}/${args.gatewayModel}`,
+        },
+      ),
+    );
+    if (!reservation.allowed) {
+      throw new TurnBudgetExceededError(reservation.reason);
+    }
+    const budgetCents = reservation.budgetCents;
     const key = await provisionSessionGatewayKey(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -1018,6 +1097,7 @@ export async function startWorkflowAgentTurnImpl(
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
+        execId: args.execId,
         lane: args.lane ?? 'gateway',
         providerSlug: args.providerSlug,
         modelId: args.modelId,
@@ -1195,10 +1275,15 @@ export async function startWorkflowAgentTurnImpl(
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[agent-host] turn start failed:', err);
+      // A cap refusal is the org's decision, not a fault: named as such,
+      // and never retried (the cap only moves with the period or an admin).
+      const budgetRefused = isTurnBudgetExceededError(err);
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
-        reason: `the agent turn could not start: ${err instanceof Error ? err.message : String(err)}`,
-        failureCode: 'start_failed',
+        reason: budgetRefused
+          ? `the agent turn was refused by the organization's spend cap: ${err.reason}`
+          : `the agent turn could not start: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: budgetRefused ? 'budget_exceeded' : 'start_failed',
         text: '',
         files: [],
       });
@@ -1392,6 +1477,15 @@ export async function driveWorkflowAgentTurnImpl(
   } catch (err) {
     console.error('[agent-host] drive window threw:', err);
     await progress.flush();
+    // The turn settles failed below, so the process must not keep working
+    // unobserved: a drain that died on a transport failure says nothing
+    // about the CLI, which is typically still alive. Best-effort reap.
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[agent-host] exec cancel after drive failure failed:',
+        cancelErr,
+      ),
+    );
     // A drain that died at the deadline is the deadline, not a crash — a
     // retry of a burned 12h window would be pure waste.
     const pastDeadline = Date.now() > args.deadlineAt;
@@ -1509,6 +1603,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId,
+        execId,
         lane: serving.lane,
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
@@ -2014,6 +2109,7 @@ async function settleWorkflowAgentTurn(
     sessionId: args.sessionId,
     execId: args.execId,
     status: result.errored ? 'failed' : 'completed',
+    ...(result.usage !== undefined ? { usageTotals: result.usage } : {}),
     ...(opts.exitCode !== undefined ? { exitCode: opts.exitCode } : {}),
     ...(opts.agentResultStatus !== undefined
       ? { agentResultStatus: opts.agentResultStatus }

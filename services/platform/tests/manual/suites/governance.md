@@ -217,6 +217,15 @@ select lists only the current admin's keys (`useApiKeys`).
   route in the mock). Caveats: enabling the provider **before** an endpoint is
   configured autosaves and fails with a raw error toast (see Issues #1); a
   stored key can only be **Replaced**, never cleared from the UI.
+- [ ] `GOV-F18` · **Agent runs land in Usage and under the cap** — Let a
+  project agent (managed credential) finish one task, then open
+  **Governance > Usage** → The run's cost appears in the period totals and
+  in the per-agent breakdown under the agent's name, attributed to the
+  person who started the run; with an org-scoped cost rule set just above
+  that total, the next run starts with a smaller allowance and a rule set
+  below it refuses the next run at start (see [tasks.md](tasks.md)
+  `TASK-B5`) — the refusal names the cap, and nothing in **Sandboxes** shows
+  a running turn for it.
 
 ## Boundary & error tests
 

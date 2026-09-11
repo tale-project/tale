@@ -40,6 +40,7 @@ import {
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
+import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
 import {
@@ -991,6 +992,22 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       });
       if (outcome !== 'kicked') {
         console.log(`[task-agent] auto-retry skipped: ${outcome}`);
+      }
+    },
+    'sandbox.gateway_key_reconcile': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          sessionId: z.string().min(1),
+          execId: z.string().min(1),
+        })
+        .parse(payload);
+      const outcome = await reconcileSessionOpKey(deps.sql, input);
+      if (outcome !== null && (!outcome.spendSettled || !outcome.keyRevoked)) {
+        // Still open: throw so pg-boss retries on its backoff ladder.
+        throw new Error(
+          `gateway key settlement for ${input.sessionId}/${input.execId} still pending (spend ${outcome.spendSettled ? 'booked' : 'open'}, key ${outcome.keyRevoked ? 'revoked' : 'live'})`,
+        );
       }
     },
     'automation.agent_turn': async (payload) => {

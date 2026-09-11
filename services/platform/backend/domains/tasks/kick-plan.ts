@@ -19,7 +19,14 @@ export interface TaskKickStartPlanArgs {
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
-  resumePredecessorExecId?: string;
+  /** The exec of this agent's latest launched terminal run of the task, on
+   * this standing session — reaped before the new turn launches, whether or
+   * not its conversation is resumed. "Stop the previous process" and "can we
+   * continue its conversation" are separate questions: a drain that died on
+   * a transport failure settles the run failed with the CLI still alive,
+   * and a harness switch (no resume) must not leave it working beside the
+   * new one on the same workspace and delivery box. */
+  predecessorExecId?: string;
   excludeBrokerTokenHashes?: string[];
   sweep: boolean;
   inspectNote: boolean;
@@ -163,8 +170,11 @@ export async function resolveTaskKickStartArgs(
     ...(plan.resume !== undefined
       ? { resumeDiscussionSince: previousStartedAt }
       : {}),
-    ...(plan.resume !== undefined && previousExecId !== undefined
-      ? { resumePredecessorExecId: previousExecId }
+    // Only a predecessor on THIS session can be reaped here (another
+    // session's exec is not this session's to cancel); the resume decision
+    // already refuses a cross-session predecessor for the same reason.
+    ...(previousExecId !== undefined && previous?.sessionId === args.sessionId
+      ? { predecessorExecId: previousExecId }
       : {}),
     ...(excludeBrokerTokenHashes.size > 0
       ? { excludeBrokerTokenHashes: [...excludeBrokerTokenHashes] }
