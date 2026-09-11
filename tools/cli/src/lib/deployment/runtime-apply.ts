@@ -795,6 +795,7 @@ export async function applyRuntime(
   ];
   await runtimeCommand([...composeArgs, 'config', '--quiet'], dependencies, {
     cwd: sourceDirectory,
+    operation: 'compose-validation',
   });
   await runtimeCommand(
     [
@@ -807,7 +808,7 @@ export async function applyRuntime(
       ...(receipt.regeneratedSecrets.length ? ['--force-recreate'] : []),
     ],
     dependencies,
-    { cwd: sourceDirectory, timeout: 600 },
+    { cwd: sourceDirectory, timeout: 600, operation: 'compose-startup' },
   );
   containers = await waitForRuntime(options, bundle, compose, dependencies);
   for (const file of installedFiles)

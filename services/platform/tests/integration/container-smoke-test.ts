@@ -204,6 +204,21 @@ async function main(): Promise<number> {
   // 4. Validate HTTP health endpoints
   header('Validating HTTP health endpoints');
 
+  // Keep the filesystem restriction observable: removing the test mount must
+  // fail too, even when a proxy that writes a PID file would otherwise boot.
+  const egressContainer = await compose.containerName('sandbox-egress');
+  if (
+    await dockerExecOk(egressContainer, [
+      'sh',
+      '-c',
+      '! touch /tmp/tale-egress-smoke-probe 2>/dev/null && nc -z 127.0.0.1 3128',
+    ])
+  ) {
+    r.pass('Egress serves with read-only /tmp');
+  } else {
+    r.fail('Egress serves with read-only /tmp');
+  }
+
   // Proxy health is on internal port 2020, not exposed — check via docker exec
   const proxyContainer = await compose.containerName('proxy');
   if (
@@ -228,6 +243,7 @@ async function main(): Promise<number> {
   // skip verification; busybox wget --spider fails on any non-2xx status.
   if (
     await dockerExecOk(proxyContainer, [
+      // nosemgrep: tools.opengrep.rules.trailofbits.generic.wget-no-check-certificate.wget-no-check-certificate -- Isolated smoke container's self-signed localhost endpoint; no credentials or external traffic.
       'wget',
       '--no-check-certificate',
       '--no-verbose',
@@ -362,7 +378,50 @@ async function main(): Promise<number> {
   // 6. Sandbox session API end-to-end probe
   await sandboxSessionProbe();
 
+  // Exercise shutdown after all sessions finish: a TCP health check cannot
+  // detect a supervisor unable to signal its child after the UID changes.
+  await egressLifecycleProbe(egressContainer);
+
   return r.failed === 0 ? 0 : 1;
+}
+
+async function egressLifecycleProbe(container: string): Promise<void> {
+  const stopped = await capture(['docker', 'stop', '--time', '10', container]);
+  const state = await capture([
+    'docker',
+    'inspect',
+    '--format',
+    '{{.State.Running}} {{.State.ExitCode}} {{.State.OOMKilled}}',
+    container,
+  ]);
+  const logs = await capture(['docker', 'logs', '--tail', '100', container]);
+  if (
+    stopped.exitCode === 0 &&
+    state.exitCode === 0 &&
+    /^(?:false 0 false|false 143 false)$/.test(state.stdout.trim()) &&
+    logs.exitCode === 0 &&
+    logs.combined.includes('Shutting down')
+  ) {
+    r.pass('Egress shuts down gracefully without a forced kill');
+  } else {
+    r.fail('Egress shuts down gracefully without a forced kill');
+  }
+
+  // Start the same container and observe the listener again, preserving the
+  // test's read-only /tmp and the actual service capability configuration.
+  const started = await capture(['docker', 'start', container]);
+  let ready = false;
+  if (started.exitCode === 0) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (await dockerExecOk(container, ['nc', '-z', '127.0.0.1', '3128'])) {
+        ready = true;
+        break;
+      }
+      await sleep(1000);
+    }
+  }
+  if (ready) r.pass('Egress serves again after restarting the same container');
+  else r.fail('Egress serves again after restarting the same container');
 }
 
 // =============================================================================

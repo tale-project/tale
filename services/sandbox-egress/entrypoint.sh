@@ -4,7 +4,8 @@
 # App-level launch for the sandbox egress proxy. `docker-entrypoint.sh`
 # runs first and installs the IP-layer SSRF firewall; we render the
 # tinyproxy config (open egress by default, or a default-deny allowlist
-# when the operator sets SANDBOX_EGRESS_ALLOWLIST) and exec tinyproxy.
+# when the operator sets SANDBOX_EGRESS_ALLOWLIST) and supervise foreground
+# tinyproxy alongside the DNS forwarder.
 
 set -e
 

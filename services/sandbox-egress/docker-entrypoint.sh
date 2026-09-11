@@ -3,15 +3,15 @@
 #
 # Container-level bootstrap for the sandbox egress proxy. Installs the
 # IP-layer SSRF firewall (requires NET_ADMIN), then hands off to
-# `entrypoint.sh` which renders the tinyproxy config and replaces this
-# process with tinyproxy.
+# `entrypoint.sh` which renders the tinyproxy config and supervises the
+# foreground proxy and DNS forwarder.
 #
 # Split rationale:
 #   - The firewall touches kernel routing tables and is a container-level
 #     security boundary. It belongs in the `docker-entrypoint.sh` layer
 #     that conventionally runs first.
-#   - The tinyproxy launch is app-level config rendering + an `exec`. It
-#     belongs in `entrypoint.sh` so signals reach tinyproxy directly.
+#   - Config rendering and process supervision belong in `entrypoint.sh`,
+#     which forwards shutdown signals and reaps its children.
 
 set -e
 

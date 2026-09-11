@@ -70,3 +70,9 @@ services:
   sandbox:
     env_file:
       - .env.test
+
+  # The foreground proxy must boot without creating a PID file in /tmp.
+  # This reproduces restricted-host startup on ordinary CI Docker runners.
+  sandbox-egress:
+    tmpfs:
+      - /tmp:ro,size=1m

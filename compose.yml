@@ -691,6 +691,8 @@ services:
     #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
     #                   DNS to the internal-only sandbox network (dnsmasq checks
     #                   for this cap explicitly, even as root).
+    #   KILL          — the root supervisor signals tinyproxy after its UID
+    #                   changes to nobody, so shutdown drains instead of timing out.
     # (NET_RAW / MKNOD / SETPCAP / SETFCAP / etc. are NOT needed.)
     cap_drop:
       - ALL
@@ -701,6 +703,7 @@ services:
       - SETUID
       - SETGID
       - NET_BIND_SERVICE
+      - KILL
     healthcheck:
       # Plain TCP-listen check: if tinyproxy is up the port answers. We
       # intentionally do NOT CONNECT-probe an external host (pypi/npm)

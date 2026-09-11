@@ -42,6 +42,11 @@ bun run --filter @tale/sandbox-egress docker:build
 ## Container
 
 Runs as root so the entrypoint can `chown` the log dir and install `iptables`
-rules; `tinyproxy` drops privileges to `nobody` at bind time. `docker-entrypoint.sh`
-(PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh` which renders
-the tinyproxy config and `exec`s tinyproxy. See the script headers for details.
+rules; `tinyproxy` drops privileges to `nobody` after binding. `docker-entrypoint.sh`
+(PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh`. That shell renders
+the config, supervises foreground Tinyproxy and DNS, forwards shutdown signals,
+and reaps both children. It tracks the child PID directly, so Tinyproxy needs no
+PID file or write access to `/tmp`. The container smoke suite boots with a
+read-only `/tmp` and checks startup, graceful stop and the same container's
+restart. The root supervisor needs `KILL` to signal Tinyproxy after it changes
+user to `nobody`; the proxy itself retains no effective capabilities.
