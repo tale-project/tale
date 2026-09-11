@@ -377,13 +377,20 @@ export async function updateKnowledgeEntry(
     // retrieve (the filter excludes trashed documents). Such an entry is
     // gone from the caller's point of view, so it answers as not found.
     const currents = await tx<
-      { id: string; topicKey: string; documentId: string | null }[]
+      {
+        id: string;
+        status: string;
+        supersededBy: string | null;
+        topicKey: string;
+        documentId: string | null;
+      }[]
     >`
-      SELECT ke.id, ke.topic_key AS "topicKey", ke.document_id AS "documentId"
+      SELECT ke.id, ke.status, ke.superseded_by AS "supersededBy",
+             ke.topic_key AS "topicKey", ke.document_id AS "documentId"
       FROM app.knowledge_entries ke
       LEFT JOIN app.documents d ON d.id = ke.document_id
       WHERE ke.id = ${args.entryId} AND ke.org_id = ${args.organizationId}
-        AND ke.status = 'active' AND ke.deleted_at_ms IS NULL
+        AND ke.deleted_at_ms IS NULL
         AND (d.id IS NULL OR d.lifecycle_status IS NULL
              OR d.lifecycle_status = 'active')
       LIMIT 1
@@ -394,6 +401,18 @@ export async function updateKnowledgeEntry(
         'KNOWLEDGE_ENTRY_NOT_FOUND',
         'Entry not found',
         404,
+      );
+    }
+    // A superseded row is manifestly there (it reads, it lists under
+    // `?status=superseded`) — it is its STATE that refuses a new version,
+    // which is the documented 409, not the 404 a missing row answers.
+    if (current.status !== 'active') {
+      throw new KnowledgeEntryError(
+        'KNOWLEDGE_ENTRY_SUPERSEDED',
+        current.supersededBy === null
+          ? 'Entry is not active; update the active version of this topic'
+          : `Entry was superseded by ${current.supersededBy}; update that version instead`,
+        409,
       );
     }
     if (topicKey !== current.topicKey) {
@@ -481,8 +500,26 @@ export async function markEntryChainsDeletedForDocuments(
   return result.count;
 }
 
-/** Soft-delete the whole topic chain and trash the backing document — the
- * retrievability filter excludes trashed documents, so RAG goes dark now. */
+/**
+ * Delete one addressed row — with what that means for its chain:
+ *
+ * - the ACTIVE row is the fact itself: deleting it retires the whole chain
+ *   (every version, soft-deleted) and trashes the backing document, so the
+ *   retrievability filter takes it out of RAG now;
+ * - a SUPERSEDED row is history: deleting it prunes that version alone —
+ *   the active fact and its document stay exactly as they were.
+ *
+ * The chain is keyed by the DOCUMENT, never the topic key: every version
+ * re-materializes onto the same document (`attachEntryDocument` rotates it),
+ * while a topic rename leaves the older rows' `topic_key` behind and frees
+ * the old key for an unrelated entry — a delete that hopped through the key
+ * retired that stranger's chain. The key is the fallback only for a legacy
+ * row that never got a document.
+ *
+ * Both doors share this: the app's delete dialog only ever addresses the
+ * active row, and the REST door (with its `?status=superseded` listing)
+ * is where a retention job prunes history one version at a time.
+ */
 export async function deleteKnowledgeEntry(
   sql: Sql,
   args: { organizationId: string; entryId: string; role: string },
@@ -491,8 +528,10 @@ export async function deleteKnowledgeEntry(
   await sql.begin(async (tx) => {
     // A row already soft-deleted is not there to delete: a second DELETE
     // answers the documented 404, not a 204 that re-stamps nothing.
-    const rows = await tx<{ topicKey: string; documentId: string | null }[]>`
-      SELECT topic_key AS "topicKey", document_id AS "documentId"
+    const rows = await tx<
+      { status: string; topicKey: string; documentId: string | null }[]
+    >`
+      SELECT status, topic_key AS "topicKey", document_id AS "documentId"
       FROM app.knowledge_entries
       WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
         AND deleted_at_ms IS NULL
@@ -507,20 +546,35 @@ export async function deleteKnowledgeEntry(
       );
     }
     const now = Date.now();
+    if (entry.status !== 'active') {
+      await tx`
+        UPDATE app.knowledge_entries SET deleted_at_ms = ${now}
+        WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
+          AND deleted_at_ms IS NULL
+      `;
+      return;
+    }
+    if (entry.documentId === null) {
+      await tx`
+        UPDATE app.knowledge_entries SET deleted_at_ms = ${now}
+        WHERE org_id = ${args.organizationId}
+          AND topic_key = ${entry.topicKey} AND document_id IS NULL
+          AND deleted_at_ms IS NULL
+      `;
+      return;
+    }
     await tx`
       UPDATE app.knowledge_entries SET deleted_at_ms = ${now}
       WHERE org_id = ${args.organizationId}
-        AND topic_key = ${entry.topicKey} AND deleted_at_ms IS NULL
+        AND document_id = ${entry.documentId} AND deleted_at_ms IS NULL
     `;
-    if (entry.documentId !== null) {
-      await tx`
-        UPDATE app.documents SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${now},
-          updated_at_ms = ${now}
-        WHERE id = ${entry.documentId}
-          AND org_id = ${args.organizationId}
-      `;
-    }
+    await tx`
+      UPDATE app.documents SET
+        lifecycle_status = 'trashed', status_changed_at_ms = ${now},
+        updated_at_ms = ${now}
+      WHERE id = ${entry.documentId}
+        AND org_id = ${args.organizationId}
+    `;
   });
 }
 
@@ -602,13 +656,17 @@ export async function getKnowledgeEntryVersions(
     createdAt: number;
   }>
 > {
-  const keys = await sql<{ topicKey: string }[]>`
-    SELECT topic_key AS "topicKey" FROM app.knowledge_entries
+  // The chain is the DOCUMENT (see deleteKnowledgeEntry); the topic key is
+  // the fallback for a legacy row that never got one. Pruned versions
+  // (soft-deleted history) are not listed.
+  const keys = await sql<{ topicKey: string; documentId: string | null }[]>`
+    SELECT topic_key AS "topicKey", document_id AS "documentId"
+    FROM app.knowledge_entries
     WHERE id = ${entryId} AND org_id = ${organizationId}
     LIMIT 1
   `;
-  const topicKey = keys[0]?.topicKey;
-  if (topicKey === undefined) return [];
+  const head = keys[0];
+  if (head === undefined) return [];
   return sql<
     {
       id: string;
@@ -622,7 +680,14 @@ export async function getKnowledgeEntryVersions(
     SELECT id, topic, content, status, created_by AS "createdBy",
            created_at_ms::float8 AS "createdAt"
     FROM app.knowledge_entries
-    WHERE org_id = ${organizationId} AND topic_key = ${topicKey}
+    WHERE org_id = ${organizationId}
+      AND deleted_at_ms IS NULL
+      AND (
+        (${head.documentId}::text IS NOT NULL
+          AND document_id = ${head.documentId})
+        OR (${head.documentId}::text IS NULL
+          AND document_id IS NULL AND topic_key = ${head.topicKey})
+      )
     ORDER BY seq DESC
   `;
 }

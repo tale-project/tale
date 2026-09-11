@@ -46,7 +46,11 @@ import {
 /** Neutral inbox column a newly-synced (or reopened) external item lands in. */
 const SYNC_OPEN_STATUS: TaskStatus = 'backlog';
 
-async function findTaskByExternalRef(
+/** The task an external ref already names inside its dedupe scope, or
+ * null — the lookup `upsertTaskByExternalRef` starts with, exported so a
+ * door can tell a create from a repeat BEFORE it validates what only a
+ * create needs (the run workflow's project binding). */
+export async function findTaskByExternalRef(
   tx: TransactionSql,
   args: {
     organizationId: string;

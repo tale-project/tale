@@ -45,8 +45,11 @@ import {
   domainErrorResponse,
   formatKeysetCursor,
   invalidBodyResponse,
+  invalidQueryResponse,
   loadRestProject,
   lockRestProjectForWrite,
+  mintCursor,
+  notFound,
   readJsonBody,
   readKeysetCursor,
   readOptionalJsonBody,
@@ -75,6 +78,39 @@ import {
 
 const UPLOAD_INTENT_TTL_MS = 30 * 60_000;
 const projectAgentBody = projectAgentInputSchema.strict();
+
+/**
+ * A file name is a name, never a path: no separators, no `.`/`..`, no
+ * control characters (a NUL cannot be stored at all, the rest cannot be
+ * signed into a download disposition). The same rule the session lanes
+ * apply — checked at the mint too, so a bad name fails before the bytes
+ * are uploaded, not after.
+ */
+const FILE_NAME_FORBIDDEN = /[/\\\u0000-\u001f\u007f]/;
+function isPlainFileName(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed !== '' &&
+    trimmed !== '.' &&
+    trimmed !== '..' &&
+    !trimmed.includes('..') &&
+    !FILE_NAME_FORBIDDEN.test(trimmed)
+  );
+}
+const fileNameSchema = z.string().min(1).max(1024).refine(isPlainFileName, {
+  message:
+    'must be a file name — no path separators, no "..", no control characters',
+});
+
+/** The unique index a Postgres 23505 names, or null for any other error:
+ * two concurrent creates can both pass the SELECT-then-INSERT checks and
+ * one then hits `projects_org_key` / `projects_org_external_item`. */
+function uniqueViolationOf(error: unknown): string | null {
+  if (error === null || typeof error !== 'object') return null;
+  if (Reflect.get(error, 'code') !== '23505') return null;
+  const constraint: unknown = Reflect.get(error, 'constraint_name');
+  return typeof constraint === 'string' ? constraint : '';
+}
 
 function projectPayload(project: ProjectRow): Record<string, unknown> {
   return {
@@ -137,9 +173,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/projects', async (c) => {
     const externalItemId = c.req.query('externalItemId')?.trim();
     if (!externalItemId) {
-      return c.json(
-        { error: 'The "externalItemId" query parameter is required' },
-        400,
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        'invalid query: "externalItemId" is required — this is a lookup door, not a list',
+        [{ path: 'externalItemId', message: 'is required' }],
       );
     }
     const project = await getProjectByExternalItemId(
@@ -173,9 +211,50 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       requireEditor(c);
       const auth = await restProjectAuth(deps.sql, c);
-      const projectId = await deps.sql.begin((tx) =>
-        createProject(tx, auth, body.data),
-      );
+      // The machine door derives the key from the name when none is sent,
+      // and a derived key that is taken gets a numeric suffix (keyless when
+      // none is free) — a name-only create never fails on a key the caller
+      // never chose. An EXPLICIT key that is taken is the documented 409.
+      // The uniqueness checks are SELECT-then-INSERT, so two concurrent
+      // creates can both pass and one hits the unique index: an explicit
+      // key or externalItemId twin is answered as the same 409, a derived
+      // key twin is retried onto the next free suffix.
+      const explicitKey = body.data.key?.trim() ?? '';
+      let projectId: string | null = null;
+      for (let attempt = 0; attempt < 3 && projectId === null; attempt += 1) {
+        try {
+          projectId = await deps.sql.begin((tx) =>
+            createProject(tx, auth, {
+              ...body.data,
+              deriveKeyOnCollision: true,
+            }),
+          );
+        } catch (error) {
+          const constraint = uniqueViolationOf(error);
+          if (constraint === 'projects_org_external_item') {
+            throw new RestRefusal(
+              `A project with externalItemId "${body.data.externalItemId ?? ''}" already exists in this organization`,
+              409,
+              'PROJECT_DUPLICATE_EXTERNAL_ID',
+            );
+          }
+          if (constraint === 'projects_org_key' && explicitKey !== '') {
+            throw new RestRefusal(
+              `Project key "${explicitKey.toUpperCase()}" is already taken in this organization`,
+              409,
+              'PROJECT_KEY_TAKEN',
+            );
+          }
+          if (constraint !== 'projects_org_key') throw error;
+        }
+      }
+      if (projectId === null) {
+        throw new RestRefusal(
+          'Could not allocate a free project key; retry the request',
+          409,
+          'PROJECT_KEY_TAKEN',
+        );
+      }
       const project = await loadProjectOrThrow(deps.sql, projectId);
       return c.json({ project: projectPayload(project) }, 201);
     } catch (error) {
@@ -235,7 +314,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         project.id,
         c.req.param('agentId'),
       );
-      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      if (agent === null)
+        return notFound(c, 'Agent not found', 'PROJECT_AGENT_NOT_FOUND');
       return c.json({ agent });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -256,7 +336,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         await updateProjectAgent(tx, auth, { ...body.data, agentId });
         return getProjectAgent(tx, auth, project.id, agentId);
       });
-      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      if (agent === null)
+        return notFound(c, 'Agent not found', 'PROJECT_AGENT_NOT_FOUND');
       return c.json({ agent });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -275,7 +356,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         await deleteProjectAgent(tx, auth, agentId);
         return true;
       });
-      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
+      if (!deleted)
+        return notFound(c, 'Agent not found', 'PROJECT_AGENT_NOT_FOUND');
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -355,7 +437,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limited) return limited;
     const body = z
       .object({
-        fileName: z.string().max(1024).optional(),
+        // A hint, checked against the bind's own rule so a bad name fails
+        // here — before the bytes are uploaded — rather than at the bind.
+        fileName: fileNameSchema.optional(),
         contentType: z.string().max(255).optional(),
       })
       .strict()
@@ -374,12 +458,19 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const expiresAt = now + UPLOAD_INTENT_TTL_MS;
       const handoff = await deps.sql.begin(async (tx) => {
         await lockRestProjectForWrite(tx, auth, project.id);
+        // The signed PUT lives exactly as long as the intent: the URL and
+        // the `expiresAt` answered beside it are one deadline (the store's
+        // default signature was half of it, so a PUT inside the advertised
+        // window answered 403 from the bucket).
         const signed = await createRestUploadHandoff(
           deps.sql,
           { organizationId: c.get('organizationId') },
-          body.data.contentType !== undefined
-            ? { contentType: body.data.contentType }
-            : {},
+          {
+            ...(body.data.contentType !== undefined
+              ? { contentType: body.data.contentType }
+              : {}),
+            expiresInSec: UPLOAD_INTENT_TTL_MS / 1000,
+          },
         );
         await tx`
           INSERT INTO app.rest_upload_intents (
@@ -420,7 +511,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         uploadId: z.string().min(1).max(64),
         fileId: z.string().min(1).max(2048),
         folderId: z.string().min(1).max(64),
-        fileName: z.string().min(1).max(1024),
+        fileName: fileNameSchema,
         contentType: z.string().max(255).optional(),
         skipRagIndexing: z.boolean().optional(),
       })
@@ -437,23 +528,64 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // register + document create — any refusal rolls the consume back.
       const documentId = await deps.sql.begin(async (tx) => {
         await lockRestProjectForWrite(tx, auth, project.id);
-        const consumed = await tx<{ id: string }[]>`
-          UPDATE app.rest_upload_intents SET consumed_at_ms = ${Date.now()}
+        // The intent is looked up by its handle inside the caller's own
+        // scope (a foreign one stays opaque), then judged: consumed and
+        // expired are the intent's fault (mint a new one — UPLOAD_INTENT_
+        // INVALID), a blob other than the one it was minted for is the
+        // caller's plumbing (UPLOAD_FILE_MISMATCH). One UPDATE used to
+        // fold every case into one sentence.
+        const now = Date.now();
+        const intents = await tx<
+          {
+            id: string;
+            s3Ref: string;
+            consumedAt: number | null;
+            expiresAt: number;
+          }[]
+        >`
+          SELECT id, s3_ref AS "s3Ref", consumed_at_ms AS "consumedAt",
+                 expires_at_ms::float8 AS "expiresAt"
+          FROM app.rest_upload_intents
           WHERE id = ${body.data.uploadId}
             AND org_id = ${c.get('organizationId')}
             AND user_id = ${c.get('userId')}
             AND project_id = ${project.id}
-            AND s3_ref = ${body.data.fileId}
-            AND consumed_at_ms IS NULL
-            AND expires_at_ms > ${Date.now()}
-          RETURNING id
+          LIMIT 1
+          FOR UPDATE
         `;
-        if (consumed.length === 0) {
+        const intent = intents[0];
+        if (intent === undefined) {
           throw new RestRefusal(
-            'Unknown, expired, or already-used uploadId for this blob.',
+            'Unknown uploadId for this project — mint a new upload handoff',
             409,
+            'UPLOAD_INTENT_INVALID',
           );
         }
+        if (intent.consumedAt !== null) {
+          throw new RestRefusal(
+            'This uploadId was already used — mint a new upload handoff',
+            409,
+            'UPLOAD_INTENT_INVALID',
+          );
+        }
+        if (intent.expiresAt <= now) {
+          throw new RestRefusal(
+            'This uploadId expired — mint a new upload handoff and upload again',
+            409,
+            'UPLOAD_INTENT_INVALID',
+          );
+        }
+        if (intent.s3Ref !== body.data.fileId) {
+          throw new RestRefusal(
+            'fileId is not the s3Ref this uploadId was minted for',
+            409,
+            'UPLOAD_FILE_MISMATCH',
+          );
+        }
+        await tx`
+          UPDATE app.rest_upload_intents SET consumed_at_ms = ${now}
+          WHERE id = ${intent.id}
+        `;
         // HEAD → policy → row, in that order — the same choreography as the
         // session bind lane. The org's upload policy — the `file:upload`
         // budget, the size caps, the MIME/extension allowlists, the
@@ -539,7 +671,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const folderId = c.req.query('folderId')?.trim() || undefined;
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
-    const cursor = readKeysetCursor(c);
+    const cursor = readKeysetCursor(c, `files:${project.id}`);
     if (cursor instanceof Response) return cursor;
     const cursorCreatedAt = cursor?.at ?? null;
     const cursorId = cursor?.id ?? null;
@@ -551,7 +683,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         LIMIT 1
       `;
       if (folders.length === 0) {
-        return c.json({ error: 'Folder not found' }, 404);
+        return notFound(c, 'Folder not found', 'FOLDER_NOT_FOUND');
       }
     }
     const rows = await deps.sql<
@@ -579,11 +711,19 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     `;
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
+    const isDone = !(rows.length > limit && last);
     return c.json({
       files: page,
-      ...(rows.length > limit && last
-        ? { cursor: formatKeysetCursor(last.createdAt, last.id) }
-        : {}),
+      isDone,
+      ...(isDone || !last
+        ? {}
+        : {
+            cursor: mintCursor(
+              c,
+              `files:${project.id}`,
+              formatKeysetCursor(last.createdAt, last.id),
+            ),
+          }),
     });
   });
 
@@ -599,7 +739,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       doc = await loadDocumentOrThrow(deps.sql, c.req.param('documentId'));
     } catch (error) {
       if (error instanceof DocumentError && error.status === 404) {
-        return c.json({ error: 'File not found' }, 404);
+        return notFound(c, 'File not found', 'FILE_NOT_FOUND');
       }
       throw error;
     }
@@ -609,7 +749,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       doc.fileRef === null ||
       (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
     ) {
-      return c.json({ error: 'File not found' }, 404);
+      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
     }
     let presigned: string;
     try {
@@ -627,7 +767,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         '[projects-rest] refused content serve:',
         error instanceof Error ? error.message : String(error),
       );
-      return c.json({ error: 'File not found' }, 404);
+      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
     }
     return c.body(null, 302, { location: presigned });
   });

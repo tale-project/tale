@@ -54,11 +54,27 @@ import {
 } from '../../../lib/knowledge/crawl-parse';
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
+import { crawlHostRefusal } from '../../../lib/net/crawl-host-policy';
 import {
   safeFetch,
   safeFetchBinary,
   SafeFetchError,
 } from '../../../lib/net/safe-fetch';
+
+/**
+ * Refuse to dial a URL the crawl-target policy would never have let in.
+ * The domain was checked at registration, but a row registered before the
+ * policy — or a link on a crawled page — must not reach `safeFetch` with
+ * the site's own hosts as `allowedHosts`, the exact switch that suspends
+ * its private-range refusal. Thrown as the fetch error the callers already
+ * classify, so a refused target is logged and skipped like a dead one.
+ */
+function assertCrawlableUrl(url: string): void {
+  const refusal = crawlHostRefusal(new URL(url).hostname);
+  if (refusal !== null) {
+    throw new SafeFetchError('private_ip', `Crawl target refused: ${refusal}`);
+  }
+}
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -503,6 +519,7 @@ async function discoverAndRecordUrls(
   let disallow: readonly string[] = [];
   let sitemapCandidates: string[] = [`https://${domain}/sitemap.xml`];
   try {
+    assertCrawlableUrl(`https://${domain}/robots.txt`);
     const robots = await safeFetch(`https://${domain}/robots.txt`, {
       timeoutMs: PAGE_TIMEOUT_MS,
       maxResponseBytes: ROBOTS_MAX_BYTES,
@@ -552,6 +569,7 @@ async function discoverAndRecordUrls(
     sitemapFetches += 1;
     let xml: string;
     try {
+      assertCrawlableUrl(next.url);
       const response = await safeFetch(next.url, {
         timeoutMs: PAGE_TIMEOUT_MS,
         maxResponseBytes: SITEMAP_MAX_BYTES,
@@ -606,6 +624,7 @@ async function discoverAndRecordUrls(
       visited.add(next.url);
       fetches += 1;
       try {
+        assertCrawlableUrl(next.url);
         const response = await safeFetch(next.url, {
           timeoutMs: PAGE_TIMEOUT_MS,
           maxResponseBytes: PAGE_MAX_BYTES,
@@ -706,6 +725,7 @@ async function fetchAndStorePage(
 
   let response;
   try {
+    assertCrawlableUrl(page.url);
     response = await safeFetchBinary(page.url, {
       timeoutMs: PAGE_FETCH_TIMEOUT_MS,
       maxResponseBytes: DOCUMENT_MAX_BYTES,

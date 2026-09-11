@@ -8,19 +8,15 @@
  * bundle), and a hand-copied list on a screen is how a UI starts advertising
  * tools the server does not serve.
  *
- * Two schema policies, on purpose:
- *
- *  - the four methods that take an AUTOMATION DOCUMENT (validate, run, test,
- *    save) keep an OPEN schema (`{type: 'object'}`). The document's grammar is
- *    a page of rules the engine teaches in band: it validates the params
- *    itself and refuses with an actionable hint, and `get_docs` is the
- *    reference. A JSON Schema copy of the node grammar here would be a second
- *    source of truth that drifts.
- *  - every other tool declares a REAL schema. Its arguments are a name, a
- *    handle, a version, a query — a client can and should be told the shape,
- *    the endpoint holds a call to it (a mismatch is -32602, never a silently
- *    "successful" call that ran nothing), and `additionalProperties: false`
- *    turns a typo into an error instead of a silently ignored field.
+ * One schema policy: every tool declares a REAL schema, and the endpoint
+ * holds a call to it — a mismatch is -32602, never a silently "successful"
+ * call that ran nothing — with `additionalProperties: false`, so a typo is
+ * an error instead of a silently ignored field. The four methods that take
+ * an AUTOMATION DOCUMENT (validate, run, test, save) declare their call
+ * envelope (`{automation, …}`) and leave the document itself an open object:
+ * its node grammar is a page of rules the engine teaches in band
+ * (`get_docs`) and validates itself, and a JSON Schema copy here would be a
+ * second source of truth that drifts.
  */
 
 import { METHODS, type Method } from '../engine/api/dispatch';
@@ -124,10 +120,6 @@ const CAPABILITY_TOOL_DESCRIPTIONS: Record<CapabilityToolName, string> = {
     "Retrieve passages from the organization's knowledge — its documents and its crawled web pages.",
 };
 
-/** For the automation-document methods: the engine validates and teaches
- * its own params; `get_docs` is the schema. */
-const OPEN_SCHEMA: Record<string, unknown> = { type: 'object' };
-
 function object(
   properties: Record<string, Record<string, unknown>>,
   required: readonly string[] = [],
@@ -165,12 +157,60 @@ const RUN_INPUT: Record<string, unknown> = {
     "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it.",
 };
 
-/** Real schemas for every tool whose arguments are simple. The four
- * automation-document methods are deliberately absent and keep the open
- * schema. */
+/** The automation document itself. Its node grammar is the page of rules
+ * `get_docs` teaches and the engine validates in band — a JSON Schema copy
+ * here would be a second source of truth that drifts — so the document is
+ * an open object; what IS declared is the call envelope around it. */
+const AUTOMATION_DOCUMENT: Record<string, unknown> = {
+  type: 'object',
+  description:
+    'The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems.',
+};
+
+/** Real schemas for every tool: the four automation-document methods
+ * declare their call envelope (`{automation, …}`) around the open document,
+ * so a call without the document is refused at the transport (-32602)
+ * rather than answered with a hint in another dialect. */
 const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
   get_docs: object({}),
-  get_catalog: object({}),
+  get_catalog: object({
+    kind: {
+      type: 'string',
+      enum: ['transform', 'llm', 'agent', 'subautomation', 'connector'],
+      description: 'Only node types of this kind.',
+    },
+    compact: {
+      type: 'boolean',
+      description:
+        'Names and descriptions only — no input schemas. The full catalog is large (over 100 KB); prefer search_catalog or compact for discovery.',
+    },
+  }),
+  validate_automation: object({ automation: AUTOMATION_DOCUMENT }, [
+    'automation',
+  ]),
+  run_automation: object(
+    {
+      automation: AUTOMATION_DOCUMENT,
+      input: RUN_INPUT,
+      mode: {
+        type: 'string',
+        enum: ['mock', 'live'],
+        description: 'mock (default) runs against deterministic mocks.',
+      },
+    },
+    ['automation'],
+  ),
+  test_automation: object({ automation: AUTOMATION_DOCUMENT }, ['automation']),
+  save_automation: object(
+    {
+      automation: AUTOMATION_DOCUMENT,
+      message: {
+        type: 'string',
+        description: 'Why this version — shown in the version history.',
+      },
+    },
+    ['automation'],
+  ),
   search_catalog: object(
     {
       query: {
@@ -323,13 +363,19 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
  * them), then the platform capability tools.
  */
 export const MCP_TOOLS: readonly McpToolSpec[] = [
-  ...METHODS.map((name) => ({
-    name,
-    description: METHOD_DESCRIPTIONS[name],
-    inputSchema: METHOD_SCHEMAS[name] ?? OPEN_SCHEMA,
-    kind: 'engine' as const,
-    group: METHOD_GROUPS[name],
-  })),
+  ...METHODS.map((name) => {
+    const inputSchema = METHOD_SCHEMAS[name];
+    if (inputSchema === undefined) {
+      throw new Error(`MCP tool "${name}" has no input schema`);
+    }
+    return {
+      name,
+      description: METHOD_DESCRIPTIONS[name],
+      inputSchema,
+      kind: 'engine' as const,
+      group: METHOD_GROUPS[name],
+    };
+  }),
   ...CAPABILITY_TOOL_NAMES.map((name) => ({
     name,
     description: CAPABILITY_TOOL_DESCRIPTIONS[name],

@@ -6,6 +6,7 @@ import {
   siteHosts,
 } from '../../../lib/knowledge/crawl-parse.ts';
 import { htmlTitle } from '../../../lib/knowledge/html-to-text.ts';
+import { CrawlTargetError } from '../../../lib/net/crawl-host-policy.ts';
 import { safeFetch } from '../../../lib/net/safe-fetch.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -82,6 +83,24 @@ export class WebsiteError extends Error {
     this.name = 'WebsiteError';
     this.code = code;
     this.status = status;
+  }
+}
+
+/**
+ * The crawl-target hostname a registration names, or the 400 the policy
+ * answers (`WEBSITE_DOMAIN_INVALID` for no http(s) host at all,
+ * `WEBSITE_DOMAIN_NOT_CRAWLABLE` for a loopback, private-network or
+ * metadata host) — one rule for every write door, checked again by the
+ * crawler before it dials.
+ */
+export function crawlableDomain(input: string): string {
+  try {
+    return toWebsiteDomain(input);
+  } catch (error) {
+    if (error instanceof CrawlTargetError) {
+      throw new WebsiteError(error.code, error.message, 400);
+    }
+    throw error;
   }
 }
 
@@ -251,7 +270,7 @@ export async function createWebsiteRow(
   },
 ): Promise<string> {
   assertScanInterval(args.scanInterval);
-  const domain = toWebsiteDomain(args.domain);
+  const domain = crawlableDomain(args.domain);
   const now = Date.now();
   // A row is a whole-site crawl unless registered as a URL list — `kind` is
   // part of the wire shape from the first read, not only once the corpus

@@ -41,7 +41,7 @@ import { nodeTypes } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 import { validate } from '../core/validate';
 import { searchCatalog } from './catalog-search';
-import { agentDocs } from './docs';
+import { authoringReference } from './docs';
 import { runAutomationTests } from './tests';
 
 export const METHODS = [
@@ -82,6 +82,10 @@ export interface RunSummary {
   runId: string;
   name: string;
   version: number;
+  /** The project the run operates in — null for an organization run. A
+   * host that scopes reads by project (the REST door does) needs it to
+   * build the run's URL. */
+  projectId?: string | null;
   status: string;
   mode: string;
   startedBy: string;
@@ -164,7 +168,13 @@ export interface DispatchStore extends StoreAdapter {
     mode: 'mock' | 'live',
     version?: number,
     projectId?: string,
-  ): Promise<{ runId: string; version: number } | null>;
+  ): Promise<{
+    runId: string;
+    version: number;
+    /** The project the run operates in (null: organization-wide) — the
+     * scope a host that reads runs by project needs to build its URL. */
+    projectId?: string | null;
+  } | null>;
   listRuns?(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun?(runId: string): Promise<RunDetail | null>;
   cancelRun?(runId: string): Promise<{ cancelled: boolean }>;
@@ -186,12 +196,30 @@ export interface DispatchStore extends StoreAdapter {
 async function missingAutomation(
   store: DispatchStore,
   name: string,
-): Promise<{ error: string; hint: string } | null> {
+): Promise<{ error: string; code: string; hint: string } | null> {
   if ((await store.get(name)) !== null) return null;
   return {
     error: `no saved automation named "${name}"`,
+    code: 'AUTOMATION_NOT_FOUND',
     hint: 'list_automations shows the saved ones',
   };
+}
+
+/**
+ * A host refusal as data: the message, and the stable `code` the host's
+ * own error classes carry (`AutomationError`, `ActorAuthError`) so a
+ * client can branch on it — the catch sites used to keep only the
+ * sentence. A thrown value without a code stays a bare message.
+ */
+function refusalFrom(error: unknown): { error: string; code?: string } {
+  const message = error instanceof Error ? error.message : String(error);
+  const code: unknown =
+    error !== null && typeof error === 'object'
+      ? Reflect.get(error, 'code')
+      : undefined;
+  return typeof code === 'string' && code !== ''
+    ? { error: message, code }
+    : { error: message };
 }
 
 export interface DispatchContext {
@@ -247,7 +275,7 @@ async function runDeployedDurably(
   try {
     started = await store.startRun(name, input, 'live', version);
   } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+    return refusalFrom(e);
   }
   if (!started)
     return { error: `deployed version ${name}@${version} is missing` };
@@ -327,27 +355,39 @@ export async function dispatch(
 
   switch (method) {
     case 'get_docs':
-      return { docs: agentDocs() };
+      // The authoring REFERENCE — not the builder session's system prompt,
+      // which wraps this same reference in the session's own protocol and
+      // persona (`automations_builder/policy.ts`). Served to MCP clients,
+      // it must teach the endpoint's own dialect and instruct nobody.
+      return { docs: authoringReference() };
 
     case 'get_catalog': {
+      // The whole catalog with every input schema runs past 100 KB;
+      // `kind` narrows it to one node kind and `compact` drops the
+      // schemas, so a client can discover without reading it all.
+      const kind = asString(p.kind);
+      const compact = p.compact === true;
       const node_types = [];
       for (const t of nodeTypes().values()) {
+        if (kind !== '' && t.kind !== kind) continue;
         const entry: Record<string, unknown> = {
           type: t.type,
           kind: t.kind,
           description: t.description,
           outputKind: t.outputKind,
-          fields: [
+        };
+        if (!compact) {
+          entry.fields = [
             'id',
             'type',
             ...t.allowedFields.map((f) =>
               t.requiredFields.includes(f) ? f : `${f}?`,
             ),
-          ],
-        };
-        if (t.connector) {
-          entry.input_schema = t.connector.inputSchema;
-          entry.output = t.connector.outputSignature;
+          ];
+          if (t.connector) {
+            entry.input_schema = t.connector.inputSchema;
+            entry.output = t.connector.outputSignature;
+          }
         }
         node_types.push(entry);
       }
@@ -359,7 +399,7 @@ export async function dispatch(
       if (!query) {
         return {
           error: 'missing params.query',
-          hint: '{method: search_catalog, params: {query: "send email"}}',
+          hint: 'search_catalog takes {query: "send email"} — capability keywords, verbs and objects',
         };
       }
       const matches = searchCatalog(query);
@@ -382,7 +422,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
-          hint: 'call as {method: validate_automation, params: {automation: {...}}}',
+          hint: 'validate_automation takes {automation: <the automation document>}',
         };
       }
       const { errors, warnings } = await validate(p.automation, { store });
@@ -393,7 +433,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
-          hint: 'call as {method: run_automation, params: {automation: {...}, input: {...}}}',
+          hint: 'run_automation takes {automation: <the automation document>, input: <its runtime input>}',
         };
       }
       const mode = p.mode ?? 'mock';
@@ -444,7 +484,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
-          hint: 'call as {method: test_automation, params: {automation: {...with tests...}}}',
+          hint: 'test_automation takes {automation: <the automation document, with its tests: block>}',
         };
       }
       const { errors, warnings } = await validate(p.automation, { store });
@@ -457,7 +497,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
-          hint: 'call as {method: save_automation, params: {automation: {...}, message?: "why this version"}}',
+          hint: 'save_automation takes {automation: <the automation document>, message?: "why this version"}',
         };
       }
       const { errors } = await validate(p.automation, { store });
@@ -475,7 +515,7 @@ export async function dispatch(
         // The host's own refusals — a name it reserves for its fixed routes,
         // a name another owner holds — are refusals, not protocol errors:
         // they come back as data so the caller can rename and retry.
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 
@@ -487,7 +527,12 @@ export async function dispatch(
           : versionParam(p.version, 'omit it to read the latest saved version');
       if ('error' in version) return version;
       const found = await store.get(name, version.value);
-      return found ?? { error: `no saved automation named "${name}"` };
+      return (
+        found ?? {
+          error: `no saved automation named "${name}"`,
+          code: 'AUTOMATION_NOT_FOUND',
+        }
+      );
     }
 
     case 'list_automations':
@@ -500,7 +545,7 @@ export async function dispatch(
       if (p.version === undefined) {
         return {
           error: 'missing params.version',
-          hint: '{method: deploy_automation, params: {name: "billing/dunning", version: 3}} — list_versions shows the saved ones',
+          hint: 'deploy_automation takes {name: "billing/dunning", version: 3} — list_versions shows the saved ones',
         };
       }
       const wanted = versionParam(
@@ -511,7 +556,10 @@ export async function dispatch(
       const version = wanted.value;
       const saved = await store.get(name, version);
       if (!saved) {
-        return { error: `no saved automation "${name}@${version}"` };
+        return {
+          error: `no saved automation "${name}@${version}"`,
+          code: 'AUTOMATION_VERSION_UNKNOWN',
+        };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const automation = saved.automation as Automation;
@@ -544,7 +592,7 @@ export async function dispatch(
           note: 'this version is now live-eligible via run_deployed and triggers',
         };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 
@@ -556,7 +604,7 @@ export async function dispatch(
       if (!trigger || typeof trigger !== 'object') {
         return {
           error: 'missing params.trigger',
-          hint: '{method: set_trigger, params: {name, trigger: {kind: "schedule"|"webhook"|"event", …}}}',
+          hint: 'set_trigger takes {name, trigger: {kind: "schedule"|"webhook"|"event", …}}',
         };
       }
       const name = asString(p.name);
@@ -576,7 +624,7 @@ export async function dispatch(
           note: 'trigger recorded; the host schedules and delivers it',
         };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 
@@ -586,12 +634,16 @@ export async function dispatch(
       if (!version) {
         return {
           error: `"${name}" has no deployed version`,
+          code: 'AUTOMATION_NOT_DEPLOYED',
           hint: 'save_automation then deploy_automation first',
         };
       }
       const found = await store.get(name, version);
       if (!found)
-        return { error: `deployed version ${name}@${version} is missing` };
+        return {
+          error: `deployed version ${name}@${version} is missing`,
+          code: 'AUTOMATION_VERSION_UNKNOWN',
+        };
       const mode = ctx.allowLive ? 'live' : 'mock';
       if (mode === 'live' && !ctx.connectorHost) {
         return await runDeployedDurably(ctx, name, version, p.input ?? {});
@@ -599,9 +651,7 @@ export async function dispatch(
       try {
         await store.authorizeRun?.(name, mode);
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : String(error),
-        };
+        return refusalFrom(error);
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const result = await execute(found.automation as Automation, {
@@ -624,7 +674,7 @@ export async function dispatch(
       if (!name) {
         return {
           error: 'missing params.name',
-          hint: '{method: start_run, params: {name: "billing/dunning", input: {…}}}',
+          hint: 'start_run takes {name: "billing/dunning", input: {…}, projectId?: "…"}',
         };
       }
       const wanted =
@@ -648,6 +698,7 @@ export async function dispatch(
         if (!started) {
           return {
             error: `"${name}" has no version to run`,
+            code: 'AUTOMATION_NOT_DEPLOYED',
             hint: 'save_automation then deploy_automation first, or name an existing version with params.version',
           };
         }
@@ -658,7 +709,7 @@ export async function dispatch(
           hint: 'use run_deployed instead when you want the finished result in a single call',
         };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 
@@ -688,7 +739,9 @@ export async function dispatch(
         };
       }
       const run = await store.getRun(runId);
-      return run ? { run } : { error: `no run "${runId}"` };
+      return run
+        ? { run }
+        : { error: `no run "${runId}"`, code: 'RUN_NOT_FOUND' };
     }
 
     case 'cancel_run': {
@@ -708,7 +761,7 @@ export async function dispatch(
             : 'the run had already finished — nothing to cancel',
         };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 
@@ -760,7 +813,7 @@ export async function dispatch(
               note: `no trigger was bound to "${name}" — nothing changed`,
             };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
+        return refusalFrom(e);
       }
     }
 

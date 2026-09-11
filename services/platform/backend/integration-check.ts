@@ -1301,6 +1301,127 @@ async function checkIdentityDomains(
  * pin/archive/restore → search → delete, through the HTTP surface (access
  * gates + audit writes + rate charges included).
  */
+/**
+ * A model the organization can serve, for every check that creates a
+ * project agent: the equipment check refuses a model no configured provider
+ * lists, so the org gets a `models-endpoint` provider (`itestagent`) backed
+ * by a stub catalog server — serving `test-model` and `itest-agent-model`,
+ * each with the context window the catalog loader requires — plus an
+ * API-key credential for it. Close the stub once the lane is done; by then
+ * the catalog is cached in-process.
+ */
+async function seedItestAgentProvider(args: {
+  base: string;
+  cookie: string;
+  orgId: string;
+  orgSlug: string;
+  displayName: string;
+  credentialName: string;
+  secret: string;
+}): Promise<{
+  port: number;
+  close: () => Promise<void>;
+  cleanup: () => Promise<void>;
+}> {
+  const { createServer } = await import('node:http');
+  const server = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if ((req.url ?? '').endsWith('/models')) {
+      res.end(
+        JSON.stringify({
+          object: 'list',
+          data: ['test-model', 'itest-agent-model', 'itest-model'].map(
+            (id) => ({
+              id,
+              object: 'model',
+              context_length: 32_768,
+            }),
+          ),
+        }),
+      );
+      return;
+    }
+    res.statusCode = 404;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  const port =
+    address !== null && typeof address === 'object' ? address.port : 0;
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const providersDir = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    args.orgSlug,
+    'providers',
+  );
+  await mkdir(providersDir, { recursive: true });
+  await writeFile(
+    path.join(providersDir, 'itestagent.yml'),
+    [
+      'name: itestagent',
+      `displayName: ${args.displayName}`,
+      'apiFormat: openai',
+      `baseUrl: http://127.0.0.1:${port}/v1`,
+      'catalog:',
+      '  source: models-endpoint',
+      'auth:',
+      '  - method: api-key',
+    ].join('\n'),
+  );
+  const credential = await fetch(
+    `${args.base}/api/app/provider-credentials?orgId=${args.orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: args.cookie,
+        origin: args.base,
+      },
+      body: JSON.stringify({
+        providerSlug: 'itestagent',
+        authMethod: 'api-key',
+        name: args.credentialName,
+        secret: args.secret,
+      }),
+    },
+  );
+  if (credential.status !== 200) {
+    throw new Error(
+      `agent provider credential: ${credential.status} ${await credential.text()}`,
+    );
+  }
+  const { credentialId } = z
+    .object({ credentialId: z.string() })
+    .parse(await credential.json());
+  const closeServer = () =>
+    new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  return {
+    port,
+    /** Stop the stub; the provider and credential stay (a later lane of
+     * the same org may still turn agents on them — the catalog is cached
+     * in-process by then). */
+    close: closeServer,
+    /** Leave the org as it was found — for a lane that borrows the SUITE
+     * org, whose later lanes list its credentials and read the first one
+     * back. */
+    cleanup: async () => {
+      await fetch(
+        `${args.base}/api/app/provider-credentials/${credentialId}?orgId=${args.orgId}`,
+        {
+          method: 'DELETE',
+          headers: { cookie: args.cookie, origin: args.base },
+        },
+      );
+      await rm(path.join(providersDir, 'itestagent.yml'), { force: true });
+      await closeServer();
+    },
+  };
+}
+
 async function checkProjects(
   sql: Sql,
   base: string,
@@ -1360,13 +1481,29 @@ async function checkProjects(
     `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, flags=${fetched.success ? `${fetched.data.project.isOrgWide}/${fetched.data.project.canEdit}/${fetched.data.project.canAdminister}` : 'ERR'} (want true×3), dupExternal → ${dupExternal.status} (want 409)`,
   );
 
+  // The agent's model is checked against what the organization can serve.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgRow?.slug ?? '',
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const agentCreated = z.object({ agentId: z.string() }).safeParse(
     await (
       await send('POST', `/${projectId}/agents?orgId=${orgId}`, {
         name: 'Research Bot',
         harness: 'claude-code',
-        model: 'anthropic/claude-fable-5',
-        skills: ['web-research'],
+        model: 'test-model',
+        modelProvider: 'itestagent',
+        // Equipment is checked against the org's listings: no skill of that
+        // name exists here, and this check is about the rollups.
+        skills: [],
         connectors: [],
       })
     ).json(),
@@ -1413,6 +1550,7 @@ async function checkProjects(
       overviewRow.overdueTaskCount === 1,
     `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}, overdue=${overviewRow?.overdueTaskCount ?? 'ERR'} (want 1, task → ${overdueTask.status})`,
   );
+  await agentProvider.cleanup();
 
   const archived = await send('POST', `/${projectId}/archive?orgId=${orgId}`);
   const listAfterArchive = z
@@ -3443,8 +3581,8 @@ async function checkBlobRefAuthority(
     memberCompose.status === 403 &&
       memberComposeCode === 'FORBIDDEN' &&
       editorCompose.status === 403 &&
-      editorComposeCode === 'attachment_not_owned',
-    `member compose → ${memberCompose.status} ${memberComposeCode} (want 403 FORBIDDEN: the write gate), editor compose → ${editorCompose.status} ${editorComposeCode} (want 403 attachment_not_owned: the ownership check, reached through the gate)`,
+      editorComposeCode === 'ATTACHMENT_NOT_OWNED',
+    `member compose → ${memberCompose.status} ${memberComposeCode} (want 403 FORBIDDEN: the write gate), editor compose → ${editorCompose.status} ${editorComposeCode} (want 403 ATTACHMENT_NOT_OWNED: the ownership check, reached through the gate)`,
   );
 
   // 11. The cloud-import doors require knowledgeWrite: a read-only member is
@@ -6465,10 +6603,10 @@ async function checkSmallDomains(
   record(
     'products unique name + one-row read',
     product.success &&
-      dupName.status === 400 &&
+      dupName.status === 409 &&
       productRead.success &&
       productRead.data.product.name === 'Widget Pro',
-    `dup → ${dupName.status} (want 400), read=${productRead.success ? productRead.data.product.name : 'ERR'}`,
+    `dup → ${dupName.status} (want 409), read=${productRead.success ? productRead.data.product.name : 'ERR'}`,
   );
 
   const productBulk = z
@@ -11829,7 +11967,7 @@ async function checkRestDoor(
 
   const doorRead = z
     .looseObject({ name: z.string(), deployedVersion: z.number().optional() })
-    .safeParse(await (await v1('/automations/ops/door')).json());
+    .safeParse(await (await v1('/automations/ops__door')).json());
   const doorListed = z
     .object({ automations: z.array(z.looseObject({ name: z.string() })) })
     .loose()
@@ -11839,7 +11977,7 @@ async function checkRestDoor(
   // answers only hasToken; DELETE unbinds.
   const triggerPut = z.looseObject({ token: z.string().optional() }).safeParse(
     await (
-      await v1('/automations/ops/door/triggers', {
+      await v1('/automations/ops__door/triggers', {
         method: 'PUT',
         body: { kind: 'webhook' },
       })
@@ -11850,8 +11988,8 @@ async function checkRestDoor(
       triggers: z.array(z.looseObject({ hasToken: z.boolean().optional() })),
     })
     .loose()
-    .safeParse(await (await v1('/automations/ops/door/triggers')).json());
-  const triggerDeleted = await v1('/automations/ops/door/triggers', {
+    .safeParse(await (await v1('/automations/ops__door/triggers')).json());
+  const triggerDeleted = await v1('/automations/ops__door/triggers', {
     method: 'DELETE',
   });
 
@@ -11859,7 +11997,7 @@ async function checkRestDoor(
     .looseObject({ runId: z.string(), version: z.number() })
     .safeParse(
       await (
-        await v1('/automations/ops/door/runs', {
+        await v1('/automations/ops__door/runs', {
           body: { input: { n: 21 }, mode: 'live', version: 1 },
         })
       ).json(),
@@ -11877,7 +12015,7 @@ async function checkRestDoor(
   const runsListed = z
     .object({ runs: z.array(z.looseObject({ id: z.string() })) })
     .loose()
-    .safeParse(await (await v1('/automations/ops/door/runs')).json());
+    .safeParse(await (await v1('/automations/ops__door/runs')).json());
 
   const badKey = await fetch(`${base}/api/v1/contacts`, {
     headers: { authorization: 'Bearer not-a-key' },
@@ -12575,7 +12713,7 @@ async function checkRestResources(
       bulk.success &&
       bulk.data.success === 2 &&
       bulk.data.failed === 1 &&
-      bulk.data.errors[0]?.errorCode === 'duplicate_email' &&
+      bulk.data.errors[0]?.errorCode === 'CONTACT_DUPLICATE_EMAIL' &&
       docCreated.success &&
       docPatch.status === 204 &&
       docRead.success &&
@@ -12604,7 +12742,7 @@ async function checkRestResources(
       skillGone.status === 404 &&
       chatOk &&
       searchOk,
-    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 duplicate_email), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
 }
 
@@ -12628,6 +12766,17 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
     .parse(await readJson(orgResponse, 'project agent API org'));
   const ctx = { ...user, orgId: org.id };
   const key = await mintRestKey(base, ctx.cookie, 'Project agent proof');
+  // An agent's model is checked against what the organization can serve —
+  // the agent check names `test-model` on `itestagent`.
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie: ctx.cookie,
+    orgId: ctx.orgId,
+    orgSlug: org.slug,
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const requests = {
     sql,
     orgId: ctx.orgId,
@@ -12661,14 +12810,18 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
   };
   const { checkProjectResourceRest } =
     await import('./rest/project-scope-check.ts');
-  const count =
-    (await checkProjectAgentRest(requests)) +
-    (await checkProjectResourceRest(requests));
-  record(
-    'REST project resources: URL isolation, roles, archival and session parity',
-    true,
-    `${count} HTTP checks`,
-  );
+  try {
+    const count =
+      (await checkProjectAgentRest(requests)) +
+      (await checkProjectResourceRest(requests));
+    record(
+      'REST project resources: URL isolation, roles, archival and session parity',
+      true,
+      `${count} HTTP checks`,
+    );
+  } finally {
+    await agentProvider.close();
+  }
 }
 
 /** Mint an API key for the session user through the same surface the
@@ -12885,18 +13038,18 @@ async function checkRestPagination(
     runs: z.array(z.looseObject({ id: z.string() })),
   });
   const started = await Promise.all([
-    v1('/automations/ops/pager/runs', {
+    v1('/automations/ops__pager/runs', {
       body: { input: { n: 1 }, mode: 'mock' },
     }),
-    v1('/automations/ops/pager/runs', {
+    v1('/automations/ops__pager/runs', {
       body: { input: { n: 2 }, mode: 'mock' },
     }),
   ]);
   const runsOne = runsSchema.safeParse(
-    await (await v1('/automations/ops/pager/runs?limit=1')).json(),
+    await (await v1('/automations/ops__pager/runs?limit=1')).json(),
   );
   const runsAll = runsSchema.safeParse(
-    await (await v1('/automations/ops/pager/runs')).json(),
+    await (await v1('/automations/ops__pager/runs')).json(),
   );
 
   record(
@@ -16467,6 +16620,20 @@ async function checkProjectTail(
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
+  // The agents created below name `itest-model`; the equipment check
+  // holds a model to what the organization can serve.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgRow?.slug ?? '',
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const now = Date.now();
   const api = (
     route: string,
@@ -16570,6 +16737,7 @@ async function checkProjectTail(
       secondRepair.repaired === 0,
     `repaired=${firstRepair.repaired}, counts=${afterRepair[0]?.open}/${afterRepair[0]?.done}/${afterRepair[0]?.agents} (want 2/1/1 — cancelled counts in neither), secondPass=${secondRepair.repaired} (want 0)`,
   );
+  await agentProvider.cleanup();
 }
 
 /**
@@ -16963,6 +17131,17 @@ async function checkTasksCollabIntegrity(
   orgSlug: string,
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
+  // The agents this lane creates run on `itestagent`, the one provider
+  // the equipment check lets an agent be equipped with here.
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgSlug,
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const post = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -17473,6 +17652,7 @@ async function checkTasksCollabIntegrity(
     WHERE org_id = ${orgId} AND resource_id IN (${busyTask}, ${mineTask})
   `;
   await sql`DELETE FROM "member" WHERE "id" = ${`m-${reviewer}`}`;
+  await agentProvider.cleanup();
 }
 
 async function checkCollabMentions(
@@ -20058,7 +20238,7 @@ async function checkConversations(
     'conversations: PATCH refuses a contact the org does not own',
     patchForeignContact.status === 404 &&
       patchForeignBody.success &&
-      patchForeignBody.data.error === 'contact_not_found' &&
+      patchForeignBody.data.error === 'CONTACT_NOT_FOUND' &&
       contactAfterForeign[0]?.contactId === contactId,
     `status=${patchForeignContact.status} (want 404) error=${patchForeignBody.success ? patchForeignBody.data.error : 'ERR'} contactKept=${contactAfterForeign[0]?.contactId === contactId}`,
   );
@@ -28536,36 +28716,6 @@ async function checkTaskAgentTurnDrive(
       ? gatewayAddress.port
       : 0;
 
-  // --- fake models endpoint for the serving catalog ------------------------
-  const modelsServer = createServer((req, res) => {
-    res.setHeader('content-type', 'application/json');
-    if ((req.url ?? '').endsWith('/models')) {
-      res.end(
-        JSON.stringify({
-          object: 'list',
-          data: [
-            {
-              id: 'itest-agent-model',
-              object: 'model',
-              context_length: 32_768,
-            },
-          ],
-        }),
-      );
-      return;
-    }
-    res.statusCode = 404;
-    res.end('{}');
-  });
-  await new Promise<void>((resolve) => {
-    modelsServer.listen(0, '127.0.0.1', resolve);
-  });
-  const modelsAddress = modelsServer.address();
-  const modelsPort =
-    modelsAddress !== null && typeof modelsAddress === 'object'
-      ? modelsAddress.port
-      : 0;
-
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: SPAWNER_TOKEN,
@@ -28573,35 +28723,24 @@ async function checkTaskAgentTurnDrive(
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
+  // The serving catalog: the org's `itestagent` provider + credential.
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug,
+    displayName: 'Itest Agent Serving',
+    credentialName: 'Agent serving key',
+    secret: 'sk-itest-agent',
+  });
+
   try {
-    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
-    const providersDir = path.join(configRoot, orgSlug, 'providers');
-    await mkdir(providersDir, { recursive: true });
-    await writeFile(
-      path.join(providersDir, 'itestagent.yml'),
-      [
-        'name: itestagent',
-        'displayName: Itest Agent Serving',
-        'apiFormat: openai',
-        `baseUrl: http://127.0.0.1:${modelsPort}/v1`,
-        'catalog:',
-        '  source: models-endpoint',
-        'auth:',
-        '  - method: api-key',
-      ].join('\n'),
-    );
     const post = (route: string, payload?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
       });
-    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'itestagent',
-      authMethod: 'api-key',
-      name: 'Agent serving key',
-      secret: 'sk-itest-agent',
-    });
 
     const project = z
       .object({ projectId: z.string() })
@@ -29060,9 +29199,7 @@ async function checkTaskAgentTurnDrive(
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
     });
-    await new Promise<void>((resolve) => {
-      modelsServer.close(() => resolve());
-    });
+    await agentProvider.close();
   }
 }
 
@@ -31169,6 +31306,20 @@ async function checkSandboxSpawner(
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
+  // The agents this lane creates run on `itestagent`, the one provider
+  // the equipment check lets an agent be equipped with here.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgRow?.slug ?? '',
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const { createServer } = await import('node:http');
   const { createHash, createHmac } = await import('node:crypto');
 
@@ -31370,7 +31521,7 @@ async function checkSandboxSpawner(
         await post(`/api/app/projects/${toolProjectId}/agents?orgId=${orgId}`, {
           name: 'Tool Bot',
           harness: 'claude-code',
-          model: 'anthropic/claude-fable-5',
+          model: 'itest-agent-model',
           skills: [],
           connectors: [],
         })
@@ -31475,6 +31626,7 @@ async function checkSandboxSpawner(
       spawner.close(() => resolve());
     });
   }
+  await agentProvider.cleanup();
 }
 
 /**
@@ -31489,6 +31641,20 @@ async function checkTaskAgentRuns(
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId } = ctx;
+  // The agents this lane creates run on `itestagent`, the one provider
+  // the equipment check lets an agent be equipped with here.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgRow?.slug ?? '',
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const post = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -31512,7 +31678,7 @@ async function checkTaskAgentRuns(
       await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
         name: 'Runner Bot',
         harness: 'claude-code',
-        model: 'anthropic/claude-fable-5',
+        model: 'itest-agent-model',
         skills: [],
         connectors: [],
       })
@@ -31772,6 +31938,7 @@ async function checkTaskAgentRuns(
       !reuseProbe.reused,
     `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), wake=${woken}/${wokenAgain} (want 1/0), releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), launched=${launched}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status}, ledger settled=${settledLedger.length}/${settledLedger[0]?.status ?? '-'} (want 1/success) failed=${failedOnce}/${failedTwice} → ${failedLedger.length}/${failedLedger[0]?.status ?? '-'} (want 1/failure), rekick runs=${secondRuns.data.runs.length} (want ≥3, fresh=${!reuseProbe.reused})`,
   );
+  await agentProvider.cleanup();
 }
 
 /**
@@ -41844,6 +42011,20 @@ async function checkAutoRetryAndKickPlan(
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
   const { cookie, orgId } = ctx;
+  // The agents this lane creates run on `itestagent`, the one provider
+  // the equipment check lets an agent be equipped with here.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgRow?.slug ?? '',
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const post = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -42070,6 +42251,7 @@ async function checkAutoRetryAndKickPlan(
     Number(deadlineJobs[0]?.count ?? '9') === 0 && guardCount === 2,
     `deadlineJobs=${deadlineJobs[0]?.count} (want 0), backlog-task runs=${guardCount} (want 2 — the crash-armed retry declined on task status)`,
   );
+  await agentProvider.cleanup();
 }
 
 /**
@@ -42088,6 +42270,17 @@ async function checkReviewArc(
   orgSlug: string,
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
+  // The agents this lane creates run on `itestagent`, the one provider
+  // the equipment check lets an agent be equipped with here.
+  const agentProvider = await seedItestAgentProvider({
+    base,
+    cookie,
+    orgId,
+    orgSlug: orgSlug,
+    displayName: 'Itest Agent',
+    credentialName: 'Agent key',
+    secret: 'sk-itest-agent-key',
+  });
   const post = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -42405,6 +42598,7 @@ async function checkReviewArc(
       subscribed.length === 1,
     `bells=${bells.length} (want 4 — one per mint), first=${firstBell?.read} (want read), round2=${roundTwoBell?.read} (want read), subscribed=${subscribed[0]?.reason}`,
   );
+  await agentProvider.cleanup();
 }
 
 /**

@@ -750,7 +750,7 @@ export async function updateConversation(
     `;
     if (!contacts[0]) {
       throw new ConversationError(
-        'contact_not_found',
+        'CONTACT_NOT_FOUND',
         'Contact not found',
         404,
       );

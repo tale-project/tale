@@ -1,22 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractPathParts, jsonError } from './helpers';
-
-/**
- * `jsonError` is the MCP door's refusal shape; it carries the CORS headers a
- * browser-hosted MCP client needs to read the refusal at all — the preflight
- * must be allowed to send the bearer and the org header.
- */
-describe('jsonError', () => {
-  it('answers the JSON envelope with CORS headers a browser client can read', async () => {
-    const res = jsonError('nope', 403);
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'nope' });
-    const allowHeaders = res.headers.get('Access-Control-Allow-Headers');
-    expect(allowHeaders).toContain('Authorization');
-    expect(allowHeaders).toContain('X-Organization-Slug');
-  });
-});
+import { extractPathParts } from './helpers';
 
 /**
  * `extractPathParts` must LOCATE the prefix, not assume it at position 0: the

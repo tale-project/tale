@@ -65,7 +65,11 @@ const website = {
 /** Tagged-template Sql double: the owned website for the loader, an id for
  * an insert, nothing else; records every query (tagged with the handle it
  * ran on) so a test can prove no write ran, or that one ran in `begin`. */
-function fakeSql(): { sql: Sql; queries: Captured[]; txs: unknown[] } {
+function fakeSql(options: { existingByDomain?: boolean } = {}): {
+  sql: Sql;
+  queries: Captured[];
+  txs: unknown[];
+} {
   const queries: Captured[] = [];
   const txs: unknown[] = [];
   const unsafe = (text: string) => ({ unsafe: text });
@@ -74,6 +78,13 @@ function fakeSql(): { sql: Sql; queries: Captured[]; txs: unknown[] } {
       const text = strings.join('$?').replace(/\s+/g, ' ').trim();
       queries.push({ text, values, via });
       if (text.includes('FROM app.websites WHERE id')) {
+        return Promise.resolve([website]);
+      }
+      if (
+        options.existingByDomain &&
+        text.includes('FROM app.websites') &&
+        text.includes('domain')
+      ) {
         return Promise.resolve([website]);
       }
       if (text.startsWith('INSERT INTO app.websites')) {
@@ -118,7 +129,7 @@ const send = (sql: Sql, route: string, method: string, body: unknown) =>
   });
 
 describe('website domain and field validation', () => {
-  it.each(['https://', 'a b', '::', 'x'.repeat(260)])(
+  it.each(['https://', 'a b', '::', 'x'.repeat(260), 'file:///etc/passwd'])(
     'POST /websites refuses the unparseable domain %j with 400',
     async (domain) => {
       const { sql, queries } = fakeSql();
@@ -127,10 +138,64 @@ describe('website domain and field validation', () => {
         scanInterval: '1d',
       });
       expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({ error: 'Invalid domain' });
+      expect(await res.json()).toMatchObject({
+        code: 'WEBSITE_DOMAIN_INVALID',
+      });
       expect(queries).toEqual([]);
     },
   );
+
+  /**
+   * A registered domain is a server-side fetch target the crawler dials
+   * from inside the deployment's network. The regression under test: the
+   * door registered `localhost`, `127.0.0.1` and the cloud metadata
+   * address, and the crawler's own host allowlist then let them through.
+   */
+  it.each([
+    'localhost',
+    'http://localhost:3000',
+    '127.0.0.1',
+    '169.254.169.254',
+    'https://[::1]/',
+    '10.0.0.8',
+    'metadata.google.internal',
+    'intranet',
+  ])(
+    'POST /websites refuses the uncrawlable target %j with 400',
+    async (domain) => {
+      const before = process.env.TALE_ALLOW_PRIVATE_CRAWL_HOSTS;
+      delete process.env.TALE_ALLOW_PRIVATE_CRAWL_HOSTS;
+      try {
+        const { sql, queries } = fakeSql();
+        const res = await send(sql, '/websites', 'POST', {
+          domain,
+          scanInterval: '1d',
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          code: 'WEBSITE_DOMAIN_NOT_CRAWLABLE',
+        });
+        expect(queries).toEqual([]);
+      } finally {
+        if (before !== undefined)
+          process.env.TALE_ALLOW_PRIVATE_CRAWL_HOSTS = before;
+      }
+    },
+  );
+
+  it('refuses an unknown key, a bad scanInterval and a non-object body with INVALID_BODY', async () => {
+    const { sql, queries } = fakeSql();
+    for (const body of [
+      { domain: 'docs.example', scanInterval: '1d', colour: 'blue' },
+      { domain: 'docs.example', scanInterval: '2d' },
+      [],
+    ]) {
+      const res = await send(sql, '/websites', 'POST', body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    }
+    expect(queries).toEqual([]);
+  });
 
   // The domain is immutable after create: the corpus registration is
   // keyed by it, so a renamed row never claims a scan again and its old
@@ -200,6 +265,127 @@ describe('website create', () => {
       domain: 'new.example',
       organizationId: 'org-1',
     });
+  });
+
+  /** Re-posting a URL list onto a registered domain extends it — and says
+   * so: 200 with the EXISTING id, where a 201 claimed a fresh resource. */
+  it('answers 200 with the existing id when a list merges into a registered domain', async () => {
+    vi.mocked(addJobInTx).mockClear();
+    const { sql, queries } = fakeSql({ existingByDomain: true });
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'docs.example',
+      scanInterval: '1d',
+      urls: ['https://docs.example/one'],
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 'w-1' });
+    expect(queries.some((q) => q.text.startsWith('INSERT'))).toBe(false);
+    expect(vi.mocked(addJobInTx)).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The crawler corpus keeps snake_case rows stamped with ISO-8601 text; the
+ * door translates them into the camelCase / epoch-ms vocabulary every other
+ * family speaks, so a client needs one set of names and one clock.
+ */
+describe('website corpus views', () => {
+  it('answers pages in camelCase with epoch-ms timestamps', async () => {
+    vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
+      pages: [
+        {
+          url: 'https://docs.example/a',
+          title: 'A',
+          word_count: 12,
+          status: 'crawled',
+          content_hash: 'abc',
+          last_crawled_at: '2026-01-02T03:04:05.000Z',
+          discovered_at: null,
+          chunks_count: 2,
+          indexed: true,
+        },
+      ],
+      total: 1,
+      offset: 0,
+      hasMore: false,
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request('http://localhost/websites/w-1/pages');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      pages: [
+        {
+          url: 'https://docs.example/a',
+          title: 'A',
+          wordCount: 12,
+          status: 'crawled',
+          contentHash: 'abc',
+          lastCrawledAt: Date.parse('2026-01-02T03:04:05.000Z'),
+          discoveredAt: null,
+          chunksCount: 2,
+          indexed: true,
+        },
+      ],
+      total: 1,
+      offset: 0,
+      hasMore: false,
+    });
+  });
+
+  it('answers search hits in camelCase with one content field', async () => {
+    vi.mocked(searchWebsiteContent).mockResolvedValueOnce({
+      results: [
+        {
+          url: 'https://docs.example/a',
+          title: 'A',
+          chunk_content: 'raw chunk',
+          core_content: 'the passage',
+          chunk_index: 3,
+          score: 0.5,
+        },
+        {
+          url: 'https://docs.example/b',
+          title: null,
+          chunk_content: 'legacy chunk',
+          chunk_index: 0,
+          score: 0.25,
+        },
+      ],
+      total: 2,
+    });
+    const { sql } = fakeSql();
+    const res = await send(sql, '/websites/w-1/search', 'POST', {
+      query: 'passage',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      results: [
+        {
+          url: 'https://docs.example/a',
+          title: 'A',
+          content: 'the passage',
+          chunkIndex: 3,
+          score: 0.5,
+        },
+        {
+          url: 'https://docs.example/b',
+          title: null,
+          content: 'legacy chunk',
+          chunkIndex: 0,
+          score: 0.25,
+        },
+      ],
+      total: 2,
+    });
+  });
+
+  it('refuses a search body with an unknown key or an empty query', async () => {
+    const { sql } = fakeSql();
+    for (const body of [{ query: '' }, { query: 'x', page: 2 }]) {
+      const res = await send(sql, '/websites/w-1/search', 'POST', body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    }
   });
 });
 

@@ -122,7 +122,9 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
-  app.get('/mcp', () => mcpGetNotAllowed());
+  // No session to DELETE, no SSE stream to GET: every method but POST is
+  // 405 with the one verb this endpoint takes (RFC 9110 §15.5.6).
+  app.on(['GET', 'DELETE', 'PUT', 'PATCH'], '/mcp', () => mcpGetNotAllowed());
 
   return app;
 }

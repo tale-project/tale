@@ -41,6 +41,7 @@ describe('rateLimitedResponse', () => {
     expect(res.headers.get('retry-after')).toBe('2');
     expect(await res.json()).toEqual({
       error: 'RATE_LIMITED',
+      code: 'RATE_LIMITED',
       data: { retryAfterMs: 1500 },
     });
   });

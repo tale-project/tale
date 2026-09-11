@@ -609,7 +609,7 @@ export async function composeEmailConversation(
   `;
   const contact = contacts[0];
   if (!contact) {
-    throw new ConversationError('contact_not_found', 'Contact not found', 404);
+    throw new ConversationError('CONTACT_NOT_FOUND', 'Contact not found', 404);
   }
   if (contact.organizationId !== args.organizationId) {
     throw new ConversationError(
@@ -694,7 +694,7 @@ export async function undoSendMessage(
     const message = await loadMessage(tx, args.messageId);
     if (!message || message.organizationId !== args.organizationId) {
       throw new ConversationError(
-        'message_not_found',
+        'DELIVERY_NOT_FOUND',
         'Message not found',
         404,
       );
@@ -788,7 +788,7 @@ export async function retrySendMessage(
     const message = await loadMessage(tx, args.messageId);
     if (!message || message.organizationId !== args.organizationId) {
       throw new ConversationError(
-        'message_not_found',
+        'DELIVERY_NOT_FOUND',
         'Message not found',
         404,
       );
@@ -798,7 +798,7 @@ export async function retrySendMessage(
       message.deliveryState !== 'failed'
     ) {
       throw new ConversationError(
-        'retry_not_available',
+        'DELIVERY_RETRY_UNAVAILABLE',
         'Only a failed outbound message can be retried',
         409,
       );
@@ -832,7 +832,7 @@ export async function retrySendMessage(
       // Rows written before the composer stamped its send args can't be
       // rebuilt.
       throw new ConversationError(
-        'retry_not_available',
+        'DELIVERY_RETRY_UNAVAILABLE',
         'This message is missing its original send parameters',
         409,
       );
@@ -928,7 +928,7 @@ export async function discardOutboundMessage(
     const message = await loadMessage(tx, args.messageId);
     if (!message || message.organizationId !== args.organizationId) {
       throw new ConversationError(
-        'message_not_found',
+        'DELIVERY_NOT_FOUND',
         'Message not found',
         404,
       );

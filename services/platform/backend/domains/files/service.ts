@@ -121,17 +121,24 @@ async function requireOrgStoreForRef(
 export async function createRestUploadHandoff(
   sql: Sql,
   scope: { organizationId: string },
-  args: { contentType?: string },
+  args: {
+    contentType?: string;
+    /** How long the signed PUT stays valid — the REST door passes its
+     * intent's own lifetime, so the URL and the `expiresAt` it is handed
+     * out with agree (the store's default is half the intent's). */
+    expiresInSec?: number;
+  },
 ): Promise<UploadHandoff> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = buildObjectKey(store, orgSlug);
-  const uploadUrl = await s3PresignPutUrl(
-    browserFacing(store),
-    key,
-    args.contentType !== undefined && args.contentType !== ''
+  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
+    ...(args.contentType !== undefined && args.contentType !== ''
       ? { contentType: args.contentType }
-      : {},
-  );
+      : {}),
+    ...(args.expiresInSec !== undefined
+      ? { expiresInSec: args.expiresInSec }
+      : {}),
+  });
   return { storageRef: encodeS3Ref(key), uploadUrl };
 }
 

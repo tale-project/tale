@@ -383,7 +383,7 @@ export function createConversationRoutes(deps: {
     );
     if (foreign !== null) {
       throw new ConversationError(
-        'attachment_not_owned',
+        'ATTACHMENT_NOT_OWNED',
         'An attachment is not one of your uploads. Remove it and attach the file again.',
         403,
       );

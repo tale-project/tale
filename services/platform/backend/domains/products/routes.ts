@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { productFieldsShape, productNameSchema } from './input-schema.ts';
 import {
   bulkCreateProducts,
   countProducts,
@@ -20,18 +21,13 @@ import {
   updateProduct,
 } from './service.ts';
 
+/** The shared field shape (`input-schema.ts`) — the domain's own caps, so
+ * a refusal here and in the service agree — with this door's rule that a
+ * create names the product. Unknown keys are stripped, as the adapters
+ * expect; the REST door composes the same shape strict. */
 const productInputSchema = z.object({
-  name: z.string().min(1).max(300),
-  description: z.string().max(5000).optional(),
-  imageUrl: z.string().max(2100).optional(),
-  stock: z.number().optional(),
-  price: z.number().optional(),
-  currency: z.string().max(3).optional(),
-  category: z.string().max(120).optional(),
-  tags: z.array(z.string().max(60)).max(50).optional(),
-  status: z.enum(PRODUCT_STATUSES).optional(),
-  externalId: z.string().max(256).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  ...productFieldsShape,
+  name: productNameSchema,
 });
 
 function handleError<E extends OrgEnv>(

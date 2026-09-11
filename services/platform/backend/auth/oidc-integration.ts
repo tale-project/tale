@@ -34,9 +34,9 @@ export async function checkNativeIdentity(
   auth: Auth,
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
-  const check = (name: string, ok: boolean) => {
-    record(`identity: ${name}`, ok, ok ? 'observed' : 'failed');
-    assert(ok, name);
+  const check = (name: string, ok: boolean, detail?: string) => {
+    record(`identity: ${name}`, ok, ok ? 'observed' : (detail ?? 'failed'));
+    assert(ok, detail === undefined ? name : `${name} — ${detail}`);
   };
   const suffix = randomUUID().slice(0, 8);
   const issuer = `${base}/api/auth`;
@@ -178,6 +178,7 @@ export async function checkNativeIdentity(
       jwks_uri: z.string(),
       authorization_endpoint: z.string(),
       token_endpoint: z.string(),
+      claims_supported: z.array(z.string()),
     })
     .parse(await discovery.json());
   check(
@@ -186,6 +187,10 @@ export async function checkNativeIdentity(
       metadata.jwks_uri === `${issuer}/jwks` &&
       metadata.authorization_endpoint === `${issuer}/oauth2/authorize` &&
       metadata.token_endpoint === `${issuer}/oauth2/token`,
+  );
+  check(
+    'discovery advertises the organization claim',
+    metadata.claims_supported.includes(OIDC_ORGANIZATION_CLAIM),
   );
   const authServerMetadata = await fetch(
     `${base}/.well-known/oauth-authorization-server/api/auth`,
@@ -364,6 +369,46 @@ export async function checkNativeIdentity(
       infoBody.sub === member.id &&
       infoBody.email_verified &&
       infoBody[OIDC_ORGANIZATION_CLAIM].id === org.id,
+  );
+  // RFC 6750 §3: a bad or missing bearer token is 401 with a challenge —
+  // every five-minute token expiry walks this path.
+  const staleToken = await fetch(`${issuer}/oauth2/userinfo`, {
+    headers: { Authorization: 'Bearer not-a-real-token' },
+  });
+  const staleBody = z
+    .object({ error: z.string() })
+    .parse(await staleToken.json());
+  check(
+    'userinfo refuses an invalid bearer token with 401 invalid_token and a Bearer challenge',
+    staleToken.status === 401 &&
+      staleBody.error === 'invalid_token' &&
+      (staleToken.headers.get('www-authenticate') ?? '').startsWith(
+        `Bearer realm="${issuer}", error="invalid_token"`,
+      ),
+    `status=${staleToken.status} challenge=${staleToken.headers.get('www-authenticate')} body=${JSON.stringify(staleBody)} (want 401 invalid_token, Bearer realm="${issuer}")`,
+  );
+  const noToken = await fetch(`${issuer}/oauth2/userinfo`);
+  check(
+    'userinfo without a token answers 401 with a Bearer challenge',
+    noToken.status === 401 &&
+      noToken.headers.get('www-authenticate') === `Bearer realm="${issuer}"`,
+    `status=${noToken.status} challenge=${noToken.headers.get('www-authenticate')} (want 401, Bearer realm="${issuer}")`,
+  );
+  // RFC 6749 §5.2: the token endpoint speaks one error envelope, the
+  // schema layer's `{message, code}` included.
+  const passwordGrant = await fetch(`${issuer}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=password&username=a&password=b',
+  });
+  const passwordGrantBody = z
+    .object({ error: z.string(), error_description: z.string() })
+    .parse(await passwordGrant.json());
+  check(
+    'token endpoint refuses an unknown grant in the RFC 6749 envelope',
+    passwordGrant.status === 400 &&
+      passwordGrantBody.error === 'unsupported_grant_type',
+    `status=${passwordGrant.status} body=${JSON.stringify(passwordGrantBody)} (want 400 unsupported_grant_type)`,
   );
   check(
     'an authorization code cannot be replayed',
