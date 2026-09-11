@@ -1,11 +1,12 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { dueOccurrence } from '../../core/automations/cron.ts';
 import {
   deliveryIdentity,
   type DeliveryIdentity,
+  MAX_WEBHOOK_BODY_BYTES,
   readWebhookBody,
 } from '../../core/automations/webhook_delivery.ts';
 import {
@@ -332,6 +333,14 @@ async function acceptWebhookDelivery(
       UPDATE app.automation_webhook_deliveries SET run_id = ${started.runId}
       WHERE trigger_id = ${trigger.id} AND delivery_key = ${identity.key}
     `;
+    // The trigger's `lastFiredAt` is the one thing the trigger read shows
+    // about a webhook's history; the schedule and event paths stamp it,
+    // and this path never did — an accepted delivery left it null forever.
+    // A replayed delivery reuses its run and stamps nothing.
+    await tx`
+      UPDATE app.automation_triggers SET last_fired_at_ms = ${now}
+      WHERE id = ${trigger.id}
+    `;
     // Lazy housekeeping on the accepted path: this trigger's expired
     // identities go with the delivery that outlived them (no sweeper job).
     await tx`
@@ -347,10 +356,16 @@ async function acceptWebhookDelivery(
 export function createWebhookRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
 
+  // Every refusal on this door is the flat JSON envelope the API reference
+  // promises of every non-2xx — the 404 and 413 used to be plain text, the
+  // one place a webhook sender's JSON error handling could not parse.
+  const notFound = (c: Context) =>
+    c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+
   app.post('/:token', async (c) => {
     const token = c.req.param('token');
     if (!isPlausibleWebhookToken(token)) {
-      return c.text('Not found', 404);
+      return notFound(c);
     }
     // The cap is enforced in BYTES as the body streams — nothing past it is
     // buffered, and a declared Content-Length over it is refused before the
@@ -359,7 +374,13 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
     // as "150 K".)
     const body = await readWebhookBody(c.req.raw);
     if (!body.ok) {
-      return c.text('Payload too large', 413);
+      return c.json(
+        {
+          error: `Payload too large — the webhook body is capped at ${MAX_WEBHOOK_BODY_BYTES} bytes`,
+          code: 'BODY_TOO_LARGE',
+        },
+        413,
+      );
     }
     const { bytes } = body;
     const raw = new TextDecoder().decode(bytes);
@@ -390,11 +411,14 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
       !tokenHashEquals(presented, trigger.tokenHash) ||
       !trigger.enabled
     ) {
-      return c.text('Not found', 404);
+      return notFound(c);
     }
     if (c.req.query('projectId') !== undefined) {
       return c.json(
-        { error: 'Project scope must be supplied in the webhook URL path.' },
+        {
+          error: 'Project scope must be supplied in the webhook URL path.',
+          code: 'INVALID_QUERY',
+        },
         400,
       );
     }
@@ -419,12 +443,15 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
       );
     } catch (error) {
       if (error instanceof NotDeployedError) {
-        return c.json({ error: error.message }, 409);
+        return c.json(
+          { error: error.message, code: 'AUTOMATION_NOT_DEPLOYED' },
+          409,
+        );
       }
       // The token proved the caller may start this automation, so a bad
       // project scope is a plain 400 with the reason, not the token-secrecy 404.
       if (error instanceof AutomationError) {
-        return c.json({ error: error.message }, 400);
+        return c.json({ error: error.message, code: error.code }, 400);
       }
       throw error;
     }

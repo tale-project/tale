@@ -110,7 +110,7 @@ describe('the documented example is honest', () => {
 });
 
 describe('dispatch — the shared method table', () => {
-  it('get_docs renders the guide with the example embedded', async () => {
+  it('get_docs renders the authoring reference with the example embedded, in the MCP dialect', async () => {
     const { docs } = (await dispatch(
       'get_docs',
       {},
@@ -119,7 +119,20 @@ describe('dispatch — the shared method table', () => {
       docs: string;
     };
     expect(docs).toContain('order-report');
-    expect(docs).toContain('method: run_automation');
+    expect(docs).toContain('tools/call');
+    expect(docs).toContain('name: run_automation');
+    // The reference documents; it instructs nobody. The builder session's
+    // protocol and persona stay in its own system prompt.
+    for (const instruction of [
+      'method: run_automation',
+      'You are an',
+      'no human in the loop',
+      'exactly ONE action',
+      'CAUSE:',
+      'Pre-submit checklist',
+    ]) {
+      expect(docs).not.toContain(instruction);
+    }
   });
 
   it('get_catalog lists the built-in node types with their output kind', async () => {
@@ -654,6 +667,7 @@ describe('dispatch — run and trigger management', () => {
     await deployedExample(store);
     const refusal = {
       error: 'no saved automation named "order-reprot"',
+      code: 'AUTOMATION_NOT_FOUND',
       hint: 'list_automations shows the saved ones',
     };
 

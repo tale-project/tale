@@ -272,7 +272,18 @@ export function typeNames(): string[] {
  * the caller's store as an option, and `dispatch()` threads its own.
  */
 export interface StoreAdapter {
-  list(): Promise<Array<{ name: string; latest: number }>>;
+  /** Every saved automation with its latest version — and, from a host that
+   * keeps them, the deployed version (null while nothing is deployed) and
+   * the projects it is installed in, so an MCP client learns the scope a
+   * project-bound automation must be started in. */
+  list(): Promise<
+    Array<{
+      name: string;
+      latest: number;
+      deployedVersion?: number | null;
+      projectIds?: string[];
+    }>
+  >;
   get(
     name: string,
     version?: number,

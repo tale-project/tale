@@ -615,6 +615,23 @@ export async function bindProjectInTx(
   return { bound };
 }
 
+/** Remove one project installation — the inverse of `bindProjectInTx`:
+ * `unbound` says whether a binding was there to remove, so a door can tell
+ * an uninstall from a no-op. Versions, triggers and run history stay. */
+export async function unbindProjectInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string; projectId: string },
+): Promise<{ unbound: boolean }> {
+  const removed = await tx`
+    DELETE FROM app.automation_project_bindings
+    WHERE org_id = ${args.organizationId}
+      AND automation_name = ${args.name} AND project_id = ${args.projectId}
+  `;
+  const unbound = removed.count > 0;
+  if (unbound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  return { unbound };
+}
+
 export async function bindingProjectIds(
   sql: Sql | TransactionSql,
   organizationId: string,

@@ -5,11 +5,17 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  AutomationError,
   beginRun,
+  bindingProjectIds,
   cancelRun,
+  deleteAutomationCascade,
   deleteTrigger,
   deployedVersion,
   getRun,
+  listRuns,
+  listTriggers,
+  listVersions,
   setTrigger,
   versionRow,
 } from '../domains/automations/store.ts';
@@ -34,11 +40,16 @@ import { createAutomationRestRoutes } from './v1-automations.ts';
 vi.mock('../domains/automations/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/automations/store.ts')>()),
   beginRun: vi.fn(),
+  bindingProjectIds: vi.fn(async () => []),
   cancelRun: vi.fn(),
+  deleteAutomationCascade: vi.fn(async () => undefined),
   setTrigger: vi.fn(),
   deleteTrigger: vi.fn(),
   deployedVersion: vi.fn(),
   getRun: vi.fn(),
+  listTriggers: vi.fn(async () => []),
+  listVersions: vi.fn(async () => []),
+  listRuns: vi.fn(async () => []),
   versionRow: vi.fn(),
 }));
 
@@ -56,11 +67,24 @@ const row = (version: number) => ({
   createdAt: 1_700_000_000_000,
 });
 
+/** The one project the key holder can see — every binding listing is
+ * filtered through it. */
+const visibleProject = {
+  id: 'p-visible',
+  organizationId: 'org-1',
+  teamId: null,
+  sharedWithTeamIds: [],
+  archivedAt: null,
+};
+
 function fakeSql(): Sql {
   const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve([{ value: '1' }]);
+    }
+    if (text.includes('FROM app.projects')) {
+      return Promise.resolve([visibleProject]);
     }
     return Promise.resolve([]);
   };
@@ -98,6 +122,13 @@ beforeEach(() => {
   vi.mocked(setTrigger).mockReset();
   vi.mocked(deleteTrigger).mockReset();
   vi.mocked(getRun).mockReset();
+  vi.mocked(bindingProjectIds).mockReset();
+  vi.mocked(bindingProjectIds).mockResolvedValue([]);
+  vi.mocked(deleteAutomationCascade).mockReset();
+  vi.mocked(deleteAutomationCascade).mockResolvedValue(undefined);
+  vi.mocked(listTriggers).mockClear();
+  vi.mocked(listVersions).mockClear();
+  vi.mocked(listRuns).mockClear();
   // The saved automation has versions 1 and 2; version 1 is deployed.
   vi.mocked(versionRow).mockImplementation(async (_sql, _org, name, version) =>
     name === SAVED && (version === undefined || version === 1 || version === 2)
@@ -142,7 +173,10 @@ describe('POST /automations/{name}/runs', () => {
   it('answers 404 for a name nobody saved', async () => {
     const res = await start('no-such-automation', '{"mode": "mock"}');
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Automation not found' });
+    expect(await res.json()).toEqual({
+      error: 'Automation not found',
+      code: 'AUTOMATION_NOT_FOUND',
+    });
     expect(beginRun).not.toHaveBeenCalled();
   });
 
@@ -191,7 +225,10 @@ describe('POST /runs/{runId}/cancel', () => {
       json('POST'),
     );
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Run not found' });
+    expect(await res.json()).toEqual({
+      error: 'Run not found',
+      code: 'RUN_NOT_FOUND',
+    });
     expect(cancelRun).not.toHaveBeenCalled();
   });
 
@@ -218,7 +255,10 @@ describe('triggers of an automation nobody saved', () => {
       json('PUT', '{"kind": "webhook"}'),
     );
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Automation not found' });
+    expect(await res.json()).toEqual({
+      error: 'Automation not found',
+      code: 'AUTOMATION_NOT_FOUND',
+    });
     expect(setTrigger).not.toHaveBeenCalled();
   });
 
@@ -244,5 +284,153 @@ describe('triggers of an automation nobody saved', () => {
       json('DELETE'),
     );
     expect(del.status).toBe(204);
+  });
+
+  it('PUT refuses an unknown key with INVALID_BODY, naming it', async () => {
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "webhook", "rotate_token": true}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: 'rotate_token' }] },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The read doors answer 404 for a name nobody saved — they used to answer
+ * a 200 with an empty list, so a typo read as "no versions, no trigger,
+ * no runs". A segment that is not a name at all (`../../models`, five
+ * hundred characters) is the same 404, and the path is one segment: a raw
+ * `billing/dunning` used to resolve to `billing`.
+ */
+describe('reads of an automation nobody saved', () => {
+  it.each(['versions', 'triggers', 'runs'])(
+    'GET …/%s answers 404 and lists nothing',
+    async (leaf) => {
+      const res = await mount().request(
+        `http://localhost/api/v1/automations/no-such-automation/${leaf}`,
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: 'Automation not found',
+        code: 'AUTOMATION_NOT_FOUND',
+      });
+      expect(listVersions).not.toHaveBeenCalled();
+      expect(listTriggers).not.toHaveBeenCalled();
+      expect(listRuns).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['..__..', 'Invoice-Sync', 'a__b__', 'x'.repeat(260)])(
+    'answers 404 for the segment %j without a lookup',
+    async (segment) => {
+      const res = await mount().request(
+        `http://localhost/api/v1/automations/${segment}/versions`,
+      );
+      expect(res.status).toBe(404);
+      expect(versionRow).not.toHaveBeenCalled();
+    },
+  );
+
+  it('no longer resolves a raw slash to the first segment', async () => {
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}/extra/versions`,
+    );
+    expect(res.status).toBe(404);
+    expect(listVersions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A project-bound automation refused at the organization URL names its
+ * precondition: the projects it is installed in that the caller can see —
+ * the scope to start it in — so recovery is in the answer, not only in
+ * the product UI. The read and the catalog carry the same ids.
+ */
+describe('project bindings on the wire', () => {
+  it('answers the org-URL 409 with the visible installations', async () => {
+    vi.mocked(beginRun).mockRejectedValue(
+      new AutomationError(
+        'AUTOMATION_PROJECT_SCOPE_REQUIRED',
+        'A project-bound automation requires an explicit project scope.',
+        409,
+      ),
+    );
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-visible', 'p-hidden']);
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}/runs`,
+      json('POST', '{"mode": "mock"}'),
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'A project-bound automation requires an explicit project scope.',
+      code: 'AUTOMATION_PROJECT_SCOPE_REQUIRED',
+      data: { projectIds: ['p-visible'] },
+    });
+  });
+
+  it('carries the visible installations and a null deployedVersion on the read', async () => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-visible', 'p-hidden']);
+    vi.mocked(deployedVersion).mockResolvedValue(undefined);
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      name: SAVED,
+      deployedVersion: null,
+      projectIds: ['p-visible'],
+    });
+  });
+});
+
+/**
+ * The API is no longer write-only for automations: a developer can retire
+ * one (versions, trigger and installations go; run history stays) and
+ * uninstall one from a project.
+ */
+describe('DELETE /automations/{name}', () => {
+  it('retires a saved automation and answers 204', async () => {
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      name: SAVED,
+      actor: 'user-1',
+    });
+  });
+
+  it('answers 404 for a name nobody saved and deletes nothing', async () => {
+    const res = await mount().request(
+      'http://localhost/api/v1/automations/no-such-automation',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(404);
+    expect(deleteAutomationCascade).not.toHaveBeenCalled();
+  });
+
+  it('passes the in-flight-run refusal through with its code', async () => {
+    vi.mocked(deleteAutomationCascade).mockRejectedValueOnce(
+      new AutomationError(
+        'AUTOMATION_HAS_ACTIVE_RUNS',
+        'A run is still in flight.',
+        409,
+      ),
+    );
+    const res = await mount().request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_HAS_ACTIVE_RUNS',
+    });
   });
 });
