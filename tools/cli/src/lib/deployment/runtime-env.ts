@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { generateGatewayAdminPassword } from '../crypto/gateway-password';
 import {
   requireRuntime,
   readRegular,
@@ -125,14 +126,13 @@ export function parseRuntimeEnvironment(
 }
 
 function newSecret(name: string): string {
+  if (name === 'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD')
+    return generateGatewayAdminPassword();
   if (name === 'DB_PASSWORD') return randomBytes(24).toString('hex');
   if (name === 'OBJECT_STORE_SECRET_KEY')
     return randomBytes(16).toString('hex');
   return randomBytes(32).toString(
-    name === 'BETTER_AUTH_SECRET' ||
-      name === 'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD'
-      ? 'base64'
-      : 'hex',
+    name === 'BETTER_AUTH_SECRET' ? 'base64' : 'hex',
   );
 }
 const composeValue = (value: string): string =>

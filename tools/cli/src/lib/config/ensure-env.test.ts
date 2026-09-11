@@ -141,6 +141,27 @@ describe('ensureEnv — audit signing key auto-gen', () => {
   });
 });
 
+describe('ensureEnv — gateway bootstrap password', () => {
+  test('a fresh workspace password contains all required classes and a full 32-byte random base', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-gateway-'));
+    try {
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      const env = readFileSync(join(dir, '.env'), 'utf-8');
+      const password =
+        env.match(/^SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=(.+)$/m)?.[1] ?? '';
+      expect(password.length).toBeGreaterThanOrEqual(43);
+      expect(password).toMatch(/[A-Z]/);
+      expect(password).toMatch(/[a-z]/);
+      expect(password).toMatch(/[0-9]/);
+      expect(password).toMatch(/[^A-Za-z0-9]/);
+      expect(password).toMatch(/^[A-Za-z0-9_-]+$/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration', () => {
   test('carries the old admin password to the new name without regenerating it', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-gw-rename-'));
@@ -182,6 +203,12 @@ describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration
       expect(env).toContain(
         'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
       );
+      const replay = await ensureEnv({ deployDir: dir });
+      expect(replay.success).toBe(true);
+      expect(replay.regeneratedAutoSecrets ?? []).not.toContain(
+        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
+      );
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toBe(env);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
