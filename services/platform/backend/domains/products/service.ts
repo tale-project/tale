@@ -175,9 +175,12 @@ async function assertUniqueName(
     LIMIT 1
   `;
   if (rows.length > 0) {
+    // A duplicate is a state refusal (the documented 409), like the
+    // external-id twin — it used to ride the constructor's default 400.
     throw new ProductError(
       'DUPLICATE_PRODUCT_NAME',
       `A product named "${name.trim()}" already exists.`,
+      409,
     );
   }
 }
@@ -250,15 +253,39 @@ async function loadProductOrThrow(
   return product;
 }
 
+/**
+ * Update a product. `expectedUpdatedAt` is the contacts precondition: the
+ * row is locked, the revision compared, and a stale one answers 409
+ * `PRODUCT_STALE` with nothing changed. Every successful update advances
+ * `updatedAt` even within one millisecond, so the next precondition can
+ * tell the write apart.
+ */
 export async function updateProduct(
   tx: TransactionSql,
   scope: ProductScope,
   productId: string,
-  patch: Partial<ProductInput>,
+  patch: Partial<ProductInput> & { expectedUpdatedAt?: number },
 ): Promise<void> {
   assertProductAccess(scope, 'write');
   validateProductFields(patch);
-  const product = await loadProductOrThrow(tx, scope.organizationId, productId);
+  const locked = await tx<ProductRow[]>`
+    SELECT ${tx.unsafe(PRODUCT_COLUMNS)} FROM app.products
+    WHERE id = ${productId} AND org_id = ${scope.organizationId} LIMIT 1 FOR UPDATE
+  `;
+  const product = locked[0];
+  if (!product) {
+    throw new ProductError('PRODUCT_NOT_FOUND', 'Product not found', 404);
+  }
+  if (
+    patch.expectedUpdatedAt !== undefined &&
+    patch.expectedUpdatedAt !== product.updatedAt
+  ) {
+    throw new ProductError(
+      'PRODUCT_STALE',
+      'Product changed; reload before updating',
+      409,
+    );
+  }
   const name = patch.name === undefined ? product.name : patch.name.trim();
   if (patch.name !== undefined) {
     await assertUniqueName(tx, scope.organizationId, name, productId);
@@ -292,7 +319,7 @@ export async function updateProduct(
       status = ${patch.status === undefined ? product.status : patch.status},
       external_id = ${externalId},
       metadata = ${patch.metadata === undefined ? (product.metadata === null ? null : tx.json(toJson(product.metadata))) : tx.json(toJson(patch.metadata))},
-      updated_at_ms = ${Date.now()}
+      updated_at_ms = ${Math.max(Date.now(), product.updatedAt + 1)}
     WHERE id = ${productId}
   `;
   await createAuditLog(tx, {

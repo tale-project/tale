@@ -36,10 +36,35 @@ interface Binding {
   hash: string | null;
 }
 
+/**
+ * A body-referenced attachment must have landed in the org's blob store
+ * at the declared size. Two different mistakes, two different fixes: the
+ * upload never happened (or its window lapsed — upload it again), or the
+ * bytes disagree with the declared size (fix the size, or re-upload).
+ * One message used to cover both.
+ */
+function assertAttachmentLanded(
+  landed: { size: number } | null,
+  declaredSize: number,
+): asserts landed is { size: number } {
+  if (!landed)
+    throw new ConversationError(
+      'ATTACHMENT_NOT_STAGED',
+      'Attachment was never uploaded, or its upload window lapsed — upload it again',
+      400,
+    );
+  if (landed.size !== declaredSize)
+    throw new ConversationError(
+      'ATTACHMENT_SIZE_MISMATCH',
+      `Attachment bytes (${landed.size}) do not match the declared size (${declaredSize})`,
+      400,
+    );
+}
+
 function requireWriter(viewer: ConversationViewer): void {
   if (!viewerCanWrite(viewer.role)) {
     throw new ConversationError(
-      'FORBIDDEN',
+      'ROLE_FORBIDDEN',
       'Only editors and above may synchronize conversations',
       403,
     );
@@ -113,12 +138,7 @@ export async function synchronizeConversation(
       viewer.organizationId,
       file.storageId,
     );
-    if (!landed || landed.size !== file.size)
-      throw new ConversationError(
-        'attachment_invalid',
-        'Attachment bytes do not match the declared size',
-        400,
-      );
+    assertAttachmentLanded(landed, file.size);
     known.set(file.storageId, landed.size);
   }
   return transactSerializable(sql, async (tx) => {
@@ -134,14 +154,14 @@ export async function synchronizeConversation(
     let binding = bindings[0];
     if (binding && binding.ownerUserId !== viewer.userId) {
       throw new ConversationError(
-        'FORBIDDEN',
+        'INTEGRATION_NOT_OWNED',
         'This integration belongs to another service user',
         403,
       );
     }
     if (binding && binding.externalContactId !== input.externalContactId)
       throw new ConversationError(
-        'contact_conflict',
+        'CONVERSATION_CONTACT_CONFLICT',
         'The source conversation belongs to another contact',
         409,
       );
@@ -150,7 +170,7 @@ export async function synchronizeConversation(
     if (binding && Number(binding.version) === input.version) {
       if (binding.hash !== hash)
         throw new ConversationError(
-          'snapshot_conflict',
+          'CONVERSATION_SNAPSHOT_CONFLICT',
           'Snapshot version already contains different content',
           409,
         );
@@ -165,10 +185,19 @@ export async function synchronizeConversation(
         LIMIT 2
       `;
       const contact = contacts[0];
-      if (contacts.length !== 1 || !contact)
+      // Two different mistakes, two different fixes: no contact carries
+      // the id (create it first — the absent resource's 404), or more
+      // than one does (the directory is ambiguous — a state refusal).
+      if (!contact)
         throw new ConversationError(
-          'contact_not_found',
-          'Expected one synchronized contact',
+          'CONTACT_NOT_FOUND',
+          `No contact carries externalId "${input.externalContactId}"; create it before synchronizing its conversations`,
+          404,
+        );
+      if (contacts.length > 1)
+        throw new ConversationError(
+          'CONTACT_AMBIGUOUS',
+          `More than one contact carries externalId "${input.externalContactId}"`,
           409,
         );
       const conversationId = await createConversation(tx, {
@@ -212,7 +241,7 @@ export async function synchronizeConversation(
       const previous = byExternalId.get(message.externalId);
       if (previous && previous.sourceVersion > input.version)
         throw new ConversationError(
-          'snapshot_conflict',
+          'CONVERSATION_SNAPSHOT_CONFLICT',
           'A newer source receipt already owns this message',
           409,
         );
@@ -224,7 +253,7 @@ export async function synchronizeConversation(
         previous?.messageId !== message.taleMessageId
       )
         throw new ConversationError(
-          'delivery_unacknowledged',
+          'DELIVERY_UNACKNOWLEDGED',
           'A native reply must be acknowledged before its source snapshot',
           409,
         );
@@ -241,7 +270,7 @@ export async function synchronizeConversation(
         .filter((ref) => !oldRefs.has(ref));
       if (await firstForeignUpload(tx, viewer, newRefs))
         throw new ConversationError(
-          'attachment_not_owned',
+          'ATTACHMENT_NOT_OWNED',
           'An attachment is not owned by this integration',
           403,
         );
@@ -321,7 +350,7 @@ export async function queueApiReply(
 ): Promise<string> {
   if (!args.actor.email || args.body.length > 20_000)
     throw new ConversationError(
-      'invalid_reply',
+      'REPLY_INVALID',
       'An office reply needs an identified author and a bounded body',
       400,
     );
@@ -329,12 +358,7 @@ export async function queueApiReply(
   for (const file of args.attachments) {
     apiAttachmentSchema.parse(file);
     const landed = await statOrgBlob(sql, args.organizationId, file.storageId);
-    if (!landed || landed.size !== file.size)
-      throw new ConversationError(
-        'attachment_invalid',
-        'Attachment bytes do not match the declared size',
-        400,
-      );
+    assertAttachmentLanded(landed, file.size);
   }
   return transactSerializable(sql, async (tx) => {
     const identities = await tx<
@@ -345,7 +369,7 @@ export async function queueApiReply(
       actorEmail.trim().toLowerCase()
     )
       throw new ConversationError(
-        'unverified_author',
+        'AUTHOR_UNVERIFIED',
         'Verify your email before replying through an external app',
         403,
       );
@@ -358,7 +382,7 @@ export async function queueApiReply(
     `;
     if (!bindings[0])
       throw new ConversationError(
-        'conversation_closed',
+        'CONVERSATION_CLOSED',
         'This API conversation is unavailable',
         409,
       );
@@ -378,7 +402,7 @@ export async function queueApiReply(
       )
     ) {
       throw new ConversationError(
-        'reply_limits',
+        'REPLY_LIMITS',
         `This app accepts ${limits.minBodyChars}–${limits.maxBodyChars} characters and at most ${limits.maxAttachments} supported attachments`,
         400,
       );
@@ -498,7 +522,7 @@ export async function failApiDelivery(
     const row = rows[0];
     if (!row)
       throw new ConversationError(
-        'message_not_found',
+        'DELIVERY_NOT_FOUND',
         'Delivery not found',
         404,
       );
@@ -538,7 +562,7 @@ export async function retryApiDelivery(
   `;
   if (locked.length !== 1)
     throw new ConversationError(
-      'retry_not_available',
+      'DELIVERY_RETRY_UNAVAILABLE',
       'This API delivery cannot be retried',
       409,
     );
@@ -556,7 +580,7 @@ export async function retryApiDelivery(
   const row = rows[0];
   if (!row)
     throw new ConversationError(
-      'retry_not_available',
+      'DELIVERY_RETRY_UNAVAILABLE',
       'This API delivery cannot be retried',
       409,
     );
@@ -567,7 +591,7 @@ export async function retryApiDelivery(
   `;
   if (changed.length !== 1)
     throw new ConversationError(
-      'retry_not_available',
+      'DELIVERY_RETRY_UNAVAILABLE',
       'This API delivery cannot be retried',
       409,
     );
@@ -594,13 +618,13 @@ export async function acknowledgeApiDelivery(
     const row = rows[0];
     if (!row)
       throw new ConversationError(
-        'message_not_found',
+        'DELIVERY_NOT_FOUND',
         'Delivery not found',
         404,
       );
     if (row.receiptId !== null && row.receiptId !== receiptId)
       throw new ConversationError(
-        'receipt_conflict',
+        'DELIVERY_RECEIPT_CONFLICT',
         'Delivery already has another receipt',
         409,
       );
@@ -616,7 +640,7 @@ export async function acknowledgeApiDelivery(
       receipt[0].version !== sourceVersion
     )
       throw new ConversationError(
-        'receipt_conflict',
+        'DELIVERY_RECEIPT_CONFLICT',
         'Receipt belongs to another message',
         409,
       );
@@ -685,7 +709,7 @@ export async function apiDeliveryAttachment(
   const attachment = parsed.success ? parsed.data[index] : undefined;
   if (!attachment)
     throw new ConversationError(
-      'attachment_not_found',
+      'ATTACHMENT_NOT_FOUND',
       'Attachment not found',
       404,
     );

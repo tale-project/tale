@@ -250,7 +250,10 @@ describe('bulkCreateContacts — the import door', () => {
     expect(result.success).toBe(2);
     expect(result.failed).toBe(1);
     expect(result.errors).toEqual([
-      expect.objectContaining({ index: 1, errorCode: 'duplicate_email' }),
+      expect.objectContaining({
+        index: 1,
+        errorCode: 'CONTACT_DUPLICATE_EMAIL',
+      }),
     ]);
     expect(begins.count).toBe(3);
     expect(statements.filter(isInsert)).toHaveLength(2);

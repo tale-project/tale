@@ -150,8 +150,9 @@ export function ImportContactsDialog({
         } else {
           const firstError = result.errors[0];
           const errorCodeKeys: Record<string, string> = {
-            duplicate_email: 'import.errorCodes.duplicate_email',
-            duplicate_external_id: 'import.errorCodes.duplicate_external_id',
+            CONTACT_DUPLICATE_EMAIL: 'import.errorCodes.duplicate_email',
+            CONTACT_DUPLICATE_EXTERNAL_ID:
+              'import.errorCodes.duplicate_external_id',
             unknown: 'import.errorCodes.unknown',
           };
           const errorKey = firstError
