@@ -124,24 +124,35 @@ async function bundle(directory: string) {
 
 for (const [label, executable] of modes)
   describePosix(`${label} native provisioning command`, () => {
-    test('validates private stdin and confirmation outside a workspace before any native request', async () => {
-      const directory = await mkdtemp(
-        join(tmpdir(), 'tale-provision-command-'),
-      );
-      try {
-        for (const raw of [
-          '',
-          '{"password":"synthetic-command-password-private',
-          ' '.repeat(65537),
-          Buffer.from([0xc3, 0x28]),
-        ]) {
+    test.each([
+      ['empty', ''],
+      ['truncated JSON', '{"password":"synthetic-command-password-private'],
+      ['oversized', ' '.repeat(65537)],
+      ['invalid UTF-8', Buffer.from([0xc3, 0x28])],
+    ] as const)(
+      'rejects %s stdin outside a workspace before any native request',
+      async (_name, raw) => {
+        const directory = await mkdtemp(
+          join(tmpdir(), 'tale-provision-stdin-'),
+        );
+        try {
           const result = envelope(
             await run(executable, ['--json', '--yes'], raw, directory),
             2,
           );
           expect(result.ok).toBe(false);
           expect(result.error.code).toBe(2);
+        } finally {
+          await rm(directory, { recursive: true, force: true });
         }
+      },
+    );
+
+    test('requires confirmation outside a workspace before any native request', async () => {
+      const directory = await mkdtemp(
+        join(tmpdir(), 'tale-provision-confirm-'),
+      );
+      try {
         const unconfirmed = await run(
           executable,
           ['--json'],
