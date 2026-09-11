@@ -420,6 +420,7 @@ export interface DocumentsContract {
       folderId?: string;
       projectId?: string;
       updatedAt: number;
+      projectArchived?: true;
     }>;
   };
 }

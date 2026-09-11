@@ -1878,13 +1878,15 @@ export async function searchProjects(
   if (query.trim().length === 0) {
     return [];
   }
+  // #2999: an archived project stays searchable. `PROJECT_COLUMNS` already
+  // carries `archived_at_ms`, so the caller labels the row from what it gets.
+  // Archived rows sort last so they cannot fill the capped page.
   return sql<ProjectRow[]>`
     SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
-      AND archived_at_ms IS NULL
       AND name ILIKE ${term}
       AND ${visibilityClause(sql, auth)}
-    ORDER BY updated_at_ms DESC
+    ORDER BY (archived_at_ms IS NOT NULL), updated_at_ms DESC
     LIMIT ${Math.min(limit, 50)}
   `;
 }

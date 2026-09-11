@@ -399,6 +399,7 @@ export interface ProjectsContract {
       key?: string;
       snippet: string;
       updatedAt: number;
+      archived?: true;
     }>;
   };
   'projects/secrets/actions:deleteProjectSecret': {

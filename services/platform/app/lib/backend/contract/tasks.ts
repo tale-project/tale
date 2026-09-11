@@ -865,6 +865,8 @@ export interface TasksContract {
       updatedAt: number;
       number?: number;
       projectKey?: string;
+      archived?: true;
+      projectArchived?: true;
     }>;
   };
   'tasks/serving_preview:previewUnpinnedTaskServing': {

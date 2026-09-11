@@ -2031,6 +2031,8 @@ dialogs:
     scopeLabel: Portée de la recherche
     scopeChats: Chats
     scopeEverything: Tout
+    badgeArchived: Archivé
+    badgeProjectArchived: Projet archivé
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer

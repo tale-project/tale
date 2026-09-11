@@ -332,4 +332,30 @@ describe('SearchCommand', () => {
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
   });
+
+  // A result's status label. The palette shows archived work (#2999), so the
+  // row has to be able to say a hit is archived.
+  it('renders a result badge beside the title', async () => {
+    respond = () => ({
+      kind: 'ready',
+      results: [result({ id: '1', badge: 'Archived' })],
+    });
+    const { user } = renderCommand();
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    await waitFor(() =>
+      expect(screen.getByText('Archived')).toBeInTheDocument(),
+    );
+  });
+
+  it('renders no badge when a result carries none', async () => {
+    respond = () => ({ kind: 'ready', results: [result({ id: '1' })] });
+    const { user } = renderCommand();
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    await waitFor(() =>
+      expect(
+        screen.getByRole('option', { name: /Configuration/ }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+  });
 });

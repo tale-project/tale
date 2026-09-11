@@ -4,6 +4,7 @@ import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useT } from '@/lib/i18n/client';
 
 const NO_RESULTS: SearchResult<ProjectSearchHitData>[] = [];
 
@@ -17,6 +18,7 @@ export function createProjectsSearchSource(options: {
 }): SearchSource<ProjectSearchHitData> {
   const { organizationId, enabled = true } = options;
   return (query, { active }) => {
+    const { t } = useT('dialogs');
     const trimmed = query.trim();
     const hits = useBackendQuery(
       'projects/search:searchProjects',
@@ -32,10 +34,11 @@ export function createProjectsSearchSource(options: {
         id: hit.projectId,
         title: hit.key ? `${hit.key} · ${hit.name}` : hit.name,
         subtitle: hit.snippet,
+        ...(hit.archived ? { badge: t('search.badgeArchived') } : {}),
         group: 'projects',
         data: { kind: 'project' as const },
       }));
-    }, [hits.data]);
+    }, [hits.data, t]);
 
     if (!enabled || !active || trimmed.length === 0) {
       return { results: NO_RESULTS, status: 'ready' };

@@ -1953,6 +1953,8 @@ dialogs:
     scopeLabel: Search scope
     scopeChats: Chats
     scopeEverything: Everything
+    badgeArchived: Archived
+    badgeProjectArchived: Archived project
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send

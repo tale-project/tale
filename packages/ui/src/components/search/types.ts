@@ -18,6 +18,9 @@ export interface SearchResult<TData = object> {
   /** Secondary line under the title (a chat preview, an entity subtitle).
    *  Ignored when `body` is present — `body` drives a highlighted snippet. */
   subtitle?: string;
+  /** Short status label rendered beside the title (e.g. "Archived"). The
+   *  source supplies it already localized. */
+  badge?: string;
   /** Group key — section for docs, date-bucket for threads, entity type for
    *  mixed lists. Falls back to a single "Results" group when omitted. */
   group?: string;

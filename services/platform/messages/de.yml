@@ -2017,6 +2017,8 @@ dialogs:
     scopeLabel: Suchbereich
     scopeChats: Chats
     scopeEverything: Alles
+    badgeArchived: Archiviert
+    badgeProjectArchived: Archiviertes Projekt
   thisMember: dieses Mitglied
   confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden

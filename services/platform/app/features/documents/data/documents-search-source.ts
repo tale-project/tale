@@ -4,6 +4,7 @@ import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useT } from '@/lib/i18n/client';
 
 const NO_RESULTS: SearchResult<DocumentSearchHitData>[] = [];
 
@@ -19,6 +20,7 @@ export function createDocumentsSearchSource(options: {
 }): SearchSource<DocumentSearchHitData> {
   const { organizationId, enabled = true } = options;
   return (query, { active }) => {
+    const { t } = useT('dialogs');
     const trimmed = query.trim();
     const hits = useBackendQuery(
       'documents/search:searchDocuments',
@@ -34,6 +36,11 @@ export function createDocumentsSearchSource(options: {
         id: hit.documentId,
         title: hit.title,
         subtitle: hit.snippet,
+        // A document has no archive state of its own; its project's is the
+        // only label it can carry (#3007).
+        ...(hit.projectArchived
+          ? { badge: t('search.badgeProjectArchived') }
+          : {}),
         group: 'documents',
         data: {
           kind: 'document' as const,
@@ -41,7 +48,7 @@ export function createDocumentsSearchSource(options: {
           projectId: hit.projectId,
         },
       }));
-    }, [hits.data]);
+    }, [hits.data, t]);
 
     if (!enabled || !active || trimmed.length === 0) {
       return { results: NO_RESULTS, status: 'ready' };
