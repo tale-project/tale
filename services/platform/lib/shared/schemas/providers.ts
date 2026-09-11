@@ -284,6 +284,21 @@ export const providerDefinitionSchema = z
      * credential row stores its own `endpointUrl`).
      */
     endpointMode: z.enum(['fixed', 'per-credential']).optional(),
+    /**
+     * An alternate endpoint for the SANDBOX HARNESS (gateway) lane only — never
+     * the direct API lane. A provider whose direct/API lane is OpenAI-format
+     * may expose a native Anthropic-compatible endpoint that a Claude Code
+     * session (which speaks the Anthropic wire to the gateway) should ride, so
+     * the gateway forwards Anthropic natively instead of down-converting
+     * Anthropic→OpenAI — a conversion some upstreams (DeepSeek) mishandle for
+     * multi-turn `reasoning_content` replay. Consulted only when the requesting
+     * harness's gateway wire matches this `apiFormat`; other harnesses keep the
+     * provider's `baseUrl`/`apiFormat`. Realistically `apiFormat: anthropic`.
+     */
+    harnessEndpoint: z
+      .object({ baseUrl: providerBaseUrlSchema, apiFormat: apiFormatSchema })
+      .strict()
+      .optional(),
     catalog: catalogSourceSchema,
     /** See {@link providerEmbeddingSupportSchema}. Absent = `unknown`. */
     embedding: providerEmbeddingSupportSchema.optional(),

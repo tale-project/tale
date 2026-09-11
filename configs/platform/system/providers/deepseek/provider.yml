@@ -7,6 +7,16 @@ name: deepseek
 displayName: DeepSeek
 apiFormat: openai
 baseUrl: https://api.deepseek.com
+# Sandbox coding harnesses that speak the Anthropic wire to the gateway
+# (Claude Code) ride DeepSeek's native Anthropic-compatible endpoint, so the
+# gateway passes Anthropic through instead of down-converting Anthropic→OpenAI.
+# The OpenAI base above (used by the direct API lane and OpenAI-wire harnesses)
+# mishandles multi-turn thinking: it drops the assistant's `reasoning_content`
+# on tool-loop turns and DeepSeek 400s ("`reasoning_content` ... must be passed
+# back to the API"). The Anthropic endpoint round-trips thinking blocks natively.
+harnessEndpoint:
+  baseUrl: https://api.deepseek.com/anthropic
+  apiFormat: anthropic
 catalog:
   source: static
 embedding: unknown

@@ -124,6 +124,11 @@ export async function buildProviderProvision(
     apiFormat: connector.apiFormat,
     apiKey: resolved.secret,
     models,
+    // Carried as metadata so the per-model expansion can route an anthropic-
+    // wire harness (Claude Code) to the connector's native Anthropic endpoint.
+    ...(connector.harnessEndpoint
+      ? { harnessEndpoint: connector.harnessEndpoint }
+      : {}),
   };
 }
 
@@ -161,10 +166,15 @@ async function pushModelPricing(
       )?.pricing;
       if (pricing === undefined) continue;
       await ensureModelPricingOverride({
+        // Key the override to the SAME record the session routes to — the
+        // anthropic-harness variant (`…__anthropic`) is its own record, so
+        // without this its turns bill at the gateway's price (0 for a custom
+        // upstream) and the key's cap never trips.
         gatewayProvider: resolveGatewayRouting(
           args.organizationId,
           ref.providerSlug,
           ref.modelId,
+          { anthropicHarnessLane: ref.anthropicHarnessLane },
         ).gatewayProvider,
         modelId: ref.modelId,
         inputCentsPerMillion: pricing.inputCentsPerMillion,
@@ -288,6 +298,14 @@ export async function provisionSessionGatewayKey(
   for (const ref of args.allowedModels) {
     const base = baseBySlug.get(ref.providerSlug);
     if (!base) continue;
+    // Claude Code lane: an anthropic-wire harness on a connector that declares
+    // a native Anthropic endpoint rides a DISTINCT per-model record whose
+    // upstream is that endpoint, so the gateway forwards Anthropic through
+    // instead of down-converting Anthropic→OpenAI (which DeepSeek mishandles
+    // for multi-turn reasoning replay). Kept apart from the OpenAI record other
+    // harnesses use for the same model, so the two never overwrite each other.
+    const anthropicLane =
+      ref.anthropicHarnessLane === true && base.harnessEndpoint !== undefined;
     const provision = isStandardGatewayProvider(ref.providerSlug)
       ? base
       : {
@@ -296,8 +314,15 @@ export async function provisionSessionGatewayKey(
             args.organizationId,
             ref.providerSlug,
             ref.modelId,
+            { anthropicHarnessLane: anthropicLane },
           ).gatewayProvider,
           models: [ref.modelId],
+          ...(anthropicLane && base.harnessEndpoint
+            ? {
+                baseUrl: base.harnessEndpoint.baseUrl,
+                apiFormat: base.harnessEndpoint.apiFormat,
+              }
+            : {}),
         };
     if (slugByRecord.has(provision.name)) continue;
     slugByRecord.set(provision.name, ref.providerSlug);

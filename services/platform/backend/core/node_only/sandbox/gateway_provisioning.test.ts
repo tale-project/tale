@@ -295,6 +295,50 @@ describe('provisionSessionGatewayKey', () => {
     });
   });
 
+  it("routes the Claude Code lane to the connector's native Anthropic endpoint under a distinct record", async () => {
+    // deepseek declares a harnessEndpoint (api.deepseek.com/anthropic). An
+    // anthropic-wire harness (Claude Code) rides it: a distinct `__anthropic`
+    // record whose upstream is that endpoint, kept apart from the OpenAI record
+    // other harnesses use for the same model — the gateway then forwards
+    // Anthropic through instead of down-converting to OpenAI.
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      {
+        id: 'deepseek-v4-flash',
+        pricing: { inputCentsPerMillion: 14, outputCentsPerMillion: 28 },
+      },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-cc',
+      allowedModels: [
+        {
+          providerSlug: 'deepseek',
+          modelId: 'deepseek-v4-flash',
+          anthropicHarnessLane: true,
+        },
+      ],
+      budgetCents: 500,
+    });
+    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
+      expect.objectContaining({
+        name: 'org_1__deepseek__deepseek-v4-flash__anthropic',
+        baseUrl: 'https://api.deepseek.com/anthropic',
+        apiFormat: 'anthropic',
+        models: ['deepseek-v4-flash'],
+        apiKey: 'sk-ds',
+      }),
+    ]);
+    // Pricing scoped to that SAME distinct record, else its turns bill 0.
+    expect(ensureModelPricingOverride).toHaveBeenCalledWith({
+      gatewayProvider: 'org_1__deepseek__deepseek-v4-flash__anthropic',
+      modelId: 'deepseek-v4-flash',
+      inputCentsPerMillion: 14,
+      outputCentsPerMillion: 28,
+    });
+  });
+
   it('keeps two orgs sharing a custom connector name on separate gateway records', async () => {
     // A custom connector is an org-defined file; two orgs may both ship an
     // `internal.yml`-style connector under one name (here the shipped

@@ -114,8 +114,14 @@ export function ensureSandboxLlmGatewayUrl(env: NodeJS.ProcessEnv): void {
  */
 export const DEV_SANDBOX_TOKEN =
   'local-dev-insecure-sandbox-token-do-not-use-in-prod-0123456789abcdef';
+// Must satisfy the gateway's own password policy (Bifrost >= v1.6.9: >=12
+// chars with an uppercase, a lowercase, a digit and a special char), since a
+// fresh dockerized dev gateway sets THIS value as its admin password on
+// first-time auth setup — a non-compliant one 400s and every sandbox call is
+// then a 401. Kept byte-identical with compose.dev.yml (dev-secrets.test.ts
+// pins the lockstep).
 export const DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
-  'local-dev-insecure-gateway-admin-password';
+  'Local-dev-insecure-gateway-admin-password-1';
 
 /** Shared HMAC key for backend → sandbox spawner request signing. */
 export function ensureSandboxToken(env: NodeJS.ProcessEnv): void {
