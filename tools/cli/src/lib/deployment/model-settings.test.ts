@@ -130,35 +130,41 @@ describe('external model settings declaration', () => {
 });
 
 for (const locale of ['en', 'de', 'fr']) {
-  test(`the ${locale} operator example is an exact generic native declaration`, async () => {
-    const page = await readFile(
-      new URL(
-        `../../../../../docs/${locale}/self-hosted/install/cli-install.md`,
-        import.meta.url,
-      ),
-      'utf8',
-    );
-    const candidates = [...page.matchAll(/```json\n([\s\S]*?)\n```/g)]
-      .map((match) => JSON.parse(match[1]!) as Record<string, unknown>)
-      .filter((value) => value.modelSettings);
-    expect(candidates).toHaveLength(1);
-    expect(
-      deploymentSpecSchema.safeParse({
-        schemaVersion: 1,
-        name: 'example',
-        stateDirectory: resolve(tmpdir(), 'example'),
-        composeProject: 'tale',
-        runtime: { revision: 'a'.repeat(40) },
-        origin: 'https://native.example.invalid',
-        tlsMode: 'external',
-        identity: {
-          email: 'operator@example.invalid',
-          slug: 'example',
-          name: 'Example',
-          ssoEnabled: false,
-        },
-        ...candidates[0],
-      }).success,
-    ).toBe(true);
-  });
+  test.each(['\n', '\r\n'])(
+    `the ${locale} operator example parses with %j newlines`,
+    async (newline) => {
+      const page = await readFile(
+        new URL(
+          `../../../../../docs/${locale}/self-hosted/install/cli-install.md`,
+          import.meta.url,
+        ),
+        'utf8',
+      );
+      const checkedPage = page.replace(/\r?\n/g, newline);
+      const candidates = [
+        ...checkedPage.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g),
+      ]
+        .map((match) => JSON.parse(match[1]!) as Record<string, unknown>)
+        .filter((value) => value.modelSettings);
+      expect(candidates).toHaveLength(1);
+      expect(
+        deploymentSpecSchema.safeParse({
+          schemaVersion: 1,
+          name: 'example',
+          stateDirectory: resolve(tmpdir(), 'example'),
+          composeProject: 'tale',
+          runtime: { revision: 'a'.repeat(40) },
+          origin: 'https://native.example.invalid',
+          tlsMode: 'external',
+          identity: {
+            email: 'operator@example.invalid',
+            slug: 'example',
+            name: 'Example',
+            ssoEnabled: false,
+          },
+          ...candidates[0],
+        }).success,
+      ).toBe(true);
+    },
+  );
 }
