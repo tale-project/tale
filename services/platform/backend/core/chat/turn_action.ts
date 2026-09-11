@@ -645,11 +645,14 @@ export function createDirectModelCall(
     // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
     checkProviderHostPolicy(wire.baseUrl);
 
-    // The modern dialect sends a custom temperature only for a model KNOWN
-    // not to reason; that fact lives on the catalog entry (absent for
-    // credential-allowlist connectors like Azure, where unknown must count
-    // as reasoning).
-    if (wire.wireDialect !== undefined && !reasoningResolved) {
+    // The modern OpenAI dialect and the Anthropic wire send a custom
+    // temperature only for a model KNOWN not to reason; that fact lives on
+    // the catalog entry (absent for credential-allowlist connectors like
+    // Azure, where unknown must count as reasoning).
+    if (
+      (wire.wireDialect !== undefined || wire.apiFormat === 'anthropic') &&
+      !reasoningResolved
+    ) {
       const entry = (await getProviderCatalog(connector)).find(
         (candidate) => candidate.id === request.model,
       );
