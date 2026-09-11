@@ -92,6 +92,7 @@ describe('OneDrive routes under a spent org budget', () => {
     expect(res.headers.get('retry-after')).toBe('3');
     expect(await res.json()).toEqual({
       error: 'RATE_LIMITED',
+      code: 'RATE_LIMITED',
       data: { retryAfterMs: 2500 },
     });
     expect(checkOrganizationRateLimit).toHaveBeenLastCalledWith(
