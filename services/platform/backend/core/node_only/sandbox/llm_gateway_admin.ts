@@ -174,8 +174,18 @@ function customGatewayProviderName(
   organizationId: string,
   slug: string,
   modelId: string,
+  anthropicHarnessLane = false,
 ): string {
-  return `${organizationId}__${slug}__${modelId}`.replace(/\//g, '_');
+  // An anthropic-wire harness (Claude Code) on a connector that declares a
+  // native Anthropic harness endpoint rides a DISTINCT record so its upstream
+  // (base_provider_type: anthropic) never overwrites the OpenAI record other
+  // harnesses use for the same (org, model). `__anthropic` is a safe suffix:
+  // `/` is still stripped below, and the segment stays one gateway record name.
+  const base = `${organizationId}__${slug}__${modelId}`;
+  return (anthropicHarnessLane ? `${base}__anthropic` : base).replace(
+    /\//g,
+    '_',
+  );
 }
 
 export interface GatewayRouting {
@@ -186,18 +196,31 @@ export interface GatewayRouting {
   gatewayModel: string;
 }
 
+/** Extra routing inputs beyond the (org, connector, model) triple. */
+export interface GatewayRoutingOpts {
+  /** The requesting harness speaks the Anthropic wire to the gateway AND the
+   * connector declares a native Anthropic harness endpoint, so this session
+   * rides a distinct per-model record (`…__anthropic`) whose upstream is that
+   * endpoint. Ignored for standard connectors (they own their record + wire
+   * format and declare no harness endpoint). */
+  anthropicHarnessLane?: boolean;
+}
+
 /**
  * Map an (org, connector, catalog model id) triple onto gateway routing. A
  * standard connector name routes to the shared native provider record
  * (`<name>/<modelId>`); any other connector routes to the org's own
- * per-model upstream record (`<orgId>__<name>__<modelId>/<modelId>`). Single
+ * per-model upstream record (`<orgId>__<name>__<modelId>/<modelId>`), or its
+ * anthropic-harness sibling (`…__anthropic/<modelId>`) when opts say so. Single
  * source of truth shared by the harness glue (model env), the mint (VK
- * binding), and the provisioner (record names) so they can never drift.
+ * binding), and the provisioner (record names) so they can never drift — pass
+ * the SAME opts at every call site for one session's model.
  */
 export function resolveGatewayRouting(
   organizationId: string,
   providerSlug: string,
   modelId: string,
+  opts: GatewayRoutingOpts = {},
 ): GatewayRouting {
   if (isStandardGatewayProvider(providerSlug)) {
     return {
@@ -205,7 +228,12 @@ export function resolveGatewayRouting(
       gatewayModel: `${providerSlug}/${modelId}`,
     };
   }
-  const name = customGatewayProviderName(organizationId, providerSlug, modelId);
+  const name = customGatewayProviderName(
+    organizationId,
+    providerSlug,
+    modelId,
+    opts.anthropicHarnessLane,
+  );
   return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
 }
 
@@ -214,6 +242,9 @@ export function resolveGatewayRouting(
 export interface AllowedModelRef {
   providerSlug: string;
   modelId: string;
+  /** Route this model through the connector's native Anthropic harness
+   * endpoint (Claude Code lane). See {@link GatewayRoutingOpts}. */
+  anthropicHarnessLane?: boolean;
 }
 
 export interface MintVirtualKeyArgs {
@@ -256,6 +287,7 @@ export async function mintVirtualKey(
       args.organizationId,
       ref.providerSlug,
       ref.modelId,
+      { anthropicHarnessLane: ref.anthropicHarnessLane },
     );
     const models = byProvider.get(gatewayProvider) ?? [];
     models.push(ref.modelId, gatewayModel);
@@ -619,6 +651,11 @@ export interface ProviderProvision {
   apiKey: string;
   /** Catalog model ids (the connector's own dialect) this key may serve. */
   models: string[];
+  /** Platform-side metadata only (never pushed to the gateway): the
+   * connector's native Anthropic harness endpoint, applied to the per-model
+   * record when an anthropic-wire harness rides this provider. See
+   * {@link GatewayRoutingOpts.anthropicHarnessLane}. */
+  harnessEndpoint?: { baseUrl: string; apiFormat: 'openai' | 'anthropic' };
 }
 
 /**
@@ -989,6 +1026,7 @@ export async function applyGatewayConfig(): Promise<void> {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const cfg = (await getRes.json()) as {
     client_config?: Record<string, unknown>;
+    auth_config?: { is_enabled?: boolean };
   };
   const current = cfg.client_config ?? {};
   // `PUT /api/config` re-validates the whole client_config, but GET returns
@@ -1006,15 +1044,27 @@ export async function applyGatewayConfig(): Promise<void> {
     enforce_auth_on_inference: true,
     enforce_governance_header: true,
   };
+  // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
+  // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special
+  // char) — but ONLY when the password is being CHANGED. It treats a plaintext
+  // `admin_password` as a change, so re-asserting one on every apply 400s
+  // ("auth password must include one special character") for any secret minted
+  // before the policy (a base64url secret has no special char ~half the time).
+  // Once auth is established we therefore send the password in "preserve
+  // stored" form (an empty value → SecretVar.ShouldPreserveStored on the
+  // gateway): it keeps the existing hash and skips the policy, and Basic auth
+  // keeps matching the unchanged secret. Only the FIRST-time bootstrap sends
+  // the plaintext to establish auth — and that minted secret is policy-
+  // compliant by construction (the ensure-env / dev-secret generators). The
+  // gateway hashes the stored password itself (bcrypt); managementHeaders()
+  // sends the plaintext as Basic.
+  const authAlreadyEnabled = cfg.auth_config?.is_enabled === true;
   const body: Record<string, unknown> = {
     client_config: clientConfig,
-    // Send the PLAINTEXT password — the gateway hashes it itself on store
-    // and compares with bcrypt at request time. Pre-hashing would
-    // double-hash and every Basic-auth call would 401.
     auth_config: {
       is_enabled: true,
       admin_username: adminUsername(),
-      admin_password: requireGatewayAdminPassword(),
+      admin_password: authAlreadyEnabled ? '' : requireGatewayAdminPassword(),
       // Inference is gated by enforce_auth_on_inference (VK), not admin
       // login.
       disable_auth_on_inference: true,

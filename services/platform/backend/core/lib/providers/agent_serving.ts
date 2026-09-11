@@ -57,7 +57,16 @@ import {
  * connector's own catalog spelling (what the wire — or the vendor CLI —
  * accepts). */
 export type AgentTurnServing =
-  | { lane: 'gateway'; providerSlug: string; modelId: string }
+  | {
+      lane: 'gateway';
+      providerSlug: string;
+      modelId: string;
+      /** The requesting harness speaks the Anthropic wire to the gateway AND
+       * this connector declares a native Anthropic harness endpoint, so the
+       * session rides that endpoint (a distinct `…__anthropic` record) instead
+       * of the OpenAI base. Absent/false ⇒ the OpenAI record. */
+      anthropicHarnessLane?: boolean;
+    }
   | {
       lane: 'subscription';
       providerSlug: string;
@@ -293,6 +302,31 @@ export async function walkDirectServing(
  * actionable reason — a pin NEVER falls back to another provider (the
  * silent-swap billing surprise is the defect the pin exists to close).
  */
+/** Whether a harness talks the Anthropic wire to the sandbox gateway — it
+ * points ANTHROPIC_BASE_URL at the gateway's `/anthropic` path, declared by
+ * ANTHROPIC_BASE_URL in its credentialEnvKeys. Today only Claude Code does. */
+function harnessSpeaksAnthropicWire(harness: string): boolean {
+  return (
+    loadHarnesses()
+      .find((def) => def.slug === harness)
+      ?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') ?? false
+  );
+}
+
+/** The gateway serving should ride the connector's native Anthropic harness
+ * endpoint (a distinct `…__anthropic` gateway record): the harness speaks the
+ * Anthropic wire and the connector declares such an endpoint. Otherwise the
+ * OpenAI base serves — an OpenAI-wire harness never crosses onto it. */
+function usesAnthropicHarnessEndpoint(
+  harness: string,
+  connector: { harnessEndpoint?: { apiFormat: string } },
+): boolean {
+  return (
+    connector.harnessEndpoint?.apiFormat === 'anthropic' &&
+    harnessSpeaksAnthropicWire(harness)
+  );
+}
+
 export async function resolvePinnedAgentServing(
   ctx: ActionCtx,
   args: {
@@ -331,7 +365,13 @@ export async function resolvePinnedAgentServing(
       connector,
     ]);
     if (walk.target !== null) {
-      return { lane: 'gateway', ...walk.target };
+      return {
+        lane: 'gateway',
+        ...walk.target,
+        ...(usesAnthropicHarnessEndpoint(args.harness, connector)
+          ? { anthropicHarnessLane: true }
+          : {}),
+      };
     }
     const detail =
       walk.unreachable.length > 0
@@ -434,7 +474,17 @@ export async function resolveWorkflowAgentServing(
     connectors,
   );
   if (direct.target !== null) {
-    return { lane: 'gateway', ...direct.target };
+    const chosen = connectors.find(
+      (entry) => entry.name === direct.target?.providerSlug,
+    );
+    return {
+      lane: 'gateway',
+      ...direct.target,
+      ...(chosen !== undefined &&
+      usesAnthropicHarnessEndpoint(args.harness, chosen)
+        ? { anthropicHarnessLane: true }
+        : {}),
+    };
   }
 
   const unreachable = [...direct.unreachable];

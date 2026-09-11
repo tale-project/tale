@@ -32,6 +32,9 @@ function stubGateway(
     configStatus?: number;
     configBody?: string;
     clientConfig?: Record<string, unknown>;
+    /** GET /api/config reports auth already enabled (a password is stored), so
+     * applyGatewayConfig must PRESERVE it rather than re-send a plaintext one. */
+    authEnabled?: boolean;
     /** The gateway stored the minted key WITHOUT its budget. */
     mintWithoutBudget?: boolean;
     /** Overrides `GET /api/governance/pricing-overrides` lists. */
@@ -70,7 +73,18 @@ function stubGateway(
       if (method === 'GET' && u.endsWith('/api/config')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ client_config: opts.clientConfig ?? {} }),
+            JSON.stringify({
+              client_config: opts.clientConfig ?? {},
+              ...(opts.authEnabled
+                ? {
+                    auth_config: {
+                      is_enabled: true,
+                      admin_username: { value: 'admin', type: 'plain_text' },
+                      admin_password: { value: '<redacted>' },
+                    },
+                  }
+                : {}),
+            }),
             { status: 200 },
           ),
         );
@@ -783,7 +797,10 @@ describe('applyGatewayConfig', () => {
         enforce_auth_on_inference: true,
         enforce_governance_header: true,
       },
-      // Always pushed — the management plane is never left anonymous.
+      // First-time bootstrap (GET reports auth not yet enabled): the plaintext
+      // password is sent to establish it — the gateway hashes it on store. A
+      // freshly minted secret is policy-compliant by construction, so the
+      // gateway's >= v1.6.9 strength check passes.
       auth_config: {
         is_enabled: true,
         admin_username: 'admin',
@@ -793,21 +810,29 @@ describe('applyGatewayConfig', () => {
     });
   });
 
-  it('pushes admin Basic auth (plaintext password — the gateway hashes it) on every apply', async () => {
+  it('preserves the stored password once auth is enabled, so the gateway strength policy never trips', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-2');
-    const calls = stubGateway({ clientConfig: { log_retention_days: 14 } });
+    const calls = stubGateway({
+      clientConfig: { log_retention_days: 14 },
+      authEnabled: true,
+    });
     const mod = await loadModule();
     await mod.applyGatewayConfig();
     const put = calls.find(
       (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
     );
+    // Empty value → the gateway keeps its stored hash (SecretVar.
+    // ShouldPreserveStored) and skips the >= v1.6.9 password policy, which a
+    // secret minted before the policy (e.g. a base64url one with no special
+    // char) would otherwise 400 on ("must include one special character").
     expect(put?.body?.auth_config).toEqual({
       is_enabled: true,
       admin_username: 'admin',
-      admin_password: 'pw-2',
+      admin_password: '',
       disable_auth_on_inference: true,
     });
-    // And the apply itself authenticated with the same credential.
+    // Basic auth still uses the real credential — the password is unchanged,
+    // it is simply not re-asserted in the body.
     for (const call of calls) {
       expect(call.headers.authorization).toBe(basicFor('pw-2'));
     }
@@ -848,6 +873,40 @@ describe('resolveGatewayRouting', () => {
       gatewayModel:
         'org_1__vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
     });
+  });
+
+  it('routes a custom connector to a distinct `__anthropic` record for the Claude Code lane', async () => {
+    const mod = await loadModule();
+    const openai = mod.resolveGatewayRouting(
+      ORG,
+      'deepseek',
+      'deepseek-v4-flash',
+    );
+    const anthropic = mod.resolveGatewayRouting(
+      ORG,
+      'deepseek',
+      'deepseek-v4-flash',
+      { anthropicHarnessLane: true },
+    );
+    expect(openai.gatewayProvider).toBe('org_1__deepseek__deepseek-v4-flash');
+    expect(anthropic.gatewayProvider).toBe(
+      'org_1__deepseek__deepseek-v4-flash__anthropic',
+    );
+    // Distinct records → the two upstreams (openai base vs native anthropic)
+    // never overwrite each other for the same (org, model).
+    expect(anthropic.gatewayProvider).not.toBe(openai.gatewayProvider);
+    expect(anthropic.gatewayModel).toBe(
+      'org_1__deepseek__deepseek-v4-flash__anthropic/deepseek-v4-flash',
+    );
+  });
+
+  it('ignores the anthropic-harness lane for a standard connector (it owns its wire)', async () => {
+    const mod = await loadModule();
+    expect(
+      mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5', {
+        anthropicHarnessLane: true,
+      }),
+    ).toEqual(mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'));
   });
 
   it('gives two orgs sharing a custom connector name two distinct records', async () => {

@@ -13,8 +13,15 @@
 ARG VERSION=dev
 
 # Upstream gateway core (vendor image — NOT renamed; this is the literal
-# upstream artifact). Pinned because the project has had VK auth regressions.
-FROM maximhq/bifrost:v1.5.13
+# upstream artifact). Pinned (the project has had VK auth regressions) — verify
+# virtual-key auth after any bump. Held at v1.6.11: v1.5.13 provisioned DeepSeek
+# as a generic custom-OpenAI upstream and dropped its `reasoning_content` on
+# tool-loop turns, so DeepSeek 400'd ("The `reasoning_content` in the thinking
+# mode must be passed back to the API") on every thinking claude-code run.
+# v1.6.9 made DeepSeek thinking survive multi-turn on the OpenAI-compatible
+# surface; v1.6.10/.11 hardened reasoning replay. Deliberately below the v2.0.0
+# major (datasheet-backed request reshaping — larger regression surface).
+FROM maximhq/bifrost:v1.6.11
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev

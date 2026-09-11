@@ -44,6 +44,19 @@ describe('dev sandbox control-plane secrets — lockstep with compose.dev.yml', 
       DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
     );
   });
+
+  // A fresh dockerized dev gateway sets THIS value as its admin password on
+  // first-time auth setup, and Bifrost (>= v1.6.9) rejects one that misses any
+  // class (>=12 chars, upper, lower, digit, special) — then every sandbox call
+  // is a 401. Guard the literal from regressing below the policy.
+  it('gateway admin dev default satisfies the gateway password policy', () => {
+    const pw = DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+    expect(pw.length).toBeGreaterThanOrEqual(12);
+    expect(pw).toMatch(/[A-Z]/);
+    expect(pw).toMatch(/[a-z]/);
+    expect(pw).toMatch(/[0-9]/);
+    expect(pw).toMatch(/[^A-Za-z0-9]/);
+  });
 });
 
 describe('ensureSandboxToken', () => {

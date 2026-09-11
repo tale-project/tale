@@ -49,7 +49,12 @@ function harness(
     slug,
     displayName: slug,
     credentialPolicy: policy,
-    credentialEnvKeys: ['TALE_GATEWAY_TOKEN'],
+    // An anthropic-wire harness (Claude Code) points ANTHROPIC_BASE_URL at the
+    // gateway's `/anthropic` path; the serving reads this to decide the native
+    // Anthropic harness lane. Mirror that for the subscription-delivery fixture.
+    credentialEnvKeys: withSubscriptionDelivery
+      ? ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'TALE_GATEWAY_TOKEN']
+      : ['TALE_GATEWAY_TOKEN'],
     modelIdDialect: 'vendor-native',
     promptTransport: 'stdin-ndjson',
     capabilities: { planMode: false, steering: false, mcp: false },
@@ -113,6 +118,21 @@ const OPENROUTER: ProviderDefinition = providerDefinitionSchema.parse({
   baseUrl: 'https://openrouter.ai/api/v1',
   catalog: { source: 'openrouter-api' },
   auth: [{ method: 'api-key' }, { method: 'env' }],
+});
+
+/** An OpenAI-format connector that also exposes a native Anthropic endpoint
+ * for anthropic-wire harnesses (mirrors the shipped `deepseek`). */
+const DEEPSEEK: ProviderDefinition = providerDefinitionSchema.parse({
+  name: 'deepseek',
+  displayName: 'DeepSeek',
+  apiFormat: 'openai',
+  baseUrl: 'https://api.deepseek.com',
+  harnessEndpoint: {
+    baseUrl: 'https://api.deepseek.com/anthropic',
+    apiFormat: 'anthropic',
+  },
+  catalog: { source: 'static' },
+  auth: [{ method: 'api-key' }],
 });
 
 /** Default-credential rows by provider slug; the fake ctx serves them. */
@@ -656,5 +676,50 @@ describe('catalog-less providers serve their credential allowlist', () => {
         harness: 'claude-code',
       }),
     ).rejects.toThrow(/provider "azure" cannot serve model "gpt-5-eu-prod"/);
+  });
+});
+
+describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => {
+  it("routes a Claude Code session onto the connector's native Anthropic endpoint", async () => {
+    // deepseek is OpenAI-format for the direct/API lane but exposes a native
+    // Anthropic endpoint; an anthropic-wire harness (Claude Code) rides it so
+    // the gateway forwards Anthropic through instead of down-converting.
+    resolveConnectors.mockResolvedValue([DEEPSEEK]);
+    credentials = { deepseek: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'deepseek-v4-flash' }]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'deepseek-v4-flash',
+      modelProvider: 'deepseek',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      anthropicHarnessLane: true,
+    });
+  });
+
+  it('keeps an OpenAI-wire harness (codex) on the OpenAI base for the same connector', async () => {
+    resolveConnectors.mockResolvedValue([DEEPSEEK]);
+    credentials = { deepseek: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'deepseek-v4-flash' }]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'deepseek-v4-flash',
+      modelProvider: 'deepseek',
+      harness: 'codex',
+    });
+
+    // No `anthropicHarnessLane` flag → the OpenAI record serves it.
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+    });
   });
 });

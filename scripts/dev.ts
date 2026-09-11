@@ -73,6 +73,23 @@ function parseDotEnv(filePath: string): Record<string, string> {
 // Same generators (and value shapes) the CLI uses in
 // tools/cli/src/lib/config/ensure-env.ts, so a host `bun dev` secret is
 // indistinguishable in strength from a `tale init` one.
+
+/** Mint a sandbox-LLM-gateway admin password that satisfies Bifrost's policy
+ * (>= v1.6.9: at least 12 chars with an uppercase, a lowercase, a digit and a
+ * non-alphanumeric special char, enforced on first-time auth setup). A random
+ * base64url string never guarantees each class — a special char is absent
+ * ~half the time — so guarantee each on top of a strong random base. `-` is
+ * base64url-safe: no .env quoting, safe in a Basic-auth header. Kept in step
+ * with the CLI's generateGatewayAdminPassword (ensure-env.ts). */
+function generateGatewayAdminPassword(): string {
+  let pw = randomBytes(18).toString('base64url');
+  if (!/[A-Z]/.test(pw)) pw += 'A';
+  if (!/[a-z]/.test(pw)) pw += 'a';
+  if (!/[0-9]/.test(pw)) pw += '3';
+  if (!/[^A-Za-z0-9]/.test(pw)) pw += '-';
+  return pw;
+}
+
 const SECRET_GENERATORS: Record<string, () => string> = {
   INSTANCE_SECRET: () => randomBytes(32).toString('hex'),
   BETTER_AUTH_SECRET: () => randomBytes(32).toString('base64'),
@@ -83,12 +100,13 @@ const SECRET_GENERATORS: Record<string, () => string> = {
   SANDBOX_TOKEN: () => randomBytes(32).toString('hex'),
   // Admin credential for the sandbox LLM gateway's management API. The backend
   // refuses every management call without it (the gateway shares one port on
-  // the sandbox network). Mirrors the CLI's generatePassword (16 random bytes,
-  // base64url). Must stay STABLE once minted: the gateway stores its hash in
-  // its own volume, so a changed value locks the platform out until that
-  // volume is wiped — which is why it is persisted to .env like the others.
-  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: () =>
-    randomBytes(16).toString('base64url'),
+  // the sandbox network). Mirrors the CLI's generateGatewayAdminPassword — the
+  // gateway (Bifrost >= v1.6.9) enforces a password policy on first-time auth
+  // setup, so this is not a plain base64url secret. Must stay STABLE once
+  // minted: the gateway stores its hash in its own volume, so a changed value
+  // locks the platform out until that volume is wiped — which is why it is
+  // persisted to .env like the others.
+  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
   // Postgres/ParadeDB superuser password (db + knowledge-db). Postgres reads it
   // only on the container's first init (initdb), and the platform orchestrator
   // derives KNOWLEDGE_DATABASE_URL from it — so an unset value silently breaks

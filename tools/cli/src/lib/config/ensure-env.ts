@@ -21,6 +21,24 @@ function generatePassword(): string {
 }
 
 /**
+ * Mint a sandbox-LLM-gateway admin password that satisfies Bifrost's policy
+ * (>= v1.6.9: at least 12 chars with an uppercase, a lowercase, a digit and a
+ * non-alphanumeric special char, enforced when auth is first established). A
+ * random base64url string never guarantees each class — a special char is
+ * absent ~half the time — so guarantee each on top of a strong random base.
+ * `-` is base64url-safe: no .env quoting, safe in a Basic-auth header. Kept in
+ * step with the host dev generator (scripts/dev.ts).
+ */
+function generateGatewayAdminPassword(): string {
+  let pw = randomBytes(18).toString('base64url');
+  if (!/[A-Z]/.test(pw)) pw += 'A';
+  if (!/[a-z]/.test(pw)) pw += 'a';
+  if (!/[0-9]/.test(pw)) pw += '3';
+  if (!/[^A-Za-z0-9]/.test(pw)) pw += '-';
+  return pw;
+}
+
+/**
  * Internal TLS-derivation discriminator. `trial` = the local default written
  * by `tale init`; `production` = a real domain chosen at `tale deploy`.
  */
@@ -393,7 +411,7 @@ async function runHeadlessAutoSecretFill(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
-    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
@@ -520,7 +538,7 @@ async function runPartialEnvSetup(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
-    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
@@ -592,7 +610,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sandboxToken: generateHexSecret(),
     auditSigningKey: generateHexSecret(),
     auditPepper: generateHexSecret(),
-    llmGatewayAdminPassword: generatePassword(),
+    llmGatewayAdminPassword: generateGatewayAdminPassword(),
     objectStoreSecretKey: generatePassword(),
   });
 

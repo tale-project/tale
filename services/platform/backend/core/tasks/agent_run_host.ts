@@ -471,14 +471,20 @@ async function mintTurnServing(
   resolved: TaskServing,
 ): Promise<PreparedServing> {
   if (resolved.lane === 'gateway') {
+    // Claude Code + a connector with a native Anthropic harness endpoint
+    // (DeepSeek) rides that endpoint's distinct record; the flag must reach the
+    // execModel routing, the provision, and the mint identically or they drift.
+    const anthropicHarnessLane = resolved.anthropicHarnessLane === true;
     const target = {
       providerSlug: resolved.providerSlug,
       modelId: resolved.modelId,
+      anthropicHarnessLane,
     };
     const routing = resolveGatewayRouting(
       args.organizationId,
       target.providerSlug,
       target.modelId,
+      { anthropicHarnessLane },
     );
     // A text-only serving model still meets image inputs (task attachments,
     // scanned PDFs) — arm the vision polyfill so those route through the
