@@ -144,7 +144,9 @@ jobs:
         env:
           YOUTUBE_LIVE_TEST: '1'
           VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
-        run: bunx turbo run test
+        # Each workspace runner has its own worker pool. Bound their overlap so
+        # full-corpus checks retain CPU time on the shared hosted runner.
+        run: bunx turbo run test --concurrency=2
 
   test-ui:
     name: UI
