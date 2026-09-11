@@ -1,8 +1,8 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { DEFAULT_TWO_FACTOR_POLICY } from '@tale/shared/schemas/governance';
 import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { DEFAULT_TWO_FACTOR_POLICY } from '../../../lib/shared/schemas/governance.ts';
 import { mergeStrictestTwoFactorPolicy } from '../../core/governance/helpers.ts';
 import {
   splitEmailForAudit,

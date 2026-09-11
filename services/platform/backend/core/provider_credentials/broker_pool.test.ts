@@ -1,6 +1,6 @@
+import type { BrokerResponseMapping } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
-import type { BrokerResponseMapping } from '../../../lib/shared/schemas/providers';
 import {
   BrokerPoolError,
   buildBrokerAuthHeaders,

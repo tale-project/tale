@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   type AutomationSettings,
   parseAutomationSettings,
-} from '@/lib/shared/schemas/automation_settings';
+} from '@tale/shared/schemas/automation-settings';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
+
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 // Same two seams as the setup form's test: the files are READ through the

@@ -14,7 +14,25 @@
     "./process": "./src/process/index.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
     "./utils/model-list": "./src/utils/model-list.ts",
-    "./utils/site-urls": "./src/utils/site-urls.ts"
+    "./utils/site-urls": "./src/utils/site-urls.ts",
+    "./schemas/branding": "./src/schemas/branding.ts",
+    "./schemas/deployment": "./src/schemas/deployment.ts",
+    "./schemas/governance": "./src/schemas/governance.ts",
+    "./schemas/knowledge": "./src/schemas/knowledge.ts",
+    "./schemas/providers": "./src/schemas/providers.ts",
+    "./schemas/configuration": "./src/schemas/configuration.ts",
+    "./schemas/connectors": "./src/schemas/connectors.ts",
+    "./schemas/skills": "./src/schemas/skills.ts",
+    "./schemas/projects": "./src/schemas/projects.ts",
+    "./schemas/pii": "./src/schemas/pii.ts",
+    "./schemas/agents": "./src/schemas/agents.ts",
+    "./utils/session-idle": "./src/utils/session-idle.ts",
+    "./utils/model-ref": "./src/utils/model-ref.ts",
+    "./utils/project-key": "./src/utils/project-key.ts",
+    "./net/private-ip": "./src/net/private-ip.ts",
+    "./schemas/automation-pack": "./src/schemas/automation-pack.ts",
+    "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
+    "./schemas/task-contract": "./src/schemas/task-contract.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",
@@ -24,7 +42,9 @@
     "test:watch": "bunx vitest"
   },
   "dependencies": {
-    "postgres": "3.4.7"
+    "postgres": "3.4.7",
+    "safe-regex2": "5.1.1",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/bun": "1.3.11"

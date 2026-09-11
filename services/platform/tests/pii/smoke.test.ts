@@ -10,6 +10,7 @@
  * lives in `data-driven.test.ts`.
  */
 
+import { BUILT_IN_PII_PATTERN_NAMES } from '@tale/shared/schemas/pii';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -21,7 +22,6 @@ import {
   maskPii,
   pass,
 } from '../../lib/pii';
-import { BUILT_IN_PII_PATTERN_NAMES } from '../../lib/shared/schemas/pii';
 
 const ALL_PATTERNS_MASK = {
   mode: 'mask' as const,

@@ -11,7 +11,7 @@ Connector definitions are YAML files under `configs/platform/system/providers/`,
 
 <Warning>
 
-Shipped files are read-only image inputs and are replaced on upgrade. For an external provider, use the reviewed `modelSettings` deployment declaration described in [CLI installation](/self-hosted/install/cli-install#configure-external-providers). It creates an organization-owned connector under `TALE_CONFIG_DIR/<org>/providers/` through the same native schema, while credential and policy changes use native APIs.
+Shipped files are read-only image inputs and are replaced on upgrade. For an external provider, use the reviewed `configuration` deployment declaration described in [CLI installation](/self-hosted/install/cli-install#configure-the-platform). It creates an organization-owned connector under `TALE_CONFIG_DIR/<org>/providers/` through the same native schema, while credential and policy changes use native APIs.
 
 </Warning>
 

@@ -5,7 +5,7 @@
  *
  * These describe the SHIPPED detection data (what patterns exist and what
  * vocabulary each locale contributes). Which of them an org turns on is a
- * separate, frozen contract: `piiConfigSchema` in `lib/shared/schemas/pii.ts`.
+ * separate, frozen contract: `piiConfigSchema` in `@tale/shared/schemas/pii`.
  *
  * Every schema is `.strict()` so a typo in a config file fails loudly at
  * load instead of silently degrading detection coverage. The inferred types

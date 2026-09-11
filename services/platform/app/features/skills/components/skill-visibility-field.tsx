@@ -1,5 +1,6 @@
 'use client';
 
+import type { SkillVisibility } from '@tale/shared/schemas/skills';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
@@ -9,7 +10,6 @@ import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import type { SkillVisibility } from '@/lib/shared/schemas/skills';
 
 export interface SkillSharingValue {
   readonly visibility: SkillVisibility;

@@ -1,10 +1,10 @@
+import { chatFilterConfigSchema } from '@tale/shared/schemas/governance';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FilterName, FilterOutcome } from '../pii/core/outcome';
 import { PatternRegistry } from '../pii/engine/registry';
 import { createScrubber } from '../pii/engine/scrubber';
 import { createTokenizer } from '../pii/engine/tokenizer';
-import { chatFilterConfigSchema } from '../shared/schemas/governance';
 import {
   createChatFilter,
   createModerationFilter,

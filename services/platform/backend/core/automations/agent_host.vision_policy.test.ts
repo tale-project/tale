@@ -1,6 +1,6 @@
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProviderDefinition } from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';

@@ -2,7 +2,7 @@
 
 /**
  * The project routes parse every body with the SHARED project schemas
- * (`lib/shared/schemas/projects.ts`). Before this the door carried a looser
+ * (`@tale/shared/schemas/projects`). Before this the door carried a looser
  * hand copy — `icon: z.string().max(100)`, `color: z.string().max(50)`, a
  * 200-char name cap against the shared 80 — so any client could persist an
  * icon the avatar cannot render or a colour outside the token palette while
@@ -11,16 +11,16 @@
  * and the null-clears the service supports still get through.
  */
 
-import type { Context } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_MODEL_MAX,
   PROJECT_AGENT_NAME_MAX,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
-} from '../../../lib/shared/schemas/projects.ts';
+} from '@tale/shared/schemas/projects';
+import type { Context } from 'hono';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { OrgEnv } from '../../auth/org.ts';
 
 const service = vi.hoisted(() => ({

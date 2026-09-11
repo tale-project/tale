@@ -1,10 +1,16 @@
+import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
+import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
+import { z } from 'zod';
 
+import { parseYaml } from '../../../lib/shared/config/yaml';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
 import { credentialAuthFor } from '../../core/lib/providers/credential_auth.ts';
 import {
@@ -17,12 +23,14 @@ import {
 } from '../../core/lib/providers/load_system_config.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
+import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { listCredentials } from '../provider_credentials/service.ts';
+import { readProviderDefinition, saveProviderDefinition } from './config';
 
 /**
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
@@ -39,6 +47,13 @@ export function createProviderSettingRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.use(
+    '/definitions/*',
+    bodyLimit({
+      maxSize: 256 * 1024,
+      onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
+    }),
+  );
 
   const requireDeveloper = (c: Context<OrgEnv>): Response | null =>
     isAdminOrDeveloperRole(c.get('orgMember').role)
@@ -47,6 +62,93 @@ export function createProviderSettingRoutes(deps: {
 
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
+
+  app.onError((error, c) => {
+    if (error instanceof ConfigurationError)
+      return c.json(
+        { error: error.code, message: error.message },
+        error.status,
+      );
+    return appErrorHandler(error, c);
+  });
+
+  app.get('/definitions/:name', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    return c.json(await readProviderDefinition(orgSlug, c.req.param('name')));
+  });
+
+  app.put('/definitions/:name', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    const raw = await c.req.text();
+    // JSON-only transport plus the native parser's duplicate-key refusal.
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
+    }
+    if (!parseYaml(raw).ok)
+      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
+    const body = z
+      .strictObject({
+        config: providerDefinitionSchema,
+        expectedHash: expectedConfigurationHashSchema,
+      })
+      .safeParse(value);
+    if (!body.success)
+      return c.json(
+        {
+          error: 'PROVIDER_DEFINITION_INVALID',
+          message: 'Invalid provider definition request.',
+        },
+        400,
+      );
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    return c.json(
+      await saveProviderDefinition(
+        deps.sql,
+        {
+          organizationId: c.get('orgId'),
+          orgSlug,
+          userId: c.get('sessionBundle').user.id,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('name'),
+        body.data.config,
+        body.data.expectedHash,
+      ),
+    );
+  });
+
+  app.get('/definitions/:name/catalog', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    const { config } = await readProviderDefinition(
+      orgSlug,
+      c.req.param('name'),
+    );
+    if (config === null) return c.json({ error: 'PROVIDER_NOT_FOUND' }, 404);
+    try {
+      return c.json({
+        models: await getProviderCatalog(config, { forceRefresh: true }),
+      });
+    } catch {
+      return c.json(
+        {
+          error: 'PROVIDER_CATALOG_UNAVAILABLE',
+          message: 'The selected provider catalog is unavailable.',
+        },
+        502,
+      );
+    }
+  });
 
   app.get('/catalogs', async (c) => {
     const denied = requireDeveloper(c);

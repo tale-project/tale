@@ -1,5 +1,10 @@
 'use client';
 
+import type { BrokerCredentialData } from '@tale/shared/schemas/providers';
+import {
+  BROKER_SECRET_ENV_PREFIX,
+  brokerCredentialDataSchema,
+} from '@tale/shared/schemas/providers';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -8,11 +13,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
 import { formatZodError } from '@/lib/shared/schemas/format-error';
-import type { BrokerCredentialData } from '@/lib/shared/schemas/providers';
-import {
-  BROKER_SECRET_ENV_PREFIX,
-  brokerCredentialDataSchema,
-} from '@/lib/shared/schemas/providers';
 
 /**
  * Form state and fields of one `subscription-broker` credential document

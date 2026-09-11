@@ -22,12 +22,14 @@ const {
   writeKnowledgeEmbedding,
   fetchKnowledgeDocument,
   searchKnowledgeForOrg,
+  requeueEmbeddingBlockedDocuments,
 } = vi.hoisted(() => ({
   writeKnowledgeConnection: vi.fn(),
   probeKnowledgeConnection: vi.fn(),
   writeKnowledgeEmbedding: vi.fn(),
   fetchKnowledgeDocument: vi.fn(),
   searchKnowledgeForOrg: vi.fn(),
+  requeueEmbeddingBlockedDocuments: vi.fn(),
 }));
 
 vi.mock('./admin.ts', () => {
@@ -65,7 +67,12 @@ vi.mock('./service.ts', () => {
       this.status = status;
     }
   }
-  return { KnowledgeError, fetchKnowledgeDocument, searchKnowledgeForOrg };
+  return {
+    KnowledgeError,
+    fetchKnowledgeDocument,
+    searchKnowledgeForOrg,
+    requeueEmbeddingBlockedDocuments,
+  };
 });
 
 vi.mock('../projects/service.ts', () => ({
@@ -133,6 +140,34 @@ const verifyCaConnection = {
   sslmode: 'verify-ca',
   password: 'secret',
 };
+
+describe('reviewed embedding HTTP updates', () => {
+  it('preserves the native requeue effect and passes the preimage to the writer', async () => {
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 3 });
+    const config = {
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 16,
+    };
+    const response = await post('/embedding?orgId=o1', {
+      ...config,
+      expectedHash: null,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, requeued: 3 });
+    expect(writeKnowledgeEmbedding).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      config,
+      null,
+    );
+    expect(requeueEmbeddingBlockedDocuments).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1' },
+    );
+  });
+});
 
 describe('knowledge routes — BYO connection wire contract', () => {
   beforeEach(() => {

@@ -37,6 +37,8 @@
  * refusal or a request that never produced a response throws.
  */
 
+import type { Connector } from '@tale/shared/schemas/connectors';
+
 import type {
   ConnectorContext,
   ConnectorHostCapabilities,
@@ -45,7 +47,6 @@ import type {
 } from '../engine/core/slots';
 import { checkProviderHostPolicy } from '../net/host-policy';
 import { safeFetch, safeFetchBinary, SafeFetchError } from '../net/safe-fetch';
-import type { Connector } from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
 
 /** Bounds one exchange end to end, redirects included. */

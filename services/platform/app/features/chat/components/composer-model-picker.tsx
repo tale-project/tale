@@ -11,13 +11,13 @@
  * listing answers, so a turn sends without ever opening this menu.
  */
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { ChevronDown, Cpu } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import type { ModelCatalogEntry } from '@/lib/shared/schemas/providers';
 
 import { resolveSandboxAffordance } from '../lib/composer-execution';
 import type { ComposerModelOption, ComposerSelection } from '../types';

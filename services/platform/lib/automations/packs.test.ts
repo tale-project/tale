@@ -10,7 +10,7 @@ import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import type { AutomationPack } from './packs';
-import { automationPackManifestSchema, loadAutomationPacks } from './packs';
+import { loadAutomationPacks } from './packs';
 
 const REPO = path.join(
   path.dirname(new URL(import.meta.url).pathname),
@@ -229,67 +229,4 @@ describe('the three sync-emails packs stay one document', () => {
       expect(connectorsUsedBy(pack.automation)).toEqual(['conversation']);
     });
   }
-});
-
-describe('the manifest skills declaration', () => {
-  const base = { name: 'Carrier' };
-
-  it('accepts valid skill slugs', () => {
-    const parsed = automationPackManifestSchema.parse({
-      ...base,
-      skills: ['document-verify', 'pdf2'],
-    });
-    expect(parsed.skills).toEqual(['document-verify', 'pdf2']);
-  });
-
-  it('refuses a slug the skills domain would refuse', () => {
-    for (const bad of ['Upper', 'double--hyphen', '-lead', 'claude']) {
-      expect(
-        automationPackManifestSchema.safeParse({ ...base, skills: [bad] })
-          .success,
-      ).toBe(false);
-    }
-  });
-
-  it('refuses more skills than one package may carry', () => {
-    const skills = Array.from({ length: 21 }, (_, i) => `skill-${i}`);
-    expect(
-      automationPackManifestSchema.safeParse({ ...base, skills }).success,
-    ).toBe(false);
-  });
-});
-
-describe('the manifest settings declaration', () => {
-  const base = { name: 'Carrier' };
-  const form = {
-    file: 'validation-policy.yaml',
-    title: 'Validation policy',
-    fields: [
-      {
-        key: 'method',
-        label: 'Validation profile',
-        type: 'select',
-        options: [{ value: 'strict_rules', label: 'Strict checklist' }],
-      },
-    ],
-  };
-
-  it('accepts a settings block and carries it through', () => {
-    const parsed = automationPackManifestSchema.parse({
-      ...base,
-      settings: { folder: 'Setup', forms: [form] },
-    });
-    expect(parsed.settings?.forms[0]).toMatchObject({
-      file: 'validation-policy.yaml',
-    });
-  });
-
-  it('refuses a malformed settings block at the manifest door', () => {
-    expect(
-      automationPackManifestSchema.safeParse({
-        ...base,
-        settings: { forms: [{ ...form, fields: [] }] },
-      }).success,
-    ).toBe(false);
-  });
 });

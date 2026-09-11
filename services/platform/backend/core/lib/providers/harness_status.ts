@@ -21,15 +21,16 @@
  * `'use node'` by necessity — the harness facts and org providers are files.
  */
 
+import type {
+  HarnessDefinition,
+  ModelCatalogEntry,
+} from '@tale/shared/schemas/providers';
+
 import {
   buildHarnessTable,
   resolveExecution,
   type CredentialAuth,
 } from '../../../../lib/shared/providers/resolve_execution';
-import type {
-  HarnessDefinition,
-  ModelCatalogEntry,
-} from '../../../../lib/shared/schemas/providers';
 
 export type HarnessManagedStatus =
   | {

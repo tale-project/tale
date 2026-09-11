@@ -50,6 +50,6 @@ export const nativeProvisionProofSchema = z.object({
       }),
     )
     .max(64),
-  // Parsed separately against the exact frozen model settings declaration.
-  modelSettings: z.unknown().optional(),
+  // Parsed separately against the exact frozen platform configuration.
+  configuration: z.unknown().optional(),
 });

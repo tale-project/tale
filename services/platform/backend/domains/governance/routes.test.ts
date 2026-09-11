@@ -21,6 +21,7 @@ const {
   resolveOrgSlug,
   transactSerializable,
   writeGovernancePolicyFile,
+  readGovernancePolicySnapshot,
   getSandboxDeploymentLimits,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
@@ -30,6 +31,7 @@ const {
   resolveOrgSlug: vi.fn(),
   transactSerializable: vi.fn(),
   writeGovernancePolicyFile: vi.fn(),
+  readGovernancePolicySnapshot: vi.fn(),
   getSandboxDeploymentLimits: vi.fn(),
 }));
 
@@ -40,6 +42,7 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('../../lib/governance-policy-write.ts', () => ({
   writeGovernancePolicyFile,
+  readGovernancePolicySnapshot,
 }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
@@ -68,6 +71,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
   };
 });
 
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { createGovernanceRoutes } from './routes.ts';
 
 const TX = { tx: true };
@@ -85,6 +89,83 @@ async function post(route: string, body: unknown): Promise<Response> {
 
 const NEXT = { rules: [], enabled: true };
 const ON_DISK = { rules: [], enabled: false };
+
+describe('reviewed governance HTTP preconditions', () => {
+  it('exposes an explicit strict fresh snapshot without the display fallback', async () => {
+    readGovernancePolicySnapshot.mockResolvedValue({
+      config: ON_DISK,
+      hash: 'a'.repeat(64),
+    });
+    const response = await createGovernanceRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request('/policies/feature_flags?orgId=o1&includeHash=1');
+    expect(await response.json()).toEqual({
+      policy: { key: 'feature_flags', config: ON_DISK },
+      hash: 'a'.repeat(64),
+    });
+    expect(readGovernancePolicySnapshot).toHaveBeenCalledWith(
+      'acme',
+      'feature_flags',
+    );
+    expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
+  });
+
+  it('passes the exact preimage into the locked writer and reports its conflict', async () => {
+    const hash = 'a'.repeat(64);
+    expect(
+      (
+        await post('/policies/feature_flags?orgId=o1', {
+          config: NEXT,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(200);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      TX,
+      'acme',
+      'feature_flags',
+      NEXT,
+      hash,
+    );
+    writeGovernancePolicyFile.mockRejectedValue(
+      new ConfigurationError(
+        'CONFIG_VERSION_CONFLICT',
+        'Configuration changed.',
+      ),
+    );
+    expect(
+      (
+        await post('/policies/feature_flags?orgId=o1', {
+          config: NEXT,
+          expectedHash: hash,
+        })
+      ).status,
+    ).toBe(409);
+  });
+
+  it('preserves specialized write doors and refuses malformed preconditions', async () => {
+    for (const key of ['retention_policy', 'dsar_governance']) {
+      expect(
+        (
+          await post(`/policies/${key}?orgId=o1`, {
+            config: {},
+            expectedHash: null,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await post('/policies/feature_flags?orgId=o1', {
+          config: NEXT,
+          expectedHash: 'wrong',
+        })
+      ).status,
+    ).toBe(400);
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  });
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

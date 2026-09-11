@@ -1,3 +1,8 @@
+import { isPrivateIp } from '@tale/shared/net/private-ip';
+import type {
+  ModerationProviderConfig,
+  ModerationResponseShape,
+} from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
 import type {
@@ -10,11 +15,6 @@ import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import type { GuardrailsDirection } from '../../../lib/pii/core/outcome.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import { isPrivateIp } from '../../../lib/shared/net/private-ip.ts';
-import type {
-  ModerationProviderConfig,
-  ModerationResponseShape,
-} from '../../../lib/shared/schemas/governance.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {

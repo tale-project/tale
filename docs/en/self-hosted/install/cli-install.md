@@ -214,9 +214,61 @@ tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
 
 The output directory has mode `0700`. Its regular `0600` files are `client.json`, `receipt.json` and, when `--env-prefix` is selected, `consumer-env.json`. The latter is a literal four-string map: `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` and `TALE_OIDC_ORG_SLUG`. The issuer is the Tale origin followed by `/api/auth`. Transfer these bytes through your private credential channel and let the application read JSON; do not source the file as shell or publish it as a CI artifact. Stdout contains only safe metadata, paths, sizes and hashes. An identical export is reused only after current ready-state and complete artifact checks; partial, stale or foreign output holds without overwrite.
 
-### Configure external providers
+### Configure the platform
 
-Use `modelSettings` when an external operator already serves the declared models. Merge this example into your reviewed deployment declaration, replace its synthetic endpoint and model facts with the actual catalog, and inject `EXTERNAL_PROVIDER_SECRET` through your secret manager:
+Use `tale config` to manage existing platform settings through the native APIs. Save this declaration as `configuration.json` to set the accent color and a 45-minute idle timeout:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "branding",
+      "config": {
+        "accentColor": "#336699"
+      }
+    },
+    {
+      "kind": "governance",
+      "key": "session_idle_timeout",
+      "config": {
+        "enabled": true,
+        "idleTimeoutMinutes": 45
+      }
+    }
+  ]
+}
+```
+
+Set `TALE_URL` to the instance’s HTTPS origin and `TALE_ORG_ID` to the native organization ID. Provide an authorized session cookie through `TALE_CONFIG_COOKIE`; keep it out of arguments and committed files. Validate locally, save and review the plan, then apply it and compare native state:
+
+```bash
+tale --json config validate --file configuration.json
+tale --json config plan --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output configuration-plan.json
+tale --json --yes config apply --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan configuration-plan.json --receipt configuration-receipt.json
+tale --json config read --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+The output and receipt directories must already exist. A loopback HTTP connection also needs `--origin` with the instance’s public HTTPS origin. `read` reports `matches` for each declared resource. The plan identifies organization versus instance scope, current and desired hashes, and native side effects. Applying requires the exact declaration and target; a conflicting native edit refuses the write instead of overwriting it. Undeclared resources remain unchanged. There is no delete or arbitrary file-writing command.
+
+These resource kinds use the platform’s shared schemas and native permissions:
+
+| Kind | Configuration | Scope |
+| --- | --- | --- |
+| `branding` | Native branding fields | Organization |
+| `governance` | A file-backed policy `key` and its native `config` | Organization |
+| `provider` | A custom provider definition and optional `expectedModels` | Organization |
+| `provider-credential` | Named environment credential metadata | Organization |
+| `knowledge-embedding` | Provider, model, dimensions and endpoint | Organization |
+| `deployment` | Instance deployment settings, including sandbox runtime | Instance |
+
+Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing embedding configuration. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. An organization with documents or registered websites requires a separate native indexing migration. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
+
+Managed deployments use the same engine through `configuration`. Merge this example into the deployment declaration when an external operator already serves the provider. Replace the synthetic endpoint and catalog with verified values, and inject `EXTERNAL_PROVIDER_SECRET` from your secret manager:
 
 ```json
 {
@@ -225,12 +277,12 @@ Use `modelSettings` when an external operator already serves the declared models
       "env": "EXTERNAL_PROVIDER_SECRET"
     }
   },
-  "modelSettings": {
+  "configuration": {
     "schemaVersion": 1,
-    "exclusiveProviders": true,
-    "providers": [
+    "resources": [
       {
-        "definition": {
+        "kind": "provider",
+        "config": {
           "name": "external-chat",
           "displayName": "External chat",
           "apiFormat": "openai",
@@ -245,11 +297,7 @@ Use `modelSettings` when an external operator already serves the declared models
             }
           ]
         },
-        "credential": {
-          "name": "Managed external provider",
-          "envName": "TALE_PROVIDER_KEY_EXTERNAL"
-        },
-        "models": [
+        "expectedModels": [
           {
             "id": "Example-chat",
             "provider": "external-chat",
@@ -261,19 +309,31 @@ Use `modelSettings` when an external operator already serves the declared models
             "contextWindow": 131072
           }
         ]
+      },
+      {
+        "kind": "provider-credential",
+        "config": {
+          "providerSlug": "external-chat",
+          "authMethod": "env",
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL",
+          "modelAllowlist": [
+            "Example-chat"
+          ]
+        }
       }
     ]
   }
 }
 ```
 
-The native `TALE_PROVIDER_KEY_` prefix and 40-character limit apply to `credential.envName`. Each alias needs a required entry in `environment`; no credential value belongs in the public bundle. Private endpoints also require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` environment reference whose value is `1`; native host-policy restrictions still apply. The CLI checks the unauthenticated `/models` metadata against the exact normalized `models` entries before its first settings write. It never attaches a provider credential to this catalog request.
+`envName` uses the native `TALE_PROVIDER_KEY_` prefix and 40-character limit. Each alias needs a required `environment` reference. Private endpoints additionally require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` reference whose value is `1`; native host restrictions still apply. `expectedModels` checks Tale’s freshly resolved catalog during readback. It does not prove inference capacity, latency or business output.
 
-Optional `vision: { "providerSlug": "external-vision", "modelId": "Example-vision" }` must select a declared vision-capable model. Optional `embedding` uses the native fields `providerSlug`, `model`, `dimensions` and `baseUrl`; it must select a declared embedding model and its exact endpoint. Initial embedding setup requires an empty document corpus. Existing policy, credential or provider-file conflicts hold without replacement; a missing or changed object after a ready receipt also holds.
+Use `governance` with `key: "vision_model"` and native `providerSlug`/`modelId` fields for vision selection. Embedding uses `knowledge-embedding` with `providerSlug`, `model`, `dimensions` and `baseUrl`. To replace a default credential, also declare the existing environment credential with `isDefault: false`; the CLI applies that explicit change first. Credential values never enter the declaration or receipt.
 
-`exclusiveProviders: true` requires every active native credential to belong to the declared providers. Native provisioning runs after identity and before configuration releases under the same lock. It retains a pending intent before writes and reconciles an exact retry without rotating credentials. The safe `native.modelSettings` receipt binds the declaration and deployment bundle hashes, organization, model IDs, provider-file hashes and policies. It proves native configuration; server installation, routing, model weights, capacity and OCR accuracy remain the endpoint operator’s responsibility.
+Native provisioning runs after identity and before configuration releases. The `native.configuration` receipt binds the declaration and bundle hashes, organization, resource hashes and native revisions. Writes retain a pending receipt before the first change; if a later resource fails, earlier changes may remain. Read the native state and retained receipt, then retry the same reviewed plan. Native compare-and-set protects each resource against concurrent admin changes; there is no cross-resource transaction. Keep deployment state, snapshots and receipts for recovery.
 
-Keep the state directory, snapshots and native receipts. The ready receipt is written only after healthy runtime verification, native configuration readback and session cleanup. A failed later phase may leave earlier completed changes in place; inspect retained evidence before replay. Local locks coordinate one host, without cross-host compare-and-swap or protection against native admin edits.
+Managed deployments also activate a declared `deployment` resource before reporting ready. The CLI records the pending activation, drains the verified sandbox spawner for up to five minutes, and restarts that container once sessions have finished. If sessions remain, the operation stays pending. The `configurationActivation` receipt records the mounted configuration and observed container boot; ready requires fresh health checks. Retrying an interrupted operation verifies an already accepted restart, and an unchanged ready replay does not restart the service again.
 
 ### Operate
 

@@ -1,3 +1,5 @@
+import type { PolicyType } from '@tale/shared/schemas/governance';
+
 import {
   activeOrganizationId,
   READ_ADAPTERS,
@@ -6,7 +8,6 @@ import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
 import { AppError } from '@/lib/shared/errors/app-error';
-import type { PolicyType } from '@/lib/shared/schemas/governance';
 
 type QueryArgs<Name extends QueryName> =
   Record<string, never> extends ArgsOf<Name>

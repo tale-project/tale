@@ -17,7 +17,8 @@
 import {
   isValidSkillSlug,
   type SkillFrontmatter,
-} from '../shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+
 import { parseSkillMd, SkillParseError } from './parse';
 import { canViewSkill, type SkillViewer } from './visibility';
 

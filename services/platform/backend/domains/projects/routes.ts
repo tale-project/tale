@@ -1,8 +1,4 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
-import { z } from 'zod';
-
 import {
   createProjectInputSchema,
   deleteProjectInputSchema,
@@ -13,7 +9,11 @@ import {
   updateProjectInstructionsSchema,
   updateProjectModelSettingsSchema,
   updateProjectSharingSchema,
-} from '../../../lib/shared/schemas/projects.ts';
+} from '@tale/shared/schemas/projects';
+import { Hono, type Context } from 'hono';
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';

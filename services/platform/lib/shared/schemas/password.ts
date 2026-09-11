@@ -1,9 +1,8 @@
-import { z } from 'zod';
-
 import {
   DEFAULT_PASSWORD_POLICY,
   type PasswordPolicyConfig,
-} from './governance';
+} from '@tale/shared/schemas/governance';
+import { z } from 'zod';
 
 const LOWERCASE_REGEX = /[a-z]/;
 const UPPERCASE_REGEX = /[A-Z]/;

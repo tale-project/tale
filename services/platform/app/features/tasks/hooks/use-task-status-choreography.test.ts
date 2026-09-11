@@ -1,7 +1,6 @@
+import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
 import {
   decideTaskStatusTransition,

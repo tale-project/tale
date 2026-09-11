@@ -1,6 +1,6 @@
+import type { SessionIdleTimeoutConfig } from '@tale/shared/schemas/governance';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SessionIdleTimeoutConfig } from '@/lib/shared/schemas/governance';
 import { render, screen } from '@/tests/utils/render';
 
 import { SessionIdleTimeoutEditor } from './session-idle-timeout-editor';

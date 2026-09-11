@@ -214,9 +214,61 @@ tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
 
 Der Ausgabeordner hat Modus `0700`. Seine regulären Dateien `client.json`, `receipt.json` und optional `consumer-env.json` haben Modus `0600`. Mit `--env-prefix` entsteht die letzte Datei als wörtliche Zuordnung der vier Zeichenketten `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` und `TALE_OIDC_ORG_SLUG`. Der Issuer besteht aus der Tale-Origin und `/api/auth`. Übertrage die Bytes über deinen privaten Zugangsdatenkanal und lass die Anwendung JSON lesen; führe die Datei nicht als Shell aus und veröffentliche sie nicht als CI-Artefakt. Stdout enthält nur unkritische Metadaten, Pfade, Größen und Hashes. Eine identische Ausgabe wird erst nach erneuter Zustands- und vollständiger Artefaktprüfung wiederverwendet. Unvollständige, veraltete oder fremde Ausgaben stoppen ohne Überschreiben.
 
-### Externe Anbieter konfigurieren
+### Plattform konfigurieren
 
-Nutze `modelSettings`, wenn ein externer Betreiber die deklarierten Modelle bereits bereitstellt. Ergänze deine geprüfte Deployment-Deklaration um dieses Beispiel, ersetze den synthetischen Endpunkt und die Modellangaben durch den tatsächlichen Katalog und übergib `EXTERNAL_PROVIDER_SECRET` aus deinem Secret Manager:
+Mit `tale config` verwaltest du bestehende Plattform-Einstellungen über die nativen APIs. Speichere diese Deklaration als `configuration.json`, um Akzentfarbe und ein Inaktivitätslimit von 45 Minuten festzulegen:
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "branding",
+      "config": {
+        "accentColor": "#336699"
+      }
+    },
+    {
+      "kind": "governance",
+      "key": "session_idle_timeout",
+      "config": {
+        "enabled": true,
+        "idleTimeoutMinutes": 45
+      }
+    }
+  ]
+}
+```
+
+Setze `TALE_URL` auf die HTTPS-Origin der Instanz und `TALE_ORG_ID` auf die native Organisations-ID. Übergib ein berechtigtes Sitzungscookie über `TALE_CONFIG_COOKIE`; es gehört weder in Argumente noch in versionierte Dateien. Prüfe die Deklaration lokal, speichere und prüfe den Plan, wende ihn an und vergleiche den nativen Zustand:
+
+```bash
+tale --json config validate --file configuration.json
+tale --json config plan --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output configuration-plan.json
+tale --json --yes config apply --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan configuration-plan.json --receipt configuration-receipt.json
+tale --json config read --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Die Ausgabe- und Belegordner müssen bereits existieren. Eine HTTP-Verbindung über Loopback braucht zusätzlich `--origin` mit der öffentlichen HTTPS-Origin. `read` meldet für jede deklarierte Ressource `matches`. Der Plan zeigt Organisations- oder Instanzumfang, aktuelle und gewünschte Hashes sowie native Folgewirkungen. Zum Anwenden müssen Deklaration und Ziel exakt stimmen. Eine konkurrierende native Änderung stoppt den Schreibvorgang. Nicht deklarierte Ressourcen bleiben bestehen. Die CLI bietet weder Löschbefehle noch beliebige Dateizugriffe.
+
+Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berechtigungen:
+
+| Art | Konfiguration | Geltungsbereich |
+| --- | --- | --- |
+| `branding` | Native Branding-Felder | Organisation |
+| `governance` | Dateibasierte Richtlinie mit `key` und nativer `config` | Organisation |
+| `provider` | Eigene Anbieterdefinition und optionale `expectedModels` | Organisation |
+| `provider-credential` | Metadaten benannter Umgebungszugangsdaten | Organisation |
+| `knowledge-embedding` | Anbieter, Modell, Dimensionen und Endpunkt | Organisation |
+| `deployment` | Instanz-Einstellungen einschließlich Sandbox-Runtime | Instanz |
+
+Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du die Embedding-Konfiguration änderst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht sie eine separate native Indexmigration. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
+
+Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze die Deployment-Deklaration um dieses Beispiel, wenn ein externer Betreiber den Anbieter bereits bereitstellt. Ersetze den synthetischen Endpunkt und Katalog durch geprüfte Werte und übergib `EXTERNAL_PROVIDER_SECRET` aus deinem Secret Manager:
 
 ```json
 {
@@ -225,12 +277,12 @@ Nutze `modelSettings`, wenn ein externer Betreiber die deklarierten Modelle bere
       "env": "EXTERNAL_PROVIDER_SECRET"
     }
   },
-  "modelSettings": {
+  "configuration": {
     "schemaVersion": 1,
-    "exclusiveProviders": true,
-    "providers": [
+    "resources": [
       {
-        "definition": {
+        "kind": "provider",
+        "config": {
           "name": "external-chat",
           "displayName": "External chat",
           "apiFormat": "openai",
@@ -245,11 +297,7 @@ Nutze `modelSettings`, wenn ein externer Betreiber die deklarierten Modelle bere
             }
           ]
         },
-        "credential": {
-          "name": "Managed external provider",
-          "envName": "TALE_PROVIDER_KEY_EXTERNAL"
-        },
-        "models": [
+        "expectedModels": [
           {
             "id": "Example-chat",
             "provider": "external-chat",
@@ -261,19 +309,31 @@ Nutze `modelSettings`, wenn ein externer Betreiber die deklarierten Modelle bere
             "contextWindow": 131072
           }
         ]
+      },
+      {
+        "kind": "provider-credential",
+        "config": {
+          "providerSlug": "external-chat",
+          "authMethod": "env",
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL",
+          "modelAllowlist": [
+            "Example-chat"
+          ]
+        }
       }
     ]
   }
 }
 ```
 
-Für `credential.envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht einen verpflichtenden Eintrag in `environment`; Schlüsselwerte gehören nicht ins öffentliche Bundle. Private Endpunkte brauchen zusätzlich eine explizite Umgebungsreferenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; die nativen Host-Regeln gelten weiter. Vor der ersten Einstellungsänderung vergleicht die CLI die frei lesbaren `/models`-Metadaten exakt mit den normalisierten `models`-Einträgen. Diese Kataloganfrage trägt keine Anbieter-Zugangsdaten.
+Für `envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht eine verpflichtende `environment`-Referenz. Private Endpunkte erfordern zusätzlich eine explizite Referenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; native Host-Regeln gelten weiter. `expectedModels` prüft Tales frisch aufgelösten Katalog beim Rücklesen. Das belegt weder Inferenzkapazität und Latenz noch fachliche Ergebnisse.
 
-Optionales `vision: { "providerSlug": "external-vision", "modelId": "Example-vision" }` muss ein deklariertes bildfähiges Modell auswählen. Optionales `embedding` nutzt die nativen Felder `providerSlug`, `model`, `dimensions` und `baseUrl`; es muss ein deklariertes Embedding-Modell mit seinem exakten Endpunkt auswählen. Die erste Embedding-Einrichtung setzt einen leeren Dokumentbestand voraus. Konflikte bei Richtlinien, Zugangsdaten oder Anbieter-Dateien stoppen den Vorgang ohne Ersetzung; nach einem Bereitschaftsbeleg gilt das auch für fehlende oder geänderte Objekte.
+Die Bildmodellauswahl nutzt `governance` mit `key: "vision_model"` und den nativen Feldern `providerSlug`/`modelId`. Embedding nutzt `knowledge-embedding` mit `providerSlug`, `model`, `dimensions` und `baseUrl`. Wenn du Standardzugangsdaten ersetzt, deklariere auch die bisherigen Umgebungszugangsdaten mit `isDefault: false`; die CLI wendet diese explizite Änderung zuerst an. Schlüsselwerte stehen weder in der Deklaration noch im Beleg.
 
-`exclusiveProviders: true` verlangt, dass alle aktiven nativen Zugangsdaten zu deklarierten Anbietern gehören. Die native Einrichtung läuft nach der Identitätsprüfung und vor Konfigurations-Releases unter derselben Sperre. Vor Änderungen hält sie die Absicht fest und gleicht eine exakte Wiederholung ohne Schlüsselrotation ab. Der öffentliche Beleg `native.modelSettings` bindet Deklarations- und Bundle-Hashes, Organisation, Modell-IDs, Anbieter-Dateihashes und Richtlinien. Er belegt die native Konfiguration; Server-Installation, Routing, Modellgewichte, Kapazität und OCR-Genauigkeit bleiben Aufgabe des Endpunktbetreibers.
+Die native Einrichtung folgt auf die Identitätsprüfung und läuft vor den Konfigurations-Releases. Der Beleg `native.configuration` bindet Deklarations- und Bundle-Hashes, Organisation, Ressourcen-Hashes und native Revisionen. Vor der ersten Änderung entsteht ein ausstehender Beleg. Scheitert eine spätere Ressource, können frühere Änderungen bestehen bleiben. Lies den nativen Zustand und den Beleg, bevor du denselben geprüften Plan erneut ausführst. Natives Compare-and-set schützt jede Ressource vor konkurrierenden Admin-Änderungen; eine ressourcenübergreifende Transaktion gibt es nicht. Bewahre Deployment-Zustand, Snapshots und Belege für die Wiederherstellung auf.
 
-Bewahre Zustandsverzeichnis, Snapshots und native Belege auf. Der Bereitschaftsbeleg entsteht erst nach Runtime-Zustandsprüfung, nativem Konfigurationsvergleich und Sitzungsbereinigung. Scheitert eine spätere Phase, können frühere Änderungen bestehen bleiben. Prüfe die erhaltenen Belege vor einem erneuten Aufruf. Lokale Sperren koordinieren einen Host, ohne hostübergreifendes Compare-and-swap oder Schutz vor nativen Admin-Änderungen.
+Verwaltete Deployments aktivieren auch eine deklarierte `deployment`-Ressource, bevor sie Bereitschaft melden. Die CLI speichert die ausstehende Aktivierung, wartet bis zu fünf Minuten auf das Ende laufender Sitzungen im geprüften Sandbox-Spawner und startet dann diesen Container neu. Laufen noch Sitzungen, bleibt der Vorgang ausstehend. Der Beleg `configurationActivation` erfasst die eingebundene Konfiguration und den beobachteten Container-Start; Bereitschaft setzt erneute Gesundheitsprüfungen voraus. Bei einer Wiederholung prüft die CLI einen bereits angenommenen Neustart. Eine unveränderte Wiederholung nach erfolgreicher Aktivierung startet den Dienst nicht erneut.
 
 ### Betrieb
 

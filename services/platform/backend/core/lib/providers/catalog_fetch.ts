@@ -31,14 +31,15 @@
  * credential material is ever attached to these requests.
  */
 
-import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
-import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
-import { isPrivateIp } from '../../../../lib/shared/net/private-ip';
-import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
+import { isPrivateIp } from '@tale/shared/net/private-ip';
 import type {
   ModelCatalogEntry,
   ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
+import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
+import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
+import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
 import {
   loadStaticCatalogs,
   type LoadSystemConfigOptions,

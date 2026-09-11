@@ -8,6 +8,11 @@ import { externalDepError } from '../../utils/fail';
 import { BACKUP_VOLUME } from '../backup/constants';
 import { runtimeCommand, runtimeSleep } from './runtime-command';
 import {
+  activateConfiguration,
+  spawnerBootSchema,
+  type RuntimeConfigurationEffect,
+} from './runtime-configuration';
+import {
   parseRuntimeEnvironment,
   prepareRuntimeEnvironment,
 } from './runtime-env';
@@ -81,6 +86,7 @@ const containerSchema = z.object({
   }),
   State: z.object({
     Running: z.boolean(),
+    StartedAt: z.string().optional(),
     Health: z.object({ Status: z.string() }).optional(),
   }),
   Mounts: z.array(
@@ -817,15 +823,10 @@ export async function applyRuntime(
 /** Inspect an already-ready destination without resolving deployment secrets,
  * preparing environment files or admitting a pending rollout. Export callers
  * hold the same outer deployment lock and reuse these runtime custody checks. */
-export async function observeReadyRuntime(
+async function observeReadyState(
   options: Omit<ApplyRuntimeOptions, 'environment' | 'dryRun'>,
   dependencies: RuntimeDependencies = {},
-): Promise<
-  Pick<
-    RuntimeResult,
-    'backendContainer' | 'sourceDirectory' | 'images' | 'revision'
-  >
-> {
+) {
   validateOptions(options);
   const { bundle, identity, compose } = readRuntimeBundle(
     options.bundleDirectory,
@@ -903,9 +904,58 @@ export async function observeReadyRuntime(
   );
   requireRuntime(backend, 'Ready backend was not identified.');
   return {
-    backendContainer: backend.Id,
-    sourceDirectory: join(options.stateDirectory, 'src'),
-    images: bundle.images,
-    revision: bundle.revision,
+    containers,
+    runtime: {
+      backendContainer: backend.Id,
+      sourceDirectory: join(options.stateDirectory, 'src'),
+      images: bundle.images,
+      revision: bundle.revision,
+    },
   };
+}
+
+export async function observeReadyRuntime(
+  options: Omit<ApplyRuntimeOptions, 'environment' | 'dryRun'>,
+  dependencies: RuntimeDependencies = {},
+): Promise<
+  Pick<
+    RuntimeResult,
+    'backendContainer' | 'sourceDirectory' | 'images' | 'revision'
+  >
+> {
+  return (await observeReadyState(options, dependencies)).runtime;
+}
+
+/** Boot-only native settings become ready only after their exact spawner has
+ * drained and restarted. Runtime adoption/recovery remains the single owner
+ * of topology, files, images and health; this restarts no other service. */
+export async function activateRuntimeConfiguration(
+  options: ApplyRuntimeOptions,
+  effect: RuntimeConfigurationEffect,
+  dependencies: RuntimeDependencies = {},
+) {
+  const { bundle, compose, identity } = readRuntimeBundle(
+    options.bundleDirectory,
+  );
+  const observe = async () => {
+    const { containers } = await observeReadyState(options, dependencies);
+    const sandbox = containers.find(
+      (container) =>
+        container.Config.Labels?.['com.docker.compose.service'] === 'sandbox',
+    );
+    return spawnerBootSchema.parse({
+      containerId: sandbox?.Id,
+      startedAt: sandbox?.State.StartedAt,
+    });
+  };
+  return activateConfiguration(
+    options,
+    effect,
+    identity,
+    observe,
+    async () => {
+      await waitForRuntime(options, bundle, compose, dependencies);
+    },
+    dependencies,
+  );
 }

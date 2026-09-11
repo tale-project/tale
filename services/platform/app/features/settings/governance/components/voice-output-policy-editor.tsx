@@ -1,5 +1,6 @@
 'use client';
 
+import { voiceOutputConfigSchema } from '@tale/shared/schemas/governance';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -7,7 +8,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { voiceOutputConfigSchema } from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { mapGovernanceSaveError } from '../governance-save-errors';

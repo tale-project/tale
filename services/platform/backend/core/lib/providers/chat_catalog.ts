@@ -21,8 +21,9 @@
  * serving of a model over a sandbox-forcing subscription one.
  */
 
-import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
-import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
+
 import type { ActionCtx } from '../ctx';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';

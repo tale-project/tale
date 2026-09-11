@@ -127,25 +127,38 @@ does not inherit the workspace path's blue-green guarantees. The ready receipt
 is written only after native readback and session cleanup. Keep snapshots,
 stages and receipts for recovery, and coordinate all deployers sharing a target.
 
-### External model settings
+### Platform configuration
 
-Managed deployments accept `modelSettings` for an externally operated
-OpenAI-compatible provider. Declare its exact connector, normalized model
-catalog, native credential environment reference, and optional vision and
-knowledge-embedding policy. The existing deployment bundle binds these public
-settings; secrets remain required `environment` references. Tale configures
-native organization settings after verified identity under the same lock as
-configuration release deployment.
+`config validate`, `config plan`, `config apply` and `config read` share one
+native configuration engine. A declaration selects branding, governance
+policies, custom providers, environment credential metadata, embedding
+configuration or instance deployment settings. Native schemas live in
+`@tale/shared/schemas/*`; the platform owns authorization, persistence, audit
+and domain effects. The CLI does not write arbitrary platform files.
 
-The catalog must match exactly before the first settings write. Active
-credentials outside the declared providers, conflicting native files or
-policies, and a nonempty corpus before initial embedding setup stop
-provisioning. Interrupted writes retain a pending receipt; exact replay
-reconciles without credential rotation. Ready-state drift holds for review.
-The receipt proves native settings, not endpoint capacity, model weights,
-latency or business output. Server lifecycle remains with its operator.
+Save and review a plan before applying it with `--plan`, `--receipt` and
+`--yes`. The plan binds the exact target, declaration and native preimages.
+Native compare-and-set rejects concurrent edits. A failed operation retains a
+pending receipt for explicit recovery; completed earlier writes may remain.
+Undeclared resources are preserved. Secret values stay in environment
+variables. `read` compares the declared resources with native state.
 
-Use the complete JSON example in [CLI installation](../../docs/en/self-hosted/install/cli-install.md#configure-external-providers)
+Managed deployments use the same engine through `configuration` after
+identity provisioning and before configuration releases. Their public
+`native.configuration` proof binds the declaration and deployment bundle.
+Managed boot-setting activation drains the verified sandbox spawner for up to
+five minutes, then restarts it and verifies the new boot, mounted configuration
+and health. Active sessions retain pending state. The `configurationActivation`
+receipt lets an interrupted apply reconcile an accepted restart without repeating
+it. Standalone boot-setting writes return `restartRequired`; native permissions,
+embedding migration requirements and explicit default-credential changes
+remain enforced. Model hardware and serving remain the endpoint operator’s
+responsibility. Pause uploads, synchronization and crawls during embedding
+changes; the CLI checks organization-wide document and website counts, but
+does not lock ingestion or migrate existing vectors.
+
+Use the worked JSON examples and command reference in
+[CLI installation](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
 and the [provider reference](../../docs/en/self-hosted/configuration/providers.md).
 
 ### Management Commands

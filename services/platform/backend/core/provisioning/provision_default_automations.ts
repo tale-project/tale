@@ -1,8 +1,9 @@
 'use node';
 
+import type { AutomationTrigger } from '@tale/shared/schemas/automation-pack';
+
 import {
   loadAutomationPacks,
-  type AutomationTrigger,
   type LoadPacksOptions,
 } from '../../../lib/automations/packs';
 import type { Automation } from '../../../lib/engine/core/types';

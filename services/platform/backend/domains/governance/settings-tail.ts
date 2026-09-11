@@ -1,10 +1,10 @@
-import type { Sql, TransactionSql } from 'postgres';
-
 import {
   dsarGovernanceConfigSchema,
   DEFAULT_DSAR_GOVERNANCE,
   type DsarGovernanceConfig,
-} from '../../../lib/shared/schemas/governance.ts';
+} from '@tale/shared/schemas/governance';
+import type { Sql, TransactionSql } from 'postgres';
+
 import {
   RETENTION_CATEGORIES,
   type RetentionCategory,

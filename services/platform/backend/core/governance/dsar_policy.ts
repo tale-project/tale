@@ -1,4 +1,4 @@
-import type { DsarGovernanceConfig } from '../../../lib/shared/schemas/governance';
+import type { DsarGovernanceConfig } from '@tale/shared/schemas/governance';
 
 /**
  * Returns true when `next` is *strictly weaker* than `current` along

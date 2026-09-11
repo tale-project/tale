@@ -1,6 +1,6 @@
+import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { SandboxQuotaConfig } from '../../../lib/shared/schemas/governance.ts';
 import {
   requireSessionBudgetForOwnerType,
   sessionBudgetForOwnerType,

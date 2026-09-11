@@ -1,5 +1,14 @@
 'use client';
 
+import {
+  DEFAULT_SESSION_IDLE_TIMEOUT,
+  type SessionIdleTimeoutConfig,
+  sessionIdleTimeoutConfigSchema,
+} from '@tale/shared/schemas/governance';
+import {
+  SESSION_IDLE_TIMEOUT_MAX_MINUTES,
+  SESSION_IDLE_TIMEOUT_MIN_MINUTES,
+} from '@tale/shared/utils/session-idle';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
@@ -17,15 +26,6 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import {
-  DEFAULT_SESSION_IDLE_TIMEOUT,
-  type SessionIdleTimeoutConfig,
-  sessionIdleTimeoutConfigSchema,
-} from '@/lib/shared/schemas/governance';
-import {
-  SESSION_IDLE_TIMEOUT_MAX_MINUTES,
-  SESSION_IDLE_TIMEOUT_MIN_MINUTES,
-} from '@/lib/shared/session-idle';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

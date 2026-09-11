@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   DEFAULT_LOGIN_BACKOFF_MS,
   DEFAULT_LOGIN_MAX_ATTEMPTS,
   DEFAULT_TRUSTED_PROXIES,
   type LoginPolicyConfig,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
+import { describe, expect, it } from 'vitest';
+
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,

@@ -50,7 +50,7 @@
  * regenerate) resolves sampling through the same call.
  */
 
-import type { ModelCatalogEntry } from '../shared/schemas/providers';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
 /** The user-facing scale, in ascending order of effort. */
 export const EFFORT_LEVELS = ['low', 'medium', 'high', 'extra', 'max'] as const;

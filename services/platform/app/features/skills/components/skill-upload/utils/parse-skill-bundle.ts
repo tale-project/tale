@@ -1,12 +1,12 @@
-import JSZip from 'jszip';
-
 import {
   isValidSkillSlug,
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
   type SkillFrontmatter,
-} from '@/lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+import JSZip from 'jszip';
+
 import { parseSkillMd } from '@/lib/skills/parse';
 
 export interface ParsedSkillBundleFile {

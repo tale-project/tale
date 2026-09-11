@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  budgetConfigSchema,
+  type BudgetConfig,
+  type BudgetRule,
+} from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { HStack, Stack, Row } from '@tale/ui/layout';
@@ -32,11 +37,6 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  budgetConfigSchema,
-  type BudgetConfig,
-  type BudgetRule,
-} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

@@ -22,7 +22,7 @@
  * provider and any future outbound caller share one audited implementation.
  */
 
-import { isPrivateIp } from '../shared/net/private-ip';
+import { isPrivateIp } from '@tale/shared/net/private-ip';
 
 export type SafeFetchErrorKind =
   | 'invalid_url'

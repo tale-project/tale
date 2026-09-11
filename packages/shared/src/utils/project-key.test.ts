@@ -5,7 +5,7 @@ import {
   formatTaskIdentifier,
   isValidProjectKey,
   normalizeProjectKey,
-} from './project_key';
+} from './project-key';
 
 describe('project_key', () => {
   describe('deriveProjectKey', () => {

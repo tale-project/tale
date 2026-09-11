@@ -2,7 +2,7 @@
  * Private/loopback hostname recognition — the single implementation shared
  * by the request-time SSRF layers (`convex/lib/http/safe_fetch.ts`,
  * `convex/lib/http/host_policy.ts`) and the provider-definition schema
- * (`lib/shared/schemas/providers.ts`), which admits `http://` base URLs
+ * (`@tale/shared/schemas/providers`), which admits `http://` base URLs
  * only for hosts this predicate recognizes.
  *
  * Layer A: no imports — client code, V8 Convex code, `'use node'` actions,

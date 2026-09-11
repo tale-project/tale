@@ -35,12 +35,13 @@
  * free-tier 401 storms, each observed live).
  */
 
-import { visionModelConfigSchema } from '../../../../lib/shared/schemas/governance';
-import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
+import { visionModelConfigSchema } from '@tale/shared/schemas/governance';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import {
   modelAllowlistPermits,
   modelIdsEquivalent,
-} from '../../../../lib/shared/utils/model-ref';
+} from '@tale/shared/utils/model-ref';
+
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';

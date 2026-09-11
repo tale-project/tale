@@ -3,6 +3,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
+import { platformConfigurationFixture } from '../config/platform-fixture';
+import { resourceId } from '../config/platform-model';
 import { sha256, valueHash, loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { commandFixture } from '../config/releases/tests/command-fixture';
@@ -14,9 +16,10 @@ import {
   verifyPreparedDeploymentConfig,
 } from './config-source';
 import { deploymentSpecSchema } from './model';
-import { modelSettingsFixture } from './model-settings-fixture';
 import { prepareDeployment } from './prepare';
 import { applyRuntime, prepareRuntime } from './runtime';
+import { activateRuntimeConfiguration } from './runtime-apply';
+import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -42,6 +45,7 @@ async function create(legacy = false, identity = true) {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
   const docker = new RuntimeDockerFixture(fixture);
+  const configurationDocker = new ConfigurationDockerFixture(docker);
   const bundle = join(fixture.directory, 'deployment');
   fixture.options.bundleDirectory = join(bundle, 'runtime');
   const binary = join(fixture.directory, 'tale');
@@ -151,7 +155,14 @@ async function create(legacy = false, identity = true) {
   process.env.TALE_TEST_NATIVE_PASSWORD = 'synthetic-operator-password';
   process.env.TALE_TEST_UNUSED_SECRET = 'synthetic-unrelated-secret';
   const dependencies: NonNullable<Parameters<typeof applyDeployment>[1]> = {
-    runtime: (options) => applyRuntime(options, docker.dependencies()),
+    runtime: (options) =>
+      applyRuntime(options, configurationDocker.dependencies()),
+    activateConfiguration: (options, effect) =>
+      activateRuntimeConfiguration(
+        options,
+        effect,
+        configurationDocker.dependencies(),
+      ),
     snapshot: async (options) => {
       events.push('snapshot');
       expect(options.prefix).toBe('tale_');
@@ -212,6 +223,7 @@ async function create(legacy = false, identity = true) {
   return {
     fixture,
     docker,
+    configurationDocker,
     bundle,
     preparation,
     prepareDependencies,
@@ -424,8 +436,15 @@ describePosix('fresh native receipt custody', () => {
   }, 30_000);
 });
 
-async function attachModelSettings(run: Awaited<ReturnType<typeof create>>) {
-  run.spec.modelSettings = modelSettingsFixture();
+async function attachConfiguration(
+  run: Awaited<ReturnType<typeof create>>,
+  deployment = true,
+) {
+  run.spec.configuration = platformConfigurationFixture();
+  if (!deployment)
+    run.spec.configuration.resources = run.spec.configuration.resources.filter(
+      (resource) => resource.kind !== 'deployment',
+    );
   run.spec.environment.TALE_PROVIDER_KEY_EXAMPLE = {
     env: 'TALE_TEST_PROVIDER_KEY',
   };
@@ -441,29 +460,31 @@ async function attachModelSettings(run: Awaited<ReturnType<typeof create>>) {
     spec: run.spec,
   });
   process.env.TALE_TEST_PROVIDER_KEY = 'synthetic-external-provider-secret';
-  const desired = run.spec.modelSettings;
+  const desired = run.spec.configuration;
   const proof = {
     configured: true,
-    organizationId: run.native.organizationId,
-    organizationSlug: run.spec.identity!.slug,
+    target: {
+      organizationId: run.native.organizationId,
+      organizationSlug: run.spec.identity!.slug,
+      origin: run.spec.origin,
+    },
     deploymentBundleSha256: sha256(
       readFileSync(join(run.bundle, 'deployment.json')),
     ),
-    settingsSha256: valueHash(desired),
-    providers: desired.providers.map(({ definition, models }) => ({
-      name: definition.name,
-      models: models.map((model) => model.id),
-      providerFileSha256: 'a'.repeat(64),
+    configurationSha256: valueHash(desired),
+    resources: desired.resources.map((resource) => ({
+      id: resourceId(resource),
+      configurationSha256: valueHash(resource.config),
+      revision: 'a'.repeat(64),
     })),
-    vision: desired.vision ?? null,
-    embedding: desired.embedding ?? null,
+    restartRequired: true,
     unchanged: false,
   };
   run.nativeOutput(() =>
     JSON.stringify({
       ok: true,
       command: 'deploy provision',
-      data: { ...run.native, modelSettings: proof },
+      data: { ...run.native, configuration: proof },
     }),
   );
   return proof;
@@ -471,9 +492,9 @@ async function attachModelSettings(run: Awaited<ReturnType<typeof create>>) {
 
 // Real Git, file modes and runtime state require the supported POSIX host.
 describePosix('complete managed deployment lifecycle', () => {
-  test('passes explicit provider env references and preserves verified generic native model settings', async () => {
+  test('passes explicit provider env references and preserves verified generic native platform configuration', async () => {
     const run = await create();
-    const proof = await attachModelSettings(run);
+    const proof = await attachConfiguration(run);
     const runtime = run.dependencies.runtime!;
     run.dependencies.runtime = async (options) => {
       expect(options.environment?.TALE_PROVIDER_KEY_EXAMPLE).toBe(
@@ -485,15 +506,90 @@ describePosix('complete managed deployment lifecycle', () => {
       return runtime(options);
     };
     const result = await run.apply();
+    if (!('configurationActivation' in result))
+      throw Error('Expected applied deployment');
     expect(result).toMatchObject({
       phase: 'ready',
-      native: { modelSettings: proof },
+      native: { configuration: proof },
+      configurationActivation: { phase: 'ready' },
     });
     expect(run.events).toEqual(['up', 'provision', 'cleanup']);
     expect(JSON.stringify(result)).not.toContain(
       process.env.TALE_TEST_PROVIDER_KEY!,
     );
+    expect(run.configurationDocker.restarted).toBe(1);
+    proof.unchanged = true;
+    proof.restartRequired = false;
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      configurationActivation: result.configurationActivation,
+      native: { configuration: { unchanged: true, restartRequired: false } },
+    });
+    expect(run.configurationDocker.restarted).toBe(1);
   }, 30000);
+  test.each(['before', 'after'] as const)(
+    'configuration restart failure %s acceptance retains master pending and recovers even when the native resource is now unchanged',
+    async (failure) => {
+      const run = await create();
+      const proof = await attachConfiguration(run);
+      run.configurationDocker.restartFailure = failure;
+      await expect(run.apply()).rejects.toThrow('Docker could not');
+      expect(existsSync(run.receiptPath)).toBe(false);
+      const pendingPath = join(
+        run.fixture.options.stateDirectory,
+        '.tale/deployment-pending.json',
+      );
+      const pending = readFileSync(pendingPath);
+      const activationPath = join(
+        run.fixture.options.stateDirectory,
+        '.tale/configuration-runtime.json',
+      );
+      const activation = JSON.parse(readFileSync(activationPath, 'utf8'));
+      expect(activation.phase).toBe('pending');
+      proof.unchanged = true;
+      proof.restartRequired = false;
+      run.configurationDocker.restartFailure = undefined;
+      const ready = await run.apply();
+      if (!('configurationActivation' in ready))
+        throw Error('Expected applied deployment');
+      expect(ready).toMatchObject({
+        phase: 'ready',
+        native: { configuration: proof },
+        configurationActivation: { phase: 'ready', before: activation.before },
+      });
+      expect(run.configurationDocker.restarted).toBe(1);
+      expect(existsSync(pendingPath)).toBe(false);
+      expect(JSON.parse(pending.toString()).bundleSha256).toBe(
+        ready.bundleSha256,
+      );
+      expect(await run.apply()).toMatchObject({
+        phase: 'ready',
+        configurationActivation: ready.configurationActivation,
+      });
+      expect(run.configurationDocker.restarted).toBe(1);
+    },
+  );
+  test('hot configuration resources preserve native proof without restarting the spawner', async () => {
+    const run = await create();
+    const proof = await attachConfiguration(run, false);
+    proof.restartRequired = false;
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      native: { configuration: proof },
+    });
+    expect(run.configurationDocker.restarted).toBe(0);
+    expect(
+      existsSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/configuration-runtime.json',
+        ),
+      ),
+    ).toBe(false);
+    expect(run.docker.calls.some(({ args }) => args.at(-1) === 'drain')).toBe(
+      false,
+    );
+  });
   test.each([
     'missing',
     'organization',
@@ -502,28 +598,33 @@ describePosix('complete managed deployment lifecycle', () => {
     'model',
     'policy',
   ] as const)(
-    'refuses %s native model settings evidence before a ready deployment receipt',
+    'refuses %s native platform configuration evidence before a ready deployment receipt',
     async (kind) => {
       const run = await create();
-      const proof = await attachModelSettings(run);
+      const proof = await attachConfiguration(run);
       const changed: Record<string, unknown> = structuredClone(proof);
-      if (kind === 'organization') changed.organizationId = 'another-org';
+      if (kind === 'organization')
+        changed.target = { ...proof.target, organizationId: 'another-org' };
       if (kind === 'bundle') changed.deploymentBundleSha256 = 'f'.repeat(64);
-      if (kind === 'settings') changed.settingsSha256 = 'f'.repeat(64);
-      if (kind === 'model') changed.providers = [];
+      if (kind === 'settings') changed.configurationSha256 = 'f'.repeat(64);
+      if (kind === 'model') changed.resources = [];
       if (kind === 'policy')
-        changed.vision = { providerSlug: 'hosted', modelId: 'fallback' };
+        changed.resources = proof.resources.map((resource) =>
+          Object.assign({}, resource, {
+            configurationSha256: 'f'.repeat(64),
+          }),
+        );
       run.nativeOutput(() =>
         JSON.stringify({
           ok: true,
           command: 'deploy provision',
           data: {
             ...run.native,
-            modelSettings: kind === 'missing' ? undefined : changed,
+            configuration: kind === 'missing' ? undefined : changed,
           },
         }),
       );
-      await expect(run.apply()).rejects.toThrow('model settings receipt');
+      await expect(run.apply()).rejects.toThrow('configuration receipt');
       expect(existsSync(run.receiptPath)).toBe(false);
       expect(run.events.at(-1)).toBe('cleanup');
     },
@@ -531,7 +632,7 @@ describePosix('complete managed deployment lifecycle', () => {
   );
   test('missing required provider secret stops before runtime or native mutation', async () => {
     const run = await create();
-    await attachModelSettings(run);
+    await attachConfiguration(run);
     delete process.env.TALE_TEST_PROVIDER_KEY;
     await expect(run.apply()).rejects.toThrow('environment variable');
     expect(run.events).toEqual([]);

@@ -1,5 +1,6 @@
 'use client';
 
+import { SECRETS_ENV_PREFIX } from '@tale/shared/schemas/providers';
 import { Text } from '@tale/ui/text';
 
 import { Input } from '@/app/components/ui/forms/input';
@@ -11,7 +12,6 @@ import {
 } from '@/app/features/settings/credentials/adapter';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useT } from '@/lib/i18n/client';
-import { SECRETS_ENV_PREFIX } from '@/lib/shared/schemas/providers';
 
 import {
   BrokerFormFields,

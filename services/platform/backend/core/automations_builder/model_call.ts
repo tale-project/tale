@@ -19,15 +19,16 @@
  * secret on every turn buys nothing.
  */
 
-import type { BuilderModel } from '../../../lib/automations_builder/session';
-import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
-import { AppError } from '../../../lib/shared/errors/app-error';
-import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type {
   ApiFormat,
   ModelCatalogEntry,
   WireDialect,
-} from '../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
+import type { BuilderModel } from '../../../lib/automations_builder/session';
+import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
+import { AppError } from '../../../lib/shared/errors/app-error';
+import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type { ActionCtx } from '../lib/ctx';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';

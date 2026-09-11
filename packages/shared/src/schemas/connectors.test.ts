@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { connectorSchema, type Connector } from './connectors';
+import { connectorSchema } from './connectors';
 
 /** A realistic connector exercising every schema branch: two auth methods,
  * a yaml-js write action, a mock-only read action, and a native action. */
@@ -120,7 +120,7 @@ describe('connectorSchema', () => {
     expect(bearer).toMatchObject({ scheme: 'Bearer' });
 
     const discord = connectorSchema.parse({
-      ...(GITHUB as Connector),
+      ...connectorSchema.parse(GITHUB),
       name: 'discord',
       auth: [{ method: 'bearer', scheme: 'Bot' }],
     });
@@ -130,7 +130,7 @@ describe('connectorSchema', () => {
   it('rejects a scheme that is not a single header token', () => {
     expect(
       connectorSchema.safeParse({
-        ...(GITHUB as Connector),
+        ...connectorSchema.parse(GITHUB),
         auth: [{ method: 'bearer', scheme: 'Bot token' }],
       }).success,
     ).toBe(false);
@@ -177,7 +177,7 @@ describe('connectorSchema', () => {
 
   it('rejects duplicate auth methods', () => {
     const bad = {
-      ...(GITHUB as Connector),
+      ...connectorSchema.parse(GITHUB),
       auth: [{ method: 'bearer' }, { method: 'bearer' }],
     };
     expect(connectorSchema.safeParse(bad).success).toBe(false);
@@ -209,7 +209,7 @@ describe('connectorSchema', () => {
 
   it('rejects an oauth2 method without its urls', () => {
     const bad = {
-      ...(GITHUB as Connector),
+      ...connectorSchema.parse(GITHUB),
       auth: [{ method: 'oauth2' }],
     };
     expect(connectorSchema.safeParse(bad).success).toBe(false);
@@ -217,10 +217,10 @@ describe('connectorSchema', () => {
 
   it('rejects a malformed native impl id', () => {
     const bad = {
-      ...(MAILBOX as Connector),
+      ...connectorSchema.parse(MAILBOX),
       actions: [
         {
-          ...(MAILBOX as Connector).actions[0],
+          ...connectorSchema.parse(MAILBOX).actions[0],
           backend: { kind: 'native', impl: 'NotAnId' },
         },
       ],

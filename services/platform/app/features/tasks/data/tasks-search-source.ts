@@ -12,11 +12,11 @@
  * replaying under a new query would flash wrong rows.
  */
 
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { formatTaskIdentifier } from '@/lib/shared/project_key';
 
 const NO_RESULTS: SearchResult<TaskSearchHitData>[] = [];
 

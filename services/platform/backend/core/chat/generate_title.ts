@@ -1,8 +1,9 @@
 'use node';
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
+
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
-import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
-import { modelAllowlistPermits } from '../../../lib/shared/utils/model-ref';
 import { createBuilderModel } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';

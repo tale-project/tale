@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  effectiveMandatoryInstructions,
+  type SystemPromptConfig,
+} from '@tale/shared/schemas/governance';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo } from 'react';
@@ -13,10 +17,6 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
-import {
-  effectiveMandatoryInstructions,
-  type SystemPromptConfig,
-} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -32,7 +32,7 @@ interface SystemPromptForm {
 }
 
 // Matches the `systemPromptConfigSchema` field bound in
-// lib/shared/schemas/governance.ts so the client never accepts text the
+// @tale/shared/schemas/governance so the client never accepts text the
 // server-side parse would reject.
 const MAX_CHARS = 20_000;
 

@@ -120,15 +120,9 @@ export default {
         'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers
         // above (schemas, provider catalog shapes). Same debt, same exit.
-        'lib/shared/schemas/skills.ts',
         'lib/shared/file-types.ts',
         'lib/shared/providers/attribution.ts',
-        'lib/shared/schemas/agents.ts',
         'lib/shared/schemas/enterprise_sso.ts',
-        'lib/shared/schemas/governance.ts',
-        'lib/shared/schemas/connectors.ts',
-        'lib/shared/schemas/pii.ts',
-        'lib/shared/schemas/providers.ts',
         // E2E helper for the parked chat specs.
         'tests/e2e/helpers/chat.ts',
       ],

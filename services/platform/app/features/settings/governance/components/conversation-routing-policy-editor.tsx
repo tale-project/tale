@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  conversationRoutingConfigSchema,
+  type ConversationRoutingRule,
+} from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { HStack, Row, Stack } from '@tale/ui/layout';
@@ -41,10 +45,6 @@ import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar'
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  conversationRoutingConfigSchema,
-  type ConversationRoutingRule,
-} from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { mapGovernanceSaveError } from '../governance-save-errors';

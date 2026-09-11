@@ -1,3 +1,4 @@
+import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -6,11 +7,13 @@ import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   BrandingError,
   deleteBrandingImage,
   readBranding,
+  readBrandingConfig,
   saveBranding,
   saveBrandingImage,
   snapshotBrandingToHistory,
@@ -28,7 +31,7 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof BrandingError) {
+  if (error instanceof BrandingError || error instanceof ConfigurationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
@@ -66,6 +69,16 @@ export function createBrandingRoutes(deps: {
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
 
+  admin.get('/config', async (c) => {
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    try {
+      return c.json(await readBrandingConfig(orgSlug));
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   admin.post('/save', async (c) => {
     const body = z
       .object({
@@ -73,13 +86,17 @@ export function createBrandingRoutes(deps: {
         logoFilename: z.string().max(100).optional(),
         faviconLightFilename: z.string().max(100).optional(),
         faviconDarkFilename: z.string().max(100).optional(),
+        expectedHash: expectedConfigurationHashSchema.optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      return c.json(await saveBranding(deps.sql, orgSlug, body.data));
+      const { expectedHash, ...config } = body.data;
+      return c.json(
+        await saveBranding(deps.sql, orgSlug, config, expectedHash),
+      );
     } catch (error) {
       return handleError(c, error);
     }

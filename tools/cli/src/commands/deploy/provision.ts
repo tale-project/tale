@@ -7,6 +7,7 @@ import {
   type DeploymentBundle,
 } from '../../lib/deployment/bundle';
 import { provisionDeploymentConfigs } from '../../lib/deployment/configs';
+import { provisionDeploymentConfiguration } from '../../lib/deployment/configuration';
 import { createBackendEmailAttestation } from '../../lib/deployment/email-attestation';
 import {
   configureInstance,
@@ -15,7 +16,6 @@ import {
   type InstanceInput,
   type InstanceOptions,
 } from '../../lib/deployment/identity';
-import { provisionDeploymentModelSettings } from '../../lib/deployment/model-settings-native';
 import {
   createBackendNativeClients,
   createBackendNativeUpdate,
@@ -113,13 +113,13 @@ export interface ManagedProvisionDependencies {
   dataDirectory?: string;
   configure?: typeof configureInstance;
   configs?: typeof provisionDeploymentConfigs;
-  modelSettings?: typeof provisionDeploymentModelSettings;
+  configuration?: typeof provisionDeploymentConfiguration;
   nativeUpdate?: InstanceOptions['nativeUpdate'];
   managedClients?: InstanceOptions['managedClients'];
   emailAttestation?: InstanceOptions['emailAttestation'];
 }
 
-/** One private native lock spans identity, credentials, modelSettings and configs.
+/** One private native lock spans identity, credentials, configuration and configs.
  * The verified source is copied before use; only safe metadata leaves the call. */
 export async function provisionManagedBundle(
   directory: string,
@@ -135,8 +135,8 @@ export async function provisionManagedBundle(
     );
     return withLock(stateDirectory, 'deploy provision', async () => {
       let configs: unknown[] = [];
-      let modelSettings: Awaited<
-        ReturnType<typeof provisionDeploymentModelSettings>
+      let configuration: Awaited<
+        ReturnType<typeof provisionDeploymentConfiguration>
       >;
       const identity = await (dependencies.configure ?? configureInstance)(
         input,
@@ -152,8 +152,8 @@ export async function provisionManagedBundle(
             dependencies.managedClients ??
             createBackendNativeClients({ origin: input.origin }),
           provision: async (context) => {
-            modelSettings = await (
-              dependencies.modelSettings ?? provisionDeploymentModelSettings
+            configuration = await (
+              dependencies.configuration ?? provisionDeploymentConfiguration
             )(frozen, context);
             configs = await (
               dependencies.configs ?? provisionDeploymentConfigs
@@ -164,7 +164,7 @@ export async function provisionManagedBundle(
       return {
         ...identity,
         configs,
-        ...(modelSettings ? { modelSettings } : {}),
+        ...(configuration ? { configuration } : {}),
       };
     });
   });

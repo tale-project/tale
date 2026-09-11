@@ -1,5 +1,6 @@
 'use client';
 
+import type { SettingsUploadsForm } from '@tale/shared/schemas/automation-settings';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
@@ -47,7 +48,6 @@ import {
   DOCUMENT_MAX_FILE_SIZE,
   resolveFileType,
 } from '@/lib/shared/file-types';
-import type { SettingsUploadsForm } from '@/lib/shared/schemas/automation_settings';
 
 /**
  * The uploads variant of a declared settings form: the operator manages the

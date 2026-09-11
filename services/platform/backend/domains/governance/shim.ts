@@ -1,6 +1,6 @@
+import { isFilePolicyType } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
-import { isFilePolicyType } from '../../../lib/shared/schemas/governance.ts';
 import type { ChatFilterEventInput } from '../../core/governance/chat_filter_events.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';

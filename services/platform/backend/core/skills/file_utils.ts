@@ -40,7 +40,8 @@ import {
   MAX_SKILL_BUNDLE_FILES,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
   MAX_SKILL_MD_BYTES,
-} from '../../../lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+
 import type { SkillBundleReader } from '../../../lib/skills/listing';
 import {
   atomicWrite,

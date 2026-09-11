@@ -15,11 +15,11 @@
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
-
 import {
   DEFAULT_SANDBOX_QUOTA,
   sandboxQuotaTotal,
-} from '../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
+
 import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';

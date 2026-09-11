@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  DEFAULT_LOGIN_BACKOFF_MS,
+  DEFAULT_LOGIN_MAX_ATTEMPTS,
+  DEFAULT_TRUSTED_PROXIES,
+  loginPolicyConfigSchema,
+  type LoginPolicyConfig,
+} from '@tale/shared/schemas/governance';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
@@ -17,13 +24,6 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import {
-  DEFAULT_LOGIN_BACKOFF_MS,
-  DEFAULT_LOGIN_MAX_ATTEMPTS,
-  DEFAULT_TRUSTED_PROXIES,
-  loginPolicyConfigSchema,
-  type LoginPolicyConfig,
-} from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

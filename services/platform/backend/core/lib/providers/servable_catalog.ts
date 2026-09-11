@@ -15,11 +15,12 @@
  *    as documented — could never serve anything.
  */
 
-import { synthesizeAllowlistCatalog } from '../../../../lib/shared/providers/allowlist_catalog';
 import type {
   ModelCatalogEntry,
   ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
+import { synthesizeAllowlistCatalog } from '../../../../lib/shared/providers/allowlist_catalog';
 import { getProviderCatalog, type CatalogFetchOptions } from './catalog_fetch';
 
 export async function getServableCatalog(

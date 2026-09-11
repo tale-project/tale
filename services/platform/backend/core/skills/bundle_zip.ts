@@ -20,16 +20,16 @@
  * top-level folder, that folder is stripped before further processing.
  */
 
-import JSZip from 'jszip';
-
-import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
   isValidSkillSlug,
   type SkillFrontmatter,
-} from '../../../lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+import JSZip from 'jszip';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { parseSkillMd } from '../../../lib/skills/parse';
 
 /**

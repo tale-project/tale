@@ -24,9 +24,9 @@
  * platform cannot budget context for is not selectable.
  */
 
-import type { ModelCatalogEntry } from '../schemas/providers';
-import { modelCatalogEntrySchema } from '../schemas/providers';
-import { stripProviderPrefix } from '../utils/model-ref';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import { modelCatalogEntrySchema } from '@tale/shared/schemas/providers';
+import { stripProviderPrefix } from '@tale/shared/utils/model-ref';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

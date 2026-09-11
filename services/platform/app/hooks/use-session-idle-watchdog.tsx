@@ -1,6 +1,8 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import { sessionIdleTimeoutConfigSchema } from '@tale/shared/schemas/governance';
+import { resolveEffectiveIdleMinutes } from '@tale/shared/utils/session-idle';
 import { Button } from '@tale/ui/button';
 import { useEffect, useMemo, useRef } from 'react';
 
@@ -12,8 +14,6 @@ import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
-import { sessionIdleTimeoutConfigSchema } from '@/lib/shared/schemas/governance';
-import { resolveEffectiveIdleMinutes } from '@/lib/shared/session-idle';
 
 // Cross-tab shared "last activity" timestamp (ms). Activity in any tab keeps
 // every tab alive, mirroring the server's sliding window — otherwise an idle

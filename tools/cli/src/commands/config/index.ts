@@ -6,11 +6,12 @@ import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode } from '../../utils/output-mode';
 import { action } from '../../utils/run-command';
+import { addPlatformCommands } from './platform';
 import { addReleaseCommands } from './releases';
 
 export function createConfigCommand(): Command {
   const configCmd = new Command('config').description(
-    'Manage CLI configuration',
+    'Manage platform configuration and configuration releases',
   );
 
   configCmd
@@ -42,5 +43,6 @@ export function createConfigCommand(): Command {
     );
 
   addReleaseCommands(configCmd);
+  addPlatformCommands(configCmd);
   return configCmd;
 }

@@ -175,8 +175,12 @@ export class RuntimeDockerFixture {
         },
         State:
           service === 'backend-worker'
-            ? { Running: true }
-            : { Running: true, Health: { Status: 'healthy' } },
+            ? { Running: true, StartedAt: '2026-09-10T00:00:00.000000000Z' }
+            : {
+                Running: true,
+                StartedAt: '2026-09-10T00:00:00.000000000Z',
+                Health: { Status: 'healthy' },
+              },
         Mounts: ((spec.volumes as string[]) ?? []).map((mount) => {
           const [raw, destination, mode] = mount.split(':');
           const volume = Object.hasOwn(compose.volumes, raw);

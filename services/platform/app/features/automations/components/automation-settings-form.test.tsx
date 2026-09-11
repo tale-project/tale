@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   type AutomationSettings,
   parseAutomationSettings,
-} from '@/lib/shared/schemas/automation_settings';
+} from '@tale/shared/schemas/automation-settings';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
+
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 // Two seams, because reads and writes go different ways: the files are READ by

@@ -28,19 +28,19 @@
  * `'use node'` modules; see the note in `convex/documents/helpers.ts`.
  */
 
-import JSZip from 'jszip';
-
-import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   MAX_AUTOMATION_BUNDLE_ENTRIES,
   MAX_AUTOMATION_BUNDLE_FILE_BYTES,
   MAX_AUTOMATION_BUNDLE_TOTAL_BYTES,
-} from '../../../lib/shared/schemas/automations';
+} from '@tale/shared/schemas/automation-pack';
 import {
   isSkillBundleExcludedSegment,
   isValidSkillSlug,
   MAX_SKILL_BUNDLE_FILES,
-} from '../../../lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+import JSZip from 'jszip';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { parseSkillMd, SkillParseError } from '../../../lib/skills/parse';
 import { isRecord } from '../../../lib/utils/type-utils';
 

@@ -1,4 +1,4 @@
-import type { BudgetRule } from '../../../lib/shared/schemas/governance';
+import type { BudgetRule } from '@tale/shared/schemas/governance';
 
 /** Whose bucket a warning is about: the caller's own usage, the whole
  * organization's, or the authenticating API key's. */

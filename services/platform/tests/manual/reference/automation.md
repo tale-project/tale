@@ -196,6 +196,14 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Seams
 
+General native configuration is also covered by `tools/cli/tests/platform-configuration.test.ts`
+(real HTTP with source/compiled CLI commands), `tools/cli/src/lib/config/platform-apply.test.ts`
+(reviewed plans, stale preimages, default credential changes, partial failures and readback),
+and `backend/domains/configuration-writes.test.ts` plus the provider/credential route suites
+(actual local file/history behavior, native permissions and compare-and-set).
+`packages/shared/src/schemas/` owns the common schema tests and the node-free import guard.
+These suites do not prove inference hardware, actual model quality or production readiness.
+
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and
   leaves the stack in its end state.

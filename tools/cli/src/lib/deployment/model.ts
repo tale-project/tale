@@ -1,12 +1,12 @@
 import { isAbsolute, resolve } from 'node:path';
 
+import { PROJECT_NAME_MAX } from '@tale/shared/schemas/projects';
+import { isValidProjectKey } from '@tale/shared/utils/project-key';
 import { z } from 'zod';
 
-import { isValidProjectKey } from '../../../../../services/platform/lib/shared/project_key';
-import { PROJECT_NAME_MAX } from '../../../../../services/platform/lib/shared/schemas/projects';
 import { preconditionError } from '../../utils/fail';
+import { platformConfigurationSchema } from '../config/platform-model';
 import { gitSha, owner, relativePath, slug } from '../config/releases/model';
-import { modelSettingsSchema } from './model-settings';
 
 const text = z
   .string()
@@ -97,7 +97,7 @@ const deploymentFields = z.strictObject({
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
   identity: identity.optional(),
-  modelSettings: modelSettingsSchema.optional(),
+  configuration: platformConfigurationSchema.optional(),
   configs: z
     .array(
       z.strictObject({
@@ -142,20 +142,21 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         message: 'Configuration deployment requires an organization identity',
         path: ['identity'],
       });
-    if (spec.modelSettings && !spec.identity)
+    if (spec.configuration && !spec.identity)
       context.addIssue({
         code: 'custom',
-        message: 'Model settings require an organization identity',
+        message: 'Platform configuration requires an organization identity',
         path: ['identity'],
       });
-    for (const provider of spec.modelSettings?.providers ?? []) {
-      const reference = spec.environment[provider.credential.envName];
+    for (const resource of spec.configuration?.resources ?? []) {
+      if (resource.kind !== 'provider-credential') continue;
+      const reference = spec.environment[resource.config.envName];
       if (!reference || reference.optional)
         context.addIssue({
           code: 'custom',
           message:
             'Provider credential needs an explicit required deployment environment reference',
-          path: ['environment', provider.credential.envName],
+          path: ['environment', resource.config.envName],
         });
     }
     if (spec.identity?.ssoEnabled)

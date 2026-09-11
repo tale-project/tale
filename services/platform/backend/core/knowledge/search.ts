@@ -46,6 +46,8 @@
  * organization's corpus with another's credential.
  */
 
+import type { KnowledgeEmbeddingConfig } from '@tale/shared/schemas/knowledge';
+
 import { retrieve, type CorpusReader } from '../../../lib/knowledge/retrieve';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
@@ -54,7 +56,6 @@ import {
   type KnowledgeQuery,
   type KnowledgeResult,
 } from '../../../lib/knowledge/types';
-import type { KnowledgeEmbeddingConfig } from '../../../lib/shared/schemas/knowledge';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { readOrgEmbeddingConfig } from './connection';

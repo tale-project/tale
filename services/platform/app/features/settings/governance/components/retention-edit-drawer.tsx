@@ -1,5 +1,6 @@
 'use client';
 
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -10,7 +11,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
 import {
   type RetentionCategory,
   unitForCategory,

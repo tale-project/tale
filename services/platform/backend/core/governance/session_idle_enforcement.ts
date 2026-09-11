@@ -1,5 +1,5 @@
-import { sessionIdleTimeoutConfigSchema } from '../../../lib/shared/schemas/governance';
-import { resolveEffectiveIdleMinutes } from '../../../lib/shared/session-idle';
+import { sessionIdleTimeoutConfigSchema } from '@tale/shared/schemas/governance';
+import { resolveEffectiveIdleMinutes } from '@tale/shared/utils/session-idle';
 interface OrgIdleWindow {
   organizationId: string;
   minutes: number;

@@ -1,6 +1,6 @@
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
-import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import {
   chooseChatModel,
   eligibleChatCandidates,

@@ -1,5 +1,6 @@
 'use client';
 
+import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@tale/shared/schemas/projects';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 
@@ -12,7 +13,6 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
 import { cn } from '@/lib/utils/cn';
 
 import { useUpdateProjectInstructions } from '../hooks/mutations';

@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { createNativeHttp, type NativeFetch } from '../native-http';
 import { verifyArtifactBytes } from './artifacts';
 import {
   loadClient,
@@ -15,7 +16,6 @@ import {
 import { loadRelease } from './manifest';
 import {
   insist,
-  NativeRequestError,
   ConfigError,
   integer,
   gitSha,
@@ -112,7 +112,7 @@ const replySchema = z
   })
   .passthrough();
 type Reply = z.infer<typeof replySchema>;
-export type Fetch = (url: URL, init: RequestInit) => Promise<Response>;
+export type Fetch = NativeFetch;
 export interface DeployOptions {
   descriptorPath: string;
   automationName: string;
@@ -171,33 +171,8 @@ async function apply(
     'historical release is frozen for verification only; native reuse is not approved',
   );
   await verifyArtifactBytes(release);
-  const base = new URL(options.url);
-  const origin = new URL(options.origin ?? options.url);
-  insist(
-    base.pathname === '/' &&
-      !base.search &&
-      !base.hash &&
-      !base.username &&
-      !base.password,
-    'Tale URL must be an origin',
-  );
-  insist(
-    base.protocol === 'https:' ||
-      (base.protocol === 'http:' &&
-        ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname)),
-    'Tale URL must use HTTPS or loopback HTTP',
-  );
-  insist(
-    origin.protocol === 'https:' &&
-      origin.origin === (options.origin ?? options.url).replace(/\/$/, ''),
-    'request origin must be the public HTTPS origin',
-  );
-  insist(
-    typeof options.cookie === 'string' &&
-      options.cookie.length > 0 &&
-      !/[\r\n]/.test(options.cookie),
-    'native session cookie is required',
-  );
+  const transport = createNativeHttp(options);
+  const origin = new URL(transport.origin);
   for (const value of [options.orgId, options.projectId])
     insist(
       typeof value === 'string' &&
@@ -216,7 +191,6 @@ async function apply(
       'native automation version must be a positive integer',
     );
   const automationPath = `/api/app/automations/${encodeURIComponent(manifest.automationName)}`;
-  const fetchImpl: Fetch = options.fetchImpl ?? fetch;
   async function request(
     endpoint: string,
     args: {
@@ -226,51 +200,17 @@ async function apply(
       allowNotFound?: boolean;
     } = {},
   ): Promise<Reply | null> {
-    const target = new URL(endpoint, base);
-    target.searchParams.set('orgId', options.orgId);
-    const method = args.method ?? 'GET';
-    const response = await fetchImpl(target, {
-      method,
-      redirect: 'error',
-      signal: AbortSignal.timeout(60_000),
-      headers: {
-        cookie: options.cookie,
-        origin: origin.origin,
-        ...(args.body === undefined
-          ? {}
-          : {
-              'content-type': args.raw ? 'application/zip' : 'application/json',
-            }),
-      },
-      ...(args.body === undefined
-        ? {}
-        : {
-            body: args.raw ? (args.body as Buffer) : JSON.stringify(args.body),
-          }),
-    }).catch(() => {
-      throw new NativeRequestError(
-        `Tale ${method} ${target.pathname} transport failed; the response may have been lost`,
-      );
+    // Automation definitions and embedded assets are larger than settings;
+    // both clients still share the same bounded transport and redirect policy.
+    const body = await transport.request(endpoint, {
+      ...args,
+      limit: 32 * 1024 * 1024,
     });
-    if (args.allowNotFound && response.status === 404) {
-      await response.body?.cancel().catch(() => undefined);
-      return null;
-    }
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new NativeRequestError(
-        `Tale ${method} ${target.pathname} failed (HTTP ${response.status})`,
-      );
-    }
-    const body: unknown = await response.json().catch(() => {
-      throw new NativeRequestError(
-        `Tale ${target.pathname} returned invalid JSON`,
-      );
-    });
+    if (args.allowNotFound && body === null) return null;
     const result = replySchema.safeParse(body);
     insist(
       result.success,
-      `Tale ${target.pathname} returned an invalid response`,
+      `Tale ${new URL(endpoint, transport.url).pathname} returned an invalid response`,
     );
     return result.data;
   }

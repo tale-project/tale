@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  effectiveMandatoryInstructions,
+  POLICY_SCHEMAS,
+  type ChatFilterConfig,
+  type ModerationProviderConfig,
+  type SystemPromptConfig,
+} from '@tale/shared/schemas/governance';
+import type { PiiConfig } from '@tale/shared/schemas/pii';
+
+import {
   createChatFilter,
   createModerationFilter,
   createPiiFilter,
@@ -20,14 +29,6 @@ import {
   resolveScrubberOptions,
 } from '../../../lib/pii';
 import { pass } from '../../../lib/pii/core/outcome';
-import {
-  effectiveMandatoryInstructions,
-  POLICY_SCHEMAS,
-  type ChatFilterConfig,
-  type ModerationProviderConfig,
-  type SystemPromptConfig,
-} from '../../../lib/shared/schemas/governance';
-import type { PiiConfig } from '../../../lib/shared/schemas/pii';
 import type { ChatFilterEventInput } from '../governance/chat_filter_events';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';

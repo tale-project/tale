@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  type AutomationSettings,
+  isUploadsForm,
+} from '@tale/shared/schemas/automation-settings';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -7,10 +11,6 @@ import { useEffect, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  type AutomationSettings,
-  isUploadsForm,
-} from '@/lib/shared/schemas/automation_settings';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';

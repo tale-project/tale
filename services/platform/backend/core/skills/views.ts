@@ -8,7 +8,7 @@
  * markdown, which is all it ever is.
  */
 
-import type { SkillVisibility } from '../../../lib/shared/schemas/skills';
+import type { SkillVisibility } from '@tale/shared/schemas/skills';
 
 /** The fields every skill view carries. */
 export interface SkillSummaryView {

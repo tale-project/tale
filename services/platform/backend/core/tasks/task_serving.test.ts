@@ -10,13 +10,13 @@
  * exercised for real over the mocked connector and catalog fixtures.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   harnessDefinitionSchema,
   providerDefinitionSchema,
   type ProviderDefinition,
-} from '../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ActionCtx } from '../lib/ctx';
 
 const {

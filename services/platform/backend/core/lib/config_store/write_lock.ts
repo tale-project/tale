@@ -35,6 +35,7 @@ import type { Sql } from 'postgres';
  */
 export type ConfigDomain =
   | 'branding'
+  | 'providers'
   | 'governance'
   | 'knowledge'
   | 'object-storage'

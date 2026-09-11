@@ -25,15 +25,19 @@ import {
   buildCapsuleStage,
   verifyPreparedDeploymentConfig,
 } from './config-source';
+import {
+  deploymentRuntimeConfiguration,
+  verifyNativeConfigurationProof,
+} from './configuration';
 import { parseInstanceInput, type InstanceInput } from './identity';
 import { resolveValue } from './model';
-import { verifyNativeModelSettingsProof } from './model-settings-proof';
 import { nativeProvisionProofSchema } from './native-proof';
 import {
   applyRuntime,
   readBootstrapPassword,
   type RuntimeResult,
 } from './runtime';
+import { activateRuntimeConfiguration } from './runtime-apply';
 import { runtimeProcessEnvironment } from './runtime-command';
 import {
   atomicRuntimeFile,
@@ -54,6 +58,7 @@ type Dependencies = {
   verifySnapshot?: typeof verifySnapshot;
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
+  activateConfiguration?: typeof activateRuntimeConfiguration;
 };
 
 const recoverySnapshotSchema = z.object({
@@ -195,7 +200,7 @@ async function provisionBackend(
   runtime: RuntimeResult,
   configs: Awaited<ReturnType<typeof configProofs>>,
   dependencies: Dependencies,
-): Promise<unknown> {
+) {
   if (!bundle.spec.identity) return undefined;
   if (!runtime.backendContainer)
     throw preconditionError('The healthy native backend was not identified.');
@@ -325,18 +330,19 @@ async function provisionBackend(
       throw externalDepError(
         'Native provisioning receipt differs from the reviewed deployment.',
       );
-    let modelSettings;
-    if (bundle.spec.modelSettings) {
-      modelSettings = verifyNativeModelSettingsProof(
-        parsed.data.data.modelSettings,
-        bundle.spec.modelSettings,
+    let configuration;
+    if (bundle.spec.configuration) {
+      configuration = verifyNativeConfigurationProof(
+        parsed.data.data.configuration,
+        bundle.spec.configuration,
         sha256(await readFile(join(directory, 'deployment.json'))),
         parsed.data.data.organizationId,
         input.slug,
+        bundle.spec.origin,
       );
-    } else if (parsed.data.data.modelSettings !== undefined) {
+    } else if (parsed.data.data.configuration !== undefined) {
       throw externalDepError(
-        'Native model settings receipt has no declared settings.',
+        'Native configuration receipt has no declared configuration.',
       );
     }
     for (const [index, config] of parsed.data.data.configs.entries()) {
@@ -352,7 +358,7 @@ async function provisionBackend(
         );
       proof.artifactSha256 = artifact;
     }
-    return { ...parsed.data.data, modelSettings };
+    return { ...parsed.data.data, configuration };
   } finally {
     let cleaned = false;
     try {
@@ -506,6 +512,15 @@ async function applyVerifiedDeployment(
       configs,
       dependencies,
     );
+    const effect = deploymentRuntimeConfiguration(
+      bundle.spec.configuration,
+      native?.configuration,
+    );
+    const configurationActivation = effect
+      ? await (
+          dependencies.activateConfiguration ?? activateRuntimeConfiguration
+        )(runtimeOptions, effect)
+      : undefined;
     const receipt = {
       schemaVersion: 1,
       phase: 'ready',
@@ -517,6 +532,7 @@ async function applyVerifiedDeployment(
       images: applied.images,
       configs,
       native,
+      configurationActivation,
       snapshotId:
         snapshot?.id ??
         (previous?.bundleSha256 === bundleSha256

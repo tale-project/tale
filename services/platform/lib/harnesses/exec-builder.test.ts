@@ -5,10 +5,10 @@
 // injection safety, error paths). Byte-exact construction is
 // golden-exec.test.ts.
 
+import type { HarnessDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
-import type { HarnessDefinition } from '../shared/schemas/providers';
 import { buildHarnessExec, isClaudeModelRef } from './exec-builder';
 import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';

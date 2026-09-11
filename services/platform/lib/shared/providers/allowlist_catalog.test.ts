@@ -1,6 +1,6 @@
+import { modelCatalogEntrySchema } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
-import { modelCatalogEntrySchema } from '../schemas/providers';
 import {
   ALLOWLIST_CATALOG_CONTEXT_WINDOW,
   synthesizeAllowlistCatalog,

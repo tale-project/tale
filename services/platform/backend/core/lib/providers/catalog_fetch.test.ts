@@ -1,7 +1,7 @@
+import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
-import { providerDefinitionSchema } from '../../../../lib/shared/schemas/providers';
 import {
   CATALOG_FAILURE_BACKOFF_MS,
   CATALOG_TTL_MS,

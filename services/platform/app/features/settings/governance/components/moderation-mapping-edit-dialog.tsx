@@ -1,5 +1,6 @@
 'use client';
 
+import { type ModerationCategoryMapping } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { useState } from 'react';
@@ -10,7 +11,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useT } from '@/lib/i18n/client';
-import { type ModerationCategoryMapping } from '@/lib/shared/schemas/governance';
 
 interface MappingEditDialogProps {
   index: number | 'new';
