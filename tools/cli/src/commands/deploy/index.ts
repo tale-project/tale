@@ -5,6 +5,11 @@ import { ALL_SERVICES, STOP_GATED_SERVICES } from '../../lib/compose/types';
 import { usageError } from '../../utils/fail';
 import { action } from '../../utils/run-command';
 import {
+  createExportClientCommand,
+  createNativeExportClientCommand,
+} from './export-client';
+import { createInferenceStatusCommand } from './inference-status';
+import {
   createPrepareCommand,
   createVerifyBundleCommand,
   runManagedDeployment,
@@ -63,6 +68,9 @@ export function createDeployCommand(): Command {
     .addCommand(createPrepareCommand())
     .addCommand(createVerifyBundleCommand())
     .addCommand(createProvisionCommand())
+    .addCommand(createExportClientCommand())
+    .addCommand(createNativeExportClientCommand(), { hidden: true })
+    .addCommand(createInferenceStatusCommand())
     .action(
       action(async (options) => {
         if (options.bundle !== undefined) {

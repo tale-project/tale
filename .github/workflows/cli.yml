@@ -143,6 +143,37 @@ jobs:
         working-directory: tools/cli
         run: bun run generate
 
+      # Stdlib-only ASGI admission fixtures match the signed runtime's Python
+      # major/minor. No MLX package, runtime app or model is installed in CI.
+      - name: Setup Python for model-free admission tests
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Prepare pinned Caddy for model-free inference integration
+        if: matrix.platform == 'linux' || matrix.platform == 'macos'
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS/$RUNNER_ARCH" in
+            Linux/X64)
+              CADDY_ASSET=caddy_2.11.4_linux_amd64.tar.gz
+              CADDY_SHA=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
+              ;;
+            macOS/ARM64)
+              CADDY_ASSET=caddy_2.11.4_mac_arm64.tar.gz
+              CADDY_SHA=9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7
+              ;;
+            *) echo 'Unsupported model-free inference test runner'; exit 1 ;;
+          esac
+          CADDY_DIRECTORY=$(mktemp -d "$RUNNER_TEMP/tale-caddy.XXXXXX")
+          curl --fail --location --proto '=https' --tlsv1.2 --max-time 120 \
+            "https://github.com/caddyserver/caddy/releases/download/v2.11.4/$CADDY_ASSET" \
+            --output "$CADDY_DIRECTORY/archive.tar.gz"
+          printf '%s  %s\n' "$CADDY_SHA" "$CADDY_DIRECTORY/archive.tar.gz" | shasum -a 256 -c -
+          tar -xzf "$CADDY_DIRECTORY/archive.tar.gz" -C "$CADDY_DIRECTORY" caddy
+          "$CADDY_DIRECTORY/caddy" version
+          printf 'TALE_TEST_CADDY=%s/caddy\n' "$CADDY_DIRECTORY" >> "$GITHUB_ENV"
+
       # Smoke tests in tests/ are discovered too but skip cleanly here —
       # TALE_BINARY is only set after the binary is built.
       - name: Run unit tests
@@ -205,7 +236,9 @@ jobs:
         working-directory: tools/cli
         env:
           TALE_BINARY: dist/${{ matrix.artifact }}
-        run: bun test tests/smoke.test.ts tests/config-releases.test.ts tests/deployment.test.ts tests/provision.test.ts
+        # Discover the command suites together so newly added CLI commands
+        # cannot be tested only from source while their compiled cases skip.
+        run: bun test tests/
 
       - name: Upload artifact
         if: github.event_name != 'pull_request'

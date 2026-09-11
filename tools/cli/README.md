@@ -79,7 +79,7 @@ Prepare on Linux with a compiled CLI from a clean committed checkout, matching
 the destination's architecture. Preparation verifies source and image provenance
 through Git and Docker. Transfer the complete bundle and apply it on the
 destination with its local Docker daemon and retained state directory. Optional
-`--deployment-ref` records orchestration provenance. The Linux composite action
+`--deployment-ref` records orchestration provenance. The Linux/macOS ARM64 composite action
 `.github/actions/setup-cli` accepts the full Tale `revision`, builds with Bun
 1.4.2, exposes `executable` and adds it to `PATH`; pin both the action reference
 and its revision input. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
@@ -99,10 +99,94 @@ auth/SQL modules inside that backend when a change is required; both connections
 close afterward. It does not expose a remote update endpoint or accept module
 paths from input. Exact no-ops require no backend module loading.
 
+Fresh native targets are explicit: `identity.bootstrap: "fresh"` permits local
+account/organization creation; a configuration can use
+`project: { "key": "NORTH", "name": "Configuration" }` instead of `projectId`,
+and `skillOwner: "operator"` transfers verified source for compilation after
+the native operator is authenticated. The host independently verifies the
+owner-bound artifact. A native client chooses an existing `clientId` or
+`managed: true`; managed creation records intent before writing and returns only
+a private credential handoff path and SHA. Unknown acceptance holds; replay
+preserves IDs and secrets. Existing explicit-ID behavior is unchanged.
+
+Fresh-only `identity.emailVerification: "operator-attested"` records the
+operator's assertion of the authenticated account's email ownership. The
+short-lived native verification preserves hooks without mailbox delivery,
+email changes or another session. Omit it for normal native verification;
+ready-state verification drift holds. Use `deploy export-client --bundle DIR
+--client KEY --output NEW_PRIVATE_DIR --env-prefix TALE_OIDC --cli-ref FULL_SHA
+--deployment-ref FULL_SHA --json` for a private credential handoff. The CLI
+verifies the ready deployment and emits regular `0600` JSON files under an
+owned `0700` directory; its parent must already be account-owned `0700` with
+trusted ancestors. Stdout exposes only safe metadata and hashes. The
+optional `consumer-env.json` is a literal map whose issuer includes `/api/auth`, never a shell script or public
+CI artifact. Partial/stale output holds without replacement.
+
 Bundle deployment preserves supported existing state and verifies health; it
 does not inherit the workspace path's blue-green guarantees. The ready receipt
 is written only after native readback and session cleanup. Keep snapshots,
 stages and receipts for recovery, and coordinate all deployers sharing a target.
+
+### Private Inference
+
+The same CLI prepares client-owned model declarations and operates dedicated
+macOS 15+ Apple Silicon nodes. Host admission, OS policy and transport stay with
+deployment automation; Tale owns the pinned signed oMLX application, data-only
+model verification, native kernel checks, LaunchAgent, private settings,
+readiness and retained release recovery. No model is installed on the machine
+running preparation.
+
+```bash
+tale inference prepare --repository "$INFERENCE_REPOSITORY" \
+  --source-ref "$INFERENCE_SOURCE_COMMIT" --spec tale/inference/spec.json \
+  --output "$INFERENCE_BUNDLE" --json
+tale inference validate --bundle "$INFERENCE_BUNDLE" --bundle-sha "$INFERENCE_BUNDLE_SHA" --json
+tale inference plan --bundle "$INFERENCE_BUNDLE" --bundle-sha "$INFERENCE_BUNDLE_SHA" --json
+```
+
+Record the returned bundle hash. `prepare` accepts optional `--sources <file>`
+for an exact offline source map and resolves public node-address environment
+references; the bundle binds the original committed declaration. It downloads
+no weights. On the admitted Mac, `plan --observe` checks actual resources.
+`apply`, `benchmark` and `status` take the same bundle/hash plus `--node <key>`;
+the first two require consent (`--yes` for automation). Rollback additionally
+selects `--release <retained-sha256>`. Separate admin/service keys come from
+declared environment references and remain in private `0600` files.
+
+The optional managed `inference` source section generates pinned private
+Caddy/ZeroTier companions and verifies native provider, vision and embedding
+bindings. An empty admitted roster returns `503`, and computation requires the
+service key; internal catalog metadata is credential-free. Replicas are
+independent exact-model servers, without cross-organization fallback or retries
+of started streams. Experimental sharding is refused. Native configuration
+proof and actual Mac model readiness are separate receipt fields.
+
+`deploy inference-status --bundle DIR --cli-ref FULL_SHA --deployment-ref
+FULL_SHA --json` reports the verified namespace node/network identity and
+assigned addresses without container details or keys. The fleet authorizes
+the exact private node and repeats observation to compare its declared CIDR.
+The command performs no join or controller write; network readiness and model
+readiness remain separate.
+
+Admission uses actual effective Metal capacity, RAM, disk and native kernels;
+the CLI never writes host memory or power settings. Models are evictable and
+load on demand. The complete hash-bound `runtime-admission.py` adapter uses
+the signed application's public middleware seam; it leaves signed bytes
+unchanged. One native FIFO/compute slot covers every role, retaining accepted
+work through disconnect until native/Metal settlement. Uncertain cleanup
+holds the node. Bounded baseline/mixed tests include text, inert tool-call
+responses, vision, 64 ordered embeddings within the native 60-second budget,
+and sampled pressure/swap refusal. Receipts separate loaded roles from
+readiness and report cold-request wall time. Synthetic CI does not prove
+target throughput or business OCR accuracy; role-dedicated Macs avoid shared
+cold-switch contention. Read the complete
+[private inference journey](../../docs/en/self-hosted/configuration/private-inference.md)
+before activation or recovery.
+
+The model-free admission tests require Python 3.11+ (`TALE_TEST_PYTHON` can
+select an isolated interpreter). The router integration uses Caddy 2.11.4
+(`TALE_TEST_CADDY` can select its executable). These tests exercise synthetic
+upstreams and the packaged adapter without installing oMLX or loading weights.
 
 ### Management Commands
 

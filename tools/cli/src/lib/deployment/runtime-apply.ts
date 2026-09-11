@@ -813,3 +813,99 @@ export async function applyRuntime(
   atomicRuntimeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
   return result();
 }
+
+/** Inspect an already-ready destination without resolving deployment secrets,
+ * preparing environment files or admitting a pending rollout. Export callers
+ * hold the same outer deployment lock and reuse these runtime custody checks. */
+export async function observeReadyRuntime(
+  options: Omit<ApplyRuntimeOptions, 'environment' | 'dryRun'>,
+  dependencies: RuntimeDependencies = {},
+): Promise<
+  Pick<
+    RuntimeResult,
+    'backendContainer' | 'sourceDirectory' | 'images' | 'revision'
+  >
+> {
+  validateOptions(options);
+  const { bundle, identity, compose } = readRuntimeBundle(
+    options.bundleDirectory,
+  );
+  const receipt = readReceipt(
+    join(options.stateDirectory, '.tale', 'runtime.json'),
+  );
+  requireRuntime(
+    receipt?.phase === 'ready' &&
+      receipt.name === options.name &&
+      receipt.stateDirectory === options.stateDirectory &&
+      receipt.composeProject === options.composeProject &&
+      receipt.revision === bundle.revision &&
+      receipt.bundleSha256 === identity &&
+      JSON.stringify(receipt.images) === JSON.stringify(bundle.images),
+    'Credential export requires the exact ready runtime receipt.',
+  );
+  for (const file of installedFiles)
+    requireRuntime(
+      currentHash(targetPath(options, file)) === receipt.files[file],
+      'Managed runtime file drift prevents credential export.',
+    );
+  const environment = parseRuntimeEnvironment(
+    readRegular(join(options.stateDirectory, 'src', '.env')).toString('utf8'),
+    'compose',
+  );
+  requireRuntime(
+    environment.SITE_URL === options.origin &&
+      environment.HOST === new URL(options.origin).hostname &&
+      environment.TLS_MODE === options.tlsMode,
+    'Managed runtime origin differs from the credential export target.',
+  );
+  const destination = await runtimeCommand(
+    ['info', '--format', '{{.OSType}}/{{.Architecture}}'],
+    dependencies,
+  );
+  requireRuntime(
+    destination.stdout
+      .trim()
+      .replace(/\/x86_64$/, '/amd64')
+      .replace(/\/aarch64$/, '/arm64') === bundle.platform,
+    'Credential export destination architecture differs.',
+  );
+  requireRuntime(
+    await inspectSandboxNetwork(dependencies),
+    'Ready runtime sandbox network is missing.',
+  );
+  const containers = await runtimeContainers(
+    options.composeProject,
+    dependencies,
+  );
+  assertContainerCustody(containers, compose, options);
+  await assertFixedContainerNames(containers, compose, dependencies);
+  requireRuntime(
+    healthy(containers, bundle, compose),
+    'Credential export requires the complete healthy pinned runtime.',
+  );
+  for (const image of bundle.images)
+    for (const reference of [image.reference, ...image.localAliases]) {
+      const actual = await inspectRuntimeImage(
+        reference,
+        image.repository,
+        bundle.platform,
+        image.revision,
+        dependencies,
+      );
+      requireRuntime(
+        actual.digest === image.digest,
+        'Ready runtime image identity drift prevents credential export.',
+      );
+    }
+  const backend = containers.find(
+    (container) =>
+      container.Config.Labels?.['com.docker.compose.service'] === 'backend-api',
+  );
+  requireRuntime(backend, 'Ready backend was not identified.');
+  return {
+    backendContainer: backend.Id,
+    sourceDirectory: join(options.stateDirectory, 'src'),
+    images: bundle.images,
+    revision: bundle.revision,
+  };
+}

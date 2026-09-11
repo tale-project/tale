@@ -11,11 +11,13 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
+import type { Entry } from './archive';
 import { verifyArtifactBytes } from './artifacts';
 import { compile } from './compiler';
 import { committedClient, committedEntries, treeHash } from './git';
 import {
   loadClient,
+  parseClient,
   releaseIdentity,
   sha256,
   sourcePackPath,
@@ -26,10 +28,12 @@ import {
   insist,
   version,
   gitSha,
+  relativePath,
   type Artifact,
+  type ClientAutomation,
   type LoadedRelease,
 } from './model';
-import { historicalSource } from './snapshot';
+import { gitTreeHash, historicalSource } from './snapshot';
 
 export type NativeValidator = (release: LoadedRelease) => Promise<void>;
 export interface BuildOptions {
@@ -82,10 +86,6 @@ export function createImmutable(
 export async function buildRelease(
   options: BuildOptions,
 ): Promise<LoadedRelease> {
-  const identity =
-    options.version === undefined
-      ? gitSha.parse(options.sourceCommit)
-      : version.parse(options.version);
   const source = committedClient(
     options.repoRoot,
     options.descriptorPath,
@@ -95,8 +95,65 @@ export async function buildRelease(
   const context = source.context;
   const packPath = sourcePackPath(options.repoRoot, context);
   const packTree = treeHash(options.repoRoot, options.sourceCommit, packPath);
+  return buildReleaseFromSource(
+    {
+      ...source,
+      packPath,
+      packTree,
+      entries: committedEntries(
+        options.repoRoot,
+        options.sourceCommit,
+        packPath,
+      ),
+    },
+    options,
+  );
+}
+
+export interface ReleaseSourceSnapshot {
+  context: ClientAutomation;
+  bytes: Buffer;
+  descriptorPath: string;
+  packPath: string;
+  packTree: string;
+  entries: Entry[];
+}
+
+/** One compiler for Git preparation and verified managed source capsules.
+ * Detached input proves exact descriptor/pack bytes and Git tree identity; the
+ * original commit is provenance verified when the outer bundle was prepared. */
+export async function buildReleaseFromSource(
+  source: ReleaseSourceSnapshot,
+  options: Pick<
+    BuildOptions,
+    | 'sourceCommit'
+    | 'version'
+    | 'output'
+    | 'skillOwnerUserId'
+    | 'validateNative'
+  >,
+): Promise<LoadedRelease> {
+  gitSha.parse(options.sourceCommit);
+  const identity =
+    options.version === undefined
+      ? options.sourceCommit
+      : version.parse(options.version);
+  const context = parseClient(
+    source.bytes.toString('utf8'),
+    source.context.descriptorPath,
+    source.context.automation.name,
+  );
+  const packPath = relativePath.parse(source.packPath);
+  const packTree = gitSha.parse(source.packTree);
+  insist(
+    path.posix.join(
+      path.posix.dirname(relativePath.parse(source.descriptorPath)),
+      context.automation.packPath,
+    ) === packPath && gitTreeHash(source.entries) === packTree,
+    'source snapshot differs from its descriptor or recorded pack tree',
+  );
   const compiled = await compile(
-    committedEntries(options.repoRoot, options.sourceCommit, packPath),
+    source.entries,
     context.automation,
     identity,
     options.skillOwnerUserId,

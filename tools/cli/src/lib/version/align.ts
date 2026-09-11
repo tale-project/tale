@@ -51,6 +51,17 @@ const SELF_MANAGING_COMMANDS = new Set([
   'deploy prepare',
   'deploy verify-bundle',
   'deploy provision',
+  'deploy export-client',
+  'deploy export-client-native',
+  'deploy inference-status',
+  'inference prepare',
+  'inference validate',
+  'inference plan',
+  'inference apply',
+  'inference status',
+  'inference rollback',
+  'inference router',
+  'inference benchmark',
 ]);
 
 /**

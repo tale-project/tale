@@ -52,10 +52,12 @@ async function* walk(dir: string): AsyncGenerator<string> {
   }
 }
 
-export async function listAllContent(): Promise<ContentRecord[]> {
+export async function listAllContent(
+  contentRoot = CONTENT_ROOT,
+): Promise<ContentRecord[]> {
   const out: ContentRecord[] = [];
-  for await (const filePath of walk(CONTENT_ROOT)) {
-    const rel = relative(CONTENT_ROOT, filePath);
+  for await (const filePath of walk(contentRoot)) {
+    const rel = relative(contentRoot, filePath);
     const localeSep = rel.indexOf('/');
     if (localeSep === -1) continue;
     const locale = rel.slice(0, localeSep);
@@ -64,7 +66,17 @@ export async function listAllContent(): Promise<ContentRecord[]> {
     const { frontmatter, content } = parseFrontmatter(raw);
     out.push({ locale, slug, frontmatter, body: content, filePath });
   }
-  return out;
+  return sortContentRecords(out);
+}
+
+/** Filesystem enumeration differs between hosts. One canonical order keeps
+ * every generated index reproducible without depending on a prior artifact. */
+export function sortContentRecords(records: ContentRecord[]): ContentRecord[] {
+  return records.toSorted((left, right) => {
+    const a = `${left.locale}:${left.slug}`;
+    const b = `${right.locale}:${right.slug}`;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
 }
 
 export { CONTENT_ROOT };

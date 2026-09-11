@@ -4,8 +4,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { provisionManagedBundle } from '../src/commands/deploy/provision';
 import { writeDeploymentBundle } from '../src/lib/deployment/bundle';
+import {
+  configureInstance,
+  parseInstanceInput,
+} from '../src/lib/deployment/identity';
 import { deploymentSpecSchema } from '../src/lib/deployment/model';
+import { nativeDeploymentStateDirectory } from '../src/lib/deployment/provision-state';
+import { ownsGuard } from '../src/lib/state/lock-guard';
 
 const source = fileURLToPath(new URL('../src/index.ts', import.meta.url));
 const modes: [string, string[]][] = [
@@ -63,14 +70,21 @@ async function run(
   ]);
   expect(stdout + stderr).not.toContain(input.password);
   expect(stdout + stderr).not.toContain(cookie);
+  expect(stdout + stderr).not.toContain('synthetic-stored-native-private');
   return { stdout, stderr, code };
 }
 
 function envelope(result: Awaited<ReturnType<typeof run>>, code: number) {
-  expect(result.code).toBe(code);
+  const parsed = JSON.parse(result.stdout);
+  expect(
+    result.code,
+    typeof parsed.error?.summary === 'string'
+      ? parsed.error.summary
+      : 'CLI response status',
+  ).toBe(code);
   expect(result.stderr).toBe('');
   expect(result.stdout.trim().split('\n')).toHaveLength(1);
-  return JSON.parse(result.stdout);
+  return parsed;
 }
 
 async function bundle(directory: string) {
@@ -141,9 +155,17 @@ for (const [label, executable] of modes)
       }
     });
 
-    test('checks bundle identity/bytes, uses one exact native session and repeats without an adapter or secret rotation', async () => {
+    test('checks command bundle guards, unbundled exact-ID compatibility and isolated managed-helper sessions', async () => {
       const directory = await mkdtemp(join(tmpdir(), 'tale-provision-native-'));
-      const calls: { path: string; method: string }[] = [];
+      const nativeData = await mkdtemp(join(tmpdir(), 'tale-provision-data-'));
+      const nativeState = nativeDeploymentStateDirectory(
+        nativeData,
+        'example-native',
+      );
+      let requireNativeLock = false;
+      const lockObservations: boolean[] = [];
+      const calls: { path: string; method: string; origin: string | null }[] =
+        [];
       let failDiscovery = false;
       // The production command deliberately has no input-selected API endpoint.
       // Own its fixed loopback port before spawning it; a busy port fails this
@@ -154,7 +176,16 @@ for (const [label, executable] of modes)
         async fetch(request) {
           const url = new URL(request.url);
           const path = url.pathname + url.search;
-          calls.push({ path, method: request.method });
+          calls.push({
+            path,
+            method: request.method,
+            origin: request.headers.get('origin'),
+          });
+          if (requireNativeLock) {
+            const held = await ownsGuard(nativeState);
+            lockObservations.push(held);
+            if (!held) return Response.json({}, { status: 503 });
+          }
           if (request.headers.get('origin') !== input.origin)
             return Response.json({}, { status: 403 });
           if (path === '/api/auth/sign-in/email') {
@@ -229,7 +260,7 @@ for (const [label, executable] of modes)
           2,
         );
         expect(emptyBundle.ok).toBe(false);
-        expect(calls).toHaveLength(0);
+        expect(calls, JSON.stringify(calls)).toHaveLength(0);
 
         for (const flag of [
           '--dry-run',
@@ -242,7 +273,7 @@ for (const [label, executable] of modes)
             2,
           );
           expect(refused.ok).toBe(false);
-          expect(calls).toHaveLength(0);
+          expect(calls, JSON.stringify(calls)).toHaveLength(0);
         }
         for (const flag of ['--cli-ref', '--deployment-ref']) {
           const withoutBundle = envelope(
@@ -255,7 +286,7 @@ for (const [label, executable] of modes)
             2,
           );
           expect(withoutBundle.ok).toBe(false);
-          expect(calls).toHaveLength(0);
+          expect(calls, JSON.stringify(calls)).toHaveLength(0);
           const emptyWithoutBundle = envelope(
             await run(
               executable,
@@ -266,7 +297,7 @@ for (const [label, executable] of modes)
             2,
           );
           expect(emptyWithoutBundle.ok).toBe(false);
-          expect(calls).toHaveLength(0);
+          expect(calls, JSON.stringify(calls)).toHaveLength(0);
 
           const wrongPin = envelope(
             await run(
@@ -278,7 +309,7 @@ for (const [label, executable] of modes)
             3,
           );
           expect(wrongPin.ok).toBe(false);
-          expect(calls).toHaveLength(0);
+          expect(calls, JSON.stringify(calls)).toHaveLength(0);
           const emptyPin = envelope(
             await run(
               executable,
@@ -289,7 +320,7 @@ for (const [label, executable] of modes)
             3,
           );
           expect(emptyPin.ok).toBe(false);
-          expect(calls).toHaveLength(0);
+          expect(calls, JSON.stringify(calls)).toHaveLength(0);
         }
         const mismatch = envelope(
           await run(
@@ -301,22 +332,13 @@ for (const [label, executable] of modes)
           3,
         );
         expect(mismatch.ok).toBe(false);
-        expect(calls).toHaveLength(0);
+        expect(calls, JSON.stringify(calls)).toHaveLength(0);
         for (const [prefix, flags] of [
-          [
-            ['--yes', 'deploy', 'provision'],
-            ['--bundle', directory, '--json'],
-          ],
-          [['deploy', '--yes', '--bundle', directory, 'provision'], ['--json']],
+          [['--yes', 'deploy', 'provision'], ['--json']],
+          [['deploy', '--yes', 'provision'], ['--json']],
           [
             ['deploy', 'provision'],
-            [
-              ...args,
-              '--cli-ref',
-              'a'.repeat(40),
-              '--deployment-ref',
-              'c'.repeat(40),
-            ],
+            ['--json', '--yes'],
           ],
         ]) {
           const result = envelope(
@@ -361,9 +383,71 @@ for (const [label, executable] of modes)
           '/api/auth/sign-in/email',
           '/api/auth/sign-out',
         ]);
+        // The bundled command runs inside its fixed /app/data backend volume.
+        // This host-side loopback fixture never creates or redirects /app. Use
+        // the established helper seam for its real HTTP + native-lock transaction;
+        // production source/compiled commands above own public flag/refusals and
+        // unbundled exact-ID compatibility, not a false native-image success.
+        requireNativeLock = true;
+        const retainedInput = parseInstanceInput(input);
+        for (let replay = 0; replay < 2; replay++) {
+          const managed = await provisionManagedBundle(
+            directory,
+            retainedInput,
+            { cliRef: 'a'.repeat(40), deploymentRef: 'c'.repeat(40) },
+            {
+              dataDirectory: nativeData,
+              configure: async (value, options) => {
+                expect(options?.stateDirectory).toBe(nativeState);
+                expect(await ownsGuard(nativeState)).toBe(true);
+                return configureInstance(value, options);
+              },
+            },
+          );
+          expect(managed).toEqual({
+            organizationId: 'org-example',
+            organizationSlug: input.slug,
+            userId: 'native-operator',
+            ssoEnabled: false,
+            nativeClients: [
+              {
+                key: input.nativeClients[0].key,
+                clientId: input.nativeClients[0].clientId,
+                changed: false,
+              },
+            ],
+            configs: [],
+          });
+          expect(await ownsGuard(nativeState)).toBe(false);
+          expect(JSON.stringify(managed)).not.toContain('private');
+        }
+        expect(lockObservations.length).toBeGreaterThan(0);
+        expect(lockObservations.every(Boolean)).toBe(true);
+        expect(
+          calls.filter(({ path }) => path === '/api/auth/sign-in/email'),
+        ).toHaveLength(5);
+        expect(
+          calls.filter(({ path }) => path === '/api/auth/sign-out'),
+        ).toHaveLength(5);
+        expect(
+          calls
+            .filter(({ method }) => method !== 'GET')
+            .map(({ path }) => path),
+        ).toEqual(
+          Array.from({ length: 5 }, () => [
+            '/api/auth/sign-in/email',
+            '/api/auth/sign-out',
+          ]).flat(),
+        );
+        requireNativeLock = false;
         failDiscovery = true;
         const failed = envelope(
-          await run(executable, args, JSON.stringify(input), '/'),
+          await run(
+            executable,
+            ['--json', '--yes'],
+            JSON.stringify(input),
+            '/',
+          ),
           5,
         );
         expect(failed.ok).toBe(false);
@@ -383,6 +467,7 @@ for (const [label, executable] of modes)
       } finally {
         await server.stop(true);
         await rm(directory, { recursive: true, force: true });
+        await rm(nativeData, { recursive: true, force: true });
       }
     }, 30_000);
   });

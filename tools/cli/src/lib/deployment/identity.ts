@@ -7,13 +7,24 @@ import {
   usageError,
 } from '../../utils/fail';
 import {
+  emailAttestationProofSchema,
+  type EmailAttestation,
+  type EmailAttestationProof,
+} from './email-attestation';
+import {
   nativeClientsSchema,
   nativeOriginSchema,
   reconcileNativeClients,
   type NativeClientContext,
   type NativeClientResult,
   type NativeClientUpdate,
+  type ManagedClientOptions,
 } from './native-client';
+import {
+  provisionStatePath,
+  readProvisionState,
+  writeProvisionState,
+} from './provision-state';
 
 export const PRIVATE_INPUT_LIMIT = 64 * 1024;
 const RESPONSE_LIMIT = 1024 * 1024;
@@ -22,18 +33,27 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const identifier = z.string().min(1).max(256);
 const inputSchema = z
   .strictObject({
+    bootstrap: z.literal('fresh').optional(),
+    emailVerification: z.literal('operator-attested').optional(),
     origin: nativeOriginSchema,
     email: z.email().max(254),
     password: z.string().min(1).max(4096),
     // Matches the native immutable organization slug boundary.
-    slug: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
-    name: z.string().trim().min(1).max(200),
+    slug: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(?![\s\S])/),
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine(
+        (value) => value.trim() === value && !/[\x00-\x1f\x7f]/.test(value),
+      ),
     ssoEnabled: z.boolean().default(true),
     tenantId: z.string().max(256).optional(),
     clientId: z.string().max(500).optional(),
     clientSecret: z.string().max(5000).optional(),
     nativeClients: nativeClientsSchema.default([]),
   })
+  .refine((input) => !input.emailVerification || input.bootstrap === 'fresh')
   .refine(
     (input) =>
       !input.ssoEnabled ||
@@ -45,10 +65,14 @@ export type InstanceInput = z.infer<typeof inputSchema>;
 export interface ProvisionContext extends NativeClientContext {
   baseUrl: string;
   user: { id: string };
+  stateDirectory?: string;
 }
 export interface InstanceOptions {
   fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
   nativeUpdate?: NativeClientUpdate;
+  managedClients?: Omit<ManagedClientOptions, 'stateDirectory'>;
+  emailAttestation?: EmailAttestation;
+  stateDirectory?: string;
   provision?: (context: ProvisionContext) => Promise<void>;
 }
 export interface InstanceResult {
@@ -57,6 +81,7 @@ export interface InstanceResult {
   userId: string;
   ssoEnabled: boolean;
   nativeClients: NativeClientResult[];
+  emailVerification?: EmailAttestationProof;
 }
 
 /** Invalid private input must never reach a parser error containing its text. */
@@ -113,6 +138,19 @@ const provisioning = {
   autoProvisionTeam: false,
   excludeGroups: [],
 };
+export const bootstrapSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  phase: z.enum(['pending', 'ready']),
+  origin: nativeOriginSchema,
+  email: z.email(),
+  slug: z.string(),
+  name: z.string(),
+  userId: identifier.optional(),
+  organizationId: identifier.optional(),
+  signupAttempted: z.literal(true).optional(),
+  organizationCreateAttempted: z.literal(true).optional(),
+  emailVerification: z.literal('operator-attested').optional(),
+});
 
 /** Account/provider writes use supported native HTTP. The caller can inject a
  * narrow backend-local client updater; session credentials remain in memory. */
@@ -121,6 +159,60 @@ export async function configureInstance(
   options: InstanceOptions = {},
 ): Promise<InstanceResult> {
   const input = parseInstanceInput(raw);
+  if (
+    input.emailVerification &&
+    (!options.emailAttestation || !options.stateDirectory)
+  )
+    throw preconditionError(
+      'Operator email attestation requires private managed native verification.',
+    );
+  if (
+    input.nativeClients.some((client) => client.managed) &&
+    !options.stateDirectory
+  )
+    throw preconditionError(
+      'Fresh native clients require private managed deployment state.',
+    );
+  let bootstrap:
+    | { file: string; intent: z.infer<typeof bootstrapSchema> }
+    | undefined;
+  if (input.bootstrap === 'fresh') {
+    if (!options.stateDirectory)
+      throw preconditionError(
+        'Fresh bootstrap requires private managed deployment state.',
+      );
+    const file = provisionStatePath(options.stateDirectory, 'bootstrap.json');
+    const existing = readProvisionState(file, bootstrapSchema);
+    if (
+      existing &&
+      (existing.origin !== input.origin ||
+        existing.email !== input.email.toLowerCase() ||
+        existing.slug !== input.slug ||
+        existing.name !== input.name ||
+        existing.emailVerification !== input.emailVerification)
+    )
+      throw preconditionError(
+        'Fresh bootstrap intent differs from the configured identity.',
+      );
+    const intent =
+      existing ??
+      bootstrapSchema.parse({
+        schemaVersion: 1,
+        phase: 'pending',
+        origin: input.origin,
+        email: input.email.toLowerCase(),
+        slug: input.slug,
+        name: input.name,
+        ...(input.emailVerification
+          ? { emailVerification: input.emailVerification }
+          : {}),
+      });
+    if (!existing) {
+      provisionStatePath(options.stateDirectory, 'bootstrap.json', true);
+      writeProvisionState(file, intent, true);
+    }
+    bootstrap = { file, intent };
+  }
   const fetchImpl = options.fetchImpl ?? fetch;
   const cookies = new Map<string, string>();
   const headers = () =>
@@ -237,14 +329,30 @@ export async function configureInstance(
       email: input.email,
       password: input.password,
     });
+    if (login.status === 401 && bootstrap?.intent.userId)
+      throw preconditionError(
+        'The retained bootstrap account could not authenticate; no replacement account was created.',
+      );
     // Local-only migrations must prove the original local account, never create
     // a replacement. Public Entra mode retains native first-boot semantics.
-    if (login.status === 401 && input.ssoEnabled)
+    if (
+      login.status === 401 &&
+      (input.ssoEnabled || input.bootstrap === 'fresh')
+    ) {
+      if (bootstrap?.intent.signupAttempted)
+        throw preconditionError(
+          'Bootstrap account creation is uncertain; review its retained intent before retrying.',
+        );
+      if (bootstrap) {
+        bootstrap.intent = { ...bootstrap.intent, signupAttempted: true };
+        writeProvisionState(bootstrap.file, bootstrap.intent);
+      }
       login = await request('/api/auth/sign-up/email', 'POST', {
         email: input.email,
         password: input.password,
         name: 'Tale Administrator',
       });
+    }
     const authenticated = z
       .object({ twoFactorRedirect: z.boolean().optional() })
       .safeParse(await requireJson(login, 'Administrator authentication'));
@@ -261,6 +369,42 @@ export async function configureInstance(
         'Administrator authentication returned no session.',
       );
     const verifiedSession = await session();
+    if (
+      bootstrap?.intent.userId &&
+      bootstrap.intent.userId !== verifiedSession.user.id
+    )
+      throw preconditionError(
+        'Fresh bootstrap account differs from its retained identity.',
+      );
+    if (bootstrap && !bootstrap.intent.userId) {
+      bootstrap.intent = {
+        ...bootstrap.intent,
+        userId: verifiedSession.user.id,
+      };
+      writeProvisionState(bootstrap.file, bootstrap.intent);
+    }
+    let emailVerification: EmailAttestationProof | undefined;
+    if (input.emailVerification) {
+      if (!options.emailAttestation || !options.stateDirectory)
+        throw preconditionError('Managed email verification is unavailable.');
+      emailVerification = emailAttestationProofSchema.parse(
+        await options.emailAttestation({
+          userId: verifiedSession.user.id,
+          email: input.email,
+          headers: headers(),
+          stateDirectory: options.stateDirectory,
+        }),
+      );
+      if (
+        emailVerification.userId !== verifiedSession.user.id ||
+        emailVerification.email !== input.email.toLowerCase() ||
+        emailVerification.receipt.path !==
+          provisionStatePath(options.stateDirectory, 'email-attestation.json')
+      )
+        throw preconditionError(
+          'Native email verification differs from the declared operator.',
+        );
+    }
     const organizations = z
       .array(organizationSchema)
       .max(1000)
@@ -279,10 +423,25 @@ export async function configureInstance(
       throw preconditionError('Ambiguous managed organization.');
     let organization = matches[0];
     if (!organization) {
-      if (!input.ssoEnabled)
+      if (bootstrap?.intent.organizationId)
+        throw preconditionError(
+          'The retained bootstrap organization is missing; no replacement was created.',
+        );
+      if (bootstrap?.intent.organizationCreateAttempted)
+        throw preconditionError(
+          'Bootstrap organization creation is uncertain; review its retained intent before retrying.',
+        );
+      if (!input.ssoEnabled && input.bootstrap !== 'fresh')
         throw preconditionError(
           'Existing managed organization is required for local-only mode.',
         );
+      if (bootstrap) {
+        bootstrap.intent = {
+          ...bootstrap.intent,
+          organizationCreateAttempted: true,
+        };
+        writeProvisionState(bootstrap.file, bootstrap.intent);
+      }
       const created = organizationSchema.safeParse(
         await requireJson(
           await request('/api/auth/organization/create', 'POST', {
@@ -296,6 +455,13 @@ export async function configureInstance(
         throw preconditionError('Unexpected managed organization identity.');
       organization = created.data;
     }
+    if (
+      bootstrap?.intent.organizationId &&
+      bootstrap.intent.organizationId !== organization.id
+    )
+      throw preconditionError(
+        'Fresh bootstrap organization differs from its retained identity.',
+      );
     if (verifiedSession.session.activeOrganizationId !== organization.id) {
       await requireJson(
         await request('/api/auth/organization/set-active', 'POST', {
@@ -308,6 +474,13 @@ export async function configureInstance(
         throw preconditionError(
           'Administrator identity changed while selecting the managed organization.',
         );
+    }
+    if (bootstrap && !bootstrap.intent.organizationId) {
+      bootstrap.intent = {
+        ...bootstrap.intent,
+        organizationId: organization.id,
+      };
+      writeProvisionState(bootstrap.file, bootstrap.intent);
     }
     const configPath = `/api/app/sso/config?orgId=${encodeURIComponent(organization.id)}`;
     if (input.ssoEnabled) {
@@ -398,11 +571,15 @@ export async function configureInstance(
       request,
       requireJson,
       headers,
+      ...(options.stateDirectory
+        ? { stateDirectory: options.stateDirectory }
+        : {}),
     };
     const nativeClients = await reconcileNativeClients(
       context,
       input.nativeClients,
       options.nativeUpdate,
+      { ...options.managedClients, stateDirectory: options.stateDirectory },
     );
     if (options.provision) {
       try {
@@ -417,7 +594,15 @@ export async function configureInstance(
       userId: verifiedSession.user.id,
       ssoEnabled: input.ssoEnabled,
       nativeClients,
+      ...(emailVerification ? { emailVerification } : {}),
     };
+    if (bootstrap && bootstrap.intent.phase !== 'ready')
+      writeProvisionState(bootstrap.file, {
+        ...bootstrap.intent,
+        phase: 'ready',
+        userId: result.userId,
+        organizationId: result.organizationId,
+      });
   } catch (error) {
     failure =
       error instanceof CliError

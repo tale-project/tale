@@ -18,6 +18,8 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, relativePath, sha } from '../config/releases/model';
+import { verifyPreparedDeploymentConfig } from './config-source';
+import { verifyManagedInference } from './inference';
 import { deploymentSpecSchema } from './model';
 
 export const deploymentBundleSchema = z.strictObject({
@@ -138,7 +140,9 @@ export async function verifyDeploymentBundle(
     );
   if (
     typeof bundle.spec.runtime.revision !== 'string' ||
-    bundle.spec.configs.some((config) => typeof config.revision !== 'string')
+    bundle.spec.configs.some((config) => typeof config.revision !== 'string') ||
+    (bundle.spec.inference &&
+      typeof bundle.spec.inference.revision !== 'string')
   )
     throw preconditionError(
       'Prepared deployment contains an unresolved source pin.',
@@ -155,6 +159,28 @@ export async function verifyDeploymentBundle(
   )
     throw preconditionError(
       'Deployment bundle is missing its executable or runtime.',
+    );
+  for (const config of bundle.spec.configs) {
+    const prepared = await verifyPreparedDeploymentConfig(
+      join(root, 'configs', config.client, config.automation),
+      {
+        clientId: config.client,
+        automationName: config.automation,
+        releaseRef: gitSha.parse(config.revision),
+        sourceRepository: config.repository,
+        deploymentRef: bundle.deploymentRef,
+      },
+    );
+    if ((prepared.kind === 'source') !== (config.skillOwner === 'operator'))
+      throw preconditionError(
+        'Prepared configuration does not match its declared skill owner binding.',
+      );
+  }
+  if (bundle.spec.inference)
+    await verifyManagedInference(join(root, 'inference'), bundle.spec);
+  else if (actual.some((file) => file.path.startsWith('inference/')))
+    throw preconditionError(
+      'Deployment carries an undeclared inference companion.',
     );
   return bundle;
 }

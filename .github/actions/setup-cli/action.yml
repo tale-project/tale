@@ -1,5 +1,5 @@
 name: Set up Tale CLI from a commit
-description: Build and install the existing Tale CLI from one exact source commit for Linux deployment jobs.
+description: Build and install the existing Tale CLI from one exact source commit for Linux deployment or macOS Apple Silicon inference jobs.
 
 inputs:
   revision:
@@ -23,12 +23,9 @@ runs:
         if [[ ! "$TALE_CLI_REVISION" =~ ^[a-f0-9]{40}$ ]]; then
           echo '::error::Tale CLI revision must be a full source commit'; exit 1
         fi
-        if [[ "$RUNNER_OS" != Linux ]]; then
-          echo '::error::Managed Tale deployment preparation requires a Linux runner'; exit 1
-        fi
-        case "$RUNNER_ARCH" in
-          X64|ARM64) ;;
-          *) echo '::error::Unsupported Tale CLI runner architecture'; exit 1 ;;
+        case "$RUNNER_OS/$RUNNER_ARCH" in
+          Linux/X64|Linux/ARM64|macOS/ARM64) ;;
+          *) echo '::error::Tale setup requires Linux or macOS Apple Silicon'; exit 1 ;;
         esac
 
     - name: Set up the Tale build toolchain
@@ -57,10 +54,18 @@ runs:
         bun install --frozen-lockfile --filter @tale/cli
         # Generation records the clean source commit in the executable.
         bun run --filter @tale/cli generate
-        case "$RUNNER_ARCH" in
-          X64) bun run --filter @tale/cli build:linux ;;
-          ARM64) bun run --filter @tale/cli build:linux-arm64 ;;
+        case "$RUNNER_OS/$RUNNER_ARCH" in
+          Linux/X64) bun run --filter @tale/cli build:linux ;;
+          Linux/ARM64) bun run --filter @tale/cli build:linux-arm64 ;;
+          macOS/ARM64) bun run --filter @tale/cli build:mac ;;
+          *) echo '::error::Unsupported Tale CLI runner'; exit 1 ;;
         esac
+        if [[ "$RUNNER_OS" == macOS ]]; then
+          # Seal Bun's final bytes so a standard SIP-enabled target can run it.
+          codesign --remove-signature tools/cli/dist/tale
+          codesign -s - tools/cli/dist/tale
+          codesign --verify --strict --verbose=2 tools/cli/dist/tale
+        fi
         bun run --filter @tale/cli check:bundle
         test -z "$(git status --porcelain --untracked-files=all)"
         CLI_DIRECTORY="$(pwd)/tools/cli/dist"

@@ -205,7 +205,7 @@ async function bundleFixture() {
     kind: 'tale-deployment',
     cli: { revision, path: 'cli/tale' },
     deploymentRef: revision,
-    spec: resolveDeploymentSpec(spec()),
+    spec: resolveDeploymentSpec({ ...spec(), configs: [] }),
   });
   return root;
 }

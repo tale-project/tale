@@ -25,14 +25,17 @@
     "ajv": "8.20.0",
     "commander": "14.0.3",
     "crc-32": "1.2.2",
+    "eventsource-parser": "3.1.0",
     "jszip": "3.10.1",
     "yaml": "2.8.3",
     "yauzl": "3.4.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@better-auth/core": "1.6.30",
     "@types/bun": "1.3.11",
     "@types/yauzl": "3.4.0",
+    "better-auth": "1.6.30",
     "typescript": "6.0.2"
   }
 }

@@ -1,9 +1,21 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { relative } from 'node:path';
 
+import { loadClient } from '../config/releases/identity';
+import { loadRelease } from '../config/releases/manifest';
+import { commandFixture } from '../config/releases/tests/command-fixture';
 import { applyDeployment } from './apply';
 import { verifyDeploymentBundle, writeDeploymentBundle } from './bundle';
+import {
+  buildCapsuleStage,
+  prepareDeploymentConfig,
+  verifyPreparedDeploymentConfig,
+} from './config-source';
+import { prepareManagedInference, verifyManagedInference } from './inference';
+import { desiredNativeInference } from './inference-native-proof';
+import { managedInferenceFixture } from './inference-test-helper';
 import { deploymentSpecSchema } from './model';
 import { prepareDeployment } from './prepare';
 import { applyRuntime, prepareRuntime } from './runtime';
@@ -18,11 +30,16 @@ import { TALE_REPOSITORY, withDeploymentSources } from './sources';
 const describePosix = describe.skipIf(process.platform === 'win32');
 
 const fixtures: RuntimeFixture[] = [];
+const inferenceRoots: string[] = [];
 afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
+  for (const root of inferenceRoots.splice(0))
+    rmSync(root, { recursive: true, force: true });
   delete process.env.TALE_TEST_NATIVE_PASSWORD;
   delete process.env.TALE_TEST_UNUSED_SECRET;
+  delete process.env.TALE_APP_NETWORK;
+  delete process.env.TALE_SECRETS_INFERENCE_API_KEY;
 });
 
 /** Real Git, staging, manifests, state files and lock; only the Docker boundary
@@ -228,8 +245,349 @@ async function create(legacy = false, identity = true) {
   };
 }
 
+describePosix('fresh native receipt custody', () => {
+  test('late owner, managed credentials and explicit attestation must match before ready; recovery and replay retain exact artifact proof', async () => {
+    const run = await create();
+    const metadata = await verifyDeploymentBundle(run.bundle);
+    const source = commandFixture('north-labs');
+    const configDirectory = join(run.bundle, 'configs/north-labs', source.name);
+    await prepareDeploymentConfig({
+      repoRoot: source.root,
+      descriptorPath: relative(source.root, source.descriptorPath),
+      automationName: source.name,
+      configRef: source.options.sourceCommit,
+      catalogueRepository: source.descriptor.sourceRepository,
+      clientId: 'north-labs',
+      deploymentRef: metadata.deploymentRef,
+      output: configDirectory,
+      lateOwner: true,
+    });
+    const selected = await verifyPreparedDeploymentConfig(configDirectory);
+    if (selected.kind !== 'source') throw new Error('Expected source capsule');
+    const expected = await buildCapsuleStage(
+      configDirectory,
+      join(run.fixture.directory, 'independent-native-build'),
+      run.native.userId,
+    );
+    const artifact = loadRelease(
+      expected.manifestPath,
+      loadClient(expected.descriptorPath, source.name),
+    ).manifest.artifact.sha256;
+    run.spec.identity!.bootstrap = 'fresh';
+    run.spec.identity!.emailVerification = 'operator-attested';
+    run.spec.identity!.nativeClients = [
+      {
+        key: 'portal',
+        name: 'Example portal',
+        managed: true,
+        redirectUris: ['https://portal.example.invalid/callback'],
+      },
+    ];
+    run.spec.configs = [
+      {
+        repository: source.descriptor.sourceRepository,
+        revision: source.options.sourceCommit,
+        client: 'north-labs',
+        descriptor: relative(source.root, source.descriptorPath),
+        automation: source.name,
+        project: { key: 'NORTH', name: 'North document desk' },
+        skillOwner: 'operator',
+      },
+    ];
+    rmSync(join(run.bundle, 'deployment.json'));
+    await writeDeploymentBundle(run.bundle, {
+      schemaVersion: 1,
+      kind: 'tale-deployment',
+      cli: metadata.cli,
+      deploymentRef: metadata.deploymentRef,
+      spec: run.spec,
+    });
+    rmSync(source.root, { recursive: true, force: true });
+    const privateRoot = `/app/data/ops/tale-deployments/${run.spec.name}/private`;
+    const native = {
+      ...run.native,
+      emailVerification: {
+        method: 'operator-attested',
+        userId: run.native.userId,
+        email: 'operator@example.invalid',
+        emailVerified: true,
+        receipt: {
+          path: `${privateRoot}/email-attestation.json`,
+          sha256: 'e'.repeat(64),
+        },
+      },
+      nativeClients: [
+        {
+          key: 'portal',
+          clientId: 'fresh-native-id',
+          changed: true,
+          credentials: {
+            path: `${privateRoot}/client-portal.json`,
+            sha256: 'a'.repeat(64),
+          },
+        },
+      ],
+      configs: [
+        {
+          clientId: 'north-labs',
+          automationName: source.name,
+          releaseRef: source.options.sourceCommit,
+          sourceCommit: source.options.sourceCommit,
+          sourceRepository: source.descriptor.sourceRepository,
+          artifactSha256: artifact,
+          automationVersion: 17,
+          unchanged: false,
+          projectId: 'fresh-native-project',
+          skillOwnerUserId: run.native.userId,
+          sourceCapsuleSha256: selected.capsuleSha256,
+        },
+      ],
+    };
+    const execute = run.dependencies.exec!;
+    run.dependencies.exec = async (command, args, options) => {
+      if (args.includes('provision'))
+        expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
+          bootstrap: 'fresh',
+          emailVerification: 'operator-attested',
+          nativeClients: [{ managed: true }],
+        });
+      return execute(command, args, options);
+    };
+    for (const changed of [
+      { ...native, emailVerification: undefined },
+      {
+        ...native,
+        emailVerification: {
+          ...native.emailVerification,
+          userId: 'different-user',
+        },
+      },
+      {
+        ...native,
+        emailVerification: {
+          ...native.emailVerification,
+          email: 'different@example.org',
+        },
+      },
+      {
+        ...native,
+        emailVerification: {
+          ...native.emailVerification,
+          receipt: {
+            ...native.emailVerification.receipt,
+            path: '/private/unrelated.json',
+          },
+        },
+      },
+      {
+        ...native,
+        nativeClients: [{ ...native.nativeClients[0], credentials: undefined }],
+      },
+      ...[
+        { projectId: undefined },
+        { skillOwnerUserId: 'wrong_owner' },
+        { sourceCapsuleSha256: '1'.repeat(64) },
+        { artifactSha256: '2'.repeat(64) },
+      ].map((change) =>
+        Object.assign({}, native, {
+          configs: [Object.assign({}, native.configs[0], change)],
+        }),
+      ),
+    ]) {
+      run.nativeOutput(() =>
+        JSON.stringify({
+          ok: true,
+          command: 'deploy provision',
+          data: changed,
+        }),
+      );
+      const failure = await run.apply().catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(Error);
+      if (run.events.at(-1) !== 'cleanup') throw failure;
+      expect(existsSync(run.receiptPath)).toBe(false);
+      expect(run.events.at(-1)).toBe('cleanup');
+    }
+    run.nativeOutput(() =>
+      JSON.stringify({ ok: true, command: 'deploy provision', data: native }),
+    );
+    const ready = await run.apply();
+    expect(ready).toMatchObject({
+      phase: 'ready',
+      configs: [
+        {
+          artifactSha256: artifact,
+          sourceCapsuleSha256: selected.capsuleSha256,
+        },
+      ],
+    });
+    const receipt = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+    expect(receipt.native.emailVerification).toEqual(native.emailVerification);
+    expect(JSON.stringify(receipt)).not.toContain('synthetic-response-secret');
+    const ups = run.events.filter((event) => event === 'up').length;
+    const replay = await run.apply();
+    expect(replay).toMatchObject({ phase: 'ready', runtimeChanged: false });
+    expect(run.events.filter((event) => event === 'up')).toHaveLength(ups);
+  }, 30_000);
+});
+
+async function attachInference(run: Awaited<ReturnType<typeof create>>) {
+  const f = await managedInferenceFixture('example-team');
+  inferenceRoots.push(f.root);
+  run.spec.inference = f.spec.inference;
+  await prepareManagedInference(
+    f.repo,
+    join(run.bundle, 'inference'),
+    run.spec,
+    f.dependencies,
+    f.environment,
+  );
+  const metadata = JSON.parse(
+    readFileSync(join(run.bundle, 'deployment.json'), 'utf8'),
+  );
+  rmSync(join(run.bundle, 'deployment.json'));
+  await writeDeploymentBundle(run.bundle, {
+    schemaVersion: 1,
+    kind: 'tale-deployment',
+    cli: metadata.cli,
+    deploymentRef: metadata.deploymentRef,
+    spec: run.spec,
+  });
+  process.env.TALE_APP_NETWORK = '0123456789abcdef';
+  process.env.TALE_SECRETS_INFERENCE_API_KEY =
+    'synthetic-local-inference-key-32-characters';
+  run.dependencies.inference = async (_directory, _spec, dryRun = false) => {
+    run.events.push(dryRun ? 'inference-preview' : 'inference-apply');
+    return {
+      configured: !dryRun,
+      dryRun,
+      modelReadiness: 'no-admitted-nodes',
+      admittedNodes: [],
+      companionSha256: 'a'.repeat(64),
+      composeProject: 'tale-inference',
+      unchanged: false,
+      hostPorts: [],
+    };
+  };
+  const verified = await verifyManagedInference(
+    join(run.bundle, 'inference'),
+    run.spec,
+  );
+  const desired = desiredNativeInference(verified.bundle.spec);
+  const proof = {
+    configured: true,
+    organizationId: run.native.organizationId,
+    organizationSlug: verified.bundle.spec.organization,
+    companionSha256: verified.identity,
+    providers: desired.providers.map(({ definition, model }) => ({
+      name: definition.name,
+      model: model.apiModel,
+      capability: model.capability,
+      providerFileSha256: 'a'.repeat(64),
+    })),
+    vision: desired.vision ?? null,
+    embedding: desired.embedding ?? null,
+    unchanged: false,
+    runtimeReadiness: 'reported-separately-by-the-inference-node',
+  };
+  run.nativeOutput(() =>
+    JSON.stringify({
+      ok: true,
+      command: 'deploy provision',
+      data: { ...run.native, inference: proof },
+    }),
+  );
+  return proof;
+}
+
 // Real Git, file modes and runtime state require the supported POSIX host.
 describePosix('complete managed deployment lifecycle', () => {
+  test('validates inference before rollout and configures its companion before native provisioning', async () => {
+    const run = await create();
+    const proof = await attachInference(run);
+    const runtime = run.dependencies.runtime!;
+    run.dependencies.runtime = async (options) => {
+      expect(options.environment?.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS).toBe('1');
+      expect(options.environment?.TALE_PROVIDER_KEY_LOCAL_INFERENCE).toBe(
+        process.env.TALE_SECRETS_INFERENCE_API_KEY,
+      );
+      expect(options.environment).not.toHaveProperty('TALE_APP_NETWORK');
+      return runtime(options);
+    };
+    const result = await run.apply();
+    expect(result).toMatchObject({
+      phase: 'ready',
+      inference: { configured: true, modelReadiness: 'no-admitted-nodes' },
+      native: { inference: proof },
+    });
+    expect(run.events).toEqual([
+      'inference-preview',
+      'up',
+      'inference-apply',
+      'provision',
+      'cleanup',
+    ]);
+    expect(JSON.stringify(result)).not.toContain(
+      process.env.TALE_SECRETS_INFERENCE_API_KEY!,
+    );
+  }, 30000);
+  test.each([
+    'missing',
+    'organization',
+    'companion',
+    'model',
+    'policy',
+  ] as const)(
+    'refuses %s native inference evidence before a ready deployment receipt',
+    async (kind) => {
+      const run = await create();
+      const proof = await attachInference(run);
+      const changed: Record<string, unknown> = structuredClone(proof);
+      if (kind === 'organization') changed.organizationId = 'another-org';
+      if (kind === 'companion') changed.companionSha256 = 'f'.repeat(64);
+      if (kind === 'model') changed.providers = [];
+      if (kind === 'policy')
+        changed.vision = { providerSlug: 'hosted', modelId: 'fallback' };
+      run.nativeOutput(() =>
+        JSON.stringify({
+          ok: true,
+          command: 'deploy provision',
+          data: {
+            ...run.native,
+            inference: kind === 'missing' ? undefined : changed,
+          },
+        }),
+      );
+      await expect(run.apply()).rejects.toThrow('inference receipt');
+      expect(existsSync(run.receiptPath)).toBe(false);
+      expect(run.events.at(-1)).toBe('cleanup');
+    },
+    30000,
+  );
+  test('inference refusal stops the stack before mutation and a later companion failure stops native provisioning', async () => {
+    const run = await create();
+    await attachInference(run);
+    const inference = run.dependencies.inference!;
+    run.dependencies.inference = async () => {
+      throw new Error('Synthetic inference preflight refusal');
+    };
+    await expect(run.apply()).rejects.toThrow('preflight refusal');
+    expect(run.events).toEqual([]);
+    run.dependencies.inference = async (...args) => {
+      if (!args[2]) throw new Error('Synthetic companion activation refusal');
+      return inference(...args);
+    };
+    await expect(run.apply()).rejects.toThrow('activation refusal');
+    expect(run.events).toEqual(['inference-preview', 'up']);
+    expect(existsSync(run.receiptPath)).toBe(false);
+    expect(
+      existsSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/deployment-pending.json',
+        ),
+      ),
+    ).toBe(true);
+  }, 30000);
   test('a bundle modified during rollout cannot replace the executable receiving private credentials', async () => {
     const run = await create();
     const original = readFileSync(join(run.bundle, 'cli/tale'));

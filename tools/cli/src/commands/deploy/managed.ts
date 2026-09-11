@@ -18,7 +18,7 @@ import { confirm, NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
 import { assertManagedOptions, assertManagedPlatform } from './options';
 
-async function managedResult(
+export async function managedResult(
   command: string,
   work: () => Promise<unknown>,
 ): Promise<void> {

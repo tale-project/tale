@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { readFile, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -14,15 +15,26 @@ import { verifyArtifactBytes } from '../config/releases/artifacts';
 import { sha256 } from '../config/releases/identity';
 import { loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
-import { gitSha, sha, slug } from '../config/releases/model';
+import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
-import { verifyStage } from '../config/releases/stage';
 import { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
 import { withLock } from '../state/with-lock';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
+import {
+  buildCapsuleStage,
+  verifyPreparedDeploymentConfig,
+} from './config-source';
 import { parseInstanceInput, type InstanceInput } from './identity';
+import { verifyManagedInference } from './inference';
+import {
+  applyManagedInference,
+  inferenceEnvironment,
+  INFERENCE_NATIVE_KEY_ENV,
+} from './inference-apply';
+import { verifyNativeInferenceProof } from './inference-native-proof';
 import { resolveValue } from './model';
+import { nativeProvisionProofSchema } from './native-proof';
 import {
   applyRuntime,
   readBootstrapPassword,
@@ -48,6 +60,7 @@ type Dependencies = {
   verifySnapshot?: typeof verifySnapshot;
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
+  inference?: typeof applyManagedInference;
 };
 
 const recoverySnapshotSchema = z.object({
@@ -87,6 +100,10 @@ function nativeInput(
     slug: identity.slug,
     name: identity.name,
     ssoEnabled: identity.ssoEnabled,
+    ...(identity.bootstrap ? { bootstrap: identity.bootstrap } : {}),
+    ...(identity.emailVerification
+      ? { emailVerification: identity.emailVerification }
+      : {}),
     ...(identity.ssoEnabled
       ? {
           tenantId: identity.tenantId && resolveValue(identity.tenantId),
@@ -95,19 +112,47 @@ function nativeInput(
             identity.clientSecret && resolveValue(identity.clientSecret),
         }
       : {}),
-    nativeClients: identity.nativeClients.map((client) => ({
-      key: client.key,
-      name: client.name,
-      redirectUris: client.redirectUris,
-      clientId: resolveValue(client.clientId),
-    })),
+    nativeClients: identity.nativeClients.map((client) => {
+      const selected = {
+        key: client.key,
+        name: client.name,
+        redirectUris: client.redirectUris,
+      };
+      if (client.managed) return Object.assign(selected, { managed: true });
+      if (!client.clientId)
+        throw preconditionError('Native client identity is missing.');
+      return Object.assign(selected, {
+        clientId: resolveValue(client.clientId),
+      });
+    }),
   });
 }
 
+interface ConfigProof {
+  client: string;
+  automation: string;
+  revision: string;
+  artifactSha256?: string;
+  sourceCapsuleSha256?: string;
+}
+async function capsuleArtifact(
+  directory: string,
+  owner: string,
+): Promise<string> {
+  const temporary = mkdtempSync(join(tmpdir(), 'tale-owner-proof-'));
+  try {
+    const stage = await buildCapsuleStage(directory, temporary, owner);
+    if (!stage.artifactSha256)
+      throw preconditionError('Compiled source artifact proof is missing.');
+    return stage.artifactSha256;
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
 async function configProofs(bundle: DeploymentBundle, directory: string) {
-  const proofs = [];
+  const proofs: ConfigProof[] = [];
   for (const config of bundle.spec.configs) {
-    const stage = verifyStage(
+    const prepared = await verifyPreparedDeploymentConfig(
       join(directory, 'configs', config.client, config.automation),
       {
         clientId: config.client,
@@ -117,6 +162,24 @@ async function configProofs(bundle: DeploymentBundle, directory: string) {
         deploymentRef: bundle.deploymentRef,
       },
     );
+    if ((prepared.kind === 'source') !== (config.skillOwner === 'operator'))
+      throw preconditionError(
+        'Prepared configuration owner mode differs from the deployment.',
+      );
+    if (prepared.kind === 'source') {
+      await capsuleArtifact(
+        join(directory, 'configs', config.client, config.automation),
+        'source-validation-only',
+      );
+      proofs.push({
+        client: config.client,
+        automation: config.automation,
+        revision: resolveValue(config.revision),
+        sourceCapsuleSha256: prepared.capsuleSha256,
+      });
+      continue;
+    }
+    const stage = prepared.stage;
     const context = loadClient(stage.descriptorPath, config.automation);
     const release = loadRelease(stage.manifestPath, context);
     await verifyArtifactBytes(release);
@@ -216,57 +279,33 @@ async function provisionBackend(
       .object({
         ok: z.literal(true),
         command: z.literal('deploy provision'),
-        data: z.object({
-          organizationId: z
-            .string()
-            .min(1)
-            .max(256)
-            .regex(/^[^\x00-\x1f\x7f]+(?![\s\S])/),
-          organizationSlug: slug,
-          userId: z
-            .string()
-            .min(1)
-            .max(256)
-            .regex(/^[^\x00-\x1f\x7f]+(?![\s\S])/),
-          ssoEnabled: z.boolean(),
-          nativeClients: z
-            .array(
-              z.object({
-                key: slug,
-                clientId: z.string().min(1).max(256),
-                changed: z.boolean(),
-              }),
-            )
-            .max(16),
-          // Keep only public deployment proof, never arbitrary native response
-          // fields that could accidentally carry a token or account secret.
-          configs: z
-            .array(
-              z.object({
-                clientId: slug,
-                automationName: slug,
-                releaseRef: gitSha,
-                sourceCommit: gitSha,
-                sourceRepository: z.string(),
-                artifactSha256: sha,
-                automationVersion: z.number().int().positive(),
-                unchanged: z.boolean(),
-              }),
-            )
-            .max(64),
-        }),
+        data: nativeProvisionProofSchema,
       })
       .safeParse(output);
     if (
       !parsed.success ||
       parsed.data.data.organizationSlug !== bundle.spec.identity.slug ||
       parsed.data.data.ssoEnabled !== bundle.spec.identity.ssoEnabled ||
+      (input.emailVerification
+        ? !parsed.data.data.emailVerification ||
+          parsed.data.data.emailVerification.userId !==
+            parsed.data.data.userId ||
+          parsed.data.data.emailVerification.email !==
+            input.email.toLowerCase() ||
+          parsed.data.data.emailVerification.receipt.path !==
+            `/app/data/ops/tale-deployments/${bundle.spec.name}/private/email-attestation.json`
+        : parsed.data.data.emailVerification !== undefined) ||
       parsed.data.data.configs.length !== bundle.spec.configs.length ||
       parsed.data.data.nativeClients.length !== input.nativeClients.length ||
       parsed.data.data.nativeClients.some((client, index) => {
         const expected = input.nativeClients[index];
         return (
-          client.key !== expected?.key || client.clientId !== expected.clientId
+          client.key !== expected?.key ||
+          (expected.managed
+            ? client.credentials?.path !==
+              `/app/data/ops/tale-deployments/${bundle.spec.name}/private/client-${expected.key}.json`
+            : client.clientId !== expected.clientId ||
+              client.credentials !== undefined)
         );
       }) ||
       parsed.data.data.configs.some((config, index) => {
@@ -280,14 +319,50 @@ async function provisionBackend(
           config.releaseRef !== expected.revision ||
           config.sourceCommit !== expected.revision ||
           config.sourceRepository !== expected.repository ||
-          config.artifactSha256 !== proof.artifactSha256
+          (expected.projectId !== undefined &&
+            config.projectId !== expected.projectId) ||
+          (proof.artifactSha256 !== undefined &&
+            config.artifactSha256 !== proof.artifactSha256) ||
+          config.sourceCapsuleSha256 !== proof.sourceCapsuleSha256 ||
+          (expected.skillOwner === 'operator' &&
+            config.skillOwnerUserId !== parsed.data.data.userId)
         );
       })
     )
       throw externalDepError(
         'Native provisioning receipt differs from the reviewed deployment.',
       );
-    return parsed.data.data;
+    let inference;
+    if (bundle.spec.inference) {
+      const companion = await verifyManagedInference(
+        join(directory, 'inference'),
+        bundle.spec,
+      );
+      inference = verifyNativeInferenceProof(
+        parsed.data.data.inference,
+        companion.bundle.spec,
+        companion.identity,
+        parsed.data.data.organizationId,
+      );
+    } else if (parsed.data.data.inference !== undefined) {
+      throw externalDepError(
+        'Native inference receipt has no declared deployment companion.',
+      );
+    }
+    for (const [index, config] of parsed.data.data.configs.entries()) {
+      const proof = configs[index];
+      if (!proof.sourceCapsuleSha256) continue;
+      const artifact = await capsuleArtifact(
+        join(directory, 'configs', proof.client, proof.automation),
+        parsed.data.data.userId,
+      );
+      if (artifact !== config.artifactSha256)
+        throw externalDepError(
+          'Native late-owner artifact differs from independent source compilation.',
+        );
+      proof.artifactSha256 = artifact;
+    }
+    return { ...parsed.data.data, inference };
   } finally {
     let cleaned = false;
     try {
@@ -344,6 +419,36 @@ async function applyVerifiedDeployment(
       resolveValue(reference),
     ]),
   );
+  const inferenceDirectory = join(directory, 'inference');
+  if (bundle.spec.inference) {
+    const prepared = await verifyManagedInference(
+      inferenceDirectory,
+      bundle.spec,
+    );
+    const values = inferenceEnvironment(
+      bundle.spec,
+      prepared.bundle.spec.serviceKey.env,
+    );
+    for (const name of [
+      INFERENCE_NATIVE_KEY_ENV,
+      'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
+    ]) {
+      if (environment[name] !== undefined && environment[name] !== values[name])
+        throw preconditionError(
+          'Declared native inference environment conflicts with the verified router.',
+        );
+      environment[name] = values[name];
+    }
+  }
+  const applyInference = (dryRun: boolean) =>
+    bundle.spec.inference
+      ? (dependencies.inference ?? applyManagedInference)(
+          inferenceDirectory,
+          bundle.spec,
+          dryRun,
+          { exec: dependencies.exec },
+        )
+      : undefined;
   const runtimeOptions = {
     bundleDirectory: join(directory, 'runtime'),
     stateDirectory: bundle.spec.stateDirectory,
@@ -359,12 +464,16 @@ async function applyVerifiedDeployment(
     return {
       dryRun: true,
       runtime: await runtime({ ...runtimeOptions, dryRun: true }),
+      inference: await applyInference(true),
       configs,
     };
   }
   return withLock(bundle.spec.stateDirectory, 'deploy bundle', async () => {
     setProjectId(bundle.spec.composeProject);
     const preview = await runtime({ ...runtimeOptions, dryRun: true });
+    // Refuse foreign inference state before the base runtime can change. Its
+    // bridge is verified after runtime convergence under this same lock.
+    await applyInference(true);
     const receiptPath = join(
       bundle.spec.stateDirectory,
       '.tale',
@@ -434,6 +543,7 @@ async function applyVerifiedDeployment(
       atomicRuntimeFile(intentPath, `${JSON.stringify(intent, null, 2)}\n`);
     }
     const applied = await runtime(runtimeOptions);
+    const inference = await applyInference(false);
     const native = await provisionBackend(
       bundle,
       directory,
@@ -452,6 +562,7 @@ async function applyVerifiedDeployment(
       images: applied.images,
       configs,
       native,
+      inference,
       snapshotId:
         snapshot?.id ??
         (previous?.bundleSha256 === bundleSha256
