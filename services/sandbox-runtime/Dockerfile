@@ -11,7 +11,10 @@
 #   2. `egress-sidecar`: the K8s transparent-egress native sidecar (redsocks).
 #
 # Layers: python:3.12-slim-bookworm + uv + Node 24 + fontconfig (Pillow) +
-# pinned claude/opencode/gh + Playwright/Chromium + ripgrep/fd/git.
+# the pinned coding-agent CLIs (claude, opencode, hermes, gemini, codex, pi,
+# openclaw, qwen, cursor) + gh + Playwright/Chromium + ripgrep/fd/git. Every
+# harness the platform registry marks managed must have its exec binary
+# here — the image conformance test walks the registry.
 
 # --- daemon build stage: bundle runnerd to a single Node-target file --------
 FROM oven/bun:1 AS daemon-build
@@ -33,6 +36,7 @@ ARG GEMINI_CLI_VERSION=0.49.0
 ARG CODEX_VERSION=0.142.5
 ARG PI_CODING_AGENT_VERSION=0.80.3
 ARG OPENCLAW_VERSION=2026.6.11
+ARG QWEN_CODE_VERSION=0.23.3
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG PILLOW_VERSION=12.3.0
@@ -325,6 +329,16 @@ RUN npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
     && openclaw --version
 COPY services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
 RUN chmod +x /usr/local/bin/tale-openclaw-run
+
+# Qwen Code (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
+# that stages per-exec settings/context before the headless run — the
+# gemini-cli fork with OpenAI-compatible auth; its headless stream is the
+# Claude-style stream-json dialect.
+RUN npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
+    && npm cache clean --force \
+    && qwen --version
+COPY services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
+RUN chmod +x /usr/local/bin/tale-qwen-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in

@@ -13,9 +13,10 @@
 //   { type: "tool_call_end", call_id, status, duration_ms? }
 //   { type: "assistant_message", text }
 //   { type: "session_id", session_id }
-//   { type: "run_end", status, session_id?, final_text?, error? }
+//   { type: "run_end", status, session_id?, final_text?, error?,
+//     api_error_status? }
 
-import { asString, LineReassembler, parseJsonLine } from '../jsonl';
+import { asNumber, asString, LineReassembler, parseJsonLine } from '../jsonl';
 import type {
   HarnessEvent,
   HarnessEventParser,
@@ -149,6 +150,14 @@ class HermesJsonlParser implements HarnessEventParser {
       if (err) {
         result.isError = true;
         events.push({ type: 'error', message: err, raw: ev });
+        // The provider HTTP status the wrapper read off the SDK's failure
+        // (`HTTP 401: …`), so the kick can decide between rotating the
+        // credential, resuming, and starting fresh — same field as the
+        // claude-stream-json family.
+        const apiErrorStatus = asNumber(ev.api_error_status);
+        if (apiErrorStatus !== undefined) {
+          result.apiErrorStatus = apiErrorStatus;
+        }
       }
       events.push(result);
       return events;

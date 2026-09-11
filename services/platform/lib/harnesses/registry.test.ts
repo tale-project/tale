@@ -58,7 +58,7 @@ describe('harness glue composition', () => {
       expect(glue.slug).toBe(fact.slug);
       expect(typeof glue.buildExec).toBe('function');
       // The parser attributes events to the harness that ran (families are
-      // shared — gemini-stream serves gemini AND qwen-code).
+      // shared — claude-stream-json serves claude-code AND qwen-code).
       const parser = glue.createParser();
       const events = parser.feed(
         `${JSON.stringify({ type: 'not-a-real-event' })}\n`,

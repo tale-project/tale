@@ -3,8 +3,9 @@
 // stays code (sub-agent nesting, retry-hold state machines, background-task
 // ledgers); everything exec-side is declarative YAML interpreted by
 // `../exec-builder`. A family is slug-parameterized so shared dialects
-// (gemini-stream serves gemini AND its qwen-code fork) still attribute
-// events to the harness that ran.
+// (claude-stream-json serves claude-code AND qwen-code, whose headless
+// stream is the same dialect) still attribute events to the harness that
+// ran.
 
 import type { ParserFamily } from '../../shared/schemas/providers';
 import type { HarnessEventParser, HarnessSlug } from '../types';

@@ -10,8 +10,13 @@
 # CLI itself is maintained), so there is NO subscription delivery — the
 # qwen provider connector carries API-key auth only.
 #
+# Unlike gemini-cli, the fork's headless output is the Claude-style
+# stream-json dialect (system/init, stream_event, assistant, result with
+# subtype/is_error — verified on the pinned 0.23.3), so the parser family is
+# claude-stream-json, not gemini-stream.
+#
 # The exec section is interpreted by lib/harnesses/exec-builder.ts; the
-# golden fixtures in lib/harnesses/fixtures/exec/qwen-code.json are authored
+# golden fixtures in lib/harnesses/fixtures/exec/qwen-code.yml are authored
 # from these facts (no legacy glue existed for this harness).
 slug: qwen-code
 displayName: Qwen Code
@@ -29,7 +34,7 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
-parser: gemini-stream
+parser: claude-stream-json
 exec:
   bin: tale-qwen-run
   argv:
@@ -55,8 +60,8 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
-            # Inherited gemini-cli turn cap (FatalTurnLimitedError past it);
-            # the gemini-stream parser maps its message to 'max-turns'.
+            # Inherited gemini-cli turn cap; past it the fork ends the run
+            # with an errored `result`, which classifies as a harness error.
             - maxTurns: { path: model.maxSessionTurns }
             # Deny the NATIVE web tools on managed runs (ungoverned — web
             # access routes through the capability bridge; byo runs native).
