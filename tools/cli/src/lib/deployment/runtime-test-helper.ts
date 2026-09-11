@@ -60,7 +60,7 @@ export function runtimeFixture() {
       image: images[name]
         ? `${TALE_REGISTRY}/${images[name]}:\${VERSION:-latest}`
         : name === 'object-store'
-          ? 'minio/minio:RELEASE.2025-04-22T22-12-26Z'
+          ? 'quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z'
           : 'brainicism/bgutil-ytdlp-pot-provider:1.3.1',
       build: { context: '.', dockerfile: `services/${name}/Dockerfile` },
       env_file: [{ path: '.env', required: false }],

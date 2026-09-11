@@ -105,7 +105,7 @@ and the `/events` hint → `invalidateQueries` hook).
     ghcr.io/tale-project/tale/tale-db:latest
   docker run --rm -d --name tale-itest-minio -p 59000:9000 \
     -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-    minio/minio:latest server /data
+    quay.io/minio/minio:latest server /data
   # Wait for REAL readiness: pg_isready lies during first-boot init (the
   # bootstrap server accepts connections, then shuts down). The image writes
   # /tmp/.db_ready after init scripts + migrations — same gate compose uses.

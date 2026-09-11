@@ -361,7 +361,7 @@ services:
   # Internal-only: blobs reach the browser through presigned URLs the backend
   # signs and the proxy forwards, never by exposing the store itself.
   object-store:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     pull_policy: missing
 
     container_name: tale-object-store
