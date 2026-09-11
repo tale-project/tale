@@ -206,6 +206,8 @@ export const API_KEY_RATE_LIMIT = {
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
+  /** The OIDC issuer — the auth mount. */
+  const oidcIssuer = `${siteUrl.replace(/\/$/, '')}/api/auth`;
 
   // Fail fast if a non-loopback hostname is served over HTTP — the backend
   // must never silently downgrade to insecure cookies (mirrors 0.4).
@@ -628,7 +630,7 @@ export function createAuth(config: AuthConfig) {
       jwt({
         disableSettingJwtHeader: true,
         jwks: { keyPairConfig: { alg: 'RS256' } },
-        jwt: { issuer: `${siteUrl.replace(/\/$/, '')}/api/auth` },
+        jwt: { issuer: oidcIssuer },
       }),
       createOidcProvider(sql, siteUrl),
       organization({
