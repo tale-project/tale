@@ -7,6 +7,8 @@ import {
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
+import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config.ts';
+import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
@@ -644,16 +646,59 @@ export async function updateDocument(
   // A folder move is a corpus FILTER change too (folder-scoped search
   // matches the stamped path) — the caller re-stamps after commit.
   const folderChanged = folderId !== doc.folderId;
+  // `metadata` is a bag of attributes and merges per RFC 7396 — the
+  // contacts/products rule: sent keys are set, omitted keys stay, a key
+  // sent as `null` is removed, and the whole field sent as `null` clears
+  // it. It used to be replaced whole, so a caller tagging a document
+  // wiped every other key in the bag, in silence.
+  const metadata =
+    args.metadata === undefined
+      ? doc.metadata
+      : args.metadata === null
+        ? null
+        : applyJsonMergePatch(doc.metadata, args.metadata);
+  const mimeType = args.mimeType === undefined ? doc.mimeType : args.mimeType;
+  const extension =
+    args.extension === undefined ? doc.extension : args.extension;
+  const sourceProvider =
+    args.sourceProvider === undefined
+      ? doc.sourceProvider
+      : args.sourceProvider;
+  // A write that changes nothing writes nothing: `updated_at_ms` is the
+  // optimistic-concurrency token every other client holds, so an empty
+  // PATCH, or a retry whose diff reduced to nothing, must not spend it
+  // and hand every concurrent writer a spurious DOCUMENT_STALE. The bytes
+  // are compared in the database (`IS NOT DISTINCT FROM`) rather than
+  // read back — inline content runs to megabytes.
+  const contentChanged =
+    args.content !== undefined &&
+    !(await contentMatches(tx, args.documentId, args.content));
+  const changed =
+    title !== doc.title ||
+    folderChanged ||
+    teamScopeChanged ||
+    contentChanged ||
+    canonicalJson(metadata) !== canonicalJson(doc.metadata) ||
+    mimeType !== doc.mimeType ||
+    extension !== doc.extension ||
+    sourceProvider !== doc.sourceProvider;
+  if (!changed) {
+    return {
+      teamScopeChanged: false,
+      folderChanged: false,
+      fileRef: doc.fileRef,
+    };
+  }
 
   await tx`
     UPDATE app.documents SET
       title = ${title}, folder_id = ${folderId}, team_id = ${teamId},
       team_tags = ${teamTags},
       content = ${args.content !== undefined ? args.content : tx.unsafe('content')},
-      metadata = ${args.metadata !== undefined ? (args.metadata === null ? null : tx.json(toJson(args.metadata))) : tx.unsafe('metadata')},
-      mime_type = ${args.mimeType !== undefined ? args.mimeType : tx.unsafe('mime_type')},
-      extension = ${args.extension !== undefined ? args.extension : tx.unsafe('extension')},
-      source_provider = ${args.sourceProvider !== undefined ? args.sourceProvider : tx.unsafe('source_provider')},
+      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
+      mime_type = ${mimeType},
+      extension = ${extension},
+      source_provider = ${sourceProvider},
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.documentId}
   `;
@@ -663,6 +708,27 @@ export async function updateDocument(
     projectId: doc.projectId,
   });
   return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
+}
+
+/** Whether the stored `content` already IS `content` — decided by the
+ * database, so a multi-megabyte inline text is never read back to compare
+ * (`IS NOT DISTINCT FROM` treats two NULLs as the same). */
+async function contentMatches(
+  tx: TransactionSql,
+  documentId: string,
+  content: string | null,
+): Promise<boolean> {
+  const rows = await tx<{ same: boolean }[]>`
+    SELECT (content IS NOT DISTINCT FROM ${content}::text) AS same
+    FROM app.documents WHERE id = ${documentId} LIMIT 1
+  `;
+  return rows[0]?.same === true;
+}
+
+/** One spelling per JSON value, so two metadata bags compare by meaning
+ * (key order is not a change). */
+function canonicalJson(value: Record<string, unknown> | null): string {
+  return JSON.stringify(value === null ? null : sortObjectKeysDeep(value));
 }
 
 // ---------------------------------------------------------------------------

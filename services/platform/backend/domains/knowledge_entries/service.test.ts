@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { createHash } from 'node:crypto';
+
 import type { Sql, TransactionSql } from 'postgres';
 import {
   afterEach,
@@ -151,13 +153,28 @@ afterEach(() => {
 
 describe('materializing an entry', () => {
   it('marks the first version queued before its indexing job is enqueued', async () => {
-    const { sql } = fakeSql({});
+    const { sql, statements } = fakeSql({});
 
-    await createKnowledgeEntry(sql, {
+    const written = await createKnowledgeEntry(sql, {
       ...WRITER,
       topic: 'Store hours',
       content: 'Open 9-5',
     });
+
+    // The entry AND the document it lives in: the document is what a
+    // caller polls for `indexing`, so it is answered on the create itself.
+    expect(written).toEqual({ id: 'entry-new', documentId: 'doc-1' });
+    // The digest goes in the `content_hash` COLUMN the platform reads, never
+    // into the caller-owned `metadata` bag (where a metadata PATCH used to
+    // drop it in silence).
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.documents'),
+    );
+    expect(insert?.text).toContain('content_hash');
+    expect(insert?.text).not.toContain('metadata');
+    expect(insert?.values).toContain(
+      createHash('sha256').update('Open 9-5').digest('hex'),
+    );
 
     // NULL until the worker's first write read as "Not indexed"; a job lost
     // after its retries left it there forever, outside the watchdog's view.
@@ -182,13 +199,25 @@ describe('materializing an entry', () => {
       previousRef: 's3:acme/old-blob',
     });
 
-    await updateKnowledgeEntry(sql, {
+    const written = await updateKnowledgeEntry(sql, {
       ...WRITER,
       entryId: 'entry-old',
       topic: 'Store hours',
       content: 'Open 9-6',
     });
 
+    expect(written).toEqual({ id: 'entry-new', documentId: 'doc-1' });
+    // The rotation rewrites the column, and leaves `metadata` alone.
+    const rewrite = statements.find(
+      (s) =>
+        s.text.includes('UPDATE app.documents SET') &&
+        s.text.includes('file_ref'),
+    );
+    expect(rewrite?.text).toContain('content_hash = ?');
+    expect(rewrite?.text).not.toContain('metadata');
+    expect(rewrite?.values).toContain(
+      createHash('sha256').update('Open 9-6').digest('hex'),
+    );
     expect(markRagQueued).toHaveBeenCalledWith(expect.anything(), 'file-1');
     const rotate = statements.find(
       (s) =>

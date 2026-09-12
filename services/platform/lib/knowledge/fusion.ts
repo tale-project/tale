@@ -21,6 +21,12 @@
  * and rank 2 is small enough that one leg's confident mistake cannot outvote
  * the other leg's agreement.
  *
+ * What the fused score IS — and is not. It is a rank: the best candidate of a
+ * one-leg search scores 1.0 however weak that leg found it, and a candidate's
+ * score moves when its neighbours do. It is never a confidence. The legs' own
+ * scores — a cosine, a BM25 weight — travel beside it in `sources`, per leg,
+ * so a caller that needs to threshold thresholds on those.
+ *
  * Pure: no database, no scores from outside the ranking, no clock.
  */
 
@@ -33,16 +39,34 @@ export interface FuseOptions {
   readonly limit: number;
   /** Damping constant; must be at least 1. */
   readonly k?: number;
+  /** A name per input list, in order — what `sources[].leg` reports. A list
+   * without a name is `leg-<n>` (1-based). */
+  readonly legs?: readonly string[];
+}
+
+/** One leg's own account of an item: where it ranked it and what it scored
+ * it — the leg's copy, so a keyword leg reports its BM25 weight and a dense
+ * leg its cosine even when the surviving object came from the other leg. */
+export interface FusedSource {
+  readonly leg: string;
+  /** 1-based position in that leg's ranking. */
+  readonly rank: number;
+  /** That leg's own relevance score for the item. */
+  readonly score: number;
 }
 
 export interface FusedItem<T> {
   readonly item: T;
   /** Summed reciprocal ranks, normalized so a result every leg ranked first
-   * scores 1. Comparable across searches; the legs' own scores are not. */
+   * scores 1. Comparable across items of ONE fusion; the legs' own scores
+   * are not. A rank, not a confidence: a single candidate scores 1. */
   readonly score: number;
   /** How many legs returned this item — the signal that makes agreement
    * visible to a caller. */
   readonly legs: number;
+  /** Each leg that returned the item, with its rank and score there, in
+   * input-list order. */
+  readonly sources: readonly FusedSource[];
 }
 
 /**
@@ -50,12 +74,13 @@ export interface FusedItem<T> {
  *
  * `identify` maps an item to the identity two legs would agree on (a chunk row
  * id). The first leg to return an item supplies the object that survives, so
- * callers should put the leg with the richer row first if the shapes differ.
+ * callers should put the leg with the richer row first if the shapes differ;
+ * every leg's own rank and score of the item is kept in `sources` regardless.
  * Ties are broken by the identity so the order is deterministic — a fused
  * ranking that reshuffles between two identical calls would make every
  * downstream snapshot flaky.
  */
-export function fuseByRank<T>(
+export function fuseByRank<T extends { readonly score: number }>(
   lists: readonly (readonly T[])[],
   identify: (item: T) => string,
   options: FuseOptions,
@@ -67,15 +92,18 @@ export function fuseByRank<T>(
   }
 
   const scores = new Map<string, number>();
-  const legCounts = new Map<string, number>();
+  const sources = new Map<string, FusedSource[]>();
   const items = new Map<string, T>();
 
-  for (const list of lists) {
+  for (const [index, list] of lists.entries()) {
+    const leg = options.legs?.[index] ?? `leg-${index + 1}`;
     for (let rank = 0; rank < list.length; rank++) {
       const item = list[rank];
       const id = identify(item);
       scores.set(id, (scores.get(id) ?? 0) + 1 / (k + rank + 1));
-      legCounts.set(id, (legCounts.get(id) ?? 0) + 1);
+      const seen = sources.get(id) ?? [];
+      seen.push({ leg, rank: rank + 1, score: item.score });
+      sources.set(id, seen);
       if (!items.has(id)) items.set(id, item);
     }
   }
@@ -100,10 +128,12 @@ export function fuseByRank<T>(
     if (item === undefined) {
       throw new Error(`fusion lost the item behind scored id "${id}"`);
     }
+    const from = sources.get(id) ?? [];
     fused.push({
       item,
       score: (scores.get(id) ?? 0) / best,
-      legs: legCounts.get(id) ?? 0,
+      legs: from.length,
+      sources: from,
     });
   }
   return fused;

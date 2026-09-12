@@ -9,7 +9,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {
@@ -24,9 +23,7 @@ import {
 } from '../domains/documents/service.ts';
 import {
   createRestUploadHandoff,
-  type FileContent,
   FileError,
-  openFileContent,
   registerUpload,
   statOrgBlob,
 } from '../domains/files/service.ts';
@@ -77,6 +74,7 @@ import {
   type RestEnv,
   restProjectAuth,
   RestRefusal,
+  serveDocumentBytes,
 } from './shared.ts';
 
 /**
@@ -1003,7 +1001,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * with the document's title as the download name (RFC 6266) — the
    * document must belong to the project and be visible to the minting
    * user; everything else is the same opaque 404. `Range` is honoured
-   * (206/416) and HEAD answers the metadata alone. This used to be a 302
+   * (206/416) and HEAD answers the metadata alone — the choreography is
+   * `serveDocumentBytes`, shared with the Hub family. This used to be a 302
    * to a presigned URL on the platform's own origin: every conforming
    * client re-sent its bearer across the same-origin hop, the store
    * refused the two authentications, and `curl -L -o` wrote that
@@ -1029,88 +1028,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     ) {
       return notFound(c, 'File not found', 'FILE_NOT_FOUND');
     }
-    const range = c.req.header('range');
-    const ifNoneMatch = c.req.header('if-none-match');
-    const ifModifiedSince = c.req.header('if-modified-since');
-    const ifRange = c.req.header('if-range');
-    let served: FileContent | null;
-    try {
-      served = await openFileContent(
-        deps.sql,
-        { organizationId: c.get('organizationId') },
-        doc.fileRef,
-        {
-          head: c.req.method === 'HEAD',
-          ...(range === undefined ? {} : { range }),
-          // The validators this route ships are the store's, so the
-          // store compares them: a match answers 304 and no bytes move.
-          conditions: {
-            ...(ifNoneMatch === undefined ? {} : { ifNoneMatch }),
-            ...(ifModifiedSince === undefined ? {} : { ifModifiedSince }),
-            ...(ifRange === undefined ? {} : { ifRange }),
-          },
-          signal: c.req.raw.signal,
-        },
-      );
-    } catch (error) {
-      if (!(error instanceof FileError)) throw error;
-      console.warn(
-        '[projects-rest] content serve failed:',
-        error instanceof Error ? error.message : String(error),
-      );
-      if (error.status === 503) {
-        return c.json(
-          {
-            error: 'The object store did not serve the file; retry shortly.',
-            code: 'OBJECT_STORE_UNAVAILABLE',
-          },
-          503,
-          { 'retry-after': '5' },
-        );
-      }
-      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-    }
-    if (served === null) {
-      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-    }
-    const headers = new Headers();
-    // A 304 carries the validators and nothing about a body it does not
-    // have (RFC 9110 §15.4.5); everything else describes the bytes.
-    const notModified = served.status === 304;
-    for (const name of notModified
-      ? ['etag', 'last-modified', 'accept-ranges']
-      : [
-          'content-type',
-          'content-length',
-          'content-range',
-          'etag',
-          'last-modified',
-          'accept-ranges',
-        ]) {
-      const value = served.headers.get(name);
-      if (value !== null) headers.set(name, value);
-    }
-    if (!notModified && !headers.has('content-type')) {
-      headers.set('content-type', 'application/octet-stream');
-    }
-    if (!headers.has('accept-ranges')) headers.set('accept-ranges', 'bytes');
-    if (!notModified) {
-      // Object keys are nameless (`<org>/<uuid>`); the document's title is
-      // the filename the documented Content-Disposition carries. The bytes
-      // are user-uploaded, so they never render as a document on this
-      // origin: attachment + nosniff, as every blob lane.
-      headers.set(
-        'content-disposition',
-        attachmentDisposition(doc.title ?? 'download'),
-      );
-      headers.set('x-content-type-options', 'nosniff');
-    }
-    // The client's own cache may keep the bytes it must revalidate — that
-    // is what the ETag is for; no shared cache may (`private`). `no-store`
-    // used to tell a mirror to discard the very body the tag would have
-    // let it keep.
-    headers.set('cache-control', 'private, no-cache');
-    return new Response(served.body, { status: served.status, headers });
+    return serveDocumentBytes(c, deps.sql, doc, {
+      absent: { message: 'File not found', code: 'FILE_NOT_FOUND' },
+    });
   });
 
   return app;

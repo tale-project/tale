@@ -166,7 +166,13 @@ export interface KnowledgePassage {
    */
   readonly ref?: string;
   readonly url?: string;
+  /** The retrieval ORDER key (rank fusion): comparable within one answer
+   * only, never a confidence. */
   readonly score?: number;
+  /** The dense leg's cosine similarity (0..1) when it ranked the passage —
+   * the one number that says how close the passage is to the question;
+   * absent when only the keyword leg found it. */
+  readonly similarity?: number;
 }
 
 export type KnowledgeResult =

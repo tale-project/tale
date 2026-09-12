@@ -37,7 +37,7 @@ The connection lives under the organization's own config directory:
 
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — host, port, database, user, and sslmode.
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — the password, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
-- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/embedding.json` — the organization's embedding model: provider, optional stored credential, model tag, vector width, and an optional OpenAI-compatible base URL.
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/embedding.json` — the organization's embedding model: provider, optional stored credential, model tag, vector width, an optional OpenAI-compatible base URL, and an optional `minSimilarity` — the cosine floor the built-in assistant's search applies to this model's vector leg.
 
 The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty of tables — Tale creates the `private_knowledge` and `public_web` schemas on first use, so you never apply the baseline migrations by hand — but `pgvector` must already be installed on it, because Tale creates schemas and tables, never extensions. That is exactly what the connection test's `pgvector` line tells you before you commit.
 
@@ -48,6 +48,8 @@ This path is fallback-safe. An organization with no `connection.json` keeps usin
 ### The organization's embedding model
 
 Knowledge search needs one more per-organization setting before it can run at all: the **embedding model** — which provider and model turn documents and queries into vectors, and at exactly what vector width. Without it, indexing and search refuse with an actionable error rather than guessing a model. Set it in the **Embedding model** section of **Settings > Data residency** (or write `embedding.json` by hand): pick a provider you hold a credential for, name the model tag as the provider spells it, and state the width the model produces — the width is never inferred from the model name, because a wrong guess writes vectors that search silently can't use.
+
+The floor belongs to the model too. The assistant's search drops a vector-leg hit whose cosine similarity falls under `minSimilarity` (default `0.45`) before it ranks anything; an embedding model that places unrelated text above that — some put random words at 0.44–0.48 — needs a higher floor, so state it in the file next to the model: `"minSimilarity": 0.55`. The Settings form does not carry the knob and keeps a value you wrote by hand; the REST search (`POST /api/v1/knowledge/search`) applies no floor unless the request sends one.
 
 The width is pinned **per database** when the first vector is written. On the shared deployment `knowledge-db`, that means every organization must agree on one width; an organization that wants a different embedding model at a different width is exactly the case for giving it its own knowledge database above.
 

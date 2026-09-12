@@ -7,6 +7,7 @@ import {
   KnowledgeAdminError,
   probeKnowledgeConnection,
   writeKnowledgeConnection,
+  resolveEmbeddingFloor,
   writeKnowledgeEmbedding,
 } from './admin.ts';
 
@@ -93,5 +94,22 @@ describe('host policy on the knowledge admin doors', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('blocked');
     expect(result.error).toContain('169.254.169.254');
+  });
+});
+
+describe('the assistant’s similarity floor on an embedding write', () => {
+  it('keeps the stored floor when the body omits the key — the form does not carry it', () => {
+    expect(resolveEmbeddingFloor(undefined, undefined, 0.6)).toBe(0.6);
+  });
+
+  it('takes an explicit floor over the stored one', () => {
+    expect(resolveEmbeddingFloor(0.3, 0.3, 0.6)).toBe(0.3);
+  });
+
+  it('clears the floor on an explicit null, and stays absent when nothing is stored', () => {
+    expect(resolveEmbeddingFloor(null, undefined, 0.6)).toBeUndefined();
+    expect(
+      resolveEmbeddingFloor(undefined, undefined, undefined),
+    ).toBeUndefined();
   });
 });

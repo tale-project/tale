@@ -2,10 +2,14 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DocumentError } from '../domains/documents/service.ts';
-import { findActiveEntryForDocument } from '../domains/knowledge_entries/service.ts';
+import { FileError, openFileContent } from '../domains/files/service.ts';
+import {
+  findActiveEntryForDocument,
+  getKnowledgeEntryVersions,
+} from '../domains/knowledge_entries/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import {
   mintCursorFor,
@@ -65,6 +69,21 @@ vi.mock('../domains/knowledge_entries/service.ts', async (importOriginal) => ({
     typeof import('../domains/knowledge_entries/service.ts')
   >()),
   findActiveEntryForDocument: vi.fn(async () => null),
+  createKnowledgeEntry: vi.fn(async () => ({
+    id: 'ke-new',
+    documentId: 'doc-ke',
+  })),
+  updateKnowledgeEntry: vi.fn(async () => ({
+    id: 'ke-next',
+    documentId: 'doc-ke',
+  })),
+  getKnowledgeEntryVersions: vi.fn(async () => []),
+}));
+// The bytes lane's store seam: the Hub content route serves a file-backed
+// document through the same `openFileContent` the project lane uses.
+vi.mock('../domains/files/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/files/service.ts')>()),
+  openFileContent: vi.fn(async () => null),
 }));
 
 /**
@@ -170,6 +189,56 @@ function mount(sql: Sql) {
   app.route('/', createCoreRoutes({ sql }));
   return app;
 }
+
+/**
+ * `GET /me` answers the one gate a role does not decide (G-06): whether
+ * the key may import or revoke browser sessions — the deployment editor
+ * allowlist — computed from the memberships the route already loads, so
+ * no client has to learn it from a 403.
+ */
+describe('GET /me capabilities', () => {
+  const membership = {
+    organizationId: 'org-1',
+    role: 'admin',
+    name: 'Acme',
+    slug: 'acme',
+  };
+  const me = async () => {
+    const { sql, queries } = fakeSql([membership]);
+    const res = await mount(sql).request('http://localhost/me');
+    expect(res.status).toBe(200);
+    const body: { capabilities: { deploymentEditor: boolean } } =
+      await res.json();
+    // The memberships read is the only query — the gate costs nothing.
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain('FROM "member" m');
+    return body;
+  };
+  let savedAdmins: string | undefined;
+  beforeEach(() => {
+    savedAdmins = process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+  });
+  afterEach(() => {
+    if (savedAdmins === undefined) {
+      delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+    } else {
+      process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = savedAdmins;
+    }
+  });
+
+  it('is false while the key holder is not on the allowlist', async () => {
+    delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+    expect((await me()).capabilities).toEqual({ deploymentEditor: false });
+    process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
+    expect((await me()).capabilities).toEqual({ deploymentEditor: false });
+  });
+
+  it('is true once the allowlist names the key holder (case-insensitively)', async () => {
+    process.env.TALE_DEPLOYMENT_CONFIG_ADMINS =
+      'ops@example.com, USER@example.com';
+    expect((await me()).capabilities).toEqual({ deploymentEditor: true });
+  });
+});
 
 /** The single list query the route issued. */
 function listQuery(queries: Captured[], table: string): Captured {
@@ -585,5 +654,261 @@ describe.each([
       },
     });
     expect(queries.some((q) => q.text.includes(table))).toBe(false);
+  });
+});
+
+/**
+ * The Hub bytes lane: `GET /documents/{id}/content` serves a file-backed
+ * document's blob with the download choreography the project lane speaks
+ * (`serveDocumentBytes`), and a content-only document's inline text — the
+ * one URL every Hub document reads back from, where `GET /documents/{id}`
+ * answers `content: null` for a blob. The regression under test: an
+ * uploaded Hub file, and every document a knowledge entry mints, was
+ * write-only over REST.
+ */
+describe('GET /documents/:id/content', () => {
+  const route = 'http://localhost/documents/doc-hub/content';
+
+  it('serves a content-only document’s inline text, typed and named', async () => {
+    const res = await mount(fakeSql([]).sql).request(route);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe(
+      'text/markdown; charset=utf-8',
+    );
+    expect(res.headers.get('content-disposition')).toContain(
+      'filename="Hub Note.md"',
+    );
+    expect(res.headers.get('content-length')).toBe(
+      String(Buffer.byteLength('beta content')),
+    );
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(res.headers.get('accept-ranges')).toBe('none');
+    expect(await res.text()).toBe('beta content');
+  });
+
+  it('answers the headers alone on HEAD', async () => {
+    const res = await mount(fakeSql([]).sql).request(route, {
+      method: 'HEAD',
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-length')).toBe(
+      String(Buffer.byteLength('beta content')),
+    );
+    expect(await res.text()).toBe('');
+  });
+
+  it('streams a file-backed document from the store, Range honoured', async () => {
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue({
+      ...hubDocument,
+      fileRef: 's3:acme/blob-1',
+    } as never);
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 206,
+      headers: new Headers({
+        'content-type': 'application/pdf',
+        'content-range': 'bytes 0-1/2',
+        'content-length': '2',
+        etag: '"e1"',
+      }),
+      body: new Response('ab').body,
+    });
+    const res = await mount(fakeSql([]).sql).request(route, {
+      headers: { range: 'bytes=0-1' },
+    });
+    expect(res.status).toBe(206);
+    expect(openFileContent).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      's3:acme/blob-1',
+      expect.objectContaining({ head: false, range: 'bytes=0-1' }),
+    );
+    expect(res.headers.get('content-range')).toBe('bytes 0-1/2');
+    expect(res.headers.get('etag')).toBe('"e1"');
+    expect(res.headers.get('content-disposition')).toContain(
+      'filename="Hub Note.md"',
+    );
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(await res.text()).toBe('ab');
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
+  it('answers the opaque 404 for a blob the store no longer holds', async () => {
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue({
+      ...hubDocument,
+      fileRef: 's3:acme/blob-gone',
+    } as never);
+    vi.mocked(openFileContent).mockResolvedValueOnce(null);
+    const res = await mount(fakeSql([]).sql).request(route);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Document not found',
+      code: 'DOCUMENT_NOT_FOUND',
+    });
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
+  it('answers 503 with Retry-After when the store does not answer', async () => {
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue({
+      ...hubDocument,
+      fileRef: 's3:acme/blob-1',
+    } as never);
+    vi.mocked(openFileContent).mockRejectedValueOnce(
+      new FileError('OBJECT_STORE_UNAVAILABLE', 'store down', 503),
+    );
+    const res = await mount(fakeSql([]).sql).request(route);
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe('5');
+    expect(await res.json()).toMatchObject({
+      code: 'OBJECT_STORE_UNAVAILABLE',
+    });
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
+  it('refuses a query parameter, like every lookup', async () => {
+    const res = await mount(fakeSql([]).sql).request(`${route}?foo=1`);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+});
+
+/** The limiter's UPSERT answers a row (capacity left); the entry loads
+ * answer `entry`. */
+function entryDoor(entry: object | null) {
+  return fakeSql([], (text) => {
+    if (text.includes('INSERT INTO app.rate_limits')) return [{ value: '9' }];
+    if (text.includes('FROM app.knowledge_entries')) {
+      return entry === null ? [] : [entry];
+    }
+    return undefined;
+  });
+}
+
+const superseded = {
+  id: 'ke-old',
+  topic: 'Refunds',
+  content: 'Refunds settle in 14 days.',
+  status: 'superseded',
+  source: 'manual',
+  documentId: 'doc-ke',
+  supersededBy: 'ke-next',
+  supersededAt: 1_700_000_000_500,
+  createdBy: 'user-1',
+  createdAt: 1_700_000_000_000,
+  seq: 7,
+};
+
+/**
+ * The entry write answers the document it lives in: a create-then-poll of
+ * `indexing` is two calls, not a read of the entry in between; the version
+ * chain and a topic's history are reachable without paging every
+ * superseded row of the organization.
+ */
+describe('knowledge entries: documentId, versions, topic, supersededAt', () => {
+  it('POST answers 201 with the entry id AND its document', async () => {
+    const res = await mount(entryDoor(null).sql).request(
+      'http://localhost/knowledge-entries',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ topic: 'Refunds', content: 'Refunds settle.' }),
+      },
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 'ke-new', documentId: 'doc-ke' });
+  });
+
+  it('PATCH answers the NEW row and the document it re-indexes under', async () => {
+    const res = await mount(entryDoor(null).sql).request(
+      'http://localhost/knowledge-entries/ke-old',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ topic: 'Refunds', content: 'Refunds settle.' }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 'ke-next', documentId: 'doc-ke' });
+  });
+
+  it('answers supersededAt on a superseded row, and never on an active one', async () => {
+    const res = await mount(entryDoor(superseded).sql).request(
+      'http://localhost/knowledge-entries/ke-old',
+    );
+    expect(await res.json()).toMatchObject({
+      status: 'superseded',
+      supersededBy: 'ke-next',
+      supersededAt: 1_700_000_000_500,
+    });
+    const active = await mount(
+      entryDoor({
+        ...superseded,
+        status: 'active',
+        supersededBy: null,
+        supersededAt: null,
+      }).sql,
+    ).request('http://localhost/knowledge-entries/ke-old');
+    const body = (await active.json()) as Record<string, unknown>;
+    expect('supersededAt' in body).toBe(false);
+    expect('supersededBy' in body).toBe(false);
+  });
+
+  it('lists one topic’s rows on its normalized key, composable with status', async () => {
+    const { sql, queries } = entryDoor(superseded);
+    const res = await mount(sql).request(
+      'http://localhost/knowledge-entries?topic=%20%20Refunds%20%20&status=superseded',
+    );
+    expect(res.status).toBe(200);
+    const list = listQuery(queries, 'knowledge_entries');
+    expect(list.text).toContain('topic_key = $?');
+    expect(list.values).toContain('refunds');
+    expect(list.values).toContain('superseded');
+  });
+
+  it('refuses a blank topic filter', async () => {
+    const res = await mount(entryDoor(null).sql).request(
+      'http://localhost/knowledge-entries?topic=',
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+
+  it('answers the version chain of a known entry, and 404 for an unknown one', async () => {
+    vi.mocked(getKnowledgeEntryVersions).mockResolvedValueOnce([
+      {
+        ...superseded,
+        id: 'ke-next',
+        status: 'active',
+        supersededBy: null,
+        supersededAt: null,
+      },
+      superseded,
+    ]);
+    const res = await mount(entryDoor(superseded).sql).request(
+      'http://localhost/knowledge-entries/ke-old/versions',
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { versions: Record<string, unknown>[] };
+    expect(body.versions.map((row) => [row.id, row.status])).toEqual([
+      ['ke-next', 'active'],
+      ['ke-old', 'superseded'],
+    ]);
+    expect(body.versions[1]).toMatchObject({ supersededAt: 1_700_000_000_500 });
+    expect('seq' in (body.versions[0] ?? {})).toBe(false);
+    expect(getKnowledgeEntryVersions).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'ke-old',
+    );
+    const missing = await mount(entryDoor(null).sql).request(
+      'http://localhost/knowledge-entries/ke-none/versions',
+    );
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({
+      code: 'KNOWLEDGE_ENTRY_NOT_FOUND',
+    });
   });
 });

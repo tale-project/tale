@@ -132,14 +132,14 @@ export function createKnowledgeEntryRoutes(deps: {
         'knowledge:mutate',
         c.get('orgId'),
       );
-      const id = await createKnowledgeEntry(deps.sql, {
+      const written = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
         role: c.get('orgMember').role,
         topic: body.data.topic,
         content: body.data.content,
       });
-      return c.json({ id }, 201);
+      return c.json(written, 201);
     } catch (error) {
       return handleError(c, error);
     }
@@ -161,7 +161,7 @@ export function createKnowledgeEntryRoutes(deps: {
         'knowledge:mutate',
         c.get('orgId'),
       );
-      const id = await updateKnowledgeEntry(deps.sql, {
+      const written = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
         role: c.get('orgMember').role,
@@ -169,7 +169,7 @@ export function createKnowledgeEntryRoutes(deps: {
         topic: body.data.topic,
         content: body.data.content,
       });
-      return c.json({ id });
+      return c.json(written);
     } catch (error) {
       return handleError(c, error);
     }

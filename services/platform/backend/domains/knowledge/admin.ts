@@ -17,6 +17,7 @@ import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   testDatastoreConnection,
   type DatastoreTestResult,
@@ -353,6 +354,8 @@ export interface KnowledgeEmbeddingView {
   model?: string;
   dimensions?: number;
   baseUrl?: string;
+  /** The assistant's dense-leg floor stated in the file, when any. */
+  minSimilarity?: number;
 }
 
 export async function readKnowledgeEmbeddingView(
@@ -379,6 +382,9 @@ export async function readKnowledgeEmbeddingView(
     model: config.model,
     dimensions: config.dimensions,
     ...(config.baseUrl !== undefined ? { baseUrl: config.baseUrl } : {}),
+    ...(config.minSimilarity !== undefined
+      ? { minSimilarity: config.minSimilarity }
+      : {}),
   };
 }
 
@@ -388,7 +394,18 @@ export async function writeKnowledgeEmbedding(
   config: unknown,
   expectedHash?: string | null,
 ): Promise<void> {
-  const parsed = knowledgeEmbeddingSchema.safeParse(config);
+  // The assistant's similarity floor is a knob the Settings form does not
+  // carry: a save that omits the key keeps the stored value (an operator
+  // set it next to the model, in the file), and only an explicit `null`
+  // clears it — otherwise every form save silently reset the floor.
+  const floorInput = isRecord(config) ? config.minSimilarity : undefined;
+  const parsed = knowledgeEmbeddingSchema.safeParse(
+    floorInput === null && isRecord(config)
+      ? Object.fromEntries(
+          Object.entries(config).filter(([key]) => key !== 'minSimilarity'),
+        )
+      : config,
+  );
   if (!parsed.success) {
     throw new KnowledgeAdminError(
       'INVALID_EMBEDDING',
@@ -399,19 +416,40 @@ export async function writeKnowledgeEmbedding(
     assertHostAllowed(parsed.data.baseUrl);
   }
   await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    const current = await readKnowledgeEmbeddingView(orgSlug);
     if (expectedHash !== undefined)
-      assertExpectedHash(
-        (await readKnowledgeEmbeddingView(orgSlug)).hash,
-        expectedHash,
-      );
+      assertExpectedHash(current.hash, expectedHash);
+    const minSimilarity = resolveEmbeddingFloor(
+      floorInput,
+      parsed.data.minSimilarity,
+      current.config?.minSimilarity,
+    );
     const filePath = embeddingFilePath(orgSlug);
-    const serialized = serializeEmbeddingJson(parsed.data);
+    const serialized = serializeEmbeddingJson({
+      ...parsed.data,
+      ...(minSimilarity !== undefined ? { minSimilarity } : {}),
+    });
     const currentContent = await readFileSafe(filePath);
     if (currentContent) {
       await snapshotHistory(orgSlug, KNOWLEDGE_EMBEDDING_KEY, currentContent);
     }
     await atomicWrite(filePath, serialized);
   });
+}
+
+/**
+ * The similarity floor a write lands (`embedding.json` `minSimilarity`): an
+ * explicit number sets it, an explicit `null` clears it, and a body that
+ * omits the key keeps what is stored — the Settings form does not carry
+ * the knob, so its save must not reset a floor an operator set in the file.
+ */
+export function resolveEmbeddingFloor(
+  floorInput: unknown,
+  parsedFloor: number | undefined,
+  stored: number | undefined,
+): number | undefined {
+  if (floorInput === null) return undefined;
+  return parsedFloor ?? stored;
 }
 
 export async function deleteKnowledgeEmbedding(

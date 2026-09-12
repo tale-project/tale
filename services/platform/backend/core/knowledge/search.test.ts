@@ -15,8 +15,11 @@ vi.mock('../lib/handler_names', () => ({
   },
 }));
 
+const readOrgEmbeddingConfig = vi.fn(
+  async (_orgSlug: string): Promise<unknown> => null,
+);
 vi.mock('./connection', () => ({
-  readOrgEmbeddingConfig: vi.fn(async () => null),
+  readOrgEmbeddingConfig: (orgSlug: string) => readOrgEmbeddingConfig(orgSlug),
 }));
 vi.mock('./dimensions', () => ({
   pinDimensions: vi.fn(async () => undefined),
@@ -54,6 +57,8 @@ function hit(corpus: 'documents' | 'web', ref: string) {
 describe('searchKnowledge live document validation', () => {
   beforeEach(() => {
     retrieveMock.mockReset();
+    readOrgEmbeddingConfig.mockReset();
+    readOrgEmbeddingConfig.mockResolvedValue(null);
   });
 
   it('hands retrieval an admission seam that re-checks document hits — cache pools included', async () => {
@@ -126,5 +131,93 @@ describe('searchKnowledge live document validation', () => {
     });
     expect(result.hits).toHaveLength(1);
     expect(runQuery).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The dense-leg floor belongs to the embedding model, so it is configured
+ * next to the model: `embedding.json` may state `minSimilarity`, and the
+ * built-in assistant's search (`floorByDefault`) reads it — else the
+ * built-in default. An explicit `minSimilarity` always wins, and a caller
+ * that asks for neither (the REST door) gets no floor at all.
+ */
+describe('the assistant’s similarity floor', () => {
+  const embedding = {
+    providerSlug: 'openai',
+    model: 'text-embedding-3-small',
+    dimensions: 3,
+  };
+  const empty = { hits: [], diagnostics: {} };
+
+  beforeEach(() => {
+    retrieveMock.mockReset();
+    readOrgEmbeddingConfig.mockReset();
+  });
+
+  it('reads the organization’s configured floor when asked for the default', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue({
+      ...embedding,
+      minSimilarity: 0.6,
+    });
+    retrieveMock.mockResolvedValueOnce(empty);
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+      floorByDefault: true,
+    });
+    expect(retrieveMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ minSimilarity: 0.6 }),
+    );
+  });
+
+  it('falls back to the built-in default when the file states none', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue(embedding);
+    retrieveMock.mockResolvedValueOnce(empty);
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+      floorByDefault: true,
+    });
+    expect(retrieveMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ minSimilarity: 0.45 }),
+    );
+  });
+
+  it('lets an explicit floor win over the configured one', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue({
+      ...embedding,
+      minSimilarity: 0.6,
+    });
+    retrieveMock.mockResolvedValueOnce(empty);
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+      floorByDefault: true,
+      minSimilarity: 0.2,
+    });
+    expect(retrieveMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ minSimilarity: 0.2 }),
+    );
+  });
+
+  it('applies no floor to a caller that asks for none — the REST door', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue({
+      ...embedding,
+      minSimilarity: 0.6,
+    });
+    retrieveMock.mockResolvedValueOnce(empty);
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+    });
+    const query = retrieveMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect('minSimilarity' in query).toBe(false);
   });
 });

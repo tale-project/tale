@@ -27,6 +27,8 @@
  * shaping, and the tests all read one table.
  */
 
+import { KNOWLEDGE_DEFAULT_MIN_SIMILARITY } from '@tale/shared/schemas/knowledge';
+
 import {
   MAX_INTRO_LENGTH,
   MAX_OPTIONS_PER_QUESTION,
@@ -186,10 +188,13 @@ export const RAG_SEARCH_STATUS_VALUES = [
   'cancelled',
 ] as const;
 export type RagSearchStatus = (typeof RAG_SEARCH_STATUS_VALUES)[number];
-/** Dense-leg similarity floor: cosine hits under this read as noise and are
- * dropped before fusion. BM25 (keyword) hits are never floored — an exact
- * term match stays a result even when the embedding disagrees. */
-export const RAG_SEARCH_MIN_SIMILARITY = 0.45;
+/** Dense-leg similarity floor the assistant's search falls back to when the
+ * organization's `embedding.json` states no `minSimilarity`: cosine hits
+ * under it read as noise and are dropped before fusion. BM25 (keyword)
+ * hits are never floored — an exact term match stays a result even when
+ * the embedding disagrees. The value lives next to the embedding schema;
+ * this is its chat-side name. */
+export const RAG_SEARCH_MIN_SIMILARITY = KNOWLEDGE_DEFAULT_MIN_SIMILARITY;
 /** Per-leg cap for the entity legs (knowledge entries, contacts, products,
  * websites). Each leg is capped on its own — never by a global slice over
  * the concatenated list, which would let document hits starve an exact

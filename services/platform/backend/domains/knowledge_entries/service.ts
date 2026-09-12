@@ -5,7 +5,6 @@ import type { Sql, TransactionSql } from 'postgres';
 import { authorizeRls } from '../../auth/access.ts';
 import { KNOWLEDGE_SOURCE_PROVIDER } from '../../core/knowledge_entries/constants.ts';
 import { validateTopicAndContent } from '../../core/knowledge_entries/helpers.ts';
-import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
@@ -215,12 +214,15 @@ async function attachEntryDocument(
       LIMIT 1
     `;
     const previousRef = previous[0]?.storageRef ?? null;
+    // The hash goes in the `content_hash` COLUMN the rest of the platform
+    // reads (the WebDAV ETag, change detection) — never into the caller-
+    // owned `metadata` bag, where it was write-only bookkeeping that a
+    // metadata PATCH could silently drop.
     await tx`
       UPDATE app.documents SET
         title = ${fileName}, file_ref = ${storageRef},
         mime_type = 'text/markdown', extension = 'md',
-        metadata = coalesce(metadata, '{}'::jsonb)
-          || jsonb_build_object('contentHash', ${contentHash}::text),
+        content_hash = ${contentHash},
         updated_at_ms = ${now}
       WHERE id = ${args.existingDocumentId}
     `;
@@ -270,11 +272,11 @@ async function attachEntryDocument(
   const docs = await tx<{ id: string }[]>`
     INSERT INTO app.documents (
       org_id, title, file_ref, mime_type, extension, source_provider,
-      team_tags, created_by, metadata, created_at_ms, updated_at_ms
+      team_tags, created_by, content_hash, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${fileName}, ${storageRef}, 'text/markdown',
       'md', ${KNOWLEDGE_SOURCE_PROVIDER}, ${[]}::text[], ${args.createdBy},
-      ${tx.json(toJson({ contentHash }))}, ${now}, ${now}
+      ${contentHash}, ${now}, ${now}
     ) RETURNING id
   `;
   const documentId = docs[0]?.id;
@@ -292,6 +294,14 @@ async function attachEntryDocument(
   return documentId;
 }
 
+/** What a write answers: the entry row and the Hub document it lives in —
+ * the id a caller polls for `indexing` (`GET /api/v1/documents/{id}`), so a
+ * create-then-poll takes two calls, not a read of the entry in between. */
+export interface KnowledgeEntryWritten {
+  id: string;
+  documentId: string;
+}
+
 export async function createKnowledgeEntry(
   sql: Sql,
   args: {
@@ -304,7 +314,7 @@ export async function createKnowledgeEntry(
     sourceThreadId?: string;
     sourceMessageId?: string;
   },
-): Promise<string> {
+): Promise<KnowledgeEntryWritten> {
   assertCanWriteEntries(args.role);
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const precheck = await findActiveByTopicKey(
@@ -345,7 +355,7 @@ export async function createKnowledgeEntry(
     `;
     const entryId = rows[0]?.id;
     if (!entryId) throw new Error('knowledge entry insert failed');
-    await attachEntryDocument(tx, {
+    const documentId = await attachEntryDocument(tx, {
       organizationId: args.organizationId,
       entryId,
       topic,
@@ -353,7 +363,7 @@ export async function createKnowledgeEntry(
       createdBy: args.userId,
       existingDocumentId: null,
     });
-    return entryId;
+    return { id: entryId, documentId };
   });
 }
 
@@ -368,7 +378,7 @@ export async function updateKnowledgeEntry(
     topic: string;
     content: string;
   },
-): Promise<string> {
+): Promise<KnowledgeEntryWritten> {
   assertCanWriteEntries(args.role);
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const blob = await storeEntryBlob(sql, args.organizationId, content);
@@ -449,7 +459,7 @@ export async function updateKnowledgeEntry(
         superseded_at_ms = ${now}
       WHERE id = ${current.id}
     `;
-    await attachEntryDocument(tx, {
+    const documentId = await attachEntryDocument(tx, {
       organizationId: args.organizationId,
       entryId,
       topic,
@@ -457,7 +467,7 @@ export async function updateKnowledgeEntry(
       createdBy: args.userId,
       existingDocumentId: current.documentId,
     });
-    return entryId;
+    return { id: entryId, documentId };
   });
 }
 
@@ -693,21 +703,30 @@ export async function countKnowledgeEntries(
   return Number(rows[0]?.count ?? '0');
 }
 
+/** One version of a topic's chain, as both the app's history panel and the
+ * REST `…/versions` route read it: the entry view, `supersededAt` included
+ * (when the row was replaced — the moment the docs promise the history
+ * shows), so a consumer walks a fact's corrections without paging every
+ * superseded row of the organization. */
+export interface KnowledgeEntryVersionRow {
+  id: string;
+  topic: string;
+  content: string;
+  status: string;
+  source: string;
+  documentId: string | null;
+  supersededBy: string | null;
+  supersededAt: number | null;
+  createdBy: string;
+  createdAt: number;
+}
+
 /** The version chain of one entry's topic, newest first. */
 export async function getKnowledgeEntryVersions(
   sql: Sql,
   organizationId: string,
   entryId: string,
-): Promise<
-  Array<{
-    id: string;
-    topic: string;
-    content: string;
-    status: string;
-    createdBy: string;
-    createdAt: number;
-  }>
-> {
+): Promise<KnowledgeEntryVersionRow[]> {
   // The chain is the DOCUMENT (see deleteKnowledgeEntry); the topic key is
   // the fallback for a legacy row that never got one. Pruned versions
   // (soft-deleted history) are not listed.
@@ -719,18 +738,11 @@ export async function getKnowledgeEntryVersions(
   `;
   const head = keys[0];
   if (head === undefined) return [];
-  return sql<
-    {
-      id: string;
-      topic: string;
-      content: string;
-      status: string;
-      createdBy: string;
-      createdAt: number;
-    }[]
-  >`
-    SELECT id, topic, content, status, created_by AS "createdBy",
-           created_at_ms::float8 AS "createdAt"
+  return sql<KnowledgeEntryVersionRow[]>`
+    SELECT id, topic, content, status, source,
+           document_id AS "documentId", superseded_by AS "supersededBy",
+           superseded_at_ms::float8 AS "supersededAt",
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
     FROM app.knowledge_entries
     WHERE org_id = ${organizationId}
       AND deleted_at_ms IS NULL

@@ -12,9 +12,11 @@ import { fuseByRank, RRF_K } from './fusion';
 
 interface Row {
   readonly id: string;
+  /** The leg's own score — carried through `sources`, never fused. */
+  readonly score: number;
 }
 
-const row = (id: string): Row => ({ id });
+const row = (id: string, score = 0): Row => ({ id, score });
 const identify = (item: Row): string => item.id;
 const ids = (fused: readonly { item: Row }[]): string[] =>
   fused.map((entry) => entry.item.id);
@@ -124,11 +126,60 @@ describe('scoring', () => {
   });
 });
 
+describe('sources — each leg’s own account of a result', () => {
+  it('names the leg, its rank and its own score for every leg that ranked the result', () => {
+    // The keyword copy carries the BM25 weight, the dense copy the cosine:
+    // the surviving object is the keyword one, but the dense leg's number
+    // is not lost — it is the one a caller can threshold.
+    const fused = fuseByRank(
+      [
+        [row('kw-only', 14), row('both', 9)],
+        [row('both', 0.82), row('dense-only', 0.7)],
+      ],
+      identify,
+      { limit: 3, legs: ['documents:keyword', 'documents:dense'] },
+    );
+    const byId = new Map(fused.map((entry) => [entry.item.id, entry]));
+    expect(byId.get('both')?.sources).toEqual([
+      { leg: 'documents:keyword', rank: 2, score: 9 },
+      { leg: 'documents:dense', rank: 1, score: 0.82 },
+    ]);
+    expect(byId.get('kw-only')?.sources).toEqual([
+      { leg: 'documents:keyword', rank: 1, score: 14 },
+    ]);
+    expect(byId.get('dense-only')?.sources).toEqual([
+      { leg: 'documents:dense', rank: 2, score: 0.7 },
+    ]);
+    expect(byId.get('both')?.legs).toBe(2);
+  });
+
+  it('numbers unnamed legs in input order', () => {
+    const fused = fuseByRank([[row('a', 1)], [row('a', 2)]], identify, {
+      limit: 1,
+    });
+    expect(fused[0].sources.map((source) => source.leg)).toEqual([
+      'leg-1',
+      'leg-2',
+    ]);
+  });
+
+  it('scores the only candidate of a one-leg search 1 — a rank, not a confidence', () => {
+    // The whole reason `sources` exists: the fused score of a lone weak
+    // match is the maximum, and only the leg's own score says it was weak.
+    const fused = fuseByRank([[row('weak', 0.31)]], identify, {
+      limit: 1,
+      legs: ['documents:dense'],
+    });
+    expect(fused[0].score).toBeCloseTo(1, 10);
+    expect(fused[0].sources[0]?.score).toBe(0.31);
+  });
+});
+
 describe('mechanics', () => {
   it('keeps the first leg copy of a result both legs returned', () => {
-    const first = { id: 'a', from: 'keyword' };
-    const second = { id: 'a', from: 'dense' };
-    const fused = fuseByRank<{ id: string; from: string }>(
+    const first = { id: 'a', from: 'keyword', score: 12 };
+    const second = { id: 'a', from: 'dense', score: 0.9 };
+    const fused = fuseByRank<{ id: string; from: string; score: number }>(
       [[first], [second]],
       (item) => item.id,
       { limit: 1 },

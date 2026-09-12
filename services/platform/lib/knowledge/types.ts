@@ -112,16 +112,30 @@ export interface KnowledgeSource {
 
 /** A hit after fusion, carrying the rank-based score it was ordered by. */
 export interface FusedKnowledgeHit extends KnowledgeHit {
-  /** Reciprocal-rank-fusion score, normalized so a passage every leg ranked
-   * first scores 1. The ORDER key of one response — comparable only within
-   * that response, because the normalization depends on how many legs
-   * answered; not a confidence, and not stable across searches. */
+  /**
+   * The rank-fusion order key: Σ 1/(60+rank) over the legs that ranked the
+   * passage, divided by the best possible for that many legs — so a passage
+   * every leg ranked first scores 1, and the best candidate of a one-leg
+   * search scores 1.0 however weak that leg found it. A RANK, comparable only
+   * within one response; never a confidence, and not stable across searches.
+   * Threshold on `similarity` (the dense cosine) instead.
+   */
   readonly fusedScore: number;
   /** How many retrieval legs of its corpus returned the passage: 2 when the
-   * keyword and the dense leg agreed, 1 when only one found it — the
-   * model-independent confidence signal `fusedScore` is not. */
+   * keyword and the dense leg agreed, 1 when only one found it. */
   readonly legs?: number;
-  /** Set only when a reranker ran and scored this hit. */
+  /** Which legs ranked the passage (`documents:keyword`, `documents:dense`,
+   * `web:keyword`, `web:dense`) — what `score` was produced by, named. */
+  readonly matchedLegs?: readonly string[];
+  /** The dense leg's cosine similarity (0..1) when it ranked the passage,
+   * null when only the keyword leg found it — the one model-scaled number a
+   * caller can threshold, and what `minSimilarity` floors. */
+  readonly similarity?: number | null;
+  /** The keyword leg's BM25 weight when it ranked the passage (unbounded,
+   * corpus-relative), null when only the dense leg found it. */
+  readonly keywordScore?: number | null;
+  /** Reserved for a deployment that installs a reranker — none ships, so
+   * it is never present today. */
   readonly rerankScore?: number;
 }
 
@@ -296,14 +310,19 @@ export interface KnowledgeDiagnostics {
   /** False when the corpus has no BM25 index available and the search ran
    * dense-only. */
   readonly bm25: boolean;
-  /** True when a reranker reordered the fused list. */
+  /** Reserved for a deployment that installs a reranker — none ships, so
+   * this is always false today. */
   readonly reranked: boolean;
-  /** True when the answer came from the semantic cache. */
+  /** Reserved for a deployment that installs a semantic cache — none
+   * ships, so this is always false today. */
   readonly cached: boolean;
-  /** Fused candidates the admission re-check kept (the live-document check
-   * of each documents-corpus hit), before repeated passages were dropped
-   * and the page was cut to `limit`. */
+  /** Candidates that passed the admission re-check (the live-document check
+   * of each documents-corpus hit) and were fused — before repeated passages
+   * were dropped and the page was cut to `limit`. Admission runs BEFORE
+   * fusion, so a refused candidate never holds a rank. */
   readonly admitted: number;
-  /** Hits each leg contributed before fusion (counts, keyed by leg). */
+  /** Admitted candidates each leg contributed to fusion (counts, keyed by
+   * leg — `documents:keyword`, `documents:dense`, `web:keyword`,
+   * `web:dense`). */
   readonly legs: Readonly<Record<string, number>>;
 }
