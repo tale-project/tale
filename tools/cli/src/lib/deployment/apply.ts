@@ -20,6 +20,7 @@ import { validateNativeRelease } from '../config/releases/native';
 import { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
 import { withLock } from '../state/with-lock';
+import { backendCliFailure, backendDataOwner } from './backend-cli';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
 import {
   buildCapsuleStage,
@@ -83,6 +84,7 @@ const deploymentIntentSchema = z.strictObject({
   name: slug,
   bundleSha256: sha,
   snapshot: recoverySnapshotSchema.optional(),
+  supersededBundles: z.array(sha).max(64).optional(),
 });
 
 function nativeInput(
@@ -226,10 +228,17 @@ async function provisionBackend(
     }
     if (!result.success && !allowFailure)
       throw externalDepError(
-        'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
+        backendCliFailure(
+          'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
+          result,
+        ),
       );
     return result;
   };
+  // The phase runs as the backend's own account, the owner of its data
+  // directory, because that is where it keeps its private state; the
+  // container's default user is root, which that state refuses.
+  const owner = await backendDataOwner(run, runtime.backendContainer);
   await run([
     'exec',
     runtime.backendContainer,
@@ -244,12 +253,24 @@ async function provisionBackend(
       `${directory}/.`,
       `${runtime.backendContainer}:${temporary}/`,
     ]);
+    // `docker cp` keeps the host's uid/gid; the private copy must belong to
+    // the account that verifies and runs it.
+    await run([
+      'exec',
+      runtime.backendContainer,
+      'chown',
+      '-R',
+      owner,
+      temporary,
+    ]);
     const result = await run(
       [
         'exec',
         '-i',
         '-w',
         '/',
+        '--user',
+        owner,
         runtime.backendContainer,
         `${temporary}/cli/tale`,
         'deploy',
@@ -454,9 +475,36 @@ async function applyVerifiedDeployment(
     if (
       intent &&
       (intent.name !== bundle.spec.name || intent.bundleSha256 !== bundleSha256)
-    )
-      throw preconditionError(
-        'A different deployment bundle is pending. Recover the same reviewed bundle first.',
+    ) {
+      if (
+        intent.name === bundle.spec.name &&
+        bundle.spec.supersedesPendingBundle === intent.bundleSha256
+      ) {
+        // The reviewed bundle takes over the pending one's recovery point: the
+        // snapshot taken before anything changed stays the recovery point, and
+        // the superseded bundle is named in the ready receipt.
+        logger.notice(
+          `Superseding the pending deployment bundle ${intent.bundleSha256}; its recovery snapshot is kept.`,
+        );
+        intent = {
+          ...intent,
+          bundleSha256,
+          supersededBundles: [
+            ...(intent.supersededBundles ?? []),
+            intent.bundleSha256,
+          ],
+        };
+        atomicRuntimeFile(intentPath, `${JSON.stringify(intent, null, 2)}\n`);
+      } else
+        throw preconditionError(
+          `A different deployment bundle is pending (${intent.bundleSha256}). Recover the same reviewed bundle first.`,
+          'To let this reviewed bundle take over its recovery point instead, declare `supersedesPendingBundle` with that sha256 in the deployment specification and prepare again.',
+        );
+    } else if (bundle.spec.supersedesPendingBundle)
+      logger.warn(
+        intent
+          ? 'The pending deployment bundle is this bundle; remove `supersedesPendingBundle` from the deployment specification.'
+          : 'No deployment bundle is pending; remove `supersedesPendingBundle` from the deployment specification.',
       );
     const previous = existsSync(receiptPath)
       ? z
@@ -529,6 +577,9 @@ async function applyVerifiedDeployment(
       cliRevision: bundle.cli.revision,
       deploymentRef: bundle.deploymentRef,
       bundleSha256,
+      ...(intent.supersededBundles
+        ? { supersededBundles: intent.supersededBundles }
+        : {}),
       images: applied.images,
       configs,
       native,

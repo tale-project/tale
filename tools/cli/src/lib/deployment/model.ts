@@ -6,7 +6,13 @@ import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
 import { platformConfigurationSchema } from '../config/platform-model';
-import { gitSha, owner, relativePath, slug } from '../config/releases/model';
+import {
+  gitSha,
+  owner,
+  relativePath,
+  sha,
+  slug,
+} from '../config/releases/model';
 
 const text = z
   .string()
@@ -98,6 +104,11 @@ const deploymentFields = z.strictObject({
   environment: z.record(environmentName, environmentReference).default({}),
   identity: identity.optional(),
   configuration: platformConfigurationSchema.optional(),
+  /** Take over the recovery point a deployment was left pending with by
+   * that bundle — its exact `bundleSha256`, which the refusal names — after
+   * review, instead of replaying it. The ready receipt lists every bundle
+   * superseded this way under `supersededBundles`. */
+  supersedesPendingBundle: sha.optional(),
   configs: z
     .array(
       z.strictObject({
