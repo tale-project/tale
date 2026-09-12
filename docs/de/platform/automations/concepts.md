@@ -112,7 +112,7 @@ Läufe gibt es in zwei Modi. **Test** berührt die Außenwelt nie und ist die sc
 
 ## Wo ein Mensch entscheidet
 
-Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. Er pausiert im Status `waiting`, und sobald die Freigabe beantwortet ist, setzt er an genau der Node wieder ein, an der er stehen geblieben war, und trägt die Antwort weiter. Ein Lauf, der auf eine menschliche Eingabe wartet, verhält sich genauso. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte und was jede Entscheidung hinterlässt.
+Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. Er pausiert im Status `waiting`, und sobald die Freigabe beantwortet ist, setzt er an genau der Node wieder ein, an der er stehen geblieben war, und trägt die Antwort weiter. Ein Lauf, der auf eine menschliche Eingabe wartet, verhält sich genauso. In `waiting` parkt ein Lauf auch, solange ein Agent-Turn noch arbeitet oder eine Node pollt, bis ihre Bedingung gilt — die brauchen niemanden, und der Lauf nennt, in welcher Art Warten er steckt (`waitingFor`: `approval`, `ask`, `agent` oder `repeat`), „braucht eine Person“ liest sich also nie am Status allein ab. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte und was jede Entscheidung hinterlässt.
 
 ## Die richtige Einheit wählen
 

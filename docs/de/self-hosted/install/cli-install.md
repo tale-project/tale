@@ -259,14 +259,14 @@ Die Ausgabe- und Belegordner müssen bereits existieren. Eine HTTP-Verbindung ü
 
 Diese Ressourcenarten nutzen die gemeinsamen Plattform-Schemas und nativen Berechtigungen:
 
-| Art | Konfiguration | Geltungsbereich |
-| --- | --- | --- |
-| `branding` | Native Branding-Felder | Organisation |
-| `governance` | Dateibasierte Richtlinie mit `key` und nativer `config` | Organisation |
-| `provider` | Eigene Anbieterdefinition und optionale `expectedModels` | Organisation |
-| `provider-credential` | Metadaten benannter Umgebungszugangsdaten | Organisation |
-| `knowledge-embedding` | Anbieter, Modell, Dimensionen und Endpunkt | Organisation |
-| `deployment` | Instanz-Einstellungen einschließlich Sandbox-Runtime | Instanz |
+| Art                   | Konfiguration                                            | Geltungsbereich |
+| --------------------- | -------------------------------------------------------- | --------------- |
+| `branding`            | Native Branding-Felder                                   | Organisation    |
+| `governance`          | Dateibasierte Richtlinie mit `key` und nativer `config`  | Organisation    |
+| `provider`            | Eigene Anbieterdefinition und optionale `expectedModels` | Organisation    |
+| `provider-credential` | Metadaten benannter Umgebungszugangsdaten                | Organisation    |
+| `knowledge-embedding` | Anbieter, Modell, Dimensionen und Endpunkt               | Organisation    |
+| `deployment`          | Instanz-Einstellungen einschließlich Sandbox-Runtime     | Instanz         |
 
 Aufbewahrungs- und DSAR-Richtlinien brauchen ihre eigenen nativen Workflows. Pausiere Uploads, Synchronisation und Crawls, bevor du die Embedding-Konfiguration änderst. Die CLI prüft die Anzahl der Dokumente und Websites der gesamten Organisation; sie sperrt den Import nicht und migriert keine bestehenden Vektoren. Hat die Organisation Dokumente oder registrierte Websites, braucht sie eine separate native Indexmigration. Instanz-Einstellungen erfordern zusätzlich die native Freigabeliste für Deployment-Editoren. Bei Boot-Einstellungen meldet der einzelne Konfigurationsaufruf `restartRequired`; Speichern allein aktiviert diese Einstellungen noch nicht. Prüfe die Folgen im Plan vor dem Anwenden.
 
@@ -303,9 +303,7 @@ Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze d
           {
             "id": "Example-chat",
             "provider": "external-chat",
-            "tags": [
-              "chat"
-            ],
+            "tags": ["chat"],
             "supportsTools": true,
             "supportsVision": false,
             "contextWindow": 131072
@@ -319,9 +317,7 @@ Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze d
           "authMethod": "env",
           "name": "Managed external provider",
           "envName": "TALE_PROVIDER_KEY_EXTERNAL",
-          "modelAllowlist": [
-            "Example-chat"
-          ]
+          "modelAllowlist": ["Example-chat"]
         }
       }
     ]
@@ -331,7 +327,7 @@ Verwaltete Deployments nutzen denselben Ablauf über `configuration`. Ergänze d
 
 Für `envName` gelten das native Präfix `TALE_PROVIDER_KEY_` und die Grenze von 40 Zeichen. Jeder Alias braucht eine verpflichtende `environment`-Referenz. Private Endpunkte erfordern zusätzlich eine explizite Referenz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` mit dem Wert `1`; native Host-Regeln gelten weiter. `expectedModels` prüft Tales frisch aufgelösten Katalog beim Rücklesen. Das belegt weder Inferenzkapazität und Latenz noch fachliche Ergebnisse.
 
-Die Bildmodellauswahl nutzt `governance` mit `key: "vision_model"` und den nativen Feldern `providerSlug`/`modelId`. Embedding nutzt `knowledge-embedding` mit `providerSlug`, `model`, `dimensions` und `baseUrl`. Wenn du Standardzugangsdaten ersetzt, deklariere auch die bisherigen Umgebungszugangsdaten mit `isDefault: false`; die CLI wendet diese explizite Änderung zuerst an. Schlüsselwerte stehen weder in der Deklaration noch im Beleg.
+Die Bildmodellauswahl nutzt `governance` mit `key: "vision_model"` und den nativen Feldern `providerSlug`/`modelId`. Embedding nutzt `knowledge-embedding` mit `providerSlug`, `model`, `dimensions` und `baseUrl`, dazu ein optionales `minSimilarity` — die Kosinus-Untergrenze des Assistenten für dieses Modell, die die Plattform neben dem Modell in [`embedding.json`](/de/self-hosted/configuration/data-residency#das-embedding-modell-der-organisation) hält. Die Untergrenze folgt der Regel der Plattform selbst: Eine Zahl setzt sie, ein weggelassener Schlüssel lässt stehen, was die Datei hält (eine von Hand gesetzte Untergrenze überlebt ein Release, das sie nicht erwähnt), und `"minSimilarity": null` löscht sie — der einzige Weg, eine Untergrenze über die CLI zu entfernen. Wenn du Standardzugangsdaten ersetzt, deklariere auch die bisherigen Umgebungszugangsdaten mit `isDefault: false`; die CLI wendet diese explizite Änderung zuerst an. Schlüsselwerte stehen weder in der Deklaration noch im Beleg.
 
 Die native Einrichtung folgt auf die Identitätsprüfung und läuft vor den Konfigurations-Releases. Der Beleg `native.configuration` bindet Deklarations- und Bundle-Hashes, Organisation, Ressourcen-Hashes und native Revisionen. Vor der ersten Änderung entsteht ein ausstehender Beleg. Scheitert eine spätere Ressource, können frühere Änderungen bestehen bleiben. Lies den nativen Zustand und den Beleg, bevor du denselben geprüften Plan erneut ausführst. Natives Compare-and-set schützt jede Ressource vor konkurrierenden Admin-Änderungen; eine ressourcenübergreifende Transaktion gibt es nicht. Bewahre Deployment-Zustand, Snapshots und Belege für die Wiederherstellung auf.
 

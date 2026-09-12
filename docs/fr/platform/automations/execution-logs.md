@@ -17,12 +17,12 @@ Une automatisation qui ne s’est jamais exécutée le dit, au lieu d’afficher
 | --------------------- | ------------------------------------------------------------------------------ |
 | **En file d’attente** | L’exécution existe et attend que le moteur la prenne en charge                 |
 | **En cours**          | Le moteur avance à travers les nœuds                                           |
-| **En attente**        | L’exécution est arrêtée sur une décision humaine ou une réponse qu’elle attend |
+| **En attente**        | L’exécution est garée — sur une personne, ou sur quelque chose encore en cours |
 | **Réussie**           | Chaque nœud atteint est allé au bout et la sortie a été produite               |
 | **En échec**          | Un nœud a levé une erreur et rien n’était réglé pour continuer au-delà         |
 | **Arrêtée**           | Quelqu’un a annulé l’exécution ; ce qui était déjà fait n’est pas défait       |
 
-**En attente** est le statut le plus mal lu. Ce n’est ni un blocage ni un échec : l’exécution garde sa place et repartira du nœud où elle s’est arrêtée dès que la décision qu’elle attend sera prise. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique ce qu’elle attend.
+**En attente** est le statut le plus mal lu. Ce n’est ni un blocage ni un échec : l’exécution garde sa place et repartira du nœud où elle s’est arrêtée. Ce qu’elle attend vient de deux familles, et une seule a besoin de toi : une exécution garée sur une **approbation** ou sur une **question** posée par un agent attend une personne, et y reste jusqu’à ce que la décision soit prise ou la question répondue ; une exécution garée sur un tour d’agent encore au travail, ou sur un nœud qui interroge jusqu’à ce que sa condition tienne, s’attend elle-même et repart sans personne. La ligne nomme l’attente, si bien qu’une exécution qui affiche _en attente_ pendant des minutes, le temps qu’un sondage tourne, est saine, pas bloquée. Par l’API, la même distinction est le champ `waitingFor` — `approval`, `ask`, `agent` ou `repeat` — et « les exécutions qui ont besoin d’un humain », c’est `waitingFor` dans les deux premiers, jamais le seul statut. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre ces portes.
 
 ## Essais et exécutions réelles
 

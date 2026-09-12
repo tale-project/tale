@@ -11,7 +11,7 @@ Du brauchst die Rolle **Entwickler** oder höher (darunter sind die API-Einstell
 
 <Step title="Erstelle einen API-Schlüssel">
 
-Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Einstellungen > API > REST** und klicke auf **API-Schlüssel erstellen**. Benenne ihn nach dem System, das ihn nutzen wird — Schlüssel werden nach Namen gelistet, und in einem Jahr schlägt „zapier-bridge“ jedes „test“. Der Schlüsselwert erscheint genau einmal, bei der Erstellung; leg ihn in deinen Secret-Manager, nicht in den Code.
+Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Einstellungen > API > REST** und klicke auf **API-Schlüssel erstellen**. Benenne ihn nach dem System, das ihn nutzen wird — Schlüssel werden nach Namen gelistet, und in einem Jahr schlägt „zapier-bridge“ jedes „test“. Der Schlüsselwert erscheint genau einmal, bei der Erstellung; leg ihn in deinen Secret-Manager, nicht in den Code. Schlüssel werden hier erzeugt, rotiert und widerrufen und sonst nirgends — nichts unter `/api/v1` erstellt, listet oder widerruft einen —, plane die Rotation also als menschlichen Schritt; sein eigenes Ablaufdatum kann der Schlüssel immerhin kommen sehen, als `key.expiresAt` in `GET /api/v1/me`.
 
 <Frame caption="Die REST-API-Einstellungen — Schlüssel werden hier erstellt und widerrufen.">
 
@@ -23,16 +23,17 @@ Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Ein
 
 <Step title="Mach die erste Anfrage">
 
-Die erste Anfrage listet die Modelle auf, die dein Schlüssel im direkten Chat verwenden darf. Der Schlüssel steht als Bearer-Token in der Anfrage; der Organisationskontext folgt deiner Mitgliedschaft:
+Die erste Anfrage listet die Modelle auf, die dein Schlüssel im direkten Chat verwenden darf. Der Schlüssel steht als Bearer-Token in der Anfrage. Gehört sein Inhaber nur einer Organisation an, braucht es sonst nichts; gehörst du mehreren an — eine Sandbox-Org und eine echte ist der übliche Fall —, muss jede Anfrage, Lesezugriffe eingeschlossen, die Organisation in `X-Organization-Slug` nennen (ihr Slug steht in der Adresszeile der App, und `GET /api/v1/me` listet jeden Slug, den du senden darfst):
 
 ```bash
 curl -sS --compressed https://your-host.example.com/api/v1/models \
-  -H "Authorization: Bearer $TALE_API_KEY"
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 ```
 
 <Check>
 
-Ein JSON-Objekt mit einem `models`-Array bestätigt Schlüssel, Authentifizierung und Route. Das Array darf leer sein, wenn kein Modell für den direkten Chat verfügbar ist. Bei `401` ist die Autorisierungskopfzeile fehlerhaft oder der Schlüssel widerrufen.
+Ein JSON-Objekt mit einem `models`-Array bestätigt Schlüssel, Authentifizierung und Route. Das Array darf leer sein, wenn kein Modell für den direkten Chat verfügbar ist. Bei `401` ist die Autorisierungskopfzeile fehlerhaft oder der Schlüssel widerrufen. Eine `400` mit `"code": "ORG_SLUG_REQUIRED"` heißt: Du gehörst mehreren Organisationen an, und die Anfrage hat keine genannt — füge die Kopfzeile `X-Organization-Slug` hinzu; der Body listet die Slugs, die du senden darfst, unter `data.organizations`.
 
 </Check>
 

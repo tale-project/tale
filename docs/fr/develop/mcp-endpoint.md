@@ -45,7 +45,7 @@ Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, 
 }
 ```
 
-`tools/list` renvoie l'inventaire complet ; tout verbe autre que `POST` répond **405** avec un en-tête `Allow: POST, OPTIONS` (un `OPTIONS` répond **204** avec la même liste) — il n'y a pas de flux d'événements à écouter ni de session à supprimer — et l’endpoint n’envoie aucun en-tête CORS : il est fait pour des clients côté serveur, jamais pour une page de navigateur qui détient une clé. L’URL de l’endpoint de ton déploiement, le slug de l’organisation, le même inventaire en trois groupes et une requête `tools/list` à copier avec les deux en-têtes déjà en place se trouvent sous **Paramètres > API > MCP**.
+`tools/list` renvoie l'inventaire complet ; tout verbe autre que `POST` répond **405** avec un en-tête `Allow: POST, OPTIONS` (un `OPTIONS` répond **204** avec la même liste, avec ou sans clé) — il n'y a pas de flux d'événements à écouter ni de session à supprimer — et l’endpoint n’envoie aucun en-tête CORS : il est fait pour des clients côté serveur, jamais pour une page de navigateur qui détient une clé. L’URL de l’endpoint de ton déploiement, le slug de l’organisation, le même inventaire en trois groupes et une requête `tools/list` à copier avec les deux en-têtes déjà en place se trouvent sous **Paramètres > API > MCP**.
 
 ## Les outils
 

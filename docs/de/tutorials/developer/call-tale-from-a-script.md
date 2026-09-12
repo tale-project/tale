@@ -23,7 +23,7 @@ export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```
 
-Der Schlüssel handelt als du in der Organisation aus `TALE_ORG_SLUG`; Mitgliedschaft und Rolle bestimmen seine Rechte. Bei mehreren Mitgliedschaften ist die Organisationskopfzeile für Schreibzugriffe und alle Projektrouten Pflicht. Bewahre den Schlüssel wie ein Passwort auf.
+Der Schlüssel handelt als du in der Organisation aus `TALE_ORG_SLUG`; Mitgliedschaft und Rolle bestimmen seine Rechte. Gehörst du mehreren Organisationen an, ist die Organisationskopfzeile bei jeder Anfrage Pflicht, Lesezugriffe eingeschlossen — ohne sie antwortet die API mit `400` und `"code": "ORG_SLUG_REQUIRED"` und listet die Slugs, die du senden darfst. Bewahre den Schlüssel wie ein Passwort auf.
 
 ## Schritt 2 — Rauchtest mit curl
 

@@ -45,7 +45,7 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
 }
 ```
 
-`tools/list` liefert das volle Inventar; jedes Verb außer `POST` antwortet **405** mit einer `Allow: POST, OPTIONS`-Kopfzeile (ein `OPTIONS` antwortet **204** mit derselben Liste) — es gibt keinen Event-Stream zum Abonnieren und keine Session zum Löschen — und der Endpoint sendet keine CORS-Kopfzeilen: er ist für serverseitige Clients gedacht, nie für eine Browser-Seite, die einen Schlüssel hält. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
+`tools/list` liefert das volle Inventar; jedes Verb außer `POST` antwortet **405** mit einer `Allow: POST, OPTIONS`-Kopfzeile (ein `OPTIONS` antwortet **204** mit derselben Liste, mit oder ohne Schlüssel) — es gibt keinen Event-Stream zum Abonnieren und keine Session zum Löschen — und der Endpoint sendet keine CORS-Kopfzeilen: er ist für serverseitige Clients gedacht, nie für eine Browser-Seite, die einen Schlüssel hält. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
 
 ## Die Tools
 

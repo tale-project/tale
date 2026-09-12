@@ -21,12 +21,16 @@ Die Versionszeile oben auf jeder Release-Seite nennt die Art des Bumps in Klarte
 
 Jede Release-Seite ist dieselbe geordnete Abschnitts-Liste. Leere Abschnitte werden weggelassen, nicht leer gelassen — siehst du einen Abschnitt nicht, gibt es dort nichts zu melden.
 
-- **Highlights** — ein oder zwei Absätze dazu, wofür das Release da ist. Lies das zuerst.
+- **Highlights** — ein kurzer Abschnitt pro gelandeter Änderung dazu, wofür sie da ist. Lies das zuerst.
 - **Breaking Changes** — jede Änderung, die verlangt, dass der Operator vor oder nach dem Upgrade etwas tut. Jede Zeile nennt das Symptom, das du treffen würdest, wenn du sie überspringst, und die Aktion, die das vermeidet.
 - **Deprecations** — Features, die in diesem Release noch laufen, aber zur Entfernung markiert sind. Jede Zeile nennt die Removal-Version, damit du den Cutover planen kannst.
+- **Verhaltensänderungen** — was eine Person oder ein Operator bemerkt, wenn sie dasselbe tun wie vorher: ein Standardwert, der sich verschoben hat, eine Ablehnung, die neu ist, ein Bildschirm, der sich anders liest.
+- **API-Vertragsänderungen** — jede Wire-Änderung an der REST-Oberfläche (`/api/v1`), dem MCP-Endpoint, WebDAV oder OpenID Connect, eine Zeile pro Änderung mit altem und neuem Verhalten (`GET …/content` antwortet **200** mit den Bytes — vorher ein 302), samt der `info.version` des OpenAPI-Dokuments, in dem sie landet. Ein Integrator, der eine Vertragsversion pinnt, liest diesen Abschnitt und sonst nichts; die [API-Referenz](/de/develop/api-reference#versionierung) erklärt, wie die Version sich bewegt.
 - **Security** — Einträge im CVE-Format für Fixes, die eine Schwachstelle schließen. Der vollständige Feed lebt unter [Security-Advisories](/de/self-hosted/operate/security/advisories); die Release-Notes tragen die Ein-Zeilen-Zusammenfassung plus den Link auf das Advisory.
-- **Features und Fixes** — die lange Liste. Gruppiert nach Bereich (Platform, CLI, Docs); jede Zeile liest sich als ein Satz.
+- **Bekannte Probleme** — womit das Release ausgeliefert wird und was es nicht behoben hat, jeweils mit dem Workaround, wenn es einen gibt.
 - **Migrations-Notes** _(Major-Versionen und manche Minors)_ — der verlinkte Walk durch Schema-Migrationen, Config-Datei-Änderungen oder operatorseitige Umbenennungen. Bei Majors immer lesen.
+- **Upgrade** — die Abfolge `tale update` + `tale deploy` für dieses Release, mit allem, was sie über das Übliche hinaus braucht.
+- **What's Changed** — die generierte Liste jeder gemergten Änderung, eine Zeile pro Eintrag mit ihrem Pull Request. Die lange Liste; die Abschnitte darüber sind die Lesereihenfolge.
 
 ## Wie du ein Release scannst
 

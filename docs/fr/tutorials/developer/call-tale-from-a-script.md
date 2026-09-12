@@ -23,7 +23,7 @@ export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```
 
-La clé agit en ton nom dans l’organisation choisie par `TALE_ORG_SLUG` ; ton appartenance et ton rôle fixent ses droits. Avec plusieurs appartenances, l’en-tête d’organisation est obligatoire pour les écritures et toutes les routes de projet. Garde la clé comme un mot de passe.
+La clé agit en ton nom dans l’organisation choisie par `TALE_ORG_SLUG` ; ton appartenance et ton rôle fixent ses droits. Si tu appartiens à plusieurs organisations, l’en-tête d’organisation est obligatoire sur chaque requête, lectures comprises — sans lui, l’API répond `400` avec `"code": "ORG_SLUG_REQUIRED"` et liste les slugs que tu peux envoyer. Garde la clé comme un mot de passe.
 
 ## Étape 2 — Test de fumée avec curl
 

@@ -46,7 +46,7 @@ Innerhalb des Produkts zählen drei Kontroll-Oberflächen für Compliance:
 
 ## Vorfälle melden
 
-Tales Sicherheitsvorfall-Kontakt ist `security@tale.dev`. Vermutete Schwachstellen-Offenlegung folgt der Responsible-Disclosure-Policy auf derselben E-Mail. Kundenseitige Sicherheits-Advisories werden auf der Status-Seite veröffentlicht und dem Owner der Org per E-Mail zugestellt.
+Tales Sicherheitsvorfall-Kontakt ist `security@tale.dev`. Vermutete Schwachstellen-Offenlegung folgt der Responsible-Disclosure-Policy auf derselben E-Mail. Kundenseitige Sicherheits-Advisories erscheinen im [Security-Advisory-Feed](/de/self-hosted/operate/security/advisories) und gehen dem Inhaber der Org per E-Mail zu; die [Status-Seite](/de/develop/status-page) meldet nur die Verfügbarkeit und trägt keine Advisories.
 
 ## Wo das hineinpasst
 

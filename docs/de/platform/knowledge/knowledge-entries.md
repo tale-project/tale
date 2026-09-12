@@ -27,7 +27,7 @@ Einen Wissens-Schreib-Schalter pro Agent gibt es nicht einzuschalten. Ein Fakt l
 
 Themen sind der Dedup-Schlüssel: Eine Bearbeitung ersetzt die aktive Version, statt eine zweite daneben zu stellen — die Wissensdatenbank serviert nie zwei Versionen desselben Fakts. Einen neuen Eintrag unter einem bestehenden Thema anzulegen wird mit einem Duplikat-Fehler abgewiesen; bearbeite stattdessen den bestehenden Eintrag.
 
-Ersetzte Versionen gehen nicht verloren. Öffne einen Eintrag für seine Details — Indexierungsstatus, letzte Aktualisierung und den **Versionsverlauf** mit jeder abgelösten Version und dem Zeitpunkt der Ablösung. Nur die aktive Version ist für den Abruf indexiert; der Verlauf existiert für Audit und Nachschlagen.
+Ersetzte Versionen gehen nicht verloren. Öffne einen Eintrag für seine Details — Indexierungsstatus, letzte Aktualisierung und den **Versionsverlauf** mit jeder abgelösten Version und dem Zeitpunkt der Ablösung. Nur die aktive Version ist für den Abruf indexiert; der Verlauf existiert für Audit und Nachschlagen. Über die API ist derselbe Verlauf `GET /api/v1/knowledge-entries/{id}/versions`, und `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` listet die abgelösten Versionen eines Themas, jede mit ihrem `supersededAt` — siehe die [API-Referenz](/de/develop/api-reference).
 
 ## Bearbeiten, Indexieren, Löschen
 

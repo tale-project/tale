@@ -17,7 +17,9 @@ Les clés listées ici sont différentes des jetons de session par utilisateur q
 
 Ouvre **Paramètres > API > REST** et clique sur **Créer une clé API**. Donne à la clé un nom qui dit qui ou quoi va l’utiliser (`Sync facturation`, `Relais Slack`, `ops-cron`) et choisis l’expiration — 7, 30 ou 90 jours, un an, ou jamais ; 30 jours par défaut. Tale montre le secret exactement une fois à la création — copie-le dans ton gestionnaire de mots de passe ou ton système de déploiement avant de fermer la boîte de dialogue. Après, la table n’en montre plus qu’un fragment masqué.
 
-La clé agit comme toi : chaque requête qu’elle fait porte ton rôle dans l’organisation. Une clé fabriquée par un Développeur peut lire chaque ressource et écrire dans la plupart ; il n’existe pas de clé plus puissante que la personne qui l’a créée. Les clés étant aussi dangereuses que le rôle derrière elles, laisse le compte le moins privilégié qui fait le job fabriquer la clé.
+Les clés se fabriquent ici, pas par l’API : rien sous `/api/v1` n’en crée, n’en liste, n’en fait tourner ni n’en révoque une, un connector sans surveillance ne peut donc pas se refaire son propre identifiant. Ce qu’il peut faire, c’est voir venir l’expiration — `GET /api/v1/me` répond le `name` et l’`expiresAt` de la clé — et alerter une personne à temps pour le chevauchement décrit sous [Roter une clé](#roter-une-cle).
+
+La clé agit comme toi : chaque requête qu’elle fait porte ton rôle dans l’organisation. Une clé fabriquée par un Développeur peut lire chaque ressource et écrire dans la plupart ; il n’existe pas de clé plus puissante que la personne qui l’a créée. Les clés étant aussi dangereuses que le rôle derrière elles, laisse le compte le moins privilégié qui fait le job fabriquer la clé.
 
 ## Ce que la table montre
 
@@ -35,7 +37,7 @@ Ouvre le menu de la ligne, clique sur **Révoquer la clé**, puis confirme. Une 
 
 ## Périmètres et limites
 
-Chaque clé porte les permissions du rôle de son créateur au moment de chaque requête, pas au moment de la création. Change le rôle de la personne — ou désactive son adhésion — et chaque clé qu’elle a fabriquée hérite du changement à la requête suivante. Les requêtes vers l’API REST sont limitées en débit par adresse appelante, et une [règle de budget de gouvernance](/fr/platform/admin/governance/policies-and-limits) peut plafonner ce qu’une clé dépense en modèles.
+Chaque clé porte les permissions du rôle de son créateur au moment de chaque requête, pas au moment de la création. Change le rôle de la personne — ou désactive son adhésion — et chaque clé qu’elle a fabriquée hérite du changement à la requête suivante. Les requêtes vers l’API REST sont limitées en débit par détenteur de clé — la personne comme laquelle la clé agit, jamais l’adresse appelante —, répartir un connector sur plusieurs clés fabriquées par la même personne, ou sur plusieurs adresses de sortie, n’achète donc aucune marge ; donne plutôt à un connector chargé son propre utilisateur machine. Seule une requête dont la clé échoue à s’authentifier est imputée à son adresse source. Les budgets eux-mêmes sont sur [Limites de débit](/fr/develop/rate-limits), et une [règle de budget de gouvernance](/fr/platform/admin/governance/policies-and-limits) peut plafonner ce qu’une clé dépense en modèles.
 
 ## Où cela s’inscrit
 
