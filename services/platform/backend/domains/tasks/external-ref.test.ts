@@ -1,8 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import {
+  findTaskByExternalRef,
   startWorkflowForTask,
   startWorkflowForTaskInTx,
   taskWorkflowStartLockKey,
@@ -264,5 +266,74 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
       [],
     );
     expect(requestTaskReview).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The external ref is canonical — NFC, trimmed — at every lookup and write,
+ * the one rule the project family's `externalItemId` follows. A padded or
+ * differently normalized repeat used to be a second task.
+ */
+describe('the external ref is canonical at the lookup and the write', () => {
+  const nfd = 'café'.normalize('NFD');
+
+  it('looks the ref up in its canonical form', async () => {
+    const { tx, statements } = fakeDb(() => []);
+    const captured: unknown[][] = [];
+    const { tx: capturing } = fakeDb((text, values) => {
+      if (text.includes('FROM app.tasks WHERE org_id = ?'))
+        captured.push(values);
+      return [];
+    });
+    await findTaskByExternalRef(capturing, {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      externalSystem: ' crm ',
+      externalId: `  ${nfd}-001\n`,
+      dedupeScope: 'project',
+    });
+    // (columns, org_id, project_id, external_system, external_id)
+    expect(captured[0]?.slice(3)).toEqual(['crm', 'café-001']);
+    await expect(
+      findTaskByExternalRef(tx, {
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        externalSystem: 'crm',
+        externalId: '   ',
+        dedupeScope: 'project',
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_EXTERNAL_REF_INVALID', status: 400 });
+    expect(statements).toEqual([]);
+  });
+
+  it('creates the task with the canonical ref and audits it that way', async () => {
+    const values: Record<string, unknown[]> = {};
+    const { tx } = fakeDb((text, args) => {
+      if (text.startsWith('INSERT INTO app.tasks')) {
+        values.insert = args;
+        return [{ id: 't-new' }];
+      }
+      if (text.startsWith('SELECT id FROM app.projects'))
+        return [{ id: 'p-1' }];
+      if (text.startsWith('UPDATE app.projects SET task_counter'))
+        return [{ taskCounter: 3 }];
+      return [];
+    });
+    const result = await upsertTaskByExternalRef(tx, {
+      organizationId: 'org-1',
+      actorId: 'u-1',
+      projectId: 'p-1',
+      externalSystem: ' crm ',
+      externalId: `  ${nfd}-001\n`,
+      title: 'Prepare',
+      dedupeScope: 'project',
+    });
+    expect(result).toEqual({ taskId: 't-new', created: true });
+    // (…, rank, number, external_system, external_id, …): the canonical pair.
+    expect(values.insert).toEqual(expect.arrayContaining(['crm', 'café-001']));
+    expect(values.insert).not.toEqual(expect.arrayContaining([' crm ']));
+    expect(vi.mocked(createAuditLog).mock.calls.at(-1)?.[1]).toMatchObject({
+      metadata: { externalSystem: 'crm', externalId: 'café-001' },
+    });
   });
 });

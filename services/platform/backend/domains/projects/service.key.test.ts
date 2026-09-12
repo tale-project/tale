@@ -12,7 +12,11 @@
 import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createProject, ProjectError } from './service.ts';
+import {
+  createProject,
+  getProjectByExternalItemId,
+  ProjectError,
+} from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
@@ -112,6 +116,59 @@ describe('createProject — the key', () => {
 });
 
 describe('createProject — the external item id', () => {
+  const nfd = 'acme-café'.normalize('NFD');
+
+  it('stores the key canonical — NFC, trimmed — and checks the duplicate on that form', async () => {
+    const { tx, statements } = fakeTx();
+    await createProject(tx, auth, {
+      name: 'ACME Ltd',
+      externalItemId: `  ${nfd}\n`,
+    });
+    const insert = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.projects'),
+    );
+    // (org_id, name, key, external_item_id, …)
+    expect(insert?.values[3]).toBe('acme-café');
+    const check = statements.find((s) =>
+      s.text.includes('external_item_id = ?'),
+    );
+    expect(check?.values[1]).toBe('acme-café');
+    await expect(
+      createProject(fakeTx({ externalIds: ['acme-café'] }).tx, auth, {
+        name: 'ACME twin',
+        externalItemId: nfd,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_DUPLICATE_EXTERNAL_ID',
+      status: 409,
+    });
+  });
+
+  it('refuses a key that is blank once canonicalized', async () => {
+    const { tx, statements } = fakeTx();
+    await expect(
+      createProject(tx, auth, { name: 'ACME Ltd', externalItemId: ' \n ' }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_EXTERNAL_ITEM_ID_INVALID',
+      status: 400,
+    });
+    expect(statements.some((s) => s.text.startsWith('INSERT'))).toBe(false);
+  });
+
+  it('looks up by the canonical form and never queries for a blank key', async () => {
+    const { tx, statements } = fakeTx();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the same stand-in serves as the root handle
+    const sql = tx as unknown as Parameters<
+      typeof getProjectByExternalItemId
+    >[0];
+    await getProjectByExternalItemId(sql, 'org_1', `  ${nfd} `);
+    // (columns, org_id, external_item_id)
+    expect(statements.at(-1)?.values[2]).toBe('acme-café');
+    const before = statements.length;
+    expect(await getProjectByExternalItemId(sql, 'org_1', '   ')).toBeNull();
+    expect(statements.length).toBe(before);
+  });
+
   it('answers a duplicate with 409 and creates nothing', async () => {
     const { tx, statements } = fakeTx({ externalIds: ['crm-4711'] });
     await expect(

@@ -71,6 +71,7 @@ interface DocRow {
 function fakeTx(
   docs: DocRow[],
   taskIds: string[] = [],
+  boundAutomations: string[] = [],
 ): {
   tx: TransactionSql;
   statements: Statement[];
@@ -81,6 +82,11 @@ function fakeTx(
     statements.push({ text, values });
     if (text.includes('FROM app.projects WHERE id = ?')) {
       return Promise.resolve([PROJECT]);
+    }
+    if (text.includes('FROM app.automation_project_bindings')) {
+      return Promise.resolve(
+        boundAutomations.map((automationName) => ({ automationName })),
+      );
     }
     if (text.startsWith('SELECT id FROM app.tasks')) {
       return Promise.resolve(taskIds.map((id) => ({ id })));
@@ -115,6 +121,22 @@ afterEach(() => {
 });
 
 describe('deleteProject (cascade)', () => {
+  it('refuses a project an automation is installed in as a 409 naming the automations, before any write', async () => {
+    const { tx, statements } = fakeTx([], [], ['ops/door', 'vat/return']);
+    await expect(
+      deleteProject(tx, auth, {
+        projectId: 'project-1',
+        mode: 'cascade',
+        confirmPhrase: 'Q2 Sales',
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+      status: 409,
+      data: { automations: ['ops/door', 'vat/return'] },
+    });
+    expect(writes(statements)).toEqual([]);
+  });
+
   it('refuses the whole cascade before any write when a record is protected', async () => {
     const { tx, statements } = fakeTx([
       { id: 'doc-a', title: 'plain.txt', record: null, createdBy: 'user-1' },
@@ -138,7 +160,7 @@ describe('deleteProject (cascade)', () => {
     });
     await expect(attempt).rejects.toMatchObject({
       code: 'PROJECT_HAS_PROTECTED_RECORDS',
-      status: 400,
+      status: 409,
       data: { documents: ['SOP-7.pdf', 'doc-c'] },
     });
     await expect(attempt).rejects.toBeInstanceOf(ProjectError);

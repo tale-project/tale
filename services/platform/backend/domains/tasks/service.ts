@@ -1086,7 +1086,7 @@ export async function createTask(
   `;
   const taskId = inserted[0]?.id;
   if (!taskId) {
-    throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+    throw new Error('TASK_CREATE_FAILED: the insert answered no row');
   }
   await applyTaskCountTransition(
     tx,
@@ -1582,7 +1582,7 @@ export async function agentCreateTaskTrusted(
   `;
   const taskId = inserted[0]?.id;
   if (!taskId) {
-    throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+    throw new Error('TASK_CREATE_FAILED: the insert answered no row');
   }
   await applyTaskCountTransition(
     tx,

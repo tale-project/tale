@@ -17,6 +17,7 @@ import {
   PROJECT_NAME_MAX,
   PROJECT_SHARED_TEAMS_MAX,
 } from '../../../lib/shared/schemas/projects.ts';
+import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import {
   ADMIN_ROLES,
@@ -487,6 +488,12 @@ async function resolveDuplicateProjectKey(
   return undefined;
 }
 
+/**
+ * The caller-owned key in its ONE canonical form (NFC, trimmed —
+ * `canonicalExternalKey`, the same rule the lookup and the task family
+ * apply), checked against the organization's existing projects. Two keys
+ * that differed only in normalization used to be two projects.
+ */
 async function resolveExternalItemId(
   tx: TransactionSql | Sql,
   organizationId: string,
@@ -495,14 +502,14 @@ async function resolveExternalItemId(
   if (raw == null) {
     return undefined;
   }
-  const externalItemId = raw.trim();
+  const externalItemId = canonicalExternalKey(raw);
   if (
     externalItemId.length === 0 ||
     externalItemId.length > PROJECT_EXTERNAL_ITEM_ID_MAX
   ) {
     throw new ProjectError(
       'PROJECT_EXTERNAL_ITEM_ID_INVALID',
-      `externalItemId must be 1-${PROJECT_EXTERNAL_ITEM_ID_MAX} characters after trimming`,
+      `externalItemId must be 1-${PROJECT_EXTERNAL_ITEM_ID_MAX} characters after NFC normalization and trimming`,
     );
   }
   const rows = await tx<{ id: string }[]>`
@@ -633,7 +640,7 @@ export async function createProject(
   `;
   const projectId = inserted[0]?.id;
   if (!projectId) {
-    throw new ProjectError('PROJECT_CREATE_FAILED', 'Insert failed');
+    throw new Error('PROJECT_CREATE_FAILED: the insert answered no row');
   }
 
   await createAuditLog(
@@ -701,7 +708,7 @@ export async function duplicateProject(
   `;
   const newProjectId = inserted[0]?.id;
   if (!newProjectId) {
-    throw new ProjectError('PROJECT_CREATE_FAILED', 'Insert failed');
+    throw new Error('PROJECT_CREATE_FAILED: the insert answered no row');
   }
   await createAuditLog(
     tx,
@@ -1159,11 +1166,14 @@ export async function deleteProject(
     WHERE project_id = ${args.projectId}
     ORDER BY automation_name
   `;
+  // The three refusals below are the project's STATE standing in the way
+  // (a binding, a protected record, a hold) — 409s, like every other
+  // state refusal on the wire, never a malformed-request 400.
   if (bound.length > 0) {
     throw new ProjectError(
       'PROJECT_HAS_BOUND_AUTOMATIONS',
       'Automations are bound to this project',
-      400,
+      409,
       { automations: bound.map((row) => row.automationName) },
     );
   }
@@ -1300,7 +1310,7 @@ async function assertProjectDocumentsDestroyable(
     throw new ProjectError(
       'PROJECT_HAS_PROTECTED_RECORDS',
       'Controlled records in this project are in review, approved, or retain an approved version and cannot be deleted',
-      400,
+      409,
       { documents: protectedTitles },
     );
   }
@@ -1317,7 +1327,7 @@ async function assertProjectDocumentsDestroyable(
       );
     } catch (error) {
       if (error instanceof LegalHoldError) {
-        throw new ProjectError('PROJECT_LEGAL_HOLD', error.message, 400);
+        throw new ProjectError('PROJECT_LEGAL_HOLD', error.message, 409);
       }
       throw error;
     }
@@ -1490,17 +1500,27 @@ async function assertAgentEquipment(
   }
 }
 
+/** What a save does with a referenced secret name the organization does
+ * not have: `prune` drops it (the app dialog's rule), `refuse` answers the
+ * names (the machine door's rule). */
+export type UnknownSecretsPolicy = 'prune' | 'refuse';
+
 /**
- * Drop referenced secret names the org no longer has, so an equipment row
- * never carries a dangling grant. The dialog may still list a secret a
- * manager just deleted; pruning silently is right because a missing secret
- * is inert at run time anyway — throwing would block an unrelated edit
- * (the 0.4 `pruneMissingSecrets` rule).
+ * Resolve the referenced secret names against the org's secrets. `prune`
+ * drops the ones the org no longer has, so an equipment row never carries
+ * a dangling grant: the dialog may still list a secret a manager just
+ * deleted, and a missing secret is inert at run time anyway — throwing
+ * would block an unrelated edit (the 0.4 `pruneMissingSecrets` rule).
+ * `refuse` names them instead (`PROJECT_AGENT_SECRET_UNKNOWN`, the names
+ * under `data.secrets`): an unattended caller that typo'd a name used to
+ * get a 200 and an agent that runs credential-less — the one equipment
+ * field that degraded in silence while every other is refused by name.
  */
-async function pruneMissingSecrets(
+async function resolveSecretGrants(
   tx: TransactionSql,
   organizationId: string,
   requested: string[],
+  unknownSecrets: UnknownSecretsPolicy,
 ): Promise<string[]> {
   if (requested.length === 0) return [];
   const rows = await tx<{ name: string }[]>`
@@ -1508,6 +1528,15 @@ async function pruneMissingSecrets(
     WHERE org_id = ${organizationId} AND name = ANY(${requested})
   `;
   const existing = new Set(rows.map((row) => row.name));
+  const unknown = requested.filter((name) => !existing.has(name));
+  if (unknown.length > 0 && unknownSecrets === 'refuse') {
+    throw new ProjectError(
+      'PROJECT_AGENT_SECRET_UNKNOWN',
+      `Unknown secrets: ${unknown.join(', ')}. An agent may only reference secret names the organization has stored — add them under the organization's secrets first, or drop them from the grant.`,
+      400,
+      { secrets: unknown },
+    );
+  }
   return requested.filter((name) => existing.has(name));
 }
 
@@ -1593,16 +1622,19 @@ export async function createProjectAgent(
     tools?: string[];
     secrets?: string[];
     instructions?: string;
+    /** Default `prune` — the app dialog's rule. */
+    unknownSecrets?: UnknownSecretsPolicy;
   },
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
   await assertAgentEquipment(tx, auth, args.projectId, fields);
-  fields.secrets = await pruneMissingSecrets(
+  fields.secrets = await resolveSecretGrants(
     tx,
     auth.organizationId,
     fields.secrets,
+    args.unknownSecrets ?? 'prune',
   );
   assertMaySetSecrets(auth, fields.secrets, []);
 
@@ -1639,7 +1671,7 @@ export async function createProjectAgent(
   `;
   const agentId = inserted[0]?.id;
   if (!agentId) {
-    throw new ProjectError('PROJECT_AGENT_CREATE_FAILED', 'Insert failed');
+    throw new Error('PROJECT_AGENT_CREATE_FAILED: the insert answered no row');
   }
   await tx`
     UPDATE app.projects SET
@@ -1679,6 +1711,13 @@ export async function updateProjectAgent(
     tools?: string[];
     secrets?: string[];
     instructions?: string;
+    /** Default `prune` — the app dialog's rule. */
+    unknownSecrets?: UnknownSecretsPolicy;
+    /** The `updatedAt` the caller last read: a save is refused
+     * (`PROJECT_AGENT_STALE`, 409) when the agent changed since — the
+     * optimistic precondition every full-replace door needs, so two
+     * writers cannot silently clobber each other's configuration. */
+    expectedUpdatedAt?: number;
   },
 ): Promise<void> {
   const rows = await tx<ProjectAgentRow[]>`
@@ -1689,16 +1728,28 @@ export async function updateProjectAgent(
   if (!agent) {
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
   }
+  if (
+    args.expectedUpdatedAt !== undefined &&
+    args.expectedUpdatedAt !== agent.updatedAt
+  ) {
+    throw new ProjectError(
+      'PROJECT_AGENT_STALE',
+      'The agent changed since it was read; reload it and merge your changes before saving',
+      409,
+      { updatedAt: agent.updatedAt },
+    );
+  }
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
   await assertAgentEquipment(tx, auth, agent.projectId, fields);
-  // Prune BEFORE the gate: a set that only lost a deleted secret is not a
+  // Resolve BEFORE the gate: a set that only lost a deleted secret is not a
   // privileged change, so an editor's unrelated save must not be refused.
-  fields.secrets = await pruneMissingSecrets(
+  fields.secrets = await resolveSecretGrants(
     tx,
     auth.organizationId,
     fields.secrets,
+    args.unknownSecrets ?? 'prune',
   );
   assertMaySetSecrets(auth, fields.secrets, agent.secrets);
 
@@ -1945,18 +1996,62 @@ export async function listAccessibleUserIds(
   return { orgWide: false, userIds: rows.map((row) => row.userId) };
 }
 
-/** Lookup by the caller-owned natural key — the REST door's find lane. */
+/** Lookup by the caller-owned natural key — the REST door's find lane. The
+ * key is compared in its canonical form (NFC, trimmed), the form the
+ * create stored it in. */
 export async function getProjectByExternalItemId(
   sql: Sql,
   organizationId: string,
   externalItemId: string,
 ): Promise<ProjectRow | null> {
+  const key = canonicalExternalKey(externalItemId);
+  if (key === '') return null;
   const rows = await sql<ProjectRow[]>`
     SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
-    WHERE org_id = ${organizationId} AND external_item_id = ${externalItemId}
+    WHERE org_id = ${organizationId} AND external_item_id = ${key}
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+/** The lifecycle filter of the project listing. */
+export type ProjectArchivedFilter = 'exclude' | 'include' | 'only';
+
+/**
+ * One page of the projects visible to the caller, newest first — the REST
+ * door's list, keyed like every keyset listing on the door on
+ * `(created_at_ms DESC, id DESC)`; `cursor` is the previous page's last
+ * row. Answers one row more than `limit` asks for, so the caller can tell
+ * whether a next page exists without a count.
+ */
+export async function listProjectsPage(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  options: {
+    archived: ProjectArchivedFilter;
+    limit: number;
+    cursor: { at: number; id: string } | null;
+  },
+): Promise<{ projects: ProjectRow[]; hasMore: boolean }> {
+  const cursorAt = options.cursor?.at ?? null;
+  const cursorId = options.cursor?.id ?? null;
+  const rows = await sql<ProjectRow[]>`
+    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    WHERE org_id = ${auth.organizationId}
+      AND (${options.archived === 'include'}
+        OR (${options.archived === 'only'} AND archived_at_ms IS NOT NULL)
+        OR (${options.archived === 'exclude'} AND archived_at_ms IS NULL))
+      AND ${visibilityClause(sql, auth)}
+      AND (${cursorAt}::bigint IS NULL
+        OR created_at_ms < ${cursorAt}
+        OR (created_at_ms = ${cursorAt} AND id < ${cursorId}))
+    ORDER BY created_at_ms DESC, id DESC
+    LIMIT ${options.limit + 1}
+  `;
+  return {
+    projects: rows.slice(0, options.limit),
+    hasMore: rows.length > options.limit,
+  };
 }
 
 // -------------------------------------------------------- rollup repair

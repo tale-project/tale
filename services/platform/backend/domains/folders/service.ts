@@ -31,9 +31,13 @@ export { MAX_FOLDER_DEPTH };
 
 export class FolderError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
 
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'FolderError';
     this.code = code;
@@ -68,6 +72,24 @@ function validateFolderName(name: string): string {
     }
     throw error;
   }
+}
+
+/** A sibling of the same name already exists — the state refusal (409)
+ * every create and rename of a project folder can answer. */
+function nameTaken(): FolderError {
+  return new FolderError('FOLDER_NAME_TAKEN', 'Folder name taken', 409);
+}
+
+/** Whether a Postgres error is the project sibling-name index refusing a
+ * row — the race two concurrent creates (or a rename beside a create) can
+ * lose after both passed the SELECT-then-INSERT sibling check. */
+function isSiblingNameRace(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    Reflect.get(error, 'code') === '23505' &&
+    Reflect.get(error, 'constraint_name') === 'folders_project_sibling_name'
+  );
 }
 
 export async function loadFolderOrThrow(
@@ -204,9 +226,15 @@ export async function createFolder(
     LIMIT 1
   `;
   if (sibling.length > 0) {
-    throw new FolderError('FOLDER_NAME_TAKEN', 'Folder name taken');
+    throw nameTaken();
   }
 
+  // A project folder's sibling uniqueness is DB-enforced
+  // (`folders_project_sibling_name`, case-folded): two writers can both
+  // pass the check above, so the insert arbitrates on the index and the
+  // loser answers the same refusal — instead of a unique-violation 500
+  // that aborts the caller's transaction. Hub folders (no project) carry
+  // no index and insert as before.
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.folders (
       org_id, name, parent_id, team_id, team_tags, project_id, created_by,
@@ -216,11 +244,15 @@ export async function createFolder(
       ${effectiveTeamId}, ${effectiveTeamId ? [effectiveTeamId] : []},
       ${effectiveProjectId}, ${auth.userId}, ${Date.now()}
     )
+    ON CONFLICT (org_id, project_id, (coalesce(parent_id, '')), (lower(name)))
+      WHERE project_id IS NOT NULL
+      DO NOTHING
     RETURNING id
   `;
   const id = inserted[0]?.id;
   if (!id) {
-    throw new FolderError('FOLDER_CREATE_FAILED', 'Insert failed');
+    if (effectiveProjectId) throw nameTaken();
+    throw new Error('FOLDER_CREATE_FAILED: the insert answered no row');
   }
   await emitHintInTx(tx, {
     orgId: auth.organizationId,
@@ -276,9 +308,14 @@ export async function renameFolder(
     LIMIT 1
   `;
   if (sibling.length > 0) {
-    throw new FolderError('FOLDER_NAME_TAKEN', 'Folder name taken');
+    throw nameTaken();
   }
-  await tx`UPDATE app.folders SET name = ${trimmed} WHERE id = ${folderId}`;
+  try {
+    await tx`UPDATE app.folders SET name = ${trimmed} WHERE id = ${folderId}`;
+  } catch (error) {
+    if (isSiblingNameRace(error)) throw nameTaken();
+    throw error;
+  }
   await emitHintInTx(tx, {
     orgId: auth.organizationId,
     entity: 'folder',
@@ -385,9 +422,13 @@ async function assertFolderMutableReadOnly(
 
 /**
  * GET-OR-CREATE a project folder — the REST door's idempotent prepare step:
- * an exact-name match under the same parent answers the existing folder
- * (`created: false`); otherwise the folder is created through the same
- * validated `createFolder` the session surface uses.
+ * a sibling of the same name under the same parent, compared the way the
+ * sibling rule compares (case-folded — `createFolder` refuses `INBOX`
+ * beside `inbox`, so the match must fold too or a worker whose naming
+ * convention changed case could never converge), answers the existing
+ * folder with its STORED spelling (`created: false`); otherwise the folder
+ * is created through the same validated `createFolder` the session surface
+ * uses.
  */
 export async function getOrCreateProjectFolder(
   tx: TransactionSql,
@@ -405,15 +446,20 @@ export async function getOrCreateProjectFolder(
       throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
     }
   }
-  const existing = await tx<{ id: string; name: string }[]>`
-    SELECT id, name FROM app.folders
-    WHERE org_id = ${auth.organizationId}
-      AND project_id = ${args.projectId}
-      AND parent_id IS NOT DISTINCT FROM ${args.parentId ?? null}
-      AND name = ${name}
-    LIMIT 1
-  `;
-  const found = existing[0];
+  const findSibling = async (): Promise<
+    { id: string; name: string } | undefined
+  > => {
+    const rows = await tx<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.folders
+      WHERE org_id = ${auth.organizationId}
+        AND project_id = ${args.projectId}
+        AND parent_id IS NOT DISTINCT FROM ${args.parentId ?? null}
+        AND lower(name) = ${name.toLowerCase()}
+      LIMIT 1
+    `;
+    return rows[0];
+  };
+  const found = await findSibling();
   if (found !== undefined) {
     return { folderId: found.id, name: found.name, created: false };
   }
@@ -427,22 +473,15 @@ export async function getOrCreateProjectFolder(
   } catch (error) {
     // Two writers can pass the lookup above before either commits (the
     // project-text panel saving twice, two syncs filing into one folder);
-    // the create's own sibling check then sees the winner's row and refuses
-    // with FOLDER_NAME_TAKEN. The folder this caller asked for exists now —
-    // hand it back as "found" instead of failing a save on a name the caller
+    // the create's own sibling check — or the sibling index its insert
+    // arbitrates on — then sees the winner's row and refuses with
+    // FOLDER_NAME_TAKEN. The folder this caller asked for exists now — hand
+    // it back as "found" instead of failing a save on a name the caller
     // never chose to collide with.
     if (!(error instanceof FolderError) || error.code !== 'FOLDER_NAME_TAKEN') {
       throw error;
     }
-    const won = await tx<{ id: string; name: string }[]>`
-      SELECT id, name FROM app.folders
-      WHERE org_id = ${auth.organizationId}
-        AND project_id = ${args.projectId}
-        AND parent_id IS NOT DISTINCT FROM ${args.parentId ?? null}
-        AND name = ${name}
-      LIMIT 1
-    `;
-    const winner = won[0];
+    const winner = await findSibling();
     if (winner === undefined) throw error;
     return { folderId: winner.id, name: winner.name, created: false };
   }

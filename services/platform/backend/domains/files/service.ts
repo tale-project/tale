@@ -6,6 +6,7 @@ import { browserFacing } from '../../core/lib/storage/object_store.ts';
 import {
   buildObjectKey,
   deleteOrgObject,
+  fetchPresignedObject,
   locateOrgObjectStore,
   resolveObjectStore,
   s3DeleteObject,
@@ -237,7 +238,7 @@ export async function registerUpload(
   `;
   const fileId = inserted[0]?.id;
   if (!fileId) {
-    throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
+    throw new Error('FILE_REGISTER_FAILED: the insert answered no row');
   }
   return { fileId, size: head.size };
 }
@@ -348,6 +349,86 @@ export async function getFileUrl(
   return s3PresignGetUrl(browserFacing(store), key, {
     ...(opts.filename !== undefined && { filename: opts.filename }),
   });
+}
+
+/** What `openFileContent` hands a door: the store's status and headers,
+ * and the body to stream (null for a HEAD or a 416). */
+export interface FileContent {
+  status: number;
+  headers: Headers;
+  body: ReadableStream<Uint8Array> | null;
+}
+
+/**
+ * Open a blob's bytes for a door that serves them ITSELF — the REST file
+ * lane. Signed against the store's own endpoint (the platform dials it,
+ * never a browser) and fetched here, so no presigned URL and no second
+ * authentication ever reaches the client: the old 302 sent a bearer-
+ * carrying client to a presigned URL on the platform's own origin, where
+ * the store refused the two authentications and `curl -L -o` wrote that
+ * refusal into the file. A `Range` is forwarded (the store answers 206 or
+ * 416); `head` answers the metadata only. Null when the blob is gone; a
+ * store that cannot be reached or answers an error is
+ * `OBJECT_STORE_UNAVAILABLE` (503) — never a 404 that would read as "the
+ * file does not exist".
+ */
+export async function openFileContent(
+  sql: Sql,
+  scope: { organizationId: string },
+  storageRef: string,
+  opts: { head?: boolean; range?: string; signal?: AbortSignal } = {},
+): Promise<FileContent | null> {
+  const { key, store } = await requireOrgStoreForRef(
+    sql,
+    scope.organizationId,
+    storageRef,
+  );
+  const unavailable = (why: string): FileError =>
+    new FileError(
+      'OBJECT_STORE_UNAVAILABLE',
+      `The object store did not serve the file: ${why}`,
+      503,
+    );
+  if (opts.head === true) {
+    let head;
+    try {
+      head = await s3HeadObject(store, key);
+    } catch (error) {
+      throw unavailable(error instanceof Error ? error.message : String(error));
+    }
+    if (head === null) return null;
+    const headers = new Headers({ 'content-length': String(head.size) });
+    if (head.contentType !== null)
+      headers.set('content-type', head.contentType);
+    return { status: 200, headers, body: null };
+  }
+  const presigned = await s3PresignGetUrl(store, key);
+  let upstream: Response;
+  try {
+    upstream = await fetchPresignedObject(presigned, {
+      ...(opts.signal === undefined ? {} : { signal: opts.signal }),
+      ...(opts.range === undefined ? {} : { headers: { range: opts.range } }),
+    });
+  } catch (error) {
+    throw unavailable(error instanceof Error ? error.message : String(error));
+  }
+  if (upstream.status === 404) {
+    await upstream.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  if (upstream.status === 416) {
+    await upstream.body?.cancel().catch(() => undefined);
+    return { status: 416, headers: upstream.headers, body: null };
+  }
+  if (!upstream.ok) {
+    await upstream.body?.cancel().catch(() => undefined);
+    throw unavailable(`the store answered ${upstream.status}`);
+  }
+  return {
+    status: upstream.status,
+    headers: upstream.headers,
+    body: upstream.body,
+  };
 }
 
 /**
@@ -487,7 +568,8 @@ export async function registerUploadedBytes(
     RETURNING id
   `;
   const fileId = inserted[0]?.id;
-  if (!fileId) throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
+  if (!fileId)
+    throw new Error('FILE_REGISTER_FAILED: the insert answered no row');
   return { fileId };
 }
 
