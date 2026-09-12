@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   crawlHostRefusal,
   CrawlTargetError,
+  crawlTargetResolutionRefusal,
   parseCrawlTarget,
 } from './crawl-host-policy';
+import { setSafeFetchResolverForTests } from './safe-fetch';
 
 /**
  * A registered website is a server-side fetch target the crawler dials
@@ -122,5 +124,54 @@ describe('parseCrawlTarget', () => {
       expect(error).toBeInstanceOf(CrawlTargetError);
       expect(error).toMatchObject({ code: 'WEBSITE_DOMAIN_NOT_CRAWLABLE' });
     }
+  });
+});
+
+describe('crawlTargetResolutionRefusal', () => {
+  afterEach(() => {
+    setSafeFetchResolverForTests(null);
+  });
+
+  function answering(addresses: { address: string; family: 4 | 6 }[] | Error) {
+    setSafeFetchResolverForTests(() =>
+      addresses instanceof Error
+        ? Promise.reject(addresses)
+        : Promise.resolve(addresses),
+    );
+  }
+
+  it('refuses a public-looking name whose record points at a private or metadata address', async () => {
+    answering([{ address: '127.0.0.1', family: 4 }]);
+    await expect(
+      crawlTargetResolutionRefusal('127.0.0.1.nip.io', { allowPrivate: false }),
+    ).resolves.toContain('127.0.0.1');
+    answering([{ address: '169.254.169.254', family: 4 }]);
+    await expect(
+      crawlTargetResolutionRefusal('169.254.169.254.nip.io', {
+        allowPrivate: true,
+      }),
+    ).resolves.toContain('metadata');
+  });
+
+  it('admits a public answer, an admitted private answer, and a name DNS cannot answer', async () => {
+    answering([{ address: '93.184.216.34', family: 4 }]);
+    await expect(
+      crawlTargetResolutionRefusal('example.com', { allowPrivate: false }),
+    ).resolves.toBeNull();
+    answering([{ address: '10.0.0.7', family: 4 }]);
+    await expect(
+      crawlTargetResolutionRefusal('intranet.example', { allowPrivate: true }),
+    ).resolves.toBeNull();
+    answering(new Error('ENOTFOUND'));
+    await expect(
+      crawlTargetResolutionRefusal('nowhere.example', { allowPrivate: false }),
+    ).resolves.toBeNull();
+  });
+
+  it('never resolves an IP literal — the string policy judged it already', async () => {
+    answering(new Error('must not be called'));
+    await expect(
+      crawlTargetResolutionRefusal('93.184.216.34', { allowPrivate: false }),
+    ).resolves.toBeNull();
   });
 });

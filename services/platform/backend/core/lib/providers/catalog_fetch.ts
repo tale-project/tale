@@ -31,7 +31,10 @@
  * credential material is ever attached to these requests.
  */
 
-import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import { isPrivateIp } from '../../../../lib/shared/net/private-ip';
 import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
@@ -129,6 +132,7 @@ async function fetchListingPayload(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await safeFetch(url, {
+        allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'GET',
         headers: { accept: 'application/json' },
         timeoutMs: FETCH_TIMEOUT_MS,

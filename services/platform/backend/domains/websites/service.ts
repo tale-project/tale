@@ -6,7 +6,12 @@ import {
   siteHosts,
 } from '../../../lib/knowledge/crawl-parse.ts';
 import { htmlTitle } from '../../../lib/knowledge/html-to-text.ts';
-import { CrawlTargetError } from '../../../lib/net/crawl-host-policy.ts';
+import {
+  CrawlTargetError,
+  crawlHostRefusal,
+  crawlTargetResolutionRefusal,
+  privateCrawlHostsAllowed,
+} from '../../../lib/net/crawl-host-policy.ts';
 import { safeFetch } from '../../../lib/net/safe-fetch.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -271,6 +276,13 @@ export async function createWebsiteRow(
 ): Promise<string> {
   assertScanInterval(args.scanInterval);
   const domain = crawlableDomain(args.domain);
+  // The name's DNS answer is checked here too, so a public-looking host
+  // that points inside the network is refused at the door — the crawler
+  // resolves, checks and pins again before every dial.
+  const resolution = await crawlTargetResolutionRefusal(domain);
+  if (resolution !== null) {
+    throw new WebsiteError('WEBSITE_DOMAIN_NOT_CRAWLABLE', resolution, 400);
+  }
   const now = Date.now();
   // A row is a whole-site crawl unless registered as a URL list — `kind` is
   // part of the wire shape from the first read, not only once the corpus
@@ -750,12 +762,18 @@ export async function runWebsiteRegister(
     // description the author set on the row is theirs, never overwritten by
     // what the homepage happens to say.
     try {
+      const refusal = crawlHostRefusal(args.domain);
+      if (refusal !== null) {
+        throw new Error(`crawl target refused: ${refusal}`);
+      }
       const response = await safeFetch(`https://${args.domain}/`, {
         method: 'GET',
         headers: { accept: 'text/html' },
         timeoutMs: HOMEPAGE_TIMEOUT_MS,
         maxResponseBytes: HOMEPAGE_MAX_BYTES,
         allowedHosts: [...siteHosts(args.domain)],
+        allowPrivateAddresses: privateCrawlHostsAllowed(),
+        httpsOnly: true,
       });
       if (response.status >= 200 && response.status < 300) {
         const current = await getWebsite(sql, args.websiteId);

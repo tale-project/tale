@@ -1,5 +1,6 @@
-import { isPrivateIp } from '../shared/net/private-ip';
+import { isMetadataAddress, isPrivateIp } from '../shared/net/private-ip';
 import { BLOCKED_METADATA_HOSTS } from './host-policy';
+import { resolveHostAddresses } from './safe-fetch';
 
 /**
  * The crawl-target policy: which hosts a website registration may name and
@@ -21,7 +22,10 @@ import { BLOCKED_METADATA_HOSTS } from './host-policy';
 
 const ALLOW_PRIVATE_CRAWL_HOSTS_ENV = 'TALE_ALLOW_PRIVATE_CRAWL_HOSTS';
 
-function privateCrawlHostsAllowed(
+/** Whether the operator admitted intranet crawl targets — the knob that
+ * lifts the private-network refusals by name at registration and by
+ * resolved address at fetch time; the metadata endpoints stay refused. */
+export function privateCrawlHostsAllowed(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   return env[ALLOW_PRIVATE_CRAWL_HOSTS_ENV] === '1';
@@ -83,6 +87,44 @@ export function crawlHostRefusal(
   }
   if (!isIpLiteral(host) && !host.includes('.')) {
     return `"${host}" is a single-label name that only resolves on a private network`;
+  }
+  return null;
+}
+
+/**
+ * Why `hostname`, RESOLVED, may not be a crawl target, or null when it
+ * may — the registration-time twin of the crawler's dial-time check: a
+ * public-looking name whose DNS answer includes a loopback, private or
+ * cloud-metadata address is refused before a row exists, so a client
+ * learns at the door rather than from an empty scan. A name that does not
+ * resolve at all passes (the scan will report that on its own); the
+ * dial-time guard in `safeFetch` remains the control against a record
+ * that changes after registration.
+ */
+export async function crawlTargetResolutionRefusal(
+  hostname: string,
+  options: { allowPrivate?: boolean } = {},
+): Promise<string | null> {
+  const host = normalizeCrawlHost(hostname);
+  if (isIpLiteral(host)) return null;
+  let addresses: readonly { address: string }[];
+  try {
+    addresses = await resolveHostAddresses(host);
+  } catch (error) {
+    console.warn(
+      `[crawl] ${host} did not resolve at registration:`,
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
+  const allowPrivate = options.allowPrivate ?? privateCrawlHostsAllowed();
+  for (const { address } of addresses) {
+    if (isMetadataAddress(address)) {
+      return `"${host}" resolves to the cloud metadata address ${address}`;
+    }
+    if (!allowPrivate && (isPrivateIp(address) || isCgnat(address))) {
+      return `"${host}" resolves to the loopback, link-local or private-network address ${address}`;
+    }
   }
   return null;
 }

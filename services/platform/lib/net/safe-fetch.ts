@@ -9,26 +9,34 @@
  * the open internet unencrypted; local self-hosted providers (private
  * IP or explicit `allowedHosts` entry) may still use `http://`.
  *
- * Known limitation — DNS rebinding: `isPrivateIp` and `validateUrl`
- * operate on the URL's hostname string, not on the IP `fetch` actually
- * dials. A short-TTL DNS rebind between `validateUrl` (which may resolve
- * to verify reachability, depending on platform) and the outbound
- * `fetch` (which re-resolves) can still route a public-looking hostname
- * to a private IP such as 169.254.169.254. Closing this gap requires an
- * undici Dispatcher with a `lookup` callback that pins the resolved
- * address; deferred to a follow-up so this PR stays scoped.
+ * DNS rebinding is closed at the dial: before every hop the hostname is
+ * resolved here, every address it answers is checked (loopback, private,
+ * link-local, CGNAT, ULA, IPv4-mapped — and the cloud metadata addresses
+ * whatever the caller admits), and the checked addresses are PINNED for
+ * the connect through an undici dispatcher whose `lookup` hands them to
+ * the socket. The hostname string policy stays (a name that is itself a
+ * private literal, the allowlist, plaintext refusals); what it could not
+ * see — a public-looking name whose record points inside the network, or
+ * flips between the check and the dial — is refused with `private_ip`,
+ * and a second resolution never happens.
  *
  * Extracted from images/http_actions.ts so chat-filter's moderation
  * provider and any future outbound caller share one audited implementation.
  */
 
-import { isPrivateIp } from '../shared/net/private-ip';
+import dns from 'node:dns';
+import type { LookupFunction } from 'node:net';
+
+import { Agent } from 'undici';
+
+import { isMetadataAddress, isPrivateIp } from '../shared/net/private-ip';
 
 export type SafeFetchErrorKind =
   | 'invalid_url'
   | 'unsupported_protocol'
   | 'insecure_public_http'
   | 'private_ip'
+  | 'dns_failed'
   | 'redirect_missing_location'
   | 'redirect_limit_exceeded'
   | 'response_too_large'
@@ -64,6 +72,139 @@ export interface SafeFetchOptions {
    * (kind `aborted`) instead of running on to `timeoutMs` — a caller that has
    * already given up on the reply must not keep the provider working. */
   signal?: AbortSignal;
+  /** Admit a host that RESOLVES to a loopback, private-network, link-local
+   * or CGNAT address — an intranet crawl, a self-hosted provider behind an
+   * internal name. The hostname policy still applies, and the cloud
+   * metadata addresses stay refused whatever this says. */
+  allowPrivateAddresses?: boolean;
+  /** Refuse every plaintext `http:` URL — the initial one and every
+   * redirect hop, whatever `allowedHosts` admits — for a lane that never
+   * needs cleartext (the crawler): a redirect onto port 80 is otherwise the
+   * hop that reaches a metadata service. */
+  httpsOnly?: boolean;
+}
+
+/** One address a hostname resolved to. */
+export interface ResolvedAddress {
+  address: string;
+  family: 4 | 6;
+}
+
+export type SafeFetchResolver = (
+  hostname: string,
+) => Promise<readonly ResolvedAddress[]>;
+
+/** The OS resolver — `/etc/hosts` and `nsswitch` included, exactly what
+ * the socket would consult — every address, in answer order. */
+export async function lookupHostAddresses(
+  hostname: string,
+): Promise<readonly ResolvedAddress[]> {
+  const found = await dns.promises.lookup(hostname, { all: true });
+  return found.map(({ address, family }) => ({
+    address,
+    family: family === 6 ? 6 : 4,
+  }));
+}
+
+let resolver: SafeFetchResolver = lookupHostAddresses;
+
+/** Test seam: answer resolutions from a script (null restores the OS
+ * resolver) — the unit suites stub `fetch` and must not reach DNS; the
+ * integration check names fixture hosts no resolver knows. */
+export function setSafeFetchResolverForTests(
+  override: SafeFetchResolver | null,
+): void {
+  resolver = override ?? lookupHostAddresses;
+}
+
+/** Every address `hostname` resolves to, through the seam above — for the
+ * registration-time checks that want the same answer the dial will get. */
+export function resolveHostAddresses(
+  hostname: string,
+): Promise<readonly ResolvedAddress[]> {
+  return resolver(hostname);
+}
+
+function isIpLiteral(hostname: string): boolean {
+  return (
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) ||
+    hostname.includes(':') ||
+    /^\[.*\]$/.test(hostname)
+  );
+}
+
+/**
+ * Resolve `hostname` and refuse what its record must not reach: the cloud
+ * metadata addresses always, a private/loopback/link-local address unless
+ * the caller admits them. Null for an IP literal — nothing to resolve, and
+ * the string policy already judged it. What comes back is what the dial
+ * pins.
+ */
+async function checkedAddresses(
+  hostname: string,
+  options: SafeFetchOptions,
+): Promise<readonly ResolvedAddress[] | null> {
+  if (isIpLiteral(hostname)) return null;
+  let found: readonly ResolvedAddress[];
+  try {
+    found = await resolver(hostname);
+  } catch (error) {
+    throw new SafeFetchError(
+      'dns_failed',
+      `Host does not resolve: ${hostname} (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  if (found.length === 0) {
+    throw new SafeFetchError(
+      'dns_failed',
+      `Host does not resolve: ${hostname}`,
+    );
+  }
+  for (const { address } of found) {
+    if (isMetadataAddress(address)) {
+      throw new SafeFetchError(
+        'private_ip',
+        `Host resolves to a cloud metadata address: ${hostname} → ${address}`,
+      );
+    }
+    if (options.allowPrivateAddresses !== true && isPrivateIp(address)) {
+      throw new SafeFetchError(
+        'private_ip',
+        `Host resolves to a private, loopback or link-local address: ${hostname} → ${address}`,
+      );
+    }
+  }
+  return found;
+}
+
+/**
+ * The dispatcher every hop of one request goes through: its `lookup`
+ * answers ONLY from the addresses `checkedAddresses` pinned for that
+ * hostname, so the socket connects to what was checked and a record that
+ * changed in between is never consulted. TLS keeps the hostname as
+ * servername, so certificate verification is unchanged.
+ */
+function pinnedDispatcher(
+  pinned: ReadonlyMap<string, readonly ResolvedAddress[]>,
+): Agent {
+  const lookup: LookupFunction = (hostname, options, callback) => {
+    const addresses = pinned.get(hostname.toLowerCase());
+    const [first] = addresses ?? [];
+    if (first === undefined) {
+      callback(
+        new Error(`safeFetch: no pinned address for ${hostname}`),
+        '',
+        undefined,
+      );
+      return;
+    }
+    if (typeof options === 'object' && options.all) {
+      callback(null, [...(addresses ?? [])], undefined);
+      return;
+    }
+    callback(null, first.address, first.family);
+  };
+  return new Agent({ connect: { lookup } });
 }
 
 export interface SafeFetchResponse {
@@ -129,6 +270,7 @@ function validateUrl(
   rawUrl: string,
   effectiveAllowedHosts: string[] | undefined,
   callerAllowedHosts: string[] | undefined,
+  httpsOnly = false,
 ): URL {
   let parsed: URL;
   try {
@@ -145,6 +287,21 @@ function validateUrl(
   }
 
   const hostname = parsed.hostname;
+  if (parsed.protocol === 'http:' && httpsOnly) {
+    throw new SafeFetchError(
+      'insecure_public_http',
+      `Plaintext http:// refused on this lane: ${hostname}`,
+    );
+  }
+  // The metadata services by literal address, whatever the allowlist or
+  // the private-range admission says — a crawl of an intranet must still
+  // never read the instance's own credentials.
+  if (isMetadataAddress(hostname)) {
+    throw new SafeFetchError(
+      'private_ip',
+      `Host is a cloud metadata address: ${hostname}`,
+    );
+  }
   const effectivelyAllowed =
     effectiveAllowedHosts !== undefined &&
     effectiveAllowedHosts.some((entry) => hostMatchesEntry(hostname, entry));
@@ -359,6 +516,8 @@ async function fetchFollowingRedirects(
   options: SafeFetchOptions,
   signal: AbortSignal,
   timeoutMs: number,
+  pinned: Map<string, readonly ResolvedAddress[]>,
+  dispatcher: Agent,
 ): Promise<{ response: Response; finalUrl: string }> {
   const {
     method = 'GET',
@@ -393,7 +552,19 @@ async function fetchFollowingRedirects(
     }
   }
 
-  validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
+  const initial = validateUrl(
+    rawUrl,
+    allowedHosts,
+    callerAllowedHosts,
+    options.httpsOnly,
+  );
+  // Resolve, check and pin BEFORE the dial — the address the socket gets is
+  // the one that passed, on this hop and on every redirect hop below.
+  const pinHost = async (url: URL): Promise<void> => {
+    const addresses = await checkedAddresses(url.hostname, options);
+    if (addresses !== null) pinned.set(url.hostname.toLowerCase(), addresses);
+  };
+  await pinHost(initial);
 
   if (callerSignal?.aborted) {
     throw new SafeFetchError(
@@ -411,13 +582,15 @@ async function fetchFollowingRedirects(
   while (true) {
     let response: Response;
     try {
-      response = await fetch(currentUrl, {
+      const init: RequestInit & { dispatcher: Agent } = {
         method: currentMethod,
         headers: currentHeaders,
         body: currentBody,
         redirect: 'manual',
         signal,
-      });
+        dispatcher,
+      };
+      response = await fetch(currentUrl, init);
     } catch (error) {
       if (error instanceof SafeFetchError) throw error;
       if (
@@ -463,7 +636,13 @@ async function fetchFollowingRedirects(
     }
 
     const nextUrl = new URL(location, currentUrl);
-    validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
+    validateUrl(
+      nextUrl.toString(),
+      allowedHosts,
+      callerAllowedHosts,
+      options.httpsOnly,
+    );
+    await pinHost(nextUrl);
     // Drop credential-carrying headers on cross-host hops so an
     // attacker who controls a redirect target on a second allowlisted
     // host can't harvest the upstream provider's bearer token.
@@ -493,6 +672,8 @@ export async function safeFetch(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const onCallerAbort = (): void => controller.abort();
   signal?.addEventListener('abort', onCallerAbort, { once: true });
+  const pinned = new Map<string, readonly ResolvedAddress[]>();
+  const dispatcher = pinnedDispatcher(pinned);
 
   try {
     const { response, finalUrl } = await fetchFollowingRedirects(
@@ -500,6 +681,8 @@ export async function safeFetch(
       options,
       controller.signal,
       timeoutMs,
+      pinned,
+      dispatcher,
     );
     const bodyText = await readBodyWithCap(response, maxResponseBytes);
 
@@ -513,6 +696,11 @@ export async function safeFetch(
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', onCallerAbort);
+    // The pinned sockets are this exchange's alone: never reused by a
+    // request with another policy (the body has been read by now).
+    await dispatcher.destroy().catch((error: unknown) => {
+      console.warn('[safe_fetch] closing the pinned dispatcher failed:', error);
+    });
   }
 }
 
@@ -543,6 +731,8 @@ export async function safeFetchBinary(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const onCallerAbort = (): void => controller.abort();
   signal?.addEventListener('abort', onCallerAbort, { once: true });
+  const pinned = new Map<string, readonly ResolvedAddress[]>();
+  const dispatcher = pinnedDispatcher(pinned);
 
   try {
     const { response, finalUrl } = await fetchFollowingRedirects(
@@ -550,6 +740,8 @@ export async function safeFetchBinary(
       options,
       controller.signal,
       timeoutMs,
+      pinned,
+      dispatcher,
     );
     const { buffer, contentType } = await readBinaryBodyWithCap(
       response,
@@ -569,5 +761,8 @@ export async function safeFetchBinary(
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', onCallerAbort);
+    await dispatcher.destroy().catch((error: unknown) => {
+      console.warn('[safe_fetch] closing the pinned dispatcher failed:', error);
+    });
   }
 }

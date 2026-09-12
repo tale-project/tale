@@ -180,3 +180,59 @@ function isPrivateIpv4(host: string): boolean {
   if (a >= 224) return true;
   return false;
 }
+
+/**
+ * The cloud metadata services by ADDRESS — the link-local one every cloud
+ * shares plus the public-IP variants (Alibaba, Oracle) that `isPrivateIp`
+ * cannot know about. Refused by every outbound lane whatever its
+ * private-network posture (an intranet crawl, a self-hosted provider), and
+ * by name as well in `lib/net/host-policy.ts`.
+ */
+export const METADATA_ADDRESSES: ReadonlySet<string> = new Set([
+  '169.254.169.254', // AWS, GCP, Azure, DigitalOcean, Oracle (link-local)
+  'fd00:ec2::254', // AWS IMDSv2 IPv6
+  '100.100.100.200', // Alibaba ECS — public IP
+  '192.0.0.192', // Oracle Cloud OCI v1 — public IP
+]);
+
+/**
+ * One comparable spelling of an IP literal: dotted IPv4 (an IPv4-mapped
+ * IPv6 decoded back to it), or the eight expanded hextets of an IPv6
+ * address. Null for anything that is not an IP literal.
+ */
+function canonicalAddress(lower: string): string | null {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return lower;
+  const hextets = expandIpv6(lower);
+  if (hextets === null) return null;
+  if (
+    hextets[0] === 0 &&
+    hextets[1] === 0 &&
+    hextets[2] === 0 &&
+    hextets[3] === 0 &&
+    hextets[4] === 0 &&
+    hextets[5] === 0xffff
+  ) {
+    return `${(hextets[6] >> 8) & 0xff}.${hextets[6] & 0xff}.${(hextets[7] >> 8) & 0xff}.${hextets[7] & 0xff}`;
+  }
+  return hextets.map((h) => h.toString(16)).join(':');
+}
+
+const METADATA_CANONICAL: ReadonlySet<string> = new Set(
+  [...METADATA_ADDRESSES].map(
+    (address) => canonicalAddress(address) ?? address,
+  ),
+);
+
+/**
+ * Whether `address` — an IP literal as a resolver or a URL hands it over,
+ * brackets and zone allowed — is a cloud metadata address, IPv4-mapped
+ * and expanded IPv6 spellings included.
+ */
+export function isMetadataAddress(address: string): boolean {
+  const lower = address
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/%.+$/, '');
+  const canonical = canonicalAddress(lower);
+  return canonical !== null && METADATA_CANONICAL.has(canonical);
+}
