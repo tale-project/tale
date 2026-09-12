@@ -5,6 +5,10 @@ inputs:
   revision:
     description: Full forty-character Tale source commit; branches and mutable tags are refused.
     required: true
+  linux-baseline:
+    description: Build the Linux x64 executable for CPUs without AVX2 (Bun's baseline target); accepted on Linux x64 runners only.
+    required: false
+    default: 'false'
 
 outputs:
   executable:
@@ -18,6 +22,7 @@ runs:
       shell: bash
       env:
         TALE_CLI_REVISION: ${{ inputs.revision }}
+        TALE_CLI_LINUX_BASELINE: ${{ inputs.linux-baseline }}
       run: |
         set -euo pipefail
         if [[ ! "$TALE_CLI_REVISION" =~ ^[a-f0-9]{40}$ ]]; then
@@ -27,6 +32,16 @@ runs:
           Linux/X64|Linux/ARM64|macOS/ARM64) ;;
           *) echo '::error::Tale setup requires Linux or macOS Apple Silicon'; exit 1 ;;
         esac
+        # Bun's baseline target exists for x64 only: it drops the AVX2
+        # requirement of the default Linux x64 executable.
+        TALE_CLI_LINUX_BASELINE="${TALE_CLI_LINUX_BASELINE:-false}"
+        case "$TALE_CLI_LINUX_BASELINE" in
+          true|false) ;;
+          *) echo '::error::Tale setup linux-baseline must be true or false'; exit 1 ;;
+        esac
+        if [[ "$TALE_CLI_LINUX_BASELINE" == true && "$RUNNER_OS/$RUNNER_ARCH" != Linux/X64 ]]; then
+          echo '::error::Tale setup linux-baseline requires a Linux x64 runner'; exit 1
+        fi
 
     - name: Set up the Tale build toolchain
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -47,6 +62,7 @@ runs:
       working-directory: .tale-cli-source
       env:
         TALE_CLI_REVISION: ${{ inputs.revision }}
+        TALE_CLI_LINUX_BASELINE: ${{ inputs.linux-baseline }}
       run: |
         set -euo pipefail
         test "$(git rev-parse HEAD)" = "$TALE_CLI_REVISION"
@@ -54,11 +70,12 @@ runs:
         bun install --frozen-lockfile --filter @tale/cli
         # Generation records the clean source commit in the executable.
         bun run --filter @tale/cli generate
-        case "$RUNNER_OS/$RUNNER_ARCH" in
-          Linux/X64) bun run --filter @tale/cli build:linux ;;
-          Linux/ARM64) bun run --filter @tale/cli build:linux-arm64 ;;
-          macOS/ARM64) bun run --filter @tale/cli build:mac ;;
-          *) echo '::error::Unsupported Tale CLI runner'; exit 1 ;;
+        case "$RUNNER_OS/$RUNNER_ARCH/${TALE_CLI_LINUX_BASELINE:-false}" in
+          Linux/X64/true) bun run --filter @tale/cli build:linux-baseline ;;
+          Linux/X64/false) bun run --filter @tale/cli build:linux ;;
+          Linux/ARM64/false) bun run --filter @tale/cli build:linux-arm64 ;;
+          macOS/ARM64/false) bun run --filter @tale/cli build:mac ;;
+          *) echo '::error::Unsupported Tale CLI runner or linux-baseline selection'; exit 1 ;;
         esac
         if [[ "$RUNNER_OS" == macOS ]]; then
           # Seal Bun's final bytes so a standard SIP-enabled target can run it.

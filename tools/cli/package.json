@@ -7,6 +7,7 @@
     "setup": "bun run generate",
     "build": "bun run generate && bun run build:linux && bun run build:mac && bun run check:bundle",
     "build:linux": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-x64 --outfile=dist/tale src/index.ts",
+    "build:linux-baseline": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-x64-baseline --outfile=dist/tale src/index.ts",
     "build:linux-arm64": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-arm64 --outfile=dist/tale src/index.ts",
     "build:mac": "bun build --compile --define TALE_COMPILED=true --target=bun-darwin-arm64 --outfile=dist/tale src/index.ts",
     "build:mac-x64": "bun build --compile --define TALE_COMPILED=true --target=bun-darwin-x64 --outfile=dist/tale src/index.ts",
