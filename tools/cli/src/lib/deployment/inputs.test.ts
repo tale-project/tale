@@ -1,6 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -192,10 +198,16 @@ function binary(machine = 62): Buffer<ArrayBuffer> {
   bytes.writeUInt16LE(machine, 18);
   return bytes;
 }
+// The interpreted bundle that rides beside the executable; the backend-local
+// provision phase runs it under the target's own bun. Non-empty and not ELF.
+const interpretedBundle = Buffer.from(
+  '#!/usr/bin/env bun\n// interpreted tale bundle\nprocess.exit(0);\n',
+);
 async function bundleFixture() {
   const root = temporary();
   const executable = join(temporary(), 'tale');
   writeFileSync(executable, binary());
+  writeFileSync(`${executable}.mjs`, interpretedBundle);
   await copyDeploymentCli(executable, root, 'linux/amd64');
   await mkdir(join(root, 'runtime'));
   await writeFile(join(root, 'runtime', 'runtime.json'), '{}\n');
@@ -221,6 +233,7 @@ testPosix(
     });
     expect(verified.files.map((file) => file.path)).toEqual([
       'cli/tale',
+      'cli/tale.mjs',
       'runtime/compose.yml',
       'runtime/runtime.json',
     ]);
@@ -260,8 +273,36 @@ test('plain runtimes and the wrong executable architecture are never shipped', a
     copyDeploymentCli(executable, temporary(), 'linux/amd64'),
   ).rejects.toThrow('architecture');
   const root = temporary();
+  writeFileSync(`${executable}.mjs`, interpretedBundle);
   await copyDeploymentCli(executable, root, 'linux/arm64');
   expect(readFileSync(join(root, 'cli/tale'))).toEqual(binary(183));
+  expect(readFileSync(join(root, 'cli/tale.mjs'))).toEqual(interpretedBundle);
+});
+
+test('refuses a deployment CLI without a valid interpreted bundle beside it', async () => {
+  const executable = join(temporary(), 'tale');
+  writeFileSync(executable, binary());
+  // The interpreted bundle must exist beside the executable.
+  await expect(
+    copyDeploymentCli(executable, temporary(), 'linux/amd64'),
+  ).rejects.toThrow();
+  // An empty file or an ELF executable is not an interpreted bundle.
+  writeFileSync(`${executable}.mjs`, Buffer.alloc(0));
+  await expect(
+    copyDeploymentCli(executable, temporary(), 'linux/amd64'),
+  ).rejects.toThrow('interpreted Tale bundle');
+  writeFileSync(`${executable}.mjs`, binary());
+  await expect(
+    copyDeploymentCli(executable, temporary(), 'linux/amd64'),
+  ).rejects.toThrow('interpreted Tale bundle');
+  // A valid bundle lands beside the executable: exact bytes, world-readable,
+  // never executable.
+  writeFileSync(`${executable}.mjs`, interpretedBundle);
+  const root = temporary();
+  await copyDeploymentCli(executable, root, 'linux/amd64');
+  expect(readFileSync(join(root, 'cli/tale.mjs'))).toEqual(interpretedBundle);
+  if (process.platform !== 'win32')
+    expect(statSync(join(root, 'cli/tale.mjs')).mode & 0o777).toBe(0o644);
 });
 
 test('local source selection reads real Git without a network call or worktree edits', async () => {

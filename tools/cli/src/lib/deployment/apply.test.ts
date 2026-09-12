@@ -53,6 +53,9 @@ async function create(legacy = false, identity = true) {
   executable.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]);
   executable.writeUInt16LE(62, 18);
   writeFileSync(binary, executable);
+  // Ship the interpreted bundle beside the executable: copyDeploymentCli
+  // requires it, and the backend-local provision phase runs it under bun.
+  writeFileSync(`${binary}.mjs`, '#!/usr/bin/env bun\nprocess.exit(0);\n');
   const spec = deploymentSpecSchema.parse({
     schemaVersion: 1,
     name: fixture.options.name,
@@ -200,6 +203,10 @@ async function create(legacy = false, identity = true) {
         expect(args.indexOf('--user')).toBeGreaterThan(0);
         expect(args[args.indexOf('--user') + 1]).toBe('1001:1001');
         expect(args.indexOf('--user')).toBeLessThan(args.indexOf('deploy'));
+        // Interpreted under the container's own bun, never the compiled
+        // executable: `bun <temp>/cli/tale.mjs deploy provision …`.
+        expect(args[args.indexOf('deploy') - 2]).toBe('bun');
+        expect(args[args.indexOf('deploy') - 1]).toMatch(/\/cli\/tale\.mjs$/);
         expect(owned).toBe(true);
         expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
           password: 'synthetic-operator-password',
@@ -222,6 +229,9 @@ async function create(legacy = false, identity = true) {
         if (cleanupFailure) throw new Error('synthetic-cleanup-secret');
       } else if (args[0] === 'cp') {
         copied = true;
+        // The interpreted bundle rides in the same private copy, so the
+        // backend-local phase can run it under bun.
+        expect(existsSync(join(args[1], 'cli/tale.mjs'))).toBe(true);
         nativeCopies.push({
           source: args[1],
           binary: readFileSync(join(args[1], 'cli/tale')),

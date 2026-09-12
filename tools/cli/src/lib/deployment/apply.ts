@@ -263,6 +263,13 @@ async function provisionBackend(
       owner,
       temporary,
     ]);
+    // Run the backend-local phase INTERPRETED, under the container's own bun,
+    // not the compiled executable. The phase dynamically imports the backend's
+    // own db/auth modules, which import node_modules (postgres, better-auth); a
+    // compiled bun executable resolves bare imports against its embedded
+    // filesystem, so those are `Cannot find package` there. The interpreted
+    // bundle shipped beside the executable resolves them from the backend's
+    // node_modules the same way the running backend does.
     const result = await run(
       [
         'exec',
@@ -272,7 +279,8 @@ async function provisionBackend(
         '--user',
         owner,
         runtime.backendContainer,
-        `${temporary}/cli/tale`,
+        'bun',
+        `${temporary}/cli/tale.mjs`,
         'deploy',
         'provision',
         '--bundle',

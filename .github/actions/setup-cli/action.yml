@@ -70,6 +70,12 @@ runs:
         bun install --frozen-lockfile --filter @tale/cli
         # Generation records the clean source commit in the executable.
         bun run --filter @tale/cli generate
+        # The backend-local provision phase runs inside the target's backend
+        # container, where a compiled executable cannot resolve the backend's
+        # own node_modules (postgres, better-auth) that it dynamically imports.
+        # Ship an interpreted bundle beside the executable; the container's own
+        # bun runs it so those imports resolve. See copyDeploymentCli / apply.
+        bun run --filter @tale/cli build:backend-local
         case "$RUNNER_OS/$RUNNER_ARCH/${TALE_CLI_LINUX_BASELINE:-false}" in
           Linux/X64/true) bun run --filter @tale/cli build:linux-baseline ;;
           Linux/X64/false) bun run --filter @tale/cli build:linux ;;

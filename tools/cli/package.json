@@ -5,7 +5,8 @@
   "scripts": {
     "generate": "bun run scripts/generate-embedded.ts",
     "setup": "bun run generate",
-    "build": "bun run generate && bun run build:linux && bun run build:mac && bun run check:bundle",
+    "build": "bun run generate && bun run build:backend-local && bun run build:linux && bun run build:mac && bun run check:bundle",
+    "build:backend-local": "bun build --bundle --target=bun --outfile=dist/tale.mjs src/index.ts",
     "build:linux": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-x64 --outfile=dist/tale src/index.ts",
     "build:linux-baseline": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-x64-baseline --outfile=dist/tale src/index.ts",
     "build:linux-arm64": "bun build --compile --define TALE_COMPILED=true --target=bun-linux-arm64 --outfile=dist/tale src/index.ts",
