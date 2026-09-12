@@ -1216,11 +1216,13 @@ const OBJECT_STORE_RETRY_AFTER_SECONDS = '5';
  * `GET /api/v1/documents/{id}/content`: the blob streamed from the object
  * store in the response itself (no redirect a client would re-send its
  * bearer across), the document's title as the RFC 6266 download name,
- * `Range` honoured (206/416), the validators the store issued compared by
- * the store (`If-None-Match` / `If-Modified-Since` answer 304 with no
- * bytes; `If-Range` guards a resumed download), HEAD answering the headers
- * alone, and a store that does not answer as the documented 503 with
- * `Retry-After`. The bytes are user-uploaded, so they never render as a
+ * `Range` honoured (206, or a bodiless 416 naming the size for a range
+ * the file cannot satisfy — judged in `openFileContent` before any byte
+ * is fetched), the validators the store issued compared by the store
+ * (`If-None-Match` / `If-Modified-Since` answer 304 with no bytes;
+ * `If-Range` guards a resumed download), HEAD answering the headers alone
+ * (`Range` ignored), and a store that does not answer as the documented
+ * 503 with `Retry-After`. The bytes are user-uploaded, so they never render as a
  * document on this origin: attachment + nosniff, as every blob lane; the
  * client's own cache may keep what the tag lets it revalidate
  * (`private, no-cache`), no shared cache may.
@@ -1325,31 +1327,43 @@ export async function serveDocumentBytes(
   }
   const headers = new Headers();
   // A 304 carries the validators and nothing about a body it does not
-  // have (RFC 9110 §15.4.5); everything else describes the bytes.
+  // have (RFC 9110 §15.4.5); a 416 carries `Content-Range` naming the size
+  // and an explicitly empty body — never the type or length of anything
+  // (the store's own 416 describes an XML error document, and copying
+  // that length onto a bodiless answer made the edge abort the stream);
+  // everything else describes the bytes.
   const notModified = served.status === 304;
-  for (const name of notModified
+  const unsatisfiable = served.status === 416;
+  const copied = notModified
     ? ['etag', 'last-modified', 'accept-ranges']
-    : [
-        'content-type',
-        'content-length',
-        'content-range',
-        'etag',
-        'last-modified',
-        'accept-ranges',
-      ]) {
+    : unsatisfiable
+      ? ['content-range', 'etag', 'last-modified', 'accept-ranges']
+      : [
+          'content-type',
+          'content-length',
+          'content-range',
+          'etag',
+          'last-modified',
+          'accept-ranges',
+        ];
+  for (const name of copied) {
     const value = served.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
-  if (!notModified && !headers.has('content-type')) {
+  if (!notModified && !unsatisfiable && !headers.has('content-type')) {
     headers.set('content-type', 'application/octet-stream');
   }
   if (!headers.has('accept-ranges')) headers.set('accept-ranges', 'bytes');
+  if (unsatisfiable) headers.set('content-length', '0');
   if (notModified) {
     headers.set('cache-control', 'private, no-cache');
-  } else {
+  } else if (!unsatisfiable) {
     stampDownloadHeaders(headers, doc.title);
   }
-  return new Response(served.body, { status: served.status, headers });
+  return new Response(unsatisfiable ? null : served.body, {
+    status: served.status,
+    headers,
+  });
 }
 
 /** Object keys are nameless (`<org>/<uuid>`); the document's title is the

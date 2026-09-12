@@ -145,6 +145,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   const taskPayload = async (task: TaskRow) => {
+    // As stored — the spelling the label was created with — in the order
+    // the task carries them, which is the order they were sent: a mirror
+    // compares what it sent with what it reads back.
     const labels =
       task.labelIds.length > 0
         ? await deps.sql<{ name: string }[]>`
@@ -152,7 +155,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             WHERE org_id = ${task.organizationId}
               AND project_id = ${task.projectId}
               AND id = ANY(${task.labelIds})
-            ORDER BY name ASC
+            ORDER BY array_position(${task.labelIds}::text[], id)
           `
         : [];
     return {

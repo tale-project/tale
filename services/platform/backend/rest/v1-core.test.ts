@@ -734,6 +734,33 @@ describe('GET /documents/:id/content', () => {
     vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
   });
 
+  it('answers a bodiless 416 naming the size for a range the file cannot satisfy', async () => {
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue({
+      ...hubDocument,
+      fileRef: 's3:acme/blob-1',
+    } as never);
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 416,
+      headers: new Headers({
+        'content-range': 'bytes */2',
+        'accept-ranges': 'bytes',
+        'content-length': '0',
+      }),
+      body: null,
+    });
+    const res = await mount(fakeSql([]).sql).request(route, {
+      headers: { range: 'bytes=2-' },
+    });
+    expect(res.status).toBe(416);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('content-range')).toBe('bytes */2');
+    expect(res.headers.get('content-length')).toBe('0');
+    expect(res.headers.get('content-type')).toBeNull();
+    expect(res.headers.get('content-disposition')).toBeNull();
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
   it('answers the opaque 404 for a blob the store no longer holds', async () => {
     const { getDocumentById } = await import('../domains/documents/service.ts');
     vi.mocked(getDocumentById).mockResolvedValue({

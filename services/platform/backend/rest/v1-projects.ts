@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import {
   PROJECT_AGENT_NAME_MAX,
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_NAME_MAX,
   projectAgentInputSchema,
 } from '@tale/shared/schemas/projects';
 import { Hono, type Context } from 'hono';
@@ -12,12 +14,14 @@ import { z } from 'zod';
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {
+  assertUploadSizeAllowedForOrg,
   assertUploadTypeAllowedForOrg,
   createDocumentFromUpload,
   deleteDocumentHard,
   deleteFolderCascade,
   DocumentError,
   type DocumentRow,
+  effectiveUploadMaxBytes,
   loadDocumentOrThrow,
   validateDocumentUploadForOrg,
 } from '../domains/documents/service.ts';
@@ -31,6 +35,7 @@ import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
 import {
   FolderError,
   type FolderRow,
+  getFolderView,
   getOrCreateProjectFolder,
   listFolders,
   loadFolderOrThrow,
@@ -47,8 +52,11 @@ import {
   listProjectAgents,
   listProjectsPage,
   loadProjectOrThrow,
+  PROJECT_EXTERNAL_ITEM_ID_MAX,
   restoreProject,
   updateProjectAgent,
+  updateProjectExternalItemId,
+  updateProjectIdentity,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
@@ -62,6 +70,7 @@ import {
   loadRestProject,
   lockRestProjectForWrite,
   mintCursor,
+  nonBlank,
   noQuery,
   notFound,
   PAGE_QUERY,
@@ -93,16 +102,18 @@ import {
  * rolls the consume back, so the handshake survives for a corrected retry.
  */
 
-const UPLOAD_INTENT_TTL_MS = 30 * 60_000;
+/** How long a REST upload handoff lives — the intent row AND the signed
+ * PUT. Shorter than the session lane's two hours (a browser upload with a
+ * person behind it): a worker mints, PUTs and binds in one bounded step,
+ * and a shorter window returns an abandoned blob to the sweep sooner. */
+const REST_UPLOAD_INTENT_TTL_MS = 30 * 60_000;
 /** The caps the domain enforces, checked at the door so a value past them
  * is named as a body problem (`INVALID_BODY` at its path) rather than a
- * domain refusal: the project name and the folder name at the domain's own
- * limits (the folder door used to accept 255 where the domain caps at
- * 128), the explicit key at 6, the external key at 256. */
-const PROJECT_NAME_MAX = 80;
+ * domain refusal: the project name, description and external key at the
+ * domain's own constants (imported, never a second copy — the two once
+ * drifted), the folder name at the domain's limit (the folder door used
+ * to accept 255 where the domain caps at 128), the explicit key at 6. */
 const PROJECT_KEY_MAX = 6;
-const PROJECT_DESCRIPTION_MAX = 500;
-const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
 const FOLDER_NAME_MAX = 128;
 /** The shared agent shape with the door's own trims: a name of only
  * whitespace is refused by name here, never as a domain refusal. */
@@ -134,7 +145,30 @@ const projectCreateBody = z
     externalItemId: externalKeySchema(PROJECT_EXTERNAL_ITEM_ID_MAX).optional(),
   })
   .strict();
-const projectPatchBody = z.object({ archived: z.boolean() }).strict();
+/** The project's mutable surface: the lifecycle toggle and the identity a
+ * mirror propagates. `null` clears `description` / `externalItemId`; at
+ * least one field, every one optional. */
+const projectPatchBody = z
+  .object({
+    archived: z.boolean().optional(),
+    name: nonBlank(PROJECT_NAME_MAX).optional(),
+    description: z.string().max(PROJECT_DESCRIPTION_MAX).nullable().optional(),
+    externalItemId: externalKeySchema(PROJECT_EXTERNAL_ITEM_ID_MAX)
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (patch) =>
+      patch.archived !== undefined ||
+      patch.name !== undefined ||
+      patch.description !== undefined ||
+      patch.externalItemId !== undefined,
+    {
+      message:
+        'send at least one of archived, name, description or externalItemId',
+    },
+  );
 /** How `DELETE /projects/{id}` treats the project's content — the app's
  * own delete shape (`deleteProjectInputSchema`), minus the confirmation
  * phrase the door supplies itself. Default `cascade`. */
@@ -378,22 +412,58 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({ project: projectPayload(project) });
   });
 
-  /** PATCH /projects/{id} `{archived}` — archive or restore, the app's
-   * admin-only lifecycle toggle (the threads PATCH precedent); a no-op
-   * when the project already is what the body says. */
+  /** PATCH /projects/{id} — the project's mutable surface: `archived`
+   * (archive or restore, the app's admin-only lifecycle toggle; a no-op
+   * when the project already is what the body says) and the identity a
+   * mirror propagates — `name`, `description`, `externalItemId` — through
+   * the app's own cores, for the org editor role with project edit access
+   * on an ACTIVE project, like every other write here. A body carrying
+   * both halves applies a restore before the identity edits and an
+   * archive after them, so one call restores-and-renames or
+   * renames-and-archives; identity edits on a project the body does not
+   * restore refuse with the same 403 every write on it answers. The
+   * project used to be immutable past `archived`: a rename in the CRM
+   * left the mirror's only move as delete-and-recreate. */
   app.patch('/projects/:id', async (c) => {
     const body = await parseBody(c, projectPatchBody);
     if (body instanceof Response) return body;
+    const { archived, name, description, externalItemId } = body;
+    const identityEdit =
+      name !== undefined ||
+      description !== undefined ||
+      externalItemId !== undefined;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadVisibleProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      requireAdmin(c);
-      await transactSerializable(deps.sql, (tx) =>
-        body.archived
-          ? archiveProject(tx, auth, project.id)
-          : restoreProject(tx, auth, project.id),
-      );
+      if (archived !== undefined) requireAdmin(c);
+      if (identityEdit) requireEditor(c);
+      await transactSerializable(deps.sql, async (tx) => {
+        if (archived === false) await restoreProject(tx, auth, project.id);
+        if (identityEdit) {
+          if (project.archivedAt !== null && archived !== false) {
+            throw new RestRefusal(
+              'Project is archived',
+              403,
+              'PROJECT_ARCHIVED',
+            );
+          }
+          if (name !== undefined || description !== undefined) {
+            await updateProjectIdentity(tx, auth, {
+              projectId: project.id,
+              ...(name !== undefined ? { name } : {}),
+              ...(description !== undefined ? { description } : {}),
+            });
+          }
+          if (externalItemId !== undefined) {
+            await updateProjectExternalItemId(tx, auth, {
+              projectId: project.id,
+              externalItemId,
+            });
+          }
+        }
+        if (archived === true) await archiveProject(tx, auth, project.id);
+      });
       return c.json({
         project: projectPayload(await loadProjectOrThrow(deps.sql, project.id)),
       });
@@ -550,21 +620,76 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- folders --------------------------------------------------------------
-  app.get('/projects/:id/folders', noQuery, async (c) => {
+  /** The folder as the door speaks it: `parentId` is null for a root
+   * folder, so a tree can be walked (D-05: subfolders were write-only —
+   * creatable, never listed, never resolvable, and every file's
+   * `folderId` a dead-end id). */
+  const folderPayload = (folder: FolderRow) => ({
+    id: folder.id,
+    name: folder.name,
+    parentId: folder.parentId,
+  });
+
+  /** The folder `folderId` names IF it is this project's — a foreign,
+   * cross-organization or absent id is the same opaque 404 (the file
+   * listing's `folderId` filter idiom). */
+  const loadProjectFolder = async (
+    c: Context<RestEnv>,
+    auth: ProjectAuthContext,
+    project: ProjectRow,
+    folderId: string,
+  ): Promise<FolderRow | Response> => {
+    const folder = await getFolderView(deps.sql, auth, folderId);
+    if (folder === null || folder.projectId !== project.id) {
+      return notFound(c, 'Folder not found', 'FOLDER_NOT_FOUND');
+    }
+    return folder;
+  };
+
+  /** GET /projects/{id}/folders — the root folders, or, with `?parentId=`,
+   * the children of that folder (of THIS project, else the opaque 404). */
+  app.get('/projects/:id/folders', async (c) => {
+    const query = readQuery(c, { parentId: queryFilter(64).optional() });
+    if (query instanceof Response) return query;
     const auth = await restProjectAuth(deps.sql, c);
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     try {
+      if (query.parentId !== undefined) {
+        const parent = await loadProjectFolder(
+          c,
+          auth,
+          project,
+          query.parentId,
+        );
+        if (parent instanceof Response) return parent;
+      }
       const folders = await listFolders(deps.sql, auth, {
         projectId: project.id,
-        parentId: null,
+        parentId: query.parentId ?? null,
       });
-      return c.json({
-        folders: folders.map((folder) => ({
-          id: folder.id,
-          name: folder.name,
-        })),
-      });
+      return c.json({ folders: folders.map(folderPayload) });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  /** GET /projects/{id}/folders/{folderId} — one folder with its
+   * `parentId`, so a file's `folderId` resolves to a name and, parent by
+   * parent, to a path. */
+  app.get('/projects/:id/folders/:folderId', noQuery, async (c) => {
+    const auth = await restProjectAuth(deps.sql, c);
+    const project = await loadVisibleProject(c, auth, c.req.param('id'));
+    if (project instanceof Response) return project;
+    try {
+      const folder = await loadProjectFolder(
+        c,
+        auth,
+        project,
+        c.req.param('folderId'),
+      );
+      if (folder instanceof Response) return folder;
+      return c.json({ folder: folderPayload(folder) });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -599,7 +724,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         });
       });
       const payload = {
-        folder: { id: result.folderId, name: result.name },
+        folder: {
+          id: result.folderId,
+          name: result.name,
+          parentId: body.parentId ?? null,
+        },
         created: result.created,
       };
       return c.json(payload, result.created ? 201 : 200);
@@ -621,6 +750,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           // are uploaded, rather than at the bind.
           fileName: fileNameSchema.optional(),
           contentType: z.string().max(255).optional(),
+          // The bytes about to travel: judged against the size caps here
+          // (the bind judges the landed size regardless).
+          size: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
         })
         .strict(),
       { optional: true },
@@ -632,6 +764,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
+      const declaredType =
+        body.contentType === undefined ? {} : { contentType: body.contentType };
       // The type half of the bind's upload policy runs on the name the
       // caller declared: the same 400s (`UPLOAD_POLICY_REJECTED`,
       // `UNSUPPORTED_FILE_TYPE`) the bind answers, before any bytes travel
@@ -639,14 +773,28 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (body.fileName !== undefined) {
         await assertUploadTypeAllowedForOrg(deps.sql, auth, {
           fileName: body.fileName,
-          ...(body.contentType !== undefined
-            ? { contentType: body.contentType }
-            : {}),
+          ...declaredType,
         });
       }
+      // The size half too, on a declared size: the platform ceiling, the
+      // organization's cap for the type and the volume quota — a 128 MiB
+      // blob used to upload for over a minute and be refused on arrival.
+      if (body.size !== undefined) {
+        await assertUploadSizeAllowedForOrg(deps.sql, auth, {
+          fileName: body.fileName ?? '',
+          ...declaredType,
+          size: body.size,
+        });
+      }
+      // The cap the bind will judge by, so a client learns the number
+      // before its bytes travel rather than by being refused past it.
+      const maxBytes = await effectiveUploadMaxBytes(deps.sql, auth, {
+        ...(body.fileName === undefined ? {} : { fileName: body.fileName }),
+        ...declaredType,
+      });
       const uploadId = randomUUID();
       const now = Date.now();
-      const expiresAt = now + UPLOAD_INTENT_TTL_MS;
+      const expiresAt = now + REST_UPLOAD_INTENT_TTL_MS;
       const handoff = await deps.sql.begin(async (tx) => {
         await lockRestProjectForWrite(tx, auth, project.id);
         // The signed PUT lives exactly as long as the intent: the URL and
@@ -660,7 +808,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             ...(body.contentType !== undefined
               ? { contentType: body.contentType }
               : {}),
-            expiresInSec: UPLOAD_INTENT_TTL_MS / 1000,
+            expiresInSec: REST_UPLOAD_INTENT_TTL_MS / 1000,
           },
         );
         await tx`
@@ -687,6 +835,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         method: 'PUT',
         s3Ref: handoff.storageRef,
         expiresAt,
+        maxBytes,
       });
     } catch (error) {
       return domainErrorResponse(c, error);

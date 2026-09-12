@@ -91,7 +91,8 @@ export function LabelManageDialog({
   };
 
   const onCreate = async () => {
-    const name = newName.trim().toLowerCase();
+    // Spelling is kept; the catalog dedupes without regard to case.
+    const name = newName.trim();
     if (!name || !canEdit) return;
     setBusy(true);
     try {
@@ -105,7 +106,7 @@ export function LabelManageDialog({
   };
 
   const onSaveRename = async (labelId: string) => {
-    const name = editName.trim().toLowerCase();
+    const name = editName.trim();
     if (!name || !canEdit) return;
     setBusy(true);
     try {

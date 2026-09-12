@@ -50,15 +50,19 @@ const CUSTOM_PALETTE: TaskLabelColor[] = [
 ];
 
 /**
- * Default colour for a normalized label name when no catalog/override colour
- * is set: predefined trio first, else a stable hash into the custom palette.
+ * Default colour for a label name when no catalog/override colour is set:
+ * predefined trio first, else a stable hash into the custom palette. Keyed
+ * on the case-folded name — the catalog keeps a label's spelling and is
+ * unique without regard to case, so `Bug` and `bug` are one label and wear
+ * one colour.
  */
 export function defaultTaskLabelColor(name: string): TaskLabelColor {
-  const predefined = PREDEFINED_COLOR.get(name);
+  const key = name.trim().toLowerCase();
+  const predefined = PREDEFINED_COLOR.get(key);
   if (predefined) return predefined;
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   }
   return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length] ?? 'gray';
 }

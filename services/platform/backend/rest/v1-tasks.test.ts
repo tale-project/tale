@@ -816,17 +816,19 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
     },
   );
 
-  it('trims the title and the labels it hands to the intake', async () => {
+  it('trims the title and the labels it hands to the intake — spelling kept', async () => {
     const { request } = mount();
     const res = await request(collection, 'POST', {
       ...input,
       title: '  Prepare  ',
-      labels: [' ops '],
+      labels: [' ops ', 'MixedCase-ÄÖÜ', 'P1'],
     });
     expect(res.status).toBe(201);
+    // D-02: the door never folds case — the catalog matches without
+    // regard to it and keeps the spelling a label was created with.
     expect(service.upsertTaskByExternalRef.mock.calls[0]?.[1]).toMatchObject({
       title: 'Prepare',
-      labels: ['ops'],
+      labels: ['ops', 'MixedCase-ÄÖÜ', 'P1'],
     });
   });
 

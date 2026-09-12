@@ -164,7 +164,8 @@ export async function checkProjectAgentRest(args: {
       404,
     );
   }
-  await expectStatus(rest('POST', path, { ...config, name: 'reviewer' }), 400);
+  // A duplicate name (any case) is the 409 every other duplicate answers.
+  await expectStatus(rest('POST', path, { ...config, name: 'reviewer' }), 409);
   for (const body of [
     { ...config, projectId: otherProjectId },
     { ...config, agentId: created.id },

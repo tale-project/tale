@@ -292,6 +292,14 @@ export interface TaskLabelRow {
   color: string;
 }
 
+/**
+ * Label names as the catalog compares them: trimmed and NFC-composed,
+ * with their SPELLING kept — `Bug` stays `Bug`. Two names that differ only
+ * in case are one label (the catalog is unique per project on
+ * `lower(name)`), so the list is deduplicated on the case-folded form and
+ * the first spelling wins. Names used to be lower-cased here, which every
+ * external system a mirror syncs from treats as a different label.
+ */
 function normalizeLabelNames(
   labels: string[] | undefined,
 ): string[] | undefined {
@@ -304,12 +312,13 @@ function normalizeLabelNames(
   const normalized: string[] = [];
   const seen = new Set<string>();
   for (const raw of labels) {
-    const label = raw.trim().toLowerCase();
+    const label = raw.normalize('NFC').trim();
     if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
       throw new TaskError('TASK_LABELS_INVALID', 'Invalid label name');
     }
-    if (!seen.has(label)) {
-      seen.add(label);
+    const folded = label.toLowerCase();
+    if (!seen.has(folded)) {
+      seen.add(folded);
       normalized.push(label);
     }
   }
@@ -338,9 +347,12 @@ export async function resolveProjectLabels(
   const now = Date.now();
   const ids: string[] = [];
   for (const name of names) {
+    // The catalog matches without regard to case and keeps the spelling
+    // the label was created with — a task sent `bug` wears the `Bug` row.
     const existing = await tx<{ id: string }[]>`
       SELECT id FROM app.task_labels
-      WHERE project_id = ${args.projectId} AND name = ${name} LIMIT 1
+      WHERE project_id = ${args.projectId} AND lower(name) = lower(${name})
+      LIMIT 1
     `;
     if (existing[0]) {
       ids.push(existing[0].id);
@@ -357,7 +369,7 @@ export async function resolveProjectLabels(
         ${args.organizationId}, ${args.projectId}, ${name},
         ${defaultTaskLabelColor(name)}, ${args.createdBy}, ${now}, ${now}
       )
-      ON CONFLICT (project_id, name) DO UPDATE SET updated_at_ms = ${now}
+      ON CONFLICT (project_id, lower(name)) DO UPDATE SET updated_at_ms = ${now}
       RETURNING id
     `;
     if (inserted[0]) {
@@ -382,7 +394,7 @@ export async function ensureDefaultProjectLabels(
         ${args.organizationId}, ${args.projectId}, ${preset.name},
         ${preset.color}, ${args.createdBy}, ${now}, ${now}
       )
-      ON CONFLICT (project_id, name) DO NOTHING
+      ON CONFLICT (project_id, lower(name)) DO NOTHING
     `;
   }
 }
@@ -398,7 +410,7 @@ export async function listTaskLabels(
     SELECT id, org_id AS "organizationId", project_id AS "projectId", name,
            color
     FROM app.task_labels WHERE project_id = ${projectId}
-    ORDER BY name ASC
+    ORDER BY lower(name) ASC, name ASC
   `;
   // Colour is always derived from the name — never a stored override.
   return rows.map((row) =>
@@ -453,7 +465,8 @@ export async function renameTaskLabel(
   }
   const clash = await tx<{ id: string }[]>`
     SELECT id FROM app.task_labels
-    WHERE project_id = ${label.projectId} AND name = ${normalized}
+    WHERE project_id = ${label.projectId}
+      AND lower(name) = lower(${normalized})
       AND id <> ${args.labelId}
     LIMIT 1
   `;

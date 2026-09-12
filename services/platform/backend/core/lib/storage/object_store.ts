@@ -583,19 +583,26 @@ export async function s3GetObjectBytes(
   return (await s3GetObject(store, key, opts)).bytes;
 }
 
-/** What a HEAD says about a stored object: its authoritative size and the
- * Content-Type the store holds for it (`null` when it answers none). */
+/** What a HEAD says about a stored object: its authoritative size, the
+ * Content-Type the store holds for it, and the validators it issues — the
+ * `ETag` and `Last-Modified` a GET of the same object carries, so a door
+ * that answers a HEAD or judges a `Range` locally can speak them without
+ * fetching a byte (`null` when the store answers none). */
 export interface S3ObjectHead {
   size: number;
   contentType: string | null;
+  etag: string | null;
+  lastModified: string | null;
 }
 
 /**
- * HEAD an object → its size in bytes (the authoritative server-side length)
- * and stored Content-Type. The size verifies an `s3:` upload's real size
- * against the product cap — a presigned PUT enforces no Content-Length, so
- * the client-declared size can't be trusted; the type lets a copy between
- * stores be recognised as the SAME object rather than a same-length one.
+ * HEAD an object → its size in bytes (the authoritative server-side length),
+ * stored Content-Type, and the `ETag` / `Last-Modified` validators. The size
+ * verifies an `s3:` upload's real size against the product cap — a presigned
+ * PUT enforces no Content-Length, so the client-declared size can't be
+ * trusted; the type lets a copy between stores be recognised as the SAME
+ * object rather than a same-length one; the validators let the REST file
+ * lane answer a HEAD, and judge a `Range` against the size, without a GET.
  * Returns `null` when the object is missing (404).
  */
 export async function s3HeadObject(
@@ -620,10 +627,13 @@ export async function s3HeadObject(
     throw new Error(`S3 HEAD ${key} returned no usable content-length`);
   }
   const contentType = res.headers.get('content-type');
+  const blankToNull = (value: string | null): string | null =>
+    value === null || value === '' ? null : value;
   return {
     size,
-    contentType:
-      contentType === null || contentType === '' ? null : contentType,
+    contentType: blankToNull(contentType),
+    etag: blankToNull(res.headers.get('etag')),
+    lastModified: blankToNull(res.headers.get('last-modified')),
   };
 }
 

@@ -13,7 +13,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { listProjectsPage, updateProjectAgent } from './service.ts';
+import {
+  createProjectAgent,
+  listProjectsPage,
+  updateProjectAgent,
+} from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
@@ -68,7 +72,10 @@ interface Statement {
   values: unknown[];
 }
 
-function fakeTx(storedSecrets: string[] = ['REVIEW_TOKEN']): {
+function fakeTx(
+  storedSecrets: string[] = ['REVIEW_TOKEN'],
+  options: { nameTaken?: boolean } = {},
+): {
   tx: TransactionSql;
   statements: Statement[];
 } {
@@ -78,6 +85,10 @@ function fakeTx(storedSecrets: string[] = ['REVIEW_TOKEN']): {
     statements.push({ text, values });
     if (text.includes('FROM app.project_agents WHERE id = ?')) {
       return Promise.resolve([AGENT]);
+    }
+    // The case-insensitive sibling lookup of the create and the update.
+    if (text.includes('lower(name) = ?')) {
+      return Promise.resolve(options.nameTaken ? [{ id: 'agent-2' }] : []);
     }
     if (text.includes('FROM app.projects WHERE id = ?')) {
       return Promise.resolve([PROJECT]);
@@ -113,6 +124,50 @@ const updates = (statements: Statement[]) =>
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+/**
+ * D-07: a duplicate agent name used to answer 400 — the one duplicate on
+ * the machine door outside the 409 class every other "the state refuses
+ * the action" answers (`PROJECT_KEY_TAKEN`, `FOLDER_NAME_TAKEN`), so a
+ * client that reuses on 409 and gives up on 400 gave up on a recoverable
+ * collision.
+ */
+describe('a duplicate agent name is the 409 every other duplicate answers', () => {
+  it('refuses a create whose name another agent carries, in any case, writing nothing', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { nameTaken: true });
+    await expect(
+      createProjectAgent(tx, auth, {
+        projectId: 'project-1',
+        name: 'reviewer',
+        harness: 'claude-code',
+        model: 'test-model',
+        skills: [],
+        connectors: [],
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_NAME_TAKEN',
+      status: 409,
+    });
+    const clash = statements.find((s) => s.text.includes('lower(name) = ?'));
+    expect(clash?.values).toContain('reviewer');
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.project_agents'),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a rename onto another agent’s name the same way', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { nameTaken: true });
+    await expect(
+      updateProjectAgent(tx, auth, { ...config, name: 'Other Agent' }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_NAME_TAKEN',
+      status: 409,
+    });
+    expect(updates(statements)).toEqual([]);
+  });
 });
 
 describe('updateProjectAgent — the optimistic precondition', () => {

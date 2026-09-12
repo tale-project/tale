@@ -24,6 +24,8 @@ import {
   listProjectsPage,
   ProjectError,
   restoreProject,
+  updateProjectExternalItemId,
+  updateProjectIdentity,
 } from '../domains/projects/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
@@ -74,6 +76,8 @@ vi.mock('../domains/projects/service.ts', async (importOriginal) => ({
   ),
   archiveProject: vi.fn(() => Promise.resolve()),
   restoreProject: vi.fn(() => Promise.resolve()),
+  updateProjectIdentity: vi.fn(() => Promise.resolve()),
+  updateProjectExternalItemId: vi.fn(() => Promise.resolve()),
   deleteProject: vi.fn(() =>
     Promise.resolve({
       detachedDocCount: 0,
@@ -548,6 +552,8 @@ describe('PATCH /projects/{id}', () => {
   beforeEach(() => {
     vi.mocked(archiveProject).mockClear();
     vi.mocked(restoreProject).mockClear();
+    vi.mocked(updateProjectIdentity).mockClear();
+    vi.mocked(updateProjectExternalItemId).mockClear();
   });
 
   it('archives and restores through the app cores and answers the project', async () => {
@@ -569,14 +575,133 @@ describe('PATCH /projects/{id}', () => {
     );
   });
 
-  it('refuses an editor with 403 ROLE_FORBIDDEN and a body outside the schema with 400', async () => {
+  it('refuses an editor’s archive with 403 ROLE_FORBIDDEN and a body outside the schema with 400', async () => {
     const { sql } = fakeSql();
     const forbidden = await patch(sql, { archived: true }, 'editor');
     expect(forbidden.status).toBe(403);
     expect(await forbidden.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
     expect((await patch(sql, { archived: 'yes' })).status).toBe(400);
-    expect((await patch(sql, { name: 'x' })).status).toBe(400);
+    expect((await patch(sql, { colour: 'red' })).status).toBe(400);
+    expect((await patch(sql, { name: '   ' })).status).toBe(400);
+    expect((await patch(sql, { externalItemId: ' ' })).status).toBe(400);
+    const empty = await patch(sql, {});
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      error: expect.stringContaining('at least one of'),
+    });
     expect(vi.mocked(archiveProject)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateProjectIdentity)).not.toHaveBeenCalled();
+  });
+
+  /**
+   * D-06: the PATCH was archive-only, so a project's `name`, `description`
+   * and `externalItemId` were immutable for its life — a rename in the CRM
+   * left the mirror's only move as delete-and-recreate. The identity goes
+   * through the app's own cores, for editors with edit access.
+   */
+  it('renames, re-describes and re-keys through the app cores as an editor', async () => {
+    const { sql } = fakeSql();
+    const res = await patch(
+      sql,
+      {
+        name: '  ACME Group ',
+        description: null,
+        externalItemId: ' crm-77\u0301 ',
+      },
+      'editor',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ project: { id: 'p-1' } });
+    expect(vi.mocked(updateProjectIdentity)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1', role: 'editor' }),
+      { projectId: 'p-1', name: 'ACME Group', description: null },
+    );
+    // The key reaches the domain canonical: NFC-composed, trimmed.
+    expect(vi.mocked(updateProjectExternalItemId)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { projectId: 'p-1', externalItemId: 'crm-77\u0301'.normalize('NFC') },
+    );
+    expect(vi.mocked(archiveProject)).not.toHaveBeenCalled();
+    expect(vi.mocked(restoreProject)).not.toHaveBeenCalled();
+  });
+
+  it('releases the key with null and leaves the identity alone', async () => {
+    const { sql } = fakeSql();
+    const res = await patch(sql, { externalItemId: null });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(updateProjectExternalItemId)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { projectId: 'p-1', externalItemId: null },
+    );
+    expect(vi.mocked(updateProjectIdentity)).not.toHaveBeenCalled();
+  });
+
+  it('refuses an identity edit on an archived project the body does not restore, and orders restore → edit → archive', async () => {
+    const archivedProject = fakeSql({
+      project: () => ({ archivedAt: 1_700_000_000_500 }),
+    });
+    const refused = await patch(archivedProject.sql, { name: 'Renamed' });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: 'PROJECT_ARCHIVED' });
+    expect(vi.mocked(updateProjectIdentity)).not.toHaveBeenCalled();
+
+    const order: string[] = [];
+    vi.mocked(restoreProject).mockImplementationOnce(() => {
+      order.push('restore');
+      return Promise.resolve();
+    });
+    vi.mocked(updateProjectIdentity).mockImplementationOnce(() => {
+      order.push('identity');
+      return Promise.resolve();
+    });
+    const restoredAndRenamed = await patch(archivedProject.sql, {
+      archived: false,
+      name: 'Renamed',
+    });
+    expect(restoredAndRenamed.status).toBe(200);
+    expect(order).toEqual(['restore', 'identity']);
+
+    order.length = 0;
+    vi.mocked(updateProjectIdentity).mockImplementationOnce(() => {
+      order.push('identity');
+      return Promise.resolve();
+    });
+    vi.mocked(archiveProject).mockImplementationOnce(() => {
+      order.push('archive');
+      return Promise.resolve();
+    });
+    const { sql } = fakeSql();
+    const renamedAndArchived = await patch(sql, {
+      name: 'Renamed',
+      archived: true,
+    });
+    expect(renamedAndArchived.status).toBe(200);
+    expect(order).toEqual(['identity', 'archive']);
+  });
+
+  it('answers the domain’s duplicate key as 409 with the key, and a member’s edit as 403', async () => {
+    vi.mocked(updateProjectExternalItemId).mockRejectedValueOnce(
+      new ProjectError(
+        'PROJECT_DUPLICATE_EXTERNAL_ID',
+        'A project with externalItemId "crm-1" already exists in this organization',
+        409,
+        { externalItemId: 'crm-1' },
+      ),
+    );
+    const { sql } = fakeSql();
+    const taken = await patch(sql, { externalItemId: 'crm-1' });
+    expect(taken.status).toBe(409);
+    expect(await taken.json()).toMatchObject({
+      code: 'PROJECT_DUPLICATE_EXTERNAL_ID',
+      data: { externalItemId: 'crm-1' },
+    });
+    const member = await patch(sql, { name: 'Renamed' }, 'member');
+    expect(member.status).toBe(403);
+    expect(await member.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
   });
 
   it('answers the opaque 404 for a project of another organization', async () => {
@@ -913,6 +1038,8 @@ describe('POST /projects/{id}/files upload policy', () => {
     const dir = path.join(configRoot, 'acme', 'governance');
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'upload-policy.yml'), yaml, 'utf-8');
+    // A read before the seed cached "no policy" for the org.
+    clearOrgConfigCaches();
   }
 
   it('refuses a MIME type outside the org allowlist with 400 and creates nothing', async () => {
@@ -1069,6 +1196,84 @@ describe('POST /projects/{id}/files upload policy', () => {
       expect(queries.some((q) => q.text.includes('sum(size)'))).toBe(false);
     });
 
+    /** D-03: the 100 MiB ceiling — and an organization's lower cap — were
+     * discoverable only by uploading past them and reading the bind's
+     * refusal. The mint names `maxBytes`, and judges a declared `size`. */
+    it('names the effective cap as maxBytes — the platform ceiling, or the organization’s lower cap for the type', async () => {
+      vi.mocked(createRestUploadHandoff).mockClear();
+      const { sql } = fakeSql();
+      const ceiling = await mint(sql, { fileName: 'ledger.csv' });
+      expect(ceiling.status).toBe(200);
+      expect(await ceiling.json()).toMatchObject({
+        maxBytes: 100 * 1024 * 1024,
+      });
+
+      await seedUploadPolicy(
+        'enabled: true\nmaxFileSizeBytes: 5000000\nmaxFileSizeLimits:\n  - mimeTypePrefix: text/\n    maxBytes: 4096\n',
+      );
+      const capped = await mint(sql, { fileName: 'ledger.csv' });
+      expect(await capped.json()).toMatchObject({ maxBytes: 4096 });
+      const pdf = await mint(sql, {
+        fileName: 'ledger.pdf',
+        contentType: 'application/pdf',
+      });
+      expect(await pdf.json()).toMatchObject({ maxBytes: 5_000_000 });
+      const bare = await mint(sql, {});
+      expect(await bare.json()).toMatchObject({ maxBytes: 5_000_000 });
+    });
+
+    it('refuses a declared size the bind would refuse, presigning nothing', async () => {
+      vi.mocked(createRestUploadHandoff).mockClear();
+      const { sql, queries } = fakeSql();
+      const overCeiling = await mint(sql, {
+        fileName: 'big.csv',
+        size: 100 * 1024 * 1024 + 1,
+      });
+      expect(overCeiling.status).toBe(400);
+      expect(await overCeiling.json()).toMatchObject({
+        code: 'FILE_TOO_LARGE',
+        error: expect.stringContaining('100 MiB'),
+        data: { reasonCode: 'file_too_large', limitBytes: 100 * 1024 * 1024 },
+      });
+
+      await seedUploadPolicy(
+        'enabled: true\nmaxFileSizeBytes: 4096\nmaxTotalVolumeBytesPerUser: 10000\n',
+      );
+      const overCap = await mint(sql, { fileName: 'big.csv', size: 4097 });
+      expect(overCap.status).toBe(400);
+      expect(await overCap.json()).toMatchObject({
+        code: 'UPLOAD_POLICY_REJECTED',
+        data: { reasonCode: 'file_too_large', limitBytes: 4096 },
+      });
+      const { sql: nearlyFull } = fakeSql({ usedBytes: () => 9000 });
+      const overVolume = await mint(nearlyFull, {
+        fileName: 'big.csv',
+        size: 2000,
+      });
+      expect(overVolume.status).toBe(400);
+      expect(await overVolume.json()).toMatchObject({
+        code: 'UPLOAD_POLICY_REJECTED',
+        data: {
+          reasonCode: 'volume_exceeded',
+          usedBytes: 9000,
+          limitBytes: 10000,
+        },
+      });
+      expect(vi.mocked(createRestUploadHandoff)).not.toHaveBeenCalled();
+      expect(
+        queries.some((q) =>
+          q.text.startsWith('INSERT INTO app.rest_upload_intents'),
+        ),
+      ).toBe(false);
+
+      const fits = await mint(sql, { fileName: 'small.csv', size: 4096 });
+      expect(fits.status).toBe(200);
+      expect(await fits.json()).toMatchObject({ maxBytes: 4096 });
+      expect(vi.mocked(createRestUploadHandoff)).toHaveBeenCalledTimes(1);
+      expect((await mint(sql, { size: -1 })).status).toBe(400);
+      expect((await mint(sql, { size: 1.5 })).status).toBe(400);
+    });
+
     it('refuses a format outside the platform allowlist, and mints an allowed name', async () => {
       vi.mocked(createRestUploadHandoff).mockClear();
       const { sql } = fakeSql();
@@ -1216,6 +1421,74 @@ describe('GET /projects/{id}/files/{documentId}/content', () => {
     expect(res.headers.get('content-disposition')).toBeNull();
   });
 
+  /** D-01: the store's 416 used to reach the wire with the type and
+   * length of its XML error document on a body the answer did not have —
+   * the edge aborted the stream and a resumed download got no status at
+   * all. The lane's 416 is empty and sized. */
+  it('answers a bodiless 416 naming the size for a range the file cannot satisfy', async () => {
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 416,
+      headers: new Headers({
+        'content-range': 'bytes */11',
+        'accept-ranges': 'bytes',
+        'content-length': '0',
+        etag: '"abc"',
+      }),
+      body: null,
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+      { headers: { range: 'bytes=11-' } },
+    );
+    expect(res.status).toBe(416);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('content-range')).toBe('bytes */11');
+    expect(res.headers.get('content-length')).toBe('0');
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+    expect(res.headers.get('etag')).toBe('"abc"');
+    expect(res.headers.get('content-type')).toBeNull();
+    expect(res.headers.get('content-disposition')).toBeNull();
+  });
+
+  /** D-08: HEAD answered the length and type alone, so a poller had to
+   * GET the whole file to learn whether it had changed. */
+  it('answers a HEAD with the validators a GET carries and no body', async () => {
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 200,
+      headers: new Headers({
+        'content-type': 'application/pdf',
+        'content-length': '11',
+        etag: '"abc"',
+        'last-modified': 'Thu, 10 Sep 2026 06:58:33 GMT',
+        'accept-ranges': 'bytes',
+      }),
+      body: null,
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+      { method: 'HEAD', headers: { range: 'bytes=0-4' } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('etag')).toBe('"abc"');
+    expect(res.headers.get('last-modified')).toBe(
+      'Thu, 10 Sep 2026 06:58:33 GMT',
+    );
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+    expect(res.headers.get('content-length')).toBe('11');
+    expect(res.headers.get('content-disposition')).toContain(
+      'filename="ledger-2026-q1.pdf"',
+    );
+    expect(vi.mocked(openFileContent)).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      'acme/blob-1',
+      expect.objectContaining({ head: true, range: 'bytes=0-4' }),
+    );
+  });
+
   it('answers 404 for a blob the store no longer holds, and 503 with Retry-After for a store that fails', async () => {
     vi.mocked(openFileContent).mockResolvedValueOnce(null);
     const { sql } = fakeSql();
@@ -1236,6 +1509,131 @@ describe('GET /projects/{id}/files/{documentId}/content', () => {
     expect(await failed.json()).toMatchObject({
       code: 'OBJECT_STORE_UNAVAILABLE',
     });
+  });
+});
+
+/**
+ * D-05: subfolders were write-only — `POST …/folders` took a `parentId`,
+ * but `GET …/folders` listed the roots only, no read resolved a folder id,
+ * and `ProjectFolder` carried no `parentId`, so the `folderId` on every
+ * file was a dead end and a second worker could not discover the tree. The
+ * listing takes `?parentId=`, a folder reads back by id, and every folder
+ * carries its `parentId`.
+ */
+describe('GET /projects/{id}/folders — the tree, one level at a time', () => {
+  const child = {
+    id: 'fold-2',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    parentId: 'fold-1',
+    name: '2026-Q1 invoices',
+    teamId: null,
+    teamTags: [],
+  };
+  /** The folder listing (columns unsafe-spliced, `parent_id IS NOT
+   * DISTINCT FROM`) answers `rows`; the by-id load its fixture. */
+  const treeSql = (rows: object[], folder?: Record<string, unknown>) => {
+    const { sql: base, queries } = fakeSql(
+      folder === undefined ? {} : { folder },
+    );
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+      if (text.includes('parent_id IS NOT DISTINCT FROM')) {
+        queries.push({ text, values });
+        return Promise.resolve(rows);
+      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the base double is a tagged template
+      return (base as unknown as (...a: unknown[]) => Promise<unknown[]>)(
+        strings,
+        ...values,
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { sql: Object.assign(tag, base) as unknown as Sql, queries };
+  };
+
+  it('lists the root folders with a null parentId, and a folder’s children with theirs', async () => {
+    const roots = treeSql([
+      { ...child, id: 'fold-1', parentId: null, name: '2026-Q1' },
+    ]);
+    const rootRes = await mount(roots.sql).request(
+      'http://localhost/projects/p-1/folders',
+    );
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.json()).toEqual({
+      folders: [{ id: 'fold-1', name: '2026-Q1', parentId: null }],
+    });
+    const rootListing = roots.queries.find((q) =>
+      q.text.includes('parent_id IS NOT DISTINCT FROM'),
+    );
+    expect(rootListing?.values).toContain(null);
+
+    const children = treeSql([child], { id: 'fold-1' });
+    const childRes = await mount(children.sql).request(
+      'http://localhost/projects/p-1/folders?parentId=fold-1',
+    );
+    expect(childRes.status).toBe(200);
+    expect(await childRes.json()).toEqual({
+      folders: [{ id: 'fold-2', name: '2026-Q1 invoices', parentId: 'fold-1' }],
+    });
+    const childListing = children.queries.find((q) =>
+      q.text.includes('parent_id IS NOT DISTINCT FROM'),
+    );
+    expect(childListing?.values).toContain('fold-1');
+  });
+
+  it('answers the opaque 404 for a parentId of another project, and 400 for a blank or unknown query', async () => {
+    const foreign = treeSql([], { id: 'fold-9', projectId: 'p-2' });
+    const res = await mount(foreign.sql).request(
+      'http://localhost/projects/p-1/folders?parentId=fold-9',
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
+    expect(
+      foreign.queries.some((q) =>
+        q.text.includes('parent_id IS NOT DISTINCT FROM'),
+      ),
+    ).toBe(false);
+    const { sql } = fakeSql();
+    expect(
+      (
+        await mount(sql).request(
+          'http://localhost/projects/p-1/folders?parentId=',
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await mount(sql).request(
+          'http://localhost/projects/p-1/folders?depth=2',
+        )
+      ).status,
+    ).toBe(400);
+  });
+
+  it('resolves one folder by id with its parentId, and hides a foreign one behind the same 404', async () => {
+    const { sql } = fakeSql({ folder: { ...child } });
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/folders/fold-2',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      folder: { id: 'fold-2', name: '2026-Q1 invoices', parentId: 'fold-1' },
+    });
+    const foreign = fakeSql({ folder: { ...child, projectId: 'p-2' } });
+    const hidden = await mount(foreign.sql).request(
+      'http://localhost/projects/p-1/folders/fold-2',
+    );
+    expect(hidden.status).toBe(404);
+    expect(await hidden.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
+    const absent = fakeSql();
+    expect(
+      (
+        await mount(absent.sql).request(
+          'http://localhost/projects/p-1/folders/fold-404',
+        )
+      ).status,
+    ).toBe(404);
   });
 });
 

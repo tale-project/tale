@@ -1,3 +1,5 @@
+import { ifRangeMatches, parseRangeHeader } from '@tale/shared/http/range';
+
 import { anyRefs } from '../../shared/handlers/function-refs';
 import { attachmentDisposition } from '../../shared/http/content-disposition';
 import type {
@@ -78,53 +80,6 @@ function buildContentDisposition(doc: DocumentForResponse): string {
   return attachmentDisposition(filename);
 }
 
-interface ParsedRange {
-  start: number;
-  end: number;
-}
-
-// RFC 7233 §2.1: parse a single-range `bytes=` spec. Multi-range (e.g.
-// `bytes=0-99,200-299`) is intentionally not supported — clients that ask
-// for one get a full 200 back, which is RFC-compliant. Returns `null` for
-// unparseable input (caller ignores Range), or `'unsatisfiable'` for
-// well-formed-but-out-of-bounds requests (caller returns 416).
-// Exported for unit testing (the streamed GET paths are otherwise
-// excluded from the connector suite).
-export function parseRangeHeader(
-  header: string | null,
-  size: number,
-): ParsedRange | 'unsatisfiable' | null {
-  if (!header) return null;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!match) return null;
-  const [, startStr, endStr] = match;
-  if (startStr === '' && endStr === '') return null;
-  if (size <= 0) return 'unsatisfiable';
-
-  let start: number;
-  let end: number;
-  if (startStr === '') {
-    // Suffix range: last N bytes.
-    const suffix = Number(endStr);
-    if (!Number.isFinite(suffix) || suffix <= 0) return null;
-    start = Math.max(0, size - suffix);
-    end = size - 1;
-  } else {
-    start = Number(startStr);
-    if (!Number.isFinite(start) || start < 0) return null;
-    if (endStr === '') {
-      end = size - 1;
-    } else {
-      end = Number(endStr);
-      if (!Number.isFinite(end) || end < start) return null;
-      if (end > size - 1) end = size - 1;
-    }
-  }
-
-  if (start >= size) return 'unsatisfiable';
-  return { start, end };
-}
-
 function buildResponseHeaders(
   doc: DocumentForResponse,
   opts: { etag: string; lastModified: Date },
@@ -144,7 +99,9 @@ function buildResponseHeaders(
 }
 
 // RFC 7232 §3.1: `If-None-Match: *` matches any current representation.
-// Exported for unit testing — see parseRangeHeader.
+// Exported for unit testing (the streamed GET paths are otherwise excluded
+// from the connector suite). The Range parsing and the `If-Range` check
+// are the shared `@tale/shared/http/range` — one reading for every door.
 export function ifNoneMatchMatches(header: string, etag: string): boolean {
   const trimmed = header.trim();
   if (trimmed === '*') return true;
@@ -159,27 +116,6 @@ function parseHttpDate(s: string | null): number | null {
   if (!s) return null;
   const t = Date.parse(s);
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
-}
-
-// RFC 7233 §3.2: an If-Range value is either an entity-tag or an HTTP-date.
-// The Range is honored only if it matches the current representation. ETags
-// use strong comparison (a weak validator like our `W/"size-mtime"` must not
-// satisfy If-Range — strong comparison fails and we fall back to a full 200,
-// which is the safe outcome). Exported for unit testing.
-export function ifRangeMatches(
-  header: string,
-  etag: string,
-  lastModified: Date,
-): boolean {
-  const trimmed = header.trim();
-  if (trimmed.startsWith('"') || trimmed.startsWith('W/')) {
-    // Strong comparison: both sides must be strong and byte-identical.
-    if (trimmed.startsWith('W/') || etag.startsWith('W/')) return false;
-    return trimmed === etag;
-  }
-  const since = Date.parse(trimmed);
-  if (!Number.isFinite(since)) return false;
-  return Math.floor(lastModified.getTime() / 1000) <= Math.floor(since / 1000);
 }
 
 export async function handleGet(

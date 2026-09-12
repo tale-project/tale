@@ -326,6 +326,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               await sql<{ name: string }[]>`
                 SELECT name FROM app.task_labels
                 WHERE id = ANY(${task.labelIds})
+                ORDER BY array_position(${task.labelIds}::text[], id)
               `
             ).map((row) => row.name)
           : [];

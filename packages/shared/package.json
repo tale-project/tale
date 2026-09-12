@@ -31,6 +31,7 @@
     "./utils/project-key": "./src/utils/project-key.ts",
     "./net/private-ip": "./src/net/private-ip.ts",
     "./http/entity-tag": "./src/http/entity-tag.ts",
+    "./http/range": "./src/http/range.ts",
     "./schemas/automation-pack": "./src/schemas/automation-pack.ts",
     "./schemas/automation-settings": "./src/schemas/automation-settings.ts",
     "./schemas/task-contract": "./src/schemas/task-contract.ts"

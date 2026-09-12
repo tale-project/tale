@@ -1,16 +1,12 @@
 // Unit coverage for the pure GET/PUT stream helpers that the connector
-// suite intentionally skips (streamed paths). Locks in the Range math,
-// weak-ETag handling, and — critically — the PUT cap's backpressure +
-// 413 mapping (the lone "critical" review finding).
+// suite intentionally skips (streamed paths). Locks in the weak-ETag
+// handling and — critically — the PUT cap's backpressure + 413 mapping
+// (the lone "critical" review finding). The Range math and the `If-Range`
+// check moved to `@tale/shared/http/range`, tested beside it.
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  computeETag,
-  ifNoneMatchMatches,
-  ifRangeMatches,
-  parseRangeHeader,
-} from './methods/get';
+import { computeETag, ifNoneMatchMatches } from './methods/get';
 import { wrapWithCap } from './methods/put';
 
 async function readAll(
@@ -35,70 +31,6 @@ async function readAll(
   }
   return out;
 }
-
-describe('ifRangeMatches', () => {
-  const lastModified = new Date('2026-01-01T00:00:00Z');
-
-  it('matches a strong ETag that equals the current strong validator', () => {
-    expect(ifRangeMatches('"abc123"', '"abc123"', lastModified)).toBe(true);
-  });
-
-  it('does not match a different strong ETag (stale → serve full 200)', () => {
-    expect(ifRangeMatches('"old"', '"abc123"', lastModified)).toBe(false);
-  });
-
-  it('never matches when either side is a weak validator (RFC 7233 strong comparison)', () => {
-    expect(ifRangeMatches('W/"abc"', 'W/"abc"', lastModified)).toBe(false);
-    expect(ifRangeMatches('"abc"', 'W/"abc"', lastModified)).toBe(false);
-    expect(ifRangeMatches('W/"abc"', '"abc"', lastModified)).toBe(false);
-  });
-
-  it('matches an HTTP-date >= Last-Modified, rejects an older date', () => {
-    expect(
-      ifRangeMatches('Thu, 01 Jan 2026 00:00:00 GMT', '"x"', lastModified),
-    ).toBe(true);
-    expect(
-      ifRangeMatches('Wed, 31 Dec 2025 00:00:00 GMT', '"x"', lastModified),
-    ).toBe(false);
-  });
-
-  it('rejects an unparseable If-Range value', () => {
-    expect(ifRangeMatches('not-a-date-or-etag', '"x"', lastModified)).toBe(
-      false,
-    );
-  });
-});
-
-describe('parseRangeHeader', () => {
-  it('parses a closed range', () => {
-    expect(parseRangeHeader('bytes=0-99', 1000)).toEqual({ start: 0, end: 99 });
-  });
-  it('clamps end to size-1', () => {
-    expect(parseRangeHeader('bytes=0-100000', 1000)).toEqual({
-      start: 0,
-      end: 999,
-    });
-  });
-  it('handles a suffix range', () => {
-    expect(parseRangeHeader('bytes=-100', 1000)).toEqual({
-      start: 900,
-      end: 999,
-    });
-  });
-  it('handles an open-ended range', () => {
-    expect(parseRangeHeader('bytes=500-', 1000)).toEqual({
-      start: 500,
-      end: 999,
-    });
-  });
-  it('flags an out-of-bounds start as unsatisfiable', () => {
-    expect(parseRangeHeader('bytes=2000-', 1000)).toBe('unsatisfiable');
-  });
-  it('ignores a null/garbage header', () => {
-    expect(parseRangeHeader(null, 1000)).toBeNull();
-    expect(parseRangeHeader('items=0-9', 1000)).toBeNull();
-  });
-});
 
 describe('computeETag', () => {
   it('emits a strong validator (quoted) from contentHash', () => {

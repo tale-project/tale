@@ -1720,11 +1720,136 @@ export async function assertUploadTypeAllowedForOrg(
   return { contentType, extension };
 }
 
+/** A byte count in the unit the caps are set in — binary mebibytes, and
+ * named so: the platform's ceiling is 100 MiB (104,857,600 bytes), which a
+ * client that read "100 MB" and sent 100,000,000 bytes was refused on. */
+function mebibytes(bytes: number): string {
+  const whole = bytes / (1024 * 1024);
+  return `${Number.isInteger(whole) ? whole : whole.toFixed(1)} MiB`;
+}
+
+/**
+ * The organization's per-file size cap for a content type: the policy's
+ * per-MIME override (longest prefix wins) over its global cap, or none.
+ * ONE reading for the bind gate and the mint, so the number the mint
+ * advertises is the number the bind refuses on.
+ */
+function resolvePolicySizeLimit(
+  policy: UploadPolicyConfig,
+  contentType: string,
+): number | undefined {
+  let limit = policy.maxFileSizeBytes ?? undefined;
+  if ((policy.maxFileSizeLimits?.length ?? 0) > 0) {
+    const override = [...(policy.maxFileSizeLimits ?? [])]
+      .filter((entry) => contentType.startsWith(entry.mimeTypePrefix))
+      .sort((a, b) => b.mimeTypePrefix.length - a.mimeTypePrefix.length)[0];
+    if (override) limit = override.maxBytes;
+  }
+  return limit;
+}
+
+/**
+ * The largest file the organization accepts for a content type, in bytes:
+ * the platform ceiling (`DOCUMENT_MAX_FILE_SIZE`) or the policy's cap
+ * when it is lower. What an upload mint answers as `maxBytes`, so a
+ * client learns the number before its bytes travel — it used to be
+ * discoverable only by uploading past it and reading the bind's refusal.
+ */
+export async function effectiveUploadMaxBytes(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: { fileName?: string; contentType?: string } = {},
+): Promise<number> {
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'upload_policy',
+  );
+  if (policy?.enabled !== true) return DOCUMENT_MAX_FILE_SIZE;
+  const contentType = resolveFileType(
+    args.fileName ?? '',
+    args.contentType ?? '',
+  );
+  const limit = resolvePolicySizeLimit(policy, contentType);
+  return limit === undefined
+    ? DOCUMENT_MAX_FILE_SIZE
+    : Math.min(limit, DOCUMENT_MAX_FILE_SIZE);
+}
+
+/**
+ * The size half of the upload policy: the platform ceiling, the policy's
+ * per-file cap for the resolved type, and the per-user volume quota —
+ * against `size`, the bytes as HEADed at the bind or as declared at the
+ * mint. Shared by the bind gate below and the mint, so a size the bind
+ * would refuse is refused before the bytes travel (D-03: a 128 MiB blob
+ * used to upload for over a minute and be refused on arrival).
+ */
+export async function assertUploadSizeAllowedForOrg(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: { fileName: string; contentType?: string; size: number },
+): Promise<void> {
+  const contentType = resolveFileType(args.fileName, args.contentType ?? '');
+  if (!Number.isFinite(args.size) || args.size < 0) {
+    throw new DocumentError(
+      'UPLOAD_BLOB_INVALID',
+      'The uploaded file size is invalid.',
+    );
+  }
+  if (args.size > DOCUMENT_MAX_FILE_SIZE) {
+    throw new DocumentError(
+      'FILE_TOO_LARGE',
+      `File exceeds the ${mebibytes(DOCUMENT_MAX_FILE_SIZE)} limit`,
+      400,
+      { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
+    );
+  }
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'upload_policy',
+  );
+  if (policy?.enabled !== true) return;
+  const limit = resolvePolicySizeLimit(policy, contentType);
+  if (limit !== undefined && args.size > limit) {
+    throw new DocumentError(
+      'UPLOAD_POLICY_REJECTED',
+      `File size exceeds the ${mebibytes(limit)} limit`,
+      400,
+      { reasonCode: 'file_too_large', limitBytes: limit },
+    );
+  }
+  if (policy.maxTotalVolumeBytesPerUser != null) {
+    const rows = await sql<{ total: string | null }[]>`
+      SELECT sum(size)::text AS total FROM app.file_metadata
+      WHERE org_id = ${auth.organizationId}
+        AND uploaded_by = ${auth.userId}
+    `;
+    const usedBytes = Number(rows[0]?.total ?? '0');
+    if (usedBytes + args.size > policy.maxTotalVolumeBytesPerUser) {
+      const maxGiB = Math.round(
+        policy.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024),
+      );
+      throw new DocumentError(
+        'UPLOAD_POLICY_REJECTED',
+        `Total upload volume would exceed the ${maxGiB} GiB limit`,
+        400,
+        {
+          reasonCode: 'volume_exceeded',
+          usedBytes,
+          limitBytes: policy.maxTotalVolumeBytesPerUser,
+        },
+      );
+    }
+  }
+}
+
 /**
  * Gate a blob before it becomes a document's current file: org rate limit,
- * global size ceiling, the org's upload policy (extension/MIME/size caps +
- * per-user volume quota), then the global format allowlist. Throws
- * `DocumentError` with the 0.4 wire codes + structured refusal data.
+ * the org's upload policy (extension/MIME allowlists), the size half —
+ * global ceiling, the policy's size caps, the per-user volume quota — then
+ * the global format allowlist. Throws `DocumentError` with the 0.4 wire
+ * codes + structured refusal data.
  */
 export async function validateDocumentUploadForOrg(
   sql: Sql | TransactionSql,
@@ -1749,21 +1874,6 @@ export async function validateDocumentUploadForOrg(
   }
   const contentType = resolveFileType(args.fileName, args.contentType ?? '');
   const extension = extractExtension(args.fileName);
-  if (!Number.isFinite(args.size) || args.size < 0) {
-    throw new DocumentError(
-      'UPLOAD_BLOB_INVALID',
-      'The uploaded file size is invalid.',
-    );
-  }
-  if (args.size > DOCUMENT_MAX_FILE_SIZE) {
-    throw new DocumentError(
-      'FILE_TOO_LARGE',
-      `File exceeds the ${Math.round(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024))} MB limit`,
-      400,
-      { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
-    );
-  }
-
   const policy = await readGovernancePolicyForOrg(
     sql,
     auth.organizationId,
@@ -1771,46 +1881,8 @@ export async function validateDocumentUploadForOrg(
   );
   if (policy?.enabled === true) {
     assertUploadTypeAllowedByPolicy(policy, contentType, extension);
-    // Per-MIME override wins over the global cap; longest prefix match.
-    let limit = policy.maxFileSizeBytes ?? undefined;
-    if ((policy.maxFileSizeLimits?.length ?? 0) > 0) {
-      const override = [...(policy.maxFileSizeLimits ?? [])]
-        .filter((entry) => contentType.startsWith(entry.mimeTypePrefix))
-        .sort((a, b) => b.mimeTypePrefix.length - a.mimeTypePrefix.length)[0];
-      if (override) limit = override.maxBytes;
-    }
-    if (limit !== undefined && args.size > limit) {
-      throw new DocumentError(
-        'UPLOAD_POLICY_REJECTED',
-        `File size exceeds the ${Math.round(limit / (1024 * 1024))} MB limit`,
-        400,
-        { reasonCode: 'file_too_large', limitBytes: limit },
-      );
-    }
-    if (policy.maxTotalVolumeBytesPerUser != null) {
-      const rows = await sql<{ total: string | null }[]>`
-        SELECT sum(size)::text AS total FROM app.file_metadata
-        WHERE org_id = ${auth.organizationId}
-          AND uploaded_by = ${auth.userId}
-      `;
-      const usedBytes = Number(rows[0]?.total ?? '0');
-      if (usedBytes + args.size > policy.maxTotalVolumeBytesPerUser) {
-        const maxGB = Math.round(
-          policy.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024),
-        );
-        throw new DocumentError(
-          'UPLOAD_POLICY_REJECTED',
-          `Total upload volume would exceed the ${maxGB} GB limit`,
-          400,
-          {
-            reasonCode: 'volume_exceeded',
-            usedBytes,
-            limitBytes: policy.maxTotalVolumeBytesPerUser,
-          },
-        );
-      }
-    }
   }
+  await assertUploadSizeAllowedForOrg(sql, auth, args);
 
   assertUploadFormatSupported(contentType, args.fileName);
   return { contentType, extension };

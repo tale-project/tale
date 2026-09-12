@@ -61,15 +61,18 @@ export function LabelEditor({
     }
   };
 
-  const query = search.trim().toLowerCase().slice(0, MAX_LABEL_LENGTH);
+  // The catalog keeps a label's spelling and is unique without regard to
+  // case: matching folds case, the name sent keeps what was typed.
+  const query = search.trim().slice(0, MAX_LABEL_LENGTH);
+  const folded = query.toLowerCase();
 
   const options = useMemo<LabelOption[]>(() => {
     const rows = catalog.map((l) => ({ name: l.name }));
-    if (!query) return rows;
-    return rows.filter((l) => l.name.includes(query));
-  }, [catalog, query]);
+    if (!folded) return rows;
+    return rows.filter((l) => l.name.toLowerCase().includes(folded));
+  }, [catalog, folded]);
 
-  const exactExists = catalog.some((l) => l.name === query);
+  const exactExists = catalog.some((l) => l.name.toLowerCase() === folded);
   const canCreate =
     query.length > 0 && !exactExists && labels.length < MAX_LABELS && !disabled;
   const itemCount = options.length + (canCreate ? 1 : 0);

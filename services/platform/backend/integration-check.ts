@@ -12635,13 +12635,18 @@ async function checkRestMachineJourney(
   const apiKey = minted.success ? minted.data.key : '';
   const v1 = (
     route: string,
-    init: { method?: string; body?: unknown } = {},
+    init: {
+      method?: string;
+      body?: unknown;
+      headers?: Record<string, string>;
+    } = {},
   ): Promise<Response> =>
     fetch(`${base}/api/v1${route}`, {
       method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${apiKey}`,
+        ...init.headers,
       },
       redirect: 'manual',
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
@@ -12739,6 +12744,87 @@ async function checkRestMachineJourney(
         })
       ).json(),
     );
+  // D-06: the PATCH carries the identity a mirror propagates — rename,
+  // re-describe, re-key — where it used to be archive-only. The re-key
+  // is unique within the org (the twin's key is the 409 with the key
+  // beside it), `null` releases it, and the lookup follows the new key.
+  const identityPatch = z
+    .object({
+      project: z.looseObject({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        externalItemId: z.string().optional(),
+      }),
+    })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}`, {
+          method: 'PATCH',
+          body: {
+            name: '  Door journey (renamed) ',
+            description: 'Mirrored from the CRM',
+            externalItemId: 'door-journey-1-renamed',
+          },
+        })
+      ).json(),
+    );
+  const identityLookup = z
+    .object({ projects: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(
+      await (
+        await v1('/projects?externalItemId=door-journey-1-renamed')
+      ).json(),
+    );
+  const identityTaken = await v1(`/projects/${projectId}`, {
+    method: 'PATCH',
+    body: { externalItemId: twinKey },
+  });
+  const identityTakenBody = z
+    .object({
+      code: z.string(),
+      data: z.object({ externalItemId: z.string() }),
+    })
+    .safeParse(await identityTaken.json());
+  const identityEmpty = await v1(`/projects/${projectId}`, {
+    method: 'PATCH',
+    body: {},
+  });
+  const identityCleared = z
+    .object({
+      project: z.looseObject({
+        externalItemId: z.string().optional(),
+        description: z.string().optional(),
+      }),
+    })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}`, {
+          method: 'PATCH',
+          body: { externalItemId: null, description: null },
+        })
+      ).json(),
+    );
+  const identityRestoredKey = await v1(`/projects/${projectId}`, {
+    method: 'PATCH',
+    body: { externalItemId: 'door-journey-1' },
+  });
+  const identityLaneOk =
+    identityPatch.success &&
+    identityPatch.data.project.name === 'Door journey (renamed)' &&
+    identityPatch.data.project.description === 'Mirrored from the CRM' &&
+    identityPatch.data.project.externalItemId === 'door-journey-1-renamed' &&
+    identityLookup.success &&
+    identityLookup.data.projects[0]?.id === projectId &&
+    identityTaken.status === 409 &&
+    identityTakenBody.success &&
+    identityTakenBody.data.code === 'PROJECT_DUPLICATE_EXTERNAL_ID' &&
+    identityTakenBody.data.data.externalItemId === twinKey.normalize('NFC') &&
+    identityEmpty.status === 400 &&
+    identityCleared.success &&
+    identityCleared.data.project.externalItemId === undefined &&
+    identityCleared.data.project.description === undefined &&
+    identityRestoredKey.status === 200;
 
   // Folder get-or-create: 201 then 200 with the SAME id.
   const folderFirst = await v1(`/projects/${projectId}/folders`, {
@@ -12762,6 +12848,61 @@ async function checkRestMachineJourney(
   const folderListed = z
     .object({ folders: z.array(z.looseObject({ id: z.string() })) })
     .safeParse(await (await v1(`/projects/${projectId}/folders`)).json());
+  // D-05: the tree reads back — a child under `Inbox` is listed by
+  // `?parentId=`, resolves by id with its parentId, and stays out of the
+  // root listing; a foreign id is the opaque 404 on both reads.
+  const folderShape = z.object({
+    id: z.string(),
+    name: z.string(),
+    parentId: z.string().nullable(),
+  });
+  const childCreated = z
+    .object({ folder: folderShape, created: z.boolean() })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/folders`, {
+          body: { name: 'Q1', parentId: folderId },
+        })
+      ).json(),
+    );
+  const childId = childCreated.success ? childCreated.data.folder.id : '';
+  const childrenListed = z
+    .object({ folders: z.array(folderShape) })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/folders?parentId=${folderId}`)
+      ).json(),
+    );
+  const rootsListed = z
+    .object({ folders: z.array(folderShape) })
+    .safeParse(await (await v1(`/projects/${projectId}/folders`)).json());
+  const childRead = z
+    .object({ folder: folderShape })
+    .safeParse(
+      await (await v1(`/projects/${projectId}/folders/${childId}`)).json(),
+    );
+  const foreignFolderRead = await v1(`/projects/${twinId}/folders/${childId}`);
+  const foreignFolderList = await v1(
+    `/projects/${twinId}/folders?parentId=${childId}`,
+  );
+  const folderTreeOk =
+    childCreated.success &&
+    childCreated.data.created &&
+    childCreated.data.folder.parentId === folderId &&
+    childrenListed.success &&
+    childrenListed.data.folders.length === 1 &&
+    childrenListed.data.folders[0]?.id === childId &&
+    childrenListed.data.folders[0].parentId === folderId &&
+    rootsListed.success &&
+    rootsListed.data.folders.some(
+      (f) => f.id === folderId && f.parentId === null,
+    ) &&
+    !rootsListed.data.folders.some((f) => f.id === childId) &&
+    childRead.success &&
+    childRead.data.folder.id === childId &&
+    childRead.data.folder.parentId === folderId &&
+    foreignFolderRead.status === 404 &&
+    foreignFolderList.status === 404;
 
   // Upload handshake: mint → PUT bytes → bind (single-use).
   const LEDGER_BYTES = 'date;amount\n2026-08-01;42.00\n';
@@ -12780,6 +12921,32 @@ async function checkRestMachineJourney(
         })
       ).json(),
     );
+  // D-03: the mint names the cap the bind judges by, and refuses a
+  // declared size past it before anything is presigned.
+  const handoffMaxBytes = z.object({ maxBytes: z.number() }).safeParse(
+    await (
+      await v1(`/projects/${projectId}/uploads`, {
+        body: { fileName: 'ledger.csv', contentType: 'text/csv' },
+      })
+    ).json(),
+  );
+  const oversizedMint = await v1(`/projects/${projectId}/uploads`, {
+    body: {
+      fileName: 'huge.csv',
+      contentType: 'text/csv',
+      size: 200 * 1024 * 1024,
+    },
+  });
+  const oversizedMintBody = z
+    .object({ code: z.string(), data: z.object({ limitBytes: z.number() }) })
+    .safeParse(await oversizedMint.json());
+  const mintCapOk =
+    handoffMaxBytes.success &&
+    handoffMaxBytes.data.maxBytes === 100 * 1024 * 1024 &&
+    oversizedMint.status === 400 &&
+    oversizedMintBody.success &&
+    oversizedMintBody.data.code === 'FILE_TOO_LARGE' &&
+    oversizedMintBody.data.data.limitBytes === 100 * 1024 * 1024;
   let putOk = false;
   if (handoff.success) {
     const putRes = await fetch(handoff.data.url, {
@@ -12831,6 +12998,45 @@ async function checkRestMachineJourney(
   // got the store's two-authentications refusal written into its file.
   const contentBytes = contentRes.status === 200 ? await contentRes.text() : '';
   const contentDisposition = contentRes.headers.get('content-disposition');
+  // The Range lane is judged locally (D-01/D-08): a satisfiable range is a
+  // 206 with `Content-Range`; one starting at the end — what `curl -C -`
+  // sends once its copy is complete — is a bodiless 416 naming the size
+  // (the store's 416 used to be forwarded with its XML body's headers, and
+  // the edge reset the stream); a HEAD carries the validators a GET does.
+  const contentRange = await v1(
+    `/projects/${projectId}/files/${documentId}/content`,
+    { headers: { range: 'bytes=0-3' } },
+  );
+  const contentRangeBytes =
+    contentRange.status === 206 ? await contentRange.text() : '';
+  const contentRangeUnsatisfiable = await v1(
+    `/projects/${projectId}/files/${documentId}/content`,
+    { headers: { range: `bytes=${LEDGER_BYTES.length}-` } },
+  );
+  const contentRangeUnsatisfiableBody = await contentRangeUnsatisfiable.text();
+  const contentHead = await v1(
+    `/projects/${projectId}/files/${documentId}/content`,
+    { method: 'HEAD' },
+  );
+  const contentHeadBody = await contentHead.text();
+  const rangeLaneOk =
+    contentRange.status === 206 &&
+    contentRange.headers.get('content-range') ===
+      `bytes 0-3/${LEDGER_BYTES.length}` &&
+    contentRangeBytes === LEDGER_BYTES.slice(0, 4) &&
+    contentRangeUnsatisfiable.status === 416 &&
+    contentRangeUnsatisfiable.headers.get('content-range') ===
+      `bytes */${LEDGER_BYTES.length}` &&
+    contentRangeUnsatisfiable.headers.get('content-length') === '0' &&
+    contentRangeUnsatisfiable.headers.get('content-type') === null &&
+    contentRangeUnsatisfiableBody === '' &&
+    contentHead.status === 200 &&
+    contentHeadBody === '' &&
+    contentHead.headers.get('content-length') === String(LEDGER_BYTES.length) &&
+    contentHead.headers.get('etag') !== null &&
+    contentHead.headers.get('etag') === contentRes.headers.get('etag') &&
+    contentHead.headers.get('last-modified') !== null &&
+    contentHead.headers.get('accept-ranges') === 'bytes';
 
   // The workspace is not create-only: the bound file goes, its content
   // lane answers 404 after it, and the folder cascades out too.
@@ -12876,7 +13082,8 @@ async function checkRestMachineJourney(
       externalSystem: 'github',
       externalId: 'journey-issue-7',
       title: 'Prepare the ledger review',
-      labels: ['ops'],
+      // D-02: spelling kept, matched without regard to case, order kept.
+      labels: ['Ops', 'ops', 'P1'],
       externalUrl: 'https://example.test/issues/7',
     },
   });
@@ -12913,6 +13120,16 @@ async function checkRestMachineJourney(
     .safeParse(
       await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
     );
+
+  const labelIndex = await sql<{ name: string }[]>`
+    SELECT indexname AS name FROM pg_indexes
+    WHERE schemaname = 'app' AND tablename = 'task_labels'
+      AND indexname = 'task_labels_project_lower_name'
+  `;
+  const labelsOk =
+    taskRead.success &&
+    taskRead.data.task.labels.join('|') === 'Ops|P1' &&
+    labelIndex.length === 1;
 
   // Comment lane: post as the key's user, read it back.
   const commentPosted = z
@@ -13011,6 +13228,10 @@ async function checkRestMachineJourney(
       archivedList.data.projects.some((p) => p.id === twinId) &&
       restored.success &&
       restored.data.project.archivedAt === undefined &&
+      identityLaneOk &&
+      folderTreeOk &&
+      mintCapOk &&
+      labelsOk &&
       folderFirst.status === 201 &&
       folderFirstBody.success &&
       folderFirstBody.data.created &&
@@ -13030,6 +13251,7 @@ async function checkRestMachineJourney(
       contentRes.status === 200 &&
       contentDisposition?.startsWith('attachment; filename=') === true &&
       contentBytes === LEDGER_BYTES &&
+      rangeLaneOk &&
       fileDeleted.status === 204 &&
       contentAfterDelete.status === 404 &&
       fileDeletedAgain.status === 404 &&
@@ -13068,7 +13290,7 @@ async function checkRestMachineJourney(
       twinDeleted.status === 204 &&
       twinGone.status === 404 &&
       twinKeyFree.status === 201,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined}, delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId}, upload put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES}, delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'}, comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
   );
 }
 
@@ -27717,11 +27939,34 @@ async function checkWebsitesCrawl(
       .safeParse(await created.json());
     const websiteId = createdBody.success ? createdBody.data.id : '';
     const duplicate = await post('', { domain: DOMAIN, scanInterval: '6h' });
+    // C-02: the www/apex sibling is the SAME site to the crawler — a second
+    // row used to crawl, embed and cite every page twice. C-01: a URL list
+    // posted onto a whole-site crawl used to answer 201 and queue a full
+    // re-scan while the row stayed a site. Both are the 409 naming the row.
+    const sibling = await post('', {
+      domain: `www.${DOMAIN}`,
+      scanInterval: '6h',
+    });
+    const siblingBody = z
+      .object({ data: z.object({ websiteId: z.string(), domain: z.string() }) })
+      .safeParse(await sibling.json());
+    const listOntoSite = await post('', {
+      domain: DOMAIN,
+      scanInterval: '6h',
+      urls: [`https://${DOMAIN}/a.txt`],
+    });
+    const listOntoSiteBody = z
+      .object({ error: z.string(), data: z.object({ websiteId: z.string() }) })
+      .safeParse(await listOntoSite.json());
     const badInterval = await post('', {
       domain: 'other.example',
       scanInterval: '99h',
     });
     const drained = await drainCrawlJobs();
+    const rowsForSite = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.websites
+      WHERE org_id = ${orgId} AND domain = ANY(${[DOMAIN, `www.${DOMAIN}`]})
+    `;
 
     const urlRows = await pool<
       { url: string; status: string; contentHash: string | null }[]
@@ -27734,6 +27979,44 @@ async function checkWebsitesCrawl(
       SELECT count(*)::text AS count FROM public_web.chunks
       WHERE domain = ${DOMAIN}
     `;
+    // C-02b (knowledge-db migration 09): chunks are unique per (domain,
+    // url, chunk_index). The www sibling of a crawled domain redirects to
+    // the same URLs; under the old (url, chunk_index) key its first insert
+    // collided with the apex's rows and the page never indexed for it.
+    const twinDomain = `www.${DOMAIN}`;
+    const twinUrl = `https://${DOMAIN}/a.txt`;
+    let twinChunkInserted = false;
+    let twinChunkError = '';
+    try {
+      await pool.begin(async (tx) => {
+        await tx`
+          INSERT INTO public_web.websites (domain, scan_interval)
+          VALUES (${twinDomain}, 21600)
+          ON CONFLICT (domain) DO NOTHING
+        `;
+        await tx`
+          INSERT INTO public_web.website_urls (domain, url, status)
+          VALUES (${twinDomain}, ${twinUrl}, 'active')
+          ON CONFLICT (domain, url) DO NOTHING
+        `;
+        await tx`
+          INSERT INTO public_web.chunks
+            (domain, url, title, content_hash, chunk_index, chunk_content)
+          VALUES (${twinDomain}, ${twinUrl}, 'twin', 'twin-hash', 0, 'twin chunk')
+        `;
+        twinChunkInserted = true;
+        // Probe only: the sibling row must not outlive the check.
+        await tx`DELETE FROM public_web.websites WHERE domain = ${twinDomain}`;
+      });
+    } catch (error) {
+      twinChunkError = error instanceof Error ? error.message : String(error);
+    }
+    const chunkKey = await pool<{ name: string }[]>`
+      SELECT indexname AS name FROM pg_indexes
+      WHERE schemaname = 'public_web' AND tablename = 'chunks'
+        AND indexname IN ('chunks_domain_url_chunk_index_key', 'chunks_url_chunk_index_key')
+    `;
+    const chunkKeyNames = chunkKey.map((row) => row.name);
     const corpusSiteRow = await pool<{ status: string }[]>`
       SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
     `;
@@ -27768,11 +28051,23 @@ async function checkWebsitesCrawl(
       'websites register + first scan (reused engine on pg-boss)',
       created.status === 201 &&
         duplicate.status === 409 &&
+        sibling.status === 409 &&
+        siblingBody.success &&
+        siblingBody.data.data.websiteId === websiteId &&
+        siblingBody.data.data.domain === DOMAIN &&
+        listOntoSite.status === 409 &&
+        listOntoSiteBody.success &&
+        listOntoSiteBody.data.error === 'WEBSITE_DUPLICATE_DOMAIN' &&
+        listOntoSiteBody.data.data.websiteId === websiteId &&
+        rowsForSite[0]?.count === '1' &&
         badInterval.status === 400 &&
         drained &&
         urlRows.length === 3 &&
         urlRows.every((row) => row.status === 'active' && row.contentHash) &&
         Number(chunkCount[0]?.count ?? '0') >= 3 &&
+        twinChunkInserted &&
+        chunkKeyNames.includes('chunks_domain_url_chunk_index_key') &&
+        !chunkKeyNames.includes('chunks_url_chunk_index_key') &&
         corpusSiteRow[0]?.status === 'completed' &&
         rowAfterScan?.status === 'active' &&
         rowAfterScan.pageCount === 3 &&
@@ -27785,7 +28080,7 @@ async function checkWebsitesCrawl(
         chunks.data.total >= 1 &&
         search.success &&
         search.data.results.length >= 1,
-      `create=${created.status} dup=${duplicate.status}/409 badInterval=${badInterval.status}/400 drained=${drained}, urls=${urlRows.length}/3 allActive=${urlRows.every((r) => r.status === 'active')}, chunks=${chunkCount[0]?.count}>=3 corpus=${corpusSiteRow[0]?.status}, row=${rowAfterScan?.status}/${rowAfterScan?.pageCount}p/${rowAfterScan?.crawledPageCount}c scanned=${rowAfterScan?.lastScannedAt !== null}, pages=${pages.success ? pages.data.total : 'ERR'} chunksRead=${chunks.success ? chunks.data.total : 'ERR'} search=${search.success ? search.data.results.length : 'ERR'}`,
+      `create=${created.status} dup=${duplicate.status}/409 sibling=${sibling.status}/409(${siblingBody.success ? `${siblingBody.data.data.websiteId === websiteId}/${siblingBody.data.data.domain}` : 'BAD SHAPE'}) listOntoSite=${listOntoSite.status}/409(${listOntoSiteBody.success ? listOntoSiteBody.data.error : 'BAD SHAPE'}) rows=${rowsForSite[0]?.count}/1 badInterval=${badInterval.status}/400 drained=${drained}, urls=${urlRows.length}/3 allActive=${urlRows.every((r) => r.status === 'active')}, chunks=${chunkCount[0]?.count}>=3 twinChunk=${twinChunkInserted}${twinChunkError === '' ? '' : `(${twinChunkError})`} chunkKey=${chunkKeyNames.join('+')}/chunks_domain_url_chunk_index_key corpus=${corpusSiteRow[0]?.status}, row=${rowAfterScan?.status}/${rowAfterScan?.pageCount}p/${rowAfterScan?.crawledPageCount}c scanned=${rowAfterScan?.lastScannedAt !== null}, pages=${pages.success ? pages.data.total : 'ERR'} chunksRead=${chunks.success ? chunks.data.total : 'ERR'} search=${search.success ? search.data.results.length : 'ERR'}`,
     );
 
     // 2. Drift: changed content re-indexes IN PLACE; a 404 prunes the page
@@ -28017,6 +28312,33 @@ async function checkWebsitesCrawl(
         urls: ['https://elsewhere.example/x'],
       },
     });
+    // Re-posting the list under the stored spelling extends it (200, the
+    // same id); posting it under the www sibling — even with the list URL
+    // on the apex, which the sibling rule accepts — is the 409 naming the
+    // spelling that is stored (C-02).
+    const listMerged = await v1('/websites', {
+      body: {
+        domain: LIST_DOMAIN,
+        scanInterval: '1d',
+        urls: [`https://${LIST_DOMAIN}/list-1.txt`],
+      },
+    });
+    const listMergedBody = z
+      .object({ id: z.string() })
+      .safeParse(await listMerged.json());
+    const listSibling = await v1('/websites', {
+      body: {
+        domain: `www.${LIST_DOMAIN}`,
+        scanInterval: '1d',
+        urls: [`https://${LIST_DOMAIN}/list-1.txt`],
+      },
+    });
+    const listSiblingBody = z
+      .object({
+        code: z.string(),
+        data: z.object({ websiteId: z.string(), domain: z.string() }),
+      })
+      .safeParse(await listSibling.json());
     await drainCrawlJobs();
     const listedUrls = await pool<{ url: string; listed: boolean }[]>`
       SELECT url, listed FROM public_web.website_urls
@@ -28137,6 +28459,14 @@ async function checkWebsitesCrawl(
       'websites REST family + URL list + delete deregisters the corpus',
       listCreated.success &&
         listBadUrl.status === 400 &&
+        listMerged.status === 200 &&
+        listMergedBody.success &&
+        listMergedBody.data.id === listCreated.data.id &&
+        listSibling.status === 409 &&
+        listSiblingBody.success &&
+        listSiblingBody.data.code === 'WEBSITE_DUPLICATE_DOMAIN' &&
+        listSiblingBody.data.data.websiteId === listCreated.data.id &&
+        listSiblingBody.data.data.domain === LIST_DOMAIN &&
         listedUrls.length === 1 &&
         (listedUrls[0]?.listed ?? false) &&
         listKind[0]?.kind === 'list' &&
@@ -28161,7 +28491,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/200(${restPatchBody.success ? restPatchBody.data.scanInterval : 'ERR'}) echo=${restPatchEcho.status}/200 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) merge=${listMerged.status}/200(sameId=${listMergedBody.success && listCreated.success && listMergedBody.data.id === listCreated.data.id}) sibling=${listSibling.status}/409(${listSiblingBody.success ? `${listSiblingBody.data.code}/${listSiblingBody.data.data.domain}` : 'BAD SHAPE'}) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/200(${restPatchBody.success ? restPatchBody.data.scanInterval : 'ERR'}) echo=${restPatchEcho.status}/200 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;

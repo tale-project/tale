@@ -4,15 +4,12 @@ import { z } from 'zod';
 
 import { SCAN_INTERVAL_VALUES } from '../core/websites/types.ts';
 import {
-  crawlableDomain,
-  createWebsiteRow,
   deregisterAndDeleteWebsite,
   fetchWebsitePages,
   getWebsite,
-  getWebsiteByDomain,
   listWebsites,
-  normalizeListUrls,
   patchWebsite,
+  registerWebsite,
   searchWebsiteContent,
   websiteDomainImmutableError,
   type WebsiteRow,
@@ -176,55 +173,24 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
-  /** Register a domain (201) — or, with `urls`, extend an existing list
-   * registration of the same domain (200, the existing id). */
+  /** Register a domain (201) — or, with `urls`, extend an existing LIST
+   * registration of the same domain (200, the existing id). A domain
+   * already registered — as a whole-site crawl, without `urls`, or under
+   * its www/apex sibling — is the domain's 409 (`WEBSITE_DUPLICATE_DOMAIN`,
+   * `data.websiteId` / `data.domain`): the choreography is
+   * `registerWebsite`, shared with the app door. */
   app.post('/websites', async (c) => {
     const body = await parseBody(c, websiteInput);
     if (body instanceof Response) return body;
-    const { scanInterval, title, description } = body;
+    const { scanInterval, title, description, urls } = body;
     try {
-      const domain = crawlableDomain(body.domain);
-      const listEntries = body.urls ?? [];
-      const isList = listEntries.length > 0;
-      const listedUrls = isList
-        ? normalizeListUrls(domain, listEntries)
-        : undefined;
-      const organizationId = c.get('organizationId');
-      // Row write + register job in ONE transaction (the app door's shape):
-      // a 'scanning' row without its job strands until the stuck-scan
-      // window, then scans a domain the corpus never registered.
-      const outcome = await deps.sql.begin(async (tx) => {
-        const existing = isList
-          ? await getWebsiteByDomain(tx, organizationId, domain)
-          : null;
-        let id: string;
-        if (existing) {
-          await patchWebsite(tx, {
-            websiteId: existing.id,
-            callerOrgId: organizationId,
-            scanInterval,
-            status: 'scanning',
-          });
-          id = existing.id;
-        } else {
-          id = await createWebsiteRow(tx, {
-            organizationId,
-            domain,
-            ...(isList ? { kind: 'list' as const } : {}),
-            ...(title !== undefined ? { title } : {}),
-            ...(description !== undefined ? { description } : {}),
-            scanInterval,
-            status: 'scanning',
-          });
-        }
-        await addJobInTx(tx, 'websites.register', {
-          websiteId: id,
-          domain,
-          scanInterval,
-          organizationId,
-          ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
-        });
-        return { id, merged: existing !== null };
+      const outcome = await registerWebsite(deps.sql, {
+        organizationId: c.get('organizationId'),
+        domain: body.domain,
+        scanInterval,
+        ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(urls !== undefined ? { urls } : {}),
       });
       return c.json({ id: outcome.id }, outcome.merged ? 200 : 201);
     } catch (error) {
@@ -239,21 +205,23 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/websites/:id/pages', async (c) => {
-    // Whole, non-negative rows only: the inventory query ships these as
-    // `OFFSET`/`LIMIT`, where `-1` and `2.5` are Postgres errors and an
-    // unbounded limit walks the whole per-domain corpus. `offset=abc` used
-    // to read as 0 with nothing telling the caller.
+    // Whole numbers only: the inventory query ships these as
+    // `OFFSET`/`LIMIT`, where `2.5` is a Postgres error and an unbounded
+    // limit walks the whole per-domain corpus. `offset=abc` used to read
+    // as 0 with nothing telling the caller. A NEGATIVE offset is clamped
+    // to 0, as the sibling `limit` (and the spec) already promised — an
+    // under-run of `page * size - overlap` is not a malformed request.
     const query = readQuery(c, {
       limit: PAGE_QUERY.limit,
       offset: z
         .string()
-        .regex(/^\d{1,15}$/, 'must be a whole number of rows to skip')
+        .regex(/^-?\d{1,15}$/, 'must be a whole number of rows to skip')
         .optional(),
     });
     if (query instanceof Response) return query;
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
-    const offset = Number(query.offset ?? 0);
+    const offset = Math.max(0, Number(query.offset ?? 0));
     const limit = readPageLimit(c, { fallback: 100, max: 500 });
     if (limit instanceof Response) return limit;
     const result = await fetchWebsitePages(deps.sql, website, {

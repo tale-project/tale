@@ -190,18 +190,71 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'INVALID_SCAN_INTERVAL',
   'PRODUCT_STATUS_INVALID',
   // Task fields no REST body carries: attachments, dependencies,
-  // subtasks, reviewers, schedules.
+  // subtasks, reviewers, schedules, assignees (the intake takes an
+  // `automationSlug`, never `assigneeType`/`assigneeId`; a reassignment
+  // and its live-run guard are the board's), comment edits and deletes
+  // (REST posts and lists), and the label catalog's own verbs (REST
+  // creates a missing label on the way in — `createIfMissing` — so the
+  // human path's unknown-label refusal never fires).
+  'AGENT_NOT_ALLOWED_IN_PROJECT',
+  'ASSIGNEE_NO_PROJECT_ACCESS',
+  'TASK_ASSIGNEE_INVALID',
   'TASK_ATTACHMENTS_INVALID',
   'TASK_ATTACHMENT_NOT_OWNED',
+  'TASK_COMMENT_FORBIDDEN',
+  'TASK_COMMENT_NOT_FOUND',
   'TASK_DEPENDENCY_CYCLE',
   'TASK_DEPENDENCY_PROJECT_MISMATCH',
   'TASK_DEPENDENCY_SELF',
   'TASK_DEPTH_EXCEEDED',
+  'TASK_HAS_LIVE_RUN',
   'TASK_HAS_OPEN_SUBTASKS',
+  'TASK_LABEL_IN_USE',
+  'TASK_LABEL_TAKEN',
+  'TASK_LABEL_UNKNOWN',
   'TASK_PARENT_ARCHIVED',
   'TASK_PARENT_PROJECT_MISMATCH',
   'TASK_REVIEWER_INVALID',
   'TASK_SCHEDULE_INVALID',
+  // Tasks: the door's schemas trim and cap the title, description, labels
+  // and comment body at the domain's own constants and canonicalize the
+  // external reference (`externalKeySchema`) before the intake runs, so
+  // the domain's own checks cannot fire from REST; the intake's
+  // `projectId` invariants are the caller's, always satisfied by the
+  // project URL. `TASK_FORBIDDEN` is the task-level access check behind
+  // `loadRestProject`, which applies the same matrix first.
+  'TASK_COMMENT_INVALID',
+  'TASK_DESCRIPTION_INVALID',
+  'TASK_EXTERNAL_REF_INVALID',
+  'TASK_FORBIDDEN',
+  'TASK_LABELS_INVALID',
+  'TASK_TITLE_INVALID',
+  // Projects: the door validates the name (`nonBlank`), description and
+  // external key (`externalKeySchema`) at the domain's own caps before the
+  // create or the PATCH reaches the cores, and the agent name and
+  // instructions the same way (`projectAgentInputSchema`); instructions,
+  // sharing and the recommended-agent subset are the app's settings
+  // dialogs — no REST body carries them.
+  'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_AGENT_NAME_INVALID',
+  'PROJECT_DESCRIPTION_INVALID',
+  'PROJECT_EXTERNAL_ITEM_ID_INVALID',
+  'PROJECT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_NAME_INVALID',
+  'PROJECT_RECOMMENDED_NOT_SUBSET',
+  'PROJECT_SHARING_INVALID',
+  // Products: the door's `productCreateSchema` / `productPatchSchema` cap
+  // every field at the domain's own constants (`field_limits.ts`), so the
+  // domain's catch-all never fires from REST.
+  'PRODUCT_FIELDS_INVALID',
+  // Project folders: the REST get-or-create pre-checks the parent (org and
+  // project) and answers the opaque `FOLDER_NOT_FOUND`; the scope, team
+  // and parent-access refusals are the hub folder tree's, which no REST
+  // body reaches (a project folder carries no team).
+  'FOLDER_ACCESS_DENIED',
+  'FOLDER_PARENT_NOT_ACCESSIBLE',
+  'FOLDER_PARENT_NOT_FOUND',
+  'FOLDER_SCOPE_CONFLICT',
   // Two hops from the handlers (`IMPORT_DEPTH`): modules a REST-reached
   // service imports for lanes only the app doors call. Listed so the
   // guard's over-approximation stays honest — a code that becomes

@@ -1294,8 +1294,10 @@ export function buildSpec(): Json {
         'itself (**200**, no redirect to follow), with the document’s title ' +
         'in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), ' +
         'the stored `Content-Type`, `Content-Length`, `ETag` and ' +
-        '`Last-Modified`; `Range` is honoured (206, or 416 for a range the ' +
-        'file cannot satisfy) and a HEAD request answers the headers alone. ' +
+        '`Last-Modified`; `Range` is honoured (206, or a bodiless 416 for a ' +
+        'range the file cannot satisfy) and a HEAD request answers the ' +
+        'headers alone — `Content-Length`, `ETag`, `Last-Modified`, ' +
+        '`Accept-Ranges` — ignoring `Range`. ' +
         'A content-only document answers its inline text the same way — ' +
         'typed as its `mimeType` (`text/plain` when it has none), UTF-8, ' +
         '`Accept-Ranges: none` — so every Hub document reads back from this ' +
@@ -1337,8 +1339,13 @@ export function buildSpec(): Json {
         '416': {
           description:
             'The range starts at or past the end of the file: an empty ' +
-            'body, no envelope, `Content-Range: bytes */<size>` naming the size',
-          headers: { 'Content-Range': headerRef('ContentRange') },
+            'body (`Content-Length: 0`), no envelope, `Content-Range: bytes ' +
+            '*/<size>` naming the size',
+          headers: {
+            'Content-Range': headerRef('ContentRange'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+            'Content-Length': headerRef('ContentLength'),
+          },
         },
         '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '503': errorResponse(
@@ -1376,16 +1383,21 @@ export function buildSpec(): Json {
       summary: 'Create website',
       description:
         'Registers a domain for crawling and schedules the first crawl. ' +
-        'With `urls`, registers (or, for an existing domain, extends) a ' +
-        'curated URL list instead of a whole-site crawl.',
+        'With `urls`, registers (or, for a domain already registered AS A ' +
+        'LIST, extends) a curated URL list instead of a whole-site crawl. ' +
+        'The host is stored as given — `www.` is kept — and the `www.` and ' +
+        'apex spellings count as one site: a domain already registered, ' +
+        'under either spelling, is a 409 unless the post extends a list; ' +
+        '`data.websiteId` and `data.domain` name the existing row.',
       operationId: 'createWebsite',
       security: sec,
       requestBody: jsonBody(ref('WebsiteInput')),
       responses: {
         '201': createdId('Created — the website’s id'),
         '200': jsonResponse(
-          'With `urls`, the domain was already registered as a list: its ' +
-            'URLs were extended and this is the EXISTING website’s id',
+          'With `urls`, the domain was already registered as a list under ' +
+            'this exact spelling: its URLs were extended and this is the ' +
+            'EXISTING website’s id',
           {
             type: 'object',
             required: ['id'],
@@ -1393,8 +1405,12 @@ export function buildSpec(): Json {
           },
         ),
         '409': errorResponse(
-          'The domain is already registered as a whole-site crawl ' +
-            '(`WEBSITE_DUPLICATE_DOMAIN`)',
+          'The domain is already registered (`WEBSITE_DUPLICATE_DOMAIN`): ' +
+            'as a whole-site crawl (a URL list never extends one — the ' +
+            'row keeps its kind and nothing is queued), without `urls` on ' +
+            'a list, or under its `www.`/apex sibling; `data.websiteId` ' +
+            'and `data.domain` name the existing row, so a list can be ' +
+            're-posted under the stored spelling',
         ),
         ...standardErrors,
         '400': errorResponse(
@@ -1471,12 +1487,16 @@ export function buildSpec(): Json {
         pathParam('id', 'Website ID'),
         queryParam(
           'offset',
-          'Rows to skip (default 0; a negative or fractional value is clamped to a whole, non-negative row count)',
+          'Rows to skip (default 0). A whole number: a negative value is ' +
+            'clamped to 0, while a fractional or non-numeric one answers ' +
+            '400 `INVALID_QUERY`',
           { type: 'integer' },
         ),
         queryParam(
           'limit',
-          'Rows to return, 1..500 (default 100; out-of-range values are clamped)',
+          'Rows to return, 1..500 (default 100). A whole number: an ' +
+            'out-of-range value is clamped, a fractional or non-numeric one ' +
+            'answers 400 `INVALID_LIMIT`',
           { type: 'integer' },
         ),
       ],
@@ -2012,36 +2032,88 @@ export function buildSpec(): Json {
     },
     patch: {
       tags: ['Projects'],
-      summary: 'Archive or restore a project',
+      summary:
+        'Update a project — archive, restore, rename, re-describe, re-key',
       description:
-        'The lifecycle toggle: `archived: true` archives the project, ' +
-        '`false` restores it — the same action as the app, so it requires ' +
-        'an organization admin (403 `ROLE_FORBIDDEN` otherwise); a project ' +
-        'already in the requested state answers 200 unchanged. Archiving ' +
-        'keeps the project and everything in it readable through this door ' +
-        'and refuses every write on it (403 `PROJECT_ARCHIVED`); its ' +
-        '`externalItemId` stays taken until the project is deleted. An ' +
-        'invisible or absent project answers the opaque 404.',
+        'The project’s mutable surface, every field optional and at least ' +
+        'one required. `archived: true` archives the project, `false` ' +
+        'restores it — the same action as the app, so it requires an ' +
+        'organization admin (403 `ROLE_FORBIDDEN` otherwise); a project ' +
+        'already in the requested state is left unchanged. Archiving keeps ' +
+        'the project and everything in it readable through this door and ' +
+        'refuses every write on it (403 `PROJECT_ARCHIVED`); its ' +
+        '`externalItemId` stays taken until the project is deleted. ' +
+        '`name`, `description` and `externalItemId` are the identity a ' +
+        'mirror propagates when the source record changes: for the org ' +
+        'editor role with project edit access (403 `ROLE_FORBIDDEN` / ' +
+        '`RBAC_FORBIDDEN` otherwise) on an active project — a body that ' +
+        'restores and edits applies the restore first, one that edits and ' +
+        'archives applies the archive last, and identity edits on an ' +
+        'archived project the body does not restore answer 403 ' +
+        '`PROJECT_ARCHIVED`. `name` is trimmed and never blank; ' +
+        '`description: null` clears it; `externalItemId` is stored ' +
+        'canonical (NFC, trimmed), must be free within the organization ' +
+        '(409 `PROJECT_DUPLICATE_EXTERNAL_ID`, the key in `data`), and ' +
+        '`null` releases it. An invisible or absent project answers the ' +
+        'opaque 404. Answers the project as it now stands.',
       operationId: 'setProjectArchived',
       security: sec,
       parameters: [orgSlugHeaderParam, pathParam('id', 'Project ID')],
       requestBody: jsonBody({
         type: 'object',
         additionalProperties: false,
-        required: ['archived'],
-        properties: { archived: bool },
+        description:
+          'At least one of the fields; a body with none is refused ' +
+          '(`INVALID_BODY`)',
+        properties: {
+          archived: bool,
+          name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 80,
+            description: 'Trimmed, never blank',
+          },
+          description: {
+            type: 'string',
+            nullable: true,
+            maxLength: 500,
+            description: '`null` clears it',
+          },
+          externalItemId: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 256,
+            description:
+              'The caller-owned key, stored NFC-normalized and trimmed, ' +
+              'unique per organization; `null` releases it',
+          },
+        },
       }),
       responses: {
+        ...standardErrors,
         '200': jsonResponse('The project as it now stands', {
           type: 'object',
           required: ['project'],
           properties: { project: ref('Project') },
         }),
+        '400': errorResponse(
+          'A body the schema refuses (`INVALID_BODY`): no field, an unknown ' +
+            'key, a blank `name` or `externalItemId`, a value past its cap',
+        ),
         '403': errorResponse(
-          'The key holder is not an organization admin (`ROLE_FORBIDDEN`)',
+          '`archived` from a key holder who is not an organization admin, ' +
+            'or an identity edit without the editor role (`ROLE_FORBIDDEN`) ' +
+            'or project edit access (`RBAC_FORBIDDEN`, `PROJECT_FORBIDDEN`), ' +
+            'or on an archived project the body does not restore ' +
+            '(`PROJECT_ARCHIVED`)',
         ),
         '404': errorResponse('Project not found'),
-        ...standardErrors,
+        '409': errorResponse(
+          '`externalItemId` is another project’s key in this organization ' +
+            '(`PROJECT_DUPLICATE_EXTERNAL_ID`, the canonical key in `data`) ' +
+            '— nothing was written',
+        ),
       },
     },
     delete: {
@@ -2126,15 +2198,22 @@ export function buildSpec(): Json {
         '(`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization ' +
         'has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`) or a secret ' +
         'name the organization has not stored ' +
-        '(`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); a ' +
-        'duplicate name (`PROJECT_AGENT_NAME_TAKEN`); or the 50-agent limit ' +
-        '(`PROJECT_AGENT_LIMIT`)',
+        '(`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them); or ' +
+        'the 50-agent limit (`PROJECT_AGENT_LIMIT`)',
     ),
     '403': errorResponse(
-      'Project is not editable, is archived, or the caller cannot change secret grants',
+      'Project is not editable or is archived, or the caller changes secret ' +
+        'grants without being an organization admin ' +
+        '(`PROJECT_AGENT_SECRETS_FORBIDDEN`)',
     ),
     '404': errorResponse(
-      'Project is missing or invisible, or agent does not belong to this project',
+      'Project is missing or invisible, or the agent does not belong to ' +
+        'this project (`PROJECT_AGENT_NOT_FOUND`)',
+    ),
+    '409': errorResponse(
+      'A name another agent of this project already carries, compared ' +
+        'without regard to case (`PROJECT_AGENT_NAME_TAKEN`) — reuse that ' +
+        'agent or pick another name; nothing is written',
     ),
   };
   const projectAgentResponse = {
@@ -2167,9 +2246,10 @@ export function buildSpec(): Json {
         'rules. Requires project edit access; archived projects are ' +
         'read-only. Agent names are unique within the project ' +
         '(case-insensitive), and a project holds at most 50 agents. ' +
-        'Invalid configuration, a duplicate name, an unknown secret name ' +
-        '(refused by name — `PROJECT_AGENT_SECRET_UNKNOWN` — never pruned ' +
-        'on this door), or exceeding the limit answers 400.',
+        'Invalid configuration, an unknown secret name (refused by name — ' +
+        '`PROJECT_AGENT_SECRET_UNKNOWN` — never pruned on this door), or ' +
+        'exceeding the limit answers 400; a name another agent of the ' +
+        'project already carries answers 409 (`PROJECT_AGENT_NAME_TAKEN`).',
       operationId: 'createProjectAgent',
       security: sec,
       parameters: projectAgentParameters,
@@ -2222,11 +2302,13 @@ export function buildSpec(): Json {
       requestBody: jsonBody(ref('ProjectAgentUpdate')),
       responses: {
         '200': jsonResponse('Saved project agent', projectAgentResponse),
+        ...projectAgentErrors,
         '409': errorResponse(
           '`expectedUpdatedAt` is older than the agent’s `updatedAt` ' +
-            '(`PROJECT_AGENT_STALE`) — nothing was written',
+            '(`PROJECT_AGENT_STALE`), or the new name is another agent’s ' +
+            'in this project, compared without regard to case ' +
+            '(`PROJECT_AGENT_NAME_TAKEN`) — nothing was written',
         ),
-        ...projectAgentErrors,
       },
     },
     delete: {
@@ -2250,19 +2332,36 @@ export function buildSpec(): Json {
   paths['/api/v1/projects/{id}/folders'] = {
     get: {
       tags: ['Projects'],
-      summary: 'List the project’s root folders',
+      summary:
+        'List the project’s folders — the roots, or one folder’s children',
       description:
-        'Top-level folders only, NOT paginated — a project holds a handful ' +
-        'of period folders, not an unbounded tree.',
+        'The root folders, or with `parentId` the children of that folder ' +
+        '— one level at a time, NOT paginated (a project holds a handful ' +
+        'of period folders per level, not an unbounded tree); walk the ' +
+        'tree level by level, or resolve a file’s `folderId` with ' +
+        '`GET …/folders/{folderId}`. Every folder carries its `parentId` ' +
+        '(null at the root). A `parentId` that is not a folder of THIS ' +
+        'project answers the opaque 404 (`FOLDER_NOT_FOUND`).',
       operationId: 'listProjectFolders',
       security: sec,
-      parameters: [orgSlugHeaderParam, pathParam('id', 'Project ID')],
+      parameters: [
+        orgSlugHeaderParam,
+        pathParam('id', 'Project ID'),
+        queryParam(
+          'parentId',
+          'List the children of this folder (a folder of this project) ' +
+            'instead of the root folders',
+          { type: 'string' },
+        ),
+      ],
       responses: {
         '200': jsonResponse(
-          'The root folders',
+          'The folders of that level, each with its `parentId`',
           listOf('folders', ref('ProjectFolder')),
         ),
-        '404': errorResponse('Project not found'),
+        '404': errorResponse(
+          'Project not found, or `parentId` is not a folder of this project (`FOLDER_NOT_FOUND`)',
+        ),
         ...standardErrors,
       },
     },
@@ -2327,6 +2426,33 @@ export function buildSpec(): Json {
   };
 
   paths['/api/v1/projects/{id}/folders/{folderId}'] = {
+    get: {
+      tags: ['Projects'],
+      summary: 'Get a project folder',
+      description:
+        'One folder of this project with its `parentId` (null at the ' +
+        'root) — what a file’s `folderId` resolves to, and, parent by ' +
+        'parent, its path. A folder of another project or organization, ' +
+        'or an absent id, answers the same opaque 404 (`FOLDER_NOT_FOUND`).',
+      operationId: 'getProjectFolder',
+      security: sec,
+      parameters: [
+        orgSlugHeaderParam,
+        pathParam('id', 'Project ID'),
+        pathParam('folderId', 'Folder ID'),
+      ],
+      responses: {
+        '200': jsonResponse('The folder', {
+          type: 'object',
+          required: ['folder'],
+          properties: { folder: ref('ProjectFolder') },
+        }),
+        '404': errorResponse(
+          'Project or folder not found (`FOLDER_NOT_FOUND`)',
+        ),
+        ...standardErrors,
+      },
+    },
     delete: {
       tags: ['Projects'],
       summary: 'Delete a project folder and everything beneath it',
@@ -2383,9 +2509,19 @@ export function buildSpec(): Json {
         'too: the organization’s extension and MIME allowlists and the ' +
         'platform’s format allowlist refuse a name they would refuse at ' +
         'the bind — 400 `UPLOAD_POLICY_REJECTED` / `UNSUPPORTED_FILE_TYPE` ' +
-        '— before anything is presigned, so the bytes never travel (size ' +
-        'and volume caps are still judged at the bind, where the landed ' +
-        'size is known). Requires the org editor role and project edit ' +
+        '— before anything is presigned, so the bytes never travel. The ' +
+        'answer names `maxBytes`, the largest file this organization ' +
+        'accepts for the declared type (the platform ceiling, 100 MiB, or ' +
+        'the organization’s lower cap); declare `size` and the size and ' +
+        'volume caps are judged here too — 400 `FILE_TOO_LARGE` / ' +
+        '`UPLOAD_POLICY_REJECTED` with `data.limitBytes` — where they were ' +
+        'discoverable only by uploading past them (the bind still judges ' +
+        'the landed size, so an undeclared or understated size is refused ' +
+        'there). A handoff never bound — or bound and refused — is ' +
+        'reclaimed lazily: 24 hours after its 30-minute expiry, on the ' +
+        'next mint into the organization, the blob is deleted with the ' +
+        'intent, so a crashed worker leaves no permanent orphan and needs ' +
+        'no delete call. Requires the org editor role and project edit ' +
         'access. Uses the upload lane bucket (240/min — one logical upload ' +
         'is several calls; keyed on the key holder like every REST ' +
         'budget).',
@@ -2410,6 +2546,17 @@ export function buildSpec(): Json {
                 'stored.',
             },
             contentType: { type: 'string', maxLength: 255 },
+            size: {
+              type: 'integer',
+              minimum: 0,
+              description:
+                'Optional. The bytes about to be uploaded: a size the bind ' +
+                'would refuse — over the platform ceiling ' +
+                '(`FILE_TOO_LARGE`), over the organization’s cap for the ' +
+                'type, or past the key holder’s volume quota ' +
+                '(`UPLOAD_POLICY_REJECTED`) — fails here, before anything ' +
+                'is presigned. The bind judges the landed size regardless.',
+            },
           },
         },
         false,
@@ -2418,10 +2565,13 @@ export function buildSpec(): Json {
         ...standardErrors,
         '200': jsonResponse('The upload handoff', ref('ProjectUploadHandoff')),
         '400': errorResponse(
-          'Malformed body (`INVALID_BODY`), or `fileName` names a type ' +
-            'the organization’s upload policy (`UPLOAD_POLICY_REJECTED`) ' +
-            'or the platform’s format allowlist (`UNSUPPORTED_FILE_TYPE`) ' +
-            'refuses',
+          'Malformed body (`INVALID_BODY`); `fileName` names a type the ' +
+            'organization’s upload policy (`UPLOAD_POLICY_REJECTED`) or ' +
+            'the platform’s format allowlist (`UNSUPPORTED_FILE_TYPE`) ' +
+            'refuses; or `size` is over the platform ceiling ' +
+            '(`FILE_TOO_LARGE`, `data.limitBytes`), the organization’s cap ' +
+            'or the volume quota (`UPLOAD_POLICY_REJECTED`, ' +
+            '`data.reasonCode` `file_too_large` / `volume_exceeded`)',
         ),
         '403': errorResponse('No write access to an active project'),
         '404': errorResponse('Project not found'),
@@ -2479,8 +2629,11 @@ export function buildSpec(): Json {
         'no redirect to follow), with the stored name in an RFC 6266 ' +
         '`Content-Disposition` (`filename` and `filename*`), the stored ' +
         '`Content-Type`, `Content-Length`, `ETag` and `Last-Modified`; ' +
-        '`Range` is honoured (206, or 416 for a range the file cannot ' +
-        'satisfy) and a HEAD request answers the headers alone. Visibility is the ' +
+        '`Range` is honoured (206, or a bodiless 416 for a range the file ' +
+        'cannot satisfy — judged against the stored size before any byte ' +
+        'is fetched) and a HEAD request answers the headers alone — ' +
+        '`Content-Length`, `ETag`, `Last-Modified`, `Accept-Ranges` — ' +
+        'ignoring `Range`. Visibility is the ' +
         'minting user’s; a cross-project, cross-organization, trashed, or ' +
         'absent file answers the same opaque 404, and a file whose bytes ' +
         'the store no longer holds does too. A store that does not answer ' +
@@ -2519,8 +2672,11 @@ export function buildSpec(): Json {
           required: false,
           schema: { type: 'string' },
           description:
-            'A byte range (`bytes=0-1023`): the store answers 206 with ' +
-            '`Content-Range`, or 416 for a range the file cannot satisfy.',
+            'A single byte range (`bytes=0-1023`, `bytes=1024-`, ' +
+            '`bytes=-512`): 206 with `Content-Range`, or a bodiless 416 for ' +
+            'a range starting at or past the end of the file. Several ' +
+            'ranges, another unit or a spec that does not parse are ignored ' +
+            'and the whole file answers 200; a HEAD ignores it.',
         },
         {
           name: 'If-Range',
@@ -2566,9 +2722,13 @@ export function buildSpec(): Json {
           description:
             'The range starts at or past the end of the file (`bytes=<size>-` ' +
             '— what a resumed download sends once its copy is complete): an ' +
-            'empty body, no envelope, `Content-Range: bytes */<size>` naming ' +
-            'the size',
-          headers: { 'Content-Range': headerRef('ContentRange') },
+            'empty body (`Content-Length: 0`), no envelope, `Content-Range: ' +
+            'bytes */<size>` naming the size, no byte fetched from the store',
+          headers: {
+            'Content-Range': headerRef('ContentRange'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+            'Content-Length': headerRef('ContentLength'),
+          },
         },
         '304': {
           description:
@@ -2793,7 +2953,11 @@ export function buildSpec(): Json {
             maxItems: 50,
             description:
               'Names resolved against the project label catalog (created ' +
-              'when missing); trimmed, never blank',
+              'when missing); trimmed and NFC-normalized, never blank, ' +
+              'matched without regard to case — the catalog keeps the ' +
+              'spelling a label was first created with, and two names ' +
+              'differing only in case are one label. Read back as stored, ' +
+              'in the order sent.',
           },
           externalUrl: {
             type: 'string',
@@ -5405,9 +5569,12 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'A public hostname or http(s) URL (`docs.example.com`, ' +
                 '`https://www.example.com/docs`); the host is what is ' +
-                'registered. Loopback, link-local, private-network and cloud ' +
-                'metadata hosts are refused — the crawler dials the target ' +
-                'from inside the deployment’s network.',
+                'registered, spelled as given — `www.` is not stripped, and ' +
+                'the `www.`/apex pair counts as one site (registering the ' +
+                'sibling of a registered domain is the 409). Loopback, ' +
+                'link-local, private-network and cloud metadata hosts are ' +
+                'refused — the crawler dials the target from inside the ' +
+                'deployment’s network.',
             },
             title: { ...str, maxLength: 200 },
             description: { ...str, maxLength: 2000 },
@@ -5444,6 +5611,15 @@ curl -H "Authorization: Bearer <api-key>" \\
             scanInterval: {
               type: 'string',
               enum: [...SCAN_INTERVAL_VALUES],
+            },
+            domain: {
+              ...str,
+              description:
+                'Echo only: the stored value, as a client that sends the ' +
+                'resource it read does (compared without regard to case ' +
+                'or surrounding whitespace). Any other value is refused ' +
+                'with 400 `WEBSITE_DOMAIN_IMMUTABLE`; the domain itself ' +
+                'never changes.',
             },
           },
         },
@@ -5651,7 +5827,13 @@ curl -H "Authorization: Bearer <api-key>" \\
             status: nullable(str),
             translations: nullable({
               type: 'array',
-              description: 'Per-language overrides of the catalog fields',
+              readOnly: true,
+              description:
+                'Reserved: per-language overrides of the catalog fields. ' +
+                'Read-only and always null on this surface today — no ' +
+                'input schema takes it and nothing writes it; a localized ' +
+                'catalog is a later addition, and the field is declared so ' +
+                'a client generated now keeps its shape then.',
               items: {
                 type: 'object',
                 required: ['language'],
@@ -5779,7 +5961,17 @@ curl -H "Authorization: Bearer <api-key>" \\
             tags: strArray,
             metadata: nullable(obj),
             notes: nullable(str),
-            lifecycleStatus: nullable(str),
+            lifecycleStatus: {
+              ...nullable(str),
+              readOnly: true,
+              description:
+                'Read-only, set by the platform: null while the contact is ' +
+                'live, `expired` once the organization’s retention policy ' +
+                'has marked it for purge (such a contact still answers ' +
+                'reads until the purge runs), `trashed` after a delete — ' +
+                'a trashed contact is not served at all. No input schema ' +
+                'takes it; a CRM pipeline stage belongs in `metadata`.',
+            },
             createdAt: epochMs,
             updatedAt: epochMs,
           },
@@ -5891,10 +6083,16 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         ProjectFolder: {
           type: 'object',
-          required: ['id', 'name'],
+          required: ['id', 'name', 'parentId'],
           properties: {
             id: { type: 'string' },
             name: { type: 'string' },
+            parentId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The folder this one sits in; null for a root folder',
+            },
           },
         },
         ProjectFolderResult: {
@@ -5911,8 +6109,24 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         ProjectUploadHandoff: {
           type: 'object',
-          required: ['uploadId', 'url', 'method', 's3Ref', 'expiresAt'],
+          required: [
+            'uploadId',
+            'url',
+            'method',
+            's3Ref',
+            'expiresAt',
+            'maxBytes',
+          ],
           properties: {
+            maxBytes: {
+              type: 'integer',
+              description:
+                'The largest file this organization accepts for the ' +
+                'declared type, in bytes — the platform ceiling ' +
+                '(104,857,600, 100 MiB) or the organization’s lower cap; ' +
+                'the bind refuses more (`FILE_TOO_LARGE` / ' +
+                '`UPLOAD_POLICY_REJECTED`, `data.limitBytes`)',
+            },
             uploadId: {
               type: 'string',
               description: 'Single-use intent to present at the bind step',
@@ -5982,7 +6196,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             labels: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Resolved label names',
+              description:
+                'Label names as stored — the spelling each label was ' +
+                'first created with — in the order the task carries them ' +
+                '(the order they were sent)',
             },
             createdAt: epochMs,
             updatedAt: epochMs,

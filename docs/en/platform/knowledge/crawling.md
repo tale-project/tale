@@ -13,7 +13,7 @@ A Website is the knowledge base's shape for "a public site the agent should know
 
 ## Adding a website
 
-Open **Knowledge > Websites** and click **Add website**. **Source type** decides what the source covers: **Whole website** — the default — crawls everything it can discover on the domain, **URL list** indexes exactly the pages you paste (the next section). In Whole website mode the dialog has two fields: **Domain** (for example `example.com`) and **Scan interval** — every 1 hour, 6 hours (the default), 12 hours, 1 day, 5 days, 7 days, or 30 days. Tale normalises the domain — `https://`, `www.`, and trailing slashes are tolerated — and rejects anything that does not parse as a hostname. Click **Save**; the scheduler picks new websites up on its next tick, so the first scan starts within seconds.
+Open **Knowledge > Websites** and click **Add website**. **Source type** decides what the source covers: **Whole website** — the default — crawls everything it can discover on the domain, **URL list** indexes exactly the pages you paste (the next section). In Whole website mode the dialog has two fields: **Domain** (for example `example.com`) and **Scan interval** — every 1 hour, 6 hours (the default), 12 hours, 1 day, 5 days, 7 days, or 30 days. Tale reads the host out of what you paste — `https://` and a path are tolerated — and rejects anything that does not parse as a hostname. The host is stored as given, `www.` included, and the `www.` and apex spellings count as one site: adding the sibling of a domain you already track is refused as a duplicate that names the stored spelling, so pick one and keep it. Click **Save**; the scheduler picks new websites up on its next tick, so the first scan starts within seconds.
 
 <Note>
 
