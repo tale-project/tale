@@ -1,6 +1,8 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
+import { z } from 'zod';
 
+import { EFFORT_LEVELS } from '../../../lib/chat/effort.ts';
 import {
   classifyChatErrorCode,
   describeChatError,
@@ -43,7 +45,54 @@ export interface ApiTurnPayload {
    * another connector, whatever the configuration does between the 202
    * and the run. */
   providerStrict?: boolean;
+  /** The assistant message id the 202 named: the turn's placeholder (or its
+   * failure row) lands under it, so a caller that lost the response can
+   * find its reply. Absent only for a job an older image enqueued. */
+  assistantMessageId?: string;
+  reasoningEffort?: (typeof EFFORT_LEVELS)[number];
+  /** The caller's reply ceiling, already checked against the model's own. */
+  maxOutputTokens?: number;
   locale?: string;
+}
+
+/**
+ * The payload as the job handler parses it — every field the door sends,
+ * so nothing is silently stripped on the way to the turn (`providerStrict`
+ * used to be: the strict provider choice the 202 promised never reached the
+ * run, and the turn fell back to another connector).
+ */
+export const apiTurnPayloadSchema = z.object({
+  organizationId: z.string().min(1),
+  userId: z.string().min(1),
+  threadId: z.string().min(1),
+  expectedProjectId: z.string().min(1).nullable(),
+  userText: z.string().min(1),
+  modelId: z.string().min(1),
+  providerSlug: z.string().min(1).optional(),
+  providerStrict: z.boolean().optional(),
+  assistantMessageId: z.string().min(1).optional(),
+  reasoningEffort: z.enum(EFFORT_LEVELS).optional(),
+  maxOutputTokens: z.number().int().min(1).optional(),
+  locale: z.string().min(1).optional(),
+});
+
+/**
+ * The accepted send is no longer waiting for a worker: the 202's `queued`
+ * marker ends here. Set at the 202 (with the placeholder's id as
+ * `stream_id`), cleared by the turn-open write when the run starts, and by
+ * every path on which the job ends WITHOUT opening a turn — otherwise the
+ * poll would answer `queued` forever for a send that will never run.
+ */
+export async function clearQueuedTurn(
+  sql: Sql,
+  threadId: string,
+): Promise<void> {
+  await sql`
+    UPDATE app.thread_metadata SET
+      generation_queued_since_ms = NULL,
+      stream_id = CASE WHEN generation_status = 'generating' THEN stream_id ELSE NULL END
+    WHERE thread_id = ${threadId} AND generation_queued_since_ms IS NOT NULL
+  `;
 }
 
 export async function runApiTurn(
@@ -52,13 +101,24 @@ export async function runApiTurn(
 ): Promise<void> {
   // Deploy drain: hand the accepted message to a FRESH job past the window
   // instead of erroring it — the new `created` job survives the restart, so
-  // the 202 promise is kept.
+  // the 202 promise is kept (and so is its `queued` marker).
   if (await isBackendDraining(sql)) {
     await addJobInTx(sql, 'chat.api_turn', payload, {
       startAfter: new Date(Date.now() + 5_000),
     });
     return;
   }
+  try {
+    await runAcceptedTurn(sql, payload);
+  } finally {
+    await clearQueuedTurn(sql, payload.threadId);
+  }
+}
+
+async function runAcceptedTurn(
+  sql: Sql,
+  payload: ApiTurnPayload,
+): Promise<void> {
   const thread = await loadOwnedThread(
     sql,
     payload.organizationId,
@@ -104,6 +164,9 @@ export async function runApiTurn(
           });
         }
         await appendAssistantErrorMessage(tx, {
+          ...(payload.assistantMessageId !== undefined
+            ? { id: payload.assistantMessageId }
+            : {}),
           organizationId: payload.organizationId,
           threadId: payload.threadId,
           model: payload.modelId,
@@ -153,6 +216,15 @@ export async function runApiTurn(
         ? { providerSlug: payload.providerSlug }
         : {}),
       ...(payload.providerStrict === true ? { providerStrict: true } : {}),
+      ...(payload.assistantMessageId !== undefined
+        ? { placeholderId: payload.assistantMessageId }
+        : {}),
+      ...(payload.reasoningEffort !== undefined
+        ? { reasoningEffort: payload.reasoningEffort }
+        : {}),
+      ...(payload.maxOutputTokens !== undefined
+        ? { maxOutputTokens: payload.maxOutputTokens }
+        : {}),
       locale: payload.locale ?? 'en',
       onUserMessageAppended: async () => {
         userAppended = true;

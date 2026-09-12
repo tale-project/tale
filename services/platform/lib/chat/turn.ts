@@ -240,6 +240,9 @@ export interface TurnStore {
     usage?: TurnUsage;
     blockedReason?: string;
     error?: string;
+    /** The user stopped the turn: the row settles as `cancelled` with what
+     * streamed (parts, text, usage), never as `complete`. */
+    cancelled?: true;
   }): Promise<void>;
   /**
    * Open the turn in ONE transaction: append the user's message, create the
@@ -359,6 +362,10 @@ export interface TurnRequest {
   /** The user's reasoning-effort pick for this turn. Absent — and any pick on
    * a model with no reasoning capability — samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** The caller's own reply ceiling in tokens — a per-turn cap under the
+   * model's declared one (never above it), so a machine caller can bound
+   * what one turn may spend. Absent samples the model's default. */
+  readonly maxOutputTokens?: number;
   readonly credential: CredentialAuth;
   readonly executionMode: ExecutionMode;
   /**
@@ -425,6 +432,9 @@ export type TurnOutcome =
        * started by the person answering it rather than by them typing.
        */
       readonly paused?: boolean;
+      /** The user stopped the turn; `text` holds what had streamed and the
+       * row settled as `cancelled`. */
+      readonly cancelled?: true;
     }
   | {
       readonly status: 'refused';
@@ -543,11 +553,23 @@ function assembleTurnContext(
       // The reserve mirrors what the wire will actually request, so budget
       // and reality can never disagree.
       reserveOutputTokens: fitSamplingToWindow(
-        resolveTurnSampling(request.model, request.reasoningEffort),
+        resolveTurnSampling(
+          request.model,
+          request.reasoningEffort,
+          outputCap(request.maxOutputTokens),
+        ),
         request.model.contextWindow,
       ).maxTokens,
     },
   });
+}
+
+/** The caller's reply ceiling as `resolveTurnSampling` takes it — an empty
+ * option set when none was given. */
+function outputCap(maxOutputTokens: number | undefined): {
+  maxOutputTokens?: number;
+} {
+  return maxOutputTokens === undefined ? {} : { maxOutputTokens };
 }
 
 /** What one model round may carry beyond the shared request: the working
@@ -1023,7 +1045,11 @@ export async function runTurn(
     // effective window the context budget used, so the reserve the history
     // made room for and the ceiling the wire requests never disagree.
     const sampling = fitSamplingToWindow(
-      resolveTurnSampling(request.model, request.reasoningEffort),
+      resolveTurnSampling(
+        request.model,
+        request.reasoningEffort,
+        outputCap(request.maxOutputTokens),
+      ),
       request.budget?.maxTokens ?? request.model.contextWindow,
     );
 
@@ -1366,6 +1392,10 @@ export async function runTurn(
 
     steps.push('usage-ledger');
     await recordUsage(request, usage, deps);
+    // A stop is a clean terminal, not a completion: the row says
+    // `cancelled` and keeps what streamed — a reader who cancelled a turn
+    // used to find it recorded as a complete, empty reply.
+    const cancelled = streamed.cancelled === true;
     await deps.store.finalizeAssistantMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
@@ -1378,6 +1408,7 @@ export async function runTurn(
       model: request.model.id,
       providerSlug: request.model.provider,
       usage,
+      ...(cancelled ? { cancelled: true } : {}),
     });
 
     steps.push('done');
@@ -1389,6 +1420,7 @@ export async function runTurn(
       context,
       execution,
       ...(paused ? { paused: true } : {}),
+      ...(cancelled ? { cancelled: true } : {}),
     };
   } catch (err) {
     // The stream threw — a provider error mid-reply, or the stream timeout.

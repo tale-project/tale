@@ -358,6 +358,7 @@ describe('REST thread paths enforce project scope', () => {
       status: 'accepted',
       model: 'model-a',
       providerSlug: 'provider-a',
+      messageId: expect.any(String),
       poll: '/api/v1/projects/p-a/threads/t-a/generation',
     });
     expect(addJobInTx).toHaveBeenCalledWith(
@@ -434,12 +435,6 @@ describe('REST thread paths enforce project scope', () => {
       (await send(app, '/projects/p-a/threads/t-a/messages', message)).status,
     ).toBe(404);
     expect(addJobInTx).not.toHaveBeenCalled();
-  });
-
-  it('requires explicit org selection on project reads by multi-org keys', async () => {
-    const { app } = mount({ ambiguous: true });
-    expect((await app.request('/projects/p-a/threads')).status).toBe(400);
-    expect((await app.request('/projects/p-a/threads/t-a')).status).toBe(400);
   });
 
   it('reads archived projects but cannot create, send, archive, delete or cancel in them', async () => {

@@ -77,7 +77,6 @@ function servingRefusalReason(error: unknown): string | null {
     : null;
 }
 import {
-  loadProjectSharedThread,
   branchForEdit,
   branchForRegenerate,
   branchThread,
@@ -90,6 +89,7 @@ import {
   listThreadBranches,
   listThreads,
   listThreadsForProject,
+  loadProjectSharedThread,
   markThreadRead,
   moveThreadToProject,
   renameThread,
@@ -101,6 +101,7 @@ import {
   setThreadReasoningEffort,
   setThreadSharedWithProject,
   shareThread,
+  stampCancelRequest,
   trashThread,
   unshareThread,
 } from './threads.ts';
@@ -196,6 +197,8 @@ interface MessageView {
   usage?: unknown;
   blockedReason?: string;
   error?: string;
+  /** The row's terminal state — `cancelled` is how a user stop reads. */
+  status?: string;
   createdAt: number;
 }
 
@@ -273,7 +276,7 @@ async function listMessageViews(
   >`
     SELECT id, role, parts, "order" AS sequence, model,
            provider_slug AS "providerSlug", usage,
-           blocked_reason AS "blockedReason", error,
+           blocked_reason AS "blockedReason", error, status,
            created_at_ms::float8 AS "createdAt"
     FROM app.messages
     WHERE thread_id = ${threadId} AND org_id = ${organizationId}
@@ -293,6 +296,7 @@ async function listMessageViews(
       row.usage != null ? { usage: row.usage } : {},
       row.blockedReason != null ? { blockedReason: row.blockedReason } : {},
       row.error != null ? { error: row.error } : {},
+      row.status != null ? { status: row.status } : {},
     ),
   );
 }
@@ -1388,12 +1392,16 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (thread === null) {
       return c.json({ error: 'thread not found' }, 404);
     }
-    const rows = await deps.sql<{ threadId: string }[]>`
+    const rows = await deps.sql<{ messageId: string | null }[]>`
       UPDATE app.generations SET cancel_requested = true
       WHERE thread_id = ${thread.id} AND org_id = ${organizationId}
-      RETURNING thread_id AS "threadId"
+      RETURNING message_id AS "messageId"
     `;
-    return c.json({ cancelled: rows.length > 0 });
+    const asked = rows[0];
+    if (asked !== undefined) {
+      await stampCancelRequest(deps.sql, thread.id, asked.messageId);
+    }
+    return c.json({ cancelled: asked !== undefined });
   });
 
   // The per-thread progress lane. Emits `progress` while a generation row

@@ -136,8 +136,11 @@ function MessageItemComponent({
   const isAssistant = message.role === 'assistant';
   // A user stop is a clean terminal, not a policy event; a guardrail block
   // with no text SUBSTITUTES the content region (the reply never existed),
-  // while a block on partial output annotates beneath what streamed.
-  const stopped = isStoppedReason(message.blockedReason);
+  // while a block on partial output annotates beneath what streamed. The
+  // stop is the row's own `cancelled` status; the marker check keeps rows
+  // the retired external-agent path stamped rendering as stops.
+  const stopped =
+    message.status === 'cancelled' || isStoppedReason(message.blockedReason);
   const blockedSubstitutes =
     isAssistant &&
     message.blockedReason !== undefined &&

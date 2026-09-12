@@ -1551,12 +1551,23 @@ describe('runTurn — the tool loop', () => {
 
     const outcome = await runTurn(request(), d.deps);
 
-    expect(outcome.status).toBe('completed');
-    // The settle carried the short reply that had already cleared.
+    expect(outcome).toMatchObject({ status: 'completed', cancelled: true });
+    // The settle carried the short reply that had already cleared — as a
+    // stop, never as a complete reply.
+    expect(calls.finalized[0]).toMatchObject({ cancelled: true });
     const finalParts = calls.finalized[0]?.parts as MessagePart[];
     const text = finalParts.find((part) => part.type === 'text');
     expect(text).toEqual({ type: 'text', text: short });
     expect(calls.generations).toEqual(['begin', 'end']);
+  });
+
+  it('settles a reply nobody stopped as complete, with no cancelled flag', async () => {
+    const { store, calls } = fakeStore();
+    const d = deps({ store });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('completed');
+    expect(outcome).not.toHaveProperty('cancelled');
+    expect(calls.finalized[0]).not.toHaveProperty('cancelled');
   });
 
   it('persists a short partial so a throw can still rescue streamText', async () => {

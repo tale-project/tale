@@ -8,6 +8,7 @@ import {
   type UsageLedger,
   type UsageLedgerEntry,
 } from '../../../lib/chat/turn.ts';
+import { encodeChatError } from '../../../lib/shared/chat-errors.ts';
 import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { toJson } from '../../db/sql.ts';
@@ -83,6 +84,9 @@ export async function assertThreadWriteScope(
 export async function appendMessageRow(
   sql: Sql,
   message: {
+    /** A caller-minted id — the REST door names the assistant placeholder
+     * in its 202 before the turn runs, so the row must land under it. */
+    id?: string;
     organizationId: string;
     threadId: string;
     role: string;
@@ -106,7 +110,7 @@ export async function appendMessageRow(
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, model,
         provider_slug, usage, blocked_reason, truncation, error, status,
-        created_at_ms
+        created_at_ms, id
       )
       SELECT ${message.threadId}, ${message.organizationId},
              coalesce(max("order"), -1) + 1, 0, ${message.role},
@@ -117,7 +121,8 @@ export async function appendMessageRow(
              ${message.blockedReason ?? null},
              ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
              ${message.error ?? null}, ${message.status ?? 'complete'},
-             ${Date.now()}
+             ${Date.now()},
+             coalesce(${message.id ?? null}, gen_random_uuid()::text)
       FROM app.messages WHERE thread_id = ${message.threadId}
       ON CONFLICT (thread_id, "order", step_order) DO NOTHING
       RETURNING id, "order"
@@ -239,10 +244,19 @@ async function finalizeWithStreamedTail(
         usage = coalesce(${message.usage === undefined ? null : tx.json(toJson(message.usage))}, usage),
         blocked_reason = ${message.blockedReason ?? null},
         error = ${message.error ?? null},
-        status = ${message.error !== undefined ? 'failed' : 'complete'}
+        status = ${settledStatus(message)}
       WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
     `;
   });
+}
+
+/** The terminal status a settle writes: a failure, a user stop, or a
+ * completion — the row never reads `complete` for a reply the user cut. */
+function settledStatus(
+  message: Parameters<TurnStore['finalizeAssistantMessage']>[0],
+): 'failed' | 'cancelled' | 'complete' {
+  if (message.error !== undefined) return 'failed';
+  return message.cancelled === true ? 'cancelled' : 'complete';
 }
 
 /**
@@ -285,15 +299,22 @@ export function createPgTurnStore(
   options: {
     onUserMessageAppended?: () => Promise<void>;
     scope?: ThreadWriteScope;
+    /** The id the assistant placeholder is inserted under — the REST door
+     * mints it before the turn runs and names it in its 202. */
+    placeholderId?: string;
   } = {},
 ): TurnStore {
-  const store = pgTurnStore(sql, options.scope);
+  const store = pgTurnStore(sql, options.scope, options.placeholderId);
   return options.onUserMessageAppended !== undefined
     ? settleDeferredSendOnUserAppend(store, options.onUserMessageAppended)
     : store;
 }
 
-function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
+function pgTurnStore(
+  sql: Sql,
+  scope?: ThreadWriteScope,
+  placeholderId?: string,
+): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
   return {
@@ -370,7 +391,7 @@ function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
           usage = coalesce(${message.usage === undefined ? null : sql.json(toJson(message.usage))}, usage),
           blocked_reason = ${message.blockedReason ?? null},
           error = ${message.error ?? null},
-          status = ${message.error !== undefined ? 'failed' : 'complete'}
+          status = ${settledStatus(message)}
         WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
       `;
     },
@@ -405,6 +426,7 @@ function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
           });
         }
         const assistantMessage = await appendMessageRow(tx, {
+          ...(placeholderId !== undefined ? { id: placeholderId } : {}),
           organizationId: setup.organizationId,
           threadId: setup.threadId,
           role: 'assistant',
@@ -429,10 +451,13 @@ function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
           RETURNING thread_id AS "threadId"
         `;
         if (claimed.length === 0) throw new ThreadBusyError(setup.threadId);
+        // The queued marker the REST door set at its 202 ends here: from
+        // this write on the generation row is the turn's proof of life.
         await tx`
           UPDATE app.thread_metadata SET
             generation_status = 'generating', stream_id = ${assistantMessage.id},
             generation_start_ms = ${now}, generation_heartbeat_at_ms = ${now},
+            generation_queued_since_ms = NULL,
             cancelled_at_ms = NULL, cancelled_message_id = NULL
           WHERE thread_id = ${setup.threadId}
         `;
@@ -467,7 +492,7 @@ function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
         // pending row the thread can hold.
         await tx`
           UPDATE app.messages SET status = 'failed',
-            error = coalesce(error, 'the turn ended before its reply settled')
+            error = coalesce(error, ${UNSETTLED_TURN_ERROR})
           WHERE thread_id = ${generation.threadId}
             AND org_id = ${generation.organizationId}
             AND status = 'pending'
@@ -476,6 +501,14 @@ function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
     },
   };
 }
+
+/** The failure a placeholder is stamped with when its own settle never
+ * landed — in the structured envelope, so every reader (the chat UI, the
+ * REST door's `errorCode`) classifies it like any other failed turn. */
+const UNSETTLED_TURN_ERROR = encodeChatError({
+  code: 'generic',
+  raw: 'the turn ended before its reply settled',
+});
 
 /**
  * The turn's cost in cents, from the serving connector's catalog `pricing`
@@ -556,6 +589,9 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
 export async function appendAssistantErrorMessage(
   sql: Sql,
   args: {
+    /** The id the REST door promised in its 202, when the turn never opened
+     * a placeholder of its own — the failure lands under that id. */
+    id?: string;
     organizationId: string;
     threadId: string;
     model?: string;
@@ -563,6 +599,7 @@ export async function appendAssistantErrorMessage(
   },
 ): Promise<void> {
   await appendMessageRow(sql, {
+    ...(args.id !== undefined ? { id: args.id } : {}),
     organizationId: args.organizationId,
     threadId: args.threadId,
     role: 'assistant',

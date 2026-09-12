@@ -87,6 +87,9 @@ interface ThreadRow {
   projectId: string | null;
   sharedWithProject: boolean | null;
   archived: boolean;
+  /** When the thread was archived; null while active, and for a thread
+   * archived before the column existed. */
+  archivedAt: number | null;
   pinnedAt: number | null;
   lastReplyAt: number | null;
   lastReadAt: number | null;
@@ -107,6 +110,7 @@ const THREAD_COLUMNS = `
   tm.capabilities, tm.reasoning_effort AS "reasoningEffort",
   tm.project_id AS "projectId",
   tm.shared_with_project AS "sharedWithProject", tm.archived,
+  tm.archived_at_ms::float8 AS "archivedAt",
   tm.pinned_at_ms::float8 AS "pinnedAt",
   tm.last_reply_at_ms::float8 AS "lastReplyAt",
   tm.last_read_at_ms::float8 AS "lastReadAt",
@@ -627,7 +631,25 @@ export async function markThreadRead(
   `;
 }
 
-/** Archive or unarchive. A metadata edit (recency preserved); audited. */
+/** The stop's audit stamp on the thread sidecar — when it was asked for
+ * and which reply it cut (`cancelled_at_ms` / `cancelled_message_id`);
+ * the next turn-open write resets both. Shared by the app and REST cancel
+ * routes. */
+export async function stampCancelRequest(
+  sql: Sql,
+  threadId: string,
+  messageId: string | null,
+): Promise<void> {
+  await sql`
+    UPDATE app.thread_metadata SET
+      cancelled_at_ms = ${Date.now()}, cancelled_message_id = ${messageId}
+    WHERE thread_id = ${threadId}
+  `;
+}
+
+/** Archive or unarchive. A metadata edit (recency preserved — the list
+ * order is message activity, so archiving never reorders it; the moment is
+ * stamped on `archived_at_ms` for an incremental sync to see); audited. */
 export async function setThreadArchived(
   sql: Sql,
   auth: { organizationId: string; userId: string; email?: string },
@@ -644,7 +666,8 @@ export async function setThreadArchived(
   if (thread.archived === archived) return true;
   await sql.begin(async (tx) => {
     await tx`
-      UPDATE app.thread_metadata SET archived = ${archived}
+      UPDATE app.thread_metadata SET archived = ${archived},
+        archived_at_ms = ${archived ? Date.now() : null}
       WHERE thread_id = ${thread.id}
     `;
     await createAuditLog(tx, {
