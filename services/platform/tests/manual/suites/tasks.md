@@ -73,6 +73,12 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   DnD; the collapse state survives reload (persisted per project); archived
   tasks appear only with the toggle on, wearing the **Archived** badge
   (`tasks.archived.badge`)
+- [ ] `TASK-F18` · **Show archived survives a search** — With **Show archived**
+  on and an archived task visible, type part of its title into **Search tasks**
+  (`tasks.searchPlaceholder`) → The archived task stays in the results. Clear
+  the search, turn **Show archived** off, search again → it is gone. The page
+  renders the board read narrowed by the search read, so the toggle has to
+  govern both or typing silently drops rows the toggle just revealed.
 - [ ] `TASK-F6` · **Backlog lane semantics** — **Create task** → open the
   **Status** picker (`tasks.fields.status`) in the dialog → **Backlog**; later
   open the task and promote it to **To do** → The task lands in the Backlog
