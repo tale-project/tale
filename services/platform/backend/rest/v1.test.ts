@@ -361,6 +361,19 @@ describe('/api/v1 door — organization resolution statuses', () => {
     expect(await res.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
   });
 
+  it('folds the slug header to lowercase — slugs are stored lowercase, so `ACME` names acme', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: { acme: { id: 'org-1', slug: 'acme' } },
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': ' ACME ' }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ userId: 'user-1' });
+  });
+
   it('answers 404 ORG_SLUG_INVALID for an unknown slug', async () => {
     const { sql } = fakeSql();
     const { auth } = fakeAuth();

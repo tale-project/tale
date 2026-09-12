@@ -347,9 +347,23 @@ describe('readQuery / readPageLimit', () => {
     });
   });
 
-  it('reads a blank limit as absent and refuses a fractional one', async () => {
-    const blank = await probe().request('/list?limit=');
-    expect(await blank.json()).toMatchObject({ limit: 25 });
+  it('refuses a blank limit or cursor like any blank parameter, never as the first page', async () => {
+    // A blank `cursor` is exactly what the last page's empty
+    // `continueCursor` hands a naive pager: read as the first page it
+    // walked the list from the start forever.
+    for (const query of ['limit=', 'cursor=', 'cursor=%20%20', 'limit=%20']) {
+      const res = await probe().request(`/list?${query}`);
+      expect(res.status).toBe(400);
+      const name = query.split('=')[0];
+      expect(await res.json()).toEqual({
+        error: `invalid query: "${name}" must not be blank`,
+        code: 'INVALID_QUERY',
+        data: { issues: [{ path: name, message: 'must not be blank' }] },
+      });
+    }
+  });
+
+  it('refuses a fractional or non-numeric limit', async () => {
     for (const bad of ['1.5', '1e2', 'abc']) {
       const res = await probe().request(`/list?limit=${bad}`);
       expect(res.status).toBe(400);

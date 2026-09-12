@@ -244,7 +244,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     // unbounded limit walks the whole per-domain corpus. `offset=abc` used
     // to read as 0 with nothing telling the caller.
     const query = readQuery(c, {
-      limit: z.string().optional(),
+      limit: PAGE_QUERY.limit,
       offset: z
         .string()
         .regex(/^\d{1,15}$/, 'must be a whole number of rows to skip')

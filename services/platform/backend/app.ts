@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
-import { loadTrustedProxies, type Auth } from './auth/auth.ts';
+import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { withOAuthConformance } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
@@ -76,9 +76,12 @@ import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
 import { conditionalGet } from './lib/conditional-get.ts';
 import {
+  apiKeyHeaderGuard,
   apiNotFound,
+  apiPathWithoutTrailingSlash,
   backendSecureHeaders,
   nulUrlGuard,
+  uriLengthGuard,
 } from './lib/http-hygiene.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
@@ -97,7 +100,10 @@ export interface AppDeps {
 }
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
-  const app = new Hono<AuthEnv>();
+  // One trailing slash under /api/v1/ routes like its absence
+  // (lib/http-hygiene.ts) — the path is normalised once, here, so every
+  // door and the 405/OPTIONS probe read the same value.
+  const app = new Hono<AuthEnv>({ getPath: apiPathWithoutTrailingSlash });
   // Idempotent (guarded by the module's own flag): `main.ts` already
   // initializes at boot for every role, and this covers hosts that build the
   // app directly — an app with a `/metrics` route that renders an empty
@@ -124,10 +130,18 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
       c.res.headers.set('x-request-id', id);
     }
   });
-  // The NUL-byte refusal and the transport-security headers every response
-  // carries (lib/http-hygiene.ts).
-  app.use(nulUrlGuard());
+  // The transport-security headers every response carries — registered
+  // ahead of the guards below so a pre-route refusal (a 401, a 414, a NUL
+  // 400) wears them too (lib/http-hygiene.ts).
   app.use(backendSecureHeaders(process.env.SITE_URL));
+  // The api-key plugin's header is the REST door's internal hand-off, never
+  // a client credential: carried by a client it would open every session
+  // gate below with the key holder's identity (lib/http-hygiene.ts).
+  app.use(apiKeyHeaderGuard([API_KEY_HEADER]));
+  // The URL budget the contract documents (414), then the NUL-byte refusal
+  // (400) — both before any door decodes the path into a lookup.
+  app.use(uriLengthGuard());
+  app.use(nulUrlGuard());
   // LIVENESS: the process is up. Docker's HEALTHCHECK reads this, so it must
   // stay 200 while a replica drains — a draining container is doing exactly
   // what it was asked to; killing it mid-drain cuts the generations the drain

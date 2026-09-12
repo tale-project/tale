@@ -1,6 +1,7 @@
 import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
+import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
   isValidOrgSlug,
   MAX_ORG_SLUG_LENGTH,
@@ -164,6 +165,12 @@ export function createRestV1Routes(deps: {
 
   // ---- the door: API key → key holder's budget → org resolution → role ---
   app.use(async (c, next) => {
+    // A preflight or a method probe needs no key: the families register no
+    // OPTIONS handler, so the catch-all below answers 204 with the `Allow`
+    // list of a served path and 404 for the rest — the same inventory
+    // `/openapi.json` publishes to anyone. (No CORS headers are issued:
+    // the surface is server-to-server, and a browser page cannot call it.)
+    if (c.req.method === 'OPTIONS') return next();
     // RFC 9110 §11.1: the authentication scheme is case-insensitive —
     // `bearer` and `BEARER` name the same scheme as `Bearer`.
     const scheme = /^bearer\s+(.*)$/i.exec(c.req.header('authorization') ?? '');
@@ -221,7 +228,13 @@ export function createRestV1Routes(deps: {
       throw error;
     }
 
-    const orgSlugHeader = c.req.header('x-organization-slug')?.trim();
+    // Slugs are stored lowercase, so folding the header is lossless — an
+    // integrator that sends the organization's display case (`TALE`) is
+    // routed rather than told the organization does not exist.
+    const orgSlugHeader = c.req
+      .header('x-organization-slug')
+      ?.trim()
+      .toLowerCase();
     // A header that cannot be a slug at all names no organization: the
     // domain's own 404, answered here without a lookup and without echoing
     // an unbounded value back (the message used to quote whatever arrived).
@@ -291,7 +304,13 @@ export function createRestV1Routes(deps: {
   // `force` silently ignored). Reads declare theirs route by route
   // (`readQuery`, `noQuery`).
   app.use(async (c, next) => {
-    if (c.req.method === 'GET' || c.req.method === 'HEAD') return next();
+    if (
+      c.req.method === 'GET' ||
+      c.req.method === 'HEAD' ||
+      c.req.method === 'OPTIONS'
+    ) {
+      return next();
+    }
     const [stray] = Object.keys(c.req.queries());
     if (stray === undefined) return next();
     return c.json(
@@ -366,6 +385,31 @@ export function mountRestV1Routes<E extends Env>(
 ): void {
   const door = createRestV1Routes(deps);
   const servedOn = methodsServedOn(door);
+  // What every /api/v1 answer carries, the catch-all's included: the
+  // contract version a client can pin to, `no-store` where no route
+  // chose a directive, and — for a HEAD — the `Content-Length` a GET would
+  // have carried. Hono answers HEAD by running the GET handler and
+  // dropping the body afterwards, so the adapter never learns the length;
+  // a JSON body is buffered here and measured, which is what a client
+  // that sizes a page before fetching it is asking for.
+  app.use('/api/v1/*', async (c, next) => {
+    await next();
+    c.res.headers.set('x-tale-api-version', API_CONTRACT_VERSION);
+    if (!c.res.headers.has('cache-control')) {
+      c.res.headers.set('cache-control', 'no-store');
+    }
+    if (
+      c.req.method === 'HEAD' &&
+      c.res.body !== null &&
+      !c.res.headers.has('content-length') &&
+      (c.res.headers.get('content-type') ?? '').includes('application/json')
+    ) {
+      const bytes = await c.res.arrayBuffer();
+      const measured = new Response(bytes, c.res);
+      measured.headers.set('content-length', String(bytes.byteLength));
+      c.res = measured;
+    }
+  });
   app.route('/api/v1', door);
   app.all('/api/v1/*', (c) => {
     const path = c.req.path.slice('/api/v1'.length) || '/';

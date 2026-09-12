@@ -27,6 +27,7 @@ import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { BodilessAwareResponse } from './lib/http-hygiene.ts';
 import { initBackendTelemetry } from './telemetry.ts';
 
 async function main(): Promise<void> {
@@ -159,10 +160,17 @@ async function main(): Promise<void> {
             port: env.PORT,
             // Node's 16 KiB default counts the request target too, and its
             // overflow answer is a bare 431 with the socket destroyed — which
-            // the proxy turned into a reset stream. 64 KiB keeps a long but
-            // legitimate URL (a filter-laden list, a signed cursor) inside
-            // the door; the proxy refuses anything larger with its own 431.
-            serverOptions: { maxHeaderSize: 64 * 1024 },
+            // the proxy turned into a reset stream. The proxy budgets 64 KiB
+            // of headers and Go's HTTP/1.1 reader lets a few KiB past that
+            // through, so this cap sits ABOVE the proxy's plus that slack:
+            // everything the edge forwards is answered by the door (a URL
+            // over 32 KiB with its own 414), never by a bare 431 here.
+            // `ServerResponse`: no content headers on a 204/304
+            // (lib/http-hygiene.ts).
+            serverOptions: {
+              maxHeaderSize: 80 * 1024,
+              ServerResponse: BodilessAwareResponse,
+            },
           },
           (info) => {
             console.log(

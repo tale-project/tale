@@ -29,11 +29,6 @@ here the first time a round re-files it.
   `save-auth-state.ts`. Observed live 2026-08-04.
 - **"Tale is ready to work offline." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
-- **A bodiless REST answer (`204`, a `202` with no body) carries
-  `content-type: text/plain; charset=UTF-8`.** The Node HTTP adapter under
-  the backend stamps it on every response that names no type; RFC 9110
-  allows it and no client reads a body that is not there. Recorded from the
-  2026-09-11 external API evaluation.
 
 ## Known benign console output
 

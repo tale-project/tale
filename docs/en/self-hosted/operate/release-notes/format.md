@@ -21,12 +21,16 @@ The version line at the top of every release page names the bump kind in plain E
 
 Each release page is the same ordered list of sections. Empty sections are omitted, not left blank — if you do not see a section, there is nothing to report there.
 
-- **Highlights** — one or two paragraphs naming what the release is for. Read this first.
+- **Highlights** — a short section per landed change naming what it is for. Read this first.
 - **Breaking changes** — every change that requires the operator to do something before or after the upgrade. Each row names the symptom you would hit if you skipped, and the action that avoids it.
 - **Deprecations** — features still working in this release but flagged for removal. Each row names the removal version so you can plan the cutover.
+- **Behaviour changes** — what a person or an operator will notice doing the same thing as before: a default that moved, a refusal that is new, a screen that reads differently.
+- **API contract changes** — every wire change to the REST surface (`/api/v1`), the MCP endpoint, WebDAV or OpenID Connect, one row per change naming the old and the new behaviour (`GET …/content` answers **200** with the bytes — was a 302), with the `info.version` of the OpenAPI document it lands in. An integrator who pins a contract version reads this section and nothing else; the [API reference](/develop/api-reference#versioning) explains how the version moves.
 - **Security** — CVE-format entries for fixes that close a vulnerability. The full feed lives under [Security advisories](/self-hosted/operate/security/advisories); the release notes carry the one-line summary plus the advisory link.
-- **Features and fixes** — the long list. Grouped by area (Platform, CLI, Docs); each row reads as one sentence.
+- **Known issues** — what the release ships with and has not fixed, each with the workaround if there is one.
 - **Migration notes** _(major versions and some minors)_ — the linked walk through schema migrations, config-file changes, or operator-facing renames. Always read for majors.
+- **Upgrading** — the `tale update` + `tale deploy` sequence for this release, with anything it needs beyond the usual.
+- **What's Changed** — the generated list of every merged change, one line each with its pull request. The long list; the sections above are the reading order.
 
 ## How to scan a release
 
