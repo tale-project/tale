@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { encodeS3Ref, parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3KeyBelongsToOrg } from '../../core/lib/storage/blob_ref.ts';
 import { browserFacing } from '../../core/lib/storage/object_store.ts';
+import { canonicalEntityTag } from '../../lib/conditional-get.ts';
 import {
   buildObjectKey,
   deleteOrgObject,
@@ -352,11 +353,37 @@ export async function getFileUrl(
 }
 
 /** What `openFileContent` hands a door: the store's status and headers,
- * and the body to stream (null for a HEAD or a 416). */
+ * and the body to stream (null for a HEAD, a 304 or a 416). */
 export interface FileContent {
   status: number;
   headers: Headers;
   body: ReadableStream<Uint8Array> | null;
+}
+
+/** The client's preconditions on a content read, forwarded to the store:
+ * the store owns the validators it issued (`ETag`, `Last-Modified`) and
+ * answers 304 itself — or, for `If-Range` on a resumed download, the
+ * whole file again when the bytes changed under the client. */
+export interface FileContentConditions {
+  ifNoneMatch?: string;
+  ifModifiedSince?: string;
+  ifRange?: string;
+}
+
+/**
+ * `If-None-Match` as the store must see it. RFC 9110 §13.1.2 makes the
+ * comparison weak — `W/"x"` names the same bytes as `"x"` — and the edge
+ * suffixes the tag of an answer it compressed (a text transcript comes
+ * back as `"x-gzip"`); the store compares strongly and would answer the
+ * whole file to either form. Every member is reduced to the opaque tag
+ * the store issued (`canonicalEntityTag`).
+ */
+function strongIfNoneMatch(header: string): string {
+  return header
+    .split(',')
+    .map(canonicalEntityTag)
+    .filter((member) => member !== '')
+    .join(', ');
 }
 
 /**
@@ -367,8 +394,11 @@ export interface FileContent {
  * carrying client to a presigned URL on the platform's own origin, where
  * the store refused the two authentications and `curl -L -o` wrote that
  * refusal into the file. A `Range` is forwarded (the store answers 206 or
- * 416); `head` answers the metadata only. Null when the blob is gone; a
- * store that cannot be reached or answers an error is
+ * 416), and so are `If-None-Match` / `If-Modified-Since` (the store answers
+ * 304 with no body — a mirror that already holds the bytes spends a round
+ * trip instead of the file; before this the door shipped the validators and
+ * never compared them); `head` answers the metadata only. Null when the
+ * blob is gone; a store that cannot be reached or answers an error is
  * `OBJECT_STORE_UNAVAILABLE` (503) — never a 404 that would read as "the
  * file does not exist".
  */
@@ -376,7 +406,12 @@ export async function openFileContent(
   sql: Sql,
   scope: { organizationId: string },
   storageRef: string,
-  opts: { head?: boolean; range?: string; signal?: AbortSignal } = {},
+  opts: {
+    head?: boolean;
+    range?: string;
+    conditions?: FileContentConditions;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<FileContent | null> {
   const { key, store } = await requireOrgStoreForRef(
     sql,
@@ -403,11 +438,29 @@ export async function openFileContent(
     return { status: 200, headers, body: null };
   }
   const presigned = await s3PresignGetUrl(store, key);
+  const conditions = opts.conditions ?? {};
+  const forwarded: Record<string, string> = {
+    ...(opts.range === undefined ? {} : { range: opts.range }),
+    ...(conditions.ifNoneMatch === undefined
+      ? {}
+      : { 'if-none-match': strongIfNoneMatch(conditions.ifNoneMatch) }),
+    // RFC 9110 §13.1.3: `If-Modified-Since` is ignored when `If-None-Match`
+    // is present — the store would still evaluate it, with a one-second
+    // slack that lets a mirror keep bytes replaced within that second.
+    ...(conditions.ifModifiedSince === undefined ||
+    conditions.ifNoneMatch !== undefined
+      ? {}
+      : { 'if-modified-since': conditions.ifModifiedSince }),
+    // `If-Range` compares strongly by definition: verbatim, never reduced.
+    ...(conditions.ifRange === undefined || opts.range === undefined
+      ? {}
+      : { 'if-range': conditions.ifRange }),
+  };
   let upstream: Response;
   try {
     upstream = await fetchPresignedObject(presigned, {
       ...(opts.signal === undefined ? {} : { signal: opts.signal }),
-      ...(opts.range === undefined ? {} : { headers: { range: opts.range } }),
+      ...(Object.keys(forwarded).length === 0 ? {} : { headers: forwarded }),
     });
   } catch (error) {
     throw unavailable(error instanceof Error ? error.message : String(error));
@@ -416,9 +469,9 @@ export async function openFileContent(
     await upstream.body?.cancel().catch(() => undefined);
     return null;
   }
-  if (upstream.status === 416) {
+  if (upstream.status === 304 || upstream.status === 416) {
     await upstream.body?.cancel().catch(() => undefined);
-    return { status: 416, headers: upstream.headers, body: null };
+    return { status: upstream.status, headers: upstream.headers, body: null };
   }
   if (!upstream.ok) {
     await upstream.body?.cancel().catch(() => undefined);

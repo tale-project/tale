@@ -74,6 +74,7 @@ import {
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
+import { conditionalGet } from './lib/conditional-get.ts';
 import {
   apiNotFound,
   backendSecureHeaders,
@@ -172,6 +173,14 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
       });
     }
   });
+  // Validated reads on both JSON surfaces (lib/conditional-get.ts): every
+  // 200 JSON GET/HEAD carries an ETag, a matching If-None-Match answers 304
+  // without the body, and `private, no-cache` lets the client keep what it
+  // must revalidate. The REST door stamps `no-store` on every answer by
+  // default; that default — never a route's own directive — is what the
+  // validated-read directive replaces there.
+  app.use('/api/app/*', conditionalGet());
+  app.use('/api/v1/*', conditionalGet({ replaceDoorDefault: 'no-store' }));
   // Better Auth owns everything under its basePath (sign-up/in/out, session,
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   // The OAuth/OIDC answers under /api/auth/oauth2/* in their RFC envelopes

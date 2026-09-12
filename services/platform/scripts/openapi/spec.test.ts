@@ -427,6 +427,15 @@ describe('handler responses validate against the spec', () => {
       spec: ['/api/v1/runs/{runId}', 'get', '200'],
     },
     {
+      // A projected read answers only the keys named — the `RunProjection`
+      // half of the declared `anyOf`, since `Run` requires keys it omits.
+      name: 'GET /runs/{runId}?fields=',
+      routes: () => createAutomationRestRoutes({ sql: fakeSql([run]) }),
+      rows: [run],
+      request: '/runs/run-1?fields=status,finishedAt',
+      spec: ['/api/v1/runs/{runId}', 'get', '200'],
+    },
+    {
       name: 'GET /runs',
       // The all-runs listing filters by the caller's visible projects, so
       // the project query must answer project rows.
@@ -1207,5 +1216,51 @@ describe('the door-wide contract on every /api/v1 operation', () => {
       }
     }
     expect(loose).toEqual([]);
+  });
+});
+
+/**
+ * Every JSON read is a validated read (`lib/conditional-get.ts`): the
+ * generator stamps the `ETag`/`Cache-Control` headers and the 304 on each
+ * of them, and on nothing else — a `jsonResponse` refactor that dropped the
+ * stamp would silently un-declare 44 operations.
+ */
+describe('validated reads in the published document', () => {
+  const gets = Object.entries(paths).flatMap(([path, operations]) => {
+    const op = (operations as Record<string, Json | undefined>).get;
+    return op === undefined ? [] : [[path, op] as const];
+  });
+
+  it('declare ETag, Cache-Control and a 304 on every JSON GET', () => {
+    const json = gets.filter(([, op]) => {
+      const ok = (op.responses as Record<string, Json>)['200'] as
+        | { content?: Record<string, Json> }
+        | undefined;
+      return ok?.content?.['application/json'] !== undefined;
+    });
+    expect(json.length).toBeGreaterThan(40);
+    for (const [path, op] of json) {
+      const responses = op.responses as Record<string, Json>;
+      const ok = responses['200'] as { headers?: Record<string, Json> };
+      expect(ok.headers?.ETag, path).toBeDefined();
+      expect(ok.headers?.['Cache-Control'], path).toBeDefined();
+      expect(responses['304'], path).toBeDefined();
+    }
+  });
+
+  it('declare no body validator on a GET that answers no JSON', () => {
+    const other = gets.filter(([, op]) => {
+      const ok = (op.responses as Record<string, Json>)['200'] as
+        | { content?: Record<string, Json> }
+        | undefined;
+      return ok?.content?.['application/json'] === undefined;
+    });
+    expect(other.length).toBeGreaterThan(0);
+    for (const [path, op] of other) {
+      const ok = (op.responses as Record<string, Json>)['200'] as {
+        headers?: Record<string, Json>;
+      };
+      expect(ok.headers?.ETag, path).toBeUndefined();
+    }
   });
 });

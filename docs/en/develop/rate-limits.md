@@ -31,6 +31,8 @@ An overrun answers the API's ordinary error envelope, plus a `Retry-After` heade
 
 `code` is the value to branch on, as everywhere in the [error model](/develop/api-reference#error-model); on this one refusal `error` repeats it instead of carrying a sentence, because the same 429 serves the in-app doors, whose clients read `error`. The body names the wait in milliseconds as `data.retryAfterMs`; the `Retry-After` header rounds it up to whole seconds. For example, `1500` milliseconds gives `Retry-After: 2`.
 
+A poll that answers **304** (an unchanged `ETag`, see [caching](/develop/api-reference#caching-compression-and-partial-reads)) costs a request like any other — revalidation saves bytes, not budget — so size a polling interval by the budget: at one read a second a single key holder can watch two runs, at five seconds ten. Read only what you need (`?fields=status,finishedAt` on a run) so each request is small, and prefer a schedule to a tight loop.
+
 Sleep at least `Retry-After` before the next attempt. There are no remaining-budget counters, so beyond that back off blind: start at one second, double per consecutive 429, cap at sixty, and add jitter so concurrent workers do not retry in lock-step. Because starting a run answers **202** before the work happens, a lost response is the ordinary case, not an edge: name the start with `Idempotency-Key` and retry it — the repeat answers the run the first attempt started, flagged `duplicate: true`, instead of starting a second one (the [API reference](/develop/api-reference#start-a-run-then-poll-it) has the rules).
 
 ## Where this fits

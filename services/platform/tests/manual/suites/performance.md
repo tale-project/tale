@@ -98,6 +98,26 @@ gives
   WITHOUT a manual reload (no endless skeletons). See
   `cold-start-auth-recovery`. Mark **ENVIRONMENT** if you cannot induce the
   hiccup.
+- [ ] `PERF-P8` · **Idle page is silent** — Open `/dashboard/{org}/chat/{threadId}`
+  on a thread with no video links, open DevTools → Network (Fetch/XHR), and
+  leave the tab untouched for 60 s. → **No** periodic request appears (in
+  particular none to `/api/app/video-links/thread/…`); the only open
+  connections are the event streams — the organization's hint stream at
+  `…/events?orgId=`, `/api/app/chat/threads/{threadId}/stream`, and
+  `…/events/file` when `FILE_EVENTS_ENABLED` is on — and nothing periodic.
+  Then paste a video URL into the composer → its chip appears within ~1 s
+  (the hint stream, not a poll), and while it processes at most one
+  `video-links/thread` request every 5 s appears; once it settles, the tab
+  is silent again.
+- [ ] `PERF-P9` · **Validated reads through the proxy** — From a shell,
+  `curl -sS --compressed -D - -o /dev/null` an API list of at least 512 bytes
+  through the proxy (e.g. `{SITE_URL}/api/v1/contacts?limit=200` with a
+  Bearer key), then repeat it with `-H 'If-None-Match: <the ETag it
+  answered>'`. → The first answer carries `Content-Encoding: gzip` or
+  `zstd`, `Vary: Accept-Encoding`, an `ETag` ending in `-gzip`/`-zstd` and
+  `Cache-Control: private, no-cache`; the repeat answers **304** with no
+  body and the unsuffixed `ETag`; the same repeat without `--compressed`
+  still answers 304.
 
 ## Response-time SLAs
 

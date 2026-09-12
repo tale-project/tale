@@ -228,6 +228,38 @@ const epochMs: Json = {
   description: 'Epoch milliseconds',
 };
 const int: Json = { type: 'integer' };
+
+/** The keys of a run — the `Run` schema in full, and the `RunProjection` a
+ * `?fields=` read answers, share them so the two can never drift. */
+const runProperties: Record<string, Json> = {
+  id: { ...str, description: 'The run id (`runId` at start)' },
+  organizationId: str,
+  name: str,
+  version: int,
+  projectId: {
+    ...nullable(str),
+    description: 'URL project for a project run; null for an organization run',
+  },
+  status: {
+    type: 'string',
+    enum: ['queued', 'running', 'waiting', 'success', 'failed', 'cancelled'],
+  },
+  mode: { type: 'string', enum: ['mock', 'live'] },
+  startedBy: {
+    ...str,
+    description: '`api-key:<userId>` for runs started here',
+  },
+  input: {},
+  output: {},
+  checkpoints: {},
+  trace: {},
+  effects: {},
+  detail: nullable(str),
+  claimEpoch: int,
+  chainSeq: int,
+  startedAt: epochMs,
+  finishedAt: nullable(epochMs),
+};
 const bool: Json = { type: 'boolean' };
 const obj: Json = { type: 'object', additionalProperties: true };
 const strArray: Json = { type: 'array', items: str };
@@ -2144,6 +2176,47 @@ export function buildSpec(): Json {
         orgSlugHeaderParam,
         pathParam('id', 'Project ID'),
         pathParam('documentId', 'File (document) ID'),
+        {
+          name: 'If-None-Match',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `ETag` a previous answer carried (as received — the ' +
+            'compressing edge suffixes the tag of a text file it ' +
+            'compressed, and that form matches too): unchanged bytes ' +
+            'answer 304 with no body. Takes precedence over ' +
+            '`If-Modified-Since`.',
+        },
+        {
+          name: 'If-Modified-Since',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `Last-Modified` a previous answer carried: bytes not ' +
+            'modified since answer 304 with no body. Ignored when ' +
+            '`If-None-Match` is present.',
+        },
+        {
+          name: 'Range',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'A byte range (`bytes=0-1023`): the store answers 206 with ' +
+            '`Content-Range`, or 416 for a range the file cannot satisfy.',
+        },
+        {
+          name: 'If-Range',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'With `Range`, the `ETag` the partial download started from: ' +
+            'the range is served only while the file is still that ' +
+            'representation, otherwise the whole file answers 200.',
+        },
       ],
       responses: {
         '200': {
@@ -2151,6 +2224,17 @@ export function buildSpec(): Json {
             'The file bytes, named by `Content-Disposition`; 206 for a ' +
             'satisfied `Range`',
           content: { '*/*': { schema: { type: 'string', format: 'binary' } } },
+        },
+        '304': {
+          description:
+            'Not Modified — `If-None-Match` named the current `ETag` (or ' +
+            '`If-Modified-Since` the current `Last-Modified`), so no bytes ' +
+            'are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along',
+          headers: {
+            ETag: { schema: { type: 'string' } },
+            'Last-Modified': { schema: { type: 'string' } },
+            'Cache-Control': { schema: { type: 'string' } },
+          },
         },
         '404': errorResponse('File not found (`FILE_NOT_FOUND`)'),
         '503': errorResponse(
@@ -2597,7 +2681,11 @@ export function buildSpec(): Json {
       'include',
       'Full-row fields to inline on each summary — one or more of `input`, ' +
         '`output`, `trace`, `effects`, `checkpoints`, comma-separated; any ' +
-        'other value answers 400 `INVALID_QUERY`',
+        'other value answers 400 `INVALID_QUERY`. An inlining page reads ' +
+        'at most 25 rows (`limit` is clamped) and answers at most 8 MiB of ' +
+        'them: it ends at the last row that fits — possibly before `limit`, ' +
+        'never before one row — with `isDone: false` and a `continueCursor` ' +
+        'at that row, so keep following the cursor until `isDone`',
     ),
   ];
   /** The `{runs, isDone, continueCursor}` page every run listing answers. */
@@ -3078,14 +3166,22 @@ export function buildSpec(): Json {
         summary: scope.project
           ? 'Read a project run in full'
           : 'Read an organization run in full',
-        description: visibility,
+        description: `${visibility} A poller after the outcome should name the keys it reads — \`?fields=status,finishedAt\` — instead of moving the input, the trace and the checkpoints on every read; the answer then carries exactly those keys.`,
         operationId: scope.project ? 'getProjectRun' : 'getRun',
         security: sec,
-        parameters,
+        parameters: [
+          ...parameters,
+          queryParam(
+            'fields',
+            'The keys of `Run` to answer, comma-separated (`status,finishedAt`); ' +
+              'absent, the whole run. A name that is not a key of `Run` ' +
+              'answers 400 `INVALID_QUERY`',
+          ),
+        ],
         responses: {
           '200': jsonResponse(
-            'Status, output, trace, effects and checkpoints',
-            ref('Run'),
+            'Status, output, trace, effects and checkpoints — or, with `fields`, only the keys it named',
+            { anyOf: [ref('Run'), ref('RunProjection')] },
           ),
           '404': errorResponse('Run missing or outside the visible URL scope'),
           ...standardErrors,
@@ -4146,6 +4242,41 @@ export function buildSpec(): Json {
       responses['500'] ??= errorResponse(
         'Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it',
       );
+      // Every JSON read is a validated read (lib/conditional-get.ts): the
+      // 200 carries an `ETag` over its bytes, and the same request with
+      // that tag in `If-None-Match` answers 304 without the body.
+      const ok = responses['200'] as
+        | { content?: Record<string, unknown>; headers?: Record<string, Json> }
+        | undefined;
+      if (method === 'get' && ok?.content?.['application/json'] !== undefined) {
+        ok.headers = {
+          ...ok.headers,
+          ETag: {
+            description:
+              'A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed',
+            schema: { type: 'string' },
+          },
+          'Cache-Control': {
+            description:
+              '`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it',
+            schema: { type: 'string' },
+          },
+        };
+        responses['304'] ??= {
+          description:
+            'Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent',
+          headers: {
+            ETag: {
+              description: 'The tag the API computed for the current bytes',
+              schema: { type: 'string' },
+            },
+            'Cache-Control': {
+              description: '`private, no-cache`',
+              schema: { type: 'string' },
+            },
+          },
+        };
+      }
     }
   }
 
@@ -4165,6 +4296,19 @@ chats, installed automations, runs and project document search. Their project
 comes from the URL; request bodies refuse projectId. Global chat and run URLs
 serve only resources without a project. Global document URLs serve the
 Knowledge Hub; global knowledge search excludes projects and conversations.
+
+## Caching and compression
+
+Every JSON read (a \`GET\` answering 200) carries an \`ETag\` over its bytes
+and \`Cache-Control: private, no-cache\`: keep the answer, and send the tag
+back as \`If-None-Match\` on the next read — an unchanged resource answers
+**304** with no body. File content (\`GET .../files/{documentId}/content\`)
+honours \`If-None-Match\` and \`If-Modified-Since\` against the \`ETag\` and
+\`Last-Modified\` it issues, the same way. A 304 still counts against the
+request budget; a read that only needs a few keys of a large resource should
+name them where the operation offers \`fields\` (run reads do). Responses are
+compressed with \`gzip\` or \`zstd\` when the request offers one in
+\`Accept-Encoding\` (\`curl --compressed\`); \`br\` is not served.
 
 ## Authentication
 
@@ -5297,43 +5441,16 @@ curl -H "Authorization: Bearer <api-key>" \\
             'startedBy',
             'startedAt',
           ],
-          properties: {
-            id: { ...str, description: 'The run id (`runId` at start)' },
-            organizationId: str,
-            name: str,
-            version: int,
-            projectId: {
-              ...nullable(str),
-              description:
-                'URL project for a project run; null for an organization run',
-            },
-            status: {
-              type: 'string',
-              enum: [
-                'queued',
-                'running',
-                'waiting',
-                'success',
-                'failed',
-                'cancelled',
-              ],
-            },
-            mode: { type: 'string', enum: ['mock', 'live'] },
-            startedBy: {
-              ...str,
-              description: '`api-key:<userId>` for runs started here',
-            },
-            input: {},
-            output: {},
-            checkpoints: {},
-            trace: {},
-            effects: {},
-            detail: nullable(str),
-            claimEpoch: int,
-            chainSeq: int,
-            startedAt: epochMs,
-            finishedAt: nullable(epochMs),
-          },
+          properties: runProperties,
+        },
+        RunProjection: {
+          type: 'object',
+          description:
+            'A run read with `?fields=`: exactly the keys of `Run` the ' +
+            'query named, no others — none is required, since the caller ' +
+            'chose them.',
+          properties: runProperties,
+          additionalProperties: false,
         },
 
         // ── Knowledge search ──

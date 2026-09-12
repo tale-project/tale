@@ -30,7 +30,7 @@ The key acts as you in the organization selected by `TALE_ORG_SLUG`; your member
 The smallest end-to-end check is listing the organization's automations. If this works, auth, networking, and the API are all good; if it fails, the failure mode tells you which one is broken.
 
 ```bash
-curl -sS "$TALE_BASE_URL/api/v1/automations" \
+curl -sS --compressed "$TALE_BASE_URL/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq
 ```
@@ -85,12 +85,12 @@ Choose an active project you can edit and an automation deployed for it, then se
 
 ```bash
 export TALE_PROJECT_ID="<projectId>"
-RUN=$(curl -sS -X POST "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/billing__dunning/runs" \
+RUN=$(curl -sS --compressed -X POST "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/billing__dunning/runs" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $TALE_ORG_SLUG" \
   -H "Content-Type: application/json" -d '{ "input": {} }' | jq -r .runId)
 
-curl -sS "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$RUN" \
+curl -sS --compressed "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$RUN?fields=status,finishedAt" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq .status
 ```

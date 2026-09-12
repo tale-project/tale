@@ -1150,6 +1150,72 @@ describe('GET /projects/{id}/files/{documentId}/content', () => {
     );
   });
 
+  it('lets the client keep the bytes it must revalidate', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+    );
+    expect(res.status).toBe(200);
+    // `no-store` used to tell a mirror to discard the very body the ETag
+    // would have let it keep; `private` still keeps shared caches out.
+    expect(res.headers.get('cache-control')).toBe('private, no-cache');
+  });
+
+  it('hands the client’s preconditions to the store with the Range', async () => {
+    const { sql } = fakeSql();
+    await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+      {
+        headers: {
+          'if-none-match': '"abc"',
+          'if-modified-since': 'Thu, 10 Sep 2026 06:58:33 GMT',
+          'if-range': '"abc"',
+          range: 'bytes=0-4',
+        },
+      },
+    );
+    expect(vi.mocked(openFileContent)).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      'acme/blob-1',
+      expect.objectContaining({
+        range: 'bytes=0-4',
+        conditions: {
+          ifNoneMatch: '"abc"',
+          ifModifiedSince: 'Thu, 10 Sep 2026 06:58:33 GMT',
+          ifRange: '"abc"',
+        },
+      }),
+    );
+  });
+
+  it('answers the store’s 304 bodiless, with the validators and nothing about a body', async () => {
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 304,
+      headers: new Headers({
+        etag: '"abc"',
+        'last-modified': 'Thu, 10 Sep 2026 06:58:33 GMT',
+      }),
+      body: null,
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+      { headers: { 'if-none-match': '"abc"' } },
+    );
+    expect(res.status).toBe(304);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('etag')).toBe('"abc"');
+    expect(res.headers.get('last-modified')).toBe(
+      'Thu, 10 Sep 2026 06:58:33 GMT',
+    );
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+    expect(res.headers.get('cache-control')).toBe('private, no-cache');
+    expect(res.headers.get('content-type')).toBeNull();
+    expect(res.headers.get('content-length')).toBeNull();
+    expect(res.headers.get('content-disposition')).toBeNull();
+  });
+
   it('answers 404 for a blob the store no longer holds, and 503 with Retry-After for a store that fails', async () => {
     vi.mocked(openFileContent).mockResolvedValueOnce(null);
     const { sql } = fakeSql();

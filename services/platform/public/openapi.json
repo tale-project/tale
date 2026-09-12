@@ -7,7 +7,7 @@
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN`. The\n400 lists the slugs you may send under `data.organizations`, and so does\n`GET /api/v1/me` on any call that names one.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it — and so is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. A body is\ncapped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET) and OPTIONS (204 with\n`Allow`); a method a path does not take answers 405 `METHOD_NOT_ALLOWED`\nwith `Allow`. A request URL above 32 KiB is refused at the edge with 431.\nEvery response carries an `X-Request-Id` — send your own to correlate.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 repeats the code in `error`; a 500 and a\nbody-size 413 add `requestId`; a refused body or query lists every problem\nunder `data.issues`.\n\n## Pagination\n\nThe keyset-paginated lists — contacts, products, documents, knowledge\nentries, threads, messages, websites — take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`\nuntil `isDone`. Lists that answer a named array (`{automations}`,\n`{agents}`, `{skills}`, `{folders}`, `{models}`, `{sessions}`,\n`{deliveries}`, `{versions}`, `{triggers}`) are complete sets or bounded\nwindows; runs and task comments answer their named array WITH `isDone` and\n`continueCursor` (`{runs, …}`, `{comments, …}`); search answers `{hits,\ndiagnostics}`, website pages `{pages, total, offset, hasMore}`; project\nfiles answer `{files, isDone, cursor?}` and the project list `{projects,\nisDone, cursor?}` — pass `cursor` back unchanged until `isDone`. Every\ncursor is an opaque signed token: one this list never answered is refused\nwith 400 `INVALID_CURSOR`, never read as the first page.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Quick start\n\n```bash\n# 1. List automations installed in an existing project\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start a deployed automation in that project\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/billing__dunning/runs\"\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`); `br` is not served.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN`. The\n400 lists the slugs you may send under `data.organizations`, and so does\n`GET /api/v1/me` on any call that names one.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it — and so is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. A body is\ncapped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET) and OPTIONS (204 with\n`Allow`); a method a path does not take answers 405 `METHOD_NOT_ALLOWED`\nwith `Allow`. A request URL above 32 KiB is refused at the edge with 431.\nEvery response carries an `X-Request-Id` — send your own to correlate.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 repeats the code in `error`; a 500 and a\nbody-size 413 add `requestId`; a refused body or query lists every problem\nunder `data.issues`.\n\n## Pagination\n\nThe keyset-paginated lists — contacts, products, documents, knowledge\nentries, threads, messages, websites — take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`\nuntil `isDone`. Lists that answer a named array (`{automations}`,\n`{agents}`, `{skills}`, `{folders}`, `{models}`, `{sessions}`,\n`{deliveries}`, `{versions}`, `{triggers}`) are complete sets or bounded\nwindows; runs and task comments answer their named array WITH `isDone` and\n`continueCursor` (`{runs, …}`, `{comments, …}`); search answers `{hits,\ndiagnostics}`, website pages `{pages, total, offset, hasMore}`; project\nfiles answer `{files, isDone, cursor?}` and the project list `{projects,\nisDone, cursor?}` — pass `cursor` back unchanged until `isDone`. Every\ncursor is an opaque signed token: one this list never answered is refused\nwith 400 `INVALID_CURSOR`, never read as the first page.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Quick start\n\n```bash\n# 1. List automations installed in an existing project\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start a deployed automation in that project\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/billing__dunning/runs\"\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -122,6 +122,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -288,6 +319,37 @@
                       "nullable": true
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1626,6 +1688,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -1869,6 +1962,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -2428,6 +2552,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -2697,6 +2852,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Website"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -3071,6 +3257,37 @@
                   "$ref": "#/components/schemas/WebsitePageList"
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -3443,6 +3660,37 @@
                       }
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -3857,6 +4105,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -4115,6 +4394,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Product"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -4518,6 +4828,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -4907,6 +5248,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Contact"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -5322,6 +5694,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -5606,6 +6009,37 @@
                       "$ref": "#/components/schemas/Project"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -6023,6 +6457,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -6290,6 +6755,37 @@
                       "$ref": "#/components/schemas/ProjectAgent"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -6687,6 +7183,37 @@
                       }
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -7402,6 +7929,42 @@
               "type": "string"
             },
             "description": "File (document) ID"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `ETag` a previous answer carried (as received — the compressing edge suffixes the tag of a text file it compressed, and that form matches too): unchanged bytes answer 304 with no body. Takes precedence over `If-Modified-Since`."
+          },
+          {
+            "name": "If-Modified-Since",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `Last-Modified` a previous answer carried: bytes not modified since answer 304 with no body. Ignored when `If-None-Match` is present."
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "A byte range (`bytes=0-1023`): the store answers 206 with `Content-Range`, or 416 for a range the file cannot satisfy."
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "With `Range`, the `ETag` the partial download started from: the range is served only while the file is still that representation, otherwise the whole file answers 200."
           }
         ],
         "responses": {
@@ -7412,6 +7975,26 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag` (or `If-Modified-Since` the current `Last-Modified`), so no bytes are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -7584,6 +8167,37 @@
                       "description": "Present while more pages remain — pass back as `cursor`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -8126,6 +8740,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -8318,6 +8963,37 @@
                       "description": "Cursor for older comments; empty when done"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -8763,6 +9439,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -8896,6 +9603,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -9146,6 +9884,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -9268,6 +10037,37 @@
                       }
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -9703,7 +10503,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`. An inlining page reads at most 25 rows (`limit` is clamped) and answers at most 8 MiB of them: it ends at the last row that fits — possibly before `limit`, never before one row — with `isDone: false` and a `continueCursor` at that row, so keep following the cursor until `isDone`"
           }
         ],
         "responses": {
@@ -9729,6 +10529,37 @@
                       "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -10071,7 +10902,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`. An inlining page reads at most 25 rows (`limit` is clamped) and answers at most 8 MiB of them: it ends at the last row that fits — possibly before `limit`, never before one row — with `isDone: false` and a `continueCursor` at that row, so keep following the cursor until `isDone`"
           }
         ],
         "responses": {
@@ -10097,6 +10928,37 @@
                       "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -10430,7 +11292,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`. An inlining page reads at most 25 rows (`limit` is clamped) and answers at most 8 MiB of them: it ends at the last row that fits — possibly before `limit`, never before one row — with `isDone: false` and a `continueCursor` at that row, so keep following the cursor until `isDone`"
           }
         ],
         "responses": {
@@ -10456,6 +11318,37 @@
                       "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -10600,7 +11493,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`"
+            "description": "Full-row fields to inline on each summary — one or more of `input`, `output`, `trace`, `effects`, `checkpoints`, comma-separated; any other value answers 400 `INVALID_QUERY`. An inlining page reads at most 25 rows (`limit` is clamped) and answers at most 8 MiB of them: it ends at the last row that fits — possibly before `limit`, never before one row — with `isDone: false` and a `continueCursor` at that row, so keep following the cursor until `isDone`"
           }
         ],
         "responses": {
@@ -10626,6 +11519,37 @@
                       "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -10753,6 +11677,37 @@
                       "type": "string"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -11123,7 +12078,7 @@
       "get": {
         "tags": ["Runs"],
         "summary": "Read an organization run in full",
-        "description": "Only a run without a project is visible here. Use its project URL for a project run.",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. A poller after the outcome should name the keys it reads — `?fields=status,finishedAt` — instead of moving the input, the trace and the checkpoints on every read; the answer then carries exactly those keys.",
         "operationId": "getRun",
         "security": [
           {
@@ -11148,15 +12103,62 @@
               "type": "string"
             },
             "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The keys of `Run` to answer, comma-separated (`status,finishedAt`); absent, the whole run. A name that is not a key of `Run` answers 400 `INVALID_QUERY`"
           }
         ],
         "responses": {
           "200": {
-            "description": "Status, output, trace, effects and checkpoints",
+            "description": "Status, output, trace, effects and checkpoints — or, with `fields`, only the keys it named",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Run"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Run"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunProjection"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -11497,7 +12499,7 @@
       "get": {
         "tags": ["Runs"],
         "summary": "Read a project run in full",
-        "description": "The run must belong to the URL project, and the key holder must have project read access.",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. A poller after the outcome should name the keys it reads — `?fields=status,finishedAt` — instead of moving the input, the trace and the checkpoints on every read; the answer then carries exactly those keys.",
         "operationId": "getProjectRun",
         "security": [
           {
@@ -11531,15 +12533,62 @@
               "type": "string"
             },
             "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The keys of `Run` to answer, comma-separated (`status,finishedAt`); absent, the whole run. A name that is not a key of `Run` answers 400 `INVALID_QUERY`"
           }
         ],
         "responses": {
           "200": {
-            "description": "Status, output, trace, effects and checkpoints",
+            "description": "Status, output, trace, effects and checkpoints — or, with `fields`, only the keys it named",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Run"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Run"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunProjection"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -11923,6 +12972,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -12075,6 +13155,37 @@
                       "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -12328,6 +13439,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Thread"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -12744,6 +13886,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -13101,6 +14274,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -13377,6 +14581,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -13646,6 +14881,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Thread"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14089,6 +15355,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -14464,6 +15761,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -14721,6 +16049,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -14847,6 +16206,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Skill"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -15320,6 +16710,37 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "400": {
@@ -15588,6 +17009,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KnowledgeEntry"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "description": "The tag the API computed for the current bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "`private, no-cache`",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -18932,6 +20384,76 @@
             "nullable": true
           }
         }
+      },
+      "RunProjection": {
+        "type": "object",
+        "description": "A run read with `?fields=`: exactly the keys of `Run` the query named, no others — none is required, since the caller chose them.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The run id (`runId` at start)"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL project for a project run; null for an organization run"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "success",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"]
+          },
+          "startedBy": {
+            "type": "string",
+            "description": "`api-key:<userId>` for runs started here"
+          },
+          "input": {},
+          "output": {},
+          "checkpoints": {},
+          "trace": {},
+          "effects": {},
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "claimEpoch": {
+            "type": "integer"
+          },
+          "chainSeq": {
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "KnowledgeHit": {
         "type": "object",

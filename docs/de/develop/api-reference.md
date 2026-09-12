@@ -14,7 +14,7 @@ Diese Seite ist das kanonische Inventar der Oberfläche, des Auth-Modells und de
 Die kürzeste nützliche Anfrage — die Automatisierungen der Organisation auflisten — ist ein curl:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/automations" \
+curl -sS --compressed "https://your-host.example.com/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
@@ -30,6 +30,21 @@ Sende den Schlüssel als Bearer-Token: `Authorization: Bearer <key>` — ein Sch
 
 Ein Body ist JSON und wird strikt gelesen: nur UTF-8 (eine Bytefolge, die kein UTF-8 ist, ergibt **400**, `INVALID_BODY`), ohne NUL-Zeichen, und eine ganze Zahl jenseits von 2^53 − 1 wird abgewiesen statt gerundet — sende so eine ID also als String. Jedes Body-Schema ist strikt: Ein unbekannter Schlüssel ergibt **400**, `INVALID_BODY`, und wird beim Namen genannt. Query-Strings sind genauso strikt: Ein Parameter, den die Route nicht kennt, einer, der doppelt kommt, oder ein benannter Filter, der leer bleibt, ergibt **400**, `INVALID_QUERY` — und Schreibaufrufe nehmen gar keine Query-Parameter. Ein Body ist auf 1 MiB begrenzt, sofern die Operation nichts anderes sagt — der Inline-`content` eines Dokuments auf 32 MiB, `POST /api/v1/contacts/bulk` auf 8 MiB, ein Gesprächs-Snapshot auf 8 MiB, ein vorbereiteter Gesprächs-Upload auf 30 MiB, das Speichern eines Skills auf 4 MiB —, und ein zu großer ergibt **413**, `BODY_TOO_LARGE`, bevor ein Byte gelesen wird, sofern seine Länge deklariert ist. Ein Body wird als JSON gelesen, egal was `Content-Type` sagt; ein 415 gibt es nicht. Jeder bediente Pfad beantwortet `HEAD` (für ein `GET`) und `OPTIONS` (**204** mit `Allow`), und ein Verb, das ein Pfad nicht bedient, ergibt **405**, `METHOD_NOT_ALLOWED`, wobei `Allow` die Verben nennt, die er bedient. Eine Anfrage-URL über 32 KiB wird schon am Edge — vor der API — mit **431** abgewiesen. Jede Antwort trägt eine `X-Request-Id` — sende deine eigene, um einen Aufruf mit dem zu korrelieren, was die Plattform loggt; eine **500** und eine **413** wiederholen sie als `requestId` im Umschlag. Zeitstempel sind überall Epoch-Millisekunden, IDs sind Strings.
 
+## Caching, Kompression und gezieltes Lesen
+
+Jede JSON-Leseantwort — ein `GET`, das **200** antwortet — trägt einen `ETag`, der über ihre Bytes berechnet ist, und `Cache-Control: private, no-cache`: Behalte die Antwort und schicke den Tag beim nächsten Lesen als `If-None-Match` zurück. Eine unveränderte Ressource antwortet **304** ohne Body — wer einen fertigen Lauf, einen ruhenden Thread oder den Indexierungsstatus eines Dokuments pollt, zahlt so einen Roundtrip statt der Nutzlast. Schick den Tag genau so zurück, wie du ihn bekommen hast: Hinter dem komprimierenden Edge lautet der Tag einer komprimierten Antwort `"…-gzip"` oder `"…-zstd"`, und diese Form passt, ebenso die schwache Form `W/"…"`; die 304 trägt den Tag, den die API berechnet hat. Dateiinhalte (`GET /api/v1/projects/{id}/files/{documentId}/content`) prüfen `If-None-Match` und `If-Modified-Since` genauso gegen den `ETag` und das `Last-Modified`, die sie ausgeben — ein Spiegel lädt eine Datei nur dann neu, wenn sich ihre Bytes geändert haben. Eine **304** zählt trotzdem als eine Anfrage gegen die [Rate-Limits](/de/develop/rate-limits).
+
+```bash
+# Das erste Lesen antwortet 200 und seinen ETag; die Wiederholung mit diesem Tag antwortet 304
+curl -sS --compressed -D - -o /dev/null "https://your-host.example.com/api/v1/projects/<projectId>/runs/<runId>?fields=status,finishedAt" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H 'If-None-Match: "<ETag aus der vorigen Antwort>"'
+```
+
+JSON- und Textantworten werden komprimiert, wenn die Anfrage in `Accept-Encoding` `gzip` oder `zstd` anbietet — `curl --compressed` tut das, und jede HTTP-Bibliothek kann es — ab einer Untergrenze von etwa 512 Bytes; `br` wird nicht ausgeliefert, und eine komprimierte Antwort trägt keine `Content-Length`. Die Beispiele auf dieser Seite fragen alle danach: Eine Laufliste ist komprimiert etwa sechsmal kleiner, ein Lauf mit sich wiederholender Eingabe mehrere hundert Mal.
+
+Wo eine Ressource groß ist und ein Lesen nur einen Teil davon braucht, sagt es die Operation: Ein Lauf-Lesen nimmt `?fields=status,finishedAt` (beliebige Schlüssel des Laufs, kommagetrennt) und antwortet genau mit diesen Schlüsseln, und eine Laufliste, die über `?include=` volle Zeilen einbettet, liest höchstens 25 Zeilen pro Seite und antwortet mit höchstens 8 MiB davon — sie endet bei der letzten Zeile, die noch passt, mit `isDone: false` und einem `continueCursor` an dieser Zeile; folge dem Cursor also weiter, bis `isDone` gilt.
+
 ## Mit Tale bei einer Anwendung anmelden
 
 Tale ist auch ein OpenID-Connect-Aussteller. Eine registrierte Anwendung führt dich durch die native Anmeldung und Einwilligung in Tale. Sie erhält eine signierte Identität mit bestätigter E-Mail-Adresse und der Mitgliedschaft in genau der Organisation, an die ihr Client gebunden ist. Ein API-Schlüssel ersetzt in diesem Ablauf keine persönliche Anmeldung.
@@ -37,7 +52,7 @@ Tale ist auch ein OpenID-Connect-Aussteller. Eine registrierte Anwendung führt 
 Registriere die Anwendung mit einer aktiven Owner- oder Admin-Sitzung, deren ausgewählte Organisation `TALE_ORG_ID` entspricht. `TALE_ORIGIN` ist der Ursprung deiner Tale-Instanz, `TALE_SESSION_COOKIE` der Cookie-Header dieser Sitzung. Verwende die genaue HTTPS-Callback-URL der Anwendung; HTTP ist nur auf Loopback für die lokale Entwicklung erlaubt:
 
 ```bash
-curl -sS -X POST "$TALE_ORIGIN/api/app/identity/clients?orgId=$TALE_ORG_ID" \
+curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/identity/clients?orgId=$TALE_ORG_ID" \
   -H "Cookie: $TALE_SESSION_COOKIE" \
   -H "Origin: $TALE_ORIGIN" \
   -H "Content-Type: application/json" \
@@ -153,7 +168,7 @@ Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte
 Der Name einer Automatisierung ist ein `/`-Pfad — `billing/dunning` — und ein Pfad passt nicht in ein einzelnes URL-Segment. Schreib den Namen in jeder `.../automations/{name}/...`-URL mit `__` an Stelle jedes `/`:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/versions" \
+curl -sS --compressed "https://your-host.example.com/api/v1/automations/billing__dunning/versions" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
@@ -166,7 +181,7 @@ Antworten tragen immer den echten Namen (`"name": "billing/dunning"`); die `__`-
 Ein Trigger startet eine Automatisierung ohne deinen Aufruf: nach Zeitplan, über eine Webhook-URL oder wenn die Plattform ein Event auslöst. Binde einen mit `PUT /api/v1/automations/{name}/triggers` — ein Trigger pro Automatisierung, und das `PUT` ersetzt, was vorher gebunden war:
 
 ```bash
-curl -sS -X PUT "https://your-host.example.com/api/v1/automations/billing__dunning/triggers" \
+curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/automations/billing__dunning/triggers" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -194,7 +209,7 @@ curl -sS -X PUT "https://your-host.example.com/api/v1/automations/billing__dunni
 Ein Lauf ist durabel und darf Minuten dauern — der Start antwortet deshalb mit **202** und der Identität des Laufs, nicht mit seinem Ergebnis:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/billing__dunning/runs" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/billing__dunning/runs" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -202,7 +217,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/auto
 # → 202 { "runId": "...", "version": 2, "name": "billing/dunning", "mode": "live" }
 ```
 
-Polle `GET /api/v1/projects/{id}/runs/{runId}`, bis `status` `queued`/`running`/`waiting` verlässt; der fertige Lauf trägt `output`, den `trace` pro Knoten und die `effects`, die er erzeugt hat. `POST /api/v1/projects/{id}/runs/{runId}/cancel` stoppt einen Lauf an seiner nächsten Knotengrenze — was ein Knoten schon getan hat, wird nicht rückgängig gemacht.
+Polle `GET /api/v1/projects/{id}/runs/{runId}?fields=status,finishedAt`, bis `status` `queued`/`running`/`waiting` verlässt — mit den benannten Schlüsseln bleibt der Poll eine Zeile statt des ganzen Laufs, und der `ETag` der Antwort als `If-None-Match` macht aus einem unveränderten Poll eine **304** ohne Body ([Caching](#caching-kompression-und-gezieltes-lesen)); dann lies den Lauf vollständig: Er trägt `output`, den `trace` pro Knoten und die `effects`, die er erzeugt hat. `POST /api/v1/projects/{id}/runs/{runId}/cancel` stoppt einen Lauf an seiner nächsten Knotengrenze — was ein Knoten schon getan hat, wird nicht rückgängig gemacht.
 
 Ein Start lässt sich gefahrlos wiederholen, wenn du ihn benennst: Sende `Idempotency-Key: <dein Schlüssel>`, und eine Wiederholung innerhalb von 24 Stunden — ein wiederholter Timeout, eine verlorene Antwort — antwortet mit **202**, dem Lauf, den der erste Versuch gestartet hat, und `"duplicate": true`; ein zweiter Lauf entsteht also nicht. Derselbe Schlüssel mit anderem Body ergibt **409** `IDEMPOTENCY_KEY_REUSED`. Der Schlüssel gilt je Automatisierung und URL-Projekt, und ein abgewiesener Start merkt sich nichts — derselbe Schlüssel läuft also, sobald die Ablehnung behoben ist.
 
@@ -210,7 +225,7 @@ Ein Start lässt sich gefahrlos wiederholen, wenn du ihn benennst: Sende `Idempo
 
 Eine unbekannte Automatisierung antwortet mit **404**. Ein Live-Lauf darf nur die deployte `version` verwenden; eine andere gespeicherte Version ergibt **409**. Teste diese mit `mode: "mock"`. Ohne Body gilt `{}`; fehlerhaftes JSON ergibt **400** und startet nichts. Definiert die Automatisierung ein `inputs`-Schema, muss die Eingabe dazu passen, bevor ein Lauf entsteht: Eine Abweichung ergibt **400** `AUTOMATION_INPUT_INVALID` mit jedem Problem unter `data.issues` (`path`, `message`), genau wie ein abgelehnter Body. `input` fällt nur auf `{}` zurück, wenn es fehlt — `null` geht als null durch, damit das Schema darüber urteilt.
 
-Das Projekt in der URL bestimmt den Kontext der Aufgaben- und Dokumentwerkzeuge des Laufs. Hat die Automatisierung Projektbindungen, darf sie nur in einem dieser Projekte laufen. `GET /api/v1/projects/{id}/automations/{name}/runs` liest die Historie dieses Projekts für eine Automatisierung, `GET /api/v1/projects/{id}/runs` für alle. Listen antworten mit Zusammenfassungen — Identität, Geltungsbereich, Status und Zeiten —, die neuesten zuerst, als `{ "runs": [...], "isDone": ..., "continueCursor": ... }`: Hänge `?status=failed` an (ein oder mehrere Status, kommagetrennt), um sie einzugrenzen, `?include=input,output` (auch `trace`, `effects`, `checkpoints`), um die Felder der vollen Zeile einzubetten, die eine Zusammenfassung weglässt, und gib `continueCursor` als `?cursor=` zurück, bis `isDone` gilt. `GET /api/v1/runs` ist die Sicht quer über alles: jeder Lauf, den der Schlüsselbesitzer sehen darf, Organisationsläufe wie Läufe sichtbarer Projekte, jede Zeile mit ihrer `projectId`. Eine Automatisierung ohne Bindungen kannst du mit `POST /api/v1/automations/{name}/runs` ohne Projekt starten; eine gebundene Automatisierung ergibt dort **409**. `GET /api/v1/automations/{name}/runs` und `/api/v1/runs/{runId}` zeigen ausschließlich Läufe ohne Projekt. Zum Lesen, Abbrechen und Löschen eines Projektlaufs brauchst du dessen Projekt-URL. `DELETE /api/v1/projects/{id}/runs/{runId}` (oder `/api/v1/runs/{runId}`) entfernt einen beendeten Lauf — samt gespeicherter Eingabe und Ausgabe — unter der Entwickler-Fähigkeit; ein Lauf, der noch in Arbeit ist, ergibt **409** `RUN_ACTIVE`, brich ihn also zuerst ab.
+Das Projekt in der URL bestimmt den Kontext der Aufgaben- und Dokumentwerkzeuge des Laufs. Hat die Automatisierung Projektbindungen, darf sie nur in einem dieser Projekte laufen. `GET /api/v1/projects/{id}/automations/{name}/runs` liest die Historie dieses Projekts für eine Automatisierung, `GET /api/v1/projects/{id}/runs` für alle. Listen antworten mit Zusammenfassungen — Identität, Geltungsbereich, Status und Zeiten —, die neuesten zuerst, als `{ "runs": [...], "isDone": ..., "continueCursor": ... }`: Hänge `?status=failed` an (ein oder mehrere Status, kommagetrennt), um sie einzugrenzen, `?include=input,output` (auch `trace`, `effects`, `checkpoints`), um die Felder der vollen Zeile einzubetten, die eine Zusammenfassung weglässt — eine einbettende Seite liest höchstens 25 Zeilen, ist auf 8 MiB davon begrenzt und endet vorzeitig mit `isDone: false`, wenn die nächste Zeile nicht mehr passt —, und gib `continueCursor` als `?cursor=` zurück, bis `isDone` gilt. `GET /api/v1/runs` ist die Sicht quer über alles: jeder Lauf, den der Schlüsselbesitzer sehen darf, Organisationsläufe wie Läufe sichtbarer Projekte, jede Zeile mit ihrer `projectId`. Eine Automatisierung ohne Bindungen kannst du mit `POST /api/v1/automations/{name}/runs` ohne Projekt starten; eine gebundene Automatisierung ergibt dort **409**. `GET /api/v1/automations/{name}/runs` und `/api/v1/runs/{runId}` zeigen ausschließlich Läufe ohne Projekt. Zum Lesen, Abbrechen und Löschen eines Projektlaufs brauchst du dessen Projekt-URL. `DELETE /api/v1/projects/{id}/runs/{runId}` (oder `/api/v1/runs/{runId}`) entfernt einen beendeten Lauf — samt gespeicherter Eingabe und Ausgabe — unter der Entwickler-Fähigkeit; ein Lauf, der noch in Arbeit ist, ergibt **409** `RUN_ACTIVE`, brich ihn also zuerst ab.
 
 ## Eine Nachricht senden, dann den Turn pollen
 
@@ -219,7 +234,7 @@ Projektchats folgen ebenfalls dem Ablauf 202, dann Statusabfrage. Wähle ein Pro
 Rufe vor dem Senden die Modelle ab. Jeder Eintrag trägt, was ein Client zum Auswählen braucht — `contextWindow`, `maxOutputTokens`, `capabilities` (`tools`, `vision`, `reasoning`), `pricing`, wenn der Katalog einen Preis kennt, `tags` — und `default: true` markiert die Wahl der Organisation für diesen Schlüsselbesitzer; es erscheint nur, wenn die Organisation ein Standardmodell festgelegt hat, warte also nicht darauf. Übernimm `id` als `model`; ergänze `providerSlug`, wenn dieselbe ID unter mehreren Anbietern gelistet ist. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung. Die Liste ist der konfigurierte Katalog der Organisation, kein Versprechen des Anbieterkontos: Ein Modell, das der Tarif des Anbieters nicht abdeckt, schließt ein Operator über die Modell-Allowlist der Zugangsdaten in den Einstellungen aus. Das Paar wird beim Senden geprüft, direkt an der Tür: Eine ID, die die Liste nicht kennt, ergibt **400**, `CHAT_MODEL_UNKNOWN`; eine ID, die mehrere Anbieter bedienen, ohne dass einer genannt ist, **400**, `CHAT_MODEL_AMBIGUOUS` mit den Kandidaten in `data.providers`; ein `providerSlug`, den die Liste nicht kennt, **400**, `CHAT_PROVIDER_UNKNOWN`; einer, der das gewählte `model` nicht bedient, **400**, `CHAT_MODEL_NOT_ON_PROVIDER`. Die 202 nennt den Anbieter, auf dem der Turn läuft — er weicht nie stillschweigend auf einen anderen aus.
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/models" \
+curl -sS --compressed "https://your-host.example.com/api/v1/models" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # Kein Modell verfügbar → 200 { "models": [] }
@@ -227,14 +242,14 @@ curl -sS "https://your-host.example.com/api/v1/models" \
 
 ```bash
 # 1. Ein eigener Thread
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" -d '{}'
 # → 201 { "id": "<threadId>" }
 
 # 2. Nachricht senden — auf dieser API ist das Modell immer explizit, nie automatisch gewählt
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/messages" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -242,7 +257,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/thre
 # → 202 { "threadId": "...", "status": "accepted", "model": "...", "providerSlug": "...", "messageId": "<assistantMessageId>", "poll": "/api/v1/projects/<projectId>/threads/<threadId>/generation" }
 
 # 3. Bis idle pollen, dann lesen
-curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/generation" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/generation" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "status": "queued", "messageId": "..." } … dann { "status": "streaming", "messageId": "...", "text": "Das Quartal…", "reasoning": "", "cancelRequested": false, "updatedAt": 1774... } … dann { "status": "idle" }
@@ -265,7 +280,7 @@ Ein Modellfehler kann als Assistenten-Nachricht mit lesbarem `error` und, wenn v
 Verwende die Projekt-URL, wenn alle Treffer aus einem Projekt stammen sollen. Die Suche erfasst ausschließlich dessen indexierte Dateien und verlangt Leserechte, auch bei einem archivierten Projekt. Dokumente der Wissensdatenbank oder von Teams, andere Projekte, Websites und E-Mail-Anhänge bleiben außen vor. Lass `corpus` weg oder setze es auf `"documents"`. Ein anderer Korpus oder `projectId` im Anfrageinhalt ergibt **400**.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/knowledge/search" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/knowledge/search" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -285,7 +300,7 @@ Diese Routen — und die Aufgaben-Routen unten — raten nie, welche Organisatio
 `externalItemId` ist dein Schlüssel, nicht der von Tale — ein opaker String (die Datensatz-ID deines CRM), eindeutig pro Organisation, von der Plattform nie interpretiert. Gespeichert und verglichen wird er nach NFC-Normalisierung und Trimmen: Ein Schlüssel, den ein macOS-Dateisystem in NFD übergibt, findet das Projekt, das ein Worker aus einer CSV in NFC angelegt hat, und ein Zeilenumbruch am Ende einer Shell-Variable erzeugt nie ein zweites Projekt. Schlag ihn zuerst nach; die Suche antwortet mit höchstens einem Projekt, und ein Treffer, den der Benutzer des Schlüssels nicht sehen darf, sieht genauso aus wie keiner:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/projects?externalItemId=crm-4711" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects?externalItemId=crm-4711" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "projects": [] } — oder [ { "id": "...", "name": "ACME Ltd", "externalItemId": "crm-4711" } ]
@@ -294,7 +309,7 @@ curl -sS "https://your-host.example.com/api/v1/projects?externalItemId=crm-4711"
 Ein Treffer trägt `archivedAt`, wenn das Projekt archiviert ist — entscheide vorher, was dein Worker mit diesem Fall macht. Ohne `externalItemId` listet dieselbe Route jedes Projekt, das der Benutzer des Schlüssels sehen darf, die neuesten zuerst, seitenweise wie die Dateiliste — `{projects, isDone, cursor?}`; gib `cursor` unverändert zurück, bis `isDone` gilt —, archivierte Projekte ausgenommen, sofern du nicht danach fragst (`?archived=include` oder `?archived=only`). Jede Zeile trägt `createdAt` und `updatedAt`, ein Worker kann also abgleichen, was er angelegt hat:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/projects?limit=50" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects?limit=50" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "projects": [ { "id": "...", "name": "ACME Ltd", "externalItemId": "crm-4711", "createdAt": 1774..., "updatedAt": 1774... } ], "isDone": true }
@@ -303,7 +318,7 @@ curl -sS "https://your-host.example.com/api/v1/projects?limit=50" \
 Eine leere Suche heißt anlegen:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -320,7 +335,7 @@ Ein expliziter Projekt-`key` besteht aus 2–6 Buchstaben oder Ziffern und lande
 Ordner entstehen per Get-or-create: derselbe Name unter demselben Elternordner — verglichen ohne Rücksicht auf Groß- und Kleinschreibung, `inbox` und `INBOX` sind also ein Ordner — antwortet mit dem bestehenden Ordner, seinem gespeicherten Namen und `created: false` (**200**) statt mit einem Duplikat; ein Worker darf seinen Setup-Schritt nach einem Absturz blind wiederholen, und zwei Worker, die denselben Ordner gleichzeitig anlegen, bekommen einen Ordner. Ordnernamen haben keine plattformseitig reservierte Bedeutung — das Layout gehört dir:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/folders" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/folders" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -335,7 +350,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/fold
 Ein Upload ist ein Handoff, dann ein Binden. Hole zuerst den Handoff — er sagt dir, wohin die Bytes gehen:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uploads" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uploads" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -346,7 +361,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 Jeder Blob liegt im Objektspeicher, daher ist `url` immer ein vorsignierter `PUT`: Sende die Bytes mit dieser Methode dorthin, ohne `Authorization`-Header — die URL trägt ihre eigene Signatur, und der Bucket lehnt eine Anfrage ab, die sich zweimal authentifiziert —, mit einem `Content-Type`-Header, der exakt dem beim Minten deklarierten `contentType` entspricht — der deklarierte Typ ist in die URL signiert, ein abweichender Header wird vom Bucket abgelehnt (ohne `contentType` beim Minten stellt der PUT keine Header-Anforderung) — und binde dann die `s3Ref` aus dem Handoff als `fileId`. Benenne die Datei schon beim Minten (`"fileName": "ledger-2026-q1.pdf"`), dann laufen die Typregeln des Bindens, bevor irgendetwas vorsigniert wird: Ein Name, den die Upload-Policy der Organisation oder die Format-Allowlist der Plattform ablehnt, ergibt hier **400** (`UPLOAD_POLICY_REJECTED`, `UNSUPPORTED_FILE_TYPE`), und die Bytes reisen nie. Das Binden schließt den Upload ab:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -361,7 +376,7 @@ Dateien durch diesen Zugang sind Arbeitsmaterial des Projekts, kein Organisation
 ### Prüfen, was angekommen ist
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/files?folderId=<folderId>" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/files?folderId=<folderId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "files": [ { "id": "...", "fileName": "ledger-2026-q1.pdf", "createdAt": 1774... } ] }
@@ -374,7 +389,7 @@ Die Liste antwortet `{files, isDone, cursor?}`: ein `cursor` in der Antwort hei�
 Nichts, was dieser Zugang anlegt, muss für immer bleiben. Eine Datei geht mit `DELETE .../files/{documentId}` — endgültig: Dokumentzeile, Korpuszeilen und Blob der Datei werden über dieselbe Spur bereinigt, die jedes harte Löschen nimmt, die Antwort ist also **204** oder eine Ablehnung, nie ein stilles No-op:
 
 ```bash
-curl -sS -X DELETE "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>" \
+curl -sS --compressed -X DELETE "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 204
@@ -385,7 +400,7 @@ Ein Ordner geht mit `DELETE .../folders/{folderId}`, und alles darunter geht mit
 Auch das Projekt selbst hat einen Lebenszyklus, für Organisations-Admins (**403**, `ROLE_FORBIDDEN`, für alle anderen). `PATCH /api/v1/projects/{id}` mit `{ "archived": true }` archiviert es — es bleibt über diesen Zugang lesbar, verweigert jedes Schreiben mit **403**, `PROJECT_ARCHIVED`, hält seine `externalItemId` belegt, und `{ "archived": false }` holt es zurück. `DELETE /api/v1/projects/{id}` entfernt es und gibt den Schlüssel frei: standardmäßig als Kaskade — jedes Dokument läuft in die Aufbewahrungs-Pipeline ab, deine eigenen Chats wandern in den Papierkorb, jede Aufgabe wird stillgelegt und ihre laufenden Läufe abgebrochen — oder, mit dem Body `{ "mode": "detach" }`, werden Dokumente und Chats stattdessen in die Organisation entlassen. Agenten und Ordner gehen in beiden Fällen mit dem Projekt, und eine Kaskade zehrt vom selben Budget pro Benutzer wie das Löschen in der App (5 pro Minute):
 
 ```bash
-curl -sS -X DELETE "https://your-host.example.com/api/v1/projects/<projectId>" \
+curl -sS --compressed -X DELETE "https://your-host.example.com/api/v1/projects/<projectId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 204
@@ -398,7 +413,7 @@ Das Löschen wird mit **409** abgewiesen, bevor irgendetwas geschrieben ist, sol
 Die Aufgabenrouten machen aus einem externen Datensatz eine Aufgabe auf dem Projektboard, starten einen bereitgestellten Workflow und liefern die Ergebnisse zurück. Eine projektgebundene Automatisierung muss zuvor in diesem Projekt installiert sein. Das Installieren ist idempotent: **201** beim ersten Aufruf, **200** bei vorhandener Bindung. Es verlangt die Entwickler-Fähigkeit und Bearbeitungsrechte auf ein aktives Projekt. Fehlen dem Worker diese Rechte, richte die Bindung vorher ein:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/vat-return" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/vat-return" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -411,7 +426,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/auto
 Das Anlegen einer Aufgabe ist pro `(projectId, externalSystem, externalId)` idempotent: Der erste Aufruf legt sie an (**201**, `created: true`), ein erneuter liefert dieselbe Aufgabe (**200**, `created: false`). Beide Schlüssel werden nach NFC-Normalisierung und Trimmen gespeichert und verglichen — dieselbe Regel wie bei der `externalItemId` eines Projekts —, eine Wiederholung mit Leerzeichen drumherum oder anderer Normalisierung ist also noch dieselbe Aufgabe, und ein Schlüssel, der getrimmt leer ist, ergibt **400**. Die `projectId` kommt aus der URL; im Anfrageinhalt ergibt sie **400**. Zum Anlegen brauchst du Bearbeitungsrechte auf ein aktives Projekt.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -424,7 +439,7 @@ Ein erneuter Aufruf mit derselben externen Referenz einer aktiven Aufgabe aktual
 `description`, `labels` und `externalUrl` sind optional; `title` fasst bis zu 200 Zeichen, und `externalUrl` muss eine absolute `http(s)`-URL sein — ein längerer Titel oder ein anderes Schema ergibt **400** statt einer stillschweigend veränderten Aufgabe. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` startet im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe — der Lauf startet inline, sodass die Antwort seine `runId` trägt (die zu pollende Lauf-ID; `executionId` wiederholt sie und ist veraltet), oder `runId: null`, wenn der Slug keine deployte Automatisierung benennt. Starte stattdessen explizit, wenn du den Workflow in einem eigenen Aufruf benennen willst. Die zuständige `automationSlug` muss eine bereitgestellte Automatisierung benennen, sonst lautet die Antwort **404**. Ein Workflow, der nur an andere Projekte gebunden ist, ergibt **403**.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/start" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/start" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -437,14 +452,14 @@ Zum Starten brauchst du Bearbeitungsrechte auf ein aktives Projekt und eine akti
 Melde zurück und lies den Zustand — der Kommentar erscheint als der Benutzer, der den Schlüssel erzeugt hat, ununterscheidbar von derselben Person in der App, @-Erwähnungen eingeschlossen. Projektleser einschließlich Mitgliedern dürfen eine aktive Aufgabe in einem aktiven Projekt kommentieren; eine archivierte Aufgabe verweigert den Kommentar mit **403**, `TASK_ARCHIVED`, so wie ein archiviertes Projekt mit `PROJECT_ARCHIVED`. Nach der Archivierung bleiben Aufgabe und Kommentare lesbar. Jede Aufgaben-URL wird von links nach rechts beurteilt: Ein fehlendes oder unsichtbares Projekt ergibt **404**, `PROJECT_NOT_FOUND`, und nur eine Aufgabe, die fehlt oder zu einem anderen Projekt gehört, ergibt `TASK_NOT_FOUND`.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments" \
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "body": "Filed. Confirmation 2026-8842." }'
 # → 201 { "comment": { "id": "..." } }
 
-curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
@@ -453,12 +468,12 @@ curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskI
 Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Die Diskussion kommt seitenweise, die neueste Seite zuerst (`limit`, Standard 200, höchstens 500), innerhalb der Seite chronologisch; solange `isDone` auf `false` steht, gibst du `continueCursor` unverändert als `cursor` zurück und liest die älteren Kommentare — er ist ein opakes signiertes Token, keine Zahl. Der Content-Endpoint streamt die Bytes selbst (**200**, kein Redirect, dem du folgen müsstest), benannt über eine `Content-Disposition` nach RFC 6266; ein schlichtes `curl -o` legt die Datei also ab, und `--fail-with-body` macht aus einer Ablehnung einen Exit-Code ungleich null statt einer Datei voller JSON:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments?limit=100" \
+curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments?limit=100" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "…", ... } ], "isDone": false, "continueCursor": "<opakes Token>" }
 
-curl -sS --fail-with-body "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
+curl -sS --compressed --fail-with-body "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -o report.md

@@ -26,7 +26,7 @@ To get a credential your scripts can hold, open **Settings > API > REST** and cl
 The shortest useful call lists the direct-chat models your key can use. The key travels as a bearer token; organization context follows your membership:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/models \
+curl -sS --compressed https://your-host.example.com/api/v1/models \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 

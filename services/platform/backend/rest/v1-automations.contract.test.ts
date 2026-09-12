@@ -928,6 +928,168 @@ describe('run listings', () => {
       limit: 50,
     });
   });
+
+  /**
+   * `?include=` is bounded by the API, never by the caller's data: a page
+   * ends at the last row that fits the byte budget and its cursor points
+   * there, so the walk stays complete — one such page used to move 5.5 MB
+   * inside a single request budget, and the ceiling was `limit × the
+   * largest input in the organization`.
+   */
+  describe('the inline byte budget', () => {
+    const heavy = (id: string, mb: number) => ({
+      ...runRow,
+      id,
+      startedAt: 1_700_000_000_000 - Number(id.slice(4)) * 1000,
+      input: 'x'.repeat(mb * 1024 * 1024),
+    });
+
+    it('ends an inlining page at the last row that fits and points the cursor there', async () => {
+      vi.mocked(listRunsPage).mockResolvedValue({
+        runs: [heavy('run-1', 3), heavy('run-2', 3), heavy('run-3', 3)],
+        isDone: true,
+        next: null,
+      });
+      const res = await list(`/automations/${SAVED}/runs?include=input`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.runs.map((run: { runId: string }) => run.runId)).toEqual([
+        'run-1',
+        'run-2',
+      ]);
+      expect(body.isDone).toBe(false);
+      expect(body.continueCursor).toBe(
+        mintCursorFor(
+          'org-1',
+          `runs:org:${SAVED}`,
+          formatKeysetCursor(1_700_000_000_000 - 2000, 'run-2'),
+        ),
+      );
+    });
+
+    it('still answers a single row above the budget, as a page of one', async () => {
+      vi.mocked(listRunsPage).mockResolvedValue({
+        runs: [heavy('run-1', 9), heavy('run-2', 1)],
+        isDone: true,
+        next: null,
+      });
+      const body = await (
+        await list(`/automations/${SAVED}/runs?include=input`)
+      ).json();
+      expect(body.runs.map((run: { runId: string }) => run.runId)).toEqual([
+        'run-1',
+      ]);
+      expect(body.isDone).toBe(false);
+    });
+
+    it('replaces the store’s own cursor with the cut row’s', async () => {
+      vi.mocked(listRunsPage).mockResolvedValue({
+        runs: [heavy('run-1', 5), heavy('run-2', 5), heavy('run-3', 1)],
+        isDone: false,
+        next: { at: 1_700_000_000_000 - 3000, id: 'run-3' },
+      });
+      const body = await (
+        await list(`/automations/${SAVED}/runs?include=input`)
+      ).json();
+      expect(body.runs.map((run: { runId: string }) => run.runId)).toEqual([
+        'run-1',
+      ]);
+      expect(body.continueCursor).toBe(
+        mintCursorFor(
+          'org-1',
+          `runs:org:${SAVED}`,
+          formatKeysetCursor(1_700_000_000_000 - 1000, 'run-1'),
+        ),
+      );
+    });
+
+    it('reads at most 25 rows when it inlines, whatever limit asked', async () => {
+      vi.mocked(listRunsPage).mockResolvedValue({
+        runs: [runRow],
+        isDone: true,
+        next: null,
+      });
+      await list(`/automations/${SAVED}/runs?include=output&limit=200`);
+      expect(listRunsPage).toHaveBeenLastCalledWith(
+        expect.anything(),
+        'org-1',
+        expect.objectContaining({ limit: 25 }),
+      );
+      await list(`/automations/${SAVED}/runs?limit=200`);
+      expect(listRunsPage).toHaveBeenLastCalledWith(
+        expect.anything(),
+        'org-1',
+        expect.objectContaining({ limit: 200 }),
+      );
+    });
+
+    it('never cuts a summary page — nothing heavy is inlined', async () => {
+      vi.mocked(listRunsPage).mockResolvedValue({
+        runs: [heavy('run-1', 9), heavy('run-2', 9), heavy('run-3', 9)],
+        isDone: true,
+        next: null,
+      });
+      const body = await (await list(`/automations/${SAVED}/runs`)).json();
+      expect(body.runs).toHaveLength(3);
+      expect(body.isDone).toBe(true);
+      expect(body.continueCursor).toBe('');
+    });
+  });
+});
+
+/**
+ * A run read answers the whole row — input, output, trace, checkpoints —
+ * and a poller after `status` moved all of it on every read (one run here
+ * weighed 4 MB to convey nine bytes). `?fields=` names the keys to keep.
+ */
+describe('GET /runs/{runId} with ?fields=', () => {
+  const read = (path: string) =>
+    mount().app.request(`http://localhost/api/v1${path}`);
+
+  it('answers only the keys named, in the run’s own order', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
+    const res = await read('/runs/run-1?fields=finishedAt,status');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'success',
+      finishedAt: 1_700_000_000_500,
+    });
+  });
+
+  it('answers the same projection on the project URL', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: 'p-visible' });
+    const res = await read('/projects/p-visible/runs/run-1?fields=status');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'success' });
+  });
+
+  it('answers the whole run when no fields are named', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
+    expect(await (await read('/runs/run-1')).json()).toEqual(runRow);
+  });
+
+  it('refuses a key the run does not have, naming it', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
+    const res = await read('/runs/run-1?fields=status,bogus');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'fields' }] },
+    });
+    expect(getRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a blank member, so a trailing comma is not a silent no-op', async () => {
+    const res = await read('/runs/run-1?fields=status,');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+
+  it('still refuses a query parameter the read does not take', async () => {
+    const res = await read('/runs/run-1?include=input');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
 });
 
 /**
