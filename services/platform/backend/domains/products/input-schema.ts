@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { boundedJsonObject } from '../../../lib/shared/utils/json-bounds.ts';
+import { isHttpUrl } from '../../../lib/utils/url.ts';
 import {
+  isIso4217Currency,
   PRODUCT_CATEGORY_MAX,
-  PRODUCT_CURRENCY_MAX,
   PRODUCT_DESCRIPTION_MAX,
   PRODUCT_IMAGE_URL_MAX,
   PRODUCT_NAME_MAX,
@@ -18,6 +20,12 @@ import { PRODUCT_STATUSES } from './service.ts';
  * `stock` and `price` are bounded to the IEEE-754 safe range: a magnitude
  * beyond it is rounded by `JSON.parse` before any schema sees it, and a
  * rounded stock count or price stored with a 201 is silent corruption.
+ *
+ * Every free-text field is trimmed (`category` used to keep its padding
+ * while `name` lost it), every optional field takes `null` to clear it,
+ * `currency` is an ISO 4217 code stored uppercase, `imageUrl` an absolute
+ * http(s) URL (a stored `javascript:` URL is a stored-XSS vector for any
+ * surface that renders it), and `metadata` is a bounded free-form object.
  */
 
 export const PRODUCT_TAG_MAX = 60;
@@ -29,23 +37,52 @@ const safeMagnitude = z
   .min(-Number.MAX_SAFE_INTEGER)
   .max(Number.MAX_SAFE_INTEGER);
 
-export const productNameSchema = z.string().min(1).max(PRODUCT_NAME_MAX);
+export const productNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'must not be blank')
+  .max(PRODUCT_NAME_MAX);
+
+/** An ISO 4217 code — any case in, uppercase out. */
+export const productCurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, 'must be a three-letter ISO 4217 currency code')
+  .refine(isIso4217Currency, 'is not an ISO 4217 currency code');
+
+export const productImageUrlSchema = z
+  .string()
+  .trim()
+  .max(PRODUCT_IMAGE_URL_MAX)
+  .refine(isHttpUrl, 'must be an absolute http(s) URL');
 
 export const productFieldsShape = {
   name: productNameSchema.optional(),
-  description: z.string().max(PRODUCT_DESCRIPTION_MAX).optional(),
-  imageUrl: z.string().max(PRODUCT_IMAGE_URL_MAX).optional(),
-  stock: safeMagnitude.optional(),
-  price: safeMagnitude.optional(),
-  currency: z.string().max(PRODUCT_CURRENCY_MAX).optional(),
-  category: z.string().max(PRODUCT_CATEGORY_MAX).optional(),
-  tags: z
-    .array(z.string().max(PRODUCT_TAG_MAX))
-    .max(PRODUCT_TAGS_MAX)
+  description: z
+    .string()
+    .trim()
+    .max(PRODUCT_DESCRIPTION_MAX)
+    .nullable()
     .optional(),
-  status: z.enum(PRODUCT_STATUSES).optional(),
-  externalId: z.string().max(PRODUCT_EXTERNAL_ID_MAX).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  imageUrl: productImageUrlSchema.nullable().optional(),
+  stock: safeMagnitude.nullable().optional(),
+  price: safeMagnitude.nullable().optional(),
+  currency: productCurrencySchema.nullable().optional(),
+  category: z.string().trim().max(PRODUCT_CATEGORY_MAX).nullable().optional(),
+  tags: z
+    .array(z.string().trim().max(PRODUCT_TAG_MAX))
+    .max(PRODUCT_TAGS_MAX)
+    .nullable()
+    .optional(),
+  status: z.enum(PRODUCT_STATUSES).nullable().optional(),
+  externalId: z
+    .string()
+    .trim()
+    .max(PRODUCT_EXTERNAL_ID_MAX)
+    .nullable()
+    .optional(),
+  metadata: boundedJsonObject().nullable().optional(),
 };
 
 /** The REST door's shape: every field optional, unknown keys refused. */

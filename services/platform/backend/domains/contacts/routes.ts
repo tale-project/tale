@@ -33,7 +33,12 @@ const sourceSchema = z.enum(CONTACT_SOURCES);
  * adapters expect; the REST door composes the same shape strict. */
 const contactInputSchema = z.object({
   ...contactFieldsShape,
-  externalId: z.string().max(CONTACT_EXTERNAL_ID_MAX).optional(),
+  externalId: z
+    .string()
+    .trim()
+    .max(CONTACT_EXTERNAL_ID_MAX)
+    .nullable()
+    .optional(),
   source: sourceSchema,
 });
 

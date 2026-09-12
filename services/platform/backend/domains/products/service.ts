@@ -1,6 +1,14 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
+import {
+  PRODUCT_CATEGORY_MAX,
+  PRODUCT_CURRENCY_MAX,
+  PRODUCT_DESCRIPTION_MAX,
+  PRODUCT_IMAGE_URL_MAX,
+  PRODUCT_NAME_MAX,
+} from '../../core/products/field_limits.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -10,14 +18,10 @@ import { createAuditLog } from '../audit_logs/service.ts';
  * slug), so per-org case-insensitive uniqueness is a real expression index
  * in 0.5 (the 0.4 full-table probe dies); the probe remains only for the
  * friendly `DUPLICATE_PRODUCT_NAME` error. Role gate = the `products` matrix
- * row. REST/connector ingest lanes land with the machine door.
+ * row. REST/connector ingest lanes land with the machine door. The field
+ * caps are `core/products/field_limits.ts`'s — the one source the doors,
+ * the dialogs and the OpenAPI document read too.
  */
-
-export const PRODUCT_NAME_MAX = 255;
-export const PRODUCT_DESCRIPTION_MAX = 4000;
-export const PRODUCT_CATEGORY_MAX = 100;
-export const PRODUCT_CURRENCY_MAX = 3;
-export const PRODUCT_IMAGE_URL_MAX = 2048;
 
 export const PRODUCT_STATUSES = [
   'active',
@@ -95,18 +99,28 @@ const PRODUCT_COLUMNS = `
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
+/** A product write. `null` clears an optional field — the one clearing
+ * rule both doors speak; `undefined` leaves it alone on an update and
+ * unset on a create. */
 export interface ProductInput {
   name: string;
-  description?: string;
-  imageUrl?: string;
-  stock?: number;
-  price?: number;
-  currency?: string;
-  category?: string;
-  tags?: string[];
-  status?: ProductStatus;
-  externalId?: string;
-  metadata?: Record<string, unknown>;
+  description?: string | null;
+  imageUrl?: string | null;
+  stock?: number | null;
+  price?: number | null;
+  currency?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  status?: ProductStatus | null;
+  externalId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+/** A free-text field as the catalog stores it: trimmed, and null when
+ * blank or cleared — a blank is never stored as `""`. */
+function textOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
 }
 
 function validateProductFields(input: Partial<ProductInput>): void {
@@ -122,9 +136,11 @@ function validateProductFields(input: Partial<ProductInput>): void {
     throw new ProductError('PRODUCT_FIELDS_INVALID', 'Invalid product fields');
   }
   // The column's CHECK constraint used to be the only guard: a status
-  // outside the vocabulary reached Postgres and surfaced as a 500.
+  // outside the vocabulary reached Postgres and surfaced as a 500. A
+  // `null` status clears the column, so it is not a vocabulary miss.
   if (
     input.status !== undefined &&
+    input.status !== null &&
     !(PRODUCT_STATUSES as readonly string[]).includes(input.status)
   ) {
     throw new ProductError(
@@ -194,8 +210,9 @@ export async function createProduct(
   validateProductFields(input);
   const name = input.name.trim();
   await assertUniqueName(tx, scope.organizationId, name);
-  if (input.externalId !== undefined && input.externalId !== '') {
-    await assertUniqueExternalId(tx, scope.organizationId, input.externalId);
+  const externalId = textOrNull(input.externalId);
+  if (externalId !== null) {
+    await assertUniqueExternalId(tx, scope.organizationId, externalId);
   }
   const now = Date.now();
   const rows = await tx<{ id: string }[]>`
@@ -204,18 +221,18 @@ export async function createProduct(
       category, tags, status, external_id, metadata, created_at_ms,
       updated_at_ms
     ) VALUES (
-      ${scope.organizationId}, ${name}, ${input.description ?? null},
-      ${input.imageUrl ?? null}, ${input.stock ?? null}, ${input.price ?? null},
-      ${input.currency ?? null}, ${input.category ?? null}, ${input.tags ?? []},
-      ${input.status ?? null}, ${input.externalId ?? null},
-      ${input.metadata === undefined ? null : tx.json(toJson(input.metadata))},
+      ${scope.organizationId}, ${name}, ${textOrNull(input.description)},
+      ${textOrNull(input.imageUrl)}, ${input.stock ?? null}, ${input.price ?? null},
+      ${textOrNull(input.currency)}, ${textOrNull(input.category)}, ${input.tags ?? []},
+      ${input.status ?? null}, ${externalId},
+      ${input.metadata == null ? null : tx.json(toJson(input.metadata))},
       ${now}, ${now}
     )
     RETURNING id
   `;
   const id = rows[0]?.id;
   if (!id) {
-    throw new ProductError('PRODUCT_CREATE_FAILED', 'Insert failed');
+    throw new Error('PRODUCT_CREATE_FAILED: the insert answered no row');
   }
   await createAuditLog(tx, {
     organizationId: scope.organizationId,
@@ -291,13 +308,12 @@ export async function updateProduct(
     await assertUniqueName(tx, scope.organizationId, name, productId);
   }
   // The patch used to drop `externalId` on the floor — the connector key a
-  // caller sent was neither written nor checked.
+  // caller sent was neither written nor checked. `null` (or a blank)
+  // clears it, like every optional field.
   const externalId =
     patch.externalId === undefined
       ? product.externalId
-      : patch.externalId === ''
-        ? null
-        : patch.externalId;
+      : textOrNull(patch.externalId);
   if (externalId !== null && externalId !== product.externalId) {
     await assertUniqueExternalId(
       tx,
@@ -306,19 +322,33 @@ export async function updateProduct(
       productId,
     );
   }
+  // `metadata` is a bag of attributes and merges per RFC 7396 — sent keys
+  // are set, omitted keys stay, a key sent as `null` is removed, and the
+  // whole field sent as `null` clears it. Adding one key used to wipe
+  // every other.
+  const metadata =
+    patch.metadata === undefined
+      ? product.metadata
+      : patch.metadata === null
+        ? null
+        : applyJsonMergePatch(product.metadata, patch.metadata);
+  const text = (
+    current: string | null,
+    next: string | null | undefined,
+  ): string | null => (next === undefined ? current : textOrNull(next));
   await tx`
     UPDATE app.products SET
       name = ${name},
-      description = ${patch.description === undefined ? product.description : patch.description},
-      image_url = ${patch.imageUrl === undefined ? product.imageUrl : patch.imageUrl},
+      description = ${text(product.description, patch.description)},
+      image_url = ${text(product.imageUrl, patch.imageUrl)},
       stock = ${patch.stock === undefined ? product.stock : patch.stock},
       price = ${patch.price === undefined ? product.price : patch.price},
-      currency = ${patch.currency === undefined ? product.currency : patch.currency},
-      category = ${patch.category === undefined ? product.category : patch.category},
-      tags = ${patch.tags ?? product.tags},
+      currency = ${text(product.currency, patch.currency)},
+      category = ${text(product.category, patch.category)},
+      tags = ${patch.tags === undefined ? product.tags : (patch.tags ?? [])},
       status = ${patch.status === undefined ? product.status : patch.status},
       external_id = ${externalId},
-      metadata = ${patch.metadata === undefined ? (product.metadata === null ? null : tx.json(toJson(product.metadata))) : tx.json(toJson(patch.metadata))},
+      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
       updated_at_ms = ${Math.max(Date.now(), product.updatedAt + 1)}
     WHERE id = ${productId}
   `;

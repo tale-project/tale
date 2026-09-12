@@ -2,7 +2,7 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RestEnv } from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
@@ -23,6 +23,12 @@ vi.mock('../domains/contacts/service.ts', async (importOriginal) => {
   return {
     ...actual,
     createContact: vi.fn(async () => 'c-new'),
+    bulkCreateContacts: vi.fn(async () => ({
+      success: 0,
+      failed: 0,
+      created: [],
+      errors: [],
+    })),
     updateContact: vi.fn(async () => undefined),
     getContact: vi.fn(async () => ({
       id: 'c-1',
@@ -44,9 +50,10 @@ vi.mock('../domains/products/service.ts', async (importOriginal) => {
   };
 });
 
-const { createContact, updateContact } =
+const { bulkCreateContacts, createContact, updateContact } =
   await import('../domains/contacts/service.ts');
-const { updateProduct } = await import('../domains/products/service.ts');
+const { createProduct, updateProduct } =
+  await import('../domains/products/service.ts');
 
 function fakeSql(): Sql {
   const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
@@ -231,5 +238,282 @@ describe('product bodies', () => {
       description: 'guarded',
       expectedUpdatedAt: 1_700_000_000_000,
     });
+  });
+});
+
+/** The 400 envelope's issues for a body the route refuses. */
+async function refused(
+  route: string,
+  method: string,
+  body: unknown,
+): Promise<{ path: string; message: string }[]> {
+  const res = await send(route, method, body);
+  expect(res.status).toBe(400);
+  const payload = (await res.json()) as {
+    code: string;
+    data: { issues: { path: string; message: string }[] };
+  };
+  expect(payload.code).toBe('INVALID_BODY');
+  return payload.data.issues;
+}
+
+/** `levels` nested objects under one key: `nest(2)` is `{a: {a: {}}}`. */
+function nest(levels: number): Record<string, unknown> {
+  let value: Record<string, unknown> = {};
+  for (let index = 0; index < levels; index += 1) value = { a: value };
+  return value;
+}
+
+function keyed(count: number): Record<string, number> {
+  return Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [`k${index}`, index]),
+  );
+}
+
+/**
+ * The one clearing rule. The regression under test: `null` was refused on
+ * every optional field, while `""` on PATCH was a silent no-op on `phone`
+ * and `email`, cleared `externalId` and was stored as `""` on `notes` — so
+ * an integrator erasing a phone got a 200 and the stale number stayed.
+ */
+describe('the clearing rule: null clears, a blank on PATCH reads as null', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes null through to the update for every optional contact field', async () => {
+    const res = await send('/contacts/c-1', 'PATCH', {
+      phone: null,
+      email: null,
+      address: null,
+      metadata: null,
+      tags: null,
+      notes: null,
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(updateContact).mock.calls.at(-1)?.[3]).toMatchObject({
+      phone: null,
+      email: null,
+      address: null,
+      metadata: null,
+      tags: null,
+      notes: null,
+    });
+  });
+
+  it('reads a blank string on PATCH as null on every clearable field', async () => {
+    const res = await send('/contacts/c-1', 'PATCH', {
+      phone: '',
+      email: '  ',
+      notes: '   ',
+      metadata: '',
+      externalId: '',
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(updateContact).mock.calls.at(-1)?.[3]).toMatchObject({
+      phone: null,
+      email: null,
+      notes: null,
+      metadata: null,
+      externalId: null,
+    });
+  });
+
+  it('clears product fields sent as null or blank, never a blank inside metadata', async () => {
+    const res = await send('/products/p-1', 'PATCH', {
+      price: null,
+      currency: '',
+      status: null,
+      metadata: { note: '' },
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(updateProduct).mock.calls.at(-1)?.[3]).toEqual({
+      price: null,
+      currency: null,
+      status: null,
+      metadata: { note: '' },
+    });
+  });
+
+  it('refuses a blank required field on PATCH by name instead of clearing it', async () => {
+    expect(await refused('/products/p-1', 'PATCH', { name: '   ' })).toEqual([
+      { path: 'name', message: 'must not be blank' },
+    ]);
+    expect(vi.mocked(updateProduct)).not.toHaveBeenCalled();
+  });
+
+  it('drops a blank optional field on create and on every bulk row', async () => {
+    const created = await send('/contacts', 'POST', {
+      name: 'Ada',
+      phone: '',
+      notes: '  ',
+      email: '',
+    });
+    expect(created.status).toBe(201);
+    const input = vi.mocked(createContact).mock.calls.at(-1)?.[2];
+    expect(input).toMatchObject({ name: 'Ada', source: 'api_import' });
+    expect(input).not.toHaveProperty('phone');
+    expect(input).not.toHaveProperty('notes');
+    expect(input).not.toHaveProperty('email');
+
+    const bulk = await send('/contacts/bulk', 'POST', {
+      contacts: [{ email: 'a@example.com', phone: '' }],
+    });
+    expect(bulk.status).toBe(201);
+    expect(vi.mocked(bulkCreateContacts).mock.calls.at(-1)?.[2]).toEqual([
+      { email: 'a@example.com' },
+    ]);
+  });
+
+  it('refuses a blank product name on create and names a missing one as required', async () => {
+    expect(await refused('/products', 'POST', { name: ' ' })).toEqual([
+      { path: 'name', message: 'must not be blank' },
+    ]);
+    expect(await refused('/products', 'POST', { category: 'x' })).toEqual([
+      { path: 'name', message: 'is required' },
+    ]);
+    expect(vi.mocked(createProduct)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Normalization is one rule for every free-text field, and the two typed
+ * product fields are typed. The regressions under test: `category` kept
+ * its padding while `name` lost it; `currency` accepted `ZZZ`, `123` and
+ * `$`; `imageUrl` accepted `javascript:alert(1)`; a 300-character email
+ * local part passed.
+ */
+describe('normalization and the typed product fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('trims free text, stores the email lowercase and the currency uppercase', async () => {
+    const contact = await send('/contacts', 'POST', {
+      name: '  Ada  Lovelace  ',
+      email: ' Ada.Lovelace+TAG@Example.COM ',
+      phone: ' +1 555 ',
+      tags: [' vip '],
+    });
+    expect(contact.status).toBe(201);
+    expect(vi.mocked(createContact).mock.calls.at(-1)?.[2]).toMatchObject({
+      name: 'Ada  Lovelace',
+      email: 'ada.lovelace+tag@example.com',
+      phone: '+1 555',
+      tags: ['vip'],
+    });
+
+    const product = await send('/products', 'POST', {
+      name: '  Widget ',
+      category: '  Gadgets  ',
+      currency: 'usd',
+      imageUrl: ' https://cdn.example/w.png ',
+    });
+    expect(product.status).toBe(201);
+    expect(vi.mocked(createProduct).mock.calls.at(-1)?.[2]).toEqual({
+      name: 'Widget',
+      category: 'Gadgets',
+      currency: 'USD',
+      imageUrl: 'https://cdn.example/w.png',
+    });
+  });
+
+  it('caps the email local part at 64 characters', async () => {
+    const ok = await send('/contacts', 'POST', {
+      email: `${'x'.repeat(64)}@example.invalid`,
+    });
+    expect(ok.status).toBe(201);
+    expect(
+      await refused('/contacts', 'POST', {
+        email: `${'x'.repeat(65)}@example.invalid`,
+      }),
+    ).toEqual([{ path: 'email', message: expect.stringContaining('64') }]);
+  });
+
+  it.each(['ZZZ', '123', '$', 'US', 'usdd'])(
+    'refuses currency %j as not an ISO 4217 code',
+    async (currency) => {
+      const issues = await refused('/products', 'POST', {
+        name: 'Widget',
+        currency,
+      });
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues.every((issue) => issue.path === 'currency')).toBe(true);
+    },
+  );
+
+  it.each([
+    'javascript:alert(1)',
+    'not a url at all',
+    'ftp://cdn.example/w.png',
+    '//cdn.example/w.png',
+  ])('refuses imageUrl %j as not an absolute http(s) URL', async (imageUrl) => {
+    expect(
+      await refused('/products', 'POST', { name: 'Widget', imageUrl }),
+    ).toEqual([
+      { path: 'imageUrl', message: 'must be an absolute http(s) URL' },
+    ]);
+  });
+});
+
+/**
+ * The free-form object fields are bounded. The regression under test:
+ * `metadata` and `address` were `record<string, unknown>` with no cap, so
+ * a 5 MB blob and a hundred-level nesting were stored with a 201.
+ */
+describe('free-form object bounds', () => {
+  const baseFor = (route: string, method: string): Record<string, unknown> => {
+    if (method !== 'POST') return {};
+    if (route === '/products') return { name: 'Widget' };
+    if (route === '/documents') return { title: 'Doc' };
+    return { name: 'Ada' };
+  };
+
+  it.each([
+    ['/contacts', 'POST', 'metadata'],
+    ['/contacts', 'POST', 'address'],
+    ['/contacts/c-1', 'PATCH', 'address'],
+    ['/products', 'POST', 'metadata'],
+    ['/products/p-1', 'PATCH', 'metadata'],
+    ['/documents', 'POST', 'metadata'],
+    ['/documents/d-1', 'PATCH', 'metadata'],
+  ])(
+    '%s %s refuses a %s past the depth, key and byte bounds, by path',
+    async (route, method, field) => {
+      const base = baseFor(route, method);
+      expect(
+        await refused(route, method, { ...base, [field]: nest(9) }),
+      ).toEqual([
+        {
+          path: `${field}.${Array.from({ length: 9 }, () => 'a').join('.')}`,
+          message: 'is nested deeper than 8 levels',
+        },
+      ]);
+      expect(
+        await refused(route, method, { ...base, [field]: keyed(501) }),
+      ).toEqual([
+        { path: field, message: 'holds more than 500 keys in total' },
+      ]);
+      expect(
+        await refused(route, method, {
+          ...base,
+          [field]: { blob: 'x'.repeat(65_536) },
+        }),
+      ).toEqual([
+        {
+          path: field,
+          message: expect.stringContaining('exceeds 64 KiB of JSON'),
+        },
+      ]);
+    },
+  );
+
+  it('accepts a value inside every bound', async () => {
+    const res = await send('/contacts', 'POST', {
+      name: 'Ada',
+      metadata: nest(8),
+      address: keyed(500),
+    });
+    expect(res.status).toBe(201);
   });
 });

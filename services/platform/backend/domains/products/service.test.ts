@@ -140,3 +140,104 @@ describe('product external id uniqueness', () => {
     expect(update?.values).toContain('sku-2');
   });
 });
+
+/**
+ * The product update's editing vocabulary. The regressions under test:
+ * `metadata` was replaced whole (adding one key wiped every other); `null`
+ * was refused so no spelling cleared a field, and a `null` status tripped
+ * the vocabulary check; `tags: null` kept the stored list.
+ */
+describe('product update — merge and the clearing rule', () => {
+  /** The UPDATE's bound values, by column order of the statement. */
+  const UPDATE = {
+    description: 1,
+    imageUrl: 2,
+    currency: 5,
+    category: 6,
+    tags: 7,
+    status: 8,
+    externalId: 9,
+    metadata: 10,
+  } as const;
+  const stored = {
+    ...product,
+    description: 'A widget',
+    currency: 'EUR',
+    tags: ['a'],
+    metadata: { a: 1, keep: true, nested: { x: 1 } },
+  };
+
+  async function update(patch: Parameters<typeof updateProduct>[3]) {
+    const { sql, statements } = recordingSql((text) =>
+      text.includes('FROM app.products WHERE id = ?') ? [stored] : [],
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateProduct(sql as never, scope, 'p-1', patch);
+    const written = statements.find((s) =>
+      s.text.startsWith('UPDATE app.products'),
+    );
+    if (written === undefined) throw new Error('no UPDATE ran');
+    return written.values;
+  }
+
+  it('merges metadata per RFC 7396 and keeps every other column', async () => {
+    const values = await update({
+      metadata: { b: 2, a: null, nested: { y: 2 } },
+    });
+    expect(values[UPDATE.metadata]).toEqual({
+      keep: true,
+      nested: { x: 1, y: 2 },
+      b: 2,
+    });
+    expect(values[UPDATE.description]).toBe('A widget');
+    expect(values[UPDATE.tags]).toEqual(['a']);
+  });
+
+  it('clears every optional field sent as null, status included', async () => {
+    const values = await update({
+      description: null,
+      imageUrl: null,
+      currency: null,
+      category: null,
+      tags: null,
+      status: null,
+      externalId: null,
+      metadata: null,
+    });
+    expect(values[UPDATE.description]).toBeNull();
+    expect(values[UPDATE.imageUrl]).toBeNull();
+    expect(values[UPDATE.currency]).toBeNull();
+    expect(values[UPDATE.category]).toBeNull();
+    expect(values[UPDATE.tags]).toEqual([]);
+    expect(values[UPDATE.status]).toBeNull();
+    expect(values[UPDATE.externalId]).toBeNull();
+    expect(values[UPDATE.metadata]).toBeNull();
+  });
+
+  it('reads a blank as null and trims free text', async () => {
+    const values = await update({ description: '   ', category: ' Tools ' });
+    expect(values[UPDATE.description]).toBeNull();
+    expect(values[UPDATE.category]).toBe('Tools');
+  });
+
+  it('creates with cleared optional fields without probing the external id', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('INSERT INTO app.products') ? [{ id: 'p-new' }] : [],
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    const id = await createProduct(sql as never, scope, {
+      name: 'Gadget',
+      externalId: null,
+      metadata: null,
+      description: '  ',
+    });
+    expect(id).toBe('p-new');
+    expect(statements.some((s) => s.text.includes('product-ext:'))).toBe(false);
+    const insert = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.products'),
+    );
+    expect(insert?.values).toEqual(
+      expect.arrayContaining(['org-1', 'Gadget', null]),
+    );
+  });
+});

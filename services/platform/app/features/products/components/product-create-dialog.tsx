@@ -19,6 +19,7 @@ import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import {
+  isIso4217Currency,
   PRODUCT_CATEGORY_MAX,
   PRODUCT_CURRENCY_MAX,
   PRODUCT_DESCRIPTION_MAX,
@@ -121,13 +122,16 @@ export function ProductCreateDialog({
         ),
         stock: z.string(),
         price: z.string(),
-        currency: z.string().max(
-          PRODUCT_CURRENCY_MAX,
-          tCommon('validation.maxLength', {
-            field: tProducts('edit.labels.currency'),
-            max: PRODUCT_CURRENCY_MAX,
-          }),
-        ),
+        // The door's rule, mirrored: an ISO 4217 code in any case (sent
+        // uppercase), or nothing.
+        currency: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .refine(
+            (value) => value === '' || isIso4217Currency(value),
+            tProducts('edit.validation.currency'),
+          ),
         category: z.string().max(
           PRODUCT_CATEGORY_MAX,
           tCommon('validation.maxLength', {

@@ -4717,6 +4717,8 @@ products:
     imageTooLarge: L'image est trop volumineuse (max. 5 Mo).
     imageUploadFailed: Échec du téléversement de l'image. Réessaie.
     currencyPlaceholder: EUR
+    validation:
+      currency: Saisis un code devise ISO 4217 à trois lettres (par exemple EUR ou USD)
     labels:
       name: Nom du produit
       description: Description
