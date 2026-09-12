@@ -39,7 +39,7 @@ vi.mock('@/app/features/organization/hooks/queries', () => ({
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
   management: 'Run & trigger management',
-  capability: 'Skills & knowledge',
+  capability: 'Capabilities & knowledge',
 };
 
 describe('McpEndpointSection', () => {

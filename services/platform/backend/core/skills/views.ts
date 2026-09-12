@@ -30,6 +30,15 @@ export interface SkillSummaryView {
   disableModelInvocation?: boolean;
   /** Whether the asking member may change this bundle. */
   canEdit: boolean;
+  /**
+   * The strong entity tag of the bundle's `SKILL.md` — the quoted SHA-256
+   * of its content, the value a conditional save sends back as `If-Match`.
+   * Moves with every save of the document; the bundle's other files never
+   * move it.
+   */
+  etag: string;
+  /** When `SKILL.md` was last written, epoch milliseconds. */
+  updatedAt: number;
 }
 
 /** One bundle file named without its bytes, for the detail file tree. */

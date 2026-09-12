@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
+  API_DELIVERY_STATUSES,
   apiDeliveryFailureSchema,
   apiExternalIdSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
@@ -15,6 +15,8 @@ import {
   apiSourceSchema,
   claimApiDeliveries,
   failApiDelivery,
+  listApiDeliveries,
+  retryApiDeliveryForSource,
   synchronizeConversation,
 } from '../domains/conversations/api-sync.ts';
 import {
@@ -32,11 +34,17 @@ import { recordUploadIntent } from '../domains/files/upload-intents.ts';
 import {
   chargeLane,
   domainErrorResponse,
+  formatKeysetCursor,
+  mintCursor,
   noQuery,
   notFound,
+  PAGE_QUERY,
   parseBody,
+  readKeysetCursor,
+  readPageLimit,
   readQuery,
   type RestEnv,
+  restBodyLimit,
 } from './shared.ts';
 
 /** Org-explicit, key-holder-owned external Inbox sources. No email side effects. */
@@ -88,24 +96,81 @@ export function createConversationRestRoutes(deps: {
       return domainErrorResponse(c, error);
     }
   });
-  app.post(
-    '/conversations/sync',
-    bodyLimit({ maxSize: SYNC_BODY_BYTES }),
-    async (c) => {
-      const body = await parseBody(c, apiSnapshotSchema, {
-        maxBytes: SYNC_BODY_BYTES,
+  app.post('/conversations/sync', restBodyLimit(SYNC_BODY_BYTES), async (c) => {
+    const body = await parseBody(c, apiSnapshotSchema, {
+      maxBytes: SYNC_BODY_BYTES,
+    });
+    if (body instanceof Response) return body;
+    try {
+      return c.json(await synchronizeConversation(deps.sql, viewer(c), body));
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+  /**
+   * The queue without claiming it: the rows a source's consumer would
+   * otherwise learn about only by taking a lease on them. Keyset-paginated
+   * in claim order (`retryAt`, `messageId`); the cursor is signed under the
+   * source, so one source's page never redeems on another's.
+   */
+  app.get('/conversations/deliveries', async (c) => {
+    const query = readQuery(c, {
+      source: apiSourceSchema,
+      status: z.enum(API_DELIVERY_STATUSES).optional(),
+      ...PAGE_QUERY,
+    });
+    if (query instanceof Response) return query;
+    const list = `conversation-deliveries:${query.source}`;
+    const cursor = readKeysetCursor(c, list);
+    if (cursor instanceof Response) return cursor;
+    const limit = readPageLimit(c, { fallback: 50, max: 200 });
+    if (limit instanceof Response) return limit;
+    try {
+      const result = await listApiDeliveries(
+        deps.sql,
+        viewer(c),
+        query.source,
+        {
+          ...(query.status === undefined ? {} : { status: query.status }),
+          cursor,
+          limit,
+        },
+      );
+      return c.json({
+        deliveries: result.deliveries,
+        isDone: result.nextCursor === null,
+        continueCursor:
+          result.nextCursor === null
+            ? ''
+            : mintCursor(
+                c,
+                list,
+                formatKeysetCursor(result.nextCursor.at, result.nextCursor.id),
+              ),
       });
-      if (body instanceof Response) return body;
-      try {
-        return c.json(await synchronizeConversation(deps.sql, viewer(c), body));
-      } catch (error) {
-        return domainErrorResponse(c, error);
-      }
-    },
-  );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+  /** Re-drive a dead-lettered delivery — the Inbox's Retry, for the
+   * source's own consumer. No body. */
+  app.post('/conversations/deliveries/:id/retry', async (c) => {
+    try {
+      return c.json(
+        await retryApiDeliveryForSource(
+          deps.sql,
+          viewer(c),
+          c.req.param('id'),
+          c.get('userEmail'),
+        ),
+      );
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
   app.post(
     '/conversations/deliveries/claim',
-    bodyLimit({ maxSize: 64 * 1024 }),
+    restBodyLimit(64 * 1024),
     async (c) => {
       const body = await parseBody(
         c,
@@ -131,7 +196,7 @@ export function createConversationRestRoutes(deps: {
   );
   app.post(
     '/conversations/deliveries/:id/fail',
-    bodyLimit({ maxSize: 64 * 1024 }),
+    restBodyLimit(64 * 1024),
     async (c) => {
       const body = await parseBody(c, apiDeliveryFailureSchema);
       if (body instanceof Response) return body;
@@ -146,7 +211,7 @@ export function createConversationRestRoutes(deps: {
   );
   app.post(
     '/conversations/deliveries/:id/ack',
-    bodyLimit({ maxSize: 64 * 1024 }),
+    restBodyLimit(64 * 1024),
     async (c) => {
       const body = await parseBody(
         c,

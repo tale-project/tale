@@ -31,6 +31,7 @@ const LISTED = {
   domain: 'youtube.com',
   label: 'Session A',
   status: 'healthy',
+  createdAt: 1_699_000_000_000,
   expiresAt: 1_700_000_000_000,
   lastUsedAt: null,
   failureCount: 0,
@@ -111,6 +112,9 @@ describe('GET /browser-sessions', () => {
       q.text.includes('FROM app.browser_sessions'),
     );
     expect(listing?.values).toEqual(['org-1']);
+    // The import time is projected (G-07c): a session names when it was
+    // added, not only when it expires.
+    expect(listing?.text).toContain('created_at_ms::float8 AS "createdAt"');
     expect(listing?.text).not.toContain('cookies_encrypted');
   });
 });

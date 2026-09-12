@@ -426,7 +426,8 @@ export function skillBodyByteLength(body: string): number {
  * is not here: each door picks its own enum ({@link SKILL_EDIT_VISIBILITIES}
  * for the REST door; the app editor may still re-send `private` to keep a
  * pre-existing private bundle). `icon` and `labels` take `null` to clear;
- * an omitted field keeps its stored value.
+ * an omitted field keeps its stored value, `disableModelInvocation`
+ * included — `true` sets the flag, `false` drops it from the file.
  */
 export const skillEditFields = {
   description: z.string().min(1).max(MAX_SKILL_DESCRIPTION_LENGTH),
@@ -445,4 +446,5 @@ export const skillEditFields = {
     .max(MAX_SKILL_LABELS)
     .nullable()
     .optional(),
+  disableModelInvocation: z.boolean().optional(),
 };

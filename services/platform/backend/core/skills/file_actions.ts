@@ -1,6 +1,12 @@
 'use node';
 
 import {
+  type EntityTagList,
+  ifMatchHolds,
+  ifNoneMatchHolds,
+  parseEntityTag,
+} from '@tale/shared/http/entity-tag';
+import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
@@ -9,8 +15,9 @@ import {
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   listOrgSkills,
-  readOrgSkill,
   type OrgSkill,
+  readOrgSkill,
+  skillEntityTag,
 } from '../../../lib/skills/listing';
 import {
   parseSkillMd,
@@ -27,16 +34,18 @@ import { type ParsedBundle } from './bundle_zip';
 import {
   createOrgSkillReader,
   listSkillBundleFileEntries,
-  readSkillBundleAsset,
+  readSkillBundleAssetBytes,
   readSkillBundleFiles,
   removeSkillBundle,
   resolveSkillMdPath,
   SKILL_DOCUMENT_NAME,
+  SkillBundleError,
+  skillBundleDirExists,
   SKILLS_CONFIG_DOMAIN,
   writeSkillMdText,
+  resolveSkillDir,
 } from './file_utils';
 import {
-  type SkillBundleFileView,
   type SkillBundleView,
   type SkillDocumentView,
   type SkillListingView,
@@ -60,6 +69,8 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
     labels: meta.labels,
     disableModelInvocation: meta.disableModelInvocation,
     canEdit: canEditSkill(meta, viewer),
+    etag: skill.etag,
+    updatedAt: skill.updatedAt,
   };
 }
 
@@ -86,6 +97,113 @@ function assertUserViewer(viewer: SkillViewer): UserSkillViewer {
 }
 
 /**
+ * A bundle read that turns the file layer's refusals — a planted symlink,
+ * a file over the staging cap, a walk past the file cap — into the
+ * bundle's own coded refusal, `SKILL_MALFORMED`, naming the offending
+ * entry org-relative. The absolute path stays in the server log where the
+ * operator reads it; a client that could reach it would learn the server's
+ * layout, and a client that got a 500 would page someone for a bundle
+ * only its owner can fix.
+ */
+async function bundleRead<T>(
+  orgSlug: string,
+  slug: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await work();
+  } catch (err) {
+    if (!(err instanceof SkillBundleError)) throw err;
+    console.error(`[skills] ${orgSlug}: ${err.message}`);
+    const entry =
+      err.relPath === ''
+        ? `${SKILLS_CONFIG_DOMAIN}/${slug}`
+        : `${SKILLS_CONFIG_DOMAIN}/${slug}/${err.relPath}`;
+    throw new AppError({
+      code: 'SKILL_MALFORMED',
+      message: `${entry} could not be read: ${err.detail}`,
+    });
+  }
+}
+
+/**
+ * The conditional-request preconditions a write carries (RFC 9110 §13.1.1
+ * and §13.1.2), already parsed by the door and evaluated HERE — under the
+ * caller's writer lock, against the document the write would replace — so
+ * the check and the write are one critical section: two racing conditional
+ * saves cannot both find the tag they were given still current.
+ */
+export interface SkillWritePrecondition {
+  /**
+   * `If-Match`: proceed only when the stored `SKILL.md` strongly matches
+   * one of the tags — `*`, only when one is stored at all. A weak tag
+   * never matches; a malformed value matches nothing.
+   */
+  ifMatch?: EntityTagList;
+  /**
+   * `If-None-Match`: proceed only when no stored `SKILL.md` weakly matches
+   * any of the tags — `*`, only when nothing is stored (a pure create). A
+   * malformed value matches nothing, so the write goes ahead.
+   */
+  ifNoneMatch?: EntityTagList;
+}
+
+/** What a precondition is evaluated against: whether the slug holds a
+ * bundle at all, and the tag of its readable `SKILL.md` when it has one. */
+interface CurrentSkillState {
+  readonly exists: boolean;
+  readonly etag: string | null;
+}
+
+/**
+ * Evaluate a write's preconditions in the order §13.2.2 prescribes —
+ * `If-Match` first, then `If-None-Match` — and refuse with 412 when one
+ * fails, nothing written. Both refusals carry the current tag under
+ * `data.etag` (`null` when nothing is stored) so a client can reload and
+ * merge without a second round trip.
+ */
+function assertPrecondition(
+  slug: string,
+  precondition: SkillWritePrecondition | undefined,
+  current: CurrentSkillState,
+): void {
+  if (precondition === undefined) return;
+  const currentTag =
+    current.etag === null ? null : parseEntityTag(current.etag);
+  if (precondition.ifMatch !== undefined) {
+    const holds =
+      precondition.ifMatch.kind === 'any'
+        ? current.exists
+        : ifMatchHolds(precondition.ifMatch, currentTag);
+    if (!holds) {
+      throw new AppError({
+        code: 'SKILL_STALE',
+        message: current.exists
+          ? `The skill "${slug}" changed since you read it — If-Match named no tag matching its current one; nothing was written.`
+          : `The skill "${slug}" does not exist, so If-Match can match nothing; nothing was written.`,
+        data: { etag: current.etag },
+      });
+    }
+  }
+  if (precondition.ifNoneMatch !== undefined) {
+    const holds =
+      precondition.ifNoneMatch.kind === 'any'
+        ? !current.exists
+        : ifNoneMatchHolds(precondition.ifNoneMatch, currentTag);
+    if (!holds) {
+      throw new AppError({
+        code: 'SKILL_EXISTS',
+        message:
+          precondition.ifNoneMatch.kind === 'any'
+            ? `The skill "${slug}" already exists.`
+            : `The skill "${slug}" still carries a tag If-None-Match named; nothing was written.`,
+        data: { etag: current.etag },
+      });
+    }
+  }
+}
+
+/**
  * The skills the asking viewer can see in this org, plus any bundle that
  * failed to load. Failures are logged with their absolute path (the operator
  * signal) and returned with the org-relative one.
@@ -108,7 +226,11 @@ export async function listSkillsForViewer(args: {
     failures: listing.failures.map((failure) => ({
       slug: failure.slug,
       path: relativeSkillPath(failure.slug),
-      message: failure.message,
+      // The file layer names files by their absolute server path; the
+      // sentence a caller reads names the bundle the way `path` does.
+      message: failure.message
+        .split(resolveSkillDir(args.orgSlug, failure.slug))
+        .join(`skills/${failure.slug}`),
     })),
   };
 }
@@ -125,7 +247,9 @@ export async function readSkillForViewer(args: {
   assertValidSlug(args.slug);
   const skill = await loadVisibleSkill(args);
   if (skill === null) return null;
-  const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
+  const entries = await bundleRead(args.orgSlug, args.slug, () =>
+    listSkillBundleFileEntries(args.orgSlug, args.slug),
+  );
   return {
     ...toSummary(skill, args.viewer),
     body: skill.body,
@@ -144,7 +268,9 @@ export async function readSkillBundleForViewer(args: {
   assertValidSlug(args.slug);
   const skill = await loadVisibleSkill(args);
   if (skill === null) return null;
-  const files = await readSkillBundleFiles(args.orgSlug, args.slug);
+  const files = await bundleRead(args.orgSlug, args.slug, () =>
+    readSkillBundleFiles(args.orgSlug, args.slug),
+  );
   if (files === null) return null;
   return {
     files: files.map((file) => ({
@@ -154,16 +280,31 @@ export async function readSkillBundleForViewer(args: {
   };
 }
 
+/**
+ * The three answers a bundle-file read has, told apart because a door
+ * answers each differently: no skill the viewer may see under the slug, a
+ * skill without a file at that path (a path the walk would never produce
+ * — a traversal, a dot-entry — reads the same way), or the file's bytes.
+ */
+export type SkillAssetRead =
+  | { readonly kind: 'no-skill' }
+  | { readonly kind: 'no-file' }
+  | { readonly kind: 'asset'; readonly path: string; readonly content: Buffer };
+
 export async function readSkillAssetForViewer(args: {
   orgSlug: string;
   slug: string;
   path: string;
   viewer: SkillViewer;
-}): Promise<SkillBundleFileView | null> {
+}): Promise<SkillAssetRead> {
   assertValidSlug(args.slug);
   const skill = await loadVisibleSkill(args);
-  if (skill === null) return null;
-  return readSkillBundleAsset(args.orgSlug, args.slug, args.path);
+  if (skill === null) return { kind: 'no-skill' };
+  const asset = await bundleRead(args.orgSlug, args.slug, () =>
+    readSkillBundleAssetBytes(args.orgSlug, args.slug, args.path),
+  );
+  if (asset === null) return { kind: 'no-file' };
+  return { kind: 'asset', path: asset.path, content: asset.content };
 }
 
 /**
@@ -175,18 +316,21 @@ export async function readSkillAssetForViewer(args: {
  * (the owner editing their pre-existing bundle) but never mint one. An edit
  * preserves the owner and every frontmatter field the edit surface does not
  * carry — licences, recommended packages, community keys — so saving a
- * community bundle from the UI does not strip it.
+ * community bundle from the UI does not strip it. Only `SKILL.md` is
+ * written: every other file of the bundle stays as it is.
  *
  * An omitted optional field means "leave it as it is", so an edit that only
- * changes the body cannot blank the icon, the labels or the teams; `null`
- * on `icon` or `labels` is the explicit clear. Team ids are not checked
- * against the org's teams here: the library only offers real ones, and an
- * id that matches no team simply never matches a viewer either.
+ * changes the body cannot blank the icon, the labels, the teams or the
+ * model-invocation flag; `null` on `icon` or `labels` is the explicit clear,
+ * and `disableModelInvocation: false` drops the flag from the file. Team
+ * ids are not checked against the org's teams here: the library only
+ * offers real ones, and an id that matches no team simply never matches a
+ * viewer either.
  *
- * `createOnly` makes the save a pure create: a slug that already has a
- * bundle is refused (`SKILL_EXISTS`) and nothing is written — the REST
- * door's `If-None-Match: *`. Checked here, under the caller's writer lock,
- * so two concurrent creates cannot both pass a read-then-write on the door.
+ * `precondition` carries the door's `If-Match` / `If-None-Match`, checked
+ * here — under the caller's writer lock, after the permission gates and
+ * before anything content-derived (RFC 9110 §13.2.1) — so two concurrent
+ * conditional saves cannot both pass a read-then-write on the door.
  */
 export interface SkillEditInput {
   description: string;
@@ -195,6 +339,7 @@ export interface SkillEditInput {
   teams?: string[];
   icon?: string | null;
   labels?: string[] | null;
+  disableModelInvocation?: boolean;
 }
 
 export async function saveSkillForViewer(
@@ -202,7 +347,7 @@ export async function saveSkillForViewer(
     orgSlug: string;
     slug: string;
     viewer: SkillViewer;
-    createOnly?: boolean;
+    precondition?: SkillWritePrecondition;
   } & SkillEditInput,
 ): Promise<SkillDocumentView> {
   {
@@ -210,18 +355,16 @@ export async function saveSkillForViewer(
     const viewer = assertUserViewer(args.viewer);
     const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
 
-    if (existing !== null && args.createOnly === true) {
-      throw new AppError({
-        code: 'SKILL_EXISTS',
-        message: `The skill "${args.slug}" already exists.`,
-      });
-    }
     if (existing !== null && !canEditSkill(existing.meta, viewer)) {
       throw new AppError({
         code: 'SKILL_FORBIDDEN',
         message: `You cannot edit the skill "${args.slug}".`,
       });
     }
+    assertPrecondition(args.slug, args.precondition, {
+      exists: existing !== null,
+      etag: existing?.etag ?? null,
+    });
 
     const visibility = args.visibility ?? existing?.meta.visibility ?? 'org';
     if (visibility === 'private' && existing?.meta.visibility !== 'private') {
@@ -254,6 +397,14 @@ export async function saveSkillForViewer(
     } else {
       meta.teams = teams;
     }
+    // Omitted keeps whatever the file carries (the spread above); `true`
+    // sets the flag; `false` drops the key rather than writing an inert
+    // `disable-model-invocation: false`.
+    if (args.disableModelInvocation === true) {
+      meta.disableModelInvocation = true;
+    } else if (args.disableModelInvocation === false) {
+      delete meta.disableModelInvocation;
+    }
 
     const content = serializeSkillMd(meta, args.body);
     // Re-read what we are about to persist: a save must never be able to
@@ -273,9 +424,13 @@ export async function saveSkillForViewer(
       }
       throw err;
     }
-    await writeSkillMdText(args.orgSlug, args.slug, content);
+    const written = await bundleRead(args.orgSlug, args.slug, () =>
+      writeSkillMdText(args.orgSlug, args.slug, content),
+    );
 
-    const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
+    const entries = await bundleRead(args.orgSlug, args.slug, () =>
+      listSkillBundleFileEntries(args.orgSlug, args.slug),
+    );
     return {
       ...toSummary(
         {
@@ -283,6 +438,8 @@ export async function saveSkillForViewer(
           path: relativeSkillPath(args.slug),
           meta: verified.meta,
           body: verified.body,
+          etag: skillEntityTag(written.hash),
+          updatedAt: written.mtimeMs,
         },
         viewer,
       ),
@@ -356,17 +513,24 @@ export function normalizedBundleFiles(
  * Delete a skill bundle and its history. Deleting an absent one is a no-op.
  *
  * Deleting is the one operation that needs no readable document. A bundle
- * whose `SKILL.md` fails to parse — the library lists it as a failure — has
- * no owner or sharing left to consult, so removing it falls to an org admin;
- * without that, the failure row is a dead end only filesystem access can
- * clear. The same rule covers a bundle directory with no `SKILL.md` at all
- * (an upload that died mid-way): invisible to the library, yet present to
- * the upload lane's slug check.
+ * whose `SKILL.md` fails to parse — the library lists it as a failure — or
+ * that the file layer refuses to read at all has no owner or sharing left
+ * to consult, so removing it falls to an org admin; without that, the
+ * failure row is a dead end only filesystem access can clear. The same
+ * rule covers a bundle directory with no `SKILL.md` at all (an upload that
+ * died mid-way): invisible to the library, yet present on disk.
+ *
+ * `precondition` is evaluated like the save's: after the permission gate,
+ * against the readable document's tag — an unreadable bundle exists but
+ * has no tag, so `If-Match: *` holds on it and a tag list never does. An
+ * absent slug answers its no-op before any precondition is looked at
+ * (RFC 9110 §13.2.1: the 404 the door answers takes precedence).
  */
 export async function deleteSkillForViewer(args: {
   orgSlug: string;
   slug: string;
   viewer: SkillViewer;
+  precondition?: SkillWritePrecondition;
 }): Promise<boolean> {
   assertValidSlug(args.slug);
   const viewer = assertUserViewer(args.viewer);
@@ -377,14 +541,28 @@ export async function deleteSkillForViewer(args: {
       args.slug,
     );
   } catch (err) {
-    if (!(err instanceof SkillParseError)) throw err;
+    if (
+      !(err instanceof SkillParseError) &&
+      !(err instanceof SkillBundleError)
+    ) {
+      throw err;
+    }
     console.error(`[skills] ${args.orgSlug}: ${err.message}`);
-    return removeUnreadableBundle(args.orgSlug, args.slug, viewer);
+    return removeUnreadableBundle(
+      args.orgSlug,
+      args.slug,
+      viewer,
+      args.precondition,
+    );
   }
   if (existing === null) {
-    const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
-    if (entries === null) return false;
-    return removeUnreadableBundle(args.orgSlug, args.slug, viewer);
+    if (!(await skillBundleDirExists(args.orgSlug, args.slug))) return false;
+    return removeUnreadableBundle(
+      args.orgSlug,
+      args.slug,
+      viewer,
+      args.precondition,
+    );
   }
   if (!canEditSkill(existing.meta, viewer)) {
     throw new AppError({
@@ -392,6 +570,10 @@ export async function deleteSkillForViewer(args: {
       message: `You cannot delete the skill "${args.slug}".`,
     });
   }
+  assertPrecondition(args.slug, args.precondition, {
+    exists: true,
+    etag: existing.etag,
+  });
   return removeSkillBundle(args.orgSlug, args.slug);
 }
 
@@ -400,6 +582,7 @@ function removeUnreadableBundle(
   orgSlug: string,
   slug: string,
   viewer: UserSkillViewer,
+  precondition: SkillWritePrecondition | undefined,
 ): Promise<boolean> {
   if (!viewer.isOrgAdmin) {
     throw new AppError({
@@ -407,6 +590,7 @@ function removeUnreadableBundle(
       message: `Only an organization admin can delete the unreadable skill "${slug}".`,
     });
   }
+  assertPrecondition(slug, precondition, { exists: true, etag: null });
   return removeSkillBundle(orgSlug, slug);
 }
 /**
@@ -455,16 +639,18 @@ async function loadVisibleSkill(args: {
 }
 
 /**
- * Read one bundle, turning a malformed document into a AppError that names
- * the org-relative path. The caller sees which file to fix rather than a
- * bundle that silently is not there.
+ * Read one bundle, turning a malformed document — or one the file layer
+ * refuses — into an AppError that names the org-relative path. The caller
+ * sees which file to fix rather than a bundle that silently is not there.
  */
 async function loadSkillOrThrow(
   orgSlug: string,
   slug: string,
 ): Promise<OrgSkill | null> {
   try {
-    return await readOrgSkill(createOrgSkillReader(orgSlug), slug);
+    return await bundleRead(orgSlug, slug, () =>
+      readOrgSkill(createOrgSkillReader(orgSlug), slug),
+    );
   } catch (err) {
     if (err instanceof SkillParseError) {
       console.error(`[skills] ${orgSlug}: ${err.message}`);

@@ -2,10 +2,17 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { RestEnv } from './shared.ts';
+import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
+
+// The retry's audit row and realtime hint are the domain's business; the
+// door test proves the route's own answers.
+vi.mock('../domains/audit_logs/service.ts', () => ({
+  createAuditLog: vi.fn(),
+}));
+vi.mock('../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
 /**
  * The conversations family follows the door's organization rule. The
@@ -236,4 +243,185 @@ describe('GET /conversations/deliveries/{id}/attachments/{index}', () => {
       expect(await res.json()).toMatchObject({ code: 'ATTACHMENT_NOT_FOUND' });
     },
   );
+});
+
+/**
+ * The queue is readable without claiming (G-03a): `GET /conversations/
+ * deliveries?source=` lists a source's deliveries with a derived status
+ * and no claim token, paginated like the other lists; `status` takes the
+ * four states only, and a blank cursor is refused like everywhere.
+ */
+describe('GET /conversations/deliveries', () => {
+  const row = {
+    messageId: 'm-1',
+    conversationId: 'c-1',
+    externalId: 'x-1',
+    status: 'leased',
+    attempts: 2,
+    availableAt: 1_700_000_000_000,
+    retryAt: 1_700_000_300_000,
+    claimedAt: 1_700_000_000_500,
+    failedAt: null,
+    lastErrorCode: 'network_error',
+    acknowledgedAt: null,
+    receiptId: null,
+  };
+  const list = (query: string, rows: object[] = [row]) =>
+    mount(['org-1'], 'admin', (text) =>
+      text.includes('FROM app.conversation_api_bindings') &&
+      text.includes('bool_or')
+        ? [{ owned: true }]
+        : text.includes('FROM app.conversation_api_deliveries d')
+          ? rows
+          : undefined,
+    );
+
+  it('answers the rows with the page envelope and asks the store for the owner’s source only', async () => {
+    const { app, queries } = list('source=vatplus');
+    const res = await app.request(
+      'http://localhost/conversations/deliveries?source=vatplus',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      deliveries: [row],
+      isDone: true,
+      continueCursor: '',
+    });
+    const listing = queries.find((text) =>
+      text.includes('FROM app.conversation_api_deliveries d'),
+    );
+    expect(listing).toContain('b.owner_user_id = $?');
+    expect(listing).toContain("THEN 'leased'");
+    expect(listing).toContain('ORDER BY retry_key, "messageId"');
+    // Neither the claim token nor the body is projected.
+    expect(listing).not.toContain('claim_token AS');
+    expect(listing).not.toContain('d.body');
+  });
+
+  it('mints a cursor bound to the source when a page overflows, and redeems it', async () => {
+    const overflow = [row, { ...row, messageId: 'm-2' }];
+    const { app } = list('source=vatplus&limit=1', overflow);
+    const res = await app.request(
+      'http://localhost/conversations/deliveries?source=vatplus&limit=1',
+    );
+    const body: {
+      deliveries: unknown[];
+      isDone: boolean;
+      continueCursor: string;
+    } = await res.json();
+    expect(body.deliveries).toHaveLength(1);
+    expect(body.isDone).toBe(false);
+    expect(body.continueCursor).toBe(
+      mintCursorFor(
+        'org-1',
+        'conversation-deliveries:vatplus',
+        '1700000300000:m-1',
+      ),
+    );
+    const next = await app.request(
+      `http://localhost/conversations/deliveries?source=vatplus&limit=1&cursor=${encodeURIComponent(body.continueCursor)}`,
+    );
+    expect(next.status).toBe(200);
+    // The same cursor on another source is not one that list answered.
+    const foreign = await app.request(
+      `http://localhost/conversations/deliveries?source=other&limit=1&cursor=${encodeURIComponent(body.continueCursor)}`,
+    );
+    expect(foreign.status).toBe(400);
+    expect(await foreign.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+
+  it('refuses a state outside the four, a missing source and a blank cursor', async () => {
+    const { app } = list('');
+    const state = await app.request(
+      'http://localhost/conversations/deliveries?source=vatplus&status=lost',
+    );
+    expect(state.status).toBe(400);
+    expect(await state.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      error: expect.stringContaining('"status"'),
+    });
+    const noSource = await app.request(
+      'http://localhost/conversations/deliveries',
+    );
+    expect(noSource.status).toBe(400);
+    expect(await noSource.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [expect.objectContaining({ path: 'source' })] },
+    });
+    const blank = await app.request(
+      'http://localhost/conversations/deliveries?source=vatplus&cursor=',
+    );
+    expect(blank.status).toBe(400);
+    expect(await blank.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      error: 'invalid query: "cursor" must not be blank',
+    });
+  });
+
+  it('answers the source refusals a claim answers', async () => {
+    const unknown = mount(['org-1'], 'admin', (text) =>
+      text.includes('bool_or') ? [{ owned: null }] : undefined,
+    );
+    const res = await unknown.app.request(
+      'http://localhost/conversations/deliveries?source=never',
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({
+      code: 'CONVERSATION_SOURCE_NOT_FOUND',
+    });
+  });
+});
+
+/**
+ * A dead-lettered delivery can be re-driven from the API (G-03c): a
+ * delivery the key user does not own is absent, one that is not
+ * dead-lettered is the documented 409.
+ */
+describe('POST /conversations/deliveries/{id}/retry', () => {
+  const retry = (respond: (text: string) => object[] | undefined) =>
+    mount(['org-1'], 'admin', respond).app.request(
+      'http://localhost/conversations/deliveries/m-1/retry',
+      { method: 'POST' },
+    );
+
+  it('answers DELIVERY_NOT_FOUND when the key user owns no delivery under the id', async () => {
+    const res = await retry(() => undefined);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Delivery not found',
+      code: 'DELIVERY_NOT_FOUND',
+    });
+  });
+
+  it('answers DELIVERY_RETRY_UNAVAILABLE for a delivery that is not dead-lettered', async () => {
+    const res = await retry((text) =>
+      text.includes('SELECT d.conversation_id AS "conversationId"')
+        ? [{ conversationId: 'c-1' }]
+        : text.includes("delivery_state = 'failed' FOR UPDATE")
+          ? []
+          : undefined,
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'DELIVERY_RETRY_UNAVAILABLE',
+    });
+  });
+
+  it('re-queues a dead-lettered delivery of the key user’s own source', async () => {
+    const res = await retry((text) =>
+      text.includes('SELECT d.conversation_id AS "conversationId"')
+        ? [{ conversationId: 'c-1' }]
+        : text.includes("delivery_state = 'failed' FOR UPDATE")
+          ? [{ id: 'm-1' }]
+          : text.includes(
+                'UPDATE app.conversation_api_deliveries d SET failed_at_ms = NULL',
+              )
+            ? [{ conversationId: 'c-1' }]
+            : text.includes("SET delivery_state = 'queued'")
+              ? [{ id: 'm-1' }]
+              : undefined,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
 });

@@ -28,6 +28,8 @@ export interface SkillsContract {
       labels?: string[];
       disableModelInvocation?: boolean;
       canEdit: boolean;
+      etag: string;
+      updatedAt: number;
     };
   };
   'skills/actions:getSkillAsset': {
@@ -49,6 +51,8 @@ export interface SkillsContract {
         labels?: string[];
         disableModelInvocation?: boolean;
         canEdit: boolean;
+        etag: string;
+        updatedAt: number;
       }>;
       failures: Array<{ slug: string; path: string; message: string }>;
     };
@@ -60,6 +64,7 @@ export interface SkillsContract {
       icon?: string;
       labels?: string[];
       teams?: string[];
+      disableModelInvocation?: boolean;
       organizationId: string;
       description: string;
       slug: string;
@@ -77,6 +82,8 @@ export interface SkillsContract {
       labels?: string[];
       disableModelInvocation?: boolean;
       canEdit: boolean;
+      etag: string;
+      updatedAt: number;
     };
   };
   'skills/actions:uploadSkillBundle': {

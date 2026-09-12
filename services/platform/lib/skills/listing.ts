@@ -14,6 +14,7 @@
  * answer to give.
  */
 
+import { formatEntityTag, strongEntityTag } from '@tale/shared/http/entity-tag';
 import {
   isValidSkillSlug,
   type SkillFrontmatter,
@@ -23,14 +24,26 @@ import { parseSkillMd, SkillParseError } from './parse';
 import { canViewSkill, type SkillViewer } from './visibility';
 
 /**
+ * A `SKILL.md` as a reader hands it over: its text plus the two facts that
+ * identify the version on disk — the hex SHA-256 of the text and the
+ * file's modification time (epoch ms).
+ */
+export interface SkillDocumentSource {
+  readonly text: string;
+  readonly hash: string;
+  readonly mtimeMs: number;
+}
+
+/**
  * Access to one organization's skill bundles. Implementations bind the org
  * up front; nothing below can widen that scope.
  */
 export interface SkillBundleReader {
   /** Slugs of the bundle directories present, in any order. */
   listSlugs(): Promise<readonly string[]>;
-  /** Raw `SKILL.md` text for `slug`, or `null` when the bundle has none. */
-  readSkillMd(slug: string): Promise<string | null>;
+  /** The raw `SKILL.md` of `slug` with its version facts, or `null` when
+   * the bundle has none. */
+  readSkillDocument(slug: string): Promise<SkillDocumentSource | null>;
   /** How this reader names a slug's `SKILL.md`, for error messages. */
   describe(slug: string): string;
 }
@@ -43,6 +56,20 @@ export interface OrgSkill {
   readonly meta: SkillFrontmatter;
   /** The markdown body — the knowledge an agent expands, never executed. */
   readonly body: string;
+  /**
+   * The document's strong entity tag: the quoted hex SHA-256 of the
+   * `SKILL.md` text. It moves with every save of the document and with
+   * nothing else — the bundle's other files are not part of it, so a
+   * listing never has to walk a bundle to name it.
+   */
+  readonly etag: string;
+  /** When `SKILL.md` was last written, epoch milliseconds. */
+  readonly updatedAt: number;
+}
+
+/** The entity tag a `SKILL.md` with the hex SHA-256 `hash` carries. */
+export function skillEntityTag(hash: string): string {
+  return formatEntityTag(strongEntityTag(hash));
 }
 
 /** A bundle that could not be read, kept out of the listing. */
@@ -71,17 +98,24 @@ export async function readOrgSkill(
   if (!isValidSkillSlug(slug)) {
     throw new SkillParseError(path, `"${slug}" is not a valid skill slug`);
   }
-  const content = await reader.readSkillMd(slug);
-  if (content === null) return null;
+  const document = await reader.readSkillDocument(slug);
+  if (document === null) return null;
 
-  const { meta, body } = parseSkillMd(content, path);
+  const { meta, body } = parseSkillMd(document.text, path);
   if (meta.name !== slug) {
     throw new SkillParseError(
       path,
       `frontmatter name "${meta.name}" does not match the bundle directory "${slug}"`,
     );
   }
-  return { slug, path, meta, body };
+  return {
+    slug,
+    path,
+    meta,
+    body,
+    etag: skillEntityTag(document.hash),
+    updatedAt: document.mtimeMs,
+  };
 }
 
 /**

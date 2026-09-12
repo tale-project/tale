@@ -268,33 +268,28 @@ export async function deleteBrowserSession(
   return rows.length > 0;
 }
 
+/** One row of the masked listing — never the cookies. */
+export interface BrowserSessionListRow {
+  id: string;
+  domain: string;
+  label: string | null;
+  status: string;
+  /** When the session was imported, epoch ms — the order the listing
+   * keeps within a domain, and what tells two imports of one jar apart. */
+  createdAt: number;
+  expiresAt: number;
+  lastUsedAt: number | null;
+  failureCount: number;
+}
+
 /** Masked per-org listing for the operator UI — never the cookies. */
 export async function listBrowserSessions(
   sql: Sql,
   organizationId: string,
-): Promise<
-  {
-    id: string;
-    domain: string;
-    label: string | null;
-    status: string;
-    expiresAt: number;
-    lastUsedAt: number | null;
-    failureCount: number;
-  }[]
-> {
-  return sql<
-    {
-      id: string;
-      domain: string;
-      label: string | null;
-      status: string;
-      expiresAt: number;
-      lastUsedAt: number | null;
-      failureCount: number;
-    }[]
-  >`
-    SELECT id, domain, label, status, expires_at_ms::float8 AS "expiresAt",
+): Promise<BrowserSessionListRow[]> {
+  return sql<BrowserSessionListRow[]>`
+    SELECT id, domain, label, status, created_at_ms::float8 AS "createdAt",
+           expires_at_ms::float8 AS "expiresAt",
            last_used_at_ms::float8 AS "lastUsedAt",
            failure_count AS "failureCount"
     FROM app.browser_sessions

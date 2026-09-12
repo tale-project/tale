@@ -17,7 +17,7 @@ Tale expose un endpoint MCP par déploiement, sous `/api/v1/mcp`, authentifié p
 
 <Frame caption="Paramètres > API > MCP — l’URL de l’endpoint à donner à ton client, le slug de l’organisation qu’une clé multi-organisations envoie, l’inventaire des outils dans ses trois groupes et une requête pour essayer la clé.">
 
-![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, une ligne Slug de l’organisation, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Skills & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer et l’en-tête de slug d’organisation.](/images/platform/settings-mcp-endpoint.webp)
+![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, une ligne Slug de l’organisation, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Capacités & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer et l’en-tête de slug d’organisation.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

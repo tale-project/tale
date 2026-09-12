@@ -94,8 +94,18 @@ export function createSkillRoutes(deps: {
         slug: c.req.param('slug'),
         path: c.req.param('path'),
       });
-      if (asset === null) return c.json({ error: 'asset not found' }, 404);
-      return c.json({ asset });
+      // The app reads one shape — the base64 file — and tells no absence
+      // from another: a skill the member may not see must read exactly
+      // like a file the bundle does not have.
+      if (asset.kind !== 'asset') {
+        return c.json({ error: 'asset not found' }, 404);
+      }
+      return c.json({
+        asset: {
+          path: asset.path,
+          contentBase64: asset.content.toString('base64'),
+        },
+      });
     } catch (error) {
       return skillErrorResponse(c, error);
     }

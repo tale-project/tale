@@ -12,7 +12,10 @@ import {
  * family, so a code mapped on one door cannot 500 on the other. The zip
  * parser's refusals come straight from its own exported list: a bundle
  * missing its SKILL.md, or one that lies about its size, is the uploader's
- * mistake to read about, never an outage to page on.
+ * mistake to read about, never an outage to page on. The two 412s are the
+ * failed preconditions of a conditional write: `If-None-Match` refused by
+ * a bundle that exists (`SKILL_EXISTS`), `If-Match` refused by a document
+ * that changed or is not there (`SKILL_STALE`).
  */
 export const SKILL_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
   {
@@ -21,6 +24,7 @@ export const SKILL_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
     SKILL_PRIVATE_RETIRED: 400,
     SKILL_FORBIDDEN: 403,
     SKILL_EXISTS: 412,
+    SKILL_STALE: 412,
     SKILL_MALFORMED: 422,
     STORAGE_NOT_OWNED: 403,
     STORAGE_NOT_FOUND: 404,
