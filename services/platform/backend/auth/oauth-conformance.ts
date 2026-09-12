@@ -51,6 +51,51 @@ export async function withOAuthConformance(
     headers.set('location', corrected);
     return new Response(null, { status: 302, headers });
   }
+  if (
+    response.status === 200 &&
+    pathname === `${AUTH_MOUNT}${OIDC_AUTHORIZE_PATH}` &&
+    (response.headers.get('content-type') ?? '').includes('application/json')
+  ) {
+    // The same redirect, in the form the library hands a fetch-mode client
+    // (`sec-fetch-mode: cors`, or `Accept: application/json`): a 200 whose
+    // body says `{redirect: true, url}` — Node's fetch is one such client.
+    const text = await response.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Not the JSON the header promised: hand it on exactly as it was.
+      return new Response(text, {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+    const corrected =
+      typeof body === 'object' &&
+      body !== null &&
+      (body as { redirect?: unknown }).redirect === true &&
+      typeof (body as { url?: unknown }).url === 'string'
+        ? authorizeRedirectFor({
+            requestUrl: request.url,
+            location: (body as { url: string }).url,
+          })
+        : null;
+    if (corrected === null) {
+      return new Response(text, {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    return new Response(
+      JSON.stringify({ ...(body as object), url: corrected }),
+      {
+        status: 200,
+        headers,
+      },
+    );
+  }
   if (response.status < 400) return response;
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return response;

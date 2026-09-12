@@ -11924,7 +11924,10 @@ async function checkBuilderSession(
         res.end(
           JSON.stringify({
             object: 'list',
-            data: [{ id: 'builder-fake', object: 'model' }],
+            // The catalog keeps only entries naming a context window.
+            data: [
+              { id: 'builder-fake', object: 'model', context_length: 128_000 },
+            ],
           }),
         );
         return;
@@ -13271,7 +13274,7 @@ async function checkRestMachineJourney(
       taskAgainBody.data.task.id === taskId &&
       taskRead.success &&
       taskRead.data.task.status === 'backlog' &&
-      taskRead.data.task.labels.includes('ops') &&
+      taskRead.data.task.labels.includes('Ops') &&
       taskRead.data.task.externalSystem === 'github' &&
       commentPosted.success &&
       commentsRead.success &&

@@ -136,6 +136,60 @@ describe('withOAuthConformance', () => {
     });
   });
 
+  it('corrects the same redirect in the JSON form a fetch-mode client is handed', async () => {
+    const request = new Request(
+      `${REALM}/oauth2/authorize?response_type=code&client_id=eval-nope&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcb&scope=openid&state=x`,
+      { headers: { 'sec-fetch-mode': 'cors' } },
+    );
+    const response = await withOAuthConformance(
+      request,
+      new Response(
+        JSON.stringify({
+          redirect: true,
+          url: `${REALM}/error?error=invalid_client&error_description=client_id+is+required`,
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-request-id': 'r-3',
+          },
+        },
+      ),
+      REALM,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-request-id')).toBe('r-3');
+    const body = (await response.json()) as { redirect: boolean; url: string };
+    expect(body.redirect).toBe(true);
+    const url = new URL(body.url);
+    expect(url.pathname).toBe('/api/auth/error');
+    expect(url.searchParams.get('error')).toBe('invalid_client');
+    expect(url.searchParams.get('error_description')).toBe(
+      'client_id names no registered client',
+    );
+  });
+
+  it('leaves a JSON authorize answer that is not the unknown-client redirect alone', async () => {
+    const request = new Request(
+      `${REALM}/oauth2/authorize?response_type=code&client_id=eval-ok&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcb&scope=openid&state=x`,
+    );
+    const original = JSON.stringify({
+      redirect: true,
+      url: 'https://app.example.test/oauth/consent?x=1',
+    });
+    const response = await withOAuthConformance(
+      request,
+      new Response(original, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+      REALM,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(original);
+  });
+
   it('corrects the error-page redirect for an unknown client, keeping every other header', async () => {
     const request = new Request(
       `${REALM}/oauth2/authorize?response_type=code&client_id=eval-nope&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcb&scope=openid&state=x`,

@@ -157,11 +157,32 @@ const BODILESS_HEADERS = new Set([
   'transfer-encoding',
 ]);
 
+/** A 416 on this server never carries a body — the document lane answers
+ * it with `Content-Length: 0` and the `Content-Range` that names the size
+ * — so the adapter's default `text/plain` must not describe one; the
+ * length and the range stay, they ARE the answer (the store's own 416 once
+ * reached the edge with the length of an XML body that never came, and
+ * the edge aborted the stream on that promise). */
+const UNSATISFIABLE_HEADERS: ReadonlySet<string> = new Set([
+  'content-type',
+  'transfer-encoding',
+]);
+
+/** The content headers a status must not carry on this server, or null
+ * when the status describes a body. */
+function bodilessHeadersFor(statusCode: number): ReadonlySet<string> | null {
+  if (statusCode === 204 || statusCode === 304) return BODILESS_HEADERS;
+  if (statusCode === 416) return UNSATISFIABLE_HEADERS;
+  return null;
+}
+
 /**
  * The Node HTTP adapter stamps `content-type: text/plain; charset=UTF-8`
  * on every response that names no type — a 204 and a bodiless 202
  * included, where RFC 9110 §6.4.1 says there is no content to describe
- * and strict clients and linting proxies complain. The adapter builds the
+ * and strict clients and linting proxies complain — and on the bodiless
+ * 416 the document lane answers (§15.5.17: the range could not be
+ * satisfied; `Content-Range` names the size, `Content-Length` is 0). The adapter builds the
  * header set after the app has answered, so no middleware can remove it;
  * the server's response class can. Installed through `serverOptions`
  * (main.ts), which the adapter hands to `http.createServer` verbatim.
@@ -178,8 +199,9 @@ export class BodilessAwareResponse<
       typeof reasonOrHeaders === 'string' ? reasonOrHeaders : undefined;
     let headers =
       typeof reasonOrHeaders === 'string' ? maybeHeaders : reasonOrHeaders;
-    if (statusCode === 204 || statusCode === 304) {
-      for (const name of BODILESS_HEADERS) this.removeHeader(name);
+    const drop = bodilessHeadersFor(statusCode);
+    if (drop !== null) {
+      for (const name of drop) this.removeHeader(name);
       if (Array.isArray(headers)) {
         // The raw form: a flat `[name, value, name, value, …]` list.
         const kept: OutgoingHttpHeader[] = [];
@@ -187,10 +209,7 @@ export class BodilessAwareResponse<
           const name = headers[i];
           const value = headers[i + 1];
           if (name === undefined || value === undefined) continue;
-          if (
-            typeof name === 'string' &&
-            BODILESS_HEADERS.has(name.toLowerCase())
-          ) {
+          if (typeof name === 'string' && drop.has(name.toLowerCase())) {
             continue;
           }
           kept.push(name, value);
@@ -199,7 +218,7 @@ export class BodilessAwareResponse<
       } else if (headers !== undefined) {
         headers = Object.fromEntries(
           Object.entries(headers).filter(
-            ([name]) => !BODILESS_HEADERS.has(name.toLowerCase()),
+            ([name]) => !drop.has(name.toLowerCase()),
           ),
         );
       }

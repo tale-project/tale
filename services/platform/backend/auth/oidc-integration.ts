@@ -488,19 +488,30 @@ export async function checkNativeIdentity(
     }).toString()}`,
     { redirect: 'manual', headers: { cookie: member.cookie } },
   );
+  // Node's fetch declares `sec-fetch-mode: cors` and cannot be told
+  // otherwise, so the provider hands it the redirect in its JSON form —
+  // `200 {redirect: true, url}` — the same URL a browser navigation gets
+  // as the 302's Location (that form is covered by the conformance unit
+  // tests).
+  const unknownClientBody = z
+    .object({ redirect: z.literal(true), url: z.string() })
+    .safeParse(
+      unknownClient.status === 200 ? await unknownClient.json() : null,
+    );
   const unknownClientLocation = new URL(
-    unknownClient.headers.get('location') ?? '/',
+    unknownClientBody.success ? unknownClientBody.data.url : '/',
     base,
   );
   check(
     'an unknown client_id at authorize names an unknown client, on the issuer’s error page',
-    unknownClient.status === 302 &&
+    unknownClient.status === 200 &&
+      unknownClientBody.success &&
       unknownClientLocation.origin === new URL(base).origin &&
       unknownClientLocation.pathname === '/api/auth/error' &&
       unknownClientLocation.searchParams.get('error') === 'invalid_client' &&
       unknownClientLocation.searchParams.get('error_description') ===
         'client_id names no registered client',
-    `status=${unknownClient.status} location=${unknownClientLocation.toString()}`,
+    `status=${unknownClient.status} url=${unknownClientLocation.toString()}`,
   );
   check(
     'an authorization code cannot be replayed',

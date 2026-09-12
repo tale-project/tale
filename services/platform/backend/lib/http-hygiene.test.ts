@@ -231,4 +231,46 @@ describe('BodilessAwareResponse', () => {
       );
     }
   });
+
+  it('keeps a bodiless 416 free of the adapter default type, with its length and range', async () => {
+    const hono = new Hono();
+    hono.get(
+      '/blob',
+      () =>
+        new Response(null, {
+          status: 416,
+          headers: {
+            'content-range': 'bytes */29',
+            'content-length': '0',
+            'accept-ranges': 'bytes',
+          },
+        }),
+    );
+    const server = createAdaptorServer({
+      fetch: hono.fetch,
+      serverOptions: { ServerResponse: BodilessAwareResponse },
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    try {
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        throw new Error('no port');
+      }
+      const res = await fetch(`http://127.0.0.1:${address.port}/blob`, {
+        headers: { range: 'bytes=29-' },
+      });
+      expect(res.status).toBe(416);
+      expect(res.headers.get('content-type')).toBeNull();
+      expect(res.headers.get('content-length')).toBe('0');
+      expect(res.headers.get('content-range')).toBe('bytes */29');
+      expect(res.headers.get('accept-ranges')).toBe('bytes');
+      expect(await res.text()).toBe('');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
 });
