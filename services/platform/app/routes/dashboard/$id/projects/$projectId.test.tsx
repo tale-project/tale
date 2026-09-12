@@ -127,12 +127,16 @@ const ProjectDetailLayout = (
   Route as unknown as { component: () => React.ReactElement }
 ).component;
 
-function setup(automations: unknown[] | undefined) {
+function setup(
+  automations: unknown[] | undefined,
+  projectOverrides: Record<string, unknown> = {},
+) {
   mockUseProject.mockReturnValue({
     project: {
       _id: 'proj-1',
       name: 'Apollo',
       canAdminister: false,
+      ...projectOverrides,
     },
     isLoading: false,
   });
@@ -215,5 +219,25 @@ describe('project shell — All projects Tasks mode', () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText(label)).toHaveAttribute('aria-disabled', 'true');
     }
+  });
+});
+
+// An archived project said so only in the Projects list. Every one of its tabs
+// now carries the badge, beside the breadcrumb leaf.
+describe('project shell — archived badge', () => {
+  it('badges the breadcrumb when the project is archived', () => {
+    setup([], { archivedAt: 1789000000000 });
+
+    expect(screen.getByText('Apollo')).toBeInTheDocument();
+    expect(screen.getByText('projects.archived.badge')).toBeInTheDocument();
+  });
+
+  it('leaves a live project unbadged', () => {
+    setup([]);
+
+    expect(screen.getByText('Apollo')).toBeInTheDocument();
+    expect(
+      screen.queryByText('projects.archived.badge'),
+    ).not.toBeInTheDocument();
   });
 });

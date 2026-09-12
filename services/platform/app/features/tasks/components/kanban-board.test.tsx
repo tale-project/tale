@@ -59,6 +59,7 @@ function makeTask(
   title: string,
   status: TaskRow['status'],
   rank: string,
+  overrides: Partial<TaskRow> = {},
 ): TaskRow {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the board renders title/status/rank only
   return {
@@ -74,6 +75,7 @@ function makeTask(
     createdByType: 'user',
     createdAt: 0,
     updatedAt: 0,
+    ...overrides,
   } as unknown as TaskRow;
 }
 
@@ -100,5 +102,34 @@ describe('KanbanBoard backlog lane', () => {
     }
     expect(screen.getByText('Triaged task')).toBeInTheDocument();
     expect(screen.getByText('Proposed task')).toBeInTheDocument();
+  });
+});
+
+// An archived card used to be signalled by `opacity-70` alone, which makes
+// colour the sole carrier of the meaning (WCAG 2.1 AA 1.4.1).
+describe('KanbanBoard archived cards', () => {
+  // Both fixtures carry a `projectKey`. Without one `formatTaskIdentifier`
+  // returns null, the identifier row is skipped entirely, and the negative
+  // case would pass even with the badge hard-coded to always render.
+  it('gives an archived card the Archived badge', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        tasks={[makeTask('Retired task', 'todo', 'a0', { archivedAt: 123 })]}
+      />,
+    );
+    expect(screen.getByText('TAL-1')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+  });
+
+  it('leaves a live card without one', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        tasks={[makeTask('Live task', 'todo', 'a0')]}
+      />,
+    );
+    expect(screen.getByText('TAL-1')).toBeInTheDocument();
+    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
   });
 });
