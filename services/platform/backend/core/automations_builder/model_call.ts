@@ -26,6 +26,7 @@ import type {
 } from '@tale/shared/schemas/providers';
 
 import type { BuilderModel } from '../../../lib/automations_builder/session';
+import { privateProviderHostsAllowed } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
@@ -185,6 +186,7 @@ export function createBuilderModel(
     let response;
     try {
       response = await safeFetch(request.url, {
+        allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'POST',
         headers: request.headers,
         body: request.body,

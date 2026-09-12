@@ -34,6 +34,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AwsClient } from 'aws4fetch';
 
+import { attachmentDisposition } from '../../../../lib/shared/http/content-disposition';
 import {
   readOrgObjectStorageConnection,
   type ObjectStorageConnectionFile,
@@ -676,14 +677,16 @@ export async function s3PresignGetUrl(
     'X-Amz-Expires',
     String(opts.expiresInSec ?? DEFAULT_PRESIGN_TTL_SEC),
   );
-  // The store reflects this param as a response header — strip quotes AND
-  // control chars (CR/LF/NUL…) so a hostile filename can't splice into the
-  // Content-Disposition header (mirrors the WebDAV GET sanitizer).
-  // oxlint-disable-next-line no-control-regex -- stripping control chars is the point
-  const safeName = opts.filename?.replace(/["\u0000-\u001f\u007f]/g, '');
+  // The store reflects this param as a response header: the RFC 6266 form
+  // (an ASCII `filename` plus the exact name as `filename*`), built by the
+  // one builder every download lane shares — control characters can never
+  // splice into the header, and a non-ASCII name no longer arrives as
+  // mojibake.
   url.searchParams.set(
     'response-content-disposition',
-    safeName ? `attachment; filename="${safeName}"` : 'attachment',
+    opts.filename === undefined
+      ? 'attachment'
+      : attachmentDisposition(opts.filename),
   );
   const signed = await store.client.sign(url.toString(), {
     method: 'GET',

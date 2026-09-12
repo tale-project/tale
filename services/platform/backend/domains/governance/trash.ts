@@ -93,16 +93,6 @@ const TRASH_SOURCES: Record<string, TrashSource> = {
     restoreValue: null,
     hintEntity: 'message_feedback',
   },
-  automationRun: {
-    table: 'automation_runs',
-    idColumn: 'id',
-    statusColumn: 'lifecycle_status',
-    displayExpr: 't.name',
-    ownerExpr: 'NULL',
-    createdColumn: 'created_at_ms',
-    restoreValue: null,
-    hintEntity: 'automation_run',
-  },
   chatThread: {
     table: 'thread_metadata',
     idColumn: 'thread_id',
@@ -115,8 +105,16 @@ const TRASH_SOURCES: Record<string, TrashSource> = {
   },
 };
 
-/** 0.4 types the pg schema retains no trash stop for. */
-const EMPTY_TYPES = new Set(['thread', 'workflowExecution', 'usageLedger']);
+/** 0.4 types the pg schema retains no trash stop for — automation runs
+ * among them since migration 0083 dropped their never-written lifecycle
+ * column (a listing that still selected it failed the whole Trash page);
+ * a run is deleted outright, through its API door or retention. */
+const EMPTY_TYPES = new Set([
+  'thread',
+  'workflowExecution',
+  'usageLedger',
+  'automationRun',
+]);
 
 const TYPE_ORDER = [...Object.keys(TRASH_SOURCES), ...EMPTY_TYPES].sort();
 

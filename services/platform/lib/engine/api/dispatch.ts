@@ -201,25 +201,90 @@ async function missingAutomation(
   return {
     error: `no saved automation named "${name}"`,
     code: 'AUTOMATION_NOT_FOUND',
-    hint: 'list_automations shows the saved ones',
+    hint: LIST_AUTOMATIONS_HINT,
   };
 }
 
 /**
- * A host refusal as data: the message, and the stable `code` the host's
- * own error classes carry (`AutomationError`, `ActorAuthError`) so a
- * client can branch on it — the catch sites used to keep only the
- * sentence. A thrown value without a code stays a bare message.
+ * The refusal vocabulary of THIS table — the codes dispatch itself mints,
+ * beside the host's own (`AutomationError`, `ActorAuthError`, lifted by
+ * {@link refusalFrom}). Every refusal carries one, and a `hint` saying
+ * what to do, so a calling model can branch and self-correct without
+ * parsing the sentence. MCP-only vocabulary: the REST door never answers
+ * these, so they live in the MCP docs, not the REST registry.
  */
-function refusalFrom(error: unknown): { error: string; code?: string } {
+export const DISPATCH_REFUSAL_CODES = [
+  /** A parameter is missing or malformed (a host that validates arguments
+   * against the tool schema, like the MCP endpoint, refuses these at the
+   * transport instead). */
+  'INVALID_PARAMS',
+  /** The method is not in the table. */
+  'UNKNOWN_METHOD',
+  /** The document fails validation where a valid one is needed. */
+  'AUTOMATION_INVALID',
+  /** The deploy gate: the version's own tests fail. */
+  'AUTOMATION_TESTS_FAILING',
+  /** Live execution is not enabled, or has no lane, in this environment. */
+  'LIVE_MODE_UNAVAILABLE',
+  /** The store behind this host lacks the capability (runs, versions,
+   * triggers). */
+  'NOT_SUPPORTED',
+  'AUTOMATION_NOT_FOUND',
+  'AUTOMATION_VERSION_UNKNOWN',
+  'AUTOMATION_NOT_DEPLOYED',
+  'RUN_NOT_FOUND',
+] as const;
+
+const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
+const RUN_ID_HINT =
+  'start_run returns the runId; list_runs lists the recent ones';
+const LIST_VERSIONS_HINT =
+  'list_versions shows the saved versions of an automation';
+
+/** The refusal for a capability the store behind this host does not have —
+ * a bare selftest store keeps no runs, versions or triggers. */
+function notSupported(what: string): {
+  error: string;
+  code: 'NOT_SUPPORTED';
+  hint: string;
+} {
+  return {
+    error: `${what} not supported in this environment`,
+    code: 'NOT_SUPPORTED',
+    hint: 'this host keeps no durable runs, versions or triggers — a platform host serves them; test against mocks here',
+  };
+}
+
+/**
+ * A host refusal as data: the message, the stable `code` the host's own
+ * error classes carry (`AutomationError`, `ActorAuthError`) so a client
+ * can branch on it, and — where the host attached them — the `hint` that
+ * says what to do and the structured `data` (the schema problems of a
+ * refused run input). The catch sites used to keep only the sentence. A
+ * thrown value without a code stays a bare message.
+ */
+function refusalFrom(error: unknown): {
+  error: string;
+  code?: string;
+  hint?: string;
+  data?: Record<string, unknown>;
+} {
   const message = error instanceof Error ? error.message : String(error);
-  const code: unknown =
-    error !== null && typeof error === 'object'
-      ? Reflect.get(error, 'code')
-      : undefined;
-  return typeof code === 'string' && code !== ''
-    ? { error: message, code }
-    : { error: message };
+  if (error === null || typeof error !== 'object') return { error: message };
+  const code: unknown = Reflect.get(error, 'code');
+  const hint: unknown = Reflect.get(error, 'hint');
+  const data: unknown = Reflect.get(error, 'data');
+  return {
+    error: message,
+    ...(typeof code === 'string' && code !== '' && { code }),
+    ...(typeof hint === 'string' && hint !== '' && { hint }),
+    ...(data !== null &&
+      typeof data === 'object' &&
+      !Array.isArray(data) && {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
+        data: data as Record<string, unknown>,
+      }),
+  };
 }
 
 export interface DispatchContext {
@@ -268,6 +333,7 @@ async function runDeployedDurably(
   if (!store.startRun || !store.getRun) {
     return {
       error: 'live execution is not available in this environment',
+      code: 'LIVE_MODE_UNAVAILABLE',
       hint: 'this host has neither an in-process connector host nor a durable runner; test against mocks instead',
     };
   }
@@ -278,7 +344,11 @@ async function runDeployedDurably(
     return refusalFrom(e);
   }
   if (!started)
-    return { error: `deployed version ${name}@${version} is missing` };
+    return {
+      error: `deployed version ${name}@${version} is missing`,
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+      hint: `the deployed version is gone — deploy_automation a saved one (${LIST_VERSIONS_HINT})`,
+    };
   const timeoutMs = ctx.liveRunWait?.timeoutMs ?? LIVE_RUN_WAIT_TIMEOUT_MS;
   const pollMs = ctx.liveRunWait?.pollMs ?? LIVE_RUN_WAIT_POLL_MS;
   const deadline = Date.now() + timeoutMs;
@@ -327,11 +397,12 @@ function asString(v: unknown): string {
 function versionParam(
   v: unknown,
   hint: string,
-): { value: number } | { error: string; hint: string } {
+): { value: number } | { error: string; code: 'INVALID_PARAMS'; hint: string } {
   const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN;
   if (!Number.isInteger(n)) {
     return {
       error: `params.version must be a whole number — got ${JSON.stringify(v)}`,
+      code: 'INVALID_PARAMS',
       hint,
     };
   }
@@ -399,6 +470,7 @@ export async function dispatch(
       if (!query) {
         return {
           error: 'missing params.query',
+          code: 'INVALID_PARAMS',
           hint: 'search_catalog takes {query: "send email"} — capability keywords, verbs and objects',
         };
       }
@@ -422,6 +494,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
+          code: 'INVALID_PARAMS',
           hint: 'validate_automation takes {automation: <the automation document>}',
         };
       }
@@ -433,6 +506,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
+          code: 'INVALID_PARAMS',
           hint: 'run_automation takes {automation: <the automation document>, input: <its runtime input>}',
         };
       }
@@ -440,12 +514,14 @@ export async function dispatch(
       if (mode !== 'mock' && mode !== 'live') {
         return {
           error: `unknown mode "${String(p.mode)}"`,
+          code: 'INVALID_PARAMS',
           hint: 'mode is "mock" (default) or "live"',
         };
       }
       if (mode === 'live' && !ctx.allowLive) {
         return {
           error: 'live mode is not enabled in this environment',
+          code: 'LIVE_MODE_UNAVAILABLE',
           hint: 'test against mocks; live execution is enabled on deployment (host sets allowLive)',
         };
       }
@@ -455,6 +531,7 @@ export async function dispatch(
         return {
           error:
             'live mode is not available for an unsaved document in this environment',
+          code: 'LIVE_MODE_UNAVAILABLE',
           hint: 'run it in mock mode, or save_automation + deploy_automation and run it live with run_deployed or start_run',
         };
       }
@@ -484,6 +561,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
+          code: 'INVALID_PARAMS',
           hint: 'test_automation takes {automation: <the automation document, with its tests: block>}',
         };
       }
@@ -497,6 +575,7 @@ export async function dispatch(
       if (!p.automation) {
         return {
           error: 'missing params.automation',
+          code: 'INVALID_PARAMS',
           hint: 'save_automation takes {automation: <the automation document>, message?: "why this version"}',
         };
       }
@@ -504,6 +583,8 @@ export async function dispatch(
       if (errors.length > 0) {
         return {
           error: 'automation failed validation — fix errors before saving',
+          code: 'AUTOMATION_INVALID',
+          hint: 'fix what errors lists, then save again — validate_automation checks a document without saving it',
           errors,
         };
       }
@@ -531,6 +612,7 @@ export async function dispatch(
         found ?? {
           error: `no saved automation named "${name}"`,
           code: 'AUTOMATION_NOT_FOUND',
+          hint: LIST_AUTOMATIONS_HINT,
         }
       );
     }
@@ -545,6 +627,7 @@ export async function dispatch(
       if (p.version === undefined) {
         return {
           error: 'missing params.version',
+          code: 'INVALID_PARAMS',
           hint: 'deploy_automation takes {name: "billing/dunning", version: 3} — list_versions shows the saved ones',
         };
       }
@@ -559,6 +642,7 @@ export async function dispatch(
         return {
           error: `no saved automation "${name}@${version}"`,
           code: 'AUTOMATION_VERSION_UNKNOWN',
+          hint: `${LIST_VERSIONS_HINT}; ${LIST_AUTOMATIONS_HINT}`,
         };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
@@ -567,6 +651,8 @@ export async function dispatch(
       if (errors.length > 0) {
         return {
           error: 'this version no longer validates; it cannot be deployed',
+          code: 'AUTOMATION_INVALID',
+          hint: 'fix what errors lists, save_automation the corrected document as a new version and deploy that one',
           errors,
         };
       }
@@ -576,6 +662,8 @@ export async function dispatch(
         if ('failed' in report && report.failed > 0) {
           return {
             error: 'deploy gate: the automation has failing tests',
+            code: 'AUTOMATION_TESTS_FAILING',
+            hint: 'read report.results, fix the automation or its tests (test_automation runs them without deploying), save a new version and deploy that one',
             report,
           };
         }
@@ -597,13 +685,12 @@ export async function dispatch(
     }
 
     case 'set_trigger': {
-      if (!store.setTrigger) {
-        return { error: 'triggers are not supported in this environment' };
-      }
+      if (!store.setTrigger) return notSupported('triggers are');
       const trigger = p.trigger;
       if (!trigger || typeof trigger !== 'object') {
         return {
           error: 'missing params.trigger',
+          code: 'INVALID_PARAMS',
           hint: 'set_trigger takes {name, trigger: {kind: "schedule"|"webhook"|"event", …}}',
         };
       }
@@ -611,7 +698,8 @@ export async function dispatch(
       if (!name) {
         return {
           error: 'missing params.name',
-          hint: 'list_automations shows the saved ones',
+          code: 'INVALID_PARAMS',
+          hint: LIST_AUTOMATIONS_HINT,
         };
       }
       const missing = await missingAutomation(store, name);
@@ -643,6 +731,7 @@ export async function dispatch(
         return {
           error: `deployed version ${name}@${version} is missing`,
           code: 'AUTOMATION_VERSION_UNKNOWN',
+          hint: `the deployed version is gone — deploy_automation a saved one (${LIST_VERSIONS_HINT})`,
         };
       const mode = ctx.allowLive ? 'live' : 'mock';
       if (mode === 'live' && !ctx.connectorHost) {
@@ -667,13 +756,12 @@ export async function dispatch(
     }
 
     case 'start_run': {
-      if (!store.startRun) {
-        return { error: 'durable runs are not supported in this environment' };
-      }
+      if (!store.startRun) return notSupported('durable runs are');
       const name = asString(p.name);
       if (!name) {
         return {
           error: 'missing params.name',
+          code: 'INVALID_PARAMS',
           hint: 'start_run takes {name: "billing/dunning", input: {…}, projectId?: "…"}',
         };
       }
@@ -688,9 +776,11 @@ export async function dispatch(
       const mode = ctx.allowLive ? 'live' : 'mock';
       const projectId = asString(p.projectId) || undefined;
       try {
+        // An absent input is an empty one; a null input is the null the
+        // caller sent, for the schema to accept or refuse.
         const started = await store.startRun(
           name,
-          p.input ?? {},
+          p.input === undefined ? {} : p.input,
           mode,
           version,
           projectId,
@@ -714,10 +804,14 @@ export async function dispatch(
     }
 
     case 'list_runs': {
-      if (!store.listRuns) {
-        return { error: 'run history is not supported in this environment' };
-      }
+      if (!store.listRuns) return notSupported('run history is');
       const name = asString(p.name);
+      if (name !== '') {
+        // A name that exists with no runs and a name that does not exist
+        // used to read the same ({runs: []}); the second is a refusal.
+        const missing = await missingAutomation(store, name);
+        if (missing) return missing;
+      }
       const limit = p.limit === undefined ? undefined : Number(p.limit);
       return {
         runs: await store.listRuns({
@@ -728,30 +822,35 @@ export async function dispatch(
     }
 
     case 'get_run': {
-      if (!store.getRun) {
-        return { error: 'run history is not supported in this environment' };
-      }
+      if (!store.getRun) return notSupported('run history is');
       const runId = asString(p.runId);
       if (!runId) {
         return {
           error: 'missing params.runId',
-          hint: 'start_run returns the runId; list_runs lists the recent ones',
+          code: 'INVALID_PARAMS',
+          hint: RUN_ID_HINT,
         };
       }
       const run = await store.getRun(runId);
       return run
         ? { run }
-        : { error: `no run "${runId}"`, code: 'RUN_NOT_FOUND' };
+        : {
+            error: `no run "${runId}"`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
     }
 
     case 'cancel_run': {
-      if (!store.cancelRun) {
+      if (!store.cancelRun) return notSupported('cancelling a run is');
+      const runId = asString(p.runId);
+      if (!runId) {
         return {
-          error: 'cancelling a run is not supported in this environment',
+          error: 'missing params.runId',
+          code: 'INVALID_PARAMS',
+          hint: RUN_ID_HINT,
         };
       }
-      const runId = asString(p.runId);
-      if (!runId) return { error: 'missing params.runId' };
       try {
         const { cancelled } = await store.cancelRun(runId);
         return {
@@ -766,34 +865,41 @@ export async function dispatch(
     }
 
     case 'list_versions': {
-      if (!store.listVersions) {
+      if (!store.listVersions) return notSupported('version history is');
+      const name = asString(p.name);
+      if (!name) {
         return {
-          error: 'version history is not supported in this environment',
+          error: 'missing params.name',
+          code: 'INVALID_PARAMS',
+          hint: LIST_AUTOMATIONS_HINT,
         };
       }
-      const name = asString(p.name);
-      if (!name) return { error: 'missing params.name' };
+      // An unknown name is a refusal, as it is for get_automation — never
+      // an empty history a caller reads as "exists, nothing saved yet".
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
       return { versions: await store.listVersions(name) };
     }
 
     case 'list_triggers': {
-      if (!store.listTriggers) {
-        return { error: 'triggers are not supported in this environment' };
-      }
+      if (!store.listTriggers) return notSupported('triggers are');
       const name = asString(p.name);
+      if (name !== '') {
+        const missing = await missingAutomation(store, name);
+        if (missing) return missing;
+      }
       return {
         triggers: await store.listTriggers(name === '' ? undefined : name),
       };
     }
 
     case 'delete_trigger': {
-      if (!store.deleteTrigger) {
-        return { error: 'triggers are not supported in this environment' };
-      }
+      if (!store.deleteTrigger) return notSupported('triggers are');
       const name = asString(p.name);
       if (!name) {
         return {
           error: 'missing params.name',
+          code: 'INVALID_PARAMS',
           hint: 'list_triggers shows what is bound',
         };
       }
@@ -820,6 +926,7 @@ export async function dispatch(
     default:
       return {
         error: `unknown method "${method}"`,
+        code: 'UNKNOWN_METHOD',
         hint: `available methods: ${METHODS.join(', ')}`,
       };
   }

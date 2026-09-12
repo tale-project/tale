@@ -14,9 +14,21 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { releaseCorpusRefs } from '../knowledge/release.ts';
 import { deleteKnowledgeEntry, KnowledgeEntryError } from './service.ts';
+
+// The de-index after an active delete talks to the corpus: the seam is
+// replaced, and the org slug the release is keyed by comes from a stub.
+vi.mock('../knowledge/release.ts', () => ({
+  releaseCorpusRefs: vi.fn(() =>
+    Promise.resolve({ released: ['s3:acme/blob-1'], kept: [], failures: [] }),
+  ),
+}));
+vi.mock('../../lib/org-config.ts', () => ({
+  resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
+}));
 
 interface Statement {
   text: string;
@@ -28,12 +40,12 @@ function fakeSql(lookup: unknown[]): { sql: Sql; statements: Statement[] } {
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
-    if (text.startsWith('SELECT status')) return Promise.resolve(lookup);
+    if (text.startsWith('SELECT ke.status')) return Promise.resolve(lookup);
     return Promise.resolve([]);
   };
-  const sql = {
+  const sql = Object.assign(tx, {
     begin: (callback: (handle: typeof tx) => Promise<unknown>) => callback(tx),
-  };
+  });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: sql as unknown as Sql, statements };
 }
@@ -44,6 +56,10 @@ const updates = (statements: Statement[]) =>
   statements.filter((s) => s.text.startsWith('UPDATE'));
 
 describe('deleteKnowledgeEntry', () => {
+  beforeEach(() => {
+    vi.mocked(releaseCorpusRefs).mockClear();
+  });
+
   it('looks only at live rows, and answers 404 for one already deleted', async () => {
     const fake = fakeSql([]);
     let caught: unknown;
@@ -63,11 +79,18 @@ describe('deleteKnowledgeEntry', () => {
 
   it('prunes a superseded row alone — the active fact and its document stay', async () => {
     const fake = fakeSql([
-      { status: 'superseded', topicKey: 'refunds', documentId: 'doc-1' },
+      {
+        status: 'superseded',
+        topicKey: 'refunds',
+        documentId: 'doc-1',
+        fileRef: 's3:acme/blob-1',
+      },
     ]);
     await deleteKnowledgeEntry(fake.sql, args);
     const writes = updates(fake.statements);
     expect(writes).toHaveLength(1);
+    // History pruned, the fact untouched — its corpus rows stay.
+    expect(releaseCorpusRefs).not.toHaveBeenCalled();
     expect(writes[0]?.text).toMatch(
       /^UPDATE app\.knowledge_entries SET deleted_at_ms = \? WHERE id = \?/,
     );
@@ -78,7 +101,12 @@ describe('deleteKnowledgeEntry', () => {
 
   it('retires the whole chain by DOCUMENT and trashes it when the active row goes', async () => {
     const fake = fakeSql([
-      { status: 'active', topicKey: 'refunds', documentId: 'doc-1' },
+      {
+        status: 'active',
+        topicKey: 'refunds',
+        documentId: 'doc-1',
+        fileRef: 's3:acme/blob-1',
+      },
     ]);
     await deleteKnowledgeEntry(fake.sql, args);
     const writes = updates(fake.statements);
@@ -90,6 +118,46 @@ describe('deleteKnowledgeEntry', () => {
     expect(writes[1]?.text).toContain('UPDATE app.documents');
     expect(writes[1]?.text).toContain("lifecycle_status = 'trashed'");
     expect(writes[1]?.values).toContain('doc-1');
+    // De-indexed at once, after the commit: the trashed document's chunks
+    // used to keep winning candidate slots until the retention purge, so a
+    // small page came back empty while a live passage sat below the cut.
+    // Corpus rows only — the bytes stay for the Trash and the purge.
+    expect(releaseCorpusRefs).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      refs: ['s3:acme/blob-1'],
+      excludeDocumentId: 'doc-1',
+    });
+  });
+
+  it('survives a failed de-index — the delete stands and the purge retries', async () => {
+    vi.mocked(releaseCorpusRefs).mockResolvedValueOnce({
+      released: [],
+      kept: [],
+      failures: [
+        { ref: 's3:acme/blob-1', stage: 'corpus', message: 'corpus down' },
+      ],
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const fake = fakeSql([
+        {
+          status: 'active',
+          topicKey: 'refunds',
+          documentId: 'doc-1',
+          fileRef: 's3:acme/blob-1',
+        },
+      ]);
+      await expect(
+        deleteKnowledgeEntry(fake.sql, args),
+      ).resolves.toBeUndefined();
+      expect(updates(fake.statements)).toHaveLength(2);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('de-indexing doc-1'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('falls back to the topic key only for a legacy chain without a document', async () => {

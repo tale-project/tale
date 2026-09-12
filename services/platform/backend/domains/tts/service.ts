@@ -1,6 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../lib/net/host-policy.ts';
 import {
   SafeFetchError,
   safeFetchBinary,
@@ -759,6 +762,7 @@ export async function synthesizeChunk(
     AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
   try {
     const response = await safeFetchBinary(url, {
+      allowPrivateAddresses: privateProviderHostsAllowed(),
       method: 'POST',
       headers: {
         Authorization: `Bearer ${modelData.apiKey}`,

@@ -121,6 +121,32 @@ describe('setTrigger', () => {
     expect(rotated.token).toBeTypeOf('string');
   });
 
+  it('clears the fire stamp when the kind changes, and keeps it otherwise', async () => {
+    // Decided in SQL against the existing row: a fresh event trigger never
+    // inherits the firing history of the webhook it replaced.
+    const fake = fakeUpsert('fresh');
+    await setTrigger(
+      fake.sql,
+      args({ kind: 'event', event: 'contact.created' }),
+    );
+    const text = fake.statements[0]?.text ?? '';
+    expect(text).toContain('last_fired_at_ms = CASE');
+    expect(text).toContain(
+      'WHEN t.kind = EXCLUDED.kind THEN t.last_fired_at_ms',
+    );
+    expect(text).toContain('ELSE NULL');
+  });
+
+  it('stores the event name trimmed, as it was validated', async () => {
+    const fake = fakeUpsert('fresh');
+    await setTrigger(
+      fake.sql,
+      args({ kind: 'event', event: '  contact.created  ' }),
+    );
+    // VALUES order: org, name, kind, cron, timezone, event, token_hash, …
+    expect(fake.statements[0]?.values[5]).toBe('contact.created');
+  });
+
   it('refuses an invalid trigger before touching the database', async () => {
     const fake = fakeUpsert('fresh');
     await expect(

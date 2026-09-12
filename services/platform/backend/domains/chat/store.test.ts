@@ -491,4 +491,48 @@ describe('createPgTurnStore.finalizeAssistantMessage', () => {
     expect(f.pool[0]?.values).toContain('the whole reply');
     expect(f.pool[0]?.values).toContain('complete');
   });
+
+  it('settles a stopped turn as cancelled, keeping what streamed and its usage', async () => {
+    // A user stop used to be recorded as a complete, often empty, reply —
+    // the documented `cancelled` status was never written.
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).finalizeAssistantMessage({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+      messageId: 'msg_2',
+      text: 'the part that',
+      parts: [{ type: 'text', text: 'the part that' }],
+      usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+      cancelled: true,
+    });
+    expect(f.pool).toHaveLength(1);
+    expect(f.pool[0]?.values).toContain('cancelled');
+    expect(f.pool[0]?.values).not.toContain('complete');
+    expect(f.pool[0]?.values).toContainEqual({
+      json: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+    });
+  });
+});
+
+describe('createPgTurnStore — the pre-minted placeholder id', () => {
+  it('inserts the assistant placeholder under the id the REST door already named', async () => {
+    const f = fakeChatSql();
+    const opened = await createPgTurnStore(f.sql, {
+      placeholderId: 'msg-pre-minted',
+    }).beginTurn(OPEN);
+    const inserts = f.tx.filter((s) =>
+      s.text.includes('INSERT INTO app.messages'),
+    );
+    // The user row takes a generated id; the placeholder takes the promised one.
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.values).toContain(null);
+    expect(inserts[1]?.values).toContain('msg-pre-minted');
+    expect(inserts[1]?.values).toContain('pending');
+    expect(opened.assistantMessage.id).toBeDefined();
+    // The turn-open write ends the door's `queued` marker.
+    const metadata = f.tx.find((s) =>
+      s.text.includes("generation_status = 'generating'"),
+    );
+    expect(metadata?.text).toContain('generation_queued_since_ms = NULL');
+  });
 });

@@ -22,13 +22,16 @@ import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
   domainErrorResponse,
   formatKeysetCursor,
-  invalidBodyResponse,
   mintCursor,
+  noQuery,
   notFound,
+  PAGE_QUERY,
   pageLimit,
-  readJsonBody,
+  parseBody,
+  queryFilter,
   readKeysetCursor,
   readPageLimit,
+  readQuery,
   type RestEnv,
 } from './shared.ts';
 
@@ -57,8 +60,10 @@ const websiteInput = z
   })
   .strict();
 
-/** `domain` is accepted by the schema so its presence answers the
- * documented `WEBSITE_DOMAIN_IMMUTABLE`, not an unknown-key refusal. */
+/** `domain` is accepted by the schema so a CHANGED value answers the
+ * documented `WEBSITE_DOMAIN_IMMUTABLE`, not an unknown-key refusal — and
+ * a value equal to the stored one passes, since a PUT-style client echoes
+ * the resource it read. */
 const websitePatch = z
   .object({
     title: z.string().max(MAX_TITLE).optional(),
@@ -141,6 +146,12 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     notFound(c, 'Website not found', 'WEBSITE_NOT_FOUND');
 
   app.get('/websites', async (c) => {
+    const query = readQuery(c, {
+      ...PAGE_QUERY,
+      status: queryFilter(32).optional(),
+      scanInterval: queryFilter(16).optional(),
+    });
+    if (query instanceof Response) return query;
     // The service decodes the `<createdAt>:<id>` position itself; the
     // signature is checked here so a token this list never answered is
     // refused, never read as page one.
@@ -149,11 +160,9 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const limit = readPageLimit(c, { fallback: 25, max: 200 });
     if (limit instanceof Response) return limit;
     const result = await listWebsites(deps.sql, c.get('organizationId'), {
-      ...(c.req.query('status') !== undefined
-        ? { status: c.req.query('status') ?? '' }
-        : {}),
-      ...(c.req.query('scanInterval') !== undefined
-        ? { scanInterval: c.req.query('scanInterval') ?? '' }
+      ...(query.status !== undefined ? { status: query.status } : {}),
+      ...(query.scanInterval !== undefined
+        ? { scanInterval: query.scanInterval }
         : {}),
       cursor: cursor === null ? null : formatKeysetCursor(cursor.at, cursor.id),
       limit,
@@ -170,12 +179,12 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** Register a domain (201) — or, with `urls`, extend an existing list
    * registration of the same domain (200, the existing id). */
   app.post('/websites', async (c) => {
-    const body = websiteInput.safeParse(await readJsonBody(c));
-    if (!body.success) return invalidBodyResponse(c, body.error);
-    const { scanInterval, title, description } = body.data;
+    const body = await parseBody(c, websiteInput);
+    if (body instanceof Response) return body;
+    const { scanInterval, title, description } = body;
     try {
-      const domain = crawlableDomain(body.data.domain);
-      const listEntries = body.data.urls ?? [];
+      const domain = crawlableDomain(body.domain);
+      const listEntries = body.urls ?? [];
       const isList = listEntries.length > 0;
       const listedUrls = isList
         ? normalizeListUrls(domain, listEntries)
@@ -223,19 +232,28 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  app.get('/websites/:id', async (c) => {
+  app.get('/websites/:id', noQuery, async (c) => {
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
     return c.json(website);
   });
 
   app.get('/websites/:id/pages', async (c) => {
-    const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
-    if (!website) return websiteNotFound(c);
     // Whole, non-negative rows only: the inventory query ships these as
     // `OFFSET`/`LIMIT`, where `-1` and `2.5` are Postgres errors and an
-    // unbounded limit walks the whole per-domain corpus.
-    const offset = Math.max(0, Math.trunc(Number(c.req.query('offset')) || 0));
+    // unbounded limit walks the whole per-domain corpus. `offset=abc` used
+    // to read as 0 with nothing telling the caller.
+    const query = readQuery(c, {
+      limit: z.string().optional(),
+      offset: z
+        .string()
+        .regex(/^\d{1,15}$/, 'must be a whole number of rows to skip')
+        .optional(),
+    });
+    if (query instanceof Response) return query;
+    const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
+    if (!website) return websiteNotFound(c);
+    const offset = Number(query.offset ?? 0);
     const limit = readPageLimit(c, { fallback: 100, max: 500 });
     if (limit instanceof Response) return limit;
     const result = await fetchWebsitePages(deps.sql, website, {
@@ -245,24 +263,34 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({ ...result, pages: result.pages.map(websitePageView) });
   });
 
+  /** Partial update. Answers 200 with the website as it now stands (the
+   * GET view) — a 204 left a client that wanted the new `updatedAt` or
+   * `status` with a second round trip. The domain is immutable: a body
+   * carrying the stored value is a client echoing the resource and passes;
+   * any other value is refused before the row is touched. */
   app.patch('/websites/:id', async (c) => {
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
-    const body = websitePatch.safeParse(await readJsonBody(c));
-    if (!body.success) return invalidBodyResponse(c, body.error);
-    if (body.data.domain !== undefined) {
+    const body = await parseBody(c, websitePatch);
+    if (body instanceof Response) return body;
+    if (
+      body.domain !== undefined &&
+      body.domain.trim().toLowerCase() !== website.domain
+    ) {
       return domainErrorResponse(c, websiteDomainImmutableError());
     }
-    const { title, description, scanInterval } = body.data;
+    const { title, description, scanInterval } = body;
     try {
-      await patchWebsite(deps.sql, {
+      const updated = await patchWebsite(deps.sql, {
         websiteId: website.id,
         callerOrgId: c.get('organizationId'),
         ...(title !== undefined ? { title } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(scanInterval !== undefined ? { scanInterval } : {}),
       });
-      return c.body(null, 204);
+      // The row went away between the load and the write.
+      if (updated === null) return websiteNotFound(c);
+      return c.json(updated);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -295,12 +323,12 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/websites/:id/search', async (c) => {
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
-    const body = searchBody.safeParse(await readJsonBody(c));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    const body = await parseBody(c, searchBody);
+    if (body instanceof Response) return body;
     const result = await searchWebsiteContent(deps.sql, website, {
-      query: body.data.query,
-      ...(body.data.limit !== undefined
-        ? { limit: pageLimit(body.data.limit, { fallback: 10, max: 100 }) }
+      query: body.query,
+      ...(body.limit !== undefined
+        ? { limit: pageLimit(body.limit, { fallback: 10, max: 100 }) }
         : {}),
     });
     return c.json({

@@ -324,6 +324,97 @@ describe('saveSkill', () => {
     ]);
   });
 
+  it('refuses to replace an existing bundle when asked to create only', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'Original.\n',
+    });
+
+    try {
+      await saveSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...admin,
+        createOnly: true,
+        description: 'Second.',
+        body: 'Replacement.\n',
+      });
+      expect.unreachable(
+        'a create-only save over an existing bundle must be refused',
+      );
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_EXISTS');
+    }
+    const readSkill = await load('readSkillForViewer');
+    const kept = await readSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...bob,
+    });
+    expect(kept.body).toBe('Original.\n');
+    expect(kept.description).toBe('First.');
+
+    // The same flag on a slug nobody holds is an ordinary create.
+    const created = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'fresh',
+      ...alice,
+      createOnly: true,
+      description: 'New.',
+      body: 'New.\n',
+    });
+    expect(created.slug).toBe('fresh');
+  });
+
+  it('keeps icon and labels when the edit omits them, and clears them on null', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const first = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Decorated.',
+      body: 'Body.\n',
+      icon: 'lucide:flask-conical',
+      labels: ['probe', 'inert'],
+    });
+    expect(first.icon).toBe('lucide:flask-conical');
+    expect(first.labels).toEqual(['probe', 'inert']);
+
+    const merged = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Still decorated.',
+      body: 'Body.\n',
+    });
+    expect(merged.icon).toBe('lucide:flask-conical');
+    expect(merged.labels).toEqual(['probe', 'inert']);
+
+    const cleared = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Plain.',
+      body: 'Body.\n',
+      icon: null,
+      labels: null,
+    });
+    expect(cleared.icon).toBeUndefined();
+    expect(cleared.labels).toBeUndefined();
+    const readSkill = await load('readSkillForViewer');
+    const onDisk = await readSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+    });
+    expect(onDisk.icon).toBeUndefined();
+    expect(onDisk.labels).toBeUndefined();
+  });
+
   it('refuses to mint a private skill', async () => {
     const saveSkill = await load('saveSkillForViewer');
 

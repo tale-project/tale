@@ -11,11 +11,11 @@ Lies das, um einen Client zu verbinden und das Tool-Inventar zu verstehen. Die G
 
 ## Einen Client verbinden
 
-Der Endpoint spricht MCP-Protokoll `2025-06-18` (oder `2025-03-26`, wenn der Client es vorschlägt) als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream. Schick eine Nachricht pro Request oder einen JSON-RPC-Batch mit höchstens 20 Nachrichten: Der kommt als Array zurück, ein Batch aus lauter Notifications mit 202, und jeder Tool-Aufruf im Batch nach dem ersten zählt gegen dasselbe Request-Budget wie ein eigener Request. Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen). Gehört der Schlüsselinhaber mehreren Organisationen an, muss jede Anfrage zusätzlich sagen, welche gemeint ist — über `X-Organization-Slug`, gegen die Mitgliedschaft geprüft. Ohne diesen Wert antwortet so eine Anfrage mit **400** `ORG_SLUG_REQUIRED`, statt aus dem Dashboard zu raten; ein Schlüssel mit nur einer Organisation kann ihn weglassen.
+Der Endpoint spricht MCP-Protokoll `2025-06-18` (oder `2025-03-26`, wenn der Client es vorschlägt) als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream. Schick eine Nachricht pro Request oder einen JSON-RPC-Batch mit höchstens 20 Nachrichten: Der kommt als Array zurück, ein Batch aus lauter Notifications mit 202, und jeder Tool-Aufruf im Batch nach dem ersten zählt gegen dasselbe Request-Budget wie ein eigener Request. Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen) — Schlüssel sind die einzige Berechtigung, die dieser Endpoint nimmt: eine OAuth-Discovery gibt es hier nicht, ein Client, der auf dem MCP-Autorisierungsfluss besteht, findet unter den Discovery-URLs also eine JSON-**404** und muss mit den Kopfzeilen unten konfiguriert werden. Gehört der Schlüsselinhaber mehreren Organisationen an, muss jede Anfrage zusätzlich sagen, welche gemeint ist — über `X-Organization-Slug`, gegen die Mitgliedschaft geprüft. Ohne diesen Wert antwortet so eine Anfrage mit **400** `ORG_SLUG_REQUIRED`, statt aus dem Dashboard zu raten; ein Slug, der keine Organisation benennt, antwortet **404** `ORG_SLUG_INVALID`, einer, dessen Organisation der Schlüsselinhaber nicht angehört, **403** `ORG_FORBIDDEN`; ein Schlüssel mit nur einer Organisation kann ihn weglassen. Schick in späteren Anfragen die Revision, die das `initialize`-Ergebnis ausgehandelt hat, in der Kopfzeile `MCP-Protocol-Version` — nie die, die du vorgeschlagen hast —, denn ein unbekannter Wert antwortet **400**.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
-// Authorization: Bearer tale_...
+// Authorization: Bearer <api-key>
 // X-Organization-Slug: acme
 {
   "jsonrpc": "2.0",
@@ -29,7 +29,7 @@ Der Endpoint spricht MCP-Protokoll `2025-06-18` (oder `2025-03-26`, wenn der Cli
 }
 ```
 
-Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Block reichen diese beiden Einträge:
+Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Block reichen diese beiden Einträge — diese Form ist mit Clients geprüft, die einen `headers`-Block nehmen; ein Host, der nur stdio spricht, braucht eine Remote-Bridge wie `mcp-remote` vor der URL:
 
 ```json
 {
@@ -37,7 +37,7 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
     "tale": {
       "url": "https://your-host.example.com/api/v1/mcp",
       "headers": {
-        "Authorization": "Bearer tale_...",
+        "Authorization": "Bearer <api-key>",
         "X-Organization-Slug": "acme"
       }
     }
@@ -45,11 +45,11 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
 }
 ```
 
-`tools/list` liefert das volle Inventar; jedes Verb außer `POST` antwortet **405** mit einer `Allow: POST`-Kopfzeile — es gibt keinen Event-Stream zum Abonnieren und keine Session zum Löschen. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
+`tools/list` liefert das volle Inventar; jedes Verb außer `POST` antwortet **405** mit einer `Allow: POST, OPTIONS`-Kopfzeile (ein `OPTIONS` antwortet **204** mit derselben Liste) — es gibt keinen Event-Stream zum Abonnieren und keine Session zum Löschen — und der Endpoint sendet keine CORS-Kopfzeilen: er ist für serverseitige Clients gedacht, nie für eine Browser-Seite, die einen Schlüssel hält. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
 
 ## Die Tools
 
-Zweiundzwanzig Tools, in drei Gruppen, jedes mit einem echten JSON-Schema, an dem der Endpoint jeden Aufruf festhält — Argumente, die nicht passen, ergeben den JSON-RPC-Fehler `-32602` mit dem Feldnamen, nie ein stillschweigend leeres Ergebnis. Die vier Tools, die ein ganzes Automatisierungsdokument nehmen — validate, run, test, save — deklarieren ihren Aufruf-Umschlag (`automation`, dazu `input`, `mode` oder `message`, wo sie gelten) und lassen das Dokument selbst offen: Seine Grammatik lehrt `get_docs`, und die Engine validiert es im Band.
+Zweiundzwanzig Tools, in drei Gruppen, jedes mit einem echten JSON-Schema, an dem der Endpoint jeden Aufruf festhält — Argumente, die nicht passen, ergeben den JSON-RPC-Fehler `-32602` mit dem Feldnamen, nie ein stillschweigend leeres Ergebnis. Die vier Tools, die ein ganzes Automatisierungsdokument nehmen — validate, run, test, save — deklarieren ihren Aufruf-Umschlag (`automation`, dazu `input`, `mode` oder `message`, wo sie gelten) und lassen das Dokument selbst offen: Seine Grammatik lehrt `get_docs`, und die Engine validiert es im Band. Jedes Tool trägt außerdem die vier MCP-`annotations` — `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` —, damit ein Host eine „immer erlauben"-Entscheidung daran festmachen kann: die Lese-Tools sind `readOnlyHint: true`; `save_automation` schreibt, ohne etwas zu zerstören; `deploy_automation`, `set_trigger`, `delete_trigger` und `cancel_run` ersetzen oder entfernen Bestehendes; `run_deployed`, `start_run` und `invoke_capability` laufen live gegen echte Backends (`openWorldHint: true`); `run_automation` und `test_automation` laufen gegen die Mocks. Hinweise, keine Garantien — die Rollenprüfung unten bleibt der Rückhalt.
 
 ### Autorieren
 
@@ -101,7 +101,7 @@ Der Schlüssel beweist, wer anruft; die Rolle seines Besitzers entscheidet, was 
 - **Jeder Mitglieds-Schlüssel** — jedes Lese-Tool, `run_automation` (immer gegen die Mocks), `search_capabilities`, `get_knowledge`.
 - **Entwickler-Fähigkeit nötig** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run` und Live-Ausführung (`run_deployed`, `start_run`).
 
-Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "code": "...", "hint": "..."}`, wobei `code` der stabile Wert zum Verzweigen ist (`AUTOMATION_NOT_FOUND`, …) und `hint` sagt, was zu tun ist — damit das aufrufende Modell sich anpassen kann, statt abzustürzen, und das Ergebnis trägt `isError: true`, damit ein generischer Client den Fehlschlag erkennt, ohne den Text zu lesen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments, Rollenablehnungen und eine Wissensdatenbank, die sich nicht durchsuchen ließ, kommen als Daten mit gesetztem Flag zurück — genau wie ein Aufruf, der wirklich geworfen hat. Eine Capability, die `pending` antwortet — eine Erinnerung, die auf die Freigabe eines Menschen wartet —, ist ein Ergebnis, kein Fehlschlag, und lässt `isError` auf false; eine `refused` Capability (unbekannte ID, Argumente, die ihr Schema ablehnt, kein Deployment) ist ein Fehlschlag und trägt das Flag.
+Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "code": "...", "hint": "..."}`, wobei `code` der stabile Wert zum Verzweigen ist und `hint` sagt, was zu tun ist — damit das aufrufende Modell sich anpassen kann, statt abzustürzen, und das Ergebnis trägt `isError: true`, damit ein generischer Client den Fehlschlag erkennt, ohne den Text zu lesen. Die Codes, die die Tools selbst prägen, sind `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID` (das Dokument besteht die Validierung nicht, wo ein gültiges gebraucht wird), `AUTOMATION_TESTS_FAILING` (das Deploy-Gate), `LIVE_MODE_UNAVAILABLE`, `NOT_SUPPORTED` (der Host hält keine Läufe, Versionen oder Trigger), `INVALID_PARAMS` und `UNKNOWN_METHOD`; eine Ablehnung, die die Plattform darunter erhebt — ein Name, den ein anderer Besitzer hält, eine Lauf-Eingabe, die das `inputs`-Schema der Automatisierung ablehnt — kommt mit ihrem eigenen `code`, ihrem `hint` und, wo sie eines hat, ihrem `data` (etwa die Schemaprobleme) unverändert durch. `list_versions`, `list_runs` und `list_triggers` lehnen einen unbekannten Automatisierungsnamen mit `AUTOMATION_NOT_FOUND` ab, genau wie `get_automation`, nie mit einer leeren Liste. Diese Konvention gilt überall: ein Dokument, das die Validierung nicht besteht, wo ein Tool ein gültiges braucht (`save_automation`, `deploy_automation`, `run_automation`, `test_automation`), fehlende Deployments, Rollenablehnungen und eine Wissensdatenbank, die sich nicht durchsuchen ließ, kommen als Daten mit gesetztem Flag zurück — genau wie ein Aufruf, der wirklich geworfen hat. `validate_automation` ist das eine Tool, dessen Aufgabe das Urteil selbst ist: es antwortet `{ "valid": false, "errors": [...] }` als gewöhnliches Ergebnis — lies `valid`, das Flag bleibt aus. Eine Capability, die `pending` antwortet — eine Erinnerung, die auf die Freigabe eines Menschen wartet —, ist ein Ergebnis, kein Fehlschlag, und lässt `isError` auf false; eine `refused` Capability (unbekannte ID, Argumente, die ihr Schema ablehnt, kein Deployment) ist ein Fehlschlag und trägt das Flag.
 
 ## Wo das hingehört
 

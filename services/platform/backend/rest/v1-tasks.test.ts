@@ -85,6 +85,7 @@ function mount(
     archived?: boolean;
     archivedInTx?: boolean;
     absentInTx?: boolean;
+    taskArchived?: boolean;
     projectFailure?: boolean;
     ambiguous?: boolean;
     spent?: boolean;
@@ -122,6 +123,7 @@ function mount(
                   (inTransaction ? options.taskProjectIdInTx : undefined) ??
                   options.taskProjectId ??
                   'p-1',
+                archivedAt: options.taskArchived ? 1 : null,
               },
             ],
       );
@@ -464,6 +466,7 @@ describe('project-scoped task intake', () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
       task: { id: 't-1', created: true },
+      runId: null,
       executionId: null,
     });
   });
@@ -478,6 +481,7 @@ describe('project-scoped task intake', () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
       task: { id: 't-1', created: true },
+      runId: 'run-1',
       executionId: 'run-1',
     });
     expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
@@ -537,11 +541,6 @@ describe('project-scoped task reads and operations', () => {
   it('returns 500 for a database failure instead of concealing it as a missing task', async () => {
     const { request } = mount({ projectFailure: true });
     expect((await request(item)).status).toBe(500);
-  });
-
-  it('requires an explicit organization for ambiguous-key reads', async () => {
-    const { request } = mount({ ambiguous: true });
-    expect((await request(item)).status).toBe(400);
   });
 
   it('keeps archived projects readable but refuses comment and execution mutations', async () => {
@@ -684,7 +683,11 @@ describe('project-scoped task reads and operations', () => {
       workflowSlug: 'triage',
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ started: true, executionId: 'run-1' });
+    expect(await res.json()).toEqual({
+      started: true,
+      runId: 'run-1',
+      executionId: 'run-1',
+    });
     expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -707,13 +710,19 @@ describe('project-scoped task reads and operations', () => {
   it.each([
     {
       result: null,
-      response: { started: false, reason: 'not_started', executionId: null },
+      response: {
+        started: false,
+        reason: 'not_started',
+        runId: null,
+        executionId: null,
+      },
     },
     {
       result: { runId: 'run-live', alreadyRunning: true },
       response: {
         started: false,
         reason: 'already_running',
+        runId: 'run-live',
         executionId: 'run-live',
       },
     },
@@ -744,5 +753,125 @@ describe('project-scoped task reads and operations', () => {
       (await request('/tasks/t-1/start', 'POST', { workflowSlug: 'triage' }))
         .status,
     ).toBe(404);
+  });
+});
+
+/**
+ * The caller-owned keys are canonical at the door (NFC, trimmed — the one
+ * rule the project family's `externalItemId` follows), the run a start
+ * answers is named `runId` beside the legacy `executionId`, the URL is
+ * judged left to right (a bad project id is `PROJECT_NOT_FOUND`, never the
+ * task's fault), and an archived task refuses the mutations the contract
+ * promises only "an active task" takes.
+ */
+describe('project-scoped task door — keys, run ids, URL order, archival', () => {
+  it('canonicalizes externalSystem and externalId before the lookup and the intake', async () => {
+    const { request } = mount();
+    const nfd = 'café'.normalize('NFD');
+    const res = await request(collection, 'POST', {
+      ...input,
+      externalSystem: ' crm ',
+      externalId: `  ${nfd}-001\n`,
+    });
+    expect(res.status).toBe(201);
+    expect(service.findTaskByExternalRef).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        externalSystem: 'crm',
+        externalId: 'café-001',
+      }),
+    );
+    expect(service.upsertTaskByExternalRef).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        externalSystem: 'crm',
+        externalId: 'café-001',
+      }),
+    );
+  });
+
+  it.each([
+    ['externalId', { ...input, externalId: '   ' }, 'must not be blank'],
+    ['externalSystem', { ...input, externalSystem: '\n' }, 'must not be blank'],
+    ['title', { ...input, title: '   ' }, undefined],
+    ['labels.0', { ...input, labels: ['  '] }, undefined],
+  ])(
+    'refuses a whitespace-only %s by name with 400 INVALID_BODY',
+    async (path, body, message) => {
+      const { request } = mount();
+      const res = await request(collection, 'POST', body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: {
+          issues: [
+            expect.objectContaining({
+              path,
+              ...(message === undefined ? {} : { message }),
+            }),
+          ],
+        },
+      });
+      expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    },
+  );
+
+  it('trims the title and the labels it hands to the intake', async () => {
+    const { request } = mount();
+    const res = await request(collection, 'POST', {
+      ...input,
+      title: '  Prepare  ',
+      labels: [' ops '],
+    });
+    expect(res.status).toBe(201);
+    expect(service.upsertTaskByExternalRef.mock.calls[0]?.[1]).toMatchObject({
+      title: 'Prepare',
+      labels: ['ops'],
+    });
+  });
+
+  it('blames a missing project on the project, before the task is looked up', async () => {
+    const { request, queries } = mount({ absent: true, taskAbsent: true });
+    const res = await request(item);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(queries.some((query) => query.text.includes('FROM app.tasks'))).toBe(
+      false,
+    );
+    const taskless = await request(item, 'GET', undefined);
+    expect(taskless.status).toBe(404);
+    const { request: withProject } = mount({ taskAbsent: true });
+    const missingTask = await withProject(item);
+    expect(missingTask.status).toBe(404);
+    expect(await missingTask.json()).toMatchObject({ code: 'TASK_NOT_FOUND' });
+  });
+
+  it('keeps an archived task readable but refuses its comment and start with 403 TASK_ARCHIVED', async () => {
+    const { request } = mount({ taskArchived: true });
+    expect((await request(item)).status).toBe(200);
+    expect((await request(`${item}/comments`)).status).toBe(200);
+    const comment = await request(`${item}/comments`, 'POST', {
+      body: 'Filed.',
+    });
+    expect(comment.status).toBe(403);
+    expect(await comment.json()).toMatchObject({ code: 'TASK_ARCHIVED' });
+    const start = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'triage',
+    });
+    expect(start.status).toBe(403);
+    expect(await start.json()).toMatchObject({ code: 'TASK_ARCHIVED' });
+    expect(service.addTaskComment).not.toHaveBeenCalled();
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses a whitespace-only comment body at the door', async () => {
+    const { request } = mount();
+    const res = await request(`${item}/comments`, 'POST', { body: ' \n ' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [expect.objectContaining({ path: 'body' })] },
+    });
+    expect(service.addTaskComment).not.toHaveBeenCalled();
   });
 });

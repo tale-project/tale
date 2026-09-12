@@ -18,22 +18,31 @@
  * with a `lookup` callback.
  */
 
+import { isPrivateIp, METADATA_ADDRESSES } from '@tale/shared/net/private-ip';
+
 import { AppError } from '../shared/errors/app-error';
-import { isPrivateIp } from './safe-fetch';
 
 /**
- * Cloud metadata endpoints, including public-IP variants (Alibaba, Oracle)
- * that slip past the RFC1918 / link-local `isPrivateIp` check.
+ * Cloud metadata endpoints by name and by address: the addresses every
+ * outbound lane refuses (`lib/shared/net/private-ip.ts`) plus the names
+ * that resolve to them under a cloud's search domains.
  */
 export const BLOCKED_METADATA_HOSTS = new Set<string>([
-  '169.254.169.254', // AWS, GCP, Azure, DigitalOcean, Oracle (link-local)
-  'fd00:ec2::254', // AWS IMDSv2 IPv6
+  ...METADATA_ADDRESSES,
   'metadata.google.internal', // GCP
   'metadata', // bare hostname; resolves under GKE/GCE search domains
-  '100.100.100.200', // Alibaba ECS — public IP, not caught by isPrivateIp
-  '192.0.0.192', // Oracle Cloud OCI v1 — public IP
   'metadata.tencentyun.com', // Tencent Cloud
 ]);
+
+/** Whether the operator admitted self-hosted providers on private
+ * networks (`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`) — the same knob gates
+ * a provider URL at configuration time and the address it resolves to at
+ * request time. */
+export function privateProviderHostsAllowed(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS === '1';
+}
 
 /** Parse + police an operator-supplied URL; returns the parsed URL. */
 export function checkProviderHostPolicy(rawUrl: string): URL {
@@ -59,10 +68,7 @@ export function checkProviderHostPolicy(rawUrl: string): URL {
       message: `Host "${host}" is blocked (cloud metadata endpoint).`,
     });
   }
-  if (
-    isPrivateIp(host) &&
-    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS !== '1'
-  ) {
+  if (isPrivateIp(host) && !privateProviderHostsAllowed()) {
     throw new AppError({
       code: 'PRIVATE_HOST_BLOCKED',
       message:

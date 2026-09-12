@@ -35,9 +35,9 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * /api/v1 — the REST machine door: Bearer API key (the Better Auth apiKey
  * plugin verifies it through the same session surface the dashboard uses),
  * org resolution honouring `X-Organization-Slug` (membership-checked; a
- * multi-org key without the header is refused on write-capable routes
- * rather than guessed from the dashboard's last-active pointer — and the
- * tasks/projects families re-run that strictness on their reads too),
+ * multi-org key without the header is refused on EVERY route, reads
+ * included, rather than guessed from the dashboard's last-active pointer —
+ * a machine's answer must never depend on what a person last clicked),
  * attributable rate limiting, and coded JSON errors.
  *
  * Rate limiting is keyed on WHO is calling, never on a header the caller
@@ -243,9 +243,14 @@ export function createRestV1Routes(deps: {
       resolved = await resolveUserOrganization(deps.sql, {
         userId: session.user.id,
         ...(orgSlugHeader ? { orgSlug: orgSlugHeader } : {}),
-        // Machine writes must never follow the dashboard's last-active
-        // pointer across tenants — multi-org keys say which org they mean.
-        requireExplicitOrgSlug: c.req.method !== 'GET',
+        // A machine call must never follow the dashboard's last-active
+        // pointer across tenants — multi-org keys say which org they mean,
+        // on reads as on writes. (Reads used to fall back to the pointer
+        // outside the project, task and conversation families, so a plain
+        // `GET /contacts` answered whichever organization a person had last
+        // opened in a browser — a tenancy hazard no client could defend
+        // against, and one the contract denied.)
+        requireExplicitOrgSlug: true,
       });
     } catch (error) {
       // The domain's own status: 400 when a multi-org key named no org, 403
@@ -280,6 +285,30 @@ export function createRestV1Routes(deps: {
     return next();
   });
 
+  // No write on this door reads a query parameter — every argument of a
+  // write is in its body, which is strict — so a query string on one is a
+  // mistake to name (`DELETE /contacts/1?force=true` used to delete with
+  // `force` silently ignored). Reads declare theirs route by route
+  // (`readQuery`, `noQuery`).
+  app.use(async (c, next) => {
+    if (c.req.method === 'GET' || c.req.method === 'HEAD') return next();
+    const [stray] = Object.keys(c.req.queries());
+    if (stray === undefined) return next();
+    return c.json(
+      {
+        error: `invalid query: "${stray}" — this route takes no query parameters`,
+        code: 'INVALID_QUERY',
+        data: {
+          issues: Object.keys(c.req.queries()).map((path) => ({
+            path,
+            message: 'this route takes no query parameters',
+          })),
+        },
+      },
+      400,
+    );
+  });
+
   app.route('/', createCoreRoutes({ sql: deps.sql }));
   app.route('/', createConversationRestRoutes({ sql: deps.sql }));
   app.route('/', createProjectRestRoutes({ sql: deps.sql }));
@@ -311,8 +340,13 @@ function methodsServedOn(door: Hono<RestEnv>): (path: string) => string[] {
     const served = REST_METHODS.filter(
       (method) => (probe.router.match(method, path)[0] ?? []).length > 0,
     );
-    // Hono answers HEAD with the GET handler, body dropped.
-    return served.includes('GET') ? [...served, 'HEAD'] : [...served];
+    // Hono answers HEAD with the GET handler, body dropped; the catch-all
+    // below answers OPTIONS on every served path (and nothing at all on a
+    // path nobody serves, which stays the 404).
+    if (served.length === 0) return [];
+    return served.includes('GET')
+      ? [...served, 'HEAD', 'OPTIONS']
+      : [...served, 'OPTIONS'];
   };
 }
 

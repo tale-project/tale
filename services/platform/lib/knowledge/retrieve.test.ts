@@ -100,13 +100,35 @@ describe('hybrid search is the default', () => {
     });
   });
 
-  it('over-fetches per leg so agreement can outrank a single leg', async () => {
-    const reader = stubReader();
+  it('over-fetches per leg so agreement can outrank a single leg, never below the admission floor', async () => {
+    // Three candidates per requested hit, and at least twenty: a page of one
+    // is chosen from a pool the admission re-check can thin without
+    // emptying it.
+    const small = stubReader();
     await retrieve(
-      { readers: [reader], embedder, orgSlug: 'acme' },
+      { readers: [small], embedder, orgSlug: 'acme' },
       { query: 'holiday policy', limit: 5 },
     );
-    for (const call of reader.calls) expect(call.limit).toBe(15);
+    for (const call of small.calls) expect(call.limit).toBe(20);
+    const large = stubReader();
+    await retrieve(
+      { readers: [large], embedder, orgSlug: 'acme' },
+      { query: 'holiday policy', limit: 10 },
+    );
+    for (const call of large.calls) expect(call.limit).toBe(30);
+  });
+
+  it('marks how many legs agreed on each hit', async () => {
+    const result = await retrieve(
+      { readers: [stubReader()], embedder, orgSlug: 'acme' },
+      { query: 'holiday policy' },
+    );
+    expect(result.hits.map((entry) => [entry.id, entry.legs])).toEqual([
+      ['shared', 2],
+      ['dense', 1],
+      ['kw', 1],
+    ]);
+    expect(result.diagnostics.admitted).toBe(3);
   });
 
   it('searches both corpora when none is named', async () => {
@@ -254,6 +276,109 @@ describe('filters narrow the search', () => {
     );
     expect(result.hits).toEqual([]);
     expect(reader.calls).toEqual([]);
+  });
+});
+
+/**
+ * Admission — the host's live-document re-check — runs on the whole fused
+ * pool BEFORE the page is cut. The regression under test: the page was cut
+ * to `limit` first and checked after, so a `limit: 1` search whose best
+ * candidate had just been trashed answered nothing for a query that
+ * plainly matched.
+ */
+describe('admission runs before the page is cut', () => {
+  const refuse =
+    (...ids: string[]) =>
+    (hits: readonly (KnowledgeHit & { fusedScore: number })[]) =>
+      Promise.resolve(hits.filter((entry) => !ids.includes(entry.id)));
+
+  it('a refused top candidate does not empty a limit:1 page', async () => {
+    const reader = stubReader({
+      keyword: [hit('top', 'documents', 12), hit('next', 'documents', 8)],
+      dense: [hit('top', 'documents', 0.9), hit('next', 'documents', 0.7)],
+    });
+    const result = await retrieve(
+      { readers: [reader], embedder, orgSlug: 'acme', admit: refuse('top') },
+      { query: 'q', limit: 1 },
+    );
+    expect(result.hits.map((entry) => entry.id)).toEqual(['next']);
+    expect(result.diagnostics.admitted).toBe(1);
+  });
+
+  it('hits at limit 1 are a prefix of hits at limit 3', async () => {
+    const legs = () =>
+      stubReader({
+        keyword: [
+          hit('a', 'documents', 12),
+          hit('b', 'documents', 10),
+          hit('c', 'documents', 8),
+          hit('d', 'documents', 6),
+        ],
+        dense: [
+          hit('a', 'documents', 0.9),
+          hit('c', 'documents', 0.8),
+          hit('b', 'documents', 0.7),
+        ],
+      });
+    const one = await retrieve(
+      { readers: [legs()], embedder, orgSlug: 'acme', admit: refuse('a') },
+      { query: 'q', limit: 1 },
+    );
+    const three = await retrieve(
+      { readers: [legs()], embedder, orgSlug: 'acme', admit: refuse('a') },
+      { query: 'q', limit: 3 },
+    );
+    expect(three.hits.map((entry) => entry.id)).toEqual(['b', 'c', 'd']);
+    expect(one.hits.map((entry) => entry.id)).toEqual(
+      three.hits.map((entry) => entry.id).slice(0, 1),
+    );
+  });
+
+  it('drops a repeated passage after admission, so the readable copy survives', async () => {
+    // Deduping before the re-check could keep an unreadable copy and drop
+    // the readable one; the re-check would then remove what was kept.
+    const copy = (id: string, score: number) => ({
+      ...hit(id, 'documents', score),
+      text: 'Refunds within 30 days.',
+    });
+    const reader = stubReader({
+      keyword: [copy('copy_a', 12), copy('copy_b', 8)],
+      dense: [],
+    });
+    const result = await retrieve(
+      {
+        readers: [reader],
+        embedder,
+        orgSlug: 'acme',
+        admit: refuse('copy_a'),
+      },
+      { query: 'refunds' },
+    );
+    expect(result.hits.map((entry) => entry.id)).toEqual(['copy_b']);
+  });
+
+  it('admits a cached pool again on the caller’s live truth', async () => {
+    const stored = [
+      { ...hit('gone', 'documents', 1), fusedScore: 1 },
+      { ...hit('live', 'documents', 0.9), fusedScore: 0.9 },
+    ];
+    setKnowledgeCache({
+      name: 'stub',
+      lookup: () => Promise.resolve(stored),
+      store: () => Promise.resolve(),
+    });
+    const result = await retrieve(
+      {
+        readers: [stubReader()],
+        embedder,
+        orgSlug: 'acme',
+        admit: refuse('gone'),
+      },
+      { query: 'q', limit: 1 },
+    );
+    expect(result.hits.map((entry) => entry.id)).toEqual(['live']);
+    expect(result.diagnostics.cached).toBe(true);
+    expect(result.diagnostics.admitted).toBe(1);
   });
 });
 

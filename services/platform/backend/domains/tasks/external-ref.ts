@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
@@ -46,10 +47,34 @@ import {
 /** Neutral inbox column a newly-synced (or reopened) external item lands in. */
 const SYNC_OPEN_STATUS: TaskStatus = 'backlog';
 
+/**
+ * The external ref in its ONE canonical form — NFC, trimmed
+ * (`canonicalExternalKey`, the rule the project family's `externalItemId`
+ * follows too) — the form every lookup compares and every write stores. A
+ * ref that is blank once canonicalized names nothing and is refused. The
+ * id used to be stored verbatim, so `"  pad-001  "` and `"pad-001"` were
+ * two tasks where the project door had already folded them into one.
+ */
+function canonicalExternalRef(ref: {
+  externalSystem: string;
+  externalId: string;
+}): { externalSystem: string; externalId: string } {
+  const externalSystem = canonicalExternalKey(ref.externalSystem);
+  const externalId = canonicalExternalKey(ref.externalId);
+  if (externalSystem === '' || externalId === '') {
+    throw new TaskError(
+      'TASK_EXTERNAL_REF_INVALID',
+      'externalSystem and externalId must not be blank',
+    );
+  }
+  return { externalSystem, externalId };
+}
+
 /** The task an external ref already names inside its dedupe scope, or
  * null — the lookup `upsertTaskByExternalRef` starts with, exported so a
  * door can tell a create from a repeat BEFORE it validates what only a
- * create needs (the run workflow's project binding). */
+ * create needs (the run workflow's project binding). The ref is compared
+ * in its canonical form. */
 export async function findTaskByExternalRef(
   tx: TransactionSql,
   args: {
@@ -60,6 +85,7 @@ export async function findTaskByExternalRef(
     dedupeScope: 'org' | 'project';
   },
 ): Promise<TaskRow | null> {
+  const { externalSystem, externalId } = canonicalExternalRef(args);
   if (args.dedupeScope === 'project') {
     if (args.projectId === undefined) {
       throw new TaskError(
@@ -74,8 +100,8 @@ export async function findTaskByExternalRef(
       SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
       WHERE org_id = ${args.organizationId}
         AND project_id = ${args.projectId}
-        AND external_system = ${args.externalSystem}
-        AND external_id = ${args.externalId}
+        AND external_system = ${externalSystem}
+        AND external_id = ${externalId}
       LIMIT 1
     `;
     return rows[0] ?? null;
@@ -83,8 +109,8 @@ export async function findTaskByExternalRef(
   const rows = await tx<TaskRow[]>`
     SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
     WHERE org_id = ${args.organizationId}
-      AND external_system = ${args.externalSystem}
-      AND external_id = ${args.externalId}
+      AND external_system = ${externalSystem}
+      AND external_id = ${externalId}
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -179,9 +205,9 @@ export async function upsertTaskByExternalRef(
   tx: TransactionSql,
   args: UpsertTaskByExternalRefArgs,
 ): Promise<{ taskId: string | null; created: boolean }> {
+  const { externalSystem, externalId } = canonicalExternalRef(args);
   const title =
-    truncateImportedTitle(args.title) ||
-    `${args.externalSystem} ${args.externalId}`;
+    truncateImportedTitle(args.title) || `${externalSystem} ${externalId}`;
   const description = args.description?.trim() || undefined;
   const now = Date.now();
   const createIfMissing = args.createIfMissing ?? true;
@@ -190,8 +216,8 @@ export async function upsertTaskByExternalRef(
     findTaskByExternalRef(tx, {
       organizationId: args.organizationId,
       ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
-      externalSystem: args.externalSystem,
-      externalId: args.externalId,
+      externalSystem,
+      externalId,
       dedupeScope: args.dedupeScope ?? 'org',
     });
 
@@ -334,10 +360,7 @@ export async function upsertTaskByExternalRef(
       action: TASK_AUDIT_ACTIONS.updated,
       taskId: existing.id,
       title,
-      metadata: {
-        externalSystem: args.externalSystem,
-        externalId: args.externalId,
-      },
+      metadata: { externalSystem, externalId },
     });
   };
 
@@ -402,7 +425,7 @@ export async function upsertTaskByExternalRef(
       ${args.organizationId}, ${projectId}, ${title}, ${description ?? null},
       ${status}, ${args.priority ?? null}, ${labelIds},
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
-      ${rank}, ${number}, ${args.externalSystem}, ${args.externalId},
+      ${rank}, ${number}, ${externalSystem}, ${externalId},
       ${args.externalUrl ?? null}, ${status === 'done' ? now : null},
       ${createdByUser ? args.actorId : (ownerAutomation ?? args.actorId)},
       ${createdByUser ? 'user' : ownerAutomation !== null ? 'app' : 'agent'},
@@ -424,7 +447,7 @@ export async function upsertTaskByExternalRef(
     // serialization failure instead — its retry lands on the update lane.)
     const winner = await findExisting();
     if (!winner) {
-      throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+      throw new Error('TASK_CREATE_FAILED: the insert answered no row');
     }
     await reconcileExisting(winner);
     return { taskId: winner.id, created: false };
@@ -460,11 +483,7 @@ export async function upsertTaskByExternalRef(
     action: TASK_AUDIT_ACTIONS.created,
     taskId,
     title,
-    metadata: {
-      projectId,
-      externalSystem: args.externalSystem,
-      externalId: args.externalId,
-    },
+    metadata: { projectId, externalSystem, externalId },
   });
   return { taskId, created: true };
 }

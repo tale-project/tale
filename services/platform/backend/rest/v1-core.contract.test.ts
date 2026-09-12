@@ -1,8 +1,16 @@
 // @vitest-environment node
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import {
+  MAX_SKILL_BODY_BYTES,
+  MAX_SKILL_SLUG_LENGTH,
+} from '@tale/shared/schemas/skills';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getDocumentById } from '../domains/documents/service.ts';
 import {
@@ -415,13 +423,11 @@ describe('a refused body names the field that failed', () => {
     expect(error).not.toContain('name');
   });
 
-  it('names the missing product name', async () => {
+  it('names the missing product name as required, not as a type mismatch', async () => {
     const { issues } = await refused('/products', {
       category: 'TALE-EVAL-20260910',
     });
-    expect(issues).toEqual([
-      { path: 'name', message: expect.stringContaining('string') },
-    ]);
+    expect(issues).toEqual([{ path: 'name', message: 'is required' }]);
   });
 
   it('names the unknown key a strict body refuses', async () => {
@@ -475,7 +481,13 @@ describe('knowledge search resource scope', () => {
       vi.mocked(searchKnowledgeForOrg).mockReset();
       vi.mocked(searchKnowledgeForOrg).mockResolvedValueOnce({
         hits: [],
-        diagnostics: { bm25: true, reranked: false, cached: false, legs: {} },
+        diagnostics: {
+          bm25: true,
+          reranked: false,
+          cached: false,
+          admitted: 0,
+          legs: {},
+        },
       });
       const { app } = mount({ role: 'member' });
       const res = await app.request(
@@ -641,5 +653,193 @@ describe('PUT /skills/{slug} with team ids', () => {
       code: 'SKILL_TEAM_UNKNOWN',
     });
     expect(queries.some((q) => q.includes('FROM "team"'))).toBe(true);
+  });
+});
+
+/**
+ * The skills door over a real temporary config tree — the contract the
+ * API reference and the OpenAPI document publish for `PUT /skills/{slug}`.
+ * The regressions under test (2026-09-11 external evaluation, G-01/02/03/
+ * 14/15/25): the body cap was published at 1,000,000 characters and
+ * enforced at 512 KiB of composed document; "create or replace" merged
+ * with no way to clear `icon`; `If-None-Match: *` was ignored, so one
+ * colliding slug overwrote a shipped bundle; the enum refusal advertised
+ * the retired `private`; an over-long slug was refused with the charset
+ * sentence and echoed whole; unknown keys were dropped.
+ */
+describe('the skills door over the file layer', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-skills-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) {
+      delete process.env.TALE_CONFIG_DIR;
+    } else {
+      process.env.TALE_CONFIG_DIR = savedConfigDir;
+    }
+    await rm(configRoot, { recursive: true, force: true });
+  });
+
+  const put = (
+    app: Hono<RestEnv>,
+    slug: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ) =>
+    app.request(`http://localhost/skills/${slug}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+
+  it('creates, then refuses a create-only save over the slug with 412 and writes nothing', async () => {
+    const { app } = mount();
+    const created = await put(app, 'probe', {
+      description: 'First',
+      body: '# First',
+    });
+    expect(created.status).toBe(200);
+    expect(await created.json()).toMatchObject({
+      slug: 'probe',
+      description: 'First',
+      // The file layer terminates the document with a newline (G-27c).
+      body: '# First\n',
+      visibility: 'org',
+      canEdit: true,
+      files: [{ path: 'SKILL.md', size: expect.any(Number) }],
+    });
+
+    const refused = await put(
+      app,
+      'probe',
+      { description: 'Overwritten', body: 'probe' },
+      { 'if-none-match': '*' },
+    );
+    expect(refused.status).toBe(412);
+    expect(await refused.json()).toEqual({
+      error: 'The skill "probe" already exists.',
+      code: 'SKILL_EXISTS',
+    });
+    const read = await app.request('http://localhost/skills/probe');
+    expect(await read.json()).toMatchObject({
+      description: 'First',
+      body: '# First\n',
+    });
+
+    // Without the header the same body updates in place.
+    const updated = await put(app, 'probe', {
+      description: 'Overwritten',
+      body: 'probe',
+    });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ description: 'Overwritten' });
+  });
+
+  it('keeps omitted icon and labels (an update, not a replace) and clears them on null', async () => {
+    const { app } = mount();
+    await put(app, 'probe', {
+      description: 'a',
+      body: 'x',
+      icon: 'lucide:flask-conical',
+      labels: ['probe', 'inert'],
+    });
+    const merged = await put(app, 'probe', { description: 'b', body: 'y' });
+    expect(await merged.json()).toMatchObject({
+      icon: 'lucide:flask-conical',
+      labels: ['probe', 'inert'],
+    });
+
+    const cleared = await put(app, 'probe', {
+      description: 'c',
+      body: 'z',
+      icon: null,
+      labels: null,
+    });
+    expect(cleared.status).toBe(200);
+    const view: Record<string, unknown> = await cleared.json();
+    expect(view).not.toHaveProperty('icon');
+    expect(view).not.toHaveProperty('labels');
+  });
+
+  it('refuses a body over the published byte budget at the documented cap, in bytes', async () => {
+    const { app } = mount();
+    // Two bytes per character: a character count under the cap is still
+    // over it in bytes, which is what the contract counts.
+    const over = 'é'.repeat(MAX_SKILL_BODY_BYTES / 2 + 1);
+    const refused = await put(app, 'probe', { description: 'a', body: over });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      error: `invalid body: "body" must be at most ${MAX_SKILL_BODY_BYTES} bytes of UTF-8`,
+    });
+
+    const atCap = await put(app, 'probe', {
+      description: 'a',
+      body: 'b'.repeat(MAX_SKILL_BODY_BYTES),
+    });
+    expect(atCap.status).toBe(200);
+  });
+
+  it('refuses an unknown key and never advertises the retired visibility', async () => {
+    const { app } = mount();
+    const unknown = await put(app, 'probe', {
+      description: 'a',
+      body: 'x',
+      slug: 'other',
+    });
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      error: 'invalid body: "slug" is not a field this body takes',
+    });
+
+    const retired = await put(app, 'probe', {
+      description: 'a',
+      body: 'x',
+      visibility: 'private',
+    });
+    expect(retired.status).toBe(400);
+    const refusal: { error: string; code: string } = await retired.json();
+    expect(refusal.code).toBe('INVALID_BODY');
+    expect(refusal.error).toContain('"visibility"');
+    expect(refusal.error).not.toContain('private');
+    expect(refusal.error).toContain('"team"|"org"');
+  });
+
+  it('reads a malformed slug as absent, and refuses to create one naming the rule it breaks', async () => {
+    const { app } = mount();
+    const long = 'a'.repeat(100);
+    const read = await app.request(`http://localhost/skills/${long}`);
+    expect(read.status).toBe(404);
+    expect(await read.json()).toEqual({
+      error: 'Skill not found',
+      code: 'SKILL_NOT_FOUND',
+    });
+    const deleted = await app.request(`http://localhost/skills/${long}`, {
+      method: 'DELETE',
+    });
+    expect(deleted.status).toBe(404);
+    expect(await deleted.json()).toMatchObject({ code: 'SKILL_NOT_FOUND' });
+
+    const created = await put(app, long, { description: 'a', body: 'x' });
+    expect(created.status).toBe(400);
+    const refusal: { error: string; code: string } = await created.json();
+    expect(refusal.code).toBe('INVALID_SKILL_SLUG');
+    expect(refusal.error).toContain(`at most ${MAX_SKILL_SLUG_LENGTH}`);
+    expect(refusal.error).not.toContain(long);
+    expect(refusal.error).not.toContain('lowercase');
+
+    const reserved = await put(app, 'claude', { description: 'a', body: 'x' });
+    expect(reserved.status).toBe(400);
+    expect(await reserved.json()).toMatchObject({
+      code: 'INVALID_SKILL_SLUG',
+      error: expect.stringContaining('reserved'),
+    });
   });
 });

@@ -31,17 +31,104 @@ export const MCP_TOOL_GROUPS = [
 
 export type McpToolGroup = (typeof MCP_TOOL_GROUPS)[number];
 
+/**
+ * The MCP `ToolAnnotations` a host keys its "always allow" decisions on —
+ * hints, never guarantees, but the one machine-readable signal that tells
+ * `get_run` from `delete_trigger` in an otherwise flat inventory.
+ */
+export interface McpToolAnnotations {
+  /** The tool changes nothing. */
+  readonly readOnlyHint: boolean;
+  /** The tool may destroy or irreversibly alter what exists (meaningful
+   * when `readOnlyHint` is false). */
+  readonly destructiveHint: boolean;
+  /** Repeating the call with the same arguments has no further effect
+   * (meaningful when `readOnlyHint` is false). */
+  readonly idempotentHint: boolean;
+  /** The tool reaches outside the platform — live connectors, the web. */
+  readonly openWorldHint: boolean;
+}
+
 /** One tool exactly as `tools/list` advertises it, plus which surface answers
  * it — the endpoint routes on `kind`; the settings page groups on `group`. */
 interface McpToolSpec {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Record<string, unknown>;
+  readonly annotations: McpToolAnnotations;
   /** `engine` goes to the automation engine's dispatch table; `capability` goes
    * to the organization's capability surface. */
   readonly kind: 'engine' | 'capability';
   readonly group: McpToolGroup;
 }
+
+/** A read: changes nothing, repeats freely, stays inside the platform. */
+const READ: McpToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/** A write that adds without destroying and is not idempotent (each call
+ * mints a new version). */
+const APPEND: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
+/** A write that replaces or removes what exists, and lands the same state
+ * however often it is repeated. */
+const REPLACE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/** Live execution: every call runs the automation again, against real
+ * backends, with whatever effects that has. */
+const EXECUTE_LIVE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
+/** Execution against the deterministic mocks: a run, but one that reaches
+ * nothing outside and leaves nothing behind. */
+const EXECUTE_MOCK: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/** Every engine method's annotations — exhaustive over `Method`, so a new
+ * method cannot ship without saying what it does to the world. */
+const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
+  get_docs: READ,
+  get_catalog: READ,
+  search_catalog: READ,
+  validate_automation: READ,
+  run_automation: EXECUTE_MOCK,
+  test_automation: EXECUTE_MOCK,
+  save_automation: APPEND,
+  get_automation: READ,
+  list_automations: READ,
+  deploy_automation: REPLACE,
+  set_trigger: REPLACE,
+  run_deployed: EXECUTE_LIVE,
+  start_run: EXECUTE_LIVE,
+  list_runs: READ,
+  get_run: READ,
+  cancel_run: REPLACE,
+  list_versions: READ,
+  list_triggers: READ,
+  delete_trigger: REPLACE,
+};
 
 /** One-line tool descriptions; `get_docs` is the deep reference. */
 const METHOD_DESCRIPTIONS: Record<Method, string> = {
@@ -297,6 +384,15 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
   delete_trigger: object({ name: AUTOMATION_NAME }, ['name']),
 };
 
+const CAPABILITY_TOOL_ANNOTATIONS: Record<
+  CapabilityToolName,
+  McpToolAnnotations
+> = {
+  search_capabilities: READ,
+  invoke_capability: EXECUTE_LIVE,
+  get_knowledge: READ,
+};
+
 const CAPABILITY_TOOL_SCHEMAS: Record<
   CapabilityToolName,
   Record<string, unknown>
@@ -372,6 +468,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
       name,
       description: METHOD_DESCRIPTIONS[name],
       inputSchema,
+      annotations: METHOD_ANNOTATIONS[name],
       kind: 'engine' as const,
       group: METHOD_GROUPS[name],
     };
@@ -380,6 +477,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     name,
     description: CAPABILITY_TOOL_DESCRIPTIONS[name],
     inputSchema: CAPABILITY_TOOL_SCHEMAS[name],
+    annotations: CAPABILITY_TOOL_ANNOTATIONS[name],
     kind: 'capability' as const,
     group: 'capability' as const,
   })),

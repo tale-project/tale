@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { PRODUCT_CATEGORY_MAX } from '../../core/products/field_limits.ts';
 import { productFieldsShape, productNameSchema } from './input-schema.ts';
 import {
   bulkCreateProducts,
@@ -14,7 +15,6 @@ import {
   deleteProduct,
   getProduct,
   listProducts,
-  PRODUCT_CATEGORY_MAX,
   PRODUCT_STATUSES,
   ProductError,
   type ProductScope,

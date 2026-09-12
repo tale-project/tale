@@ -11,13 +11,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDocumentFromUpload } from '../domains/documents/service.ts';
 import {
   createRestUploadHandoff,
-  getFileUrl,
+  FileError,
+  openFileContent,
   registerUpload,
   statOrgBlob,
 } from '../domains/files/service.ts';
-import { createProject } from '../domains/projects/service.ts';
+import {
+  archiveProject,
+  createProject,
+  deleteProject,
+  getProjectByExternalItemId,
+  listProjectsPage,
+  ProjectError,
+  restoreProject,
+} from '../domains/projects/service.ts';
+import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
-import type { RestEnv } from './shared.ts';
+import { formatKeysetCursor, mintCursorFor, type RestEnv } from './shared.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 
 // The blob store is out of reach here: `statOrgBlob` stands in for the HEAD
@@ -29,7 +39,17 @@ vi.mock('../domains/files/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/files/service.ts')>()),
   statOrgBlob: vi.fn(() => Promise.resolve({ size: 1234 })),
   registerUpload: vi.fn(() => Promise.resolve({ fileId: 'f-1', size: 1234 })),
-  getFileUrl: vi.fn(() => Promise.resolve('https://blobs.example.com/signed')),
+  openFileContent: vi.fn(() =>
+    Promise.resolve({
+      status: 200,
+      headers: new Headers({
+        'content-type': 'application/pdf',
+        'content-length': '11',
+        etag: '"abc"',
+      }),
+      body: new Blob(['hello world']).stream(),
+    }),
+  ),
   createRestUploadHandoff: vi.fn(() =>
     Promise.resolve({
       storageRef: 's3:acme/blob-new',
@@ -39,13 +59,29 @@ vi.mock('../domains/files/service.ts', async (importOriginal) => ({
 }));
 vi.mock('../domains/documents/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/documents/service.ts')>()),
+  deleteDocumentHard: vi.fn(() => Promise.resolve()),
+  deleteFolderCascade: vi.fn(() => Promise.resolve()),
   createDocumentFromUpload: vi.fn(() => Promise.resolve('d-1')),
 }));
-// The create core runs for real elsewhere; here only what the door hands
-// it — and how it answers the core's refusals — is under test.
+// The lifecycle cores run for real elsewhere; here only what the door hands
+// them — and how it answers the cores' refusals — is under test.
 vi.mock('../domains/projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/projects/service.ts')>()),
   createProject: vi.fn(() => Promise.resolve('p-1')),
+  getProjectByExternalItemId: vi.fn(() => Promise.resolve(null)),
+  listProjectsPage: vi.fn(() =>
+    Promise.resolve({ projects: [], hasMore: false }),
+  ),
+  archiveProject: vi.fn(() => Promise.resolve()),
+  restoreProject: vi.fn(() => Promise.resolve()),
+  deleteProject: vi.fn(() =>
+    Promise.resolve({
+      detachedDocCount: 0,
+      detachedThreadCount: 0,
+      cascadedDocCount: 0,
+      cascadedThreadCount: 0,
+    }),
+  ),
 }));
 
 interface Captured {
@@ -69,10 +105,20 @@ const project = {
   teamId: null,
   sharedWithTeamIds: [],
   instructions: null,
+  knowledgeMode: null,
+  agentMode: null,
+  recommendedAgentSlugs: [],
+  allowedAgentSlugs: [],
+  modelMode: null,
+  recommendedModels: [],
+  allowedModels: [],
+  connectorsMode: null,
+  allowedConnectorSlugs: [],
   createdBy: 'user-1',
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
   archivedAt: null,
+  pinnedAt: null,
 };
 
 const document = {
@@ -114,6 +160,8 @@ function fakeSql(
     projectError?: Error;
     documentError?: Error;
     document?: Record<string, unknown>;
+    /** The folder the folder service's load finds; absent for none. */
+    folder?: Record<string, unknown>;
     project?: () => Record<string, unknown>;
     /** The upload intent the bind finds; null for none. */
     intent?: Record<string, unknown> | null;
@@ -134,6 +182,26 @@ function fakeSql(
     if (text.includes('FROM app.documents WHERE id')) {
       if (opts.documentError) return Promise.reject(opts.documentError);
       return Promise.resolve([{ ...document, ...opts.document }]);
+    }
+    // The folder service's own load (columns unsafe-spliced); the files
+    // listing's `SELECT id FROM app.folders …` keeps falling through.
+    if (text.startsWith('SELECT $? FROM app.folders WHERE id')) {
+      return Promise.resolve(
+        opts.folder === undefined
+          ? []
+          : [
+              {
+                id: 'fold-1',
+                organizationId: 'org-1',
+                projectId: 'p-1',
+                parentId: null,
+                name: '2026-Q1',
+                teamId: null,
+                teamTags: [],
+                ...opts.folder,
+              },
+            ],
+      );
     }
     if (text.includes('FROM app.rest_upload_intents')) {
       if (opts.intent === null) return Promise.resolve([]);
@@ -165,20 +233,28 @@ function fakeSql(
     return Promise.resolve([]);
   };
   const unsafe = (text: string) => ({ unsafe: text });
-  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
+  // `begin(fn)` and `begin('isolation level serializable', fn)` alike.
+  const begin = (
+    optionsOrFn: string | ((tx: unknown) => Promise<unknown>),
+    fn?: (tx: unknown) => Promise<unknown>,
+  ) => {
+    const run = typeof optionsOrFn === 'function' ? optionsOrFn : fn;
+    if (run === undefined) throw new Error('Missing transaction callback');
+    return run(sql);
+  };
   const sql = Object.assign(tag, { unsafe, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(sql: Sql) {
+function mount(sql: Sql, role = 'admin') {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'admin');
+    c.set('role', role);
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
     return next();
@@ -279,14 +355,328 @@ describe('POST /projects', () => {
     });
   });
 
-  it('names a missing externalItemId on the lookup door with a code', async () => {
+  it('trims the name and canonicalizes the external key it hands to the core', async () => {
     const { sql } = fakeSql();
-    const res = await mount(sql).request('http://localhost/projects');
+    const nfd = 'acme-café'.normalize('NFD');
+    const res = await create(sql, {
+      name: '  Tale Eval 2026  ',
+      externalItemId: `  ${nfd} `,
+    });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(createProject).mock.calls[0]?.[2]).toMatchObject({
+      name: 'Tale Eval 2026',
+      externalItemId: 'acme-café',
+    });
+  });
+
+  it.each([
+    ['name', { name: '   ' }, undefined],
+    [
+      'externalItemId',
+      { name: 'Ledger', externalItemId: ' \n ' },
+      'must not be blank',
+    ],
+    ['key', { name: 'Ledger', key: 'TOOLONG' }, undefined],
+  ])(
+    'refuses %s at the door with 400 INVALID_BODY, before the core',
+    async (field, body, message) => {
+      const { sql } = fakeSql();
+      const res = await create(sql, body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: {
+          issues: [
+            expect.objectContaining({
+              path: field,
+              ...(message === undefined ? {} : { message }),
+            }),
+          ],
+        },
+      });
+      expect(vi.mocked(createProject)).not.toHaveBeenCalled();
+    },
+  );
+});
+
+/**
+ * `GET /projects` is two doors: the lookup (the key canonical — NFC,
+ * trimmed — before the domain compares it) and, without a key, the LIST
+ * that used to be a 400 — keyset-paged like the files listing, archived
+ * projects excluded unless asked for. The lifecycle verbs the workspace
+ * never had: PATCH archives/restores, DELETE runs the app's own delete
+ * (admin, the cascade budget, the door's own confirmation phrase, the
+ * state refusals as 409s with their data).
+ */
+describe('GET /projects — lookup and list', () => {
+  const listed = {
+    ...project,
+    id: 'p-2',
+    createdAt: 1_700_000_000_500,
+    updatedAt: 1_700_000_000_600,
+  };
+
+  beforeEach(() => {
+    vi.mocked(getProjectByExternalItemId).mockReset();
+    vi.mocked(getProjectByExternalItemId).mockResolvedValue(null);
+    vi.mocked(listProjectsPage).mockReset();
+    vi.mocked(listProjectsPage).mockResolvedValue({
+      projects: [],
+      hasMore: false,
+    });
+  });
+
+  it('looks up by the canonical key and answers the row with its stamps', async () => {
+    vi.mocked(getProjectByExternalItemId).mockResolvedValueOnce({
+      ...project,
+      externalItemId: 'acme-café',
+    });
+    const { sql } = fakeSql();
+    const key = encodeURIComponent(`  ${'acme-café'.normalize('NFD')} `);
+    const res = await mount(sql).request(
+      `http://localhost/projects?externalItemId=${key}`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      projects: [
+        {
+          id: 'p-1',
+          name: 'Ledger',
+          externalItemId: 'acme-café',
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+        },
+      ],
+    });
+    expect(vi.mocked(getProjectByExternalItemId)).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'acme-café',
+    );
+    expect(vi.mocked(listProjectsPage)).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['?externalItemId=%20%20', 'externalItemId'],
+    ['?externalItemId=crm-1&limit=5', 'limit'],
+    ['?externalItemId=crm-1&archived=only', 'archived'],
+    ['?archived=nope', 'archived'],
+  ])('refuses %s with INVALID_QUERY naming %s', async (query, field) => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(`http://localhost/projects${query}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({
       code: 'INVALID_QUERY',
-      data: { issues: [{ path: 'externalItemId', message: 'is required' }] },
+      data: { issues: [expect.objectContaining({ path: field })] },
     });
+    expect(vi.mocked(getProjectByExternalItemId)).not.toHaveBeenCalled();
+    expect(vi.mocked(listProjectsPage)).not.toHaveBeenCalled();
+  });
+
+  it('lists the visible projects without a key, active ones by default', async () => {
+    vi.mocked(listProjectsPage).mockResolvedValueOnce({
+      projects: [listed],
+      hasMore: false,
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request('http://localhost/projects');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      projects: [
+        {
+          id: 'p-2',
+          name: 'Ledger',
+          createdAt: listed.createdAt,
+          updatedAt: listed.updatedAt,
+        },
+      ],
+      isDone: true,
+    });
+    expect(vi.mocked(listProjectsPage)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1' }),
+      { archived: 'exclude', limit: 25, cursor: null },
+    );
+  });
+
+  it('pages with a signed keyset cursor and honours the archived filter', async () => {
+    vi.mocked(listProjectsPage).mockResolvedValueOnce({
+      projects: [listed],
+      hasMore: true,
+    });
+    const { sql } = fakeSql();
+    const first = await mount(sql).request(
+      'http://localhost/projects?archived=only&limit=1',
+    );
+    expect(first.status).toBe(200);
+    const cursor = mintCursorFor(
+      'org-1',
+      'projects',
+      formatKeysetCursor(listed.createdAt, listed.id),
+    );
+    expect(await first.json()).toMatchObject({ isDone: false, cursor });
+    expect(vi.mocked(listProjectsPage).mock.calls[0]?.[2]).toEqual({
+      archived: 'only',
+      limit: 1,
+      cursor: null,
+    });
+    const next = await mount(sql).request(
+      `http://localhost/projects?archived=only&limit=1&cursor=${encodeURIComponent(cursor)}`,
+    );
+    expect(next.status).toBe(200);
+    expect(vi.mocked(listProjectsPage).mock.calls[1]?.[2]).toEqual({
+      archived: 'only',
+      limit: 1,
+      cursor: { at: listed.createdAt, id: listed.id },
+    });
+    const forged = await mount(sql).request(
+      'http://localhost/projects?cursor=1700000000500:p-2',
+    );
+    expect(forged.status).toBe(400);
+    expect(await forged.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+});
+
+describe('PATCH /projects/{id}', () => {
+  const patch = (sql: Sql, body: unknown, role?: string) =>
+    mount(sql, role).request('http://localhost/projects/p-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  beforeEach(() => {
+    vi.mocked(archiveProject).mockClear();
+    vi.mocked(restoreProject).mockClear();
+  });
+
+  it('archives and restores through the app cores and answers the project', async () => {
+    const { sql } = fakeSql();
+    const archived = await patch(sql, { archived: true });
+    expect(archived.status).toBe(200);
+    expect(await archived.json()).toMatchObject({ project: { id: 'p-1' } });
+    expect(vi.mocked(archiveProject)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'p-1',
+    );
+    const restored = await patch(sql, { archived: false });
+    expect(restored.status).toBe(200);
+    expect(vi.mocked(restoreProject)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p-1',
+    );
+  });
+
+  it('refuses an editor with 403 ROLE_FORBIDDEN and a body outside the schema with 400', async () => {
+    const { sql } = fakeSql();
+    const forbidden = await patch(sql, { archived: true }, 'editor');
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+    expect((await patch(sql, { archived: 'yes' })).status).toBe(400);
+    expect((await patch(sql, { name: 'x' })).status).toBe(400);
+    expect(vi.mocked(archiveProject)).not.toHaveBeenCalled();
+  });
+
+  it('answers the opaque 404 for a project of another organization', async () => {
+    const { sql } = fakeSql({ project: () => ({ organizationId: 'other' }) });
+    const res = await patch(sql, { archived: true });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+  });
+});
+
+describe('DELETE /projects/{id}', () => {
+  const remove = (sql: Sql, body?: unknown, role?: string) =>
+    mount(sql, role).request('http://localhost/projects/p-1', {
+      method: 'DELETE',
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+    });
+
+  beforeEach(() => {
+    vi.mocked(deleteProject).mockClear();
+  });
+
+  it('cascades by default, on the per-user cascade budget, with the project name as the phrase', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await remove(sql);
+    expect(res.status).toBe(204);
+    expect(vi.mocked(deleteProject)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+      { projectId: 'p-1', mode: 'cascade', confirmPhrase: 'Ledger' },
+    );
+    const charge = queries.find((q) =>
+      q.text.includes('INSERT INTO app.rate_limits'),
+    );
+    expect(charge?.values).toContain('project:delete-cascade');
+    expect(charge?.values).toContain('user:user-1');
+  });
+
+  it('detaches on request without charging the cascade budget', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await remove(sql, { mode: 'detach' });
+    expect(res.status).toBe(204);
+    expect(vi.mocked(deleteProject).mock.calls[0]?.[2]).toEqual({
+      projectId: 'p-1',
+      mode: 'detach',
+    });
+    expect(
+      queries.some((q) => q.text.includes('INSERT INTO app.rate_limits')),
+    ).toBe(false);
+  });
+
+  it('refuses an editor with 403 ROLE_FORBIDDEN before any budget or core', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await remove(sql, undefined, 'editor');
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled();
+    expect(
+      queries.some((q) => q.text.includes('INSERT INTO app.rate_limits')),
+    ).toBe(false);
+  });
+
+  it('answers the standard 429 when the cascade budget is spent', async () => {
+    const { sql } = fakeSql({ spent: true });
+    const res = await remove(sql);
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['PROJECT_HAS_BOUND_AUTOMATIONS', { automations: ['ops/door'] }],
+    ['PROJECT_HAS_PROTECTED_RECORDS', { documents: ['SOP-7.pdf'] }],
+    ['PROJECT_LEGAL_HOLD', undefined],
+  ])('forwards the core’s %s as a 409 with its data', async (code, data) => {
+    vi.mocked(deleteProject).mockRejectedValueOnce(
+      new ProjectError(code, 'refused', 409, data),
+    );
+    const { sql } = fakeSql();
+    const res = await remove(sql);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code,
+      ...(data === undefined ? {} : { data }),
+    });
+  });
+
+  it('refuses an unknown mode and a query string never reaches the core', async () => {
+    const { sql } = fakeSql();
+    const res = await remove(sql, { mode: 'purge' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [expect.objectContaining({ path: 'mode' })] },
+    });
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled();
   });
 });
 
@@ -410,14 +800,14 @@ describe('project REST resource boundaries', () => {
     { lifecycleStatus: 'expired' },
     { lifecycleStatus: 'trashed' },
   ])(
-    'does not presign a file outside this live resource: %s',
+    'does not serve a file outside this live resource: %s',
     async (overrides) => {
-      vi.mocked(getFileUrl).mockClear();
+      vi.mocked(openFileContent).mockClear();
       const res = await mount(fakeSql({ document: overrides }).sql).request(
         'http://localhost/projects/p-1/files/d-1/content',
       );
       expect(res.status).toBe(404);
-      expect(getFileUrl).not.toHaveBeenCalled();
+      expect(openFileContent).not.toHaveBeenCalled();
     },
   );
 
@@ -644,32 +1034,142 @@ describe('POST /projects/{id}/files upload policy', () => {
     expect(await res.json()).toMatchObject({ error: expect.any(String) });
     expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
   });
+
+  /**
+   * The mint runs the bind's TYPE rules on a declared file name, before
+   * anything is presigned: a name the policy or the format allowlist would
+   * refuse at the bind used to be minted, uploaded (300 KB of bytes), and
+   * refused only then — the blob sat in the bucket until the sweep.
+   */
+  describe('the upload mint runs the type rules on a declared file name', () => {
+    const mint = (sql: Sql, body: Record<string, unknown>) =>
+      mount(sql).request('http://localhost/projects/p-1/uploads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('refuses an extension the org policy does not allow, presigning nothing', async () => {
+      await seedUploadPolicy('enabled: true\nallowedExtensions:\n  - pdf\n');
+      vi.mocked(createRestUploadHandoff).mockClear();
+      const { sql, queries } = fakeSql();
+      const res = await mint(sql, { fileName: 'ledger.csv' });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'UPLOAD_POLICY_REJECTED',
+        data: { reasonCode: 'extension_not_allowed' },
+      });
+      expect(vi.mocked(createRestUploadHandoff)).not.toHaveBeenCalled();
+      expect(
+        queries.some((q) =>
+          q.text.startsWith('INSERT INTO app.rest_upload_intents'),
+        ),
+      ).toBe(false);
+      // The type gate charges no upload budget and reads no size.
+      expect(queries.some((q) => q.text.includes('sum(size)'))).toBe(false);
+    });
+
+    it('refuses a format outside the platform allowlist, and mints an allowed name', async () => {
+      vi.mocked(createRestUploadHandoff).mockClear();
+      const { sql } = fakeSql();
+      const refused = await mint(sql, { fileName: 'blob.bin' });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        code: 'UNSUPPORTED_FILE_TYPE',
+      });
+      expect(vi.mocked(createRestUploadHandoff)).not.toHaveBeenCalled();
+      const minted = await mint(sql, {
+        fileName: 'ledger.pdf',
+        contentType: 'application/pdf',
+      });
+      expect(minted.status).toBe(200);
+      expect(vi.mocked(createRestUploadHandoff)).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 /**
- * GET …/files/{documentId}/content presigns WITH the document's title. The
- * regression under test: the route called `getFileUrl` without a filename,
- * and object keys are nameless (`<org>/<uuid>`), so the presigned GET set a
- * bare `attachment` disposition — a `curl -OJ` landed as a UUID while the
- * API reference promised "Content-Disposition carries the filename".
+ * GET …/files/{documentId}/content serves the bytes ITSELF, named by the
+ * document's title (RFC 6266). The regression under test: the route
+ * answered a 302 to a presigned URL on the platform's own origin, so every
+ * conforming client re-sent its bearer across the hop, the store refused
+ * the two authentications, and the documented `curl -sSL -o` wrote that
+ * refusal into the file with exit status 0.
  */
 describe('GET /projects/{id}/files/{documentId}/content', () => {
-  it('presigns with the document title as the download filename', async () => {
-    vi.mocked(getFileUrl).mockClear();
+  beforeEach(() => {
+    vi.mocked(openFileContent).mockClear();
+  });
+
+  it('streams the bytes with the document title as the download name, never a redirect', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
       'http://localhost/projects/p-1/files/d-1/content',
     );
-    expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(
-      'https://blobs.example.com/signed',
+    expect(res.status).toBe(200);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('content-type')).toBe('application/pdf');
+    expect(res.headers.get('content-length')).toBe('11');
+    expect(res.headers.get('etag')).toBe('"abc"');
+    expect(res.headers.get('content-disposition')).toBe(
+      `attachment; filename="ledger-2026-q1.pdf"; filename*=UTF-8''ledger-2026-q1.pdf`,
     );
-    expect(vi.mocked(getFileUrl)).toHaveBeenCalledWith(
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await res.text()).toBe('hello world');
+    expect(vi.mocked(openFileContent)).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: 'org-1' },
       'acme/blob-1',
-      { filename: 'ledger-2026-q1.pdf' },
+      expect.objectContaining({ head: false }),
     );
+  });
+
+  it('forwards a Range and answers the store’s partial content', async () => {
+    vi.mocked(openFileContent).mockResolvedValueOnce({
+      status: 206,
+      headers: new Headers({
+        'content-type': 'application/pdf',
+        'content-range': 'bytes 0-4/11',
+        'content-length': '5',
+      }),
+      body: new Blob(['hello']).stream(),
+    });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+      { headers: { range: 'bytes=0-4' } },
+    );
+    expect(res.status).toBe(206);
+    expect(res.headers.get('content-range')).toBe('bytes 0-4/11');
+    expect(await res.text()).toBe('hello');
+    expect(vi.mocked(openFileContent)).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      'acme/blob-1',
+      expect.objectContaining({ range: 'bytes=0-4' }),
+    );
+  });
+
+  it('answers 404 for a blob the store no longer holds, and 503 with Retry-After for a store that fails', async () => {
+    vi.mocked(openFileContent).mockResolvedValueOnce(null);
+    const { sql } = fakeSql();
+    const gone = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+    );
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toMatchObject({ code: 'FILE_NOT_FOUND' });
+
+    vi.mocked(openFileContent).mockRejectedValueOnce(
+      new FileError('OBJECT_STORE_UNAVAILABLE', 'the store answered 500', 503),
+    );
+    const failed = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+    );
+    expect(failed.status).toBe(503);
+    expect(failed.headers.get('retry-after')).toBe('5');
+    expect(await failed.json()).toMatchObject({
+      code: 'OBJECT_STORE_UNAVAILABLE',
+    });
   });
 });
 
@@ -698,5 +1198,119 @@ describe('POST /projects/{id}/folders folder:mutate budget', () => {
     expect(charge?.values).toContain('folder:mutate');
     expect(charge?.values).toContain('org:org-1');
     expect(queries.some((q) => q.text.includes('app.folders'))).toBe(false);
+  });
+});
+
+/**
+ * The workspace is no longer create-only: a project file and a project
+ * folder can be deleted through the same door that created them. The
+ * regression under test: an integrator's mistakes accumulated permanently —
+ * nothing this family created could be removed through the API.
+ */
+describe('DELETE /projects/{id}/files/{documentId}', () => {
+  it('purges a file of this project and answers 204', async () => {
+    const { deleteDocumentHard } =
+      await import('../domains/documents/service.ts');
+    vi.mocked(deleteDocumentHard).mockClear();
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(204);
+    expect(deleteDocumentHard).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'd-1',
+    );
+  });
+
+  it.each([
+    { projectId: 'other-project' },
+    { organizationId: 'other-org' },
+    { fileRef: null },
+    { lifecycleStatus: 'trashed' },
+  ])(
+    'answers the opaque 404 for a document outside the live project file set: %j',
+    async (shape) => {
+      const { deleteDocumentHard } =
+        await import('../domains/documents/service.ts');
+      vi.mocked(deleteDocumentHard).mockClear();
+      const { sql } = fakeSql({ document: shape });
+      const res = await mount(sql).request(
+        'http://localhost/projects/p-1/files/d-1',
+        { method: 'DELETE' },
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ code: 'FILE_NOT_FOUND' });
+      expect(deleteDocumentHard).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers the purge refusals in the shared envelope', async () => {
+    const { deleteDocumentHard } =
+      await import('../domains/documents/service.ts');
+    vi.mocked(deleteDocumentHard).mockRejectedValueOnce(
+      new PurgeIncompleteError('d-1', [
+        { ref: 'acme/blob-1', stage: 'corpus', message: 'corpus down' },
+      ]),
+    );
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: 'PURGE_INCOMPLETE' });
+  });
+});
+
+describe('DELETE /projects/{id}/folders/{folderId}', () => {
+  it('cascades over the folder on the folder:mutate budget and answers 204', async () => {
+    const { deleteFolderCascade } =
+      await import('../domains/documents/service.ts');
+    vi.mocked(deleteFolderCascade).mockClear();
+    const { sql, queries } = fakeSql({ folder: {} });
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/folders/fold-1',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(204);
+    expect(deleteFolderCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'fold-1',
+    );
+    const charge = queries.find((q) =>
+      q.text.includes('INSERT INTO app.rate_limits'),
+    );
+    expect(charge?.values).toContain('folder:mutate');
+  });
+
+  it.each([{ projectId: 'other-project' }, { organizationId: 'other-org' }])(
+    'answers the opaque 404 for a folder of another project or organization: %j',
+    async (shape) => {
+      const { deleteFolderCascade } =
+        await import('../domains/documents/service.ts');
+      vi.mocked(deleteFolderCascade).mockClear();
+      const { sql } = fakeSql({ folder: shape });
+      const res = await mount(sql).request(
+        'http://localhost/projects/p-1/folders/fold-1',
+        { method: 'DELETE' },
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
+      expect(deleteFolderCascade).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers 404 for a folder nobody has', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/folders/fold-9',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
   });
 });

@@ -4,7 +4,6 @@ import type { Sql, TransactionSql } from 'postgres';
 import type {
   DispatchStore,
   RunDetail,
-  RunSummary,
   TriggerView,
   VersionSummary,
 } from '../../../lib/engine/api/dispatch.ts';
@@ -43,6 +42,7 @@ import {
   resolveRunProject,
   saveVersion,
   setTrigger,
+  toRunSummary,
   versionRow,
   type TriggerInput,
 } from './store.ts';
@@ -155,35 +155,6 @@ export interface PgStoreScope {
   /** Who saves/runs are attributed to (`api-key:<userId>` or a user id). */
   actor: string;
   projectId?: string;
-}
-
-function toRunSummary(row: {
-  id: string;
-  name: string;
-  version: number;
-  projectId: string | null;
-  status: string;
-  mode: string;
-  startedBy: string;
-  detail: string | null;
-  startedAt: number;
-  finishedAt: number | null;
-}): RunSummary {
-  return {
-    runId: row.id,
-    name: row.name,
-    version: row.version,
-    // The scope a REST read of the same run needs: a project run answers
-    // only at `/api/v1/projects/{projectId}/runs/{runId}`, and MCP used to
-    // hand out run handles without saying which project they belong to.
-    projectId: row.projectId,
-    status: row.status,
-    mode: row.mode,
-    startedBy: row.startedBy,
-    ...(row.detail !== null ? { detail: row.detail } : {}),
-    startedAt: row.startedAt,
-    ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
-  };
 }
 
 /** The run row stores `input` as a JSON-encoded string (the stepper's
@@ -363,7 +334,9 @@ export function pgAutomationStore(
       const args = {
         organizationId,
         name,
-        input: input ?? {},
+        // An absent input is an empty one; a null input is the null the
+        // caller sent, for the inputs schema to accept or refuse.
+        input: input === undefined ? {} : input,
         mode,
         startedBy: actor,
         ...(version !== undefined ? { version } : {}),

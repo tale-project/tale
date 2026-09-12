@@ -2,8 +2,9 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { setSafeFetchResolverForTests } from '../../lib/net/safe-fetch.ts';
 import {
   fetchWebsitePages,
   listWebsites,
@@ -89,6 +90,12 @@ function fakeSql(options: { existingByDomain?: boolean } = {}): {
       }
       if (text.startsWith('INSERT INTO app.websites')) {
         return Promise.resolve([{ id: 'w-new' }]);
+      }
+      // The patch's RETURNING: the row as it now stands.
+      if (text.startsWith('UPDATE app.websites')) {
+        return Promise.resolve([
+          { ...website, updatedAt: website.updatedAt + 1 },
+        ]);
       }
       return Promise.resolve([]);
     };
@@ -199,8 +206,8 @@ describe('website domain and field validation', () => {
 
   // The domain is immutable after create: the corpus registration is
   // keyed by it, so a renamed row never claims a scan again and its old
-  // registration is never released. Every `domain` — parseable or not —
-  // is refused before the row is touched.
+  // registration is never released. Every CHANGED `domain` — parseable or
+  // not — is refused before the row is touched.
   it.each(['renamed.example', 'https://renamed.example/x', '::', 'a b'])(
     'PATCH /websites/{id} refuses domain %j as immutable with 400',
     async (domain) => {
@@ -218,6 +225,46 @@ describe('website domain and field validation', () => {
       expect(queries.some((q) => q.text.startsWith('UPDATE'))).toBe(false);
     },
   );
+
+  // A PUT-style client echoes the resource it read, `domain` included:
+  // the stored value is not a rename and passes.
+  it.each(['docs.example', ' DOCS.EXAMPLE '])(
+    'PATCH /websites/{id} accepts domain %j as the stored value echoed',
+    async (domain) => {
+      const { sql, queries } = fakeSql();
+      const res = await send(sql, '/websites/w-1', 'PATCH', {
+        domain,
+        title: 'Echoed',
+      });
+      expect(res.status).toBe(200);
+      expect(
+        queries.some((q) => q.text.startsWith('UPDATE app.websites')),
+      ).toBe(true);
+    },
+  );
+
+  /** A 204 left a client that sent the patch without the new `updatedAt`
+   * or `status`; the door now answers the website as it stands. */
+  it('PATCH /websites/{id} answers 200 with the updated website', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await send(sql, '/websites/w-1', 'PATCH', {
+      scanInterval: '1d',
+      title: 'Renamed docs',
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({
+      id: 'w-1',
+      domain: 'docs.example',
+      updatedAt: website.updatedAt + 1,
+    });
+    const update = queries.find((q) =>
+      q.text.startsWith('UPDATE app.websites'),
+    );
+    expect(update?.values).toEqual(
+      expect.arrayContaining(['Renamed docs', '1d', 'w-1']),
+    );
+  });
 
   it('bounds title and description on create and patch', async () => {
     const { sql } = fakeSql();
@@ -390,11 +437,10 @@ describe('website corpus views', () => {
 });
 
 describe('website list bounds', () => {
-  it('clamps and truncates limit for GET /websites', async () => {
+  it('clamps an out-of-range whole-number limit for GET /websites', async () => {
     const { sql } = fakeSql();
     const app = mount(sql);
     for (const [limit, expected] of [
-      ['2.5', 2],
       ['-1', 1],
       ['9999', 200],
     ] as const) {
@@ -423,23 +469,37 @@ describe('website list bounds', () => {
     expect(listWebsites).not.toHaveBeenCalled();
   });
 
-  it('floors offset at zero and caps limit for GET /websites/{id}/pages', async () => {
+  it('caps limit and takes a whole-number offset for GET /websites/{id}/pages', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
-      'http://localhost/websites/w-1/pages?offset=-1.5&limit=1e8',
+      'http://localhost/websites/w-1/pages?offset=2&limit=99999',
     );
     expect(res.status).toBe(200);
     expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
-      offset: 0,
+      offset: 2,
       limit: 500,
     });
-    await mount(sql).request(
-      'http://localhost/websites/w-1/pages?offset=2.7&limit=2.5',
+  });
+
+  it('refuses a fractional, negative or non-numeric offset instead of reading it as zero', async () => {
+    const { sql } = fakeSql();
+    vi.mocked(fetchWebsitePages).mockClear();
+    for (const offset of ['-1', '2.7', 'abc']) {
+      const res = await mount(sql).request(
+        `http://localhost/websites/w-1/pages?offset=${offset}`,
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_QUERY',
+        data: { issues: [{ path: 'offset' }] },
+      });
+    }
+    const limit = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?limit=2.5',
     );
-    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
-      offset: 2,
-      limit: 2,
-    });
+    expect(limit.status).toBe(400);
+    expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    expect(fetchWebsitePages).not.toHaveBeenCalled();
   });
 
   it('caps the search limit for POST /websites/{id}/search', async () => {
@@ -453,5 +513,46 @@ describe('website list bounds', () => {
       query: 'refunds',
       limit: 100,
     });
+  });
+});
+
+/**
+ * A registration names a server-side fetch target, so the name's DNS answer
+ * is checked at the door too: a public-looking host whose record points at
+ * a loopback, private-network or cloud-metadata address is refused before
+ * a row exists (the crawler resolves, checks and pins again on every dial).
+ */
+describe('website create — resolved-address policy', () => {
+  afterEach(() => {
+    setSafeFetchResolverForTests(null);
+  });
+
+  it('refuses a domain that resolves to a private or metadata address with the crawl-policy code', async () => {
+    setSafeFetchResolverForTests(() =>
+      Promise.resolve([{ address: '127.0.0.1', family: 4 }]),
+    );
+    const { sql, queries } = fakeSql();
+    const res = await send(sql, '/websites', 'POST', {
+      domain: '127.0.0.1.nip.io',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'WEBSITE_DOMAIN_NOT_CRAWLABLE',
+      error: expect.stringContaining('127.0.0.1'),
+    });
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.websites')),
+    ).toBe(false);
+  });
+
+  it('registers a domain DNS cannot answer yet — the scan reports that on its own', async () => {
+    setSafeFetchResolverForTests(() => Promise.reject(new Error('ENOTFOUND')));
+    const { sql } = fakeSql();
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'brand-new.example',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(201);
   });
 });

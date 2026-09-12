@@ -117,4 +117,56 @@ describe('ProductCreateDialog', () => {
       }),
     );
   });
+
+  /** The door's currency rule, mirrored: any three characters used to pass
+   * the dialog and be refused (or, before, stored) by the platform. */
+  it('refuses a currency that is not an ISO 4217 code and sends a valid one uppercase', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onSuccess();
+    });
+
+    const { user } = renderDialog();
+    await user.type(
+      screen.getByLabelText('products.edit.labels.name', { exact: false }),
+      'Widget',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.next' }),
+    );
+    const currency = screen.getByLabelText('products.edit.labels.currency', {
+      exact: false,
+    });
+    await user.clear(currency);
+    await user.type(currency, 'zzz');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.next' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.create' }),
+    );
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    // The refusal sits on the pricing step's field.
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.back' }),
+    );
+    expect(
+      await screen.findByText('products.edit.validation.currency'),
+    ).toBeInTheDocument();
+    const again = screen.getByLabelText('products.edit.labels.currency', {
+      exact: false,
+    });
+    await user.clear(again);
+    await user.type(again, 'eur');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.next' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.create' }),
+    );
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ currency: 'EUR' });
+  });
 });

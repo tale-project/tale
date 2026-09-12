@@ -40,6 +40,13 @@ export interface ChatTurnRequest {
    * `ExecuteTurnArgs.providerStrict`). */
   readonly providerStrict?: boolean;
   readonly reasoningEffort?: ExecuteTurnArgs['reasoningEffort'];
+  /** REST: the caller's reply ceiling for this turn (see
+   * `ExecuteTurnArgs.maxOutputTokens`). */
+  readonly maxOutputTokens?: number;
+  /** REST: the assistant message id the 202 already named — the store
+   * inserts the placeholder under it, so a caller that lost the response
+   * can still find its reply. */
+  readonly placeholderId?: string;
   readonly locale?: string;
   readonly resend?: boolean;
   /** Auto — the server resolves a concrete (provider, model) pair for THIS
@@ -79,6 +86,9 @@ export async function runChatTurn(
     ...(request.reasoningEffort !== undefined
       ? { reasoningEffort: request.reasoningEffort }
       : {}),
+    ...(request.maxOutputTokens !== undefined
+      ? { maxOutputTokens: request.maxOutputTokens }
+      : {}),
     locale: request.locale ?? 'en',
     ...(request.resend === true ? { resend: true } : {}),
   };
@@ -91,6 +101,9 @@ export async function runChatTurn(
         store: createPgTurnStore(sql, {
           ...(request.onUserMessageAppended !== undefined
             ? { onUserMessageAppended: request.onUserMessageAppended }
+            : {}),
+          ...(request.placeholderId !== undefined
+            ? { placeholderId: request.placeholderId }
             : {}),
           ...(request.expectedProjectId !== undefined
             ? {

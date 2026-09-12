@@ -54,7 +54,10 @@ import {
 } from '../../../lib/knowledge/crawl-parse';
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
-import { crawlHostRefusal } from '../../../lib/net/crawl-host-policy';
+import {
+  crawlHostRefusal,
+  privateCrawlHostsAllowed,
+} from '../../../lib/net/crawl-host-policy';
 import {
   safeFetch,
   safeFetchBinary,
@@ -524,6 +527,8 @@ async function discoverAndRecordUrls(
       timeoutMs: PAGE_TIMEOUT_MS,
       maxResponseBytes: ROBOTS_MAX_BYTES,
       allowedHosts: [...hosts],
+      allowPrivateAddresses: privateCrawlHostsAllowed(),
+      httpsOnly: true,
     });
     if (robots.status >= 200 && robots.status < 300) {
       const rules = parseRobots(robots.body);
@@ -574,6 +579,8 @@ async function discoverAndRecordUrls(
         timeoutMs: PAGE_TIMEOUT_MS,
         maxResponseBytes: SITEMAP_MAX_BYTES,
         allowedHosts: [...hosts],
+        allowPrivateAddresses: privateCrawlHostsAllowed(),
+        httpsOnly: true,
       });
       if (response.status < 200 || response.status >= 300) {
         console.warn(
@@ -629,6 +636,8 @@ async function discoverAndRecordUrls(
           timeoutMs: PAGE_TIMEOUT_MS,
           maxResponseBytes: PAGE_MAX_BYTES,
           allowedHosts: [...hosts],
+          allowPrivateAddresses: privateCrawlHostsAllowed(),
+          httpsOnly: true,
         });
         if (response.status < 200 || response.status >= 300) continue;
         for (const href of extractLinks(response.body)) {
@@ -730,6 +739,8 @@ async function fetchAndStorePage(
       timeoutMs: PAGE_FETCH_TIMEOUT_MS,
       maxResponseBytes: DOCUMENT_MAX_BYTES,
       allowedHosts: [...hosts],
+      allowPrivateAddresses: privateCrawlHostsAllowed(),
+      httpsOnly: true,
     });
   } catch (error) {
     const message =

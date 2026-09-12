@@ -11,7 +11,10 @@ import type {
   ModerationOutcome,
   ModerationRun,
 } from '../../../lib/chat/guardrails.ts';
-import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../lib/net/host-policy.ts';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import type { GuardrailsDirection } from '../../../lib/pii/core/outcome.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
@@ -321,6 +324,7 @@ async function callModeration(input: {
     attempt += 1;
     try {
       const response = await safeFetch(endpoint.url, {
+        allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'POST',
         headers,
         body,

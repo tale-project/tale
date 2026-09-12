@@ -13,7 +13,12 @@ export async function checkProjectResourceRest(args: {
   sql: Sql;
   orgId: string;
   userId: string;
-  rest: (method: string, path: string, body?: unknown) => Promise<Response>;
+  rest: (
+    method: string,
+    path: string,
+    body?: unknown,
+    headers?: Record<string, string>,
+  ) => Promise<Response>;
   session: (method: string, path: string, body?: unknown) => Promise<Response>;
   publicRequest: (
     path: string,
@@ -65,6 +70,35 @@ export async function checkProjectResourceRest(args: {
   assert.equal(repeated.id, task.id);
   assert.equal(repeated.created, false);
   await expectStatus('GET', `${path}/tasks/${task.id}`, 200);
+  // A padded repeat of the key is the same task (the ref is canonical).
+  const padded = taskEnvelope.parse(
+    await (
+      await expectStatus('POST', `${path}/tasks`, 200, {
+        ...intake,
+        externalId: `  ${intake.externalId}\n`,
+      })
+    ).json(),
+  ).task;
+  assert.equal(padded.id, task.id);
+  // The URL is judged left to right: a bad project id is the project's
+  // fault (PROJECT_NOT_FOUND), a bad task id under a good project the
+  // task's (TASK_NOT_FOUND).
+  const ghost = randomUUID();
+  const code = z.object({ code: z.string() });
+  assert.equal(
+    code.parse(
+      await (
+        await expectStatus('GET', `/projects/${ghost}/tasks/${ghost}`, 404)
+      ).json(),
+    ).code,
+    'PROJECT_NOT_FOUND',
+  );
+  assert.equal(
+    code.parse(
+      await (await expectStatus('GET', `${path}/tasks/${ghost}`, 404)).json(),
+    ).code,
+    'TASK_NOT_FOUND',
+  );
   await expectStatus('POST', '/tasks', 404, { ...intake, projectId });
   await expectStatus('GET', `/tasks/${task.id}`, 404);
   await expectStatus('POST', `${path}/tasks`, 400, {
@@ -226,7 +260,9 @@ export async function checkProjectResourceRest(args: {
   await expectStatus('GET', `${path}/runs/${globalRun.runId}`, 404);
   await expectStatus('GET', `/runs/${globalRun.runId}`, 200);
   const runsEnvelope = z.object({
-    runs: z.array(z.object({ id: z.string() })),
+    runs: z.array(z.object({ runId: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
   });
   const projectRuns = runsEnvelope.parse(
     await (
@@ -236,10 +272,25 @@ export async function checkProjectResourceRest(args: {
   const globalRuns = runsEnvelope.parse(
     await (await expectStatus('GET', `/automations/${slug}/runs`, 200)).json(),
   );
-  assert.ok(projectRuns.runs.some((row) => row.id === run.runId));
-  assert.ok(projectRuns.runs.every((row) => row.id !== globalRun.runId));
-  assert.ok(globalRuns.runs.some((row) => row.id === globalRun.runId));
-  assert.ok(globalRuns.runs.every((row) => row.id !== run.runId));
+  assert.ok(projectRuns.runs.some((row) => row.runId === run.runId));
+  assert.ok(projectRuns.runs.every((row) => row.runId !== globalRun.runId));
+  assert.ok(globalRuns.runs.some((row) => row.runId === globalRun.runId));
+  assert.ok(globalRuns.runs.every((row) => row.runId !== run.runId));
+  // The all-runs listings cross automations: the project one holds the
+  // project run, the organization-wide one every run the key holder can
+  // see, each row naming its scope; the org run reads back at the flat URL.
+  const projectAll = runsEnvelope.parse(
+    await (await expectStatus('GET', `${path}/runs`, 200)).json(),
+  );
+  const all = runsEnvelope.parse(
+    await (await expectStatus('GET', '/runs?include=output', 200)).json(),
+  );
+  assert.ok(projectAll.runs.some((row) => row.runId === run.runId));
+  assert.ok(projectAll.runs.every((row) => row.runId !== globalRun.runId));
+  assert.ok(all.runs.some((row) => row.runId === run.runId));
+  assert.ok(all.runs.some((row) => row.runId === globalRun.runId));
+  await expectStatus('GET', `${path}/runs?status=bogus`, 400);
+  await expectStatus('GET', `${path}/runs?limit=abc`, 400);
   const catalog = z.object({
     automations: z.array(z.looseObject({ name: z.string() })),
   });
@@ -385,12 +436,14 @@ export async function checkProjectResourceRest(args: {
           ).json(),
         ).result;
       // A refusal comes back as data, flagged `isError` so a generic client
-      // tells it from success, with the stable code beside the sentence.
+      // tells it from success, with the stable code beside the sentence and
+      // the hint the dispatcher attaches where it knows the next step.
       if (tool === 'get_run') {
         assert.equal(rpc.isError, true);
         assert.deepEqual(JSON.parse(rpc.content[0]?.text ?? '{}'), {
           error: `no run "${run.runId}"`,
           code: 'RUN_NOT_FOUND',
+          hint: 'start_run returns the runId; list_runs lists the recent ones',
         });
       } else {
         assert.equal(rpc.isError, true);
@@ -420,6 +473,84 @@ export async function checkProjectResourceRest(args: {
   await sql`UPDATE app.projects SET archived_at_ms = NULL WHERE id = ${projectId}`;
   await expectStatus('POST', `${path}/runs/${run.runId}/cancel`, 200);
   await expectStatus('POST', `/runs/${globalRun.runId}/cancel`, 200);
+
+  // A start named by Idempotency-Key is safe to retry: the repeat answers
+  // the first run flagged duplicate, a reused key with another body is
+  // refused and starts nothing, and a concurrent pair starts exactly one
+  // run — the claim is decided by the ledger row, on the real schema.
+  const keyed = z.object({
+    runId: z.string(),
+    duplicate: z.literal(true).optional(),
+  });
+  const keyedStart = async (key: string, body: unknown, status: number) => {
+    const response = await args.rest(
+      'POST',
+      `${path}/automations/${slug}/runs`,
+      body,
+      { 'Idempotency-Key': key },
+    );
+    assert.equal(response.status, status, `Idempotency-Key ${key}`);
+    checks++;
+    return response;
+  };
+  const keyBody = { mode: 'mock', version: 1, input: { attempt: 1 } };
+  const runsBeforeKeyed = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${name} AND project_id = ${projectId}
+  `;
+  const firstKeyed = keyed.parse(
+    await (await keyedStart('scope-key-1', keyBody, 202)).json(),
+  );
+  assert.equal(firstKeyed.duplicate, undefined);
+  const repeatedKeyed = keyed.parse(
+    await (await keyedStart('scope-key-1', keyBody, 202)).json(),
+  );
+  assert.equal(repeatedKeyed.runId, firstKeyed.runId);
+  assert.equal(repeatedKeyed.duplicate, true);
+  const reused = await keyedStart(
+    'scope-key-1',
+    { ...keyBody, input: { attempt: 2 } },
+    409,
+  );
+  assert.equal(
+    z.object({ code: z.string() }).parse(await reused.json()).code,
+    'IDEMPOTENCY_KEY_REUSED',
+  );
+  const pair = await Promise.all(
+    [0, 1].map(() =>
+      args.rest('POST', `${path}/automations/${slug}/runs`, keyBody, {
+        'Idempotency-Key': 'scope-key-2',
+      }),
+    ),
+  );
+  const pairRuns = await Promise.all(
+    pair.map(async (response) => {
+      assert.equal(response.status, 202, 'concurrent Idempotency-Key pair');
+      checks++;
+      return keyed.parse(await response.json());
+    }),
+  );
+  assert.equal(pairRuns[0]?.runId, pairRuns[1]?.runId);
+  assert.equal(pairRuns.filter((row) => row.duplicate === true).length, 1);
+  const runsAfterKeyed = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${name} AND project_id = ${projectId}
+  `;
+  assert.equal(
+    Number(runsAfterKeyed[0]?.count ?? '0') -
+      Number(runsBeforeKeyed[0]?.count ?? '0'),
+    2,
+    'five keyed starts, two runs',
+  );
+
+  // A finished run can be removed through the door that created it — in
+  // its own scope only, once; the cancelled runs above are terminal.
+  await expectStatus('DELETE', `/runs/${run.runId}`, 404);
+  await expectStatus('DELETE', `${otherPath}/runs/${run.runId}`, 404);
+  await expectStatus('DELETE', `${path}/runs/${run.runId}`, 204);
+  await expectStatus('GET', `${path}/runs/${run.runId}`, 404);
+  await expectStatus('DELETE', `${path}/runs/${run.runId}`, 404);
+  await expectStatus('DELETE', `/runs/${globalRun.runId}`, 204);
 
   // A move after acceptance must fail at the real transactional write seam,
   // before either a user message or a generation can land in another project.
@@ -502,9 +633,16 @@ export async function checkProjectResourceRest(args: {
     checks++;
     return response;
   };
-  await deliver(globalHook, 400);
+  // The flat URL refuses a bound automation with the REST door's 409; a
+  // project the automation is not installed in is the one uninformative
+  // 403 (so is an archived one below); the query selector stays a 400.
+  await deliver(globalHook, 409);
   await deliver(`${hook}?projectId=${otherId}`, 400);
-  await deliver(otherHook, 400);
+  const notInstalled = await deliver(otherHook, 403);
+  assert.deepEqual(await notInstalled.json(), {
+    error: 'The automation cannot run in that project.',
+    code: 'AUTOMATION_PROJECT_FORBIDDEN',
+  });
   const acceptedHook = runEnvelope.parse(
     await (await deliver(hook, 202)).json(),
   );
@@ -522,7 +660,7 @@ export async function checkProjectResourceRest(args: {
   await expectStatus('GET', `${otherPath}/runs/${otherAccepted.runId}`, 200);
   await sql`UPDATE app.projects SET archived_at_ms = ${Date.now()} WHERE id = ${projectId}`;
   try {
-    await deliver(hook, 400);
+    await deliver(hook, 403);
   } finally {
     await sql`UPDATE app.projects SET archived_at_ms = NULL WHERE id = ${projectId}`;
   }

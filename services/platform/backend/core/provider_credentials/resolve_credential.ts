@@ -33,7 +33,10 @@ import {
 } from '@tale/shared/schemas/providers';
 import { z } from 'zod/v4';
 
-import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
@@ -246,6 +249,7 @@ async function fetchBrokerJson(
   let response;
   try {
     response = await safeFetch(broker.endpoint, {
+      allowPrivateAddresses: privateProviderHostsAllowed(),
       method: broker.httpMethod,
       headers: buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
       timeoutMs: broker.timeoutMs,

@@ -4475,6 +4475,8 @@ products:
     imageTooLarge: Image is too large (max 5 MB).
     imageUploadFailed: Image upload failed. Try again.
     currencyPlaceholder: USD
+    validation:
+      currency: Enter a three-letter ISO 4217 currency code (for example USD or EUR)
     labels:
       name: Product name
       description: Description

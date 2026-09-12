@@ -125,6 +125,7 @@ export function chatItemRenderEqual(
     a.providerSlug === b.providerSlug &&
     a.blockedReason === b.blockedReason &&
     a.error === b.error &&
+    a.status === b.status &&
     a.createdAt === b.createdAt &&
     a.text === b.text &&
     a.reasoningText === b.reasoningText &&

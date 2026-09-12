@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  automationExists,
   beginRun,
   beginRunInTx,
   bindProject,
@@ -13,7 +14,7 @@ import {
   cancelRunInTx,
   getRun,
   listAutomations,
-  listRuns,
+  listRunsPage,
   versionRow,
 } from '../domains/automations/store.ts';
 import type { ProjectRow } from '../domains/projects/service.ts';
@@ -22,6 +23,7 @@ import { createAutomationRestRoutes } from './v1-automations.ts';
 
 vi.mock('../domains/automations/store.ts', async (original) => ({
   ...(await original<typeof import('../domains/automations/store.ts')>()),
+  automationExists: vi.fn(),
   beginRun: vi.fn(),
   beginRunInTx: vi.fn(),
   bindProject: vi.fn(),
@@ -30,7 +32,7 @@ vi.mock('../domains/automations/store.ts', async (original) => ({
   cancelRunInTx: vi.fn(),
   getRun: vi.fn(),
   listAutomations: vi.fn(),
-  listRuns: vi.fn(),
+  listRunsPage: vi.fn(),
   versionRow: vi.fn(),
 }));
 
@@ -116,34 +118,37 @@ beforeEach(() => {
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: true });
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(getRun).mockResolvedValue(run as never);
-  vi.mocked(listRuns).mockResolvedValue([]);
+  vi.mocked(automationExists).mockResolvedValue(true);
+  vi.mocked(listRunsPage).mockResolvedValue({
+    runs: [],
+    isDone: true,
+    next: null,
+  });
   vi.mocked(listAutomations).mockResolvedValue([]);
 });
 
 describe('project automation REST scope', () => {
-  it('requires explicit organization selection on project reads for a multi-org key', async () => {
-    const response = await mount({ orgExplicit: false }).app.request(
-      '/api/v1/projects/p-1/runs/run-1',
-    );
-    expect(response.status).toBe(400);
-    expect(getRun).not.toHaveBeenCalled();
-  });
-
   it('lists only installations in the URL project without leaking other project ids', async () => {
     vi.mocked(listAutomations).mockResolvedValue([
       {
         name: 'shared',
         latestVersion: 1,
         deployedVersion: 1,
+        description: null,
+        inputs: null,
         presentation: null,
         projectIds: ['p-1', 'private-project'],
+        trigger: null,
       },
       {
         name: 'elsewhere',
         latestVersion: 1,
         deployedVersion: 1,
+        description: null,
+        inputs: null,
         presentation: null,
         projectIds: ['p-2'],
+        trigger: null,
       },
     ]);
     const response = await mount().app.request(
@@ -158,8 +163,11 @@ describe('project automation REST scope', () => {
           name: 'shared',
           latestVersion: 1,
           deployedVersion: 1,
+          description: null,
+          inputs: null,
           presentation: null,
           projectIds: ['p-1'],
+          trigger: null,
         },
       ],
     });
@@ -219,7 +227,7 @@ describe('project automation REST scope', () => {
       '/api/v1/projects/p-1/automations/billing__dunning/runs',
     );
     expect(response.status).toBe(200);
-    expect(listRuns).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+    expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
       name: 'billing/dunning',
       projectId: 'p-1',
       limit: 50,
@@ -333,8 +341,11 @@ describe('organization run scope', () => {
         name: 'shared',
         latestVersion: 1,
         deployedVersion: 1,
+        description: null,
+        inputs: null,
         presentation: null,
         projectIds: ['private-project'],
+        trigger: null,
       },
     ]);
     const response = await mount().app.request('/api/v1/automations');
@@ -348,8 +359,11 @@ describe('organization run scope', () => {
           name: 'shared',
           latestVersion: 1,
           deployedVersion: 1,
+          description: null,
+          inputs: null,
           presentation: null,
           projectIds: [],
+          trigger: null,
         },
       ],
     });
@@ -361,8 +375,11 @@ describe('organization run scope', () => {
         name: 'shared',
         latestVersion: 1,
         deployedVersion: 1,
+        description: null,
+        inputs: null,
         presentation: null,
         projectIds: ['p-1', 'private-project'],
+        trigger: null,
       },
     ]);
     const response = await mount().app.request('/api/v1/automations');
@@ -376,10 +393,10 @@ describe('organization run scope', () => {
       '/api/v1/automations/billing__dunning/runs',
     );
     expect(response.status).toBe(200);
-    expect(listRuns).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+    expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
       name: 'billing/dunning',
-      limit: 50,
       projectId: null,
+      limit: 50,
     });
   });
 

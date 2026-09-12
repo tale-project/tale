@@ -4630,6 +4630,8 @@ products:
     imageTooLarge: Bild ist zu groß (max. 5 MB).
     imageUploadFailed: Bild-Upload fehlgeschlagen. Versuch es nochmal.
     currencyPlaceholder: USD
+    validation:
+      currency: Gib einen dreistelligen ISO-4217-Währungscode ein (zum Beispiel EUR oder CHF)
     labels:
       name: Produktname
       description: Beschreibung

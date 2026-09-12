@@ -76,7 +76,12 @@ export const PRESIGNED_FETCH_HEADER_TIMEOUT_MS = 30_000;
  */
 export async function fetchPresignedObject(
   url: string,
-  opts: { signal?: AbortSignal; headerTimeoutMs?: number } = {},
+  opts: {
+    signal?: AbortSignal;
+    headerTimeoutMs?: number;
+    /** Request headers to forward to the store — a client's `Range`. */
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<Response> {
   const timeoutMs = opts.headerTimeoutMs ?? PRESIGNED_FETCH_HEADER_TIMEOUT_MS;
   const controller = new AbortController();
@@ -96,7 +101,10 @@ export async function fetchPresignedObject(
   }
   let settledWithHeaders = false;
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      ...(opts.headers === undefined ? {} : { headers: opts.headers }),
+    });
     settledWithHeaders = true;
     return response;
   } finally {

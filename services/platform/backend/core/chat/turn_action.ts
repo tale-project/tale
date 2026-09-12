@@ -786,6 +786,9 @@ export interface ExecuteTurnArgs {
   readonly modelSelection?: 'auto';
   /** The user's reasoning-effort pick; absent samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** The caller's reply ceiling for this turn, under the model's own (the
+   * REST door refuses one above it); absent samples the model's default. */
+  readonly maxOutputTokens?: number;
   readonly locale: string;
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
@@ -1254,7 +1257,13 @@ export async function executeTurn(
   // Resolved against the model's declarations, then re-fitted in case
   // governance shrank the window under what the declaration assumed.
   const sampling = fitSamplingToWindow(
-    resolveTurnSampling(resolved.entry, args.reasoningEffort),
+    resolveTurnSampling(
+      resolved.entry,
+      args.reasoningEffort,
+      args.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: args.maxOutputTokens },
+    ),
     windowTokens,
   );
   const historyTokenBudget = Math.max(0, windowTokens - sampling.maxTokens);
@@ -1371,6 +1380,9 @@ export async function executeTurn(
     model: resolved.entry,
     ...(args.reasoningEffort !== undefined
       ? { reasoningEffort: args.reasoningEffort }
+      : {}),
+    ...(args.maxOutputTokens !== undefined
+      ? { maxOutputTokens: args.maxOutputTokens }
       : {}),
     budget: {
       maxTokens: windowTokens,

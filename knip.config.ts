@@ -168,7 +168,6 @@ export default {
         'seedrandom',
         'sucrase',
         'turndown',
-        'undici',
       ],
     },
     'services/web': {

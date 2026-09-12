@@ -924,8 +924,15 @@ export function createApp(
     // envelope, never the SPA shell: the proxy hands `/api/*` to the
     // backend, so what lands here is a lane the proxy did not route (or a
     // stack without the proxy) — and an HTML 200 read as "the API
-    // answered", with no key asked.
-    if (pathname.startsWith('/api/')) {
+    // answered", with no key asked. The bare `/api` and the `/.well-known/`
+    // discovery paths a protocol client probes (an MCP client looking for
+    // OAuth resource metadata) are the same kind of question: a machine
+    // asked, and an HTML shell is not an answer it can read.
+    if (
+      pathname === '/api' ||
+      pathname.startsWith('/api/') ||
+      pathname.startsWith('/.well-known/')
+    ) {
       return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
     }
 

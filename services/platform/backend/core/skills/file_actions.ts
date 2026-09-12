@@ -1,7 +1,7 @@
 'use node';
 
 import {
-  isValidSkillSlug,
+  describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
 } from '@tale/shared/schemas/skills';
@@ -64,11 +64,9 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
 }
 
 function assertValidSlug(slug: string): void {
-  if (!isValidSkillSlug(slug)) {
-    throw new AppError({
-      code: 'INVALID_SKILL_SLUG',
-      message: `"${slug}" is not a valid skill slug — use lowercase letters, digits and single hyphens.`,
-    });
+  const problem = describeSkillSlugProblem(slug);
+  if (problem !== null) {
+    throw new AppError({ code: 'INVALID_SKILL_SLUG', message: problem });
   }
 }
 
@@ -180,27 +178,44 @@ export async function readSkillAssetForViewer(args: {
  * community bundle from the UI does not strip it.
  *
  * An omitted optional field means "leave it as it is", so an edit that only
- * changes the body cannot blank the icon, the labels or the teams. Team ids
- * are not checked against the org's teams here: the library only offers real
- * ones, and an id that matches no team simply never matches a viewer either.
+ * changes the body cannot blank the icon, the labels or the teams; `null`
+ * on `icon` or `labels` is the explicit clear. Team ids are not checked
+ * against the org's teams here: the library only offers real ones, and an
+ * id that matches no team simply never matches a viewer either.
+ *
+ * `createOnly` makes the save a pure create: a slug that already has a
+ * bundle is refused (`SKILL_EXISTS`) and nothing is written — the REST
+ * door's `If-None-Match: *`. Checked here, under the caller's writer lock,
+ * so two concurrent creates cannot both pass a read-then-write on the door.
  */
 export interface SkillEditInput {
   description: string;
   body: string;
   visibility?: SkillFrontmatter['visibility'];
   teams?: string[];
-  icon?: string;
-  labels?: string[];
+  icon?: string | null;
+  labels?: string[] | null;
 }
 
 export async function saveSkillForViewer(
-  args: { orgSlug: string; slug: string; viewer: SkillViewer } & SkillEditInput,
+  args: {
+    orgSlug: string;
+    slug: string;
+    viewer: SkillViewer;
+    createOnly?: boolean;
+  } & SkillEditInput,
 ): Promise<SkillDocumentView> {
   {
     assertValidSlug(args.slug);
     const viewer = assertUserViewer(args.viewer);
     const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
 
+    if (existing !== null && args.createOnly === true) {
+      throw new AppError({
+        code: 'SKILL_EXISTS',
+        message: `The skill "${args.slug}" already exists.`,
+      });
+    }
     if (existing !== null && !canEditSkill(existing.meta, viewer)) {
       throw new AppError({
         code: 'SKILL_FORBIDDEN',
@@ -228,8 +243,11 @@ export async function saveSkillForViewer(
       description: args.description,
       visibility,
       owner,
-      icon: args.icon ?? existing?.meta.icon,
-      labels: args.labels ?? existing?.meta.labels,
+      icon: args.icon === null ? undefined : (args.icon ?? existing?.meta.icon),
+      labels:
+        args.labels === null
+          ? undefined
+          : (args.labels ?? existing?.meta.labels),
     };
     if (teams === undefined) {
       delete meta.teams;

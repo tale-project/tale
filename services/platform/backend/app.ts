@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
-import type { Auth } from './auth/auth.ts';
+import { loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { withOAuthConformance } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
@@ -110,8 +110,19 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // One id per request, echoed as `X-Request-Id` on every response and
   // carried into error reports — the handle a caller quotes in a ticket.
   // An inbound id (a client's or the proxy's) is kept when it is a sane
-  // token; anything else is replaced.
-  app.use(requestId());
+  // token; anything else is replaced. The middleware stamps the header
+  // BEFORE the handler runs, onto headers Hono merges only into responses
+  // it builds itself (`c.json`, `c.body`) — a handler that returns a raw
+  // `Response` (the MCP endpoint, an attachment's bytes) dropped it, so
+  // the id is set again on whatever response came back.
+  const stampRequestId = requestId();
+  app.use(async (c, next) => {
+    await stampRequestId(c, next);
+    const id = c.get('requestId');
+    if (typeof id === 'string' && !c.res.headers.has('x-request-id')) {
+      c.res.headers.set('x-request-id', id);
+    }
+  });
   // The NUL-byte refusal and the transport-security headers every response
   // carries (lib/http-hygiene.ts).
   app.use(nulUrlGuard());
@@ -205,10 +216,13 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/connectors/slack', createSlackEventRoutes({ sql: deps.sql }));
 
   // Automation webhook triggers — the token in the path is the credential.
-  app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
+  app.route(
+    '/api/automations/webhook',
+    createWebhookRoutes({ sql: deps.sql, trustedProxies: loadTrustedProxies }),
+  );
   app.route(
     '/api/projects/:id/automations/webhook',
-    createWebhookRoutes({ sql: deps.sql }),
+    createWebhookRoutes({ sql: deps.sql, trustedProxies: loadTrustedProxies }),
   );
 
   // Enterprise SSO — pre-auth by nature (it CREATES the session). Mounted on

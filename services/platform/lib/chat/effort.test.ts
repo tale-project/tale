@@ -312,6 +312,45 @@ describe("resolveTurnSampling — the 'budget-tokens' knob", () => {
   });
 });
 
+describe('resolveTurnSampling — the caller’s own ceiling (maxOutputTokens)', () => {
+  it('lowers maxTokens to the cap on a plain model and never raises it', () => {
+    const plain = model({ maxOutputTokens: 8_192 });
+    expect(
+      resolveTurnSampling(plain, undefined, { maxOutputTokens: 500 }),
+    ).toEqual({
+      maxTokens: 500,
+      temperature: 0.7,
+    });
+    expect(
+      resolveTurnSampling(plain, undefined, { maxOutputTokens: 1_000_000 }),
+    ).toEqual(resolveTurnSampling(plain));
+  });
+
+  it('is a no-op when no cap is given', () => {
+    expect(resolveTurnSampling(EFFORT_MODEL, 'high', {})).toEqual(
+      resolveTurnSampling(EFFORT_MODEL, 'high'),
+    );
+  });
+
+  it('shrinks a thinking budget under the cap, keeping maxTokens above it by the provider minimum', () => {
+    const capped = resolveTurnSampling(THINKING_MODEL, 'max', {
+      maxOutputTokens: 4_000,
+    });
+    expect(capped.reasoning).toEqual({
+      kind: 'thinking',
+      budgetTokens: 4_000 - 1_024,
+    });
+    expect(capped.maxTokens).toBe(4_000);
+    expect(capped.temperature).toBeUndefined();
+    // A cap under the smallest budget still yields a wire-valid pair.
+    const tiny = resolveTurnSampling(THINKING_MODEL, 'low', {
+      maxOutputTokens: 100,
+    });
+    expect(tiny.reasoning).toEqual({ kind: 'thinking', budgetTokens: 1_024 });
+    expect(tiny.maxTokens).toBe(2_048);
+  });
+});
+
 describe('fitSamplingToWindow — the governance re-fit', () => {
   it('returns a sampling that already fits, unchanged and by reference', () => {
     const sampling = resolveTurnSampling(THINKING_MODEL, 'medium');

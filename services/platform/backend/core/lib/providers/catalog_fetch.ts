@@ -37,7 +37,10 @@ import type {
   ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 
-import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import { normalizeCatalogPayload } from '../../../../lib/shared/providers/catalog_normalize';
 import {
@@ -130,6 +133,7 @@ async function fetchListingPayload(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await safeFetch(url, {
+        allowPrivateAddresses: privateProviderHostsAllowed(),
         method: 'GET',
         headers: { accept: 'application/json' },
         timeoutMs: FETCH_TIMEOUT_MS,

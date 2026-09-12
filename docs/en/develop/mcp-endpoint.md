@@ -11,11 +11,11 @@ Read this to connect a client and understand the tool inventory. The grammar for
 
 ## Connect a client
 
-The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch of at most 20 messages: it is answered as an array, a batch of notifications alone answers 202, and every tool call in a batch beyond the first draws from the same request budget as a request of its own. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
+The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch of at most 20 messages: it is answered as an array, a batch of notifications alone answers 202, and every tool call in a batch beyond the first draws from the same request budget as a request of its own. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one) — keys are the only credential this endpoint takes: there is no OAuth discovery here, so a client that insists on the MCP authorization flow finds a JSON **404** at the discovery URLs and must be configured with the headers below. A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a slug that names no organization answers **404** `ORG_SLUG_INVALID`, one the key holder is no member of **403** `ORG_FORBIDDEN`; a single-organization key may omit the header. Send the revision the `initialize` result negotiated in the `MCP-Protocol-Version` header of later requests — never the one you proposed — because an unknown header value answers **400**.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
-// Authorization: Bearer tale_...
+// Authorization: Bearer <api-key>
 // X-Organization-Slug: acme
 {
   "jsonrpc": "2.0",
@@ -29,7 +29,7 @@ The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client p
 }
 ```
 
-The server identifies as `tale-platform`. In a client that takes a config block, the two headers are all you need:
+The server identifies as `tale-platform`. In a client that takes a config block, the two headers are all you need — this shape is verified with clients that take a `headers` block; a stdio-only host needs a remote bridge such as `mcp-remote` in front of the URL:
 
 ```json
 {
@@ -37,7 +37,7 @@ The server identifies as `tale-platform`. In a client that takes a config block,
     "tale": {
       "url": "https://your-host.example.com/api/v1/mcp",
       "headers": {
-        "Authorization": "Bearer tale_...",
+        "Authorization": "Bearer <api-key>",
         "X-Organization-Slug": "acme"
       }
     }
@@ -45,11 +45,11 @@ The server identifies as `tale-platform`. In a client that takes a config block,
 }
 ```
 
-`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST` header — there is no event stream to subscribe to and no session to delete. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
+`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST, OPTIONS` header (an `OPTIONS` answers **204** with the same list) — there is no event stream to subscribe to and no session to delete — and the endpoint sends no CORS headers: it is for server-side clients, never for a browser page holding a key. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
 
 ## The tools
 
-Twenty-two tools, in three groups, each with a real JSON schema the endpoint holds a call to — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result. The four tools that take a whole automation document — validate, run, test, save — declare their call envelope (`automation`, plus `input`, `mode` or `message` where they apply) and leave the document itself open: its grammar is what `get_docs` teaches, and the engine validates it in band.
+Twenty-two tools, in three groups, each with a real JSON schema the endpoint holds a call to — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result. The four tools that take a whole automation document — validate, run, test, save — declare their call envelope (`automation`, plus `input`, `mode` or `message` where they apply) and leave the document itself open: its grammar is what `get_docs` teaches, and the engine validates it in band. Every tool also carries the four MCP `annotations` — `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` — so a host can key an "always allow" decision on them: the reads are `readOnlyHint: true`; `save_automation` writes without destroying; `deploy_automation`, `set_trigger`, `delete_trigger` and `cancel_run` replace or remove what exists; `run_deployed`, `start_run` and `invoke_capability` execute live against real backends (`openWorldHint: true`); `run_automation` and `test_automation` execute against the mocks. Hints, not guarantees — the role check below is still the backstop.
 
 ### Authoring
 
@@ -101,7 +101,7 @@ The key proves who is calling; the key holder's role decides what the call may d
 - **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
 - **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
 
-A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "code": "...", "hint": "..."}`, where `code` is the stable value to branch on (`AUTOMATION_NOT_FOUND`, …) and `hint` what to do — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. That convention holds everywhere: validation problems, missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
+A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "code": "...", "hint": "..."}`, where `code` is the stable value to branch on and `hint` what to do — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. The codes the tools themselves mint are `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID` (the document fails validation where a valid one is needed), `AUTOMATION_TESTS_FAILING` (the deploy gate), `LIVE_MODE_UNAVAILABLE`, `NOT_SUPPORTED` (the host keeps no runs, versions or triggers), `INVALID_PARAMS` and `UNKNOWN_METHOD`; a refusal the platform raises underneath — a name another owner holds, a run input the automation's `inputs` schema refuses — comes through with its own `code`, its `hint` and, where it has one, its `data` (the schema problems, for instance) unchanged. `list_versions`, `list_runs` and `list_triggers` refuse an unknown automation name with `AUTOMATION_NOT_FOUND` exactly as `get_automation` does, never with an empty list. That convention holds everywhere: a document that fails validation where a tool needs a valid one (`save_automation`, `deploy_automation`, `run_automation`, `test_automation`), missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. `validate_automation` is the one tool whose job is the verdict itself: it answers `{ "valid": false, "errors": [...] }` as an ordinary result — read `valid`, the flag stays off. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
 
 ## Where this fits
 

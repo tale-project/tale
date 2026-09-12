@@ -1,14 +1,12 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 
 import { loadConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
 import { dispatch } from '../../lib/engine/api/dispatch.ts';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
-import {
-  handleMcpRequest,
-  mcpGetNotAllowed,
-} from '../core/automations_builder/mcp_http.ts';
+import { handleMcpRequest } from '../core/automations_builder/mcp_http.ts';
 import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
 import { createCtxShim, type ShimHandlers } from '../lib/ctx-shim.ts';
@@ -16,7 +14,7 @@ import {
   RateLimitExceededError,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import type { RestEnv } from './shared.ts';
+import { DEFAULT_BODY_BYTES, type RestEnv } from './shared.ts';
 
 /**
  * POST /api/v1/mcp — the platform MCP endpoint. The 0.4 protocol layer
@@ -94,7 +92,9 @@ function mcpShimHandlers(sql: Sql): ShimHandlers {
 export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
-  app.post('/mcp', async (c) => {
+  // The protocol layer reads the body itself, so the door's default byte
+  // cap is applied here as middleware (a 413 in the door envelope).
+  app.post('/mcp', bodyLimit({ maxSize: DEFAULT_BODY_BYTES }), async (c) => {
     const rc = {
       ctx: createCtxShim(mcpShimHandlers(deps.sql)),
       org: {
@@ -122,9 +122,9 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
-  // No session to DELETE, no SSE stream to GET: every method but POST is
-  // 405 with the one verb this endpoint takes (RFC 9110 §15.5.6).
-  app.on(['GET', 'DELETE', 'PUT', 'PATCH'], '/mcp', () => mcpGetNotAllowed());
+  // No session to DELETE, no SSE stream to GET: the door's catch-all
+  // answers every other verb with 405 and `Allow: POST` — registering them
+  // here made the same catch-all list them as served.
 
   return app;
 }

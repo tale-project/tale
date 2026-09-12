@@ -6,20 +6,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AutomationError,
+  automationExists,
   beginRun,
+  beginRunIdempotent,
+  beginRunIdempotentInTx,
+  beginRunInTx,
   bindingProjectIds,
   cancelRun,
   deleteAutomationCascade,
+  deleteRunInTx,
   deleteTrigger,
   deployedVersion,
   getRun,
-  listRuns,
+  listRunsPage,
   listTriggers,
   listVersions,
   setTrigger,
   versionRow,
 } from '../domains/automations/store.ts';
-import type { RestEnv } from './shared.ts';
+import { formatKeysetCursor, mintCursorFor, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 
 /**
@@ -30,26 +35,36 @@ import { createAutomationRestRoutes } from './v1-automations.ts';
  *   run with `{}` as its input; an unknown automation answered 409 "not
  *   deployed"; and naming `version` ran any SAVED version live — the deploy
  *   gate (tests must pass before a version is live-eligible) was bypassable
- *   by every developer key.
+ *   by every developer key. It silently discarded `Idempotency-Key`.
  * - `POST /runs/{id}/cancel` answered `{cancelled: false}` for a run that
  *   does not exist — a mistyped id read as "nothing to cancel".
  * - `PUT`/`DELETE …/triggers` bound (and minted a webhook token for) a name
  *   nobody ever saved.
+ * - `GET /automations/{name}?version=N` answered "automation not found" for
+ *   a version that was never saved, and `%2F` was an undocumented alias
+ *   of the `__` spelling.
+ * - Run listings inlined every run's input, output, trace and checkpoints,
+ *   took no status filter and no cursor, and no listing crossed automations.
  */
 
 vi.mock('../domains/automations/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/automations/store.ts')>()),
+  automationExists: vi.fn(),
   beginRun: vi.fn(),
+  beginRunIdempotent: vi.fn(),
+  beginRunIdempotentInTx: vi.fn(),
+  beginRunInTx: vi.fn(),
   bindingProjectIds: vi.fn(async () => []),
   cancelRun: vi.fn(),
   deleteAutomationCascade: vi.fn(async () => undefined),
+  deleteRunInTx: vi.fn(),
   setTrigger: vi.fn(),
   deleteTrigger: vi.fn(),
   deployedVersion: vi.fn(),
   getRun: vi.fn(),
   listTriggers: vi.fn(async () => []),
   listVersions: vi.fn(async () => []),
-  listRuns: vi.fn(async () => []),
+  listRunsPage: vi.fn(),
   versionRow: vi.fn(),
 }));
 
@@ -68,7 +83,7 @@ const row = (version: number) => ({
 });
 
 /** The one project the key holder can see — every binding listing is
- * filtered through it. */
+ * filtered through it, and the project routes resolve it. */
 const visibleProject = {
   id: 'p-visible',
   organizationId: 'org-1',
@@ -77,9 +92,45 @@ const visibleProject = {
   archivedAt: null,
 };
 
-function fakeSql(): Sql {
+const runRow = {
+  id: 'run-1',
+  organizationId: 'org-1',
+  name: SAVED,
+  version: 1,
+  projectId: null,
+  status: 'success',
+  mode: 'live' as const,
+  startedBy: 'api-key:user-1',
+  input: { n: 1 },
+  output: 2,
+  checkpoints: { nodes: {}, executions: 1 },
+  trace: [{ node: 'shape' }],
+  effects: [],
+  detail: null,
+  claimEpoch: 1,
+  chainSeq: 0,
+  startedAt: 1_700_000_000_000,
+  finishedAt: 1_700_000_000_500,
+};
+
+/** What a listing answers for `runRow`: identity, scope, status, timing. */
+const runSummary = {
+  runId: 'run-1',
+  name: SAVED,
+  version: 1,
+  projectId: null,
+  status: 'success',
+  mode: 'live',
+  startedBy: 'api-key:user-1',
+  startedAt: 1_700_000_000_000,
+  finishedAt: 1_700_000_000_500,
+};
+
+function fakeSql(): { sql: Sql; queries: string[] } {
+  const queries: string[] = [];
   const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    queries.push(text);
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve([{ value: '1' }]);
     }
@@ -88,37 +139,52 @@ function fakeSql(): Sql {
     }
     return Promise.resolve([]);
   };
+  const begin = (
+    options: string | ((tx: unknown) => Promise<unknown>),
+    callback?: (tx: unknown) => Promise<unknown>,
+  ) => (typeof options === 'function' ? options(sql) : callback?.(sql));
+  const sql = Object.assign(tag, { unsafe: (t: string) => t, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return Object.assign(tag, { unsafe: (t: string) => t }) as unknown as Sql;
+  return { sql: sql as unknown as Sql, queries };
 }
 
-function mount() {
+function mount(options: { role?: string } = {}) {
+  const { sql, queries } = fakeSql();
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'admin');
+    c.set('role', options.role ?? 'admin');
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
     return next();
   });
-  app.route('/api/v1', createAutomationRestRoutes({ sql: fakeSql() }));
-  return app;
+  app.route('/api/v1', createAutomationRestRoutes({ sql }));
+  return { app, queries };
 }
 
-const json = (method: string, body?: string) => ({
+const json = (
+  method: string,
+  body?: string,
+  headers: Record<string, string> = {},
+) => ({
   method,
-  headers: { 'content-type': 'application/json' },
+  headers: { 'content-type': 'application/json', ...headers },
   ...(body !== undefined ? { body } : {}),
 });
 
 beforeEach(() => {
+  vi.mocked(automationExists).mockReset();
   vi.mocked(versionRow).mockReset();
   vi.mocked(deployedVersion).mockReset();
   vi.mocked(beginRun).mockReset();
+  vi.mocked(beginRunIdempotent).mockReset();
+  vi.mocked(beginRunIdempotentInTx).mockReset();
+  vi.mocked(beginRunInTx).mockReset();
   vi.mocked(cancelRun).mockReset();
+  vi.mocked(deleteRunInTx).mockReset();
   vi.mocked(setTrigger).mockReset();
   vi.mocked(deleteTrigger).mockReset();
   vi.mocked(getRun).mockReset();
@@ -127,9 +193,18 @@ beforeEach(() => {
   vi.mocked(deleteAutomationCascade).mockReset();
   vi.mocked(deleteAutomationCascade).mockResolvedValue(undefined);
   vi.mocked(listTriggers).mockClear();
-  vi.mocked(listVersions).mockClear();
-  vi.mocked(listRuns).mockClear();
+  vi.mocked(listVersions).mockReset();
+  vi.mocked(listVersions).mockResolvedValue([]);
+  vi.mocked(listRunsPage).mockReset();
+  vi.mocked(listRunsPage).mockResolvedValue({
+    runs: [],
+    isDone: true,
+    next: null,
+  });
   // The saved automation has versions 1 and 2; version 1 is deployed.
+  vi.mocked(automationExists).mockImplementation(
+    async (_sql, _org, name) => name === SAVED,
+  );
   vi.mocked(versionRow).mockImplementation(async (_sql, _org, name, version) =>
     name === SAVED && (version === undefined || version === 1 || version === 2)
       ? row(version ?? 2)
@@ -139,16 +214,32 @@ beforeEach(() => {
     name === SAVED ? 1 : undefined,
   );
   vi.mocked(beginRun).mockResolvedValue({ runId: 'run-1', version: 1 });
+  vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
+  vi.mocked(beginRunIdempotent).mockResolvedValue({
+    runId: 'run-1',
+    version: 1,
+    duplicate: false,
+  });
+  vi.mocked(beginRunIdempotentInTx).mockResolvedValue({
+    runId: 'run-1',
+    version: 1,
+    duplicate: false,
+  });
+  vi.mocked(deleteRunInTx).mockResolvedValue({ deleted: true });
   vi.mocked(setTrigger).mockResolvedValue({ token: 'tok' });
   vi.mocked(deleteTrigger).mockResolvedValue(true);
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: false });
 });
 
 describe('POST /automations/{name}/runs', () => {
-  const start = (name: string, body?: string) =>
-    mount().request(
+  const start = (
+    name: string,
+    body?: string,
+    headers?: Record<string, string>,
+  ) =>
+    mount().app.request(
       `http://localhost/api/v1/automations/${name}/runs`,
-      json('POST', body),
+      json('POST', body, headers),
     );
 
   it('answers 400 for a body that is present but not JSON, and starts nothing', async () => {
@@ -164,9 +255,26 @@ describe('POST /automations/{name}/runs', () => {
   it('still reads no body as an empty input', async () => {
     const res = await start(SAVED);
     expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({
+      runId: 'run-1',
+      version: 1,
+      name: SAVED,
+      mode: 'live',
+    });
     expect(beginRun).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ input: {}, mode: 'live' }),
+    );
+  });
+
+  it('hands a null input on as null, for the inputs schema to judge', async () => {
+    // `null` used to be silently read as `{}` and run against a schema
+    // that would have refused it.
+    const res = await start(SAVED, '{"input": null}');
+    expect(res.status).toBe(202);
+    expect(beginRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ input: null }),
     );
   });
 
@@ -215,12 +323,118 @@ describe('POST /automations/{name}/runs', () => {
       expect.objectContaining({ version: 2, mode: 'mock' }),
     );
   });
+
+  it('refuses a live start by a role without the developer capability before charging the lane', async () => {
+    const { app, queries } = mount({ role: 'member' });
+    const res = await app.request(
+      `http://localhost/api/v1/automations/${SAVED}/runs`,
+      json('POST', '{}'),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+    expect(queries.some((q) => q.includes('INSERT INTO app.rate_limits'))).toBe(
+      false,
+    );
+    expect(beginRun).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `Idempotency-Key` names a start: a repeat within a day answers the run
+ * the first attempt started, flagged `duplicate: true`; a repeat with
+ * another body is the store's 409; a blank header is no key at all.
+ */
+describe('Idempotency-Key on a run start', () => {
+  const start = (
+    headers: Record<string, string>,
+    body = '{"input": {"n": 1}}',
+  ) =>
+    mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/runs`,
+      json('POST', body, headers),
+    );
+
+  it('starts through the idempotent door and answers the identity', async () => {
+    const res = await start({ 'Idempotency-Key': ' order-42 ' });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({
+      runId: 'run-1',
+      version: 1,
+      name: SAVED,
+      mode: 'live',
+    });
+    expect(beginRunIdempotent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: SAVED,
+        input: { n: 1 },
+        mode: 'live',
+        requireOrgScope: true,
+      }),
+      { key: 'order-42' },
+    );
+    expect(beginRun).not.toHaveBeenCalled();
+  });
+
+  it('answers the remembered run with duplicate: true', async () => {
+    vi.mocked(beginRunIdempotent).mockResolvedValue({
+      runId: 'run-first',
+      version: 1,
+      duplicate: true,
+    });
+    const res = await start({ 'Idempotency-Key': 'order-42' });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({
+      runId: 'run-first',
+      version: 1,
+      name: SAVED,
+      mode: 'live',
+      duplicate: true,
+    });
+  });
+
+  it('passes the reuse refusal through as its 409', async () => {
+    vi.mocked(beginRunIdempotent).mockRejectedValue(
+      new AutomationError(
+        'IDEMPOTENCY_KEY_REUSED',
+        'This Idempotency-Key was already used for a different request.',
+        409,
+      ),
+    );
+    const res = await start({ 'Idempotency-Key': 'order-42' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'This Idempotency-Key was already used for a different request.',
+      code: 'IDEMPOTENCY_KEY_REUSED',
+    });
+  });
+
+  it('reads a blank header as no key', async () => {
+    const res = await start({ 'Idempotency-Key': '   ' });
+    expect(res.status).toBe(202);
+    expect(beginRun).toHaveBeenCalled();
+    expect(beginRunIdempotent).not.toHaveBeenCalled();
+  });
+
+  it('claims the key inside the project authorization transaction', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/projects/p-visible/automations/${SAVED}/runs`,
+      json('POST', '{"mode": "mock"}', { 'Idempotency-Key': 'order-42' }),
+    );
+    expect(res.status).toBe(202);
+    expect(beginRunIdempotentInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ projectId: 'p-visible', mode: 'mock' }),
+      { key: 'order-42' },
+    );
+    expect(beginRunInTx).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /runs/{runId}/cancel', () => {
   it('answers 404 for a run that is not there, and cancels nothing', async () => {
     vi.mocked(getRun).mockResolvedValue(null);
-    const res = await mount().request(
+    const res = await mount().app.request(
       'http://localhost/api/v1/runs/run-nope/cancel',
       json('POST'),
     );
@@ -238,7 +452,7 @@ describe('POST /runs/{runId}/cancel', () => {
       id: 'run-1',
       projectId: null,
     } as never);
-    const res = await mount().request(
+    const res = await mount().app.request(
       'http://localhost/api/v1/runs/run-1/cancel',
       json('POST'),
     );
@@ -248,9 +462,92 @@ describe('POST /runs/{runId}/cancel', () => {
   });
 });
 
+/**
+ * A finished run can be removed through the door that created it — the
+ * stop route's scope and capability rules, 204 on success, the same 404 for
+ * a run that is not there or not in this scope, the store's 409 in flight.
+ */
+describe('DELETE /runs/{runId}', () => {
+  it('removes a finished organization run and answers 204', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
+    const res = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(deleteRunInTx).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      actor: 'user-1',
+    });
+  });
+
+  it('answers 404 for a run that is not there or belongs to a project', async () => {
+    vi.mocked(getRun).mockResolvedValueOnce(null);
+    expect(
+      (
+        await mount().app.request(
+          'http://localhost/api/v1/runs/run-nope',
+          json('DELETE'),
+        )
+      ).status,
+    ).toBe(404);
+    vi.mocked(getRun).mockResolvedValueOnce({ ...runRow, projectId: 'p-1' });
+    const res = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Run not found',
+      code: 'RUN_NOT_FOUND',
+    });
+    expect(deleteRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('passes the in-flight refusal through as 409', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, status: 'running' });
+    vi.mocked(deleteRunInTx).mockRejectedValue(
+      new AutomationError('RUN_ACTIVE', 'The run is still running.', 409),
+    );
+    const res = await mount().app.request(
+      'http://localhost/api/v1/runs/run-1',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'The run is still running.',
+      code: 'RUN_ACTIVE',
+    });
+  });
+
+  it('needs the developer capability', async () => {
+    const res = await mount({ role: 'member' }).app.request(
+      'http://localhost/api/v1/runs/run-1',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(403);
+    expect(deleteRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('removes a project run at its project URL', async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: 'p-visible' });
+    const res = await mount().app.request(
+      'http://localhost/api/v1/projects/p-visible/runs/run-1',
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(deleteRunInTx).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      actor: 'user-1',
+    });
+  });
+});
+
 describe('triggers of an automation nobody saved', () => {
   it('PUT answers 404 and mints no token', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       'http://localhost/api/v1/automations/no-such-automation/triggers',
       json('PUT', '{"kind": "webhook"}'),
     );
@@ -263,7 +560,7 @@ describe('triggers of an automation nobody saved', () => {
   });
 
   it('DELETE answers 404 instead of the idempotent 204', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       'http://localhost/api/v1/automations/no-such-automation/triggers',
       json('DELETE'),
     );
@@ -272,14 +569,14 @@ describe('triggers of an automation nobody saved', () => {
   });
 
   it('keeps the saved automation’s doors: PUT binds, DELETE is idempotent', async () => {
-    const put = await mount().request(
+    const put = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/triggers`,
       json('PUT', '{"kind": "webhook"}'),
     );
     expect(put.status).toBe(200);
     expect(await put.json()).toEqual({ name: SAVED, token: 'tok' });
     vi.mocked(deleteTrigger).mockResolvedValue(false);
-    const del = await mount().request(
+    const del = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/triggers`,
       json('DELETE'),
     );
@@ -287,7 +584,7 @@ describe('triggers of an automation nobody saved', () => {
   });
 
   it('PUT refuses an unknown key with INVALID_BODY, naming it', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/triggers`,
       json('PUT', '{"kind": "webhook", "rotate_token": true}'),
     );
@@ -298,6 +595,36 @@ describe('triggers of an automation nobody saved', () => {
     });
     expect(setTrigger).not.toHaveBeenCalled();
   });
+
+  it('PUT names a missing kind as required, not as a wrong option', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"cron": "* * * * *"}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid body: "kind" is required',
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: 'kind', message: 'is required' }] },
+    });
+  });
+
+  it('PUT passes the store’s refusal of an event nobody raises through', async () => {
+    vi.mocked(setTrigger).mockRejectedValue(
+      new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        '"tale.eval.no.such.event" is not an event the platform raises — one of contact.created.',
+      ),
+    );
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "event", "event": "tale.eval.no.such.event"}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+    });
+  });
 });
 
 /**
@@ -305,13 +632,14 @@ describe('triggers of an automation nobody saved', () => {
  * a 200 with an empty list, so a typo read as "no versions, no trigger,
  * no runs". A segment that is not a name at all (`../../models`, five
  * hundred characters) is the same 404, and the path is one segment: a raw
- * `billing/dunning` used to resolve to `billing`.
+ * `billing/dunning` used to resolve to `billing`, and a `%2F` worked as an
+ * undocumented alias of `__`.
  */
 describe('reads of an automation nobody saved', () => {
   it.each(['versions', 'triggers', 'runs'])(
     'GET …/%s answers 404 and lists nothing',
     async (leaf) => {
-      const res = await mount().request(
+      const res = await mount().app.request(
         `http://localhost/api/v1/automations/no-such-automation/${leaf}`,
       );
       expect(res.status).toBe(404);
@@ -321,27 +649,284 @@ describe('reads of an automation nobody saved', () => {
       });
       expect(listVersions).not.toHaveBeenCalled();
       expect(listTriggers).not.toHaveBeenCalled();
-      expect(listRuns).not.toHaveBeenCalled();
+      expect(listRunsPage).not.toHaveBeenCalled();
     },
   );
 
-  it.each(['..__..', 'Invoice-Sync', 'a__b__', 'x'.repeat(260)])(
-    'answers 404 for the segment %j without a lookup',
-    async (segment) => {
-      const res = await mount().request(
-        `http://localhost/api/v1/automations/${segment}/versions`,
-      );
-      expect(res.status).toBe(404);
-      expect(versionRow).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    '..__..',
+    'Invoice-Sync',
+    'a__b__',
+    'x'.repeat(260),
+    'invoice%2Fsync',
+  ])('answers 404 for the segment %j without a lookup', async (segment) => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${segment}/versions`,
+    );
+    expect(res.status).toBe(404);
+    expect(automationExists).not.toHaveBeenCalled();
+    expect(versionRow).not.toHaveBeenCalled();
+  });
 
   it('no longer resolves a raw slash to the first segment', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/extra/versions`,
     );
     expect(res.status).toBe(404);
     expect(listVersions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The bare read answers the latest SAVED version; `?version=deployed` the
+ * one a live run executes; a number a specific one. A version that is not
+ * there is its own 404 when the automation is, so a version-pinning client
+ * can tell "never saved" from "deleted".
+ */
+describe('GET /automations/{name}', () => {
+  const read = (query = '') =>
+    mount().app.request(`http://localhost/api/v1/automations/${SAVED}${query}`);
+
+  it('answers the latest saved version by default', async () => {
+    const res = await read();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      name: SAVED,
+      version: 2,
+      deployedVersion: 1,
+    });
+  });
+
+  it.each(['?version=latest', '?version=2'])(
+    'answers the latest version for %s',
+    async (query) => {
+      expect(await (await read(query)).json()).toMatchObject({ version: 2 });
+    },
+  );
+
+  it('answers the deployed version for ?version=deployed', async () => {
+    const res = await read('?version=deployed');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ version: 1, deployedVersion: 1 });
+  });
+
+  it('answers 404 AUTOMATION_VERSION_UNKNOWN for ?version=deployed with nothing deployed', async () => {
+    vi.mocked(deployedVersion).mockResolvedValue(undefined);
+    const res = await read('?version=deployed');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({
+      error: expect.stringContaining('nothing is deployed'),
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+    });
+  });
+
+  it('answers 404 AUTOMATION_VERSION_UNKNOWN for a version never saved', async () => {
+    const res = await read('?version=9');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: `"${SAVED}" has no version 9.`,
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+    });
+  });
+
+  it('keeps AUTOMATION_NOT_FOUND for a version of an automation nobody saved', async () => {
+    const res = await mount().app.request(
+      'http://localhost/api/v1/automations/no-such-automation?version=9',
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
+
+  it.each(['?version=0', '?version=abc', '?version=1.5'])(
+    'refuses %s as INVALID_QUERY',
+    async (query) => {
+      const res = await read(query);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_QUERY',
+        data: { issues: [{ path: 'version' }] },
+      });
+    },
+  );
+});
+
+describe('GET /automations/{name}/versions', () => {
+  it('marks the deployed version', async () => {
+    vi.mocked(listVersions).mockResolvedValue([
+      {
+        version: 2,
+        message: 'second',
+        testsPassed: null,
+        createdBy: 'user-1',
+        createdAt: 2,
+      },
+      {
+        version: 1,
+        message: null,
+        testsPassed: true,
+        createdBy: 'user-1',
+        createdAt: 1,
+      },
+    ]);
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/versions`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      deployedVersion: 1,
+      versions: [
+        {
+          version: 2,
+          message: 'second',
+          testsPassed: null,
+          createdBy: 'user-1',
+          createdAt: 2,
+          deployed: false,
+        },
+        {
+          version: 1,
+          message: null,
+          testsPassed: true,
+          createdBy: 'user-1',
+          createdAt: 1,
+          deployed: true,
+        },
+      ],
+    });
+  });
+
+  it('answers null when nothing is deployed', async () => {
+    vi.mocked(deployedVersion).mockResolvedValue(undefined);
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/versions`,
+    );
+    expect(await res.json()).toMatchObject({ deployedVersion: null });
+  });
+});
+
+/**
+ * Run listings answer SUMMARIES — identity, scope, status, timing — as a
+ * keyset page: `{runs, isDone, continueCursor}`, with `?status=` to filter
+ * and `?include=` for the full-row fields a summary omits. The cursor is
+ * signed for the listing that answered it.
+ */
+describe('run listings', () => {
+  const page = {
+    runs: [runRow],
+    isDone: false,
+    next: { at: 1_700_000_000_000, id: 'run-1' },
+  };
+  const list = (path: string) =>
+    mount().app.request(`http://localhost/api/v1${path}`);
+
+  it('answers summaries and a cursor for the older runs', async () => {
+    vi.mocked(listRunsPage).mockResolvedValue(page);
+    const res = await list(`/automations/${SAVED}/runs`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      runs: [runSummary],
+      isDone: false,
+      continueCursor: mintCursorFor(
+        'org-1',
+        `runs:org:${SAVED}`,
+        formatKeysetCursor(1_700_000_000_000, 'run-1'),
+      ),
+    });
+    expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+      name: SAVED,
+      projectId: null,
+      limit: 50,
+    });
+  });
+
+  it('answers an empty continueCursor on the last page', async () => {
+    vi.mocked(listRunsPage).mockResolvedValue({
+      runs: [runRow],
+      isDone: true,
+      next: null,
+    });
+    expect(
+      await (await list(`/automations/${SAVED}/runs`)).json(),
+    ).toMatchObject({ isDone: true, continueCursor: '' });
+  });
+
+  it('inlines exactly the full-row fields ?include= names', async () => {
+    vi.mocked(listRunsPage).mockResolvedValue(page);
+    const res = await list(`/automations/${SAVED}/runs?include=input,output`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).runs).toEqual([
+      { ...runSummary, input: { n: 1 }, output: 2 },
+    ]);
+  });
+
+  it('passes the status set on and refuses one it does not know', async () => {
+    const res = await list(`/automations/${SAVED}/runs?status=failed,success`);
+    expect(res.status).toBe(200);
+    expect(listRunsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({ statuses: ['failed', 'success'] }),
+    );
+    const refused = await list(`/automations/${SAVED}/runs?status=bogus`);
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'status' }] },
+    });
+    const included = await list(
+      `/automations/${SAVED}/runs?include=trace,bogus`,
+    );
+    expect(included.status).toBe(400);
+    expect(await included.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'include' }] },
+    });
+  });
+
+  it('walks from the cursor it answered, and refuses another list’s', async () => {
+    const position = formatKeysetCursor(1_700_000_000_000, 'run-1');
+    const own = mintCursorFor('org-1', `runs:org:${SAVED}`, position);
+    const res = await list(`/automations/${SAVED}/runs?cursor=${own}`);
+    expect(res.status).toBe(200);
+    expect(listRunsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({
+        before: { at: 1_700_000_000_000, id: 'run-1' },
+      }),
+    );
+    const foreign = mintCursorFor('org-1', 'runs:all', position);
+    const refused = await list(`/automations/${SAVED}/runs?cursor=${foreign}`);
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+
+  it('refuses a limit that is not a whole number', async () => {
+    const res = await list(`/automations/${SAVED}/runs?limit=abc`);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+  });
+
+  it('GET /runs answers every run the key holder can see, whatever started it', async () => {
+    vi.mocked(listRunsPage).mockResolvedValue(page);
+    const res = await list('/runs?status=failed');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ runs: [runSummary] });
+    expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+      visibleProjectIds: ['p-visible'],
+      statuses: ['failed'],
+      limit: 50,
+    });
+  });
+
+  it('GET /projects/{id}/runs answers the project’s runs', async () => {
+    const res = await list('/projects/p-visible/runs');
+    expect(res.status).toBe(200);
+    expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+      projectId: 'p-visible',
+      limit: 50,
+    });
   });
 });
 
@@ -361,7 +946,7 @@ describe('project bindings on the wire', () => {
       ),
     );
     vi.mocked(bindingProjectIds).mockResolvedValue(['p-visible', 'p-hidden']);
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/runs`,
       json('POST', '{"mode": "mock"}'),
     );
@@ -376,7 +961,7 @@ describe('project bindings on the wire', () => {
   it('carries the visible installations and a null deployedVersion on the read', async () => {
     vi.mocked(bindingProjectIds).mockResolvedValue(['p-visible', 'p-hidden']);
     vi.mocked(deployedVersion).mockResolvedValue(undefined);
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}`,
     );
     expect(res.status).toBe(200);
@@ -395,7 +980,7 @@ describe('project bindings on the wire', () => {
  */
 describe('DELETE /automations/{name}', () => {
   it('retires a saved automation and answers 204', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}`,
       json('DELETE'),
     );
@@ -408,7 +993,7 @@ describe('DELETE /automations/{name}', () => {
   });
 
   it('answers 404 for a name nobody saved and deletes nothing', async () => {
-    const res = await mount().request(
+    const res = await mount().app.request(
       'http://localhost/api/v1/automations/no-such-automation',
       json('DELETE'),
     );
@@ -424,7 +1009,7 @@ describe('DELETE /automations/{name}', () => {
         409,
       ),
     );
-    const res = await mount().request(
+    const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}`,
       json('DELETE'),
     );

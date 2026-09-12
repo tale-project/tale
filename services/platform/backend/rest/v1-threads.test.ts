@@ -5,7 +5,11 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { listComposerModels } from '../domains/chat/composer.ts';
-import { setThreadArchived, trashThread } from '../domains/chat/threads.ts';
+import {
+  renameThread,
+  setThreadArchived,
+  trashThread,
+} from '../domains/chat/threads.ts';
 import { resolveModelGovernanceForUser } from '../domains/governance/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import type { RestEnv } from './shared.ts';
@@ -22,6 +26,7 @@ vi.mock('../domains/governance/service.ts', () => ({
 }));
 vi.mock('../domains/chat/threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/chat/threads.ts')>()),
+  renameThread: vi.fn(() => Promise.resolve(true)),
   setThreadArchived: vi.fn(() => Promise.resolve(true)),
   trashThread: vi.fn(() => Promise.resolve(true)),
 }));
@@ -94,7 +99,11 @@ const thread = {
   harness: null,
   projectId: null,
   archived: false,
+  archivedAt: null,
   isShared: null,
+  generating: false,
+  queuedSince: null,
+  streamId: null,
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_001,
 };
@@ -104,14 +113,30 @@ const thread = {
  * callback on the same tag, so a domain transaction is captured like a plain
  * query. */
 function fakeSql(
-  options: { generating?: boolean; messages?: Record<string, unknown>[] } = {},
+  options: {
+    generating?: boolean;
+    /** The accepted send waits for a worker: the 202's marker is set. */
+    queued?: boolean;
+    archived?: boolean;
+    messages?: Record<string, unknown>[];
+  } = {},
 ): { sql: Sql; queries: Captured[] } {
   const queries: Captured[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push({ text, values });
     if (text.includes('FROM app.threads t') && text.includes('t.id = $?')) {
-      return Promise.resolve([thread]);
+      return Promise.resolve([
+        {
+          ...thread,
+          ...(options.queued
+            ? { queuedSince: 1_700_000_000_005, streamId: 'm-pre' }
+            : {}),
+          ...(options.archived
+            ? { archived: true, archivedAt: 1_700_000_000_009 }
+            : {}),
+        },
+      ]);
     }
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve([{ value: '1' }]);
@@ -147,6 +172,7 @@ function fakeSql(
             usage: {
               inputTokens: 12,
               outputTokens: 3,
+              costEstimateCents: 0.042,
               provider: 'raw-not-for-the-wire',
             },
             createdAt: 1_700_000_000_002,
@@ -201,11 +227,10 @@ describe('GET /threads/{id}/messages limit', () => {
   });
 
   it.each([
-    ['2.5', 3],
     ['-4', 2],
     ['999', 101],
   ])(
-    'turns ?limit=%s into a whole LIMIT of %i (page + 1)',
+    'clamps ?limit=%s into a whole LIMIT of %i (page + 1)',
     async (limit, expected) => {
       const { sql, queries } = fakeSql();
       const res = await mount(sql).request(
@@ -216,6 +241,26 @@ describe('GET /threads/{id}/messages limit', () => {
       expect(page?.values).toContain(expected);
     },
   );
+
+  it('refuses a fractional limit and a parameter the route does not take', async () => {
+    const { sql, queries } = fakeSql();
+    const fraction = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?limit=2.5',
+    );
+    expect(fraction.status).toBe(400);
+    expect(await fraction.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    const stray = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?before=12',
+    );
+    expect(stray.status).toBe(400);
+    expect(await stray.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'before' }] },
+    });
+    expect(queries.some((q) => q.text.includes('FROM app.messages'))).toBe(
+      false,
+    );
+  });
 });
 
 describe('POST /threads/{id}/messages body', () => {
@@ -455,7 +500,7 @@ describe('GET /models', () => {
 });
 
 describe('GET /threads/{id}/messages', () => {
-  it('carries the row status and the whitelisted token usage', async () => {
+  it('carries the row status and the whitelisted token usage, cost estimate included', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
       'http://localhost/threads/t-1/messages',
@@ -464,7 +509,7 @@ describe('GET /threads/{id}/messages', () => {
     const body = (await res.json()) as { page: Record<string, unknown>[] };
     expect(body.page[0]).toMatchObject({
       status: 'complete',
-      usage: { inputTokens: 12, outputTokens: 3 },
+      usage: { inputTokens: 12, outputTokens: 3, costEstimateCents: 0.042 },
     });
     expect(body.page[0]?.usage).not.toHaveProperty('provider');
   });
@@ -505,8 +550,48 @@ describe('GET /threads/{id}/messages', () => {
  */
 describe('thread lifecycle', () => {
   beforeEach(() => {
+    vi.mocked(renameThread).mockClear();
     vi.mocked(setThreadArchived).mockClear();
     vi.mocked(trashThread).mockClear();
+  });
+
+  it('PATCH renames the thread, and carries archivedAt on an archived one', async () => {
+    const { sql } = fakeSql({ archived: true });
+    const res = await mount(sql).request('http://localhost/threads/t-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '  Q3 review ' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      id: 't-1',
+      title: 'Q3 review',
+      archived: true,
+      archivedAt: 1_700_000_000_009,
+    });
+    expect(renameThread).toHaveBeenCalledWith(
+      sql,
+      'org-1',
+      'user-1',
+      't-1',
+      'Q3 review',
+    );
+    expect(setThreadArchived).not.toHaveBeenCalled();
+  });
+
+  it('PATCH refuses a field it does not take, and an empty patch', async () => {
+    const { sql } = fakeSql();
+    for (const body of [{ pinned: true }, {}]) {
+      const res = await mount(sql).request('http://localhost/threads/t-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
+    }
+    expect(setThreadArchived).not.toHaveBeenCalled();
+    expect(renameThread).not.toHaveBeenCalled();
   });
 
   it('PATCH archives the thread through the audited toggle', async () => {
@@ -524,17 +609,6 @@ describe('thread lifecycle', () => {
       't-1',
       true,
     );
-  });
-
-  it('PATCH refuses anything but the archived flag', async () => {
-    const { sql } = fakeSql();
-    const res = await mount(sql).request('http://localhost/threads/t-1', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Renamed' }),
-    });
-    expect(res.status).toBe(400);
-    expect(setThreadArchived).not.toHaveBeenCalled();
   });
 
   it('DELETE trashes the thread, and refuses one mid-turn', async () => {
@@ -616,5 +690,245 @@ describe('POST /threads uses the built-in assistant', () => {
     });
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ id: 't-new' });
+  });
+});
+
+/**
+ * The 202 names the reply before the turn exists, and the poll tells the
+ * truth in between: a caller that lost the 202 used to see `idle` (the
+ * generation row did not exist yet) and stop waiting; a caller that kept
+ * it had no id to find its reply by. The send also takes the effort pick
+ * and a reply ceiling, checked against the listed model's own.
+ */
+describe('POST …/messages — the 202 names the reply and bounds the turn', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockClear();
+    catalog();
+  });
+
+  it('names the pre-minted assistant message and sets the queued marker with the job', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { messageId: string };
+    expect(body.messageId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({ assistantMessageId: body.messageId }),
+    );
+    const marker = queries.find((q) =>
+      q.text.startsWith(
+        'UPDATE app.thread_metadata SET generation_queued_since_ms',
+      ),
+    );
+    expect(marker?.values).toContain(body.messageId);
+  });
+
+  it('forwards the effort pick and the reply ceiling to the turn', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          content: 'Hello',
+          model: 'model-a',
+          reasoningEffort: 'high',
+          maxOutputTokens: 300,
+        }),
+      },
+    );
+    expect(res.status).toBe(202);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({
+        reasoningEffort: 'high',
+        maxOutputTokens: 300,
+      }),
+    );
+  });
+
+  it('refuses a ceiling above the listed model’s own, naming it, and an unknown effort', async () => {
+    vi.mocked(listComposerModels).mockResolvedValue({
+      models: [
+        {
+          id: 'model-a',
+          label: 'Model A',
+          providerSlug: 'provider-a',
+          providerLabel: 'Provider A',
+          credential: { authMethod: 'api-key' },
+          tools: true,
+          contextWindow: 128_000,
+          maxOutputTokens: 4_096,
+          tags: ['chat'],
+        },
+      ],
+      harnesses: [],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    } as never);
+    const { sql } = fakeSql();
+    const over = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          content: 'Hello',
+          model: 'model-a',
+          maxOutputTokens: 5_000,
+        }),
+      },
+    );
+    expect(over.status).toBe(400);
+    expect(await over.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: 'maxOutputTokens' }] },
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    const atCap = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          content: 'Hello',
+          model: 'model-a',
+          maxOutputTokens: 4_096,
+        }),
+      },
+    );
+    expect(atCap.status).toBe(202);
+    const effort = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          content: 'Hello',
+          model: 'model-a',
+          reasoningEffort: 'ultra',
+        }),
+      },
+    );
+    expect(effort.status).toBe(400);
+    expect(await effort.json()).toMatchObject({
+      data: { issues: [{ path: 'reasoningEffort' }] },
+    });
+  });
+
+  it('tells a caller that sent no model where the models are listed', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello' }),
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          {
+            path: 'model',
+            message: expect.stringContaining('GET /api/v1/models'),
+          },
+        ],
+      },
+    });
+  });
+});
+
+describe('GET …/generation — queued, streaming with progress, idle', () => {
+  it('answers queued with the promised id while the accepted send waits for a worker', async () => {
+    const { sql } = fakeSql({ queued: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/generation',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'queued', messageId: 'm-pre' });
+  });
+
+  it('carries the text streamed so far and the cancel flag while streaming', async () => {
+    const { sql } = fakeSql({ generating: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/generation',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'streaming',
+      messageId: 'm-pending',
+      text: '',
+      reasoning: '',
+      cancelRequested: false,
+    });
+  });
+
+  it('is idle once neither the marker nor the generation row exists', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/generation',
+    );
+    expect(await res.json()).toEqual({ status: 'idle' });
+  });
+
+  it('DELETE stamps the stop on the thread beside the cancel flag', async () => {
+    const { sql, queries } = fakeSql({ generating: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/generation',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(202);
+    const stamp = queries.find((q) =>
+      q.text.startsWith('UPDATE app.thread_metadata SET cancelled_at_ms'),
+    );
+    expect(stamp?.values).toContain('m-pending');
+  });
+});
+
+describe('thread reads — one join, no query per row', () => {
+  it('lists threads without a generation lookup per row', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request('http://localhost/threads');
+    expect(res.status).toBe(200);
+    expect(
+      queries.some((q) =>
+        q.text.includes('FROM app.generations WHERE thread_id'),
+      ),
+    ).toBe(false);
+    // The joins ride an `unsafe` fragment, which the double records as a
+    // bound value.
+    const list = queries.find((q) => q.text.includes('FROM app.threads t'));
+    expect(
+      list?.values.some(
+        (value) =>
+          typeof value === 'object' &&
+          value !== null &&
+          'unsafe' in value &&
+          String(value.unsafe).includes('LEFT JOIN app.generations g'),
+      ),
+    ).toBe(true);
+  });
+
+  it('carries archivedAt on an archived thread', async () => {
+    const { sql } = fakeSql({ archived: true });
+    const res = await mount(sql).request('http://localhost/threads/t-1');
+    expect(await res.json()).toMatchObject({
+      archived: true,
+      archivedAt: 1_700_000_000_009,
+      generating: false,
+    });
   });
 });

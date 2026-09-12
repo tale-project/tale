@@ -106,6 +106,9 @@ export interface ChatMessageView {
   /** Set when a guardrail refused or altered the message. */
   readonly blockedReason?: string;
   readonly error?: string;
+  /** The row's terminal state: `cancelled` is a user stop (rendered as
+   * one), `failed` carries `error`, `pending` is a turn still writing. */
+  readonly status?: 'pending' | 'complete' | 'failed' | 'cancelled';
   readonly createdAt: number;
 }
 

@@ -41,13 +41,21 @@ vi.mock('./store.ts', () => ({
   assertThreadWriteScope: boundary.assertThreadWriteScope,
 }));
 
-import { runApiTurn } from './rest-turn.ts';
+import { apiTurnPayloadSchema, runApiTurn } from './rest-turn.ts';
 import { runChatTurn } from './service.ts';
 import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { ChatThreadError } from './threads.ts';
 
+/** Every statement the job ran on the pool, as text — the queued-marker
+ * clear is asserted on it. */
+const statements: string[] = [];
 const sql = (() => {
-  const tag = (..._args: unknown[]) => Promise.resolve([]);
+  const tag = (strings: unknown, ..._values: unknown[]) => {
+    if (Array.isArray(strings)) {
+      statements.push(strings.join('?').replace(/\s+/g, ' ').trim());
+    }
+    return Promise.resolve([]);
+  };
   const pool = Object.assign(tag, {
     begin: async (
       _options: string,
@@ -57,6 +65,9 @@ const sql = (() => {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generation probe and transaction wrapper only
   return pool as unknown as Sql;
 })();
+
+const QUEUED_CLEAR =
+  'UPDATE app.thread_metadata SET generation_queued_since_ms = NULL';
 
 const payload = {
   organizationId: 'org-1',
@@ -96,6 +107,88 @@ beforeEach(() => {
   vi.mocked(addJobInTx).mockClear();
   vi.mocked(appendMessageRow).mockClear();
   vi.mocked(appendAssistantErrorMessage).mockClear();
+  statements.length = 0;
+});
+
+/**
+ * What the 202 promised must reach the turn: the strict provider choice
+ * (the handler's schema used to strip `providerStrict`, so the turn fell
+ * back to another connector), the pre-minted reply id, and the caller's
+ * effort and output cap — and the `queued` marker the 202 set must end on
+ * every path the job takes, or the poll answers `queued` forever.
+ */
+describe('runApiTurn — what the 202 promised reaches the turn', () => {
+  it('keeps every field of the accepted payload through the handler schema', () => {
+    const parsed = apiTurnPayloadSchema.parse({
+      ...payload,
+      providerSlug: 'provider-a',
+      providerStrict: true,
+      assistantMessageId: 'm-pre',
+      reasoningEffort: 'high',
+      maxOutputTokens: 512,
+      locale: 'de',
+    });
+    expect(parsed).toMatchObject({
+      providerStrict: true,
+      assistantMessageId: 'm-pre',
+      reasoningEffort: 'high',
+      maxOutputTokens: 512,
+      locale: 'de',
+    });
+    expect(() =>
+      apiTurnPayloadSchema.parse({ ...payload, reasoningEffort: 'ultra' }),
+    ).toThrow();
+  });
+
+  it('hands the pre-minted id, the effort and the cap to the turn, then clears the queued marker', async () => {
+    vi.mocked(runChatTurn).mockResolvedValue({ status: 'completed' } as never);
+    await runApiTurn(sql, {
+      ...payload,
+      assistantMessageId: 'm-pre',
+      reasoningEffort: 'low',
+      maxOutputTokens: 256,
+    });
+    expect(runChatTurn).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        placeholderId: 'm-pre',
+        reasoningEffort: 'low',
+        maxOutputTokens: 256,
+      }),
+    );
+    expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
+
+  it('settles a refusal under the promised id and clears the marker on an early return', async () => {
+    vi.mocked(runChatTurn).mockRejectedValue(unknownModel);
+    await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
+    expect(appendAssistantErrorMessage).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ id: 'm-pre' }),
+    );
+    expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+    statements.length = 0;
+    // A thread that moved scope: the job returns without a turn — and the
+    // marker still ends.
+    boundary.loadOwnedThread.mockResolvedValue(null);
+    await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
+    expect(runChatTurn).toHaveBeenCalledTimes(1);
+    expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
+
+  it('keeps the marker when the drain window re-queues the accepted send', async () => {
+    vi.mocked(isBackendDraining).mockResolvedValue(true);
+    await runApiTurn(sql, { ...payload, assistantMessageId: 'm-pre' });
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({ assistantMessageId: 'm-pre' }),
+      expect.anything(),
+    );
+    expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(
+      false,
+    );
+  });
 });
 
 describe('runApiTurn — the accepted scope is checked again before execution', () => {

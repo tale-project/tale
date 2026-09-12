@@ -10,6 +10,10 @@
 
 import { describe, expect, it } from 'vitest';
 
+import {
+  EMITTED_EVENT_TYPES,
+  RESERVED_EVENT_TYPES,
+} from '../../../lib/shared/event-types.ts';
 import { assertTriggerValid, AutomationError } from './store.ts';
 
 describe('assertTriggerValid', () => {
@@ -90,5 +94,38 @@ describe('assertTriggerValid', () => {
     expect(() =>
       assertTriggerValid({ kind: 'event', event: 'contact.created' }),
     ).not.toThrow();
+  });
+
+  /**
+   * An event trigger binds only an event the platform RAISES: a typo or a
+   * reserved name (declared, no producer yet) used to save green, read as
+   * enabled and never fire. The refusal lists what may be bound.
+   */
+  it('accepts every emitted event name, trimmed', () => {
+    for (const event of EMITTED_EVENT_TYPES) {
+      expect(() =>
+        assertTriggerValid({ kind: 'event', event: ` ${event} ` }),
+      ).not.toThrow();
+    }
+  });
+
+  it.each([
+    ...RESERVED_EVENT_TYPES,
+    'tale.eval.F.no.such.event',
+    'Contact.Created',
+  ])('refuses %s, naming the events the platform raises', (event) => {
+    try {
+      assertTriggerValid({ kind: 'event', event });
+      expect.unreachable('an event nobody raises must refuse');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AutomationError);
+      const refusal = error as AutomationError;
+      expect(refusal.code).toBe('AUTOMATION_TRIGGER_INVALID');
+      expect(refusal.status).toBe(400);
+      expect(refusal.message).toContain(`"${event}"`);
+      for (const emitted of EMITTED_EVENT_TYPES) {
+        expect(refusal.message).toContain(emitted);
+      }
+    }
   });
 });

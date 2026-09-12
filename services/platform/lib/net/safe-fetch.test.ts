@@ -5,6 +5,7 @@ import {
   safeFetch,
   SafeFetchError,
   safeFetchBinary,
+  setSafeFetchResolverForTests,
 } from './safe-fetch';
 
 describe('lib/http/safe_fetch.isPrivateIp', () => {
@@ -213,5 +214,166 @@ describe('lib/net/safe-fetch redirects', () => {
     expect(res.finalUrl).toBe(`${ORIGIN}/things/123`);
     expect(calls[1].method).toBe('GET');
     expect(calls[1].body).toBeUndefined();
+  });
+});
+
+/**
+ * The dial-time guard: every hostname is resolved before the request, every
+ * address it answers is checked, and the checked addresses are the ones the
+ * socket gets — a public-looking name whose record points inside the
+ * network (or flips between the check and the dial) is refused, on the
+ * first hop and on every redirect.
+ */
+describe('lib/net/safe-fetch resolution guard', () => {
+  const ORIGIN = 'https://site.example.com';
+
+  function answering(
+    table: Record<string, { address: string; family: 4 | 6 }[]>,
+  ) {
+    setSafeFetchResolverForTests((hostname) => {
+      const found = table[hostname];
+      if (found === undefined) {
+        return Promise.reject(new Error(`ENOTFOUND ${hostname}`));
+      }
+      return Promise.resolve(found);
+    });
+  }
+
+  function stubFetch(responses: Response[]) {
+    const inits: { url: string; dispatcher: unknown }[] = [];
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input, init) => {
+        inits.push({
+          url:
+            typeof input === 'string'
+              ? input
+              : input instanceof URL
+                ? input.href
+                : input.url,
+          dispatcher: (init as { dispatcher?: unknown } | undefined)
+            ?.dispatcher,
+        });
+        const next = responses.shift();
+        if (!next) throw new Error('unexpected extra fetch');
+        return next;
+      });
+    return { inits, spy };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setSafeFetchResolverForTests(null);
+  });
+
+  it('refuses a public-looking name that resolves to a private address, before any request', async () => {
+    answering({ 'site.example.com': [{ address: '10.0.0.7', family: 4 }] });
+    const { spy } = stubFetch([]);
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'private_ip',
+      message: expect.stringContaining('10.0.0.7'),
+    });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('refuses when ANY answered address is private, mapped IPv6 included', async () => {
+    answering({
+      'site.example.com': [
+        { address: '93.184.216.34', family: 4 },
+        { address: '::ffff:127.0.0.1', family: 6 },
+      ],
+    });
+    stubFetch([]);
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'private_ip',
+    });
+  });
+
+  it('refuses the cloud metadata address even when private addresses are admitted', async () => {
+    answering({
+      'site.example.com': [{ address: '169.254.169.254', family: 4 }],
+      'intranet.example.com': [{ address: '10.1.2.3', family: 4 }],
+    });
+    const { inits } = stubFetch([new Response('ok')]);
+    await expect(
+      safeFetch(`${ORIGIN}/`, { allowPrivateAddresses: true }),
+    ).rejects.toMatchObject({
+      kind: 'private_ip',
+      message: expect.stringContaining('metadata'),
+    });
+    const admitted = await safeFetch('https://intranet.example.com/', {
+      allowPrivateAddresses: true,
+    });
+    expect(admitted.status).toBe(200);
+    expect(inits[0]?.dispatcher).toBeDefined();
+  });
+
+  it('refuses a name with no DNS answer as dns_failed', async () => {
+    answering({});
+    stubFetch([]);
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'dns_failed',
+    });
+  });
+
+  it('checks every redirect hop, and refuses a plaintext hop on an https-only lane', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+      'www.site.example.com': [{ address: '169.254.169.254', family: 4 }],
+    });
+    stubFetch([
+      new Response(null, {
+        status: 301,
+        headers: { Location: 'https://www.site.example.com/latest/meta-data/' },
+      }),
+    ]);
+    await expect(
+      safeFetch(`${ORIGIN}/`, {
+        allowedHosts: ['site.example.com', 'www.site.example.com'],
+      }),
+    ).rejects.toMatchObject({ kind: 'private_ip' });
+
+    vi.restoreAllMocks();
+    stubFetch([
+      new Response(null, {
+        status: 302,
+        headers: { Location: 'http://site.example.com/plain' },
+      }),
+    ]);
+    await expect(
+      safeFetch(`${ORIGIN}/`, {
+        allowedHosts: ['site.example.com'],
+        httpsOnly: true,
+      }),
+    ).rejects.toMatchObject({ kind: 'insecure_public_http' });
+  });
+
+  it('dials the address it checked: the pinned dispatcher answers the lookup, and nothing else', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    const { inits } = stubFetch([new Response('ok')]);
+    await safeFetch(`${ORIGIN}/`);
+    const dispatcher = inits[0]?.dispatcher as
+      | { close: () => Promise<void> }
+      | undefined;
+    expect(dispatcher).toBeDefined();
+  });
+
+  it('skips resolution for an IP literal the string policy already judged', async () => {
+    answering({});
+    const { spy } = stubFetch([new Response('ok')]);
+    const res = await safeFetch('https://93.184.216.34/');
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a metadata address written as an IPv4-mapped IPv6 literal', async () => {
+    stubFetch([]);
+    await expect(
+      safeFetch('http://[::ffff:169.254.169.254]/latest/meta-data/', {
+        allowedHosts: ['::ffff:169.254.169.254'],
+      }),
+    ).rejects.toMatchObject({ kind: 'private_ip' });
   });
 });

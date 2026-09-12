@@ -37,6 +37,7 @@
  */
 
 import { knowledgeCache } from './cache';
+import { dropRepeatedPassages } from './dedupe';
 import { fuseByRank } from './fusion';
 import { logger } from './logger';
 import { knowledgeReranker, type RerankCandidate } from './rerank';
@@ -66,6 +67,25 @@ const MAX_LIMIT = 50;
  * leg's confidence.
  */
 const CANDIDATE_FACTOR = 3;
+
+/**
+ * The smallest candidate pool one search fuses, whatever the limit. The
+ * admission re-check runs on this pool and can only thin it — a trashed
+ * document's chunks, a file outside the caller's scope — so a page of one
+ * must be chosen from enough candidates that a refused favourite does not
+ * empty the page: `limit: 1` used to fetch three candidates, admit after
+ * the cut, and answer nothing for a query that plainly matched.
+ */
+const MIN_CANDIDATES = 20;
+
+/** How many candidates one search fuses for `limit` — the per-leg fetch and
+ * the size of the pool the admission re-check sees. */
+function candidatePool(limit: number): number {
+  return Math.min(
+    Math.max(limit * CANDIDATE_FACTOR, MIN_CANDIDATES),
+    MAX_LIMIT * CANDIDATE_FACTOR,
+  );
+}
 
 /** What one leg is asked for. */
 export interface CorpusLegQuery {
@@ -114,6 +134,18 @@ export interface RetrieveDeps {
   /** The organization the readers are bound to — used only to key the cache,
    * never to choose a corpus. */
   readonly orgSlug: string;
+  /**
+   * The admission re-check: which fused candidates the CALLER may be shown.
+   * A host verifies each documents-corpus hit against its live document
+   * here — lifecycle, completion, scope, folder — BEFORE the page is cut,
+   * so a candidate it refuses costs the page nothing; the check ran after
+   * the cut once, and a refused top candidate emptied a `limit: 1` page.
+   * Must keep the order it is given. Absent admits everything (a corpus
+   * whose rows are the truth).
+   */
+  readonly admit?: (
+    hits: readonly FusedKnowledgeHit[],
+  ) => Promise<readonly FusedKnowledgeHit[]>;
 }
 
 /**
@@ -128,23 +160,24 @@ export async function retrieve(
   query: KnowledgeQuery,
 ): Promise<KnowledgeResult> {
   const text = query.query.trim();
-  if (text === '') {
-    return {
-      hits: [],
-      diagnostics: { bm25: true, reranked: false, cached: false, legs: {} },
-    };
-  }
+  const nothing: KnowledgeResult = {
+    hits: [],
+    diagnostics: {
+      bm25: true,
+      reranked: false,
+      cached: false,
+      admitted: 0,
+      legs: {},
+    },
+  };
+  if (text === '') return nothing;
 
   const limit = clampLimit(query.limit);
   const corpus = query.corpus ?? 'all';
   const wanted = new Set<string>(corporaFor(corpus));
   const readers = deps.readers.filter((reader) => wanted.has(reader.corpus));
-  if (readers.length === 0) {
-    return {
-      hits: [],
-      diagnostics: { bm25: true, reranked: false, cached: false, legs: {} },
-    };
-  }
+  if (readers.length === 0) return nothing;
+  const admit = deps.admit ?? admitEverything;
 
   const embedding = await deps.embedder.embed(text);
 
@@ -173,12 +206,17 @@ export async function retrieve(
       return null;
     });
     if (hit) {
+      // A cached pool can outlive a document — admission decides again on
+      // the caller's live truth, then the page is cut exactly as for a
+      // fresh search.
+      const kept = await admit(hit);
       return {
-        hits: hit.slice(0, limit),
+        hits: dropRepeatedPassages(kept).slice(0, limit),
         diagnostics: {
           bm25: true,
           reranked: false,
           cached: true,
+          admitted: kept.length,
           legs: { cache: hit.length },
         },
       };
@@ -186,14 +224,10 @@ export async function retrieve(
   }
 
   const reranker = knowledgeReranker();
-  // With a reranker installed, fusion keeps a wider pool: reranking can only
-  // improve the order of what it is shown.
-  const poolSize = reranker
-    ? Math.min(limit * CANDIDATE_FACTOR, MAX_LIMIT * 2)
-    : limit;
+  const pool = candidatePool(limit);
   const legQuery: CorpusLegQuery = {
     query: text,
-    limit: limit * CANDIDATE_FACTOR,
+    limit: pool,
     ...(query.refs !== undefined && { refs: query.refs }),
     ...(query.folder !== undefined && { folder: query.folder }),
     ...(query.access !== undefined && { access: query.access }),
@@ -234,23 +268,39 @@ export async function retrieve(
   if (rankings.length === 0) {
     return {
       hits: [],
-      diagnostics: { bm25, reranked: false, cached: false, legs },
+      diagnostics: { bm25, reranked: false, cached: false, admitted: 0, legs },
     };
   }
 
+  // The whole candidate pool is fused, then ADMITTED, then deduplicated —
+  // and only then reranked and cut to `limit`, so what the caller cannot
+  // see never occupies a slot on the page it gets.
   const fused = fuseByRank(rankings, (hit) => `${hit.corpus}:${hit.id}`, {
-    limit: poolSize,
+    limit: pool,
   });
   // Built with a loop and `Object.assign` rather than map-and-spread: the
   // assign writes into a fresh target, so the fused entry's own item is left
   // untouched.
-  let hits: FusedKnowledgeHit[] = [];
+  const candidates: FusedKnowledgeHit[] = [];
   for (const entry of fused) {
-    hits.push(
-      Object.assign({ fusedScore: entry.score }, entry.item, {
+    candidates.push(
+      Object.assign({ fusedScore: entry.score, legs: entry.legs }, entry.item, {
         fusedScore: entry.score,
+        legs: entry.legs,
       }),
     );
+  }
+  const kept = await admit(candidates);
+  let hits = dropRepeatedPassages(kept);
+
+  // The cache keeps the admitted pool in fused order — spare candidates for
+  // a later lookup, which admits again on its own live truth.
+  if (cache && hits.length > 0) {
+    await cache.store(cacheKey, hits).catch((err: unknown) => {
+      logger.warn(
+        `semantic cache "${cache.name}" store failed, the search still answered: ${describe(err)}`,
+      );
+    });
   }
 
   let reranked = false;
@@ -269,15 +319,16 @@ export async function retrieve(
   }
   hits = hits.slice(0, limit);
 
-  if (cache && hits.length > 0) {
-    await cache.store(cacheKey, hits).catch((err: unknown) => {
-      logger.warn(
-        `semantic cache "${cache.name}" store failed, the search still answered: ${describe(err)}`,
-      );
-    });
-  }
+  return {
+    hits,
+    diagnostics: { bm25, reranked, cached: false, admitted: kept.length, legs },
+  };
+}
 
-  return { hits, diagnostics: { bm25, reranked, cached: false, legs } };
+function admitEverything(
+  hits: readonly FusedKnowledgeHit[],
+): Promise<readonly FusedKnowledgeHit[]> {
+  return Promise.resolve(hits);
 }
 
 /**

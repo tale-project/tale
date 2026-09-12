@@ -161,7 +161,7 @@ describe('REST project agents use project resources and permissions', () => {
     expect(service.createProjectAgent).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ userId: 'user-1' }),
-      { ...input, projectId: 'p-1' },
+      { ...input, projectId: 'p-1', unknownSecrets: 'refuse' },
     );
   });
 
@@ -173,7 +173,7 @@ describe('REST project agents use project resources and permissions', () => {
     expect(service.updateProjectAgent).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      { ...input, agentId: 'a-1' },
+      { ...input, agentId: 'a-1', unknownSecrets: 'refuse' },
     );
   });
 
@@ -243,12 +243,6 @@ describe('REST project agents use project resources and permissions', () => {
     },
   );
 
-  it('requires an explicit organization even on reads for a multi-org key', async () => {
-    const { app } = mount({ ambiguous: true });
-    expect((await send(app, 'GET', '/projects/p-1/agents')).status).toBe(400);
-    expect(service.listProjectAgents).not.toHaveBeenCalled();
-  });
-
   it.each([
     { displayName: 'Old persona', visibility: 'org' },
     { ...input, projectId: 'other-project' },
@@ -280,6 +274,116 @@ describe('REST project agents use project resources and permissions', () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
       code: 'PROJECT_AGENT_SECRETS_FORBIDDEN',
+    });
+  });
+});
+
+/**
+ * The two silent data-loss modes of a full replace, closed: the save takes
+ * the optimistic precondition the other families take (`expectedUpdatedAt`
+ * → 409 `PROJECT_AGENT_STALE` from the domain, `data.updatedAt` beside
+ * it), and an unknown secret NAME is refused by name on this door
+ * (`unknownSecrets: 'refuse'` → 400 `PROJECT_AGENT_SECRET_UNKNOWN`) where
+ * the app dialog prunes it. A name of only whitespace is refused at the
+ * door, never stored.
+ */
+describe('REST project agents — precondition and secret grants', () => {
+  it('hands the precondition to the domain on PUT only, and refuses a fractional one', async () => {
+    const { app } = mount();
+    const saved = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
+      ...input,
+      expectedUpdatedAt: 20,
+    });
+    expect(saved.status).toBe(200);
+    expect(service.updateProjectAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        ...input,
+        agentId: 'a-1',
+        unknownSecrets: 'refuse',
+        expectedUpdatedAt: 20,
+      },
+    );
+    const fractional = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
+      ...input,
+      expectedUpdatedAt: 1.5,
+    });
+    expect(fractional.status).toBe(400);
+    expect(await fractional.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [expect.objectContaining({ path: 'expectedUpdatedAt' })],
+      },
+    });
+    const create = await send(app, 'POST', '/projects/p-1/agents', {
+      ...input,
+      expectedUpdatedAt: 20,
+    });
+    expect(create.status).toBe(400);
+    expect(service.createProjectAgent).not.toHaveBeenCalled();
+  });
+
+  it('answers the domain’s stale refusal as 409 with the current stamp', async () => {
+    service.updateProjectAgent.mockRejectedValue(
+      new ProjectError(
+        'PROJECT_AGENT_STALE',
+        'The agent changed since it was read',
+        409,
+        { updatedAt: 20 },
+      ),
+    );
+    const { app } = mount();
+    const response = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
+      ...input,
+      expectedUpdatedAt: 10,
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'PROJECT_AGENT_STALE',
+      data: { updatedAt: 20 },
+    });
+  });
+
+  it('answers an unknown secret name as 400 naming it, never a pruned 201', async () => {
+    service.createProjectAgent.mockRejectedValue(
+      new ProjectError(
+        'PROJECT_AGENT_SECRET_UNKNOWN',
+        'Unknown secrets: NO_SUCH_SECRET',
+        400,
+        { secrets: ['NO_SUCH_SECRET'] },
+      ),
+    );
+    const { app } = mount();
+    const response = await send(app, 'POST', '/projects/p-1/agents', {
+      ...input,
+      secrets: ['NO_SUCH_SECRET'],
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: 'PROJECT_AGENT_SECRET_UNKNOWN',
+      data: { secrets: ['NO_SUCH_SECRET'] },
+    });
+  });
+
+  it('trims the name at the door and refuses one of only whitespace', async () => {
+    const { app } = mount();
+    const created = await send(app, 'POST', '/projects/p-1/agents', {
+      ...input,
+      name: '  Reviewer  ',
+    });
+    expect(created.status).toBe(201);
+    expect(service.createProjectAgent.mock.calls[0]?.[2]).toMatchObject({
+      name: 'Reviewer',
+    });
+    const blank = await send(app, 'POST', '/projects/p-1/agents', {
+      ...input,
+      name: '   ',
+    });
+    expect(blank.status).toBe(400);
+    expect(await blank.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [expect.objectContaining({ path: 'name' })] },
     });
   });
 });

@@ -1,10 +1,18 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
 } from '../../../lib/engine/core/validate/name.ts';
-import { compileSchema } from '../../../lib/engine/core/validate/schema.ts';
+import {
+  compileSchemaCached,
+  describeSchemaErrors,
+} from '../../../lib/engine/core/validate/schema.ts';
+import {
+  EMITTED_EVENT_TYPES,
+  isEmittedEventType,
+} from '../../../lib/shared/event-types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
@@ -16,6 +24,11 @@ import {
   LIVENESS_SWEEP_LIMIT,
   RUN_CLAIM_PROMISE_MS,
 } from '../../core/automations/liveness.ts';
+import {
+  runIdempotencyRequestHash,
+  runIdempotencyScopeKey,
+} from '../../core/automations/run_idempotency.ts';
+import { HEADER_LANE_WINDOW_MS } from '../../core/automations/webhook_delivery.ts';
 import {
   hashWebhookToken,
   mintWebhookToken,
@@ -43,16 +56,21 @@ import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 export class AutomationError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  /** Structured detail a door forwards beside the sentence, under `data` —
+   * the schema problems of a refused run input (`issues`), say. */
+  readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AutomationError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -286,6 +304,22 @@ export async function versionRow(
   return rows[0] ?? null;
 }
 
+/** Whether any version of the automation exists in this org — one column
+ * of one row, never a document: the doors used to fetch the whole latest
+ * version to learn that a name is taken. */
+export async function automationExists(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<boolean> {
+  const rows = await sql<{ present: number }[]>`
+    SELECT 1 AS present FROM app.automations
+    WHERE org_id = ${organizationId} AND name = ${name}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 export async function deployedVersion(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -362,8 +396,17 @@ export interface AutomationListing {
   name: string;
   latestVersion: number;
   deployedVersion: number | null;
+  /** The document's `description` — the DEPLOYED version's, else the
+   * newest saved one's; null when neither declares one. */
+  description: string | null;
+  /** The document's `inputs` schema, chosen the same way — what a run
+   * launcher validates against before it starts the version that runs. */
+  inputs: unknown;
   presentation: unknown;
   projectIds: string[];
+  /** What starts the automation, if anything is bound: the kind and
+   * whether it is switched on. Null for an automation with no trigger. */
+  trigger: { kind: string; enabled: boolean } | null;
 }
 
 export async function listAutomations(
@@ -375,11 +418,19 @@ export async function listAutomations(
       name: string;
       latestVersion: number;
       deployedVersion: number | null;
+      description: string | null | undefined;
+      inputs: unknown;
       presentation: unknown;
     }[]
   >`
     SELECT a.name, max(a.version) AS "latestVersion",
            d.version AS "deployedVersion",
+           (array_agg(a.document->>'description'
+              ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+             AS description,
+           (array_agg(a.document->'inputs'
+              ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+             AS inputs,
            (array_agg(a.presentation ORDER BY a.version DESC))[1]
              AS presentation
     FROM app.automations a
@@ -400,9 +451,25 @@ export async function listAutomations(
     list.push(binding.projectId);
     byName.set(binding.automationName, list);
   }
-  return rows.map((row) =>
-    Object.assign({ projectIds: byName.get(row.name) ?? [] }, row),
+  const triggers = await sql<
+    { name: string; kind: string; enabled: boolean }[]
+  >`
+    SELECT name, kind, enabled FROM app.automation_triggers
+    WHERE org_id = ${organizationId}
+  `;
+  const triggerByName = new Map(
+    triggers.map((row) => [row.name, { kind: row.kind, enabled: row.enabled }]),
   );
+  return rows.map((row) => ({
+    name: row.name,
+    latestVersion: row.latestVersion,
+    deployedVersion: row.deployedVersion,
+    description: row.description ?? null,
+    inputs: row.inputs ?? null,
+    presentation: row.presentation,
+    projectIds: byName.get(row.name) ?? [],
+    trigger: triggerByName.get(row.name) ?? null,
+  }));
 }
 
 /** The 0.4 APP listing row: behaviour fields answer for the DEPLOYED
@@ -695,11 +762,23 @@ export function assertTriggerValid(trigger: TriggerInput): void {
       }
     }
   }
-  if (trigger.kind === 'event' && (trigger.event?.trim() ?? '') === '') {
-    throw new AutomationError(
-      'AUTOMATION_TRIGGER_INVALID',
-      'An event trigger needs an event name.',
-    );
+  if (trigger.kind === 'event') {
+    const event = trigger.event?.trim() ?? '';
+    if (event === '') {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        `An event trigger needs an event name — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+      );
+    }
+    // Only an event the platform RAISES may be bound: a name it does not
+    // (a typo, or one of the reserved names no producer fires yet) used to
+    // save green, read as enabled and never fire.
+    if (!isEmittedEventType(event)) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        `"${event}" is not an event the platform raises — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+      );
+    }
   }
 }
 
@@ -715,7 +794,10 @@ export function assertTriggerValid(trigger: TriggerInput): void {
  * Re-binding keeps the previous token unless asked to rotate — decided in the
  * database (the CASE on the existing row), read back from RETURNING: the
  * plaintext is handed out only when the hash minted here is the one that
- * landed.
+ * landed. A re-bind that CHANGES the kind is a new trigger in the same row:
+ * its `lastFiredAt` is cleared, so a fresh event trigger never claims the
+ * firing history of the webhook it replaced (the schedule scanner also
+ * reads a cleared stamp as "nothing due before this bind").
  */
 export async function setTrigger(
   sql: Sql,
@@ -742,7 +824,7 @@ export async function setTrigger(
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${args.trigger.kind},
         ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-        ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
+        ${args.trigger.event?.trim() ?? null}, ${mintedHash}, ${enabled},
         ${args.actor}, ${now}, ${now}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
@@ -754,6 +836,10 @@ export async function setTrigger(
           WHEN EXCLUDED.kind <> 'webhook' THEN NULL
           WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
           ELSE t.token_hash
+        END,
+        last_fired_at_ms = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_fired_at_ms
+          ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
         updated_at_ms = EXCLUDED.updated_at_ms
@@ -981,19 +1067,65 @@ export async function getRun(
   return runRow(sql, organizationId, runId);
 }
 
-export async function listRuns(
+/**
+ * One run as a LISTING reports it — identity, scope, status and timing,
+ * never the input, output, trace or checkpoints (a window of ten runs with
+ * large inputs weighed megabytes). The one shape the REST run listings and
+ * the MCP `list_runs` tool share; the full row is the single read's.
+ */
+export function toRunSummary(
+  row: Pick<
+    RunRow,
+    | 'id'
+    | 'name'
+    | 'version'
+    | 'projectId'
+    | 'status'
+    | 'mode'
+    | 'startedBy'
+    | 'detail'
+    | 'startedAt'
+    | 'finishedAt'
+  >,
+): RunSummary {
+  return {
+    runId: row.id,
+    name: row.name,
+    version: row.version,
+    // The scope a REST read of the same run needs: a project run answers
+    // only at `/api/v1/projects/{projectId}/runs/{runId}`, and MCP used to
+    // hand out run handles without saying which project they belong to.
+    projectId: row.projectId,
+    status: row.status,
+    mode: row.mode,
+    startedBy: row.startedBy,
+    ...(row.detail !== null ? { detail: row.detail } : {}),
+    startedAt: row.startedAt,
+    ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
+  };
+}
+
+export interface ListRunsOptions {
+  name?: string;
+  /** Undefined preserves the internal cross-project listing; null is org-only. */
+  projectId?: string | null;
+  /** An actor's readable projects; org runs remain visible. */
+  visibleProjectIds?: string[];
+  /** Only runs in these statuses (any of them). */
+  statuses?: string[];
+  /** Keyset position: only runs strictly older than this `(startedAt, id)`
+   * pair — the previous page's last row. */
+  before?: { at: number; id: string };
+}
+
+/** Newest first, ordered on `(started_at_ms DESC, id DESC)` — the total
+ * order the keyset cursor walks. */
+async function runRows(
   sql: Sql,
   organizationId: string,
-  options: {
-    name?: string;
-    limit?: number;
-    /** Undefined preserves the internal cross-project listing; null is org-only. */
-    projectId?: string | null;
-    /** An actor's readable projects; org runs remain visible. */
-    visibleProjectIds?: string[];
-  } = {},
+  options: ListRunsOptions,
+  limit: number,
 ): Promise<RunRow[]> {
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
   return sql<RunRow[]>`
     SELECT ${sql.unsafe(RUN_COLUMNS)} FROM app.automation_runs
     WHERE org_id = ${organizationId}
@@ -1004,9 +1136,51 @@ export async function listRuns(
       AND (${options.visibleProjectIds === undefined}
            OR project_id IS NULL
            OR project_id = ANY(${options.visibleProjectIds ?? []}::text[]))
-    ORDER BY started_at_ms DESC
+      AND (${options.statuses === undefined}
+           OR status = ANY(${options.statuses ?? []}::text[]))
+      AND (${options.before === undefined}
+           OR (started_at_ms, id)
+              < (${options.before?.at ?? 0}::bigint, ${options.before?.id ?? ''}::text))
+    ORDER BY started_at_ms DESC, id DESC
     LIMIT ${limit}
   `;
+}
+
+export async function listRuns(
+  sql: Sql,
+  organizationId: string,
+  options: ListRunsOptions & { limit?: number } = {},
+): Promise<RunRow[]> {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  return runRows(sql, organizationId, options, limit);
+}
+
+/**
+ * One page of a run listing: `limit` rows newest first, plus whether older
+ * ones exist and where they start — the `(startedAt, id)` of the last row,
+ * which the door signs into the `continueCursor` it answers. Reads one row
+ * past the page so `isDone` is a fact, never a guess from a full page.
+ */
+export async function listRunsPage(
+  sql: Sql,
+  organizationId: string,
+  options: ListRunsOptions & { limit: number },
+): Promise<{
+  runs: RunRow[];
+  isDone: boolean;
+  next: { at: number; id: string } | null;
+}> {
+  const limit = Math.max(options.limit, 1);
+  const rows = await runRows(sql, organizationId, options, limit + 1);
+  const runs = rows.slice(0, limit);
+  const last = runs.at(-1);
+  const isDone = rows.length <= limit;
+  return {
+    runs,
+    isDone,
+    next:
+      isDone || last === undefined ? null : { at: last.startedAt, id: last.id },
+  };
 }
 
 /** Enqueue the stepper turn for a run, optionally delayed. */
@@ -1135,11 +1309,29 @@ export async function beginRunInTx(
     const row = await versionRow(tx, args.organizationId, args.name, version);
     if (!row) return null;
     if (isRecord(row.document) && isRecord(row.document.inputs)) {
-      const check = compileSchema(row.document.inputs);
+      // A saved version is immutable, so its compiled schema is cached by
+      // identity — `createdAt` included, because a deleted and recreated
+      // automation counts its versions from 1 again.
+      const check = compileSchemaCached(
+        `${args.organizationId}/${args.name}@${version}:${row.createdAt}`,
+        row.document.inputs,
+      );
       if (!check(args.input)) {
+        // The refusal names what is wrong, the way a refused request body
+        // does: every problem under `data.issues`, the first in the sentence.
+        const issues = describeSchemaErrors(check.errors);
+        const first = issues[0];
+        const named =
+          first === undefined
+            ? ''
+            : first.path === ''
+              ? `: ${first.message}`
+              : `: "${first.path}" ${first.message}`;
         throw new AutomationError(
           'AUTOMATION_INPUT_INVALID',
-          'Run input does not match the automation inputs schema.',
+          `Run input does not match the automation inputs schema${named}`,
+          400,
+          { issues },
         );
       }
     }
@@ -1224,6 +1416,191 @@ export async function cancelRun(
   runId: string,
 ): Promise<{ cancelled: boolean }> {
   return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId));
+}
+
+// ---------------------------------------------------- idempotent starts
+
+/** How long a start's `Idempotency-Key` is remembered — the day the webhook
+ * door keeps an explicit delivery id, one constant for both doors. */
+export const RUN_IDEMPOTENCY_WINDOW_MS = HEADER_LANE_WINDOW_MS;
+
+export interface IdempotentStart {
+  runId: string;
+  version: number;
+  /** True when the key had already started this run: nothing new ran. */
+  duplicate: boolean;
+}
+
+/**
+ * {@link beginRunInTx} behind an `Idempotency-Key`: claim the key's ledger
+ * row and start the run in ONE transaction (the webhook door's claim idiom
+ * over `app.automation_run_idempotency`). The claim goes first, so a
+ * concurrent repeat blocks on the row lock until this commit and then reads
+ * the run started here; a repeat inside the key's window answers with that
+ * run (`duplicate: true`); a repeat that carries a DIFFERENT request under
+ * the same key is refused (409 `IDEMPOTENCY_KEY_REUSED`); an expired key is
+ * taken over and starts again as the new request it is. A refusal thrown
+ * from the start rolls the claim back with it, and a start that finds no
+ * deployed version forgets its claim before answering null — a 4xx is never
+ * remembered.
+ */
+export async function beginRunIdempotentInTx(
+  tx: TransactionSql,
+  args: BeginRunArgs,
+  idempotency: { key: string },
+): Promise<IdempotentStart | null> {
+  const scopeKey = await runIdempotencyScopeKey({
+    projectId: args.projectId,
+    name: args.name,
+    key: idempotency.key,
+  });
+  const requestHash = await runIdempotencyRequestHash({
+    input: args.input,
+    mode: args.mode,
+    version: args.version,
+  });
+  const now = Date.now();
+  const claimed = await tx<{ scopeKey: string }[]>`
+    INSERT INTO app.automation_run_idempotency AS i (
+      org_id, scope_key, request_hash, run_id, received_at_ms, expires_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${scopeKey}, ${requestHash}, NULL,
+      ${now}, ${now + RUN_IDEMPOTENCY_WINDOW_MS}
+    )
+    ON CONFLICT (org_id, scope_key) DO UPDATE SET
+      request_hash = EXCLUDED.request_hash,
+      run_id = NULL,
+      received_at_ms = EXCLUDED.received_at_ms,
+      expires_at_ms = EXCLUDED.expires_at_ms
+    WHERE i.expires_at_ms <= EXCLUDED.received_at_ms
+    RETURNING scope_key AS "scopeKey"
+  `;
+  if (claimed.length === 0) {
+    // A live key: the first attempt's run is the answer — for the same
+    // request. The row is committed (the claim and the run commit
+    // together), so a missing run id is a ledger writer's bug, named.
+    const remembered = await tx<
+      { requestHash: string; runId: string | null }[]
+    >`
+      SELECT request_hash AS "requestHash", run_id AS "runId"
+      FROM app.automation_run_idempotency
+      WHERE org_id = ${args.organizationId} AND scope_key = ${scopeKey}
+    `;
+    const row = remembered[0];
+    if (row === undefined || row.runId === null) {
+      throw new Error(
+        `run idempotency ledger row ${scopeKey} in ${args.organizationId} carries no run`,
+      );
+    }
+    if (row.requestHash !== requestHash) {
+      throw new AutomationError(
+        'IDEMPOTENCY_KEY_REUSED',
+        'This Idempotency-Key was already used for a different request — send a new key, or repeat the original request unchanged.',
+        409,
+      );
+    }
+    const run = await runRow(tx, args.organizationId, row.runId);
+    if (run === null) {
+      // Deleting a run forgets its keys, so a committed row always names a
+      // run that exists; a later ledger writer must not hide behind this.
+      throw new Error(
+        `run idempotency ledger row ${scopeKey} in ${args.organizationId} names a run that is gone`,
+      );
+    }
+    return { runId: run.id, version: run.version, duplicate: true };
+  }
+  const started = await beginRunInTx(tx, args);
+  if (started === null) {
+    // Nothing deployed: forget the claim, so the same key runs once a
+    // deployment exists — the caller's 409 is not an answer to remember.
+    await tx`
+      DELETE FROM app.automation_run_idempotency
+      WHERE org_id = ${args.organizationId} AND scope_key = ${scopeKey}
+    `;
+    return null;
+  }
+  await tx`
+    UPDATE app.automation_run_idempotency SET run_id = ${started.runId}
+    WHERE org_id = ${args.organizationId} AND scope_key = ${scopeKey}
+  `;
+  // Lazy housekeeping on the accepted path: the organization's expired keys
+  // go with the start that outlived them (no sweeper job).
+  await tx`
+    DELETE FROM app.automation_run_idempotency
+    WHERE org_id = ${args.organizationId} AND expires_at_ms <= ${now}
+  `;
+  return { ...started, duplicate: false };
+}
+
+export async function beginRunIdempotent(
+  sql: Sql,
+  args: BeginRunArgs,
+  idempotency: { key: string },
+): Promise<IdempotentStart | null> {
+  return sql.begin((tx) => beginRunIdempotentInTx(tx, args, idempotency));
+}
+
+// -------------------------------------------------------------- run delete
+
+const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set([
+  'success',
+  'failed',
+  'cancelled',
+]);
+
+/**
+ * Remove one FINISHED run — its row, the questions it asked (cascade), the
+ * webhook delivery and idempotency ledger entries that would otherwise
+ * answer a redelivery with a run that no longer exists — and audit the
+ * removal. A run still in flight is refused (409 `RUN_ACTIVE`): cancel it
+ * first, so the stepper never loses the row under its feet. `deleted` is
+ * false when there was no such run in the organization.
+ */
+export async function deleteRunInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; runId: string; actor: string },
+): Promise<{ deleted: boolean }> {
+  const rows = await tx<
+    { name: string; version: number; mode: string; status: string }[]
+  >`
+    SELECT name, version, mode, status FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (row === undefined) return { deleted: false };
+  if (!TERMINAL_RUN_STATUSES.has(row.status)) {
+    throw new AutomationError(
+      'RUN_ACTIVE',
+      `The run is still ${row.status} — cancel it (or let it finish) before deleting it.`,
+      409,
+    );
+  }
+  await tx`
+    DELETE FROM app.automation_webhook_deliveries WHERE run_id = ${args.runId}
+  `;
+  await tx`
+    DELETE FROM app.automation_run_idempotency
+    WHERE org_id = ${args.organizationId} AND run_id = ${args.runId}
+  `;
+  await tx`
+    DELETE FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+  `;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor,
+    actorType: 'user',
+    action: 'automation.run.deleted',
+    category: 'ai',
+    resourceType: 'automation_run',
+    resourceId: args.runId,
+    resourceName: `${row.name}@${row.version}`,
+    status: 'success',
+    metadata: { mode: row.mode, runStatus: row.status },
+  });
+  await emitRunHint(tx, args.organizationId, args.runId);
+  return { deleted: true };
 }
 
 // ----------------------------------------------- the stepper's run contract

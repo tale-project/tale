@@ -127,7 +127,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Status-Page",
-      "description": "Tales öffentliche Status-Page — was sie abdeckt, wie Incidents pro Service skopiert sind, wo der RSS-Feed lebt und worin sie sich von deinen Self-hosted-Metriken unterscheidet."
+      "description": "Jedes Tale-Deployment liefert seine eigene Status-Page und einen JSON-Zwilling für Monitore — was sie melden, wie du sie pollst und wo das tiefere Betriebssignal liegt."
     }
   },
   "de:develop/webdav-api": {
@@ -1216,7 +1216,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Status page",
-      "description": "Tale's public status page — what it covers, how incidents are scoped per service, where the RSS feed lives, and how the page differs from your self-hosted metrics."
+      "description": "Every Tale deployment serves its own status page and a JSON twin for monitors — what they report, how to poll them, and where the deeper operational signal lives."
     }
   },
   "en:develop/webdav-api": {
@@ -2305,7 +2305,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Page de statut",
-      "description": "La page de statut publique de Tale — ce qu'elle couvre, comment les incidents sont périmétrés par service, où vit le flux RSS, et en quoi elle diffère de tes métriques auto-hébergées."
+      "description": "Chaque déploiement Tale sert sa propre page de statut et un jumeau JSON pour les moniteurs — ce qu’ils rapportent, comment les interroger, et où vit le signal d’exploitation plus fin."
     }
   },
   "fr:develop/webdav-api": {

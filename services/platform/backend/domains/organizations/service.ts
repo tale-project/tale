@@ -29,12 +29,21 @@ import { MEMBER_ROLES } from '../members/service.ts';
 export class OrganizationError extends Error {
   readonly code: string;
   readonly status: 400 | 401 | 403 | 404;
+  /** Structured detail a door hands on under `data` — the organizations a
+   * key holder may name when the refusal is that none was named. */
+  readonly data?: Record<string, unknown>;
 
-  constructor(code: string, message: string, status: 400 | 401 | 403 | 404) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 401 | 403 | 404,
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'OrganizationError';
     this.code = code;
     this.status = status;
+    if (data !== undefined) this.data = data;
   }
 }
 
@@ -227,10 +236,18 @@ export async function resolveUserOrganization(
       }
     }
     if (!pickedOrgId) {
+      // The refusal names what to send: a key holder in several
+      // organizations has no other way to learn their slugs on this door
+      // (`GET /api/v1/me` sits behind the same rule), so the 400 carries
+      // them — the dashboard's URL is the only alternative source.
+      const organizations = (await listUserOrganizations(sql, args.userId))
+        .filter((org) => org.slug !== undefined)
+        .map((org) => ({ slug: org.slug, name: org.name }));
       throw new OrganizationError(
         'ORG_SLUG_REQUIRED',
-        'User belongs to multiple organizations. Provide X-Organization-Slug header.',
+        `Send X-Organization-Slug: the key holder belongs to ${memberships.length} organizations (${organizations.map((org) => org.slug).join(', ')})`,
         400,
+        { organizations },
       );
     }
   }

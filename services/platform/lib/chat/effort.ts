@@ -135,9 +135,50 @@ function defaultSampling(model: ModelCatalogEntry): TurnSampling {
 /**
  * Resolve the sampling for one turn — see the module doc for the semantics.
  * Called once per turn, before streaming; the result rides the model call
- * unchanged.
+ * unchanged. `options.maxOutputTokens` is the caller's own reply ceiling (the
+ * REST door's per-turn cap): it only ever LOWERS the resolved `maxTokens`,
+ * and a thinking budget shrinks with it so the `maxTokens > budgetTokens`
+ * invariant survives — the same squeeze {@link fitSamplingToWindow} applies
+ * for a governance window.
  */
 export function resolveTurnSampling(
+  model: ModelCatalogEntry,
+  effort?: ReasoningEffort,
+  options: { maxOutputTokens?: number } = {},
+): TurnSampling {
+  return capSampling(
+    resolveModelSampling(model, effort),
+    options.maxOutputTokens,
+  );
+}
+
+/** The caller's ceiling applied to a resolved sampling: never a raise, and
+ * a thinking budget kept under the ceiling by the provider minimum. */
+function capSampling(
+  sampling: TurnSampling,
+  maxOutputTokens: number | undefined,
+): TurnSampling {
+  if (maxOutputTokens === undefined || !Number.isFinite(maxOutputTokens)) {
+    return sampling;
+  }
+  const cap = Math.max(1, Math.floor(maxOutputTokens));
+  if (cap >= sampling.maxTokens) return sampling;
+  if (sampling.reasoning?.kind !== 'thinking') {
+    return { ...sampling, maxTokens: cap };
+  }
+  const budgetTokens = Math.max(
+    Math.min(sampling.reasoning.budgetTokens, cap - MIN_THINKING_BUDGET),
+    MIN_THINKING_BUDGET,
+  );
+  return {
+    ...sampling,
+    maxTokens: Math.max(cap, budgetTokens + MIN_THINKING_BUDGET),
+    reasoning: { kind: 'thinking', budgetTokens },
+  };
+}
+
+/** The model's own sampling for an effort pick — the mapping table proper. */
+function resolveModelSampling(
   model: ModelCatalogEntry,
   effort?: ReasoningEffort,
 ): TurnSampling {

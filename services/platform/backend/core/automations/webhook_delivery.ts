@@ -12,7 +12,10 @@ import { sha256Hex } from './webhook_token.ts';
  *  - the HEADER lane — the sender named the delivery (`Idempotency-Key`, the
  *    Standard Webhooks `webhook-id`, GitHub's `X-GitHub-Delivery`, …). An
  *    explicit id is an unambiguous statement of identity — a redelivery
- *    carries the same one — so it is remembered for a day;
+ *    carries the same one — so it is remembered for a day. The id is matched
+ *    by VALUE: which header carried it is recorded as the identity's
+ *    `source` but is no part of its key, so a gateway that re-stamps a
+ *    vendor's delivery id under a canonical header name does not double-fire;
  *  - the BODY lane — no id header: the SHA-256 of the raw bytes. Two
  *    byte-identical bodies inside a short window are one delivery retried
  *    (retry-on-timeout fires within seconds); after the window they are two
@@ -169,9 +172,7 @@ export async function deliveryIdentity(args: {
   if (explicit !== null) {
     return {
       source: `header:${explicit.header}`,
-      key: await sha256Hex(
-        `header:${explicit.header}\n${explicit.value}\n${project}`,
-      ),
+      key: await sha256Hex(`header\n${explicit.value}\n${project}`),
       windowMs: HEADER_LANE_WINDOW_MS,
     };
   }

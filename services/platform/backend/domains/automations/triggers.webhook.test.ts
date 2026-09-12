@@ -8,13 +8,20 @@ import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
-import { beginRunInTx } from './store.ts';
+import { AutomationError, beginRunInTx } from './store.ts';
 import { createWebhookRoutes } from './triggers.ts';
 
 vi.mock('./store.ts', async (original) => ({
   ...(await original<typeof import('./store.ts')>()),
   beginRunInTx: vi.fn(),
 }));
+
+/** The one refusal every project-scope problem answers — it names neither
+ * the automation nor which of unknown / unbound / archived applied. */
+const PROJECT_FORBIDDEN = {
+  error: 'The automation cannot run in that project.',
+  code: 'AUTOMATION_PROJECT_FORBIDDEN',
+};
 
 async function webhook(
   options: {
@@ -23,6 +30,8 @@ async function webhook(
     enabled?: boolean;
     cachedProjectId?: string | null;
     undeployed?: boolean;
+    /** The rate-limit rule whose budget is spent. */
+    spent?: 'webhook:ip' | 'webhook:trigger';
   } = {},
 ) {
   const token = mintWebhookToken();
@@ -51,8 +60,19 @@ async function webhook(
       organizationId: 'org-1',
       projectId: options.cachedProjectId,
     });
+  /** Every rate-limit charge, as `<rule> <key>`, in order. */
+  const charges: string[] = [];
+  const queries: string[] = [];
   const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    queries.push(text);
+    if (text.includes('INSERT INTO app.rate_limits')) {
+      charges.push(`${String(values[0])} ${String(values[1])}`);
+      return options.spent === values[0] ? [] : [{ value: '1' }];
+    }
+    if (text.includes('FROM app.rate_limits')) {
+      return [{ value: '0', ts: String(Date.now()) }];
+    }
     if (text.includes('FROM app.automation_triggers')) {
       return values.includes(tokenHash)
         ? [
@@ -124,12 +144,13 @@ async function webhook(
     });
     return { runId, version: 1 };
   });
+  // The deployment's proxy list, as the mount injects it: the loopback hop
+  // the test client stands in for is trusted, so the forwarded chain names
+  // the sender.
+  const deps = { sql, trustedProxies: () => Promise.resolve(['loopback']) };
   const app = new Hono();
-  app.route('/api/automations/webhook', createWebhookRoutes({ sql }));
-  app.route(
-    '/api/projects/:id/automations/webhook',
-    createWebhookRoutes({ sql }),
-  );
+  app.route('/api/automations/webhook', createWebhookRoutes(deps));
+  app.route('/api/projects/:id/automations/webhook', createWebhookRoutes(deps));
   const deliver = (
     projectId?: string,
     requestOptions: {
@@ -137,6 +158,7 @@ async function webhook(
       deliveryId?: string;
       body?: string;
       unknownToken?: boolean;
+      headers?: Record<string, string>;
     } = {},
   ) =>
     app.request(
@@ -146,13 +168,15 @@ async function webhook(
         body: requestOptions.body ?? '{}',
         headers: {
           'content-type': 'application/json',
+          'x-forwarded-for': '203.0.113.7',
           ...(requestOptions.deliveryId
             ? { 'idempotency-key': requestOptions.deliveryId }
             : {}),
+          ...requestOptions.headers,
         },
       },
     );
-  return { deliver, bindings, projects, ledger, runs };
+  return { deliver, bindings, projects, ledger, runs, charges, queries };
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -186,11 +210,20 @@ describe('explicit project webhook scope', () => {
     },
   );
 
+  /**
+   * A caller holding only a URL learns nothing about the organization's
+   * projects: a project that does not exist, one in another organization,
+   * one the automation is not installed in and an archived one all get the
+   * SAME 403, whose sentence names neither the automation (its slug used to
+   * ride in the "not bound" message) nor which case applied.
+   */
   it.each(['missing', 'foreign'])(
-    'refuses project %s before claiming a delivery',
+    'refuses project %s with the one uninformative 403, before claiming a delivery',
     async (projectId) => {
       const { deliver, ledger } = await webhook();
-      expect((await deliver(projectId)).status).toBe(400);
+      const response = await deliver(projectId);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual(PROJECT_FORBIDDEN);
       expect(ledger.size).toBe(0);
       expect(beginRunInTx).not.toHaveBeenCalled();
     },
@@ -200,7 +233,11 @@ describe('explicit project webhook scope', () => {
     'requires installation in the token target project: %j',
     async (...bindings) => {
       const { deliver, ledger } = await webhook({ bindings });
-      expect((await deliver('p-1')).status).toBe(400);
+      const response = await deliver('p-1');
+      expect(response.status).toBe(403);
+      const body = await response.text();
+      expect(JSON.parse(body)).toEqual(PROJECT_FORBIDDEN);
+      expect(body).not.toContain('billing/dunning');
       expect(ledger.size).toBe(0);
       expect(beginRunInTx).not.toHaveBeenCalled();
     },
@@ -211,7 +248,9 @@ describe('explicit project webhook scope', () => {
     expect((await deliver('p-1')).status).toBe(202);
     const project = projects.get('p-1');
     if (project) project.archivedAt = 1;
-    expect((await deliver('p-1')).status).toBe(400);
+    const response = await deliver('p-1');
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual(PROJECT_FORBIDDEN);
     expect(beginRunInTx).toHaveBeenCalledOnce();
   });
 
@@ -219,7 +258,7 @@ describe('explicit project webhook scope', () => {
     const { deliver, bindings } = await webhook();
     expect((await deliver('p-1')).status).toBe(202);
     bindings.splice(0, 1);
-    expect((await deliver('p-1')).status).toBe(400);
+    expect((await deliver('p-1')).status).toBe(403);
     expect(beginRunInTx).toHaveBeenCalledOnce();
   });
 
@@ -236,11 +275,30 @@ describe('explicit project webhook scope', () => {
     expect(beginRunInTx).toHaveBeenCalledTimes(2);
   });
 
+  it('matches a delivery id by value, whichever header carried it', async () => {
+    // A gateway that re-stamps a vendor's id under a canonical header name
+    // is the same delivery, not a second one.
+    const { deliver } = await webhook();
+    const first = await deliver('p-1', {
+      headers: { 'x-github-delivery': 'gh-77' },
+    });
+    const restamped = await deliver('p-1', { deliveryId: 'gh-77' });
+    expect(await first.json()).toEqual({ runId: 'run-1' });
+    expect(await restamped.json()).toEqual({ runId: 'run-1', duplicate: true });
+    expect(beginRunInTx).toHaveBeenCalledOnce();
+  });
+
   it('does not return a cached run belonging to a different project', async () => {
     const { deliver } = await webhook({ cachedProjectId: 'p-2' });
     const response = await deliver('p-1');
-    expect(response.status).toBe(400);
-    expect(await response.text()).not.toContain('cached-run');
+    // The delivery was recorded in another scope: a 409 with its own code,
+    // never the run it names.
+    expect(response.status).toBe(409);
+    const body = await response.text();
+    expect(body).not.toContain('cached-run');
+    expect(JSON.parse(body)).toMatchObject({
+      code: 'AUTOMATION_DELIVERY_SCOPE_MISMATCH',
+    });
   });
 });
 
@@ -259,16 +317,22 @@ describe('organization webhook scope and delivery contract', () => {
     );
   });
 
-  it('refuses a bound automation through the flat URL instead of inferring a project', async () => {
+  it('refuses a bound automation through the flat URL with the 409 the REST door answers', async () => {
     const { deliver } = await webhook({ bindings: ['p-1'] });
-    expect((await deliver()).status).toBe(400);
+    const response = await deliver();
+    // The same refusal used to be a 409 on the key door and a flat 400
+    // here, so a client had to branch on the URL instead of the code.
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'AUTOMATION_PROJECT_SCOPE_REQUIRED',
+    });
     expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
   it('does not leak an old flat delivery ledger entry that points to a project run', async () => {
     const { deliver } = await webhook({ bindings: [], cachedProjectId: 'p-1' });
     const response = await deliver();
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     expect(await response.text()).not.toContain('cached-run');
   });
 
@@ -289,5 +353,76 @@ describe('organization webhook scope and delivery contract', () => {
     });
     expect((await deliver()).status).toBe(409);
     expect(ledger.size).toBe(0);
+  });
+
+  it('forwards a refused input with its problems and keeps no claim', async () => {
+    const { deliver, ledger } = await webhook({ bindings: [] });
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError(
+        'AUTOMATION_INPUT_INVALID',
+        'Run input does not match the automation inputs schema: "payload.orderId" is required',
+        400,
+        { issues: [{ path: 'payload.orderId', message: 'is required' }] },
+      ),
+    );
+    const response = await deliver();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error:
+        'Run input does not match the automation inputs schema: "payload.orderId" is required',
+      code: 'AUTOMATION_INPUT_INVALID',
+      data: { issues: [{ path: 'payload.orderId', message: 'is required' }] },
+    });
+    expect(ledger.size).toBe(0);
+  });
+});
+
+/**
+ * Nothing authenticates a sender, so the door budgets twice: the sender's
+ * IP (derived through the trusted-proxy list the mount injects) before the
+ * token is hashed or looked up, and the verified trigger after — so a
+ * leaked URL starts a bounded number of runs a minute, and a flood of
+ * plausible tokens costs the door one charge each and nothing more.
+ */
+describe('webhook door budgets', () => {
+  it('charges the sender before the token is looked up, and the trigger once verified', async () => {
+    const { deliver, charges } = await webhook({ bindings: [] });
+    expect((await deliver()).status).toBe(202);
+    expect(charges).toEqual([
+      'webhook:ip ip:203.0.113.7',
+      'webhook:trigger trigger:trigger-1',
+    ]);
+    // An unknown (but plausible) token is charged to the sender and never
+    // to a trigger — there is none.
+    charges.length = 0;
+    expect((await deliver(undefined, { unknownToken: true })).status).toBe(404);
+    expect(charges).toEqual(['webhook:ip ip:203.0.113.7']);
+  });
+
+  it('answers 429 with Retry-After when the sender budget is spent, before reading the body or the token', async () => {
+    const { deliver, queries } = await webhook({
+      bindings: [],
+      spent: 'webhook:ip',
+    });
+    const response = await deliver(undefined, { body: '{"attempt":1}' });
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toMatch(/^\d+$/);
+    expect(await response.json()).toMatchObject({ code: 'RATE_LIMITED' });
+    expect(
+      queries.some((text) => text.includes('FROM app.automation_triggers')),
+    ).toBe(false);
+    expect(beginRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('answers 429 when the trigger budget is spent, before claiming a delivery', async () => {
+    const { deliver, ledger } = await webhook({
+      bindings: [],
+      spent: 'webhook:trigger',
+    });
+    const response = await deliver();
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toMatch(/^\d+$/);
+    expect(ledger.size).toBe(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
   });
 });

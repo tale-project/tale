@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -100,17 +101,27 @@ const CONTACT_COLUMNS = `
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
+/** A contact write. `null` clears an optional field — the one clearing
+ * rule both doors speak; `undefined` leaves it alone on an update and
+ * unset on a create. */
 export interface ContactInput {
-  name?: string;
-  email?: string;
-  phone?: string;
-  externalId?: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  externalId?: string | null;
   source: ContactSource;
-  locale?: string;
-  address?: Record<string, unknown>;
-  tags?: string[];
-  metadata?: Record<string, unknown>;
-  notes?: string;
+  locale?: string | null;
+  address?: Record<string, unknown> | null;
+  tags?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+  notes?: string | null;
+}
+
+/** A free-text field as the directory stores it: trimmed, and null when
+ * blank or cleared — a blank is never stored as `""`. */
+function textOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
 }
 
 /**
@@ -187,7 +198,7 @@ async function findLiveContactIdByEmail(
 /** The external id as the directory keys it: trimmed, and absent when
  * empty — an empty string is "no external id", never a key twins share. */
 function normalizeContactExternalId(
-  raw: string | undefined,
+  raw: string | null | undefined,
 ): string | undefined {
   const trimmed = raw?.trim();
   return trimmed === undefined || trimmed === '' ? undefined : trimmed;
@@ -244,7 +255,7 @@ async function insertContactRow(
   `;
   const id = rows[0]?.id;
   if (!id) {
-    throw new ContactError('CONTACT_CREATE_FAILED', 'Insert failed');
+    throw new Error('CONTACT_CREATE_FAILED: the insert answered no row');
   }
   return id;
 }
@@ -289,7 +300,9 @@ async function recordContactCreated(
   });
 }
 
-function normalizeContactEmail(email: string | undefined): string | undefined {
+function normalizeContactEmail(
+  email: string | null | undefined,
+): string | undefined {
   const normalized = email?.trim().toLowerCase();
   return normalized === undefined || normalized === '' ? undefined : normalized;
 }
@@ -338,23 +351,24 @@ export async function createContact(
       );
     }
   }
+  const name = textOrNull(input.name);
   const id = await insertContactRow(tx, {
     organizationId: scope.organizationId,
-    name: input.name?.trim() ?? null,
+    name,
     email: email ?? null,
-    phone: input.phone ?? null,
+    phone: textOrNull(input.phone),
     externalId: externalId ?? null,
     source: input.source,
-    locale: input.locale ?? null,
+    locale: textOrNull(input.locale),
     address: input.address ?? null,
     tags: input.tags ?? [],
     metadata: input.metadata ?? null,
-    notes: input.notes ?? null,
+    notes: textOrNull(input.notes),
   });
   await recordContactCreated(tx, {
     organizationId: scope.organizationId,
     contactId: id,
-    name: input.name,
+    name: name ?? undefined,
     actor: { type: 'user', id: scope.userId, email: scope.email },
   });
   return id;
@@ -439,10 +453,13 @@ export async function updateContact(
       'Contact changed; reload before updating',
       409,
     );
+  // `null` clears; a blank reads as `null` too, so no field is ever stored
+  // as `""` (an unset field's spelling used to differ per field: a no-op
+  // on email, a clear on externalId, `""` on notes).
   const email =
     patch.email === undefined
       ? contact.email
-      : patch.email.trim().toLowerCase();
+      : (normalizeContactEmail(patch.email) ?? null);
   // A changed email or external id re-runs the create's uniqueness rule
   // under the same locks — a PATCH could otherwise mint the twin the
   // create refuses.
@@ -480,18 +497,49 @@ export async function updateContact(
       );
     }
   }
+  const name = patch.name === undefined ? contact.name : textOrNull(patch.name);
+  // The create's own rule, kept on update: a contact is filed under at
+  // least one of name, email and externalId, so a patch that names one of
+  // them may not clear the last. A patch that leaves them alone passes,
+  // whatever a legacy row holds.
+  const touchesIdentity =
+    patch.name !== undefined ||
+    patch.email !== undefined ||
+    patch.externalId !== undefined;
+  if (
+    touchesIdentity &&
+    textOrNull(name) === null &&
+    email === null &&
+    externalId === null
+  ) {
+    throw new ContactError(
+      'CONTACT_IDENTITY_REQUIRED',
+      'A contact keeps at least one of name, email or externalId; this update would clear the last one',
+    );
+  }
+  // `address` is a unit and is replaced whole; `metadata` is a bag of
+  // attributes and merges per RFC 7396 — sent keys are set, omitted keys
+  // stay, a key sent as `null` is removed, and the whole field sent as
+  // `null` clears it. Adding one key used to wipe every other.
+  const address = patch.address === undefined ? contact.address : patch.address;
+  const metadata =
+    patch.metadata === undefined
+      ? contact.metadata
+      : patch.metadata === null
+        ? null
+        : applyJsonMergePatch(contact.metadata, patch.metadata);
   await tx`
     UPDATE app.contacts SET
-      name = ${patch.name === undefined ? contact.name : (patch.name.trim() ?? null)},
+      name = ${name},
       email = ${email},
-      phone = ${patch.phone === undefined ? contact.phone : patch.phone},
+      phone = ${patch.phone === undefined ? contact.phone : textOrNull(patch.phone)},
       external_id = ${externalId},
       source = ${patch.source === undefined ? contact.source : patch.source},
-      locale = ${patch.locale === undefined ? contact.locale : patch.locale},
-      address = ${patch.address === undefined ? (contact.address === null ? null : tx.json(toJson(contact.address))) : tx.json(toJson(patch.address))},
-      tags = ${patch.tags ?? contact.tags},
-      metadata = ${patch.metadata === undefined ? (contact.metadata === null ? null : tx.json(toJson(contact.metadata))) : tx.json(toJson(patch.metadata))},
-      notes = ${patch.notes === undefined ? contact.notes : patch.notes},
+      locale = ${patch.locale === undefined ? contact.locale : textOrNull(patch.locale)},
+      address = ${address === null ? null : tx.json(toJson(address))},
+      tags = ${patch.tags === undefined ? contact.tags : (patch.tags ?? [])},
+      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
+      notes = ${patch.notes === undefined ? contact.notes : textOrNull(patch.notes)},
       updated_at_ms = ${Math.max(Date.now(), contact.updatedAt + 1)}
     WHERE id = ${contactId}
   `;
@@ -627,10 +675,10 @@ export interface BulkCreateContactItem extends Omit<
   'email' | 'source' | 'externalId'
 > {
   /** The duplicate key when present; a row may be keyed by externalId alone. */
-  email?: string;
+  email?: string | null;
   /** Defaults to 'api_import' — the REST door's provenance. */
   source?: ContactSource;
-  externalId?: string | number;
+  externalId?: string | number | null;
 }
 
 export interface BulkCreateResult {
@@ -673,7 +721,9 @@ export async function bulkCreateContacts(
     try {
       const email = normalizeContactEmail(contact.email);
       const externalId =
-        contact.externalId === undefined || contact.externalId === ''
+        contact.externalId === undefined ||
+        contact.externalId === null ||
+        contact.externalId === ''
           ? undefined
           : String(contact.externalId);
       const id = await sql.begin(async (tx) => {
@@ -713,16 +763,16 @@ export async function bulkCreateContacts(
         }
         return insertContactRow(tx, {
           organizationId: scope.organizationId,
-          name: contact.name?.trim() ?? null,
+          name: textOrNull(contact.name),
           email: email ?? null,
-          phone: contact.phone ?? null,
+          phone: textOrNull(contact.phone),
           externalId: externalId ?? null,
           source: contact.source ?? 'api_import',
-          locale: contact.locale ?? null,
+          locale: textOrNull(contact.locale),
           address: contact.address ?? null,
           tags: contact.tags ?? [],
           metadata: contact.metadata ?? null,
-          notes: contact.notes ?? null,
+          notes: textOrNull(contact.notes),
         });
       });
       result.success += 1;

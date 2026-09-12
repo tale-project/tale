@@ -37,8 +37,12 @@ const LISTED = {
 };
 
 /** Tagged-template Sql double: answers the service's membership read with
- * `members`, the pool listing with one masked row, the INSERT with an id. */
-function fakeSql(members: { organizationId: string; role: string }[]): {
+ * `members`, the pool listing with one masked row, the INSERT with an id,
+ * the DELETE with the row it removed (none by default). */
+function fakeSql(
+  members: { organizationId: string; role: string }[],
+  options: { deletes?: { id: string }[] } = {},
+): {
   sql: Sql;
   queries: Captured[];
 } {
@@ -51,6 +55,9 @@ function fakeSql(members: { organizationId: string; role: string }[]): {
     }
     if (text.includes('INSERT INTO app.browser_sessions')) {
       return Promise.resolve([{ id: 'bs-new' }]);
+    }
+    if (text.includes('DELETE FROM app.browser_sessions')) {
+      return Promise.resolve(options.deletes ?? []);
     }
     if (text.includes('FROM app.browser_sessions')) {
       return Promise.resolve([LISTED]);
@@ -113,13 +120,100 @@ describe('POST /browser-sessions/import', () => {
     vi.unstubAllEnvs();
   });
 
-  it('refuses a malformed body before touching the service', async () => {
+  /**
+   * The gate runs before the body is read: a caller who will be refused
+   * gets the 403 and nothing else — no schema feedback, no field list.
+   * (The order used to be the other way round, and a test pinned it.)
+   */
+  it('refuses an unauthorized caller before reading the body — a malformed body gets the 403, not the schema', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'someone-else@example.com');
+    const { sql, queries } = fakeSql(ADMIN);
+    const res = await mount(sql).request(importRequest({}));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      code: 'FORBIDDEN_DEPLOYMENT_EDITOR',
+    });
+    expect(queries.map((q) => q.text)).toEqual([
+      expect.stringContaining('FROM "member" WHERE "userId"'),
+    ]);
+  });
+
+  it('refuses a malformed body from an allowlisted administrator, and inserts nothing', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
     const { sql, queries } = fakeSql(ADMIN);
     const res = await mount(sql).request(
       importRequest({ domain: 'youtube.com' }),
     );
     expect(res.status).toBe(400);
-    expect(queries).toEqual([]);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      error: 'invalid body: "cookiesJar" is required',
+    });
+    expect(queries.some((q) => q.text.includes('INSERT'))).toBe(false);
+  });
+
+  it.each([
+    ['a whitespace-only domain', { domain: '   ', cookiesJar: JAR }, 'domain'],
+    [
+      'a whitespace-only jar',
+      { domain: 'youtube.com', cookiesJar: ' \n ' },
+      'cookiesJar',
+    ],
+    [
+      'a lifetime past 180 days',
+      {
+        domain: 'youtube.com',
+        cookiesJar: JAR,
+        ttlMs: 181 * 24 * 60 * 60 * 1000,
+      },
+      'ttlMs',
+    ],
+    [
+      'an unknown key',
+      { domain: 'youtube.com', cookiesJar: JAR, cookies: 'x' },
+      'cookies',
+    ],
+  ])('refuses %s by field', async (_name, body, field) => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    const { sql, queries } = fakeSql(ADMIN);
+    const res = await mount(sql).request(importRequest(body));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      error: expect.stringContaining(`"${field}"`),
+    });
+    expect(queries.some((q) => q.text.includes('INSERT'))).toBe(false);
+  });
+
+  it.each([
+    ['localhost', 'localhost'],
+    ['a loopback address', '127.0.0.1'],
+    ['a path, not a host', '../etc/passwd'],
+    ['a wildcard', '*.example.com'],
+    ['a non-http scheme', 'ftp://example.com'],
+  ])('refuses %s as the domain with INVALID_SESSION', async (_name, domain) => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    vi.stubEnv('TALE_ALLOW_PRIVATE_CRAWL_HOSTS', '');
+    const { sql, queries } = fakeSql(ADMIN);
+    const res = await mount(sql).request(
+      importRequest({ domain, cookiesJar: JAR }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_SESSION' });
+    expect(queries.some((q) => q.text.includes('INSERT'))).toBe(false);
+  });
+
+  it('normalizes a URL-shaped domain to its host', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    const { sql, queries } = fakeSql(ADMIN);
+    const res = await mount(sql).request(
+      importRequest({ domain: 'HTTPS://Example.COM/path', cookiesJar: JAR }),
+    );
+    expect(res.status).toBe(201);
+    const insert = queries.find((q) =>
+      q.text.includes('INSERT INTO app.browser_sessions'),
+    );
+    expect(insert?.values).toContain('example.com');
   });
 
   it('refuses a key whose holder administers no organization', async () => {
@@ -165,5 +259,53 @@ describe('POST /browser-sessions/import', () => {
     expect(insert?.values).toContain(`jwe:${JAR}`);
     expect(insert?.values).not.toContain(JAR);
     expect(insert?.values).toContain('user-1');
+  });
+});
+
+/**
+ * The revocation path a credential store needs: an imported jar can be
+ * removed by exactly the operators who may import one; an unknown or
+ * foreign-organization id reads as absent.
+ */
+describe('DELETE /browser-sessions/{id}', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const del = (sql: Sql, role = 'admin') =>
+    mount(sql, role).request('http://localhost/browser-sessions/bs-1', {
+      method: 'DELETE',
+    });
+
+  it('sits behind the importer gate', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'someone-else@example.com');
+    const { sql, queries } = fakeSql(ADMIN, { deletes: [{ id: 'bs-1' }] });
+    const res = await del(sql);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      code: 'FORBIDDEN_DEPLOYMENT_EDITOR',
+    });
+    expect(queries.some((q) => q.text.includes('DELETE'))).toBe(false);
+  });
+
+  it('removes the session of this organization with 204', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    const { sql, queries } = fakeSql(ADMIN, { deletes: [{ id: 'bs-1' }] });
+    const res = await del(sql);
+    expect(res.status).toBe(204);
+    const remove = queries.find((q) => q.text.includes('DELETE'));
+    expect(remove?.text).toContain('org_id = $?');
+    expect(remove?.values).toEqual(['bs-1', 'org-1']);
+  });
+
+  it('answers 404 with its own code when nothing of this organization went away', async () => {
+    vi.stubEnv('TALE_DEPLOYMENT_CONFIG_ADMINS', 'ops@example.com');
+    const { sql } = fakeSql(ADMIN);
+    const res = await del(sql);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Browser session not found',
+      code: 'BROWSER_SESSION_NOT_FOUND',
+    });
   });
 });

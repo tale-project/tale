@@ -1,14 +1,26 @@
+import {
+  isValidSkillSlug,
+  SKILL_EDIT_VISIBILITIES,
+  skillEditFields,
+} from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import {
+  blankStringsAsAbsent,
+  blankStringsAsNull,
+} from '../../lib/shared/utils/blank-strings.ts';
+import { boundedJsonObject } from '../../lib/shared/utils/json-bounds.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
 } from '../core/knowledge_entries/constants.ts';
+import { KNOWLEDGE_SOURCE_PROVIDER } from '../core/knowledge_entries/constants.ts';
+import { PRODUCT_CATEGORY_MAX } from '../core/products/field_limits.ts';
 import {
   deleteSkillForViewer,
   listSkillsForViewer,
@@ -34,12 +46,13 @@ import {
   assertDocumentsWriteRole,
   createHubDocument,
   deleteDocumentHard,
-  DocumentError,
+  type DocumentIndexingState,
+  type DocumentRow,
   getDocumentById,
   listHubDocumentsPage,
+  readDocumentIndexing,
   readDocumentRestExtras,
   updateDocument,
-  type DocumentRow,
 } from '../domains/documents/service.ts';
 import {
   KnowledgeError,
@@ -52,6 +65,7 @@ import {
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
+  findActiveEntryForDocument,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
 import { listUserOrganizations } from '../domains/organizations/service.ts';
@@ -67,27 +81,30 @@ import {
   updateProduct,
   type ProductScope,
 } from '../domains/products/service.ts';
-import { PurgeIncompleteError } from '../domains/retention/service.ts';
+import { PRODUCT_STATUSES } from '../domains/products/service.ts';
 import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
-  assertExplicitOrg,
   codedRefusalResponse,
+  documentDeleteRefusal,
   domainErrorResponse,
   formatKeysetCursor,
   invalidBodyResponse,
-  invalidQueryResponse,
   loadRestProject,
   mintCursor,
-  noteRestErrorCode,
+  noQuery,
   notFound,
+  PAGE_QUERY,
+  parseBody,
+  queryFilter,
   readIntegerCursor,
   readJsonBody,
   readKeysetCursor,
   readPageLimit,
+  readQuery,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
@@ -98,6 +115,61 @@ import {
  * layer, reused). Thin adapters over the SAME domain services the app
  * surface uses, shaped like the 0.4 REST handlers.
  */
+
+/** Bodies larger than the door's default cap, bounded here: a document's
+ * inline `content` may run to 5,000,000 characters (up to four bytes each,
+ * escaped), a bulk create to 500 contacts with 10,000-character notes. */
+const DOCUMENT_BODY_BYTES = 32 * 1024 * 1024;
+const BULK_BODY_BYTES = 8 * 1024 * 1024;
+/** A skill body may run to `MAX_SKILL_BODY_BYTES` of UTF-8, and JSON
+ * escaping can multiply a byte by six (`\u0001`), so the save's own byte
+ * cap sits above the worst encoding of a body the schema accepts. */
+const SKILL_BODY_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The skills PUT body: the file layer's own field caps (`skillEditFields`)
+ * with the visibilities a save may SET — never the retired `private`, so
+ * a refusal cannot advertise it — and no other key (a body `slug` that
+ * contradicts the URL is refused, not silently ignored).
+ */
+const skillEditBodySchema = z
+  .object({
+    ...skillEditFields,
+    visibility: z.enum(SKILL_EDIT_VISIBILITIES).optional(),
+  })
+  .strict();
+
+/** The contacts/products precondition: the `updatedAt` last read; a row
+ * another writer moved on answers 409 `CONTACT_STALE` / `PRODUCT_STALE`. */
+const expectedUpdatedAtField = {
+  expectedUpdatedAt: z
+    .number()
+    .int()
+    .min(0)
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
+};
+
+/**
+ * The CRM bodies, composed with the door's one reading of a blank string:
+ * on a create (and every bulk row) a blank optional field reads as left
+ * out, so a CSV-shaped row imports cleanly; on a patch a blank reads as
+ * `null`, which clears the field — the same clearing an explicit `null`
+ * does. A blank required field (a product's `name`) keeps its own "must
+ * not be blank". `""` used to be a silent no-op on one field and stored
+ * as `""` on the next, and no spelling cleared a field at all.
+ */
+const contactCreateBody = blankStringsAsAbsent(contactCreateSchema);
+const contactBulkBody = z
+  .object({
+    contacts: z.array(blankStringsAsAbsent(contactBulkItemSchema)).max(500),
+  })
+  .strict();
+const contactPatchBody = blankStringsAsNull(
+  contactFieldsSchema.extend(expectedUpdatedAtField),
+);
+const productCreateBody = blankStringsAsAbsent(productCreateSchema);
+const productPatchBody = blankStringsAsNull(productPatchSchema);
 
 export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
@@ -113,7 +185,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * to (its slug is the `X-Organization-Slug` value a multi-org key must
    * send) and every organization the holder belongs to — no other route
    * tells a client its own slug. */
-  app.get('/me', async (c) => {
+  app.get('/me', noQuery, async (c) => {
     const memberships = await listUserOrganizations(deps.sql, c.get('userId'));
     return c.json({
       user: { id: c.get('userId'), email: c.get('userEmail') },
@@ -135,18 +207,23 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   // The shared field shape (domains/contacts/input-schema.ts), strict: an
   // unknown key answers the documented INVALID_BODY instead of vanishing.
 
-  /** Keyset-paginated (`cursor` = the previous page's `continueCursor`,
-   * `<updatedAt>:<id>`); `limit` 1..200, default 25. */
+  /** Keyset-paginated (`cursor` = the previous page's `continueCursor`, a
+   * signed opaque token — `readKeysetCursor`); `limit` 1..200, default 25. */
   app.get('/contacts', async (c) => {
+    const query = readQuery(c, {
+      ...PAGE_QUERY,
+      source: queryFilter(64).optional(),
+    });
+    if (query instanceof Response) return query;
     const cursor = readKeysetCursor(c, 'contacts');
     if (cursor instanceof Response) return cursor;
     const limit = readPageLimit(c, { fallback: 25, max: 200 });
     if (limit instanceof Response) return limit;
     try {
       const result = await listContacts(deps.sql, scope(c), {
-        ...(c.req.query('source') !== undefined
+        ...(query.source !== undefined
           ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listContacts filters on the free-text column; unknown values match nothing
-            { source: c.req.query('source') as never }
+            { source: query.source as never }
           : {}),
         cursor:
           cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
@@ -173,16 +250,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/contacts', async (c) => {
-    const body = contactCreateSchema.safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, contactCreateBody);
+    if (body instanceof Response) return body;
     try {
       const id = await deps.sql.begin((tx) =>
         createContact(tx, scope(c), {
-          ...body.data,
-          externalId: contactExternalIdText(body.data.externalId),
-          source: body.data.source ?? 'api_import',
+          ...body,
+          externalId: contactExternalIdText(body.externalId),
+          source: body.source ?? 'api_import',
         }),
       );
       return c.json({ id }, 201);
@@ -192,20 +267,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/contacts/bulk', async (c) => {
-    const body = z
-      .object({
-        contacts: z.array(contactBulkItemSchema).max(500),
-      })
-      .strict()
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, contactBulkBody, {
+      maxBytes: BULK_BODY_BYTES,
+    });
+    if (body instanceof Response) return body;
     try {
       const result = await bulkCreateContacts(
         deps.sql,
         scope(c),
-        body.data.contacts,
+        body.contacts,
       );
       return c.json(result, 201);
     } catch (error) {
@@ -228,7 +298,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return contact;
   };
 
-  app.get('/contacts/:id', async (c) => {
+  app.get('/contacts/:id', noQuery, async (c) => {
     try {
       const contact = await loadLiveContact(c, c.req.param('id'));
       if (contact instanceof Response) return contact;
@@ -238,28 +308,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** Partial update, answering the contact as it now stands. `null` clears
+   * an optional field (a blank string reads as `null`); `metadata` merges
+   * per RFC 7396 and `address` is replaced whole. */
   app.patch('/contacts/:id', async (c) => {
-    const body = contactFieldsSchema
-      .extend({
-        expectedUpdatedAt: z
-          .number()
-          .int()
-          .min(0)
-          .max(Number.MAX_SAFE_INTEGER)
-          .optional(),
-      })
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, contactPatchBody);
+    if (body instanceof Response) return body;
     try {
       const current = await loadLiveContact(c, c.req.param('id'));
       if (current instanceof Response) return current;
       await deps.sql.begin((tx) =>
         updateContact(tx, scope(c), current.id, {
-          ...body.data,
-          externalId: contactExternalIdText(body.data.externalId),
-          source: body.data.source,
+          ...body,
+          externalId: contactExternalIdText(body.externalId),
+          source: body.source,
         }),
       );
       const updated = await getContact(deps.sql, scope(c), current.id);
@@ -287,19 +349,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   /** Keyset-paginated like /contacts; `status` and `category` narrow. */
   app.get('/products', async (c) => {
+    const query = readQuery(c, {
+      ...PAGE_QUERY,
+      category: queryFilter(PRODUCT_CATEGORY_MAX).optional(),
+      status: z.enum(PRODUCT_STATUSES).optional(),
+    });
+    if (query instanceof Response) return query;
     const cursor = readKeysetCursor(c, 'products');
     if (cursor instanceof Response) return cursor;
     const limit = readPageLimit(c, { fallback: 25, max: 200 });
     if (limit instanceof Response) return limit;
     try {
       const result = await listProducts(deps.sql, scope(c), {
-        ...(c.req.query('category') !== undefined
-          ? { category: c.req.query('category') ?? '' }
-          : {}),
-        ...(c.req.query('status') !== undefined
-          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listProducts filters on the status column; a value outside the vocabulary matches nothing
-            { status: c.req.query('status') as never }
-          : {}),
+        ...(query.category !== undefined ? { category: query.category } : {}),
+        ...(query.status !== undefined ? { status: query.status } : {}),
         cursor:
           cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
         limit,
@@ -325,13 +388,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = productCreateSchema.safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, productCreateBody);
+    if (body instanceof Response) return body;
     try {
       const id = await deps.sql.begin((tx) =>
-        createProduct(tx, scope(c), body.data),
+        createProduct(tx, scope(c), body),
       );
       return c.json({ id }, 201);
     } catch (error) {
@@ -339,7 +400,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  app.get('/products/:id', async (c) => {
+  app.get('/products/:id', noQuery, async (c) => {
     try {
       const product = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!product)
@@ -350,14 +411,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** Partial update, answering the product as it now stands. `null` clears
+   * an optional field (a blank string reads as `null`; a blank `name` is
+   * refused); `metadata` merges per RFC 7396. */
   app.patch('/products/:id', async (c) => {
-    const body = productPatchSchema.safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, productPatchBody);
+    if (body instanceof Response) return body;
     try {
       await deps.sql.begin((tx) =>
-        updateProduct(tx, scope(c), c.req.param('id'), body.data),
+        updateProduct(tx, scope(c), c.req.param('id'), body),
       );
       const updated = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!updated)
@@ -385,6 +447,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const hubDocumentPayload = (
     doc: DocumentRow,
     extras: { content: string | null } | null,
+    indexing: DocumentIndexingState | undefined,
   ) => ({
     id: doc.id,
     title: doc.title,
@@ -399,9 +462,55 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     createdBy: doc.createdBy,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+    // Where a file-backed document stands in the search corpus — absent
+    // for a content-only document (never indexed) and for a blob the
+    // platform does not track — so a client can poll after a create or a
+    // `retry-indexing` instead of sleeping blind.
+    ...(indexing !== undefined ? { indexing } : {}),
   });
 
+  /** The indexing state of every file-backed document on a page, by blob. */
+  const indexingOf = (c: Context<RestEnv>, docs: readonly DocumentRow[]) =>
+    readDocumentIndexing(deps.sql, c.get('organizationId'), [
+      ...new Set(
+        docs
+          .map((doc) => doc.fileRef)
+          .filter((ref): ref is string => ref !== null),
+      ),
+    ]);
+
+  /** The active knowledge entry a `knowledge`-sourced document backs, when
+   * one does: such a document is the entry's own storage, and the entry's
+   * delete (which retires the chain and trashes the document) is the
+   * sanctioned path — a document door refuses to retire it sideways. */
+  const knowledgeEntryBehind = async (
+    c: Context<RestEnv>,
+    doc: DocumentRow,
+  ): Promise<Response | null> => {
+    if (doc.sourceProvider !== KNOWLEDGE_SOURCE_PROVIDER) return null;
+    const entry = await findActiveEntryForDocument(
+      deps.sql,
+      c.get('organizationId'),
+      doc.id,
+    );
+    if (entry === null) return null;
+    return c.json(
+      {
+        error: `This document backs the knowledge entry "${entry.topic}" (${entry.id}); delete or update the entry instead.`,
+        code: 'DOCUMENT_HAS_KNOWLEDGE_ENTRY',
+        data: { entryId: entry.id },
+      },
+      409,
+    );
+  };
+
   app.get('/documents', async (c) => {
+    const query = readQuery(c, {
+      ...PAGE_QUERY,
+      sourceProvider: queryFilter(64).optional(),
+      folderId: queryFilter(128).optional(),
+    });
+    if (query instanceof Response) return query;
     // The service decodes the `<createdAt>:<id>` position itself; the
     // signature is checked here so a token this list never answered is
     // refused, never read as page one.
@@ -412,18 +521,23 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const result = await listHubDocumentsPage(deps.sql, auth, {
-        ...(c.req.query('sourceProvider') !== undefined
-          ? { sourceProvider: c.req.query('sourceProvider') ?? '' }
+        ...(query.sourceProvider !== undefined
+          ? { sourceProvider: query.sourceProvider }
           : {}),
-        ...(c.req.query('folderId') !== undefined
-          ? { folderId: c.req.query('folderId') ?? '' }
-          : {}),
+        ...(query.folderId !== undefined ? { folderId: query.folderId } : {}),
         cursor:
           cursor === null ? null : formatKeysetCursor(cursor.at, cursor.id),
         limit,
       });
+      const indexing = await indexingOf(c, result.page);
       return c.json({
-        page: result.page.map((doc) => hubDocumentPayload(doc, null)),
+        page: result.page.map((doc) =>
+          hubDocumentPayload(
+            doc,
+            null,
+            doc.fileRef === null ? undefined : indexing.get(doc.fileRef),
+          ),
+        ),
         isDone: result.isDone,
         continueCursor:
           result.continueCursor === ''
@@ -444,12 +558,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         mimeType: z.string().max(255).optional(),
         extension: z.string().max(32).optional(),
         sourceProvider: z.string().max(64).optional(),
-        metadata: z.record(z.string(), z.unknown()).optional(),
+        metadata: boundedJsonObject().optional(),
         teamId: z.string().max(128).optional(),
         folderId: z.string().max(64).optional(),
       })
       .strict()
-      .safeParse(await readJsonBody(c));
+      .safeParse(await readJsonBody(c, { maxBytes: DOCUMENT_BODY_BYTES }));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
@@ -482,37 +596,62 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return doc;
   };
 
-  app.get('/documents/:id', async (c) => {
+  app.get('/documents/:id', noQuery, async (c) => {
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
       const extras = await readDocumentRestExtras(deps.sql, doc.id);
-      return c.json(hubDocumentPayload(doc, extras));
+      const indexing = await indexingOf(c, [doc]);
+      return c.json(
+        hubDocumentPayload(
+          doc,
+          extras,
+          doc.fileRef === null ? undefined : indexing.get(doc.fileRef),
+        ),
+      );
     } catch (error) {
       return domainErrorResponse(c, error);
     }
   });
 
+  /** Partial update. Answers 200 with the document as it now stands (the
+   * GET view) — a client that sent `expectedUpdatedAt` needs the new
+   * `updatedAt` for its next write, which a 204 could never carry. */
   app.patch('/documents/:id', async (c) => {
     const body = z
       .object({
         title: z.string().min(1).max(512).optional(),
         content: z.string().max(5_000_000).nullable().optional(),
-        metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+        metadata: boundedJsonObject().nullable().optional(),
         mimeType: z.string().max(255).nullable().optional(),
         extension: z.string().max(32).nullable().optional(),
         sourceProvider: z.string().max(64).nullable().optional(),
         teamId: z.string().max(128).nullable().optional(),
         folderId: z.string().max(64).nullable().optional(),
+        // The contacts/products precondition: the `updatedAt` last read;
+        // a document another writer moved on answers 409 DOCUMENT_STALE.
+        expectedUpdatedAt: z.number().int().min(0).optional(),
       })
       .strict()
-      .safeParse(await readJsonBody(c));
+      .safeParse(await readJsonBody(c, { maxBytes: DOCUMENT_BODY_BYTES }));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
+      // A knowledge entry's backing document keeps its content and identity
+      // through the entry (a supersede rewrites them); the entry door is
+      // the way to change what it says.
+      if (
+        body.data.title !== undefined ||
+        body.data.content !== undefined ||
+        body.data.mimeType !== undefined ||
+        body.data.extension !== undefined
+      ) {
+        const backing = await knowledgeEntryBehind(c, doc);
+        if (backing) return backing;
+      }
       const auth = await restProjectAuth(deps.sql, c);
       const result = await deps.sql.begin((tx) =>
         updateDocument(tx, auth, { documentId: doc.id, ...body.data }),
@@ -525,7 +664,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       ) {
         await syncRagDocumentScope(deps.sql, auth.organizationId, doc.id);
       }
-      return c.body(null, 204);
+      const updated = await getDocumentById(deps.sql, auth, doc.id);
+      const extras = await readDocumentRestExtras(deps.sql, updated.id);
+      const indexing = await indexingOf(c, [updated]);
+      return c.json(
+        hubDocumentPayload(
+          updated,
+          extras,
+          updated.fileRef === null ? undefined : indexing.get(updated.fileRef),
+        ),
+      );
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -535,6 +683,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
+      // Deleting an entry's backing document would retire the whole
+      // knowledge chain sideways, with no warning — the entry's own delete
+      // is the documented path, so this door refuses instead.
+      const backing = await knowledgeEntryBehind(c, doc);
+      if (backing) return backing;
       const auth = await restProjectAuth(deps.sql, c);
       // The SESSION delete whole — org-role write gate, the controlled-record
       // protection predicate (in_review/approved AND retained approved
@@ -543,22 +696,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await deleteDocumentHard(deps.sql, auth, doc.id);
       return c.body(null, 204);
     } catch (error) {
-      // Wire parity: this door has always refused protected records as 409
-      // — in the door's own `{error, code}` envelope.
-      if (
-        error instanceof DocumentError &&
-        error.code === 'DOCUMENT_RECORD_PROTECTED'
-      ) {
-        return c.json({ error: error.message, code: error.code }, 409);
-      }
-      // The purge could not remove every dead surface: the row was kept for
-      // a retry — the same 503 the session and folder doors answer, not the
-      // bare 500 an unmapped error becomes.
-      if (error instanceof PurgeIncompleteError) {
-        noteRestErrorCode(error.code);
-        return c.json({ error: error.message, code: error.code }, 503);
-      }
-      return domainErrorResponse(c, error);
+      return documentDeleteRefusal(c, error);
     }
   });
 
@@ -614,7 +752,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   // and registered websites without admitting project or email attachments.
   const knowledgeSearchBody = z
     .object({
-      query: z.string().min(1).max(2000),
+      // Trimmed before the length check: a whitespace-only query is a
+      // mistake to name, not a search that answers nothing.
+      query: z.string().trim().min(1).max(2000),
       corpus: z.enum(['documents', 'web', 'all']).optional(),
       limit: z.number().int().min(1).max(50).optional(),
       minSimilarity: z.number().min(0).max(1).optional(),
@@ -638,8 +778,6 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       let access: KnowledgeAccessScope;
       if (projectId !== null) {
-        const ambiguous = await assertExplicitOrg(deps.sql, c);
-        if (ambiguous) return ambiguous;
         const project = await loadRestProject(deps.sql, auth, projectId);
         access = {
           userId: auth.userId,
@@ -740,15 +878,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   `;
 
   app.get('/knowledge-entries', async (c) => {
-    const status = c.req.query('status') ?? 'active';
-    if (status !== 'active' && status !== 'superseded') {
-      return invalidQueryResponse(
-        c,
-        'INVALID_QUERY',
-        'invalid query: "status" must be active or superseded',
-        [{ path: 'status', message: 'must be active or superseded' }],
-      );
-    }
+    const query = readQuery(c, {
+      ...PAGE_QUERY,
+      status: z.enum(['active', 'superseded']).optional(),
+    });
+    if (query instanceof Response) return query;
+    const status = query.status ?? 'active';
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
     const cursor = readIntegerCursor(c, 'knowledge-entries');
@@ -834,7 +969,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  app.get('/knowledge-entries/:id', async (c) => {
+  app.get('/knowledge-entries/:id', noQuery, async (c) => {
     const entry = await loadEntry(c, c.req.param('id'));
     if (entry === null) {
       return notFound(c, 'Entry not found', 'KNOWLEDGE_ENTRY_NOT_FOUND');
@@ -899,15 +1034,22 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     },
   });
 
-  app.get('/skills', async (c) => {
+  app.get('/skills', noQuery, async (c) => {
     return c.json(await listSkillsForViewer(await skillCaller(c)));
   });
 
-  app.get('/skills/:slug', async (c) => {
+  // A slug that could never name a bundle reads as absent on the reads and
+  // the delete — the 404 every family answers for a resource that is not
+  // there — while a PUT, which would CREATE it, says what is wrong with it.
+  app.get('/skills/:slug', noQuery, async (c) => {
+    const slug = c.req.param('slug');
+    if (!isValidSkillSlug(slug)) {
+      return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
+    }
     try {
       const skill = await readSkillForViewer({
         ...(await skillCaller(c)),
-        slug: c.req.param('slug'),
+        slug,
       });
       if (!skill) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       return c.json(skill);
@@ -917,30 +1059,21 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.put('/skills/:slug', async (c) => {
-    const body = z
-      .object({
-        description: z.string().min(1).max(1024),
-        body: z.string().max(1_000_000),
-        visibility: z.enum(['private', 'team', 'org']).optional(),
-        teams: z.array(z.string().max(128)).max(32).optional(),
-        icon: z.string().max(200).optional(),
-        labels: z.array(z.string().max(100)).max(50).optional(),
-      })
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, skillEditBodySchema, {
+      maxBytes: SKILL_BODY_BYTES,
+    });
+    if (body instanceof Response) return body;
     // The file layer trusts team ids (the app's library only offers real
     // ones); a machine caller can send anything, so they are checked here —
     // a share with a team that does not exist is a 400 naming the ids.
-    if (body.data.teams !== undefined && body.data.teams.length > 0) {
+    if (body.teams !== undefined && body.teams.length > 0) {
       const known = await deps.sql<{ id: string }[]>`
         SELECT "id" FROM "team"
         WHERE "organizationId" = ${c.get('organizationId')}
-          AND "id" = ANY(${body.data.teams})
+          AND "id" = ANY(${body.teams})
       `;
       const knownIds = new Set(known.map((row) => row.id));
-      const unknown = body.data.teams.filter((id) => !knownIds.has(id));
+      const unknown = body.teams.filter((id) => !knownIds.has(id));
       if (unknown.length > 0) {
         return c.json(
           {
@@ -951,16 +1084,22 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         );
       }
     }
+    // RFC 9110 §13.1.2: `If-None-Match: *` asks for a pure create — the
+    // write happens only when nothing is stored under the slug. No entity
+    // tag is issued, so a tag list can match nothing and the write goes
+    // ahead, as the RFC has it.
+    const createOnly = c.req.header('if-none-match')?.trim() === '*';
     try {
       const who = await skillCaller(c);
       const slug = c.req.param('slug');
       // Serialized with the upload lane and the app editor on the per-slug
-      // writer lock (`writer_lock.ts`).
+      // writer lock (`writer_lock.ts`); the create-only check runs inside
+      // it, so two racing creates cannot both win.
       const saved = await withSkillWriterLock(
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+        () => saveSkillForViewer({ ...who, slug, createOnly, ...body }),
       );
       return c.json(saved);
     } catch (error) {
@@ -969,9 +1108,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.delete('/skills/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    if (!isValidSkillSlug(slug)) {
+      return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
+    }
     try {
       const who = await skillCaller(c);
-      const slug = c.req.param('slug');
       const deleted = await withSkillWriterLock(
         deps.sql,
         c.get('organizationId'),

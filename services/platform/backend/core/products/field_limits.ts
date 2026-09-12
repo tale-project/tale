@@ -1,11 +1,9 @@
 /**
- * Server-side length caps for product string fields.
- *
- * Convex only enforces a 1 MB whole-document limit, so without these guards a
- * single mutation could persist megabyte-scale `name`/`description`/etc.
- * values. The limits are shared by every product write path (create, update,
- * bulk create, REST ingest, translation upsert) and mirrored client-side by
- * the create/edit dialog Zod schemas.
+ * The caps and vocabularies every product write shares. The domain
+ * service, the REST and app input schemas, the create/edit dialogs and the
+ * OpenAPI document all read them from here, so the limit a door names in
+ * its 400 is the limit the row is stored under — the service used to
+ * carry a second copy of the same numbers.
  */
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -20,6 +18,21 @@ export const PRODUCT_CATEGORY_MAX = 100;
 export const PRODUCT_CURRENCY_MAX = 3;
 /** Maximum length of a product image URL (characters). */
 export const PRODUCT_IMAGE_URL_MAX = 2048;
+
+/**
+ * Every ISO 4217 currency code the runtime's ICU data knows, uppercase.
+ * `currency` is documented as an ISO 4217 code and used to accept any three
+ * characters (`ZZZ`, `123`, `$`); one set serves the door, the dialogs and
+ * the OpenAPI description, with no dependency to keep current.
+ */
+export const ISO_4217_CURRENCIES: ReadonlySet<string> = new Set(
+  Intl.supportedValuesOf('currency'),
+);
+
+/** Whether `code` (any case) is an ISO 4217 currency the runtime knows. */
+export function isIso4217Currency(code: string): boolean {
+  return ISO_4217_CURRENCIES.has(code.toUpperCase());
+}
 
 interface ProductTranslationStringFields {
   name?: string;

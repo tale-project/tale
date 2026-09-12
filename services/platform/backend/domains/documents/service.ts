@@ -1,3 +1,4 @@
+import type { UploadPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -60,14 +61,14 @@ export class DocumentError extends Error {
   readonly code: string;
   /** 4xx for a refusal the caller can act on; 503 for a dependency (the
    * object store) that failed to answer — retryable, never the caller's. */
-  readonly status: 400 | 403 | 404 | 429 | 503;
+  readonly status: 400 | 403 | 404 | 409 | 429 | 503;
   /** Structured refusal payload (reasonCode, limitBytes…) for the client. */
   readonly data?: Record<string, unknown>;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 429 | 503 = 400,
+    status: 400 | 403 | 404 | 409 | 429 | 503 = 400,
     data?: Record<string, unknown>,
     /** The refusal this one wraps (a rate limit), for the door to answer. */
     options?: ErrorOptions,
@@ -462,7 +463,9 @@ export async function createDocumentFromUpload(
   `;
   const documentId = inserted[0]?.id;
   if (!documentId) {
-    throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+    throw new Error(
+      'DOCUMENT_CREATE_FAILED: the insert answered no row (Insert failed)',
+    );
   }
   await tx`
     UPDATE app.file_metadata SET document_id = ${documentId},
@@ -528,13 +531,33 @@ export async function updateDocument(
     mimeType?: string | null;
     extension?: string | null;
     sourceProvider?: string | null;
+    /** The `updatedAt` the caller last read: the update applies only while
+     * the row still carries it (the contacts/products idiom), so two
+     * writers editing the same document never silently overwrite each
+     * other. Absent skips the check. */
+    expectedUpdatedAt?: number;
   },
 ): Promise<{
   teamScopeChanged: boolean;
   folderChanged: boolean;
   fileRef: string | null;
 }> {
-  const doc = await requireDocumentWriteAccess(tx, auth, args.documentId);
+  // Locked for the transaction: the stale check below decides on the row
+  // this write then rewrites, not on a snapshot a concurrent edit already
+  // moved past.
+  const doc = await requireDocumentWriteAccess(tx, auth, args.documentId, {
+    lock: true,
+  });
+  if (
+    args.expectedUpdatedAt !== undefined &&
+    args.expectedUpdatedAt !== doc.updatedAt
+  ) {
+    throw new DocumentError(
+      'DOCUMENT_STALE',
+      'The document changed since it was read; reload it and merge before updating',
+      409,
+    );
+  }
   // Content-freeze guard (core/documents/access.ts doctrine): the bytes and
   // their identity fields move ONLY while uncontrolled — renames, folder
   // moves, team and metadata edits stay allowed in every record state.
@@ -926,7 +949,9 @@ export async function createHubDocument(
   `;
   const documentId = inserted[0]?.id;
   if (!documentId) {
-    throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+    throw new Error(
+      'DOCUMENT_CREATE_FAILED: the insert answered no row (Insert failed)',
+    );
   }
   if (file !== null) {
     await tx`
@@ -1019,6 +1044,79 @@ export async function listHubDocumentsPage(
     isDone,
     continueCursor: isDone || !last ? '' : `${last.createdAt}:${last.id}`,
   };
+}
+
+/** What the REST surface says about a file-backed document's place in the
+ * search corpus — read from the file row that owns the indexing state (the
+ * projection the app's document list renders), so a client can poll after
+ * a create or a `retry-indexing` instead of sleeping blind. */
+export interface DocumentIndexingState {
+  status:
+    | 'pending'
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'unsupported'
+    | 'skipped';
+  indexedAt?: number;
+  error?: string;
+  errorCode?: string;
+}
+
+/**
+ * The indexing state of every blob in `refs`, keyed by blob reference — one
+ * query for a page. A ref with no file row (an untracked blob) has no entry;
+ * a persisted opt-out reads as `skipped`, a file never queued as `pending`.
+ */
+export async function readDocumentIndexing(
+  sql: Sql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<Map<string, DocumentIndexingState>> {
+  const states = new Map<string, DocumentIndexingState>();
+  if (refs.length === 0) return states;
+  const rows = await sql<
+    {
+      storageRef: string;
+      ragStatus: string | null;
+      ragIndexedAt: number | null;
+      ragError: string | null;
+      ragErrorCode: string | null;
+      skipRagIndexing: boolean | null;
+    }[]
+  >`
+    SELECT storage_ref AS "storageRef", rag_status AS "ragStatus",
+           rag_indexed_at_ms::float8 AS "ragIndexedAt",
+           rag_error AS "ragError", rag_error_code AS "ragErrorCode",
+           skip_rag_indexing AS "skipRagIndexing"
+    FROM app.file_metadata
+    WHERE org_id = ${organizationId} AND storage_ref = ANY(${[...refs]})
+    ORDER BY created_at_ms ASC
+  `;
+  for (const row of rows) {
+    if (states.has(row.storageRef)) continue;
+    const status = ((): DocumentIndexingState['status'] => {
+      if (row.skipRagIndexing === true) return 'skipped';
+      switch (row.ragStatus) {
+        case 'queued':
+        case 'running':
+        case 'completed':
+        case 'failed':
+        case 'unsupported':
+          return row.ragStatus;
+        default:
+          return 'pending';
+      }
+    })();
+    states.set(row.storageRef, {
+      status,
+      ...(row.ragIndexedAt !== null ? { indexedAt: row.ragIndexedAt } : {}),
+      ...(row.ragError !== null ? { error: row.ragError } : {}),
+      ...(row.ragErrorCode !== null ? { errorCode: row.ragErrorCode } : {}),
+    });
+  }
+  return states;
 }
 
 /** The columns REST serves beyond the standard projection. */
@@ -1444,6 +1542,104 @@ export async function retryRagIndexingForDocument(
 // ---------------------------------------------------------------------------
 
 /**
+ * The type half of the organization's upload policy — the extension
+ * blocklist and allowlist, the MIME allowlist — against a resolved type.
+ * Shared by the bind gate below and the mint-time gate, so the two cannot
+ * drift: a name the bind would refuse is refused before the bytes travel.
+ */
+function assertUploadTypeAllowedByPolicy(
+  policy: UploadPolicyConfig,
+  contentType: string,
+  extension: string | undefined,
+): void {
+  const ext = extension?.toLowerCase().replace(/^\./, '');
+  if (ext !== undefined && (policy.blockedExtensions?.length ?? 0) > 0) {
+    const blocked = (policy.blockedExtensions ?? []).map((entry) =>
+      entry.toLowerCase().replace(/^\./, ''),
+    );
+    if (blocked.includes(ext)) {
+      throw new DocumentError(
+        'UPLOAD_POLICY_REJECTED',
+        `File type .${ext} is not allowed by organization policy`,
+        400,
+        { reasonCode: 'extension_blocked' },
+      );
+    }
+  }
+  if (ext !== undefined && (policy.allowedExtensions?.length ?? 0) > 0) {
+    const allowed = (policy.allowedExtensions ?? []).map((entry) =>
+      entry.toLowerCase().replace(/^\./, ''),
+    );
+    if (!allowed.includes(ext)) {
+      throw new DocumentError(
+        'UPLOAD_POLICY_REJECTED',
+        `File type .${ext} is not in the allowed list`,
+        400,
+        { reasonCode: 'extension_not_allowed' },
+      );
+    }
+  }
+  if ((policy.allowedMimeTypes?.length ?? 0) > 0) {
+    const match = (policy.allowedMimeTypes ?? []).some((pattern) =>
+      pattern.endsWith('/*')
+        ? contentType.startsWith(pattern.replace('/*', '/'))
+        : contentType === pattern,
+    );
+    if (!match) {
+      throw new DocumentError(
+        'UPLOAD_POLICY_REJECTED',
+        `MIME type ${contentType} is not allowed by organization policy`,
+        400,
+        { reasonCode: 'mime_not_allowed' },
+      );
+    }
+  }
+}
+
+/** The platform's own format allowlist (keyed on the file name's extension). */
+function assertUploadFormatSupported(
+  contentType: string,
+  fileName: string,
+): void {
+  if (!isAllowedDocumentUpload(contentType, fileName)) {
+    throw new DocumentError(
+      'UNSUPPORTED_FILE_TYPE',
+      `Unsupported file type. Supported extensions: ${[
+        ...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
+      ].join(', ')}.`,
+    );
+  }
+}
+
+/**
+ * The type-only half of `validateDocumentUploadForOrg` — the org policy's
+ * extension/MIME rules and the platform's format allowlist against a file
+ * NAME (and a declared type), with nothing that needs the bytes: no size
+ * cap, no volume quota, no `file:upload` charge. The upload mint runs it
+ * when the caller names the file, so a type the bind would refuse fails
+ * before anything is presigned — the bytes used to travel first, and the
+ * refused blob then sat in the bucket until the abandoned-upload sweep.
+ */
+export async function assertUploadTypeAllowedForOrg(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: { fileName: string; contentType?: string },
+): Promise<{ contentType: string; extension: string | undefined }> {
+  const contentType = resolveFileType(args.fileName, args.contentType ?? '');
+  const extension = extractExtension(args.fileName);
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'upload_policy',
+  );
+  if (policy?.enabled === true) {
+    assertUploadTypeAllowedByPolicy(policy, contentType, extension);
+  }
+  assertUploadFormatSupported(contentType, args.fileName);
+  return { contentType, extension };
+}
+
+/**
  * Gate a blob before it becomes a document's current file: org rate limit,
  * global size ceiling, the org's upload policy (extension/MIME/size caps +
  * per-user volume quota), then the global format allowlist. Throws
@@ -1493,48 +1689,7 @@ export async function validateDocumentUploadForOrg(
     'upload_policy',
   );
   if (policy?.enabled === true) {
-    const ext = extension?.toLowerCase().replace(/^\./, '');
-    if (ext !== undefined && (policy.blockedExtensions?.length ?? 0) > 0) {
-      const blocked = (policy.blockedExtensions ?? []).map((entry) =>
-        entry.toLowerCase().replace(/^\./, ''),
-      );
-      if (blocked.includes(ext)) {
-        throw new DocumentError(
-          'UPLOAD_POLICY_REJECTED',
-          `File type .${ext} is not allowed by organization policy`,
-          400,
-          { reasonCode: 'extension_blocked' },
-        );
-      }
-    }
-    if (ext !== undefined && (policy.allowedExtensions?.length ?? 0) > 0) {
-      const allowed = (policy.allowedExtensions ?? []).map((entry) =>
-        entry.toLowerCase().replace(/^\./, ''),
-      );
-      if (!allowed.includes(ext)) {
-        throw new DocumentError(
-          'UPLOAD_POLICY_REJECTED',
-          `File type .${ext} is not in the allowed list`,
-          400,
-          { reasonCode: 'extension_not_allowed' },
-        );
-      }
-    }
-    if ((policy.allowedMimeTypes?.length ?? 0) > 0) {
-      const match = (policy.allowedMimeTypes ?? []).some((pattern) =>
-        pattern.endsWith('/*')
-          ? contentType.startsWith(pattern.replace('/*', '/'))
-          : contentType === pattern,
-      );
-      if (!match) {
-        throw new DocumentError(
-          'UPLOAD_POLICY_REJECTED',
-          `MIME type ${contentType} is not allowed by organization policy`,
-          400,
-          { reasonCode: 'mime_not_allowed' },
-        );
-      }
-    }
+    assertUploadTypeAllowedByPolicy(policy, contentType, extension);
     // Per-MIME override wins over the global cap; longest prefix match.
     let limit = policy.maxFileSizeBytes ?? undefined;
     if ((policy.maxFileSizeLimits?.length ?? 0) > 0) {
@@ -1576,14 +1731,7 @@ export async function validateDocumentUploadForOrg(
     }
   }
 
-  if (!isAllowedDocumentUpload(contentType, args.fileName)) {
-    throw new DocumentError(
-      'UNSUPPORTED_FILE_TYPE',
-      `Unsupported file type. Supported extensions: ${[
-        ...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
-      ].join(', ')}.`,
-    );
-  }
+  assertUploadFormatSupported(contentType, args.fileName);
   return { contentType, extension };
 }
 

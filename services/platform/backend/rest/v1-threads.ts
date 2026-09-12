@@ -1,33 +1,41 @@
+import { randomUUID } from 'node:crypto';
+
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
 import {
   createThread,
+  MAX_THREAD_TITLE_CHARS,
+  renameThread,
   setThreadArchived,
+  stampCancelRequest,
   trashThread,
 } from '../domains/chat/threads.ts';
 import { resolveModelGovernanceForUser } from '../domains/governance/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import {
-  assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
   invalidBodyResponse,
   loadRestProject,
   mintCursor,
+  noQuery,
   notFound,
+  PAGE_QUERY,
+  parseBody,
   readIntegerCursor,
   readJsonBody,
   readKeysetCursor,
-  readOptionalJsonBody,
   readPageLimit,
-  restProjectAuth,
+  readQuery,
   type RestEnv,
+  restProjectAuth,
 } from './shared.ts';
 
 /**
@@ -54,8 +62,10 @@ const MAX_MODEL_ID = 200;
  * language subtag and optional further subtags (`de`, `en-GB`, `zh-Hant`). */
 const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
-/** The token usage a finished turn recorded, whitelisted to the counters the
- * turn writes — the stored JSON is the pipeline's own record. */
+/** The token usage a finished turn recorded, whitelisted to the counters
+ * the turn writes plus the catalog cost estimate it stamps beside them —
+ * the stored JSON is the pipeline's own record (timings, provider facts),
+ * and the wire carries only what a client can bill against. */
 function restMessageUsage(stored: unknown): Record<string, number> | null {
   if (!isRecord(stored)) return null;
   const usage: Record<string, number> = {};
@@ -64,6 +74,7 @@ function restMessageUsage(stored: unknown): Record<string, number> | null {
     'outputTokens',
     'cachedInputTokens',
     'reasoningTokens',
+    'costEstimateCents',
   ]) {
     const value = stored[key];
     if (typeof value === 'number' && Number.isFinite(value)) usage[key] = value;
@@ -92,7 +103,17 @@ interface RestThreadRow {
   harness: string | null;
   projectId: string | null;
   archived: boolean;
+  /** When the thread was archived; null while active (and for a thread
+   * archived before the moment was recorded). */
+  archivedAt: number | null;
   isShared: boolean | null;
+  /** A generation row exists — the turn is running (one join, never a
+   * query per row); null only from a reader that skipped the join. */
+  generating: boolean | null;
+  /** The accepted send is waiting for a worker (`GET …/generation` answers
+   * `queued`); the id it will stream into rides `streamId`. */
+  queuedSince: number | null;
+  streamId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -100,8 +121,19 @@ interface RestThreadRow {
 const REST_THREAD_COLUMNS = `
   t.id, t.title, tm.chat_type AS "kind",
   tm.harness, tm.project_id AS "projectId", tm.archived,
-  tm.is_shared AS "isShared", t.created_at_ms::float8 AS "createdAt",
+  tm.archived_at_ms::float8 AS "archivedAt",
+  tm.is_shared AS "isShared", (g.thread_id IS NOT NULL) AS generating,
+  tm.generation_queued_since_ms::float8 AS "queuedSince",
+  tm.stream_id AS "streamId",
+  t.created_at_ms::float8 AS "createdAt",
   t.updated_at_ms::float8 AS "updatedAt"
+`;
+
+/** The thread tables every REST read joins: the metadata sidecar and the
+ * at-most-one generation row whose existence is the `generating` flag. */
+const REST_THREAD_JOINS = `
+  JOIN app.thread_metadata tm ON tm.thread_id = t.id
+  LEFT JOIN app.generations g ON g.thread_id = t.id
 `;
 
 /**
@@ -143,7 +175,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * output cap, capabilities, price, tags — and marks the organization's
    * default pick for this key holder, so no caller has to keep a hand-made
    * table of model facts beside the id list. */
-  app.get('/models', async (c) => {
+  app.get('/models', noQuery, async (c) => {
     try {
       const models = await restModels(c);
       const governance = await resolveModelGovernanceForUser(deps.sql, {
@@ -192,12 +224,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * which only offers real pairs, wrong for a machine caller that sent a
    * typo and got a reply from a provider it never named. Null when the pair
    * is one `GET /models` lists; otherwise the 400 naming what is wrong. */
-  const refuseUnlistedProvider = async (
+  const refuseUnlistedProvider = (
     c: Context<RestEnv>,
+    models: Awaited<ReturnType<typeof restModels>>,
     modelId: string,
     providerSlug: string,
-  ): Promise<Response | null> => {
-    const models = await restModels(c);
+  ): Response | null => {
     if (!models.some((model) => model.providerSlug === providerSlug)) {
       return c.json(
         {
@@ -227,11 +259,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * door, against the same listing: a model the list does not carry is a
    * 400 now, not a 202 whose turn fails minutes later through the message
    * channel; a model two providers serve needs the caller to pick one. */
-  const resolveModelProvider = async (
+  const resolveModelProvider = (
     c: Context<RestEnv>,
+    models: Awaited<ReturnType<typeof restModels>>,
     modelId: string,
-  ): Promise<string | Response> => {
-    const models = await restModels(c);
+  ): string | Response => {
     const providers = [
       ...new Set(
         models
@@ -262,17 +294,20 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return only;
   };
 
-  const threadView = (row: RestThreadRow, generating: boolean) => ({
+  const threadView = (row: RestThreadRow) => ({
     id: row.id,
     ...(row.title !== null ? { title: row.title } : {}),
     kind: row.kind,
     ...(row.harness !== null ? { harness: row.harness } : {}),
     ...(row.projectId !== null ? { projectId: row.projectId } : {}),
     archived: row.archived,
+    ...(row.archivedAt !== null && row.archivedAt !== undefined
+      ? { archivedAt: row.archivedAt }
+      : {}),
     ...(row.isShared !== null ? { isShared: row.isShared } : {}),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    generating,
+    generating: row.generating === true,
   });
 
   const isGenerating = async (threadId: string): Promise<boolean> => {
@@ -292,7 +327,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const rows = await deps.sql<RestThreadRow[]>`
       SELECT ${deps.sql.unsafe(REST_THREAD_COLUMNS)}
       FROM app.threads t
-      JOIN app.thread_metadata tm ON tm.thread_id = t.id
+      ${deps.sql.unsafe(REST_THREAD_JOINS)}
       WHERE t.id = ${threadId} AND t.org_id = ${c.get('organizationId')}
         AND t.user_id = ${c.get('userId')} AND tm.status = 'active'
         AND tm.project_id IS NOT DISTINCT FROM ${projectId}
@@ -321,8 +356,6 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c: Context<RestEnv>,
         next: () => Promise<void>,
       ): Promise<Response | void> => {
-        const ambiguous = await assertExplicitOrg(deps.sql, c);
-        if (ambiguous) return ambiguous;
         try {
           const auth = await restProjectAuth(deps.sql, c);
           // Chat belongs to its user: readable-project members may create
@@ -342,6 +375,8 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     /** The key holder's own threads, newest activity first, keyset-paginated
      * (`cursor` = the previous page's `<updatedAt>:<id>`). */
     app.get(scope.collection, async (c) => {
+      const query = readQuery(c, PAGE_QUERY);
+      if (query instanceof Response) return query;
       const projectId = projectIdFor(c);
       const threadList = `threads:${projectId ?? 'org'}`;
       const limit = readPageLimit(c, { fallback: 25, max: 100 });
@@ -353,7 +388,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const rows = await deps.sql<RestThreadRow[]>`
       SELECT ${deps.sql.unsafe(REST_THREAD_COLUMNS)}
       FROM app.threads t
-      JOIN app.thread_metadata tm ON tm.thread_id = t.id
+      ${deps.sql.unsafe(REST_THREAD_JOINS)}
       WHERE t.org_id = ${c.get('organizationId')}
         AND t.user_id = ${c.get('userId')}
         AND tm.status = 'active' AND tm.hidden IS NOT true
@@ -366,13 +401,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     `;
       const page = rows.slice(0, limit);
       const isDone = rows.length <= limit;
-      const views = [];
-      for (const row of page) {
-        views.push(threadView(row, await isGenerating(row.id)));
-      }
       const last = page[page.length - 1];
       return c.json({
-        page: views,
+        page: page.map(threadView),
         isDone,
         continueCursor:
           isDone || !last
@@ -388,22 +419,23 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     /** Start a thread. REST creates DIRECT threads: a sandbox thread needs a
      * harness and a session this surface cannot drive. */
     app.post(scope.collection, async (c) => {
-      const body = z
-        .object({
-          title: z.string().min(1).max(MAX_TITLE).optional(),
-        })
-        .strict()
-        .safeParse(await readOptionalJsonBody(c));
-      if (!body.success) {
-        return invalidBodyResponse(c, body.error);
-      }
+      const body = await parseBody(
+        c,
+        z
+          .object({
+            title: z.string().min(1).max(MAX_TITLE).optional(),
+          })
+          .strict(),
+        { optional: true },
+      );
+      if (body instanceof Response) return body;
       try {
         const projectId = projectIdFor(c);
         const threadId = await createThread(deps.sql, {
           organizationId: c.get('organizationId'),
           userId: c.get('userId'),
           kind: 'direct',
-          ...(body.data.title !== undefined ? { title: body.data.title } : {}),
+          ...(body.title !== undefined ? { title: body.title } : {}),
           ...(projectId !== null
             ? { projectId, requireActiveProject: true }
             : {}),
@@ -414,11 +446,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
     });
 
-    app.get(scope.item, async (c) => {
+    app.get(scope.item, noQuery, async (c) => {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
-      return c.json(threadView(thread, await isGenerating(thread.id)));
+      return c.json(threadView(thread));
     });
 
     const restAuth = (c: Context<RestEnv>) => ({
@@ -427,34 +459,67 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       email: c.get('userEmail'),
     });
 
-    /** Archive or restore the thread — the app's own toggle, audited the
-     * same way. An archived thread stays readable and refuses sends. */
+    /** Archive, restore or rename the thread — the app's own toggle and
+     * rename, audited the same way. An archived thread stays readable and
+     * refuses sends. */
     app.patch(scope.item, async (c) => {
-      const body = z
-        .object({ archived: z.boolean() })
-        .strict()
-        .safeParse(await readJsonBody(c));
-      if (!body.success) {
-        return invalidBodyResponse(c, body.error);
-      }
+      const body = await parseBody(
+        c,
+        z
+          .object({
+            archived: z.boolean().optional(),
+            title: z
+              .string()
+              .trim()
+              .min(1)
+              .max(MAX_THREAD_TITLE_CHARS)
+              .optional(),
+          })
+          .strict()
+          .refine(
+            (patch) =>
+              patch.archived !== undefined || patch.title !== undefined,
+            { message: 'send archived, title, or both' },
+          ),
+      );
+      if (body instanceof Response) return body;
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
       try {
-        await setThreadArchived(
-          deps.sql,
-          restAuth(c),
-          thread.id,
-          body.data.archived,
-        );
+        if (body.title !== undefined) {
+          await renameThread(
+            deps.sql,
+            c.get('organizationId'),
+            c.get('userId'),
+            thread.id,
+            body.title,
+          );
+        }
+        if (body.archived !== undefined) {
+          await setThreadArchived(
+            deps.sql,
+            restAuth(c),
+            thread.id,
+            body.archived,
+          );
+        }
       } catch (error) {
         return domainErrorResponse(c, error);
       }
+      const archived = body.archived ?? thread.archived;
       return c.json(
-        threadView(
-          { ...thread, archived: body.data.archived },
-          await isGenerating(thread.id),
-        ),
+        threadView({
+          ...thread,
+          ...(body.title !== undefined ? { title: body.title } : {}),
+          archived,
+          archivedAt:
+            body.archived === undefined
+              ? thread.archivedAt
+              : archived
+                ? (thread.archivedAt ?? Date.now())
+                : null,
+        }),
       );
     });
 
@@ -488,6 +553,8 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     /** The conversation in sequence order, cursor-paginated (`cursor` = the
      * previous page's last `order`). */
     app.get(`${scope.item}/messages`, async (c) => {
+      const query = readQuery(c, PAGE_QUERY);
+      if (query instanceof Response) return query;
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
@@ -562,22 +629,52 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
     });
 
-    /** Poll the in-flight turn. ABSENCE of the generation row means idle —
-     * the reply, if any, is in the messages. */
-    app.get(`${scope.item}/generation`, async (c) => {
+    /** Poll the in-flight turn: `queued` while the accepted send waits for
+     * a worker (the 202's marker), `streaming` while the generation row
+     * exists — with the text and reasoning streamed so far, so a poller
+     * sees progress — and `idle` once neither is there: the reply, if any,
+     * is in the messages. */
+    app.get(`${scope.item}/generation`, noQuery, async (c) => {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
-      const rows = await deps.sql<{ messageId: string | null }[]>`
-      SELECT message_id AS "messageId" FROM app.generations
+      const rows = await deps.sql<
+        {
+          messageId: string | null;
+          text: string | null;
+          reasoning: string | null;
+          cancelRequested: boolean | null;
+          updatedAt: number | null;
+        }[]
+      >`
+      SELECT message_id AS "messageId", text, reasoning,
+             cancel_requested AS "cancelRequested",
+             updated_at_ms::float8 AS "updatedAt"
+      FROM app.generations
       WHERE thread_id = ${thread.id} LIMIT 1
     `;
       const generation = rows[0];
-      if (generation === undefined) return c.json({ status: 'idle' });
+      if (generation === undefined) {
+        if (thread.queuedSince !== null && thread.queuedSince !== undefined) {
+          return c.json({
+            status: 'queued',
+            ...(thread.streamId !== null && thread.streamId !== undefined
+              ? { messageId: thread.streamId }
+              : {}),
+          });
+        }
+        return c.json({ status: 'idle' });
+      }
       return c.json({
         status: generation.messageId === null ? 'queued' : 'streaming',
         ...(generation.messageId !== null
           ? { messageId: generation.messageId }
+          : {}),
+        text: generation.text ?? '',
+        reasoning: generation.reasoning ?? '',
+        cancelRequested: generation.cancelRequested === true,
+        ...(typeof generation.updatedAt === 'number'
+          ? { updatedAt: generation.updatedAt }
           : {}),
       });
     });
@@ -598,6 +695,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (generation === undefined) {
         return notFound(c, 'No turn is running.', 'CHAT_TURN_NOT_RUNNING');
       }
+      await stampCancelRequest(deps.sql, thread.id, generation.messageId);
       return c.json(
         {
           status: 'cancelling',
@@ -618,8 +716,22 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           // Trimmed before the length check: a blank prompt is a mistake
           // to name at the door, not a turn to spend on.
           content: z.string().trim().min(1).max(MAX_MESSAGE),
-          model: z.string().min(1).max(MAX_MODEL_ID),
+          model: z
+            .string({
+              error: (issue) =>
+                issue.input === undefined
+                  ? 'is required — GET /api/v1/models lists the models this key can send to'
+                  : undefined,
+            })
+            .min(1)
+            .max(MAX_MODEL_ID),
           providerSlug: z.string().min(1).max(MAX_MODEL_ID).optional(),
+          // The reasoning-depth pick the app's composer offers, on the same
+          // five-step scale; absent samples the model's default.
+          reasoningEffort: z.enum(EFFORT_LEVELS).optional(),
+          // The caller's reply ceiling for this turn — checked below
+          // against the listed model's own, so a turn can be bounded.
+          maxOutputTokens: z.number().int().min(1).optional(),
           locale: z
             .string()
             .max(20)
@@ -643,22 +755,54 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // Either way the pair leaves here resolved: the provider the caller
       // named, checked, or the one the listing serves the model from.
       let providerSlug: string;
+      let models: Awaited<ReturnType<typeof restModels>>;
       try {
+        models = await restModels(c);
         if (body.data.providerSlug !== undefined) {
-          const refusal = await refuseUnlistedProvider(
+          const refusal = refuseUnlistedProvider(
             c,
+            models,
             body.data.model,
             body.data.providerSlug,
           );
           if (refusal) return refusal;
           providerSlug = body.data.providerSlug;
         } else {
-          const resolved = await resolveModelProvider(c, body.data.model);
+          const resolved = resolveModelProvider(c, models, body.data.model);
           if (resolved instanceof Response) return resolved;
           providerSlug = resolved;
         }
       } catch (error) {
         return domainErrorResponse(c, error);
+      }
+      // The caller's ceiling never exceeds the model's own: the listing is
+      // the authority on what a reply may cost, and a cap above it would
+      // silently mean the model's.
+      const listed = models.find(
+        (model) =>
+          model.id === body.data.model && model.providerSlug === providerSlug,
+      );
+      const ceiling = listed?.maxOutputTokens;
+      if (
+        body.data.maxOutputTokens !== undefined &&
+        ceiling !== undefined &&
+        body.data.maxOutputTokens > ceiling
+      ) {
+        return c.json(
+          {
+            error: `invalid body: "maxOutputTokens" must be at most ${ceiling}, this model's own reply ceiling (GET /api/v1/models lists it)`,
+            code: 'INVALID_BODY',
+            data: {
+              issues: [
+                {
+                  path: 'maxOutputTokens',
+                  message: `must be at most ${ceiling}, this model's own reply ceiling`,
+                },
+              ],
+            },
+          },
+          400,
+        );
       }
       if (thread.archived) {
         return c.json(
@@ -691,19 +835,42 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         );
       }
 
-      await addJobInTx(deps.sql, 'chat.api_turn', {
-        organizationId: c.get('organizationId'),
-        userId: c.get('userId'),
-        threadId: thread.id,
-        expectedProjectId: projectId,
-        userText: body.data.content,
-        modelId: body.data.model,
-        // The resolved provider is the choice all the way to the wire — the
-        // 202 names it, and the turn refuses a pair that stops resolving
-        // rather than falling back to another connector.
-        providerSlug,
-        providerStrict: true,
-        ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
+      // The reply's id is minted HERE, before the turn exists, so the 202
+      // can name it: a caller that loses the response finds its reply by
+      // that id, and the poll answers `queued` (not `idle`) until the
+      // worker opens the turn — both in one transaction with the job, so
+      // the marker and the job that ends it can never disagree.
+      const assistantMessageId = randomUUID();
+      await deps.sql.begin(async (tx) => {
+        await tx`
+          UPDATE app.thread_metadata SET
+            generation_queued_since_ms = ${Date.now()},
+            stream_id = ${assistantMessageId}
+          WHERE thread_id = ${thread.id}
+        `;
+        await addJobInTx(tx, 'chat.api_turn', {
+          organizationId: c.get('organizationId'),
+          userId: c.get('userId'),
+          threadId: thread.id,
+          expectedProjectId: projectId,
+          userText: body.data.content,
+          modelId: body.data.model,
+          // The resolved provider is the choice all the way to the wire —
+          // the 202 names it, and the turn refuses a pair that stops
+          // resolving rather than falling back to another connector.
+          providerSlug,
+          providerStrict: true,
+          assistantMessageId,
+          ...(body.data.reasoningEffort !== undefined
+            ? { reasoningEffort: body.data.reasoningEffort }
+            : {}),
+          ...(body.data.maxOutputTokens !== undefined
+            ? { maxOutputTokens: body.data.maxOutputTokens }
+            : {}),
+          ...(body.data.locale !== undefined
+            ? { locale: body.data.locale }
+            : {}),
+        });
       });
 
       return c.json(
@@ -712,6 +879,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           status: 'accepted',
           model: body.data.model,
           providerSlug,
+          messageId: assistantMessageId,
           poll:
             projectId === null
               ? `/api/v1/threads/${thread.id}/generation`

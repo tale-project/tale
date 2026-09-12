@@ -213,6 +213,23 @@ describe('deliveryIdentity', () => {
     expect(other.key).not.toBe(first.key);
   });
 
+  it('matches an id by value, whichever header carried it', async () => {
+    // A gateway that re-stamps a vendor's delivery id under a canonical
+    // header name is the same delivery; the source still names the header.
+    const body = bytes('{}');
+    const vendor = await deliveryIdentity({
+      headers: new Headers({ 'X-GitHub-Delivery': 'gh-77' }),
+      body,
+    });
+    const restamped = await deliveryIdentity({
+      headers: new Headers({ 'Idempotency-Key': 'gh-77' }),
+      body,
+    });
+    expect(vendor.source).toBe('header:x-github-delivery');
+    expect(restamped.source).toBe('header:idempotency-key');
+    expect(restamped.key).toBe(vendor.key);
+  });
+
   it('the requested project is part of the identity in both lanes', async () => {
     const headers = new Headers({ 'Idempotency-Key': 'k-1' });
     const body = bytes('{}');

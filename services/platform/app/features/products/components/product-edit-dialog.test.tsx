@@ -139,4 +139,36 @@ describe('ProductEditDialog', () => {
     ).toBeInTheDocument();
     expect(nameInput).toHaveValue('Existing product');
   });
+
+  /** The door's currency rule, mirrored: any three characters used to pass
+   * the dialog and be refused by the platform. */
+  it('refuses a currency that is not an ISO 4217 code and sends a valid one uppercase', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onSuccess();
+    });
+
+    const { user } = renderDialog();
+    const currency = screen.getByLabelText('products.edit.labels.currency', {
+      exact: false,
+    });
+    await user.clear(currency);
+    await user.type(currency, 'zz');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    expect(
+      await screen.findByText('products.edit.validation.currency'),
+    ).toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    await user.clear(currency);
+    await user.type(currency, 'eur');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ currency: 'EUR' });
+  });
 });

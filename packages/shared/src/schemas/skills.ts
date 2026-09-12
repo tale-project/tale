@@ -53,6 +53,39 @@ export const MAX_SKILL_FRONTMATTER_BYTES = 16 * 1024;
 export const MAX_SKILL_MD_BYTES = 512 * 1024;
 
 /**
+ * What `serializeSkillMd` adds around the frontmatter and the body: the
+ * opening fence, the frontmatter's own final newline (the closing-fence
+ * match claims it, so the frontmatter cap never counts it), the closing
+ * fence with its blank line, and the newline appended to a body that does
+ * not end with one.
+ */
+const SKILL_MD_FRAME_BYTES = 4 + 1 + 5 + 1;
+
+/**
+ * Cap on the markdown body an editor may send, in UTF-8 bytes — the
+ * document cap less the frontmatter cap less the frame, so a body within
+ * it composes a `SKILL.md` the readers accept whatever the frontmatter
+ * carries. Publish THIS number: the composed document is what
+ * {@link MAX_SKILL_MD_BYTES} measures, and a caller cannot know the
+ * frontmatter's size.
+ */
+export const MAX_SKILL_BODY_BYTES =
+  MAX_SKILL_MD_BYTES - MAX_SKILL_FRONTMATTER_BYTES - SKILL_MD_FRAME_BYTES;
+
+/** Cap on the one-line `description`. */
+export const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
+
+/** Cap on one team id in `teams`. */
+export const MAX_SKILL_TEAM_ID_LENGTH = 128;
+
+/** Cap on the Iconify id in `icon`. */
+export const MAX_SKILL_ICON_LENGTH = 128;
+
+/** Caps on the display chips in `labels`: how many, and how long each. */
+export const MAX_SKILL_LABELS = 8;
+export const MAX_SKILL_LABEL_LENGTH = 40;
+
+/**
  * Caps on a bundle as staged into a sandbox session — SKILL.md plus every
  * asset beside it. Sized for knowledge packs (the largest shipped asset, an
  * OOXML schema, is ~240 KB): a bundle over these is a mis-import, not a
@@ -96,6 +129,14 @@ export function isSkillBundleExcludedSegment(segment: string): boolean {
 export const SKILL_VISIBILITIES = ['private', 'team', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];
 
+/**
+ * The visibilities a save may SET. `private` is not one of them: a bundle
+ * that already carries it keeps it when the edit omits `visibility`, but
+ * no edit surface may name it — the REST door's enum is exactly this list,
+ * so its refusal never advertises the retired value.
+ */
+export const SKILL_EDIT_VISIBILITIES = ['team', 'org'] as const;
+
 /** Cap on how many teams one skill may be shared with. */
 export const MAX_SKILL_TEAMS = 32;
 
@@ -107,17 +148,40 @@ export const MAX_SKILL_TEAMS = 32;
  */
 export const DEFAULT_SKILL_VISIBILITY: SkillVisibility = 'org';
 
-const skillSlugSchema = z
-  .string()
-  .min(1)
-  .max(MAX_SKILL_SLUG_LENGTH)
-  .regex(SKILL_SLUG_REGEX, {
-    message:
-      'name must be lowercase letters, digits and single hyphens (no leading, trailing or repeated hyphens)',
-  })
-  .refine((slug) => !RESERVED_SKILL_SLUGS.has(slug), {
-    message: 'name is reserved and cannot be used by an organization skill',
-  });
+/** How much of a refused slug an error echoes — a slug can be at most
+ * {@link MAX_SKILL_SLUG_LENGTH}, so anything past that is noise. */
+const SLUG_ECHO_LENGTH = MAX_SKILL_SLUG_LENGTH;
+
+/**
+ * Why `slug` is not a usable skill slug — ONE sentence naming the rule it
+ * breaks (length, charset, reserved name), the slug echoed truncated — or
+ * `null` when it is usable. The one describer every door and the
+ * frontmatter schema share, so a length problem is never reported as a
+ * charset problem.
+ */
+export function describeSkillSlugProblem(slug: string): string | null {
+  if (slug.length === 0) return 'the skill slug is empty';
+  const shown =
+    slug.length > SLUG_ECHO_LENGTH
+      ? `${slug.slice(0, SLUG_ECHO_LENGTH)}…`
+      : slug;
+  if (slug.length > MAX_SKILL_SLUG_LENGTH) {
+    return `"${shown}" is ${slug.length} characters long — a skill slug is at most ${MAX_SKILL_SLUG_LENGTH}`;
+  }
+  if (!SKILL_SLUG_REGEX.test(slug)) {
+    return `"${shown}" is not a valid skill slug — use lowercase letters, digits and single hyphens (no leading, trailing or repeated hyphens)`;
+  }
+  if (RESERVED_SKILL_SLUGS.has(slug)) {
+    const reserved = [...RESERVED_SKILL_SLUGS].map((s) => `"${s}"`).join(', ');
+    return `"${slug}" is reserved for upstream-managed skills (${reserved}) — pick another name`;
+  }
+  return null;
+}
+
+const skillSlugSchema = z.string().superRefine((slug, ctx) => {
+  const problem = describeSkillSlugProblem(slug);
+  if (problem !== null) ctx.addIssue({ code: 'custom', message: problem });
+});
 
 const PACKAGE_SPEC_MAX = 120;
 const PACKAGE_BUCKET_MAX = 20;
@@ -131,7 +195,7 @@ const PACKAGE_BUCKET_MAX = 20;
 export const skillFrontmatterSchema = z
   .object({
     name: skillSlugSchema,
-    description: z.string().min(1).max(1024),
+    description: z.string().min(1).max(MAX_SKILL_DESCRIPTION_LENGTH),
     /**
      * Who may see this skill inside the org. Absent means
      * {@link DEFAULT_SKILL_VISIBILITY}.
@@ -143,7 +207,7 @@ export const skillFrontmatterSchema = z
      * skill and meaningless on any other, so it is rejected there.
      */
     teams: z
-      .array(z.string().min(1).max(128))
+      .array(z.string().min(1).max(MAX_SKILL_TEAM_ID_LENGTH))
       .min(1)
       .max(MAX_SKILL_TEAMS)
       .optional(),
@@ -178,14 +242,17 @@ export const skillFrontmatterSchema = z
     /** Iconify id (`set:name`) shown on the skill's card. */
     icon: z
       .string()
-      .max(128)
+      .max(MAX_SKILL_ICON_LENGTH)
       .regex(/^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/, {
         message:
           'icon must be an Iconify id like "lucide:book-open" (a "set:name" pair of lowercase letters, digits and hyphens)',
       })
       .optional(),
     /** Display chips shown on the skill's card. */
-    labels: z.array(z.string().min(1).max(40)).max(8).optional(),
+    labels: z
+      .array(z.string().min(1).max(MAX_SKILL_LABEL_LENGTH))
+      .max(MAX_SKILL_LABELS)
+      .optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough()
@@ -343,5 +410,39 @@ export function skillFrontmatterToRaw(
 
 /** True when `slug` is a usable skill directory name. */
 export function isValidSkillSlug(slug: string): boolean {
-  return skillSlugSchema.safeParse(slug).success;
+  return describeSkillSlugProblem(slug) === null;
 }
+
+/** UTF-8 size of a body, measured the way {@link MAX_SKILL_BODY_BYTES}
+ * is stated — TextEncoder, so the same count holds in the browser. */
+export function skillBodyByteLength(body: string): number {
+  return new TextEncoder().encode(body).length;
+}
+
+/**
+ * The fields an edit surface sends, held to the SAME caps the frontmatter
+ * schema enforces — one definition for the app editor and the REST door,
+ * so neither can publish a cap the file layer then refuses. `visibility`
+ * is not here: each door picks its own enum ({@link SKILL_EDIT_VISIBILITIES}
+ * for the REST door; the app editor may still re-send `private` to keep a
+ * pre-existing private bundle). `icon` and `labels` take `null` to clear;
+ * an omitted field keeps its stored value.
+ */
+export const skillEditFields = {
+  description: z.string().min(1).max(MAX_SKILL_DESCRIPTION_LENGTH),
+  body: z
+    .string()
+    .refine((body) => skillBodyByteLength(body) <= MAX_SKILL_BODY_BYTES, {
+      message: `must be at most ${MAX_SKILL_BODY_BYTES} bytes of UTF-8`,
+    }),
+  teams: z
+    .array(z.string().min(1).max(MAX_SKILL_TEAM_ID_LENGTH))
+    .max(MAX_SKILL_TEAMS)
+    .optional(),
+  icon: z.string().max(MAX_SKILL_ICON_LENGTH).nullable().optional(),
+  labels: z
+    .array(z.string().min(1).max(MAX_SKILL_LABEL_LENGTH))
+    .max(MAX_SKILL_LABELS)
+    .nullable()
+    .optional(),
+};

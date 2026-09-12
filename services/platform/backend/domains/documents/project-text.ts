@@ -242,7 +242,7 @@ export async function ensureProjectTextDocument(
     if (documentId === undefined) {
       const winner = await lockProjectTextDocument(tx, auth, externalItemId);
       if (winner === null) {
-        throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+        throw new Error('DOCUMENT_CREATE_FAILED: the insert answered no row');
       }
       return refresh(winner);
     }

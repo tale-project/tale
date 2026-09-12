@@ -83,6 +83,11 @@ const RUN_TOOLS: ReadonlySet<string> = new Set([
   'run_deployed',
 ]);
 
+/** `test_automation` answers `status: 'invalid'` when the document could
+ * not even be tested — the call did not do its job; a report with failing
+ * tests is the verdict it was asked for, and an outcome. */
+const TEST_TOOL = 'test_automation';
+
 /**
  * Tools that persist or rebind an automation. Their in-app equivalents sit
  * behind the developer capability, so an API key meets the same bar here at
@@ -173,6 +178,7 @@ function isFailureShaped(tool: McpTool, result: unknown): boolean {
   if (RUN_TOOLS.has(tool.name)) {
     return result.status === 'error' || result.status === 'invalid';
   }
+  if (tool.name === TEST_TOOL) return result.status === 'invalid';
   return false;
 }
 
@@ -336,6 +342,7 @@ async function handleMessage(
           name: tool.name,
           description: tool.description,
           inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
         })),
       });
 
@@ -494,18 +501,4 @@ export async function handleMcpRequest(
   }
   const reply = await handleMessage(rc, message, options, state);
   return reply === null ? new Response(null, { status: 202 }) : respond(reply);
-}
-
-/** Only POST is served — this endpoint offers JSON responses, not an SSE
- * stream, and holds no session to DELETE. The 405 names the one verb it
- * takes (RFC 9110 §15.5.6) in the door's flat envelope, with no CORS
- * grant: a Bearer key is not ambient authority a browser page could use. */
-export function mcpGetNotAllowed(): Response {
-  return Response.json(
-    {
-      error: 'Use POST with a JSON-RPC message',
-      code: 'METHOD_NOT_ALLOWED',
-    },
-    { status: 405, headers: { allow: 'POST' } },
-  );
 }
