@@ -68,7 +68,7 @@ Every `tale-*` image is published on the GitHub Container Registry under the sam
 | `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
 | `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
 | `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
-| `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
+| `object-store` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
 One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. Pull that image yourself before the first `up`. The spawner warms it at boot and does not start answering on `:8003` until the pull finishes, so on a cold host the sandbox sits in `starting` for as long as several gigabytes take to arrive — `tale deploy` pulls it ahead of the stack for exactly this reason.

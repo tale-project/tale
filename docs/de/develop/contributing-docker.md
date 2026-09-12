@@ -22,7 +22,7 @@ Der Stack ist vollständig TypeScript — kein Python-Image. Jedes Image hat ein
 | `tale-sandbox-buildkitd`   | `services/sandbox-buildkitd/`   | Debian + BuildKit + redsocks |
 | `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | `maximhq/bifrost` wrapper    |
 
-Beide Datenbank-Container — `db` und `knowledge-db` — bauen aus demselben `tale-db`-ParadeDB-Image; der Unterschied ist die Datenbank, die jeder bedient. Das Application-Backend (`backend-api`, `backend-worker`) läuft mit demselben `tale-platform`-Image unter einer anderen `TALE_ROLE`, hat also kein eigenes Image. Der Blob-Store `tale-object-store` (`minio/minio`) und der Video-Ingestion-Sidecar `tale-bgutil-provider` sind gepinnte Upstream-Images ohne Dockerfile im Repo. Die Compose-Dateien im Repo-Root (`compose.yml` für Development, die CLI-generierte Produktions-Compose) referenzieren diese über `ghcr.io/tale-project/tale/<image>:<tag>`. Ein lokaler Build ersetzt den Registry-Pull mit einem `build:`-Block in Compose.
+Beide Datenbank-Container — `db` und `knowledge-db` — bauen aus demselben `tale-db`-ParadeDB-Image; der Unterschied ist die Datenbank, die jeder bedient. Das Application-Backend (`backend-api`, `backend-worker`) läuft mit demselben `tale-platform`-Image unter einer anderen `TALE_ROLE`, hat also kein eigenes Image. Der Blob-Store `tale-object-store` (`quay.io/minio/minio`) und der Video-Ingestion-Sidecar `tale-bgutil-provider` sind gepinnte Upstream-Images ohne Dockerfile im Repo. Die Compose-Dateien im Repo-Root (`compose.yml` für Development, die CLI-generierte Produktions-Compose) referenzieren diese über `ghcr.io/tale-project/tale/<image>:<tag>`. Ein lokaler Build ersetzt den Registry-Pull mit einem `build:`-Block in Compose.
 
 ## Lokal bauen
 

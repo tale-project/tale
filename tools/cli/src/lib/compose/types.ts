@@ -188,7 +188,7 @@ export function isStatefulService(name: string): name is StatefulService {
  * and the deploy pull list share.
  */
 export const THIRD_PARTY_IMAGES = {
-  'object-store': 'minio/minio:RELEASE.2025-04-22T22-12-26Z',
+  'object-store': 'quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z',
 } as const satisfies Partial<Record<ServiceName, string>>;
 
 /**
