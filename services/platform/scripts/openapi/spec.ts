@@ -749,7 +749,12 @@ export function buildSpec(): Json {
         'sends — every organization the holder belongs to, and ' +
         '`capabilities`: the gates a deployment knob decides rather than ' +
         'the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` ' +
-        'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate).',
+        'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate). ' +
+        '`key` names the API key that made the request — its `name` and ' +
+        'its `expiresAt` (epoch ms, `null` for a key minted to never ' +
+        'expire) — so an unattended caller can rotate before the 401. ' +
+        'Keys are minted, rotated and revoked in the app (Settings > API > ' +
+        'REST): no operation on this surface creates, lists or revokes one.',
       operationId: 'getMe',
       security: sec,
       parameters: [orgSlugHeaderParam],
@@ -1083,7 +1088,7 @@ export function buildSpec(): Json {
       operationId: 'uploadConversationSourceAttachment',
       summary: 'Stage attachment bytes for a source snapshot',
       description:
-        'Uploads at most 30 MiB to this organization and records an upload intent owned by this key user. Bind the storageId, actual size and filename in a snapshot within two hours. Previously receipted refs can be reused on later source revisions. There is no delete: a staged upload that is never bound is reclaimed lazily — after the two-hour window plus a 24-hour grace, on the next upload into the organization — while a bound ref lives and dies with its message.',
+        'Uploads at most 30 MiB to this organization and records an upload intent owned by this key user. Bind the storageId, actual size and filename in a snapshot within two hours. Previously receipted refs can be reused on later source revisions. There is no delete: a staged upload that is never bound is reclaimed lazily — after the two-hour window plus a 24-hour grace, on the next upload into the organization — while a bound ref lives and dies with its message. An empty body answers 400 `FILE_SIZE_INVALID` — there is nothing to stage — and one over the cap 413 `BODY_TOO_LARGE`.',
       requestBody: {
         required: true,
         content: {
@@ -1151,7 +1156,7 @@ export function buildSpec(): Json {
       responses: {
         '201': createdId('Created — the new document’s id'),
         '403': errorResponse(
-          'The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`)',
+          'The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
         ),
         '404': errorResponse(
           'The upload is absent, not owned by the key holder or already bound',
@@ -1209,7 +1214,7 @@ export function buildSpec(): Json {
           ref('Document'),
         ),
         '403': errorResponse(
-          'The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`)',
+          'The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`)',
         ),
         '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '409': errorResponse(
@@ -5884,9 +5889,35 @@ curl -H "Authorization: Bearer <api-key>" \\
         // ── The key holder ──
         Me: {
           type: 'object',
-          required: ['user', 'organization', 'organizations', 'capabilities'],
+          required: [
+            'user',
+            'organization',
+            'organizations',
+            'capabilities',
+            'key',
+          ],
           additionalProperties: false,
           properties: {
+            key: {
+              type: 'object',
+              nullable: true,
+              description:
+                'The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.',
+              required: ['id', 'name', 'expiresAt'],
+              additionalProperties: false,
+              properties: {
+                id: str,
+                name: {
+                  ...nullable(str),
+                  description: 'The name it was minted under',
+                },
+                expiresAt: {
+                  ...nullable(epochMs),
+                  description:
+                    'When the key stops authenticating; `null` for a key minted to never expire',
+                },
+              },
+            },
             user: {
               type: 'object',
               required: ['id', 'email'],

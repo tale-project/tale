@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   _resetStatusProbeCache,
   buildStatusFeed,
+  COMPONENT_IDS,
   type ComponentResult,
   probeServices,
   renderStatusJson,
@@ -20,16 +21,63 @@ function downResponse() {
   return new Response('boom', { status: 503 });
 }
 
-// Knowledge-base and web/document work run inside the backend tier, so the
-// one thing the platform server probes is that tier ("Application services").
-// The probe set is a single component; the wider OverallStatus vocabulary is
-// kept for a future per-subsystem probe.
+/** What `/health/stores` answers: the three flags, 200 when all up. */
+function storesResponse(
+  stores: { app_db: boolean; knowledge_db: boolean; object_store: boolean },
+  status?: number,
+) {
+  const ok = stores.app_db && stores.knowledge_db && stores.object_store;
+  return new Response(JSON.stringify({ ok, service: 'backend', stores }), {
+    status: status ?? (ok ? 200 : 503),
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+const ALL_STORES_UP = { app_db: true, knowledge_db: true, object_store: true };
+
+/**
+ * A fetch double that answers by route: the liveness probe (`/ping`) and
+ * the stores probe (`/health/stores`) are the two calls one round makes.
+ */
+function fetchBy(answers: {
+  ping?: () => Response | Promise<Response>;
+  stores?: () => Response | Promise<Response>;
+}) {
+  const doFetch = vi.fn((input: unknown) => {
+    const url = String(input);
+    if (url.endsWith('/ping')) {
+      return Promise.resolve((answers.ping ?? okResponse)());
+    }
+    if (url.endsWith('/health/stores')) {
+      return Promise.resolve(
+        (answers.stores ?? (() => storesResponse(ALL_STORES_UP)))(),
+      );
+    }
+    return Promise.reject(new Error(`unexpected probe URL ${url}`));
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return doFetch as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+}
+
+const allUp = () => fetchBy({});
+
+// The platform server probes the backend tier ("Application services") and,
+// through the backend's own stores verdict, the database and the object
+// store it depends on — three rows, one per component id, in page order.
 function allUpComponents(): ComponentResult[] {
-  return [{ id: 'backend', up: true }];
+  return COMPONENT_IDS.map((id) => ({ id, up: true }));
 }
 
 function allOperationalFeedComponents(): StatusFeedComponent[] {
-  return [{ id: 'backend', status: 'operational' }];
+  return COMPONENT_IDS.map((id) => ({ id, status: 'operational' as const }));
+}
+
+function allOutageFeedComponents(): StatusFeedComponent[] {
+  return COMPONENT_IDS.map((id) => ({ id, status: 'outage' as const }));
+}
+
+function upOf(result: StatusResult, id: string): boolean | undefined {
+  return result.components.find((c) => c.id === id)?.up;
 }
 
 beforeEach(() => {
@@ -45,21 +93,26 @@ afterEach(() => {
 });
 
 describe('probeServices', () => {
-  test('returns operational with the application up when the probe returns 2xx', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
+  test('returns operational with every component up when both probes answer', async () => {
+    const doFetch = allUp();
+    const result = await probeServices(doFetch);
     expect(result.overall).toBe('operational');
-    expect(result.components.map((c) => c.id)).toEqual(['backend']);
+    expect(result.components.map((c) => c.id)).toEqual([
+      'backend',
+      'database',
+      'object-store',
+    ]);
     expect(result.components.every((c) => c.up)).toBe(true);
-    // One probe (the backend's /ping) — every other lane runs inside it.
-    expect(doFetch).toHaveBeenCalledTimes(1);
+    // Two probes per round: the backend's liveness and its stores verdict.
+    expect(doFetch).toHaveBeenCalledTimes(2);
   });
 
-  test('returns outage with the application down when the probe returns non-2xx', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(downResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
+  test('returns outage with everything down when the backend answers non-2xx', async () => {
+    // A backend that is down cannot answer its stores verdict either.
+    const doFetch = fetchBy({ ping: downResponse, stores: downResponse });
+    const result = await probeServices(doFetch);
     expect(result.overall).toBe('outage');
-    expect(result.components.find((c) => c.id === 'backend')?.up).toBe(false);
+    expect(result.components.every((c) => !c.up)).toBe(true);
   });
 
   test('treats fetch rejection (timeout, ECONNREFUSED) as down', async () => {
@@ -69,73 +122,73 @@ describe('probeServices', () => {
     expect(result.components.every((c) => !c.up)).toBe(true);
   });
 
-  test('discards response body to avoid memory pressure from upstream', async () => {
+  test('discards the liveness response body to avoid memory pressure from upstream', async () => {
     const cancel = vi.fn(() => Promise.resolve());
     const body = { cancel } as unknown as ReadableStream;
     const res = new Response('ignored', { status: 200 });
     Object.defineProperty(res, 'body', { value: body });
 
-    const doFetch = vi.fn(() => Promise.resolve(res));
-    await probeServices(doFetch as unknown as typeof fetch);
+    await probeServices(fetchBy({ ping: () => res }));
 
     expect(cancel).toHaveBeenCalled();
   });
 
   test('serves from cache within TTL without re-probing', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const doFetch = allUp();
     let now = 1000;
     const clock = () => now;
 
-    await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(1);
+    await probeServices(doFetch, clock);
+    expect(doFetch).toHaveBeenCalledTimes(2);
 
     now = 2000; // 1s later — still inside the 5s TTL
-    await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(1);
+    await probeServices(doFetch, clock);
+    expect(doFetch).toHaveBeenCalledTimes(2);
   });
 
   test('re-probes after TTL expires', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const doFetch = allUp();
     let now = 1000;
     const clock = () => now;
 
-    await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(1);
+    await probeServices(doFetch, clock);
+    expect(doFetch).toHaveBeenCalledTimes(2);
 
     now = 7000; // 6s later — past the 5s TTL
-    await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(2);
+    await probeServices(doFetch, clock);
+    expect(doFetch).toHaveBeenCalledTimes(4);
   });
 
   test('caches success and failure independently — recovery after TTL', async () => {
     let downNow = true;
-    const doFetch = vi.fn(() =>
-      Promise.resolve(downNow ? downResponse() : okResponse()),
-    );
+    const doFetch = fetchBy({
+      ping: () => (downNow ? downResponse() : okResponse()),
+      stores: () => (downNow ? downResponse() : storesResponse(ALL_STORES_UP)),
+    });
     let now = 1000;
     const clock = () => now;
 
-    const first = await probeServices(
-      doFetch as unknown as typeof fetch,
-      clock,
-    );
+    const first = await probeServices(doFetch, clock);
     expect(first.overall).toBe('outage');
 
     downNow = false;
     now = 7000;
-    const second = await probeServices(
-      doFetch as unknown as typeof fetch,
-      clock,
-    );
+    const second = await probeServices(doFetch, clock);
     expect(second.overall).toBe('operational');
   });
 
   test('single-flight: concurrent callers share one in-flight probe round', async () => {
     const resolvers: Array<(res: Response) => void> = [];
     const doFetch = vi.fn(
-      () =>
+      (input: unknown) =>
         new Promise<Response>((resolve) => {
-          resolvers.push(resolve);
+          resolvers.push((res) => {
+            resolve(
+              String(input).endsWith('/health/stores')
+                ? storesResponse(ALL_STORES_UP)
+                : res,
+            );
+          });
         }),
     );
 
@@ -144,8 +197,8 @@ describe('probeServices', () => {
     const c = probeServices(doFetch as unknown as typeof fetch);
 
     // All three callers should be waiting on the same probe round —
-    // exactly one fetch (the single backend), not three.
-    expect(doFetch).toHaveBeenCalledTimes(1);
+    // exactly one round (its two probes), not three.
+    expect(doFetch).toHaveBeenCalledTimes(2);
 
     for (const r of resolvers) r(okResponse());
     const [ra, rb, rc] = await Promise.all([a, b, c]);
@@ -154,10 +207,109 @@ describe('probeServices', () => {
   });
 });
 
+/**
+ * The stores rows come from the backend's `/health/stores` body — a 503
+ * there still carries the per-store flags, so the shape is the verdict,
+ * and anything that is not that shape reads as every store down.
+ */
+describe('the stores probe', () => {
+  test('reads the per-store flags from a 200 body', async () => {
+    const doFetch = fetchBy({
+      stores: () =>
+        storesResponse({
+          app_db: true,
+          knowledge_db: true,
+          object_store: true,
+        }),
+    });
+    const result = await probeServices(doFetch);
+    expect(upOf(result, 'database')).toBe(true);
+    expect(upOf(result, 'object-store')).toBe(true);
+    const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
+    expect(urls).toContain('http://backend-api:3005/health/stores');
+  });
+
+  test('reads the flags from the 503 the backend answers once a store is down — one store down is a partial degradation', async () => {
+    const doFetch = fetchBy({
+      stores: () =>
+        storesResponse({
+          app_db: true,
+          knowledge_db: true,
+          object_store: false,
+        }),
+    });
+    const result = await probeServices(doFetch);
+    expect(result.overall).toBe('degraded');
+    expect(upOf(result, 'backend')).toBe(true);
+    expect(upOf(result, 'database')).toBe(true);
+    expect(upOf(result, 'object-store')).toBe(false);
+  });
+
+  test('folds the app database and the knowledge database into the one database row', async () => {
+    const doFetch = fetchBy({
+      stores: () =>
+        storesResponse({
+          app_db: true,
+          knowledge_db: false,
+          object_store: true,
+        }),
+    });
+    const result = await probeServices(doFetch);
+    expect(result.overall).toBe('degraded');
+    expect(upOf(result, 'database')).toBe(false);
+    expect(upOf(result, 'object-store')).toBe(true);
+  });
+
+  test.each([
+    ['not JSON', () => new Response('<html>', { status: 200 })],
+    [
+      'a flag missing',
+      () =>
+        new Response(JSON.stringify({ stores: { app_db: true } }), {
+          status: 200,
+        }),
+    ],
+    [
+      'a flag that is not a boolean',
+      () =>
+        new Response(
+          JSON.stringify({
+            stores: { app_db: 'yes', knowledge_db: true, object_store: true },
+          }),
+          { status: 200 },
+        ),
+    ],
+    [
+      'an unexpected status',
+      () =>
+        new Response(JSON.stringify({ stores: ALL_STORES_UP }), {
+          status: 302,
+        }),
+    ],
+    [
+      'a body over the cap',
+      () =>
+        new Response(
+          JSON.stringify({ stores: ALL_STORES_UP, pad: 'x'.repeat(2048) }),
+          { status: 200 },
+        ),
+    ],
+  ])(
+    'reads %s as every store down, with the backend row untouched',
+    async (_label, stores) => {
+      const result = await probeServices(fetchBy({ stores }));
+      expect(upOf(result, 'backend')).toBe(true);
+      expect(upOf(result, 'database')).toBe(false);
+      expect(upOf(result, 'object-store')).toBe(false);
+      expect(result.overall).toBe('degraded');
+    },
+  );
+});
+
 describe('buildStatusFeed', () => {
   const checkedAt = '2026-05-11T13:45:07.123Z';
 
-  test('up → operational, component operational', () => {
+  test('up → operational, every component operational', () => {
     const raw: StatusResult = {
       overall: 'operational',
       components: allUpComponents(),
@@ -173,7 +325,7 @@ describe('buildStatusFeed', () => {
   test('down → outage overall, component outage', () => {
     const raw: StatusResult = {
       overall: 'outage',
-      components: [{ id: 'backend', up: false }],
+      components: COMPONENT_IDS.map((id) => ({ id, up: false })),
       checkedAt,
     };
     const feed = buildStatusFeed(raw);
@@ -181,6 +333,23 @@ describe('buildStatusFeed', () => {
     expect(feed.components.find((c) => c.id === 'backend')?.status).toBe(
       'outage',
     );
+  });
+
+  test('keeps the component order the page lists', () => {
+    const raw: StatusResult = {
+      overall: 'degraded',
+      components: [
+        { id: 'backend', up: true },
+        { id: 'database', up: true },
+        { id: 'object-store', up: false },
+      ],
+      checkedAt,
+    };
+    expect(buildStatusFeed(raw).components).toEqual([
+      { id: 'backend', status: 'operational' },
+      { id: 'database', status: 'operational' },
+      { id: 'object-store', status: 'outage' },
+    ]);
   });
 });
 
@@ -205,12 +374,28 @@ describe('renderStatusJson', () => {
     const feed: StatusFeed = {
       status: 'outage',
       checkedAt,
-      components: [{ id: 'backend', status: 'outage' }],
+      components: allOutageFeedComponents(),
     };
     const raw = renderStatusJson(feed);
     expect(JSON.parse(raw)).toEqual(feed);
     expect(raw).toContain('"status":"outage"');
     expect(raw).not.toContain('"status":"operational"');
+  });
+
+  test('names the three documented component ids and nothing else', () => {
+    const feed: StatusFeed = {
+      status: 'operational',
+      checkedAt,
+      components: allOperationalFeedComponents(),
+    };
+    const parsed: { components: { id: string }[] } = JSON.parse(
+      renderStatusJson(feed),
+    );
+    expect(parsed.components.map((c) => c.id)).toEqual([
+      'backend',
+      'database',
+      'object-store',
+    ]);
   });
 });
 
@@ -223,7 +408,7 @@ describe('renderStatusPage', () => {
 
   const outageFeed: StatusFeed = {
     status: 'outage',
-    components: [{ id: 'backend', status: 'outage' }],
+    components: allOutageFeedComponents(),
     checkedAt: baseFeed.checkedAt,
   };
 
@@ -276,17 +461,21 @@ describe('renderStatusPage', () => {
     expect(html).toContain('<meta name="robots" content="noindex">');
   });
 
-  test('renders the neutral English component label — no stack names leaked', () => {
+  test('renders the neutral English component labels — no stack names leaked', () => {
     const html = renderStatusPage(baseFeed, '');
-    expect(html).toContain('Application');
-    expect(html).not.toContain('Convex');
-    expect(html).not.toContain('RAG');
-    expect(html).not.toContain('Crawler');
+    expect(html).toContain('Application services');
+    expect(html).toContain('Database');
+    expect(html).toContain('File storage');
+    for (const stack of ['Convex', 'RAG', 'Crawler', 'Postgres', 'S3']) {
+      expect(html).not.toContain(stack);
+    }
   });
 
-  test('renders the German component label for de locale', () => {
+  test('renders the German component labels for de locale', () => {
     const html = renderStatusPage(baseFeed, 'de');
     expect(html).toContain('Anwendungsdienste');
+    expect(html).toContain('Datenbank');
+    expect(html).toContain('Dateispeicher');
   });
 
   test('shows the status word for the component (not color alone)', () => {
@@ -312,51 +501,92 @@ describe('renderStatusPage', () => {
   test('marks status dots aria-hidden so screen readers rely on the text label', () => {
     const html = renderStatusPage(baseFeed, '');
     // Every dot element carries aria-hidden so the visible status text is
-    // the canonical signal for assistive tech.
+    // the canonical signal for assistive tech — one dot per component.
     const dots = html.match(/<span class="dot"[^>]*>/g) ?? [];
-    expect(dots.length).toBe(1);
+    expect(dots.length).toBe(COMPONENT_IDS.length);
     for (const dot of dots) expect(dot).toContain('aria-hidden="true"');
+  });
+
+  test('shows a degraded page with the one down row marked, the rest up', () => {
+    const html = renderStatusPage(
+      {
+        status: 'degraded',
+        components: [
+          { id: 'backend', status: 'operational' },
+          { id: 'database', status: 'operational' },
+          { id: 'object-store', status: 'outage' },
+        ],
+        checkedAt: baseFeed.checkedAt,
+      },
+      '',
+    );
+    expect(html).toContain('Partial degradation');
+    expect(html.match(/>Operational</g)?.length).toBe(2);
+    expect(html.match(/>Unavailable</g)?.length).toBe(1);
   });
 });
 
 describe('backend component', () => {
-  test('probes /ping on the configured backend', async () => {
+  test('probes /ping and /health/stores on the configured backend', async () => {
     vi.stubEnv('TALE_BACKEND_URL', 'http://backend-api:3005/');
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.components.map((c) => c.id)).toEqual(['backend']);
+    const doFetch = allUp();
+    const result = await probeServices(doFetch);
+    expect(result.components.map((c) => c.id)).toEqual([
+      'backend',
+      'database',
+      'object-store',
+    ]);
     expect(result.overall).toBe('operational');
     const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
     // Trailing slash normalized — never `//ping`.
     expect(urls).toContain('http://backend-api:3005/ping');
+    expect(urls).toContain('http://backend-api:3005/health/stores');
   });
 
   test('falls back to loopback when TALE_BACKEND_URL is unset', async () => {
-    // A missing env var must not silently drop the only probe: an empty
+    // A missing env var must not silently drop the probes: an empty
     // component list would aggregate to "operational" and hide an outage.
     vi.stubEnv('TALE_BACKEND_URL', '');
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.components.map((c) => c.id)).toEqual(['backend']);
+    const doFetch = allUp();
+    const result = await probeServices(doFetch);
+    expect(result.components.map((c) => c.id)).toEqual([
+      'backend',
+      'database',
+      'object-store',
+    ]);
     const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
     expect(urls).toContain('http://127.0.0.1:3005/ping');
+    expect(urls).toContain('http://127.0.0.1:3005/health/stores');
   });
 
   test('a down backend reads as an outage', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(downResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
+    const doFetch = fetchBy({ ping: downResponse, stores: downResponse });
+    const result = await probeServices(doFetch);
     expect(result.overall).toBe('outage');
-    expect(result.components.find((c) => c.id === 'backend')?.up).toBe(false);
+    expect(upOf(result, 'backend')).toBe(false);
   });
 
-  test('renders a stack-free label in every shipped locale', () => {
+  test('renders a stack-free label for every component in every shipped locale', () => {
     const feed = buildStatusFeed({
       overall: 'outage',
-      components: [{ id: 'backend', up: false }],
+      components: COMPONENT_IDS.map((id) => ({ id, up: false })),
       checkedAt: new Date(0).toISOString(),
     });
-    expect(renderStatusPage(feed, 'en')).toContain('Application services');
-    expect(renderStatusPage(feed, 'de')).toContain('Anwendungsdienste');
-    expect(renderStatusPage(feed, 'fr')).toContain('Services applicatifs');
+    const en = renderStatusPage(feed, 'en');
+    const de = renderStatusPage(feed, 'de');
+    const fr = renderStatusPage(feed, 'fr');
+    for (const label of ['Application services', 'Database', 'File storage']) {
+      expect(en).toContain(label);
+    }
+    for (const label of ['Anwendungsdienste', 'Datenbank', 'Dateispeicher']) {
+      expect(de).toContain(label);
+    }
+    for (const label of [
+      'Services applicatifs',
+      'Base de données',
+      'Stockage de fichiers',
+    ]) {
+      expect(fr).toContain(label);
+    }
   });
 });

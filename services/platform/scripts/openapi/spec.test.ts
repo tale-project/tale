@@ -1331,24 +1331,16 @@ describe('the error envelope', () => {
 });
 
 /**
- * Codes the registry carries that no operation names yet — a client
- * cannot learn from the document which call answers them. Each is debt:
- * name it in the response description of the operation whose domain call
- * throws it (or leave the registry, when no REST route can provoke it),
- * and delete it here. A NEW code must be named where it is answered — the
- * guard below refuses a registry entry that is neither named nor listed.
+ * Codes the registry carries that no operation names — a client could
+ * not learn from the document which call answers them. The list was paid
+ * down to nothing in the 2026-09-12 campaign and stays empty: a NEW code
+ * is named in the response description of the operation whose domain call
+ * throws it (or leaves the registry for `APP_ONLY_CODES`, when no REST
+ * route can provoke it). The guard below refuses a registry entry that is
+ * neither named nor listed here, and refuses a listed entry that gained a
+ * home — so an entry here is a conscious, temporary debt, never a default.
  */
-const UNNAMED_CODES: ReadonlySet<string> = new Set<string>([
-  'BLOB_ALREADY_REGISTERED',
-  'BLOB_REF_INVALID',
-  'CONTACT_EMAIL_REQUIRED',
-  'FILE_SIZE_INVALID',
-  'FOLDER_NOT_ACCESSIBLE',
-  'FORBIDDEN',
-  'ORG_NOT_FOUND',
-  'ORG_SLUG_RETIRING',
-  'WRITE_FAILED',
-]);
+const UNNAMED_CODES: ReadonlySet<string> = new Set<string>([]);
 
 describe('every error code has a home in the document', () => {
   const codeMentions = (text: unknown): string[] =>

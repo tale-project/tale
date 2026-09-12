@@ -97,7 +97,7 @@
       "get": {
         "tags": ["Organization"],
         "summary": "Who this key acts as",
-        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob decides rather than the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate).",
+        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob decides rather than the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
         "operationId": "getMe",
         "security": [
           {
@@ -2667,7 +2667,7 @@
         ],
         "operationId": "uploadConversationSourceAttachment",
         "summary": "Stage attachment bytes for a source snapshot",
-        "description": "Uploads at most 30 MiB to this organization and records an upload intent owned by this key user. Bind the storageId, actual size and filename in a snapshot within two hours. Previously receipted refs can be reused on later source revisions. There is no delete: a staged upload that is never bound is reclaimed lazily — after the two-hour window plus a 24-hour grace, on the next upload into the organization — while a bound ref lives and dies with its message.",
+        "description": "Uploads at most 30 MiB to this organization and records an upload intent owned by this key user. Bind the storageId, actual size and filename in a snapshot within two hours. Previously receipted refs can be reused on later source revisions. There is no delete: a staged upload that is never bound is reclaimed lazily — after the two-hour window plus a 24-hour grace, on the next upload into the organization — while a bound ref lives and dies with its message. An empty body answers 400 `FILE_SIZE_INVALID` — there is nothing to stage — and one over the cap 413 `BODY_TOO_LARGE`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3229,7 +3229,7 @@
             }
           },
           "403": {
-            "description": "The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3695,7 +3695,7 @@
             }
           },
           "403": {
-            "description": "The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "description": "The key holder’s role cannot write documents, `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`), or `folderId` names a Hub folder shared with a team the key holder is not in (`FOLDER_NOT_ACCESSIBLE`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -30645,9 +30645,7 @@
               "AUTOMATION_TRIGGER_INVALID",
               "AUTOMATION_VERSION_NOT_DEPLOYED",
               "AUTOMATION_VERSION_UNKNOWN",
-              "BLOB_ALREADY_REGISTERED",
               "BLOB_NOT_FOUND",
-              "BLOB_REF_INVALID",
               "BODY_TOO_LARGE",
               "BROWSER_SESSION_NOT_FOUND",
               "CHAT_MODEL_AMBIGUOUS",
@@ -30661,7 +30659,6 @@
               "CONTACT_AMBIGUOUS",
               "CONTACT_DUPLICATE_EMAIL",
               "CONTACT_DUPLICATE_EXTERNAL_ID",
-              "CONTACT_EMAIL_REQUIRED",
               "CONTACT_IDENTITY_REQUIRED",
               "CONTACT_NOT_FOUND",
               "CONTACT_STALE",
@@ -30693,7 +30690,6 @@
               "FOLDER_NAME_TAKEN",
               "FOLDER_NOT_ACCESSIBLE",
               "FOLDER_NOT_FOUND",
-              "FORBIDDEN",
               "FORBIDDEN_DEPLOYMENT_EDITOR",
               "FORBIDDEN_INSTANCE_ADMIN",
               "HTTP_ERROR",
@@ -30720,10 +30716,8 @@
               "OBJECT_STORE_UNAVAILABLE",
               "OBJECT_STORE_UNCONFIGURED",
               "ORG_FORBIDDEN",
-              "ORG_NOT_FOUND",
               "ORG_SLUG_INVALID",
               "ORG_SLUG_REQUIRED",
-              "ORG_SLUG_RETIRING",
               "PRODUCT_NOT_FOUND",
               "PRODUCT_STALE",
               "PROJECT_AGENT_CONNECTOR_UNKNOWN",
@@ -30775,8 +30769,7 @@
               "WEBSITE_DOMAIN_NOT_CRAWLABLE",
               "WEBSITE_DUPLICATE_DOMAIN",
               "WEBSITE_INVALID_LIST_URL",
-              "WEBSITE_NOT_FOUND",
-              "WRITE_FAILED"
+              "WEBSITE_NOT_FOUND"
             ],
             "description": "A stable refusal code — every refusal the door itself makes carries one, and so does every domain refusal it lets through. The set is additive: a new code is a minor change, so treat a value you do not know as a generic refusal of the status you got."
           },
@@ -31708,9 +31701,38 @@
       },
       "Me": {
         "type": "object",
-        "required": ["user", "organization", "organizations", "capabilities"],
+        "required": [
+          "user",
+          "organization",
+          "organizations",
+          "capabilities",
+          "key"
+        ],
         "additionalProperties": false,
         "properties": {
+          "key": {
+            "type": "object",
+            "nullable": true,
+            "description": "The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.",
+            "required": ["id", "name", "expiresAt"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "nullable": true,
+                "description": "The name it was minted under"
+              },
+              "expiresAt": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "When the key stops authenticating; `null` for a key minted to never expire",
+                "nullable": true
+              }
+            }
+          },
           "user": {
             "type": "object",
             "required": ["id", "email"],

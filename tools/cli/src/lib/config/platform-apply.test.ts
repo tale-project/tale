@@ -153,6 +153,27 @@ async function fixture(
           ...(current?.config as object | undefined),
           ...fields,
         };
+      if (id === 'knowledge-embedding') {
+        // The platform's own floor rule (`writeKnowledgeEmbedding`): a
+        // save that omits `minSimilarity` keeps the stored value, an
+        // explicit null clears it, a number sets it.
+        const { minSimilarity: declared, ...rest } = fields as {
+          minSimilarity?: number | null;
+        } & Record<string, unknown>;
+        const stored = (
+          current?.config as { minSimilarity?: number } | undefined
+        )?.minSimilarity;
+        const floor =
+          declared === undefined
+            ? stored
+            : declared === null
+              ? undefined
+              : declared;
+        config = {
+          ...rest,
+          ...(floor === undefined ? {} : { minSimilarity: floor }),
+        };
+      }
       mutate(id, config);
       writes.push(id);
       controls.afterWrite(id);
@@ -257,6 +278,68 @@ describe('one general native configuration lifecycle', () => {
     expect(f.entries.get('branding')?.config).toEqual({
       accentColor: '#112233',
     });
+  });
+
+  test('speaks the platform’s three ways about the embedding floor: a number sets it, an omitted one keeps it, null clears it', async () => {
+    // The platform keeps a stored `minSimilarity` when a save omits it and
+    // clears it only on an explicit null, so the declaration must be able
+    // to say "leave it", "set it" and "clear it" — and converge on each.
+    const embedding = () =>
+      platformConfigurationFixture().resources.find(
+        (entry) => entry.kind === 'knowledge-embedding',
+      )!;
+    const declaring = (config: object) =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [{ kind: 'knowledge-embedding', config }],
+      });
+    const f = await fixture(declaring(embedding().config));
+    // An operator set the floor by hand, in the file.
+    f.mutate('knowledge-embedding', {
+      ...embedding().config,
+      minSimilarity: 0.55,
+    });
+
+    // Omitted: the stored floor is not the declaration's concern.
+    const kept = await planPlatformConfiguration(f.configuration, f.client);
+    expect(kept.resources[0]?.action).toBe('unchanged');
+    expect(kept.resources[0]?.effects).toEqual([]);
+    expect(
+      (await readPlatformConfiguration(f.configuration, f.client)).resources[0]
+        ?.matches,
+    ).toBe(true);
+
+    // A number: set exactly, and converge on it.
+    const raised = declaring({ ...embedding().config, minSimilarity: 0.6 });
+    const raisePlan = await planPlatformConfiguration(raised, f.client);
+    expect(raisePlan.resources[0]?.action).toBe('update');
+    expect(raisePlan.resources[0]?.effects).toEqual([
+      'embedding-configuration',
+    ]);
+    await applyPlatformConfiguration(raised, raisePlan, f.client, f.receipt);
+    expect(f.entries.get('knowledge-embedding')?.config).toEqual({
+      ...embedding().config,
+      minSimilarity: 0.6,
+    });
+
+    // Null: the one way to clear a floor the file holds.
+    const cleared = declaring({ ...embedding().config, minSimilarity: null });
+    const clearPlan = await planPlatformConfiguration(cleared, f.client);
+    expect(clearPlan.resources[0]?.action).toBe('update');
+    const before = f.writes.length;
+    await applyPlatformConfiguration(cleared, clearPlan, f.client, f.receipt);
+    expect(f.writes.slice(before)).toEqual(['knowledge-embedding']);
+    expect(f.entries.get('knowledge-embedding')?.config).toEqual(
+      embedding().config,
+    );
+    // …and it converges: the same declaration replays without a write.
+    expect(
+      (await planPlatformConfiguration(cleared, f.client)).resources[0]?.action,
+    ).toBe('unchanged');
+    expect(
+      (await readPlatformConfiguration(cleared, f.client)).resources[0]
+        ?.matches,
+    ).toBe(true);
   });
 
   test('rejects a stale native setting before writing any resource', async () => {

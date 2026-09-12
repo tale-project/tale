@@ -23,7 +23,7 @@ export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```
 
-The key acts as you in the organization selected by `TALE_ORG_SLUG`; your membership and role determine what it may do. The organization header is required on writes and all project routes when you belong to several organizations. Store the key like a password.
+The key acts as you in the organization selected by `TALE_ORG_SLUG`; your membership and role determine what it may do. When you belong to several organizations, the organization header is required on every request, reads included — without it the API answers `400` with `"code": "ORG_SLUG_REQUIRED"` and lists the slugs you may send. Store the key like a password.
 
 ## Step 2 — Smoke-test with curl
 

@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { withOAuthConformance } from './oauth-conformance.ts';
+import {
+  oauthTokenPrecheck,
+  withDiscoveryConformance,
+  withOAuthConformance,
+} from './oauth-conformance.ts';
 
 const REALM = 'https://tale.example.com/api/auth';
 const json = (
@@ -109,5 +113,180 @@ describe('withOAuthConformance', () => {
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toBe('not json');
+  });
+
+  it('turns the 415 for a form body on a JSON endpoint into 400 invalid_request', async () => {
+    const response = await withOAuthConformance(
+      new Request(`${REALM}/oauth2/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'client_name=x',
+      }),
+      json(415, {
+        message:
+          'Content-Type "application/x-www-form-urlencoded" is not allowed. Allowed types: application/json',
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+      }),
+      REALM,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'the request body must be application/json',
+    });
+  });
+
+  it('corrects the error-page redirect for an unknown client, keeping every other header', async () => {
+    const request = new Request(
+      `${REALM}/oauth2/authorize?response_type=code&client_id=eval-nope&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcb&scope=openid&state=x`,
+    );
+    const response = await withOAuthConformance(
+      request,
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: `${REALM}/error?error=invalid_client&error_description=client_id+is+required`,
+          'set-cookie': 'a=b; Path=/',
+          'x-request-id': 'r-2',
+        },
+      }),
+      REALM,
+    );
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/api/auth/error');
+    expect(location.searchParams.get('error')).toBe('invalid_client');
+    expect(location.searchParams.get('error_description')).toBe(
+      'client_id names no registered client',
+    );
+    expect(response.headers.get('set-cookie')).toBe('a=b; Path=/');
+    expect(response.headers.get('x-request-id')).toBe('r-2');
+  });
+
+  it('leaves the same redirect alone when the client_id really was missing', async () => {
+    const original = new Response(null, {
+      status: 302,
+      headers: {
+        location: `${REALM}/error?error=invalid_client&error_description=client_id+is+required`,
+      },
+    });
+    const response = await withOAuthConformance(
+      new Request(`${REALM}/oauth2/authorize?response_type=code`),
+      original,
+      REALM,
+    );
+    expect(response).toBe(original);
+  });
+});
+
+/**
+ * RFC 6749 §5.2: a token request without a grant_type is `invalid_request`
+ * — judged on a clone of the request before the auth handler consumes the
+ * body and its schema layer reads the absence as an unsupported grant.
+ */
+describe('oauthTokenPrecheck', () => {
+  const token = (
+    body: string,
+    contentType = 'application/x-www-form-urlencoded',
+  ) =>
+    new Request(`${REALM}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+
+  it('answers 400 invalid_request, uncacheable, and leaves the request body readable', async () => {
+    const request = token('nonsense=1');
+    const response = await oauthTokenPrecheck(request);
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get('cache-control')).toBe('no-store');
+    expect(await response?.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'grant_type is required',
+    });
+    // The clone was read, not the request the handler would get.
+    expect(request.bodyUsed).toBe(false);
+  });
+
+  it('is null for a request that names a grant, for another endpoint, and for a body too large to be a token request', async () => {
+    expect(await oauthTokenPrecheck(token('grant_type=refresh_token'))).toBe(
+      null,
+    );
+    expect(
+      await oauthTokenPrecheck(
+        new Request(`${REALM}/oauth2/introspect`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'token=abc',
+        }),
+      ),
+    ).toBe(null);
+    expect(
+      await oauthTokenPrecheck(
+        new Request(`${REALM}/oauth2/token`, { method: 'GET' }),
+      ),
+    ).toBe(null);
+    expect(await oauthTokenPrecheck(token('x'.repeat(70 * 1024)))).toBe(null);
+  });
+});
+
+/**
+ * Discovery advertises what this issuer honours: the library lists every
+ * prompt value it knows, two of which this deployment refuses or misroutes.
+ */
+describe('withDiscoveryConformance', () => {
+  const document = {
+    issuer: REALM,
+    claims_supported: ['sub', 'acr'],
+    prompt_values_supported: [
+      'login',
+      'consent',
+      'create',
+      'select_account',
+      'none',
+    ],
+  };
+
+  it('replaces prompt_values_supported with the honoured set and keeps the rest', async () => {
+    const response = await withDiscoveryConformance(
+      json(200, document, {
+        'cache-control': 'public, max-age=15',
+        'content-length': '999',
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=15');
+    expect(response.headers.get('content-length')).toBeNull();
+    expect(await response.json()).toEqual({
+      ...document,
+      prompt_values_supported: ['none', 'login', 'consent'],
+    });
+  });
+
+  it('applies through the mount at both discovery locations', async () => {
+    for (const path of [
+      '/api/auth/.well-known/openid-configuration',
+      '/.well-known/oauth-authorization-server/api/auth',
+    ]) {
+      const response = await withOAuthConformance(
+        new Request(`https://tale.example.com${path}`),
+        json(200, document),
+        REALM,
+      );
+      expect(
+        ((await response.json()) as { prompt_values_supported: string[] })
+          .prompt_values_supported,
+      ).toEqual(['none', 'login', 'consent']);
+    }
+  });
+
+  it('passes a document that is not a 200 JSON object through untouched', async () => {
+    const refused = json(404, { message: 'no openid scope' });
+    expect(await withDiscoveryConformance(refused)).toBe(refused);
+    const html = new Response('<p>x</p>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    });
+    expect(await withDiscoveryConformance(html)).toBe(html);
   });
 });

@@ -29615,16 +29615,63 @@ async function checkBrowserSessions(
   const DOMAIN = 'itest-pool.example';
 
   try {
-    const minted = z.looseObject({ key: z.string() }).safeParse(
-      await (
-        await fetch(`${base}/api/auth/api-key/create`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', cookie, origin: base },
-          body: JSON.stringify({ name: 'itest-browser-pool' }),
-        })
-      ).json(),
-    );
+    const minted = z
+      .looseObject({
+        key: z.string(),
+        id: z.string(),
+        name: z.string().nullable(),
+        expiresAt: z.string().nullable(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/auth/api-key/create`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              cookie,
+              origin: base,
+            },
+            body: JSON.stringify({ name: 'itest-browser-pool' }),
+          })
+        ).json(),
+      );
     const apiKey = minted.success ? minted.data.key : '';
+    // `GET /api/v1/me` names the key that made the request (H-06a): the
+    // row's id, the name it was minted under, and its expiry as epoch ms
+    // (null for a key minted to never expire) — the plugin's own create
+    // answer is the oracle, so the two can never disagree.
+    const meKey = z
+      .object({
+        key: z
+          .object({
+            id: z.string(),
+            name: z.string().nullable(),
+            expiresAt: z.number().int().nullable(),
+          })
+          .nullable(),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/v1/me`, {
+            headers: { authorization: `Bearer ${apiKey}` },
+          })
+        ).json(),
+      );
+    const mintedExpiresAt =
+      minted.success && minted.data.expiresAt !== null
+        ? Date.parse(minted.data.expiresAt)
+        : null;
+    record(
+      'GET /api/v1/me names the key that made the request — id, name, expiry as epoch ms',
+      minted.success &&
+        meKey.success &&
+        meKey.data.key !== null &&
+        meKey.data.key.id === minted.data.id &&
+        meKey.data.key.name === 'itest-browser-pool' &&
+        meKey.data.key.expiresAt === mintedExpiresAt,
+      `me.key=${JSON.stringify(meKey.success ? meKey.data.key : meKey.error.issues)} minted id=${minted.success ? minted.data.id : 'ERR'} expiresAt=${mintedExpiresAt}`,
+    );
     const send = (route: string, body?: unknown): Promise<Response> =>
       fetch(`${base}/api/v1/browser-sessions${route}`, {
         method: body === undefined ? 'GET' : 'POST',

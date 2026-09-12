@@ -184,6 +184,44 @@ const contactPatchBody = blankStringsAsNull(
 const productCreateBody = blankStringsAsAbsent(productCreateSchema);
 const productPatchBody = blankStringsAsNull(productPatchSchema);
 
+/** What `/me` says about the key itself. Keys are minted, rotated and
+ * revoked in the app — nothing under `/api/v1` does — so this is the one
+ * place an unattended caller can see its own expiry coming. */
+interface KeyFacts {
+  id: string;
+  name: string | null;
+  /** Epoch ms; null for a key that never expires. */
+  expiresAt: number | null;
+}
+
+/**
+ * The key row behind the verified session — by the id the door stashed,
+ * never by the plaintext. The api-key plugin's synthesized session names
+ * the key's expiry only when it has one (a never-expiring key gets a
+ * session-length date instead), so the row is the honest source. A row
+ * that vanished between the door and here (revoked mid-request) reads as
+ * no key.
+ */
+async function readKeyFacts(
+  sql: Sql,
+  apiKeyId: string,
+): Promise<KeyFacts | null> {
+  if (apiKeyId === '') return null;
+  const rows = await sql<
+    { id: string; name: string | null; expiresAt: Date | null }[]
+  >`
+    SELECT "id", "name", "expiresAt" FROM "apikey" WHERE "id" = ${apiKeyId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    expiresAt: row.expiresAt instanceof Date ? row.expiresAt.getTime() : null,
+  };
+}
+
 export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
@@ -228,6 +266,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         role: membership.role,
       })),
       capabilities: { deploymentEditor },
+      key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });
   });
 

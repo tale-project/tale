@@ -705,14 +705,73 @@ describe('GET /status.json', () => {
     expect(body).toMatchObject({
       status: expect.stringMatching(/^(operational|degraded|outage)$/),
       checkedAt: expect.any(String),
-      // Every lane runs inside the backend tier, so it is the only probe.
-      components: expect.arrayContaining([
+      // The backend tier and, from its own stores verdict, the database and
+      // the object store — the three documented component ids, in order.
+      components: ['backend', 'database', 'object-store'].map((id) =>
         expect.objectContaining({
-          id: 'backend',
+          id,
           status: expect.stringMatching(/^(operational|outage)$/),
         }),
-      ]),
+      ),
     });
+  });
+
+  test('answers CORS so a browser dashboard can poll it directly', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/status.json'));
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-methods')).toBe(
+      'GET, HEAD, OPTIONS',
+    );
+  });
+
+  test('the HTML page carries no CORS header', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/status'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
+describe('OPTIONS on the status doors', () => {
+  test('/status.json answers 204 with Allow and the CORS preflight headers', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/status.json', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://dashboard.example.test',
+          'access-control-request-method': 'GET',
+        },
+      }),
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-methods')).toBe(
+      'GET, HEAD, OPTIONS',
+    );
+    expect(await res.text()).toBe('');
+  });
+
+  test('/status answers 204 with Allow and no CORS', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/status', { method: 'OPTIONS' }),
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  test('HEAD /status.json still answers 200', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/status.json', { method: 'HEAD' }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
 });
 

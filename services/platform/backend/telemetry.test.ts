@@ -47,6 +47,7 @@ describe('routeClass', () => {
     expect(routeClass('/events')).toBe('/events');
     expect(routeClass('/ping')).toBe('/ping');
     expect(routeClass('/metrics')).toBe('/metrics');
+    expect(routeClass('/health/stores')).toBe('/health/stores');
     expect(routeClass('/whatever/else')).toBe('other');
   });
 });

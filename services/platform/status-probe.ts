@@ -1,18 +1,24 @@
 /**
  * Probes for the public `/status` page.
  *
- * Hits the per-service health endpoints on the Docker network and aggregates
+ * Hits the backend's health endpoints on the Docker network and aggregates
  * to a single overall up/down state. A single-flight in-memory cache bounds
  * upstream probe load: an unauthenticated `/status` route cannot afford to
  * pay for fan-out probes on every request.
  *
- * Only HTTP status is inspected — response bodies are discarded — so a
- * misbehaving (or compromised) upstream cannot push arbitrary bytes into
- * the public response or this process's memory.
+ * The liveness probe inspects the HTTP status alone — its body is
+ * discarded. The stores probe reads a body, because the verdict it needs
+ * (which store answers) IS the body: it is read under a small byte cap and
+ * held to one exact shape — three booleans under fixed names — so a
+ * misbehaving (or compromised) upstream can neither push arbitrary bytes
+ * into the public response nor into this process's memory; anything but
+ * that shape reads as "down".
  */
 
 const CACHE_TTL_MS = 5000;
 const PROBE_TIMEOUT_MS = 2000;
+/** The stores verdict is ~90 bytes; anything past this cap is not it. */
+const STORES_BODY_MAX_BYTES = 1024;
 
 // The backend tier serves every door the app depends on; `/ping` is its own
 // liveness route (the same one its container healthcheck uses). Compose sets
@@ -27,12 +33,24 @@ function backendUrl(): string {
 }
 
 export type OverallStatus = 'operational' | 'degraded' | 'outage';
-// One component today: the backend tier that serves every request the app
-// makes. The union (and the degraded state below) is kept open so a second
-// lane — e.g. a worker-liveness signal — can join without a shape change.
-export type ComponentId = 'backend';
+// Three components, in the order the page lists them: the backend tier
+// that serves every request the app makes (its `/ping`), and the two kinds
+// of store it depends on — `database` folds the app database and the
+// deployment-default knowledge database into one row (a person reading the
+// page does not care which schema is unreachable, and naming them apart
+// would leak the stack), `object-store` is the deployment-default bucket.
+// Both store rows come from the backend's own `/health/stores`, so a
+// backend that is down takes every row down with it, which is what a user
+// sees. The union is kept open so a further lane — e.g. a worker-liveness
+// signal — can join without a shape change.
+export type ComponentId = 'backend' | 'database' | 'object-store';
+export const COMPONENT_IDS: readonly ComponentId[] = [
+  'backend',
+  'database',
+  'object-store',
+];
 
-// Binary today because each probe is just `fetch.ok`. The wider
+// Binary today because each probe answers up or down. The wider
 // `OverallStatus` vocabulary leaves room for a future `'degraded'`
 // per-component value (e.g. latency-based) without breaking consumers.
 export type ComponentStatus = 'operational' | 'outage';
@@ -59,27 +77,13 @@ export interface StatusFeed {
   components: StatusFeedComponent[];
 }
 
-interface Probe {
-  id: ComponentId;
-  run: (doFetch: typeof fetch) => Promise<boolean>;
-}
-
 let cache: { at: number; result: StatusResult } | null = null;
 let inflight: Promise<StatusResult> | null = null;
 
-async function probeUrl(url: string, doFetch: typeof fetch): Promise<boolean> {
-  return probeOne(url, doFetch);
-}
-
-// Assembled per round (not module-level) so a test — and a deployment that
-// re-points TALE_BACKEND_URL — is read at probe time, not at import time.
-function buildProbes(): Probe[] {
-  return [{ id: 'backend', run: (f) => probeUrl(`${backendUrl()}/ping`, f) }];
-}
-
-async function probeOne(url: string, doFetch: typeof fetch): Promise<boolean> {
+/** The backend's `/ping`: reachability + 2xx, body dropped unread. */
+async function probeLiveness(doFetch: typeof fetch): Promise<boolean> {
   try {
-    const res = await doFetch(url, {
+    const res = await doFetch(`${backendUrl()}/ping`, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       redirect: 'error',
     });
@@ -95,20 +99,92 @@ async function probeOne(url: string, doFetch: typeof fetch): Promise<boolean> {
   }
 }
 
+/** The stores verdict as the page reads it: the two rows it shows. */
+interface StoresVerdict {
+  database: boolean;
+  'object-store': boolean;
+}
+
+const STORES_DOWN: StoresVerdict = { database: false, 'object-store': false };
+
+/** The exact shape `/health/stores` answers; anything else is no verdict. */
+function readStoresBody(text: string): StoresVerdict | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const stores: unknown = Reflect.get(parsed, 'stores');
+  if (typeof stores !== 'object' || stores === null) return null;
+  const flag = (name: string): boolean | null => {
+    const value: unknown = Reflect.get(stores, name);
+    return typeof value === 'boolean' ? value : null;
+  };
+  const appDb = flag('app_db');
+  const knowledgeDb = flag('knowledge_db');
+  const objectStore = flag('object_store');
+  if (appDb === null || knowledgeDb === null || objectStore === null) {
+    return null;
+  }
+  return { database: appDb && knowledgeDb, 'object-store': objectStore };
+}
+
+/**
+ * The backend's `/health/stores`, read for its body: a 503 there still
+ * carries the per-store booleans (that is the point of the route), so the
+ * status is not the verdict — the shape is. A body over the cap, one that
+ * is not JSON, or one missing a flag counts as every store down; so does
+ * any transport failure, which is what a user sees when the backend that
+ * would have answered is itself gone.
+ */
+async function probeStoresVerdict(
+  doFetch: typeof fetch,
+): Promise<StoresVerdict> {
+  try {
+    const res = await doFetch(`${backendUrl()}/health/stores`, {
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      redirect: 'error',
+    });
+    if (res.status !== 200 && res.status !== 503) {
+      res.body?.cancel().catch(() => {});
+      return STORES_DOWN;
+    }
+    const declared = Number(res.headers.get('content-length') ?? '0');
+    if (declared > STORES_BODY_MAX_BYTES) {
+      res.body?.cancel().catch(() => {});
+      return STORES_DOWN;
+    }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength > STORES_BODY_MAX_BYTES) return STORES_DOWN;
+    return readStoresBody(new TextDecoder().decode(bytes)) ?? STORES_DOWN;
+  } catch {
+    // As for the liveness probe: any failure to get a verdict is "down",
+    // and nothing the upstream sent reaches the public response.
+    return STORES_DOWN;
+  }
+}
+
 async function runProbes(doFetch: typeof fetch): Promise<StatusResult> {
-  const probes = buildProbes();
-  const ups = await Promise.all(probes.map((p) => p.run(doFetch)));
-  const components: ComponentResult[] = probes.map((p, i) => ({
-    id: p.id,
-    up: ups[i] ?? false,
-  }));
+  const [backendUp, stores] = await Promise.all([
+    probeLiveness(doFetch),
+    probeStoresVerdict(doFetch),
+  ]);
+  const components: ComponentResult[] = [
+    { id: 'backend', up: backendUp },
+    { id: 'database', up: stores.database },
+    { id: 'object-store', up: stores['object-store'] },
+  ];
 
   const allUp = components.every((c) => c.up);
   const allDown = components.every((c) => !c.up);
 
   // Platform liveness is implicit — if this code is running, /status is
   // responding, so the platform is at least reachable. "outage" therefore
-  // means every backend probe failed, which is what users effectively see.
+  // means every probe failed — a backend that is down takes its stores'
+  // rows with it — which is what users effectively see; one store down
+  // behind a live backend is the partial degradation the page names.
   let overall: OverallStatus;
   if (allUp) overall = 'operational';
   else if (allDown) overall = 'outage';
@@ -178,14 +254,17 @@ export function renderStatusJson(feed: StatusFeed): string {
 //
 // Server-rendered HTML for `/status` — no JavaScript, no React shell, no
 // auto-refresh. The user reloads if they want a fresh state. The component
-// label is a deliberate noun ("Application services") rather than an action
-// verb, so it covers every failure mode of the backend — knowledge-base and
-// web/document work run inside it, so a single row reflects them all. This
-// also keeps the public surface free of stack names.
+// labels are deliberate nouns ("Application services", "Database", "File
+// storage") rather than action verbs or product names, so each covers
+// every failure mode of its tier — knowledge-base and web/document work run
+// inside the application tier — and the public surface stays free of stack
+// names (no Postgres, no S3, no bucket vendor).
 // Locale picked from Accept-Language prefix: de → German, fr → French,
 // else English. Matches the locale bundles already shipped at
 // services/platform/messages/{en,de,fr}.json.
 // ---------------------------------------------------------------------------
+
+type ComponentLabels = Record<ComponentId, string>;
 
 const STRINGS = {
   en: {
@@ -199,7 +278,9 @@ const STRINGS = {
     statusDown: 'Unavailable',
     components: {
       backend: 'Application services',
-    },
+      database: 'Database',
+      'object-store': 'File storage',
+    } satisfies ComponentLabels,
   },
   de: {
     htmlLang: 'de',
@@ -212,7 +293,9 @@ const STRINGS = {
     statusDown: 'Nicht verfügbar',
     components: {
       backend: 'Anwendungsdienste',
-    },
+      database: 'Datenbank',
+      'object-store': 'Dateispeicher',
+    } satisfies ComponentLabels,
   },
   fr: {
     htmlLang: 'fr',
@@ -225,7 +308,9 @@ const STRINGS = {
     statusDown: 'Indisponible',
     components: {
       backend: 'Services applicatifs',
-    },
+      database: 'Base de données',
+      'object-store': 'Stockage de fichiers',
+    } satisfies ComponentLabels,
   },
 } as const;
 

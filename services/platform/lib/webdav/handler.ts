@@ -65,10 +65,11 @@ export async function dispatch(
   // (KDE, Office, Finder) probe with `OPTIONS /dav`, `OPTIONS /dav/`,
   // or even `OPTIONS *` before they have org context. Returning
   // capability headers regardless of path validity lets them detect
-  // DAV support and proceed to authenticate. Done BEFORE parseDavPath
-  // so a malformed-but-OPTIONS request still gets a 200 instead of 404.
+  // DAV support and proceed to authenticate. Done BEFORE authentication,
+  // so a malformed-but-OPTIONS request still gets a 200 instead of 404;
+  // the `Allow` is the target's own (methods/options.ts).
   if (method === 'OPTIONS') {
-    return handleOptions();
+    return handleOptions(req.pathname);
   }
 
   const parsed = parseDavPath(req.pathname);

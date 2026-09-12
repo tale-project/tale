@@ -1,3 +1,11 @@
+import {
+  type EntityTag,
+  ifNoneMatchHolds,
+  parseEntityTag,
+  parseEntityTagList,
+  weakMatch,
+} from '@tale/shared/http/entity-tag';
+
 import { anyRefs } from '../../shared/handlers/function-refs';
 import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
@@ -10,7 +18,7 @@ import {
   type WebDAVRequest,
   type WebDAVResponse,
 } from '../types';
-import { computeETag, ifNoneMatchMatches } from './get';
+import { computeETag } from './get';
 
 const ALLOW_ON_COLLECTION =
   'OPTIONS, PROPFIND, DELETE, MOVE, COPY, PROPPATCH, LOCK';
@@ -84,35 +92,38 @@ export async function handlePut(
     if (props) resourceEtag = computeETag(props);
   }
 
-  // HTTP conditional preconditions (RFC 7232) — distinct from the WebDAV
-  // If: header. `If-None-Match: *` is the common "create only if absent"
-  // guard; `If-Match` enables a safe optimistic-concurrency overwrite. A
-  // failed precondition is 412 and the write does not proceed.
-  // (ifNoneMatchMatches doubles as the generic "ETag in list, or *" test.)
-  if (
-    ifNoneMatch !== null &&
-    docExists &&
-    ifNoneMatchMatches(ifNoneMatch, resourceEtag ?? '')
-  ) {
-    return {
-      status: 412,
-      headers: {},
-      body: 'If-None-Match precondition failed',
-    };
-  }
-  if (ifMatch !== null) {
-    const matched =
-      docExists &&
-      (ifMatch.trim() === '*' ||
-        (resourceEtag !== undefined &&
-          ifNoneMatchMatches(ifMatch, resourceEtag)));
-    if (!matched) {
+  // HTTP conditional preconditions (RFC 9110 §13.1) — distinct from the
+  // WebDAV If: header. `If-None-Match: *` is the common "create only if
+  // absent" guard; `If-Match` enables a safe optimistic-concurrency
+  // overwrite. A failed precondition is 412 and the write does not
+  // proceed. The field values are parsed by the shared entity-tag reading
+  // (`@tale/shared/http/entity-tag`), so a malformed list matches nothing:
+  // `If-Match` then fails closed, `If-None-Match` lets the write through.
+  // `*` asks whether a representation exists at all — answered from the
+  // resolved row, so a document whose props could not be read still counts
+  // as existing; a tag list is compared against the current tag.
+  const current =
+    docExists && resourceEtag !== undefined
+      ? parseEntityTag(resourceEtag)
+      : null;
+  if (ifNoneMatch !== null) {
+    const list = parseEntityTagList(ifNoneMatch);
+    const holds =
+      list.kind === 'any' ? !docExists : ifNoneMatchHolds(list, current);
+    if (!holds) {
       return {
         status: 412,
         headers: {},
-        body: 'If-Match precondition failed',
+        body: 'If-None-Match precondition failed',
       };
     }
+  }
+  if (ifMatch !== null && !ifMatchHoldsWeakly(ifMatch, docExists, current)) {
+    return {
+      status: 412,
+      headers: {},
+      body: 'If-Match precondition failed',
+    };
   }
 
   // Lock enforcement applies to BOTH overwrite and create:
@@ -302,6 +313,27 @@ export async function handlePut(
     console.error('[webdav] PUT ingest failed', err);
     return { status: 500, headers: {}, body: 'Internal error' };
   }
+}
+
+/**
+ * Whether `If-Match` lets the write proceed against `current` — with the
+ * WEAK comparison, deliberately: RFC 9110 §13.1.1 asks for the strong one,
+ * but a document that arrived through this door carries a weak validator
+ * (`W/"size-mtime"` — the bytes go straight to the object store, so there
+ * is no content hash to issue a strong tag from), and a strong-only
+ * `If-Match` would refuse every conditional overwrite a sync client makes
+ * with the tag PROPFIND handed it. `*` holds when a representation exists;
+ * a malformed list matches nothing and fails closed (412, nothing written).
+ */
+function ifMatchHoldsWeakly(
+  header: string,
+  exists: boolean,
+  current: EntityTag | null,
+): boolean {
+  const list = parseEntityTagList(header);
+  if (list.kind === 'any') return exists;
+  if (list.kind === 'malformed' || current === null) return false;
+  return list.tags.some((tag) => weakMatch(tag, current));
 }
 
 function parseContentLength(raw: string | null): number | null {

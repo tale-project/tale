@@ -295,6 +295,11 @@ export function createRestV1Routes(deps: {
     c.set('role', member.role);
     c.set('orgExplicit', Boolean(orgSlugHeader));
     c.set('clientIp', ip);
+    // The api-key plugin verifies the bearer into a session whose id IS
+    // the key row's id (`@better-auth/api-key`: `session.id = apiKey.id`);
+    // `/me` reads the key's name and expiry from it.
+    const keyId: unknown = session.session?.id;
+    c.set('apiKeyId', typeof keyId === 'string' ? keyId : '');
     return next();
   });
 

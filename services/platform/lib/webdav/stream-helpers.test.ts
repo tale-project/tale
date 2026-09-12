@@ -1,12 +1,16 @@
 // Unit coverage for the pure GET/PUT stream helpers that the connector
 // suite intentionally skips (streamed paths). Locks in the weak-ETag
-// handling and — critically — the PUT cap's backpressure + 413 mapping
+// issuing and — critically — the PUT cap's backpressure + 413 mapping
 // (the lone "critical" review finding). The Range math and the `If-Range`
-// check moved to `@tale/shared/http/range`, tested beside it.
+// check moved to `@tale/shared/http/range`, the entity-tag parsing and the
+// `If-Match` / `If-None-Match` preconditions to
+// `@tale/shared/http/entity-tag` — both tested beside their source; the
+// door's own use of them is covered by get-conditional.test.ts and
+// put-conditional.test.ts.
 
 import { describe, expect, it } from 'vitest';
 
-import { computeETag, ifNoneMatchMatches } from './methods/get';
+import { computeETag } from './methods/get';
 import { wrapWithCap } from './methods/put';
 
 async function readAll(
@@ -38,18 +42,6 @@ describe('computeETag', () => {
   });
   it('emits a weak validator from size + mtime when no hash', () => {
     expect(computeETag({ size: 10, sourceModifiedAt: 5 })).toBe('W/"10-5"');
-  });
-});
-
-describe('ifNoneMatchMatches', () => {
-  it('* matches any representation', () => {
-    expect(ifNoneMatchMatches('*', '"abc"')).toBe(true);
-  });
-  it('weak-compares (ignores the W/ marker)', () => {
-    expect(ifNoneMatchMatches('W/"abc"', '"abc"')).toBe(true);
-  });
-  it('does not match a different tag', () => {
-    expect(ifNoneMatchMatches('"xyz"', '"abc"')).toBe(false);
   });
 });
 

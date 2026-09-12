@@ -259,14 +259,14 @@ The output and receipt directories must already exist. A loopback HTTP connectio
 
 These resource kinds use the platform’s shared schemas and native permissions:
 
-| Kind | Configuration | Scope |
-| --- | --- | --- |
-| `branding` | Native branding fields | Organization |
-| `governance` | A file-backed policy `key` and its native `config` | Organization |
-| `provider` | A custom provider definition and optional `expectedModels` | Organization |
-| `provider-credential` | Named environment credential metadata | Organization |
-| `knowledge-embedding` | Provider, model, dimensions and endpoint | Organization |
-| `deployment` | Instance deployment settings, including sandbox runtime | Instance |
+| Kind                  | Configuration                                              | Scope        |
+| --------------------- | ---------------------------------------------------------- | ------------ |
+| `branding`            | Native branding fields                                     | Organization |
+| `governance`          | A file-backed policy `key` and its native `config`         | Organization |
+| `provider`            | A custom provider definition and optional `expectedModels` | Organization |
+| `provider-credential` | Named environment credential metadata                      | Organization |
+| `knowledge-embedding` | Provider, model, dimensions and endpoint                   | Organization |
+| `deployment`          | Instance deployment settings, including sandbox runtime    | Instance     |
 
 Retention and DSAR policies require their dedicated native workflows. Pause uploads, synchronization and crawls before changing embedding configuration. The CLI checks organization-wide document and website counts; it does not lock ingestion or migrate existing vectors. An organization with documents or registered websites requires a separate native indexing migration. Instance settings also require the native deployment editor allowlist. Standalone application reports `restartRequired` for boot settings; saving those settings alone does not activate them. Review the plan’s effects before applying.
 
@@ -303,9 +303,7 @@ Managed deployments use the same engine through `configuration`. Merge this exam
           {
             "id": "Example-chat",
             "provider": "external-chat",
-            "tags": [
-              "chat"
-            ],
+            "tags": ["chat"],
             "supportsTools": true,
             "supportsVision": false,
             "contextWindow": 131072
@@ -319,9 +317,7 @@ Managed deployments use the same engine through `configuration`. Merge this exam
           "authMethod": "env",
           "name": "Managed external provider",
           "envName": "TALE_PROVIDER_KEY_EXTERNAL",
-          "modelAllowlist": [
-            "Example-chat"
-          ]
+          "modelAllowlist": ["Example-chat"]
         }
       }
     ]
@@ -331,7 +327,7 @@ Managed deployments use the same engine through `configuration`. Merge this exam
 
 `envName` uses the native `TALE_PROVIDER_KEY_` prefix and 40-character limit. Each alias needs a required `environment` reference. Private endpoints additionally require an explicit `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` reference whose value is `1`; native host restrictions still apply. `expectedModels` checks Tale’s freshly resolved catalog during readback. It does not prove inference capacity, latency or business output.
 
-Use `governance` with `key: "vision_model"` and native `providerSlug`/`modelId` fields for vision selection. Embedding uses `knowledge-embedding` with `providerSlug`, `model`, `dimensions` and `baseUrl`. To replace a default credential, also declare the existing environment credential with `isDefault: false`; the CLI applies that explicit change first. Credential values never enter the declaration or receipt.
+Use `governance` with `key: "vision_model"` and native `providerSlug`/`modelId` fields for vision selection. Embedding uses `knowledge-embedding` with `providerSlug`, `model`, `dimensions` and `baseUrl`, plus an optional `minSimilarity` — the assistant's cosine floor for this model, which the platform keeps next to the model in [`embedding.json`](/self-hosted/configuration/data-residency#the-organizations-embedding-model). The floor follows the platform's own rule: a number sets it, an omitted key leaves whatever the file holds (a hand-set floor survives a release that does not mention it), and `"minSimilarity": null` clears it — the only way to remove a floor through the CLI. To replace a default credential, also declare the existing environment credential with `isDefault: false`; the CLI applies that explicit change first. Credential values never enter the declaration or receipt.
 
 Native provisioning runs after identity and before configuration releases. The `native.configuration` receipt binds the declaration and bundle hashes, organization, resource hashes and native revisions. Writes retain a pending receipt before the first change; if a later resource fails, earlier changes may remain. Read the native state and retained receipt, then retry the same reviewed plan. Native compare-and-set protects each resource against concurrent admin changes; there is no cross-resource transaction. Keep deployment state, snapshots and receipts for recovery.
 

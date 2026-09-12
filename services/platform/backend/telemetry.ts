@@ -94,7 +94,12 @@ export function routeClass(path: string): string {
   }
   if (path.startsWith('/dav')) return '/dav';
   if (path === '/events') return '/events';
-  if (path === '/ping' || path === '/ready' || path === '/metrics') {
+  if (
+    path === '/ping' ||
+    path === '/ready' ||
+    path === '/metrics' ||
+    path === '/health/stores'
+  ) {
     return path;
   }
   return 'other';

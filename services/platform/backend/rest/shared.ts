@@ -65,6 +65,11 @@ export interface RestVars {
   /** The trusted-proxy-derived client IP (the door's pre-auth limiter key;
    * kept for attribution — authenticated budgets key on the user). */
   clientIp: string;
+  /** The id of the API key row the bearer verified as — the api-key
+   * plugin's synthesized session names it as its session id — so `/me` can
+   * read the key's own facts (name, expiry) without a second verification.
+   * Empty when the session carried none (never on the real door). */
+  apiKeyId: string;
   /** Why `readJsonBody` refused a body that parsed as JSON but carried a
    * value no field accepts (a U+0000) — `invalidBodyResponse` names it. */
   bodyIssue?: { path: string; message: string };

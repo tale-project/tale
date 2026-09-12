@@ -46,7 +46,7 @@ Inside the product, three control surfaces matter for compliance:
 
 ## Reporting incidents
 
-Tale's security incident contact is `security@tale.dev`. Suspected vulnerability disclosure follows the responsible-disclosure policy on the same email. Customer-facing security advisories are published on the status page and emailed to the org's Owner.
+Tale's security incident contact is `security@tale.dev`. Suspected vulnerability disclosure follows the responsible-disclosure policy on the same email. Customer-facing security advisories are published in the [security advisory feed](/self-hosted/operate/security/advisories) and emailed to the org's Owner; the [status page](/develop/status-page) reports availability only and carries no advisories.
 
 ## Where this fits
 

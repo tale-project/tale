@@ -5,10 +5,14 @@ import { describe, expect, it } from 'vitest';
 
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import {
+  authorizeRedirectFor,
   createOidcProvider,
+  OIDC_ACR_VALUE,
   OIDC_CLAIMS_SUPPORTED,
   OIDC_ORGANIZATION_CLAIM,
+  OIDC_PROMPT_VALUES_SUPPORTED,
   oauthRefusalFor,
+  tokenRequestRefusal,
 } from './oidc.ts';
 
 const REALM = 'https://tale.example.com/api/auth';
@@ -143,7 +147,7 @@ describe('oauthRefusalFor — the RFC 6749 envelope', () => {
     });
   });
 
-  it('answers any other schema refusal as invalid_request, naming the parameter and not the schema path', () => {
+  it('answers any other schema refusal as invalid_request, naming the parameter in house prose, not the schema dialect', () => {
     const mapped = refusal(
       '/oauth2/authorize',
       validation(
@@ -154,10 +158,72 @@ describe('oauthRefusalFor — the RFC 6749 envelope', () => {
       status: 400,
       body: {
         error: 'invalid_request',
-        error_description:
-          'client_id: Invalid input: expected string, received undefined',
+        error_description: 'client_id is required',
       },
       headers: {},
+    });
+  });
+
+  it.each([
+    [
+      'a wrong type',
+      '[body.code] Invalid input: expected string, received number',
+      'code must be a string',
+    ],
+    [
+      'a value outside an enum',
+      '[query.response_type] Invalid option: expected one of "code"',
+      'response_type must be one of "code"',
+    ],
+    [
+      'a rule it does not know, kept behind the parameter name',
+      '[query.redirect_uri] Invalid URL',
+      'redirect_uri: Invalid URL',
+    ],
+    [
+      'several problems, joined',
+      '[query.client_id] Invalid input: expected string, received undefined, [query.response_type] Invalid option: expected one of "code"',
+      'client_id is required; response_type must be one of "code"',
+    ],
+  ])(
+    'describes %s as a sentence about the OAuth parameter',
+    (_label, message, expected) => {
+      const mapped = refusal('/oauth2/authorize', validation(message));
+      expect(mapped?.body).toEqual({
+        error: 'invalid_request',
+        error_description: expected,
+      });
+    },
+  );
+
+  it('answers a body of the wrong media type as 400 invalid_request naming the type it takes — never the 415 third envelope', () => {
+    const mapped = refusal(
+      '/oauth2/register',
+      answered(415, {
+        message:
+          'Content-Type "application/x-www-form-urlencoded" is not allowed. Allowed types: application/json',
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+      }),
+    );
+    expect(mapped).toEqual({
+      status: 400,
+      body: {
+        error: 'invalid_request',
+        error_description: 'the request body must be application/json',
+      },
+      headers: {},
+    });
+    expect(
+      refusal(
+        '/oauth2/register',
+        answered(415, {
+          message: 'Content-Type is required. Allowed types: application/json',
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+        }),
+      )?.body,
+    ).toEqual({
+      error: 'invalid_request',
+      error_description: 'the request body must be application/json',
     });
   });
 
@@ -209,5 +275,158 @@ describe('createOidcProvider — discovery', () => {
     expect(advertised).toEqual({ claims_supported: OIDC_CLAIMS_SUPPORTED });
     expect(OIDC_CLAIMS_SUPPORTED).toContain(OIDC_ORGANIZATION_CLAIM);
     expect(OIDC_CLAIMS_SUPPORTED).toContain('email_verified');
+  });
+
+  it('advertises the acr claim every ID token carries, with the one value discovery names', () => {
+    // The library stamps `acr` on every ID token and lists the value under
+    // `acr_values_supported`; without the claim in `claims_supported` a
+    // relying party that asked for it could not verify it was honoured.
+    expect(OIDC_CLAIMS_SUPPORTED).toContain('acr');
+    expect(OIDC_ACR_VALUE).toBe('urn:mace:incommon:iap:bronze');
+  });
+
+  it('advertises only the prompt values this issuer honours', () => {
+    // `select_account` is refused (no account picker is configured) and
+    // `create` lands on the ordinary sign-in continuation, not a
+    // registration page — advertising either misleads a relying party.
+    expect(OIDC_PROMPT_VALUES_SUPPORTED).toEqual(['none', 'login', 'consent']);
+  });
+});
+
+/**
+ * The library answers "client_id is required" for a missing AND for an
+ * unknown client — a developer whose client_id was present and mistyped
+ * was sent to re-check the one thing that was right.
+ */
+describe('authorizeRedirectFor — an unknown client', () => {
+  const errorPage =
+    'https://tale.example.com/api/auth/error?error=invalid_client&error_description=client_id+is+required';
+
+  it('names the real problem when the request carried a client_id', () => {
+    const corrected = authorizeRedirectFor({
+      requestUrl:
+        'https://tale.example.com/api/auth/oauth2/authorize?response_type=code&client_id=nope&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcb&scope=openid&state=x',
+      location: errorPage,
+    });
+    expect(corrected).not.toBeNull();
+    const target = new URL(corrected ?? '');
+    expect(target.pathname).toBe('/api/auth/error');
+    expect(target.searchParams.get('error')).toBe('invalid_client');
+    expect(target.searchParams.get('error_description')).toBe(
+      'client_id names no registered client',
+    );
+  });
+
+  it('leaves the answer alone when the client_id really was missing or blank', () => {
+    expect(
+      authorizeRedirectFor({
+        requestUrl:
+          'https://tale.example.com/api/auth/oauth2/authorize?response_type=code',
+        location: errorPage,
+      }),
+    ).toBeNull();
+    expect(
+      authorizeRedirectFor({
+        requestUrl:
+          'https://tale.example.com/api/auth/oauth2/authorize?client_id=%20&response_type=code',
+        location: errorPage,
+      }),
+    ).toBeNull();
+  });
+
+  it('leaves every other redirect alone — the client’s own callback, another error, a relative page', () => {
+    const request =
+      'https://tale.example.com/api/auth/oauth2/authorize?client_id=known';
+    expect(
+      authorizeRedirectFor({
+        requestUrl: request,
+        location: 'https://app.example.test/cb?code=abc&state=x',
+      }),
+    ).toBeNull();
+    expect(
+      authorizeRedirectFor({
+        requestUrl: request,
+        location:
+          'https://tale.example.com/api/auth/error?error=invalid_request&error_description=response_type+is+required',
+      }),
+    ).toBeNull();
+    expect(
+      authorizeRedirectFor({
+        requestUrl: request,
+        location: '/oauth/continue?sig=abc',
+      }),
+    ).toBeNull();
+    expect(
+      authorizeRedirectFor({ requestUrl: 'not a url', location: errorPage }),
+    ).toBeNull();
+  });
+});
+
+/**
+ * RFC 6749 §5.2: a token request missing a required parameter is
+ * `invalid_request`; the library's schema layer read an absent grant_type
+ * as an unsupported grant.
+ */
+describe('tokenRequestRefusal — a token request without a grant_type', () => {
+  const token = (body: string, contentType: string | null) =>
+    tokenRequestRefusal({
+      method: 'POST',
+      path: '/oauth2/token',
+      contentType,
+      body,
+    });
+  const refused = {
+    status: 400,
+    body: {
+      error: 'invalid_request',
+      error_description: 'grant_type is required',
+    },
+    headers: {},
+  };
+
+  it('refuses a form without one, or with a blank one', () => {
+    expect(token('nonsense=1', 'application/x-www-form-urlencoded')).toEqual(
+      refused,
+    );
+    expect(
+      token('grant_type=&code=abc', 'application/x-www-form-urlencoded'),
+    ).toEqual(refused);
+    expect(token('', null)).toEqual(refused);
+  });
+
+  it('refuses a JSON body without one', () => {
+    expect(token('{"code":"abc"}', 'application/json')).toEqual(refused);
+  });
+
+  it('leaves a named grant — whatever it is — and an unreadable body to the library', () => {
+    expect(
+      token(
+        'grant_type=client_credentials',
+        'application/x-www-form-urlencoded; charset=utf-8',
+      ),
+    ).toBeNull();
+    expect(
+      token('{"grant_type":"authorization_code"}', 'application/json'),
+    ).toBeNull();
+    expect(token('{not json', 'application/json')).toBeNull();
+  });
+
+  it('applies to the token endpoint’s POST alone', () => {
+    expect(
+      tokenRequestRefusal({
+        method: 'GET',
+        path: '/oauth2/token',
+        contentType: null,
+        body: '',
+      }),
+    ).toBeNull();
+    expect(
+      tokenRequestRefusal({
+        method: 'POST',
+        path: '/oauth2/introspect',
+        contentType: 'application/x-www-form-urlencoded',
+        body: 'token=abc',
+      }),
+    ).toBeNull();
   });
 });

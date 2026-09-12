@@ -1,3 +1,8 @@
+import {
+  ifNoneMatchHolds,
+  parseEntityTag,
+  parseEntityTagList,
+} from '@tale/shared/http/entity-tag';
 import { ifRangeMatches, parseRangeHeader } from '@tale/shared/http/range';
 
 import { anyRefs } from '../../shared/handlers/function-refs';
@@ -98,20 +103,10 @@ function buildResponseHeaders(
   return headers;
 }
 
-// RFC 7232 §3.1: `If-None-Match: *` matches any current representation.
-// Exported for unit testing (the streamed GET paths are otherwise excluded
-// from the connector suite). The Range parsing and the `If-Range` check
-// are the shared `@tale/shared/http/range` — one reading for every door.
-export function ifNoneMatchMatches(header: string, etag: string): boolean {
-  const trimmed = header.trim();
-  if (trimmed === '*') return true;
-  // Compare with weak-comparison semantics: strip the optional `W/` prefix
-  // from both sides before equality check (RFC 7232 §2.3.2).
-  const stripWeak = (s: string) => s.replace(/^W\//, '');
-  const target = stripWeak(etag);
-  return trimmed.split(',').some((part) => stripWeak(part.trim()) === target);
-}
-
+// The `If-None-Match` precondition, the Range parsing and the `If-Range`
+// check are the shared readings (`@tale/shared/http/entity-tag`,
+// `@tale/shared/http/range`) — one parser for every door, so no door
+// splits a list on a comma an opaque tag may itself contain.
 function parseHttpDate(s: string | null): number | null {
   if (!s) return null;
   const t = Date.parse(s);
@@ -167,7 +162,12 @@ export async function handleGet(
   const ifNoneMatch = req?.headers.get('if-none-match') ?? null;
   const ifModifiedSince = req?.headers.get('if-modified-since') ?? null;
   if (ifNoneMatch) {
-    if (ifNoneMatchMatches(ifNoneMatch, etag)) {
+    // RFC 9110 §13.1.2: a list that names the current tag (weak
+    // comparison) or `*` does not hold, and a GET answers 304; a
+    // malformed value matches nothing, so the body is served.
+    if (
+      !ifNoneMatchHolds(parseEntityTagList(ifNoneMatch), parseEntityTag(etag))
+    ) {
       return { status: 304, headers, body: null };
     }
   } else {

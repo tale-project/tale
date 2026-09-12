@@ -359,6 +359,26 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TTS_CHUNK_LIMIT',
   'TTS_EMPTY_TEXT',
   'TTS_TEXT_TOO_LONG',
+  // The REST bind consumes a single-use intent `FOR UPDATE` and binds the
+  // very `s3Ref` the organization minted, so a second row for one blob
+  // and a foreign blob reference cannot arise there — both are the app's
+  // session bind lane.
+  'BLOB_ALREADY_REGISTERED',
+  'BLOB_REF_INVALID',
+  // Find-or-create by e-mail is the mailbox sync's ingest lane, which
+  // reads the address off the message before it asks.
+  'CONTACT_EMAIL_REQUIRED',
+  // Legal holds, member creation and organization deletion — app lanes;
+  // the REST door's own role refusals carry their domain codes.
+  'FORBIDDEN',
+  // Organization delete (a row that vanished mid-delete) and create (a
+  // slug of an organization still being torn down): the REST door names
+  // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
+  'ORG_NOT_FOUND',
+  'ORG_SLUG_RETIRING',
+  // The skill bundle's zip upload lane; the REST save writes SKILL.md
+  // through the file layer, whose failure is a 500, never this code.
+  'WRITE_FAILED',
 ]);
 
 describe('the REST error-code registry', () => {

@@ -174,7 +174,7 @@ function productRow(n: number) {
 }
 
 /** The core routes behind a stub door that sets the request variables. */
-function mount(sql: Sql) {
+function mount(sql: Sql, apiKeyId = 'key-1') {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
@@ -184,11 +184,22 @@ function mount(sql: Sql) {
     c.set('role', 'admin');
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
+    c.set('apiKeyId', apiKeyId);
     return next();
   });
   app.route('/', createCoreRoutes({ sql }));
   return app;
 }
+
+/** The key row `/me` reads by the id the door stashed. */
+const KEY_EXPIRES_AT = new Date('2026-10-12T00:00:00.000Z');
+function keyRow(expiresAt: Date | null = KEY_EXPIRES_AT) {
+  return { id: 'key-1', name: 'Billing sync', expiresAt };
+}
+const answerKeyRow =
+  (row: object | null) =>
+  (text: string): object[] | undefined =>
+    text.includes('FROM "apikey"') ? (row === null ? [] : [row]) : undefined;
 
 /**
  * `GET /me` answers the one gate a role does not decide (G-06): whether
@@ -204,14 +215,16 @@ describe('GET /me capabilities', () => {
     slug: 'acme',
   };
   const me = async () => {
-    const { sql, queries } = fakeSql([membership]);
+    const { sql, queries } = fakeSql([membership], answerKeyRow(keyRow()));
     const res = await mount(sql).request('http://localhost/me');
     expect(res.status).toBe(200);
     const body: { capabilities: { deploymentEditor: boolean } } =
       await res.json();
-    // The memberships read is the only query — the gate costs nothing.
-    expect(queries).toHaveLength(1);
+    // The memberships read and the key row are the only queries — the
+    // gate itself costs nothing.
+    expect(queries).toHaveLength(2);
     expect(queries[0]?.text).toContain('FROM "member" m');
+    expect(queries[1]?.text).toContain('FROM "apikey"');
     return body;
   };
   let savedAdmins: string | undefined;
@@ -237,6 +250,58 @@ describe('GET /me capabilities', () => {
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS =
       'ops@example.com, USER@example.com';
     expect((await me()).capabilities).toEqual({ deploymentEditor: true });
+  });
+});
+
+/**
+ * `GET /me` names the key that made the request (H-06a): keys are minted,
+ * rotated and revoked in the app only, so this is where an unattended
+ * caller sees its own expiry coming instead of learning it from a 401.
+ */
+describe('GET /me key', () => {
+  const membership = {
+    organizationId: 'org-1',
+    role: 'admin',
+    name: 'Acme',
+    slug: 'acme',
+  };
+  const me = async (row: object | null, apiKeyId = 'key-1') => {
+    const { sql, queries } = fakeSql([membership], answerKeyRow(row));
+    const res = await mount(sql, apiKeyId).request('http://localhost/me');
+    expect(res.status).toBe(200);
+    const body: { key: unknown } = await res.json();
+    return { body, queries };
+  };
+
+  it('answers the key’s name and expiry as epoch milliseconds, read by the stashed id', async () => {
+    const { body, queries } = await me(keyRow());
+    expect(body.key).toEqual({
+      id: 'key-1',
+      name: 'Billing sync',
+      expiresAt: KEY_EXPIRES_AT.getTime(),
+    });
+    const read = queries.find((q) => q.text.includes('FROM "apikey"'));
+    expect(read?.values).toEqual(['key-1']);
+  });
+
+  it('answers expiresAt null for a key minted to never expire', async () => {
+    const { body } = await me(keyRow(null));
+    expect(body.key).toEqual({
+      id: 'key-1',
+      name: 'Billing sync',
+      expiresAt: null,
+    });
+  });
+
+  it('answers key null when the row is gone — revoked while the request was in flight', async () => {
+    const { body } = await me(null);
+    expect(body.key).toBeNull();
+  });
+
+  it('reads no row when the door stashed no key id', async () => {
+    const { body, queries } = await me(keyRow(), '');
+    expect(body.key).toBeNull();
+    expect(queries.some((q) => q.text.includes('FROM "apikey"'))).toBe(false);
   });
 });
 

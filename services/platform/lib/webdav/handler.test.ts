@@ -79,6 +79,48 @@ describe('OPTIONS', () => {
     );
     expect(res.status).toBe(200);
   });
+
+  // RFC 9110 §10.2.1: `Allow` names what THE TARGET accepts. Finder,
+  // Explorer and Office decide from it whether a mount is writable and
+  // whether to take a lock, so the read-only views must not advertise the
+  // write verbs the documents tree has.
+  const FULL_SET =
+    'OPTIONS, GET, HEAD, PROPFIND, PROPPATCH, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK';
+  it.each([
+    ['the documents tree', '/dav/myorg/documents/', FULL_SET],
+    ['a document', '/dav/myorg/documents/report.docx', FULL_SET],
+    [
+      'a trashed document',
+      '/dav/myorg/.trash/report.docx',
+      'OPTIONS, GET, HEAD, PROPFIND',
+    ],
+    ['the trash collection', '/dav/myorg/.trash/', 'OPTIONS, PROPFIND'],
+    [
+      'the trash collection without a slash',
+      '/dav/myorg/.trash',
+      'OPTIONS, PROPFIND',
+    ],
+    ['a trashed folder', '/dav/myorg/.trash/old/', 'OPTIONS, PROPFIND'],
+    ['the org root', '/dav/myorg/', 'OPTIONS, PROPFIND'],
+    ['the org root without a slash', '/dav/myorg', 'OPTIONS, PROPFIND'],
+    // Unparseable paths keep the full set so a client can detect DAV
+    // support before it has org context; an unknown org reads exactly
+    // like a known one (this runs before authentication).
+    ['a path without an org', '/dav', FULL_SET],
+    ['an unknown namespace', '/dav/myorg/unknown-ns/', FULL_SET],
+    ['a traversal-shaped org slug', '/dav/..%2Fetc/documents/', FULL_SET],
+  ])(
+    'OPTIONS on %s advertises what that target accepts',
+    async (_label, pathname, allow) => {
+      const res = await dispatch(
+        makeRequest({ method: 'OPTIONS', pathname }),
+        makeStubCtx(),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers?.['Allow']).toBe(allow);
+      expect(res.headers?.['DAV']).toBe('1, 2');
+    },
+  );
 });
 
 describe('Authentication gate', () => {
