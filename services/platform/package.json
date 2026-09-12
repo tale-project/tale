@@ -15,7 +15,7 @@
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "backend:start": "node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs backend/main.ts",
     "backend:dev": "node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs --watch backend/main.ts",
-    "backend:integration": "node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs backend/integration-check.ts",
+    "backend:integration": "TALE_STRICT_ERROR_CODES=1 node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs backend/integration-check.ts",
     "configs:validate": "bun scripts/validate-builtin-configs.ts",
     "test": "bunx vitest --run --project server --project pii",
     "test:watch": "bunx vitest --project server --project pii",

@@ -95,7 +95,7 @@ describe('s3PresignGetUrl — attachment forcing', () => {
       }),
     );
     expect(url.searchParams.get('response-content-disposition')).toBe(
-      'attachment; filename="report.pdf"',
+      `attachment; filename="report.pdf"; filename*=UTF-8''report.pdf`,
     );
   });
 
@@ -106,7 +106,18 @@ describe('s3PresignGetUrl — attachment forcing', () => {
       }),
     );
     expect(url.searchParams.get('response-content-disposition')).toBe(
-      'attachment; filename="abc d.pdf"',
+      `attachment; filename="a_bc d.pdf"; filename*=UTF-8''a%22bc%20d.pdf`,
+    );
+  });
+
+  it('carries a non-ASCII filename exactly as filename* (RFC 6266), with an ASCII fallback', async () => {
+    const url = new URL(
+      await s3PresignGetUrl(testStore(), 'org/blob-1', {
+        filename: 'Zürich Bericht.pdf',
+      }),
+    );
+    expect(url.searchParams.get('response-content-disposition')).toBe(
+      `attachment; filename="Z_rich Bericht.pdf"; filename*=UTF-8''Z%C3%BCrich%20Bericht.pdf`,
     );
   });
 

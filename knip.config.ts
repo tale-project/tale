@@ -157,7 +157,6 @@ export default {
         '@types/seedrandom',
         '@types/turndown',
         'bcryptjs',
-        'cron-parser',
         'diff',
         'hast-util-to-html',
         'json-diff-kit',
@@ -175,7 +174,6 @@ export default {
         'seedrandom',
         'sucrase',
         'turndown',
-        'undici',
       ],
     },
     'services/web': {

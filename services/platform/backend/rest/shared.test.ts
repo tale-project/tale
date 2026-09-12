@@ -1,16 +1,28 @@
 // @vitest-environment node
 
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
   findNulByte,
   formatKeysetCursor,
+  invalidBodyResponse,
+  INVALID_JSON,
   loadRestProject,
   mintCursorFor,
+  PAGE_QUERY,
   pageLimit,
   parseKeysetCursor,
+  queryFilter,
+  readJsonBody,
+  readOptionalJsonBody,
+  readPageLimit,
+  readQuery,
   resetCursorKeyForTests,
+  type RestEnv,
   verifyCursorFor,
 } from './shared.ts';
 
@@ -269,5 +281,214 @@ describe('parseKeysetCursor — timestamps the column cannot hold', () => {
       at: 1_699_999_999_998,
       id: 'p-2',
     });
+  });
+});
+
+/**
+ * The query string is one strict object: a parameter the route does not
+ * take, or one given twice, is refused — a mistyped filter used to answer
+ * the whole unfiltered list, and a fractional `limit` a one-row page.
+ */
+describe('readQuery / readPageLimit', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.get('/list', (c) => {
+      const query = readQuery(c, {
+        ...PAGE_QUERY,
+        status: z.enum(['active', 'archived']).optional(),
+        folderId: queryFilter().optional(),
+      });
+      if (query instanceof Response) return query;
+      const limit = readPageLimit(c, { fallback: 25, max: 100 });
+      if (limit instanceof Response) return limit;
+      return c.json({ query, limit });
+    });
+    return app;
+  }
+
+  it('answers the declared parameters and clamps a whole-number limit', async () => {
+    const res = await probe().request('/list?status=active&limit=1000');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      query: { status: 'active', limit: '1000' },
+      limit: 100,
+    });
+  });
+
+  it('refuses a parameter the route does not take, naming it', async () => {
+    const res = await probe().request('/list?statuss=active');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid query: "statuss" is not a parameter this route takes',
+      code: 'INVALID_QUERY',
+      data: {
+        issues: [
+          { path: 'statuss', message: 'is not a parameter this route takes' },
+        ],
+      },
+    });
+  });
+
+  it('refuses a parameter given twice rather than reading the first', async () => {
+    const res = await probe().request('/list?limit=1&limit=100');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'limit', message: 'is given more than once' }] },
+    });
+  });
+
+  it('refuses a blank named filter instead of matching nothing', async () => {
+    const res = await probe().request('/list?folderId=%20');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'folderId', message: 'must not be blank' }] },
+    });
+  });
+
+  it('reads a blank limit as absent and refuses a fractional one', async () => {
+    const blank = await probe().request('/list?limit=');
+    expect(await blank.json()).toMatchObject({ limit: 25 });
+    for (const bad of ['1.5', '1e2', 'abc']) {
+      const res = await probe().request(`/list?limit=${bad}`);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    }
+  });
+});
+
+/**
+ * Bodies are read strictly: not UTF-8 is a 400 naming the problem (the
+ * Fetch decoder used to repair it with U+FFFD and the repaired text was
+ * stored), and a body over the cap is a 413 refused before it is read
+ * when the length is declared, and at the first chunk past it otherwise.
+ */
+describe('readJsonBody', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.onError((err, c) => {
+      if (err instanceof HTTPException) {
+        return c.json(
+          { error: err.message, code: 'BODY_TOO_LARGE' },
+          err.status,
+        );
+      }
+      throw err;
+    });
+    app.post('/echo', async (c) => {
+      const body = z
+        .object({ text: z.string() })
+        .strict()
+        .safeParse(await readJsonBody(c, { maxBytes: 64 }));
+      return body.success
+        ? c.json(body.data)
+        : invalidBodyResponse(c, body.error);
+    });
+    app.post('/maybe', async (c) =>
+      c.json({ invalid: (await readOptionalJsonBody(c)) === INVALID_JSON }),
+    );
+    return app;
+  }
+
+  it('refuses a body that is not UTF-8 with the field-level envelope', async () => {
+    const res = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: new Uint8Array([
+        0x7b, 0x22, 0x74, 0x65, 0x78, 0x74, 0x22, 0x3a, 0x22, 0xff, 0xfe, 0x22,
+        0x7d,
+      ]),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid body: The body is not valid UTF-8',
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: '', message: 'The body is not valid UTF-8' }] },
+    });
+    const optional = await probe().request('/maybe', {
+      method: 'POST',
+      body: new Uint8Array([0xc3]),
+    });
+    expect(optional.status).toBe(200);
+    expect(await optional.json()).toEqual({ invalid: true });
+  });
+
+  it('keeps valid UTF-8 exactly, multi-byte text included', async () => {
+    const res = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'Zürich — 東京' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: 'Zürich — 東京' });
+  });
+
+  it('refuses a declared oversize body before reading it, and a streamed one at the cap', async () => {
+    const declared = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': '5000' },
+      body: '{"text":"x"}',
+    });
+    expect(declared.status).toBe(413);
+    expect(await declared.json()).toMatchObject({ code: 'BODY_TOO_LARGE' });
+    const streamed = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'y'.repeat(200) }),
+    });
+    expect(streamed.status).toBe(413);
+  });
+});
+
+describe('readJsonBody — numbers the parser cannot carry', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.post('/echo', async (c) => {
+      const body = z
+        .object({ externalId: z.union([z.string(), z.number()]) })
+        .strict()
+        .safeParse(await readJsonBody(c));
+      return body.success
+        ? c.json(body.data)
+        : invalidBodyResponse(c, body.error);
+    });
+    return app;
+  }
+
+  it('refuses a whole number beyond 2^53 − 1 instead of rounding it', async () => {
+    const res = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"externalId": 9007199254740993}',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          {
+            path: 'externalId',
+            message: expect.stringContaining('beyond 2^53 − 1'),
+          },
+        ],
+      },
+    });
+  });
+
+  it('keeps exact integers, fractions and the same id as a string', async () => {
+    for (const [body, expected] of [
+      ['{"externalId": 9007199254740991}', 9007199254740991],
+      ['{"externalId": 1.5}', 1.5],
+      ['{"externalId": "9007199254740993"}', '9007199254740993'],
+    ] as const) {
+      const res = await probe().request('/echo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ externalId: expected });
+    }
   });
 });

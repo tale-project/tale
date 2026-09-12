@@ -72,6 +72,16 @@ function fakeSql(
         })),
       );
     }
+    if (text.includes('FROM "member" m JOIN "organization" o')) {
+      return Promise.resolve(
+        [...memberOf].map((organizationId) => ({
+          organizationId,
+          role: 'member',
+          name: `Org ${organizationId}`,
+          slug: organizationId,
+        })),
+      );
+    }
     if (text.includes('FROM "organization" WHERE "id"')) {
       return Promise.resolve([{ slug: 'acme' }]);
     }
@@ -373,6 +383,47 @@ describe('/api/v1 door — organization resolution statuses', () => {
       method: 'POST',
       ...bearer(GOOD_KEY),
     });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'ORG_SLUG_REQUIRED' });
+  });
+
+  it('names the slugs a multi-org key may send in the 400 that asks for one', async () => {
+    // `GET /api/v1/me` sits behind the same rule, so without this the
+    // refusal was circular: it asked for a slug no call could discover.
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error:
+        'Send X-Organization-Slug: the key holder belongs to 2 organizations (org-1, org-2)',
+      code: 'ORG_SLUG_REQUIRED',
+      data: {
+        organizations: [
+          { slug: 'org-1', name: 'Org org-1' },
+          { slug: 'org-2', name: 'Org org-2' },
+        ],
+      },
+    });
+  });
+
+  it('refuses a multi-org key that names no org on a read too — never the dashboard’s last-active org', async () => {
+    // A plain GET used to follow the key holder's last-active pointer, so
+    // the organization a machine read from depended on what a person had
+    // last opened in a browser.
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'ORG_SLUG_REQUIRED' });
   });

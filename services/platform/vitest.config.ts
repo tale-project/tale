@@ -26,6 +26,7 @@ export default defineConfig({
         test: {
           name: 'server',
           environment: 'node',
+          setupFiles: ['./tests/setup-server.ts'],
           // A per-TEST ceiling, not added wall-clock: under the fully parallel
           // suite the 5s vitest default starves whichever file lands on a
           // saturated worker.

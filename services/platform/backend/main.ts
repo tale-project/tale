@@ -154,7 +154,16 @@ async function main(): Promise<void> {
     env.ROLE === 'worker' || auth === null
       ? null
       : serve(
-          { fetch: createApp({ sql, auth }).fetch, port: env.PORT },
+          {
+            fetch: createApp({ sql, auth }).fetch,
+            port: env.PORT,
+            // Node's 16 KiB default counts the request target too, and its
+            // overflow answer is a bare 431 with the socket destroyed — which
+            // the proxy turned into a reset stream. 64 KiB keeps a long but
+            // legitimate URL (a filter-laden list, a signed cursor) inside
+            // the door; the proxy refuses anything larger with its own 431.
+            serverOptions: { maxHeaderSize: 64 * 1024 },
+          },
           (info) => {
             console.log(
               `[backend] api listening on :${info.port} (role=${env.ROLE})`,

@@ -1,4 +1,5 @@
 import { anyRefs } from '../../shared/handlers/function-refs';
+import { attachmentDisposition } from '../../shared/http/content-disposition';
 import type {
   AuthContext,
   ParsedPath,
@@ -67,17 +68,14 @@ function buildContentDisposition(doc: DocumentForResponse): string {
   const ext = inferExtension(doc);
   const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(rawTitle);
   const filename = hasExt || ext === '' ? rawTitle : `${rawTitle}${ext}`;
-  // ASCII fallback for legacy clients: strip non-ASCII and quote-unsafe chars.
-  const ascii =
-    filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'document';
-  const encoded = encodeURIComponent(filename);
   // `attachment`, not `inline`: /dav GET drops CSP (DAV bodies are raw
   // blobs, not HTML), so an uploaded .html served inline would execute as
   // a same-origin document in a browser (stored XSS). Forcing download
   // neutralizes that; nosniff + X-Frame-Options: DENY (set by secureForDav)
   // close the rest. WebDAV clients (Finder, rclone) ignore this header and
-  // read the body regardless, so mounted-drive UX is unaffected.
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+  // read the body regardless, so mounted-drive UX is unaffected. The
+  // shared builder writes the RFC 6266 pair (ASCII fallback + exact name).
+  return attachmentDisposition(filename);
 }
 
 interface ParsedRange {

@@ -88,7 +88,7 @@ describe('/api/v1 door — unknown paths', () => {
       ...bearer,
     });
     expect(res.status).toBe(405);
-    expect(res.headers.get('allow')).toBe('GET, HEAD');
+    expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
     expect(await res.json()).toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
   });
 
@@ -98,7 +98,7 @@ describe('/api/v1 door — unknown paths', () => {
       { method: 'PUT', ...bearer },
     );
     expect(res.status).toBe(405);
-    expect(res.headers.get('allow')).toBe('GET, PATCH, DELETE, HEAD');
+    expect(res.headers.get('allow')).toBe('GET, PATCH, DELETE, HEAD, OPTIONS');
   });
 
   it('answers OPTIONS on a served path with the same Allow list and no body', async () => {
@@ -107,7 +107,35 @@ describe('/api/v1 door — unknown paths', () => {
       ...bearer,
     });
     expect(res.status).toBe(204);
-    expect(res.headers.get('allow')).toBe('GET, HEAD');
+    expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+  });
+
+  /**
+   * The MCP URL takes POST and nothing else — no event stream to GET, no
+   * session to DELETE — and the door's own catch-all says so with ONE
+   * `Allow` list; the verbs used to be registered as 405 stubs, which made
+   * the same catch-all list them as served on OPTIONS.
+   */
+  it.each(['GET', 'PUT', 'PATCH', 'DELETE'])(
+    'answers %s /api/v1/mcp with 405 and Allow: POST',
+    async (method) => {
+      const res = await root().request('http://localhost/api/v1/mcp', {
+        method,
+        ...bearer,
+      });
+      expect(res.status).toBe(405);
+      expect(res.headers.get('allow')).toBe('POST, OPTIONS');
+      expect(await res.json()).toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
+    },
+  );
+
+  it('answers OPTIONS /api/v1/mcp with the same one-verb Allow list', async () => {
+    const res = await root().request('http://localhost/api/v1/mcp', {
+      method: 'OPTIONS',
+      ...bearer,
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('POST, OPTIONS');
   });
 
   it('keeps 404 for a method on a path nobody serves', async () => {

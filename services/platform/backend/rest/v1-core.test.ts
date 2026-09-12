@@ -4,6 +4,8 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DocumentError } from '../domains/documents/service.ts';
+import { findActiveEntryForDocument } from '../domains/knowledge_entries/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import {
   mintCursorFor,
@@ -16,15 +18,40 @@ import { createCoreRoutes } from './v1-core.ts';
 // The documents door is driven against the real routes with only its two
 // service calls replaced: the hub row loads, and the hard delete reports a
 // purge the object store could not finish.
+/** The hub row the mocked loads answer; tests reshape it per case. */
+const hubDocument = {
+  id: 'doc-hub',
+  organizationId: 'org-1',
+  projectId: null,
+  title: 'Hub Note.md',
+  fileRef: null as string | null,
+  mimeType: 'text/markdown',
+  extension: 'md',
+  sourceProvider: 'api_import',
+  teamId: null,
+  folderId: null,
+  metadata: null,
+  createdBy: 'user-1',
+  lifecycleStatus: null,
+  createdAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_000,
+};
+
 vi.mock('../domains/documents/service.ts', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../domains/documents/service.ts')>();
   return {
     ...actual,
-    getDocumentById: vi.fn(async () => ({
-      id: 'doc-hub',
-      organizationId: 'org-1',
-      projectId: null,
+    getDocumentById: vi.fn(async () => ({ ...hubDocument })),
+    readDocumentRestExtras: vi.fn(async () => ({
+      content: 'beta content',
+      record: null,
+    })),
+    readDocumentIndexing: vi.fn(async () => new Map()),
+    updateDocument: vi.fn(async () => ({
+      teamScopeChanged: false,
+      folderChanged: false,
+      fileRef: null,
     })),
     deleteDocumentHard: vi.fn(async () => {
       throw new PurgeIncompleteError('doc-hub', [
@@ -33,6 +60,12 @@ vi.mock('../domains/documents/service.ts', async (importOriginal) => {
     }),
   };
 });
+vi.mock('../domains/knowledge_entries/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/knowledge_entries/service.ts')
+  >()),
+  findActiveEntryForDocument: vi.fn(async () => null),
+}));
 
 /**
  * GET /contacts and GET /products honour the pagination they document. The
@@ -64,8 +97,10 @@ function fakeSql(
     return Promise.resolve(respond?.(text) ?? rows);
   };
   const unsafe = (text: string) => ({ unsafe: text });
+  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
+  const sql = Object.assign(tag, { unsafe, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: Object.assign(tag, { unsafe }) as unknown as Sql, queries };
+  return { sql: sql as unknown as Sql, queries };
 }
 
 /** The limiter's state for a spent bucket: the charging UPSERT returns no
@@ -297,6 +332,127 @@ describe('DELETE /documents/:id purge mapping', () => {
 });
 
 /**
+ * PATCH /documents/{id} answers the document as it now stands, and refuses a
+ * stale `expectedUpdatedAt` — the contacts/products precondition. The
+ * regression under test: the route answered 204, so a client that sent the
+ * precondition could never learn the `updatedAt` its next write needs, and
+ * documents had no precondition at all while contacts and products did.
+ */
+describe('PATCH /documents/:id', () => {
+  it('answers 200 with the updated document, indexing state included', async () => {
+    const { readDocumentIndexing } =
+      await import('../domains/documents/service.ts');
+    vi.mocked(readDocumentIndexing).mockResolvedValueOnce(
+      new Map([['s3:acme/blob-1', { status: 'completed', indexedAt: 5 }]]),
+    );
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue({
+      ...hubDocument,
+      fileRef: 's3:acme/blob-1',
+    } as never);
+    const res = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Renamed',
+          expectedUpdatedAt: 1_700_000_000_000,
+        }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      id: 'doc-hub',
+      content: 'beta content',
+      updatedAt: 1_700_000_000_000,
+      indexing: { status: 'completed', indexedAt: 5 },
+    });
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
+  it('maps a stale precondition to 409 DOCUMENT_STALE', async () => {
+    const { updateDocument } = await import('../domains/documents/service.ts');
+    vi.mocked(updateDocument).mockRejectedValueOnce(
+      new DocumentError('DOCUMENT_STALE', 'The document changed', 409),
+    );
+    const res = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Renamed', expectedUpdatedAt: 1 }),
+      },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'DOCUMENT_STALE' });
+  });
+});
+
+/**
+ * A `knowledge`-sourced document is a knowledge entry's own storage: the
+ * entry's delete retires the chain and trashes the document, so the
+ * document door must not do it sideways. The regression under test:
+ * `DELETE /documents/{id}` on such a document silently destroyed the entry.
+ */
+describe('documents that back an active knowledge entry', () => {
+  const backing = { ...hubDocument, sourceProvider: 'knowledge' };
+
+  it('refuses the delete with 409 naming the entry', async () => {
+    const { getDocumentById } = await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValueOnce(backing as never);
+    vi.mocked(findActiveEntryForDocument).mockResolvedValueOnce({
+      id: 'ke-1',
+      topic: 'VAT filing deadline',
+    });
+    const res = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'DOCUMENT_HAS_KNOWLEDGE_ENTRY',
+      data: { entryId: 'ke-1' },
+    });
+  });
+
+  it('refuses a content or identity rewrite with the same 409, but lets a folder move through', async () => {
+    const { getDocumentById, updateDocument } =
+      await import('../domains/documents/service.ts');
+    vi.mocked(getDocumentById).mockResolvedValue(backing as never);
+    vi.mocked(findActiveEntryForDocument).mockResolvedValue({
+      id: 'ke-1',
+      topic: 'VAT filing deadline',
+    });
+    const rewrite = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'something else' }),
+      },
+    );
+    expect(rewrite.status).toBe(409);
+    expect(updateDocument).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ content: 'something else' }),
+    );
+    const move = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ folderId: 'fold-2' }),
+      },
+    );
+    expect(move.status).toBe(200);
+    vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+    vi.mocked(findActiveEntryForDocument).mockResolvedValue(null);
+  });
+});
+
+/**
  * A body that is not JSON is a client mistake in the documented 400 envelope.
  * The regression under test: every write route handed `c.req.json()` — a
  * bare `JSON.parse` — straight to zod, so a truncated or empty `curl -d`
@@ -392,11 +548,10 @@ describe.each([
   });
 
   it.each([
-    ['2.5', 3],
     ['-4', 2],
     ['999', 101],
   ])(
-    'turns ?limit=%s into a whole LIMIT of %i (page + 1)',
+    'clamps ?limit=%s into a whole LIMIT of %i (page + 1)',
     async (limit, expected) => {
       const { sql, queries } = fakeSql([]);
       const res = await mount(sql).request(
@@ -406,4 +561,29 @@ describe.each([
       expect(listQuery(queries, table).values).toContain(expected);
     },
   );
+
+  it('refuses a fractional limit instead of silently truncating it', async () => {
+    const { sql, queries } = fakeSql([]);
+    const res = await mount(sql).request(`http://localhost${route}?limit=2.5`);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+    expect(queries.some((q) => q.text.includes(table))).toBe(false);
+  });
+
+  it('refuses a query parameter the route does not take, naming it', async () => {
+    const { sql, queries } = fakeSql([]);
+    const res = await mount(sql).request(
+      `http://localhost${route}?statuss=active`,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: {
+        issues: [
+          { path: 'statuss', message: 'is not a parameter this route takes' },
+        ],
+      },
+    });
+    expect(queries.some((q) => q.text.includes(table))).toBe(false);
+  });
 });
