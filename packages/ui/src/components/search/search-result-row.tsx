@@ -108,6 +108,11 @@ export function SearchResultRow({
             <span className="truncate">
               <Highlight text={result.title} terms={highlightTerms} />
             </span>
+            {result.badge ? (
+              <span className="border-border-base/70 text-fg-subtle shrink-0 rounded border px-1.5 py-px text-[10px] font-medium">
+                {result.badge}
+              </span>
+            ) : null}
           </span>
           {secondary ? (
             <span className="text-fg-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">

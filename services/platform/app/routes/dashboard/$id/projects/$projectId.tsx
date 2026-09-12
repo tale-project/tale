@@ -28,6 +28,7 @@ import {
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
+import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import {
   isProjectTasksPath,
   ProjectBreadcrumbSwitcher,
@@ -281,11 +282,16 @@ function ProjectDetailLayout() {
                     className="contents"
                   >
                     {project ? (
-                      <ProjectBreadcrumbSwitcher
-                        organizationId={organizationId}
-                        projectId={asProjectId(projectId)}
-                        projectName={project.name}
-                      />
+                      <span className="inline-flex items-center gap-2">
+                        <ProjectBreadcrumbSwitcher
+                          organizationId={organizationId}
+                          projectId={asProjectId(projectId)}
+                          projectName={project.name}
+                        />
+                        {project.archivedAt !== undefined && (
+                          <ProjectArchivedBadge className="px-1.5 py-px text-[10px]" />
+                        )}
+                      </span>
                     ) : (
                       <SkeletonBox>
                         <span className="inline-block h-4 w-32 align-middle" />

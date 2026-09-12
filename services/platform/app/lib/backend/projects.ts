@@ -205,6 +205,7 @@ function paletteHitView(row: ProjectWire): PaletteSearchItem {
     ...(row.key !== null ? { key: row.key } : {}),
     snippet,
     updatedAt: row.updatedAt,
+    ...(row.archivedAt !== null ? { archived: true } : {}),
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
   return view as PaletteSearchItem;

@@ -16,6 +16,7 @@ import type { TaskDoc } from '../lib/display';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
+import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
@@ -146,15 +147,22 @@ export function TaskCard({
           sortable.listeners?.onKeyDown?.(e);
         }}
       >
-        {identifier && (
-          <Text
-            as="span"
-            variant="caption"
-            className="font-mono text-[10px] tracking-wide"
-          >
-            {identifier}
-          </Text>
-        )}
+        {identifier || task.archivedAt != null ? (
+          <Row gap={1} align="center">
+            {identifier && (
+              <Text
+                as="span"
+                variant="caption"
+                className="font-mono text-[10px] tracking-wide"
+              >
+                {identifier}
+              </Text>
+            )}
+            {task.archivedAt != null && (
+              <TaskArchivedBadge className="px-1.5 py-px text-[10px]" />
+            )}
+          </Row>
+        ) : null}
         <Text as="p" variant="label" className="line-clamp-2 leading-snug">
           {task.title}
         </Text>

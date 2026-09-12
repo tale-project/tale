@@ -22,6 +22,7 @@ import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
+import { TaskArchivedBadge } from './task-archived-badge';
 import { useTaskBoardContext } from './task-board-context';
 import type { TaskRow } from './task-card';
 import {
@@ -382,6 +383,9 @@ function TaskListRow({
       >
         {task.title}
       </Text>
+      {task.archivedAt != null && (
+        <TaskArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
+      )}
       {task.labels && task.labels.length > 0 && (
         <span className="hidden shrink-0 items-center gap-1 md:flex">
           {task.labels.slice(0, 3).map((label) => (

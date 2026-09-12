@@ -1561,6 +1561,18 @@ async function checkProjects(
   const listAfterArchive = z
     .object({ projects: z.array(z.object({ id: z.string() })) })
     .safeParse(await get(`?orgId=${orgId}`));
+  // #2999: the list hides an archived project, search still finds it and the
+  // row carries the stamp the palette turns into an "Archived" badge.
+  const searchWhileArchived = z
+    .object({
+      projects: z.array(
+        z.object({ id: z.string(), archivedAt: z.number().nullish() }).loose(),
+      ),
+    })
+    .safeParse(await get(`/search?orgId=${orgId}&q=Integration`));
+  const archivedRow = searchWhileArchived.success
+    ? searchWhileArchived.data.projects.find((p) => p.id === projectId)
+    : undefined;
   const restored = await send('POST', `/${projectId}/restore?orgId=${orgId}`);
   const searched = z
     .object({ projects: z.array(z.object({ id: z.string() })) })
@@ -1570,10 +1582,12 @@ async function checkProjects(
     archived.ok &&
       listAfterArchive.success &&
       !listAfterArchive.data.projects.some((p) => p.id === projectId) &&
+      archivedRow !== undefined &&
+      typeof archivedRow.archivedAt === 'number' &&
       restored.ok &&
       searched.success &&
       searched.data.projects.some((p) => p.id === projectId),
-    `archive → ${archived.status}, hidden=${listAfterArchive.success ? !listAfterArchive.data.projects.some((p) => p.id === projectId) : 'ERR'}, search hits=${searched.success ? searched.data.projects.length : 'ERR'}`,
+    `archive → ${archived.status}, hidden=${listAfterArchive.success ? !listAfterArchive.data.projects.some((p) => p.id === projectId) : 'ERR'}, whileArchived=${JSON.stringify(archivedRow)}, search hits=${searched.success ? searched.data.projects.length : 'ERR'}`,
   );
 
   // --- Project secrets: write-only values, metadata listings, atomic pair.
@@ -2442,6 +2456,140 @@ async function checkTasks(
       fromIssue.success &&
       folderBound.success,
     `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
+  );
+
+  // --- #2999 in the palette: archived work is searchable and says so.
+  // Its own project, so archiving it cannot disturb the lanes above.
+  const archProj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Archivable Project',
+      })
+    ).json(),
+  );
+  const archProjectId = archProj.success ? archProj.data.projectId : '';
+  const mkTask = async (title: string): Promise<string> => {
+    const made = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+          projectId: archProjectId,
+          title,
+          status: 'todo',
+        })
+      ).json(),
+    );
+    return made.success ? made.data.taskId : '';
+  };
+  const archivedTaskId = await mkTask('Zephyrine archived task');
+  const liveTaskId = await mkTask('Zephyrine live task');
+
+  const hitSchema = z.object({
+    results: z.array(
+      z.object({ taskId: z.string(), title: z.string() }).loose(),
+    ),
+  });
+  const searchZephyrine = async (): Promise<
+    {
+      taskId: string;
+      title: string;
+      archived?: unknown;
+      projectArchived?: unknown;
+    }[]
+  > => {
+    const parsed = hitSchema.safeParse(
+      await get(`/api/app/tasks/search?q=Zephyrine&orgId=${orgId}`),
+    );
+    return parsed.success ? parsed.data.results : [];
+  };
+
+  await send('POST', `/api/app/tasks/${archivedTaskId}/archive?orgId=${orgId}`);
+  const afterTaskArchive = await searchZephyrine();
+  const archivedHit = afterTaskArchive.find((h) => h.taskId === archivedTaskId);
+  const liveHit = afterTaskArchive.find((h) => h.taskId === liveTaskId);
+  // The page is capped, so a live row must never sort behind an archived one.
+  const liveSortsFirst =
+    afterTaskArchive.findIndex((h) => h.taskId === liveTaskId) <
+    afterTaskArchive.findIndex((h) => h.taskId === archivedTaskId);
+
+  // The tasks page renders `board ∩ search`, so a board that includes archived
+  // tasks and a search that excludes them cancel out: the row vanishes the
+  // moment you type. Both reads are asserted here over one archived task.
+  const boardSchema = z.object({
+    tasks: z.array(z.object({ id: z.string() }).loose()),
+  });
+  const boardWith = boardSchema.safeParse(
+    await get(
+      `/api/app/tasks?orgId=${orgId}&projectId=${archProjectId}&includeArchived=true`,
+    ),
+  );
+  const boardWithout = boardSchema.safeParse(
+    await get(`/api/app/tasks?orgId=${orgId}&projectId=${archProjectId}`),
+  );
+  const onBoardWith =
+    boardWith.success &&
+    boardWith.data.tasks.some((t) => t.id === archivedTaskId);
+  const onBoardWithout =
+    boardWithout.success &&
+    boardWithout.data.tasks.some((t) => t.id === archivedTaskId);
+  const inSearch = afterTaskArchive.some((h) => h.taskId === archivedTaskId);
+  record(
+    'Show archived + a search query still shows the archived task (#3325)',
+    boardWith.success &&
+      boardWithout.success &&
+      onBoardWith &&
+      !onBoardWithout &&
+      inSearch,
+    `parsed=${boardWith.success}/${boardWithout.success} (both want true), board(includeArchived)=${onBoardWith} (want true), board(default)=${onBoardWithout} (want false), search=${inSearch} (want true) — the page renders the intersection`,
+  );
+
+  await send(
+    'POST',
+    `/api/app/projects/${archProjectId}/archive?orgId=${orgId}`,
+  );
+  const afterProjectArchive = await searchZephyrine();
+  const liveInArchived = afterProjectArchive.find(
+    (h) => h.taskId === liveTaskId,
+  );
+
+  record(
+    'archived tasks and archived projects stay searchable, labelled (#2999)',
+    archivedHit?.archived === true &&
+      archivedHit.projectArchived === undefined &&
+      liveHit !== undefined &&
+      liveHit.archived === undefined &&
+      liveSortsFirst &&
+      // The case #3007 named: live work in a retired project stays findable.
+      liveInArchived?.projectArchived === true &&
+      liveInArchived.archived === undefined &&
+      afterProjectArchive.some((h) => h.taskId === archivedTaskId),
+    `archivedHit=${JSON.stringify(archivedHit)}, liveHit=${JSON.stringify(liveHit)}, liveFirst=${liveSortsFirst}, afterProjectArchive=${JSON.stringify(afterProjectArchive.map((h) => [h.taskId === liveTaskId ? 'live' : 'archived', h.archived, h.projectArchived]))}`,
+  );
+
+  // The SQL ORDER BY, on its own. The page is capped at SEARCH_MAX_RESULTS
+  // (25); fill it with live rows so an archived row can only appear by
+  // displacing one. Archiving bumps `updated_at_ms`, so a recency-only sort
+  // puts the archived row first. At exactly 25 field hits the comment leg —
+  // and with it the merge sort — never runs, leaving the SQL key alone.
+  const CAP = 25;
+  const crowdIds: string[] = [];
+  for (let i = 0; i < CAP; i += 1) {
+    crowdIds.push(await mkTask(`Crowdable live ${i}`));
+  }
+  const crowdArchivedId = await mkTask('Crowdable archived');
+  await send(
+    'POST',
+    `/api/app/tasks/${crowdArchivedId}/archive?orgId=${orgId}`,
+  );
+  const crowded = hitSchema.safeParse(
+    await get(`/api/app/tasks/search?q=Crowdable&orgId=${orgId}`),
+  );
+  const crowdedRows = crowded.success ? crowded.data.results : [];
+  record(
+    'a capped page keeps live tasks and drops the archived one (#2999)',
+    crowdedRows.length === CAP &&
+      !crowdedRows.some((h) => h.taskId === crowdArchivedId) &&
+      crowdIds.every((id) => crowdedRows.some((h) => h.taskId === id)),
+    `rows=${crowdedRows.length} (want ${CAP}), archivedPresent=${crowdedRows.some((h) => h.taskId === crowdArchivedId)} (want false), liveMissing=${crowdIds.filter((id) => !crowdedRows.some((h) => h.taskId === id)).length} (want 0)`,
   );
 }
 

@@ -2709,6 +2709,10 @@ export interface TaskSearchHit {
   updatedAt: number;
   number?: number;
   projectKey?: string;
+  /** The task itself is archived. Omitted when false (the #3007 shape). */
+  archived?: true;
+  /** The task's project is archived; the task may still be live work. */
+  projectArchived?: true;
 }
 
 /**
@@ -2733,16 +2737,23 @@ export async function searchTasks(
 
   let projectIds: string[];
   const projectKeys = new Map<string, string | null>();
+  // #2999: archived work stays searchable and says it is archived. An archived
+  // project is read here so its live tasks are findable at all, and its id is
+  // kept so every hit from it can carry `projectArchived`.
+  const archivedProjectIds = new Set<string>();
   if (args.projectId !== undefined) {
     const project = await loadProjectOrThrow(sql, args.projectId);
-    if (project.archivedAt !== null) return [];
     assertTaskReadable(project, auth);
     projectIds = [project.id];
     projectKeys.set(project.id, project.key);
+    if (project.archivedAt !== null) archivedProjectIds.add(project.id);
   } else {
-    const projects = await listProjects(sql, auth);
+    const projects = await listProjects(sql, auth, { includeArchived: true });
     projectIds = projects.map((project) => project.id);
-    for (const project of projects) projectKeys.set(project.id, project.key);
+    for (const project of projects) {
+      projectKeys.set(project.id, project.key);
+      if (project.archivedAt !== null) archivedProjectIds.add(project.id);
+    }
   }
   if (projectIds.length === 0) return [];
 
@@ -2753,21 +2764,22 @@ export async function searchTasks(
     description: string | null;
     updatedAt: number;
     number: number | null;
+    archivedAt: number | null;
   }
   const fieldHits = await sql<FieldHit[]>`
     SELECT t.id AS "taskId", t.project_id AS "projectId", t.title,
-           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+           t.archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks t
     JOIN app.projects p ON p.id = t.project_id
     WHERE t.org_id = ${auth.organizationId}
       AND t.project_id = ANY(${projectIds})
-      AND t.archived_at_ms IS NULL
       AND lower(
         t.title || ' ' || coalesce(t.description, '') || ' ' ||
         coalesce(t.external_id, '') || ' ' ||
         coalesce(p.key || '-' || t.number::text, '')
       ) LIKE ALL(${patterns})
-    ORDER BY t.updated_at_ms DESC
+    ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC
     LIMIT ${SEARCH_MAX_RESULTS}
   `;
   const seen = new Set(fieldHits.map((hit) => hit.taskId));
@@ -2783,6 +2795,8 @@ export async function searchTasks(
     };
     if (hit.number !== null) row.number = hit.number;
     if (key !== null) row.projectKey = key;
+    if (hit.archivedAt !== null) row.archived = true;
+    if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
     return row;
   };
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
@@ -2791,18 +2805,19 @@ export async function searchTasks(
 
   if (results.length < SEARCH_MAX_RESULTS) {
     const commentHits = await sql<(FieldHit & { body: string })[]>`
-      SELECT DISTINCT ON (t.updated_at_ms, t.id)
+      SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
              t.id AS "taskId", t.project_id AS "projectId", t.title,
              t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+             t.archived_at_ms::float8 AS "archivedAt",
              m.text AS body
       FROM app.task_discussion_message_meta meta
       JOIN app.messages m ON m.id = meta.message_id
       JOIN app.tasks t ON t.id = meta.task_id
       WHERE meta.org_id = ${auth.organizationId}
         AND t.project_id = ANY(${projectIds})
-        AND t.archived_at_ms IS NULL
         AND lower(coalesce(m.text, '')) LIKE ALL(${patterns})
-      ORDER BY t.updated_at_ms DESC, t.id, m.created_at_ms DESC
+      ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
+               m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
     `;
     for (const hit of commentHits) {
@@ -2811,7 +2826,11 @@ export async function searchTasks(
       seen.add(hit.taskId);
       results.push(toHit(hit, hit.body));
     }
-    results.sort((a, b) => b.updatedAt - a.updatedAt);
+    results.sort(
+      (a, b) =>
+        Number(a.archived ?? false) - Number(b.archived ?? false) ||
+        b.updatedAt - a.updatedAt,
+    );
   }
   return results;
 }

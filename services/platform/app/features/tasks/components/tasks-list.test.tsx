@@ -37,9 +37,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
-// The contract/choreography hooks reach Convex (provider-backed); the board
-// render tests care about lanes and rows, so stub them at the module seam —
-// the pure helpers stay real via importOriginal.
 vi.mock('../hooks/use-task-status-choreography', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../hooks/use-task-status-choreography')
@@ -55,50 +52,38 @@ vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
   useTaskContractAutomations: () => [],
 }));
 
-function makeTask(
-  title: string,
-  status: TaskRow['status'],
-  rank: string,
-): TaskRow {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the list renders title/status/rank only
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal fixture; the row renders title/status/archivedAt only
   return {
-    _id: `task_${title}`,
+    _id: 'task_1',
     _creationTime: 0,
     organizationId: 'org_test',
     projectId: 'project_1',
-    title,
-    status,
-    rank,
+    title: 'Chase the invoice',
+    status: 'todo',
+    rank: 'a0',
     number: 1,
+    projectKey: 'TAL',
     createdBy: 'user_1',
     createdByType: 'user',
     createdAt: 0,
     updatedAt: 0,
+    ...overrides,
   } as unknown as TaskRow;
 }
 
-describe('TasksList backlog section', () => {
-  it('renders every status section including backlog and its rows', () => {
-    render(
-      <TasksList
-        tasks={[
-          makeTask('Triaged task', 'todo', 'a0'),
-          makeTask('Proposed task', 'backlog', 'a1'),
-        ]}
-      />,
-    );
+// An archived row was signalled by `opacity-70` alone, which makes colour the
+// sole carrier of the meaning (WCAG 2.1 AA 1.4.1).
+describe('TasksList archived rows', () => {
+  it('gives an archived row the Archived badge', () => {
+    render(<TasksList tasks={[makeTask({ archivedAt: 123 })]} />);
+    expect(screen.getByText('Chase the invoice')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+  });
 
-    for (const section of [
-      'Backlog',
-      'To do',
-      'In progress',
-      'In review',
-      'Done',
-      'Cancelled',
-    ]) {
-      expect(screen.getByText(section)).toBeInTheDocument();
-    }
-    expect(screen.getByText('Triaged task')).toBeInTheDocument();
-    expect(screen.getByText('Proposed task')).toBeInTheDocument();
+  it('leaves a live row without one', () => {
+    render(<TasksList tasks={[makeTask()]} />);
+    expect(screen.getByText('Chase the invoice')).toBeInTheDocument();
+    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
   });
 });

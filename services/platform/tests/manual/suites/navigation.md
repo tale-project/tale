@@ -134,6 +134,16 @@ is hidden when the org has no teams.
   Separately, the benign one-off toast **"Tale is ready to work offline."**
   (`pwa.offlineReady`) fires on first SW install — expected, do **not** file
   it (it can photobomb unrelated screenshots)
+- [ ] `NAV-F15` · **Archived work in the palette** — Needs a project with one
+  archived task and one live task, plus a second project that is itself
+  archived and still holds a live task. Press **Cmd/Ctrl+K** on **Everything**
+  (`dialogs.search.scopeEverything`) and search a term all four share → Every
+  row appears. The archived task carries the **Archived** badge
+  (`dialogs.search.badgeArchived`); the live task in the archived project
+  carries **Archived project** (`dialogs.search.badgeProjectArchived`); the
+  live task in the live project carries neither. Live rows list above archived
+  ones. The badge reads as a quiet chip beside the title, not a second
+  heading, and stays legible in dark mode and at 400px width.
 
 ## Boundary & error tests
 

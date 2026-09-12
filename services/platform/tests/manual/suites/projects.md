@@ -158,6 +158,13 @@ projects-list row ⋯ menu.
   (`common.actions.openMenu`) → **Archive**; toggle the archived view;
   **Unarchive** → Archived project leaves the active list and appears under
   archived; unarchive returns it to the active list (survives reload)
+- [ ] `PROJ-F22` · **Archived project says so on every tab** — Archive a
+  project, then open it and walk its tabs (Overview, Chats, Tasks, Knowledge,
+  Agents) → An **Archived** badge (`projects.archived.badge`) sits beside the
+  project name in the breadcrumb on every tab, and stays legible in dark mode
+  and at 400px. Unarchive → the badge is gone. Previously an archived project
+  announced itself only in the Projects list, so a retired project looked live
+  from inside.
 - [ ] `PROJ-F15` · **Cascade delete** — Projects list → row ⋯
   (`common.actions.openMenu`) → **Delete** (`projects.rowActions.delete`) → in
   the **Delete project** dialog (`projects.settings.deleteDialogTitle`) tick

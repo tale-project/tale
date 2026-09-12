@@ -1396,6 +1396,9 @@ export interface DocumentSearchHit {
   folderId?: string;
   projectId?: string;
   updatedAt: number;
+  /** The document's project is archived. A document has no archive state of
+   *  its own, so this is the only label it can carry (the #3007 shape). */
+  projectArchived?: true;
 }
 
 /** Palette search over hub + readable-project documents (title match; the
@@ -1407,8 +1410,15 @@ export async function searchDocumentsView(
 ): Promise<DocumentSearchHit[]> {
   const term = query.trim();
   if (term === '') return [];
-  const projects = await listProjects(sql, auth);
+  // #2999: an archived project's files stay searchable and say so. Trash is
+  // unaffected — `lifecycle_status` remains a hard fence.
+  const projects = await listProjects(sql, auth, { includeArchived: true });
   const projectIds = projects.map((project) => project.id);
+  const archivedProjectIds = new Set(
+    projects
+      .filter((project) => project.archivedAt !== null)
+      .map((project) => project.id),
+  );
   const rows = await sql<(DocumentRow & { folderPath: string | null })[]>`
     SELECT ${sql.unsafe(DOCUMENT_COLUMNS)}, folder_path AS "folderPath"
     FROM app.documents
@@ -1417,7 +1427,9 @@ export async function searchDocumentsView(
       AND title ILIKE ${`%${term}%`}
       AND (${hubAccessClause(sql, auth)}
         OR (project_id IS NOT NULL AND project_id = ANY(${projectIds})))
-    ORDER BY coalesce(source_modified_at_ms, created_at_ms) DESC
+    ORDER BY
+      (project_id IS NOT NULL AND project_id = ANY(${[...archivedProjectIds]})),
+      coalesce(source_modified_at_ms, created_at_ms) DESC
     LIMIT ${HUB_SEARCH_MAX}
   `;
   return rows.map((row) => {
@@ -1435,6 +1447,9 @@ export async function searchDocumentsView(
     };
     if (row.folderId !== null) hit.folderId = row.folderId;
     if (row.projectId !== null) hit.projectId = row.projectId;
+    if (row.projectId !== null && archivedProjectIds.has(row.projectId)) {
+      hit.projectArchived = true;
+    }
     return hit;
   });
 }
