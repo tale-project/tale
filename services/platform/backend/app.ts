@@ -163,14 +163,14 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // not `/ready`: a flapping external bucket must not cut a colour out of
   // DNS. Not proxied — the platform tier reads it on the Docker network.
   app.get('/health/stores', async (c) => {
-    const byName = Object.fromEntries(
-      (await probeStores(deps.sql)).map((store) => [store.name, store.up]),
-    );
+    const probed = await probeStores(deps.sql);
     // A store the probe did not report is not known to be up.
+    const up = (name: string): boolean =>
+      probed.find((store) => store.name === name)?.up ?? false;
     const stores = {
-      app_db: byName.app_db === true,
-      knowledge_db: byName.knowledge_db === true,
-      object_store: byName.object_store === true,
+      app_db: up('app_db'),
+      knowledge_db: up('knowledge_db'),
+      object_store: up('object_store'),
     };
     const ok = stores.app_db && stores.knowledge_db && stores.object_store;
     c.header('Cache-Control', 'no-store');

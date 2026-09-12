@@ -14,6 +14,21 @@ const AUTH_MOUNT = '/api/auth';
  * one this precheck can judge, and the library's own limits apply. */
 const TOKEN_REQUEST_PEEK_BYTES = 64 * 1024;
 
+/** The redirect the provider hands a fetch-mode client: a 200 whose
+ * body says where a browser navigation would have been sent. */
+function isRedirectAnswer(
+  body: unknown,
+): body is { redirect: true; url: string } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'redirect' in body &&
+    body.redirect === true &&
+    'url' in body &&
+    typeof body.url === 'string'
+  );
+}
+
 /**
  * The OAuth/OIDC answers in their RFC envelopes, applied to what the auth
  * handler produced: a JSON refusal under `/api/auth/oauth2/*` is read back,
@@ -70,16 +85,16 @@ export async function withOAuthConformance(
         headers: response.headers,
       });
     }
-    const corrected =
-      typeof body === 'object' &&
-      body !== null &&
-      (body as { redirect?: unknown }).redirect === true &&
-      typeof (body as { url?: unknown }).url === 'string'
-        ? authorizeRedirectFor({
-            requestUrl: request.url,
-            location: (body as { url: string }).url,
-          })
-        : null;
+    if (!isRedirectAnswer(body)) {
+      return new Response(text, {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+    const corrected = authorizeRedirectFor({
+      requestUrl: request.url,
+      location: body.url,
+    });
     if (corrected === null) {
       return new Response(text, {
         status: response.status,
@@ -88,13 +103,10 @@ export async function withOAuthConformance(
     }
     const headers = new Headers(response.headers);
     headers.delete('content-length');
-    return new Response(
-      JSON.stringify({ ...(body as object), url: corrected }),
-      {
-        status: 200,
-        headers,
-      },
-    );
+    return new Response(JSON.stringify({ ...body, url: corrected }), {
+      status: 200,
+      headers,
+    });
   }
   if (response.status < 400) return response;
   const contentType = response.headers.get('content-type') ?? '';

@@ -722,7 +722,7 @@ async function contentMatches(
     SELECT (content IS NOT DISTINCT FROM ${content}::text) AS same
     FROM app.documents WHERE id = ${documentId} LIMIT 1
   `;
-  return rows[0]?.same === true;
+  return rows[0]?.same ?? false;
 }
 
 /** One spelling per JSON value, so two metadata bags compare by meaning
