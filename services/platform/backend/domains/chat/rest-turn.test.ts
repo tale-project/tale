@@ -345,6 +345,55 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
   });
 });
 
+/**
+ * The job's busy verdict dropped the accepted prompt and filed the failure
+ * under `generic`; and the marker clear in `finally` cleared whatever
+ * marker the thread held — a later send's included.
+ */
+describe('runApiTurn — the thread is busy when the job runs', () => {
+  it('records the accepted prompt beside a thread_busy failure, and clears only its own marker', async () => {
+    const busyStatements: string[] = [];
+    const busySql = (() => {
+      const tag = (strings: unknown, ..._values: unknown[]) => {
+        if (!Array.isArray(strings)) return Promise.resolve([]);
+        const text = strings.join('?').replace(/\s+/g, ' ').trim();
+        busyStatements.push(text);
+        return Promise.resolve(
+          text.startsWith('SELECT thread_id AS "threadId" FROM app.generations')
+            ? [{ threadId: 't-1' }]
+            : [],
+        );
+      };
+      const pool = Object.assign(tag, {
+        begin: async (
+          _options: string,
+          callback: (tx: unknown) => Promise<unknown>,
+        ) => callback(pool),
+      });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generation probe and transaction wrapper only
+      return pool as unknown as Sql;
+    })();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runApiTurn(busySql, { ...payload, assistantMessageId: 'm-promised' });
+    warn.mockRestore();
+
+    expect(runChatTurn).not.toHaveBeenCalled();
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ role: 'user', text: 'Reply with PONG.' }),
+    );
+    const failure = vi.mocked(appendAssistantErrorMessage).mock.calls[0]?.[1];
+    expect(failure).toMatchObject({ id: 'm-promised' });
+    expect(decodeChatError(failure?.error)).toMatchObject({
+      code: 'thread_busy',
+      raw: 'This conversation was already generating a response.',
+    });
+    // The clear is scoped to the marker this job's 202 set.
+    const clear = busyStatements.find((s) => s.startsWith(QUEUED_CLEAR));
+    expect(clear).toContain('stream_id = ?');
+  });
+});
+
 describe('runApiTurn — a refusal before the user message landed', () => {
   it('persists the caller’s message, then the error row with the sentence', async () => {
     vi.mocked(runChatTurn).mockRejectedValue(unknownModel);

@@ -5,9 +5,19 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
+import {
+  TURN_FINISH_REASONS,
+  type TurnFinishReason,
+} from '../../lib/chat/types.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
+import {
+  claimSendIdempotency,
+  rememberAcceptedSend,
+  sendIdempotencyRequestHash,
+  sendIdempotencyScopeKey,
+} from '../domains/chat/send-idempotency.ts';
 import {
   createThread,
   MAX_THREAD_TITLE_CHARS,
@@ -22,15 +32,14 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
-  invalidBodyResponse,
   loadRestProject,
   mintCursor,
+  nonBlank,
   noQuery,
   notFound,
   PAGE_QUERY,
   parseBody,
   readIntegerCursor,
-  readJsonBody,
   readKeysetCursor,
   readPageLimit,
   readQuery,
@@ -55,7 +64,6 @@ import {
  * composer's Auto is a session-lane affordance with no wire form here.
  */
 
-const MAX_TITLE = 200;
 const MAX_MESSAGE = 100_000;
 const MAX_MODEL_ID = 200;
 /** A BCP 47 language tag as the reply-language directive reads it: a
@@ -63,12 +71,16 @@ const MAX_MODEL_ID = 200;
 const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
 /** The token usage a finished turn recorded, whitelisted to the counters
- * the turn writes plus the catalog cost estimate it stamps beside them —
- * the stored JSON is the pipeline's own record (timings, provider facts),
- * and the wire carries only what a client can bill against. */
-function restMessageUsage(stored: unknown): Record<string, number> | null {
+ * the turn writes, the catalog cost estimate it stamps beside them, and the
+ * two flags a client bills by (`estimated`: the counts are the platform's
+ * own guess; `stepLimitHit`: the tool loop spent its whole budget) — the
+ * stored JSON is the pipeline's own record (timings, provider facts), and
+ * the wire carries only what a client can bill against. */
+function restMessageUsage(
+  stored: unknown,
+): Record<string, number | boolean> | null {
   if (!isRecord(stored)) return null;
-  const usage: Record<string, number> = {};
+  const usage: Record<string, number | boolean> = {};
   for (const key of [
     'inputTokens',
     'outputTokens',
@@ -79,7 +91,23 @@ function restMessageUsage(stored: unknown): Record<string, number> | null {
     const value = stored[key];
     if (typeof value === 'number' && Number.isFinite(value)) usage[key] = value;
   }
+  for (const key of ['estimated', 'stepLimitHit']) {
+    if (stored[key] === true) usage[key] = true;
+  }
   return Object.keys(usage).length > 0 ? usage : null;
+}
+
+/** Why the turn stopped, lifted out of the stored usage record to the
+ * message itself: a reply the output cap cut short settles `complete` —
+ * this is the one field that says so. */
+function restFinishReason(stored: unknown): TurnFinishReason | undefined {
+  if (!isRecord(stored)) return undefined;
+  const value = stored.finishReason;
+  return typeof value === 'string' &&
+    (TURN_FINISH_REASONS as readonly string[]).includes(value)
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the includes check above
+      (value as TurnFinishReason)
+    : undefined;
 }
 
 /** What `GET /models` says about one model. */
@@ -136,12 +164,73 @@ const REST_THREAD_JOINS = `
   LEFT JOIN app.generations g ON g.thread_id = t.id
 `;
 
+/** One `app.messages` row as every message read projects it. */
+interface RestMessageRow {
+  id: string;
+  role: string;
+  parts: unknown;
+  text: string | null;
+  sequence: number;
+  stepOrder: number;
+  model: string | null;
+  providerSlug: string | null;
+  blockedReason: string | null;
+  error: string | null;
+  status: string;
+  usage: unknown;
+  createdAt: number;
+}
+
+const REST_MESSAGE_COLUMNS = `
+  id, role, parts, text, "order" AS sequence,
+  step_order AS "stepOrder", model, provider_slug AS "providerSlug",
+  blocked_reason AS "blockedReason", error, status, usage,
+  created_at_ms::float8 AS "createdAt"
+`;
+
+/** The wire shape of one message — the list's rows and the by-id read
+ * answer the same projection, so a client parses one thing. */
+function messageView(row: RestMessageRow) {
+  return {
+    id: row.id,
+    role: row.role,
+    parts:
+      row.parts ??
+      (row.text !== null ? [{ type: 'text', text: row.text }] : []),
+    sequence: row.sequence,
+    // `pending` is the placeholder a running turn fills in — the row
+    // GET …/generation names as messageId; the page is complete
+    // without it being final.
+    status: row.status,
+    ...(row.model !== null ? { model: row.model } : {}),
+    ...(row.providerSlug !== null ? { providerSlug: row.providerSlug } : {}),
+    ...(row.blockedReason !== null ? { blockedReason: row.blockedReason } : {}),
+    ...(row.error !== null ? restMessageError(row.error) : {}),
+    ...(restFinishReason(row.usage) !== undefined
+      ? { finishReason: restFinishReason(row.usage) }
+      : {}),
+    ...(restMessageUsage(row.usage) !== null
+      ? { usage: restMessageUsage(row.usage) }
+      : {}),
+    createdAt: row.createdAt,
+  };
+}
+
 /**
  * A failed turn's stored `error` is the app's envelope (`TALE_ERR1 <header>`
  * + the raw sentence) that the chat UI decodes. The wire carries the
  * sentence, and the stable classification code beside it, never the
  * URL-encoded header a client cannot read.
  */
+/** Thrown inside the send's transaction when the claim finds no row: the
+ * throw is what rolls the transaction back (Hono never sees it). */
+class TurnInProgress extends Error {
+  constructor() {
+    super('This conversation is already generating a response.');
+    this.name = 'TurnInProgress';
+  }
+}
+
 function restMessageError(stored: string): {
   error: string;
   errorCode?: string;
@@ -310,13 +399,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     generating: row.generating === true,
   });
 
-  const isGenerating = async (threadId: string): Promise<boolean> => {
-    const rows = await deps.sql<{ threadId: string }[]>`
-      SELECT thread_id AS "threadId" FROM app.generations
-      WHERE thread_id = ${threadId} LIMIT 1
-    `;
-    return rows.length > 0;
-  };
+  /** A turn is running (the generation row exists) or an accepted send is
+   * still waiting for its worker (the 202's marker) — the one predicate the
+   * delete refuses on, and the same one the send's claim encodes in SQL. */
+  const isTurnPending = (thread: RestThreadRow): boolean =>
+    thread.generating === true ||
+    (thread.queuedSince !== null && thread.queuedSince !== undefined);
 
   /** The caller's thread by id as the REST projection, or null. */
   const loadRestThread = async (
@@ -423,7 +511,10 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c,
         z
           .object({
-            title: z.string().min(1).max(MAX_TITLE).optional(),
+            // Trimmed and bounded like PATCH's rename and the assistant's own
+            // naming — a thread could be created with a title its rename
+            // then refused.
+            title: nonBlank(MAX_THREAD_TITLE_CHARS).optional(),
           })
           .strict(),
         { optional: true },
@@ -525,14 +616,16 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
     /** Delete the thread — the app's trash, with its grace window and
      * legal-hold check. A thread mid-turn is refused: cancel the turn
-     * first. */
+     * first. A send still queued (accepted, waiting for a worker) counts
+     * as mid-turn too — its job would otherwise open a turn on a trashed
+     * thread. */
     app.delete(scope.item, async (c) => {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
       try {
         const trashed =
-          !(await isGenerating(thread.id)) &&
+          !isTurnPending(thread) &&
           (await trashThread(deps.sql, restAuth(c), thread.id));
         if (!trashed) {
           return c.json(
@@ -550,77 +643,46 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.body(null, 204);
     });
 
-    /** The conversation in sequence order, cursor-paginated (`cursor` = the
-     * previous page's last `order`). */
+    /** The conversation in sequence order — oldest first, or newest first
+     * with `order=desc` so the reply just paid for is on page one of a
+     * long thread — cursor-paginated (`cursor` = the previous page's last
+     * `order`, bound to the direction it was minted in). */
     app.get(`${scope.item}/messages`, async (c) => {
-      const query = readQuery(c, PAGE_QUERY);
+      const query = readQuery(c, {
+        ...PAGE_QUERY,
+        order: z.enum(['asc', 'desc']).optional(),
+      });
       if (query instanceof Response) return query;
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
       const limit = readPageLimit(c, { fallback: 25, max: 100 });
       if (limit instanceof Response) return limit;
+      const descending = query.order === 'desc';
       // Only a stored message order fits this int4 cursor; anything else is
-      // refused before it reaches Postgres's integer cast.
-      const messageList = `messages:${thread.id}`;
+      // refused before it reaches Postgres's integer cast. The list name
+      // carries the direction, so a cursor minted walking one way is not
+      // one this walk answered.
+      const messageList = `messages:${thread.id}:${descending ? 'desc' : 'asc'}`;
       const cursor = readIntegerCursor(c, messageList, {
         max: 2_147_483_647,
       });
       if (cursor instanceof Response) return cursor;
-      const rows = await deps.sql<
-        {
-          id: string;
-          role: string;
-          parts: unknown;
-          text: string | null;
-          sequence: number;
-          stepOrder: number;
-          model: string | null;
-          providerSlug: string | null;
-          blockedReason: string | null;
-          error: string | null;
-          status: string;
-          usage: unknown;
-          createdAt: number;
-        }[]
-      >`
-      SELECT id, role, parts, text, "order" AS sequence,
-             step_order AS "stepOrder", model, provider_slug AS "providerSlug",
-             blocked_reason AS "blockedReason", error, status, usage,
-             created_at_ms::float8 AS "createdAt"
+      const direction = deps.sql.unsafe(descending ? 'DESC' : 'ASC');
+      const rows = await deps.sql<RestMessageRow[]>`
+      SELECT ${deps.sql.unsafe(REST_MESSAGE_COLUMNS)}
       FROM app.messages
       WHERE thread_id = ${thread.id}
-        AND (${cursor}::int IS NULL OR "order" > ${cursor})
-      ORDER BY "order" ASC, step_order ASC
+        AND (${cursor}::int IS NULL
+          OR (${descending} AND "order" < ${cursor})
+          OR (${!descending} AND "order" > ${cursor}))
+      ORDER BY "order" ${direction}, step_order ${direction}
       LIMIT ${limit + 1}
     `;
       const page = rows.slice(0, limit);
       const isDone = rows.length <= limit;
       return c.json({
-        page: page.map((row) => ({
-          id: row.id,
-          role: row.role,
-          parts:
-            row.parts ??
-            (row.text !== null ? [{ type: 'text', text: row.text }] : []),
-          sequence: row.sequence,
-          // `pending` is the placeholder a running turn fills in — the row
-          // GET …/generation names as messageId; the page is complete
-          // without it being final.
-          status: row.status,
-          ...(row.model !== null ? { model: row.model } : {}),
-          ...(row.providerSlug !== null
-            ? { providerSlug: row.providerSlug }
-            : {}),
-          ...(row.blockedReason !== null
-            ? { blockedReason: row.blockedReason }
-            : {}),
-          ...(row.error !== null ? restMessageError(row.error) : {}),
-          ...(restMessageUsage(row.usage) !== null
-            ? { usage: restMessageUsage(row.usage) }
-            : {}),
-          createdAt: row.createdAt,
-        })),
+        page: page.map(messageView),
         isDone,
         continueCursor:
           isDone || page.at(-1) === undefined
@@ -629,12 +691,40 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
     });
 
+    /** One message by id — the reply the 202 named, read without walking
+     * the transcript. */
+    app.get(`${scope.item}/messages/:messageId`, noQuery, async (c) => {
+      const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
+      if (thread === null)
+        return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
+      const rows = await deps.sql<RestMessageRow[]>`
+      SELECT ${deps.sql.unsafe(REST_MESSAGE_COLUMNS)}
+      FROM app.messages
+      WHERE thread_id = ${thread.id} AND id = ${c.req.param('messageId') ?? ''}
+      LIMIT 1
+    `;
+      const row = rows[0];
+      if (row === undefined)
+        return notFound(c, 'Message not found', 'MESSAGE_NOT_FOUND');
+      return c.json(messageView(row));
+    });
+
     /** Poll the in-flight turn: `queued` while the accepted send waits for
      * a worker (the 202's marker), `streaming` while the generation row
      * exists — with the text and reasoning streamed so far, so a poller
-     * sees progress — and `idle` once neither is there: the reply, if any,
-     * is in the messages. */
-    app.get(`${scope.item}/generation`, noQuery, async (c) => {
+     * sees progress (`since` = the characters already held, so a long
+     * reply is not re-sent whole on every poll) — and `idle` once neither
+     * is there, naming the newest assistant message and how it settled,
+     * so a poller knows which turn ended without walking the transcript. */
+    app.get(`${scope.item}/generation`, async (c) => {
+      const query = readQuery(c, {
+        since: z
+          .string()
+          .regex(/^\d{1,9}$/, 'must be a whole number of characters')
+          .optional(),
+      });
+      if (query instanceof Response) return query;
+      const since = query.since === undefined ? 0 : Number(query.since);
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
@@ -663,14 +753,37 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               : {}),
           });
         }
-        return c.json({ status: 'idle' });
+        // The newest assistant row: the one the last turn settled into.
+        // A poller compares its id with the 202's messageId — equal means
+        // that turn is over, another means it has not started.
+        const newest = await deps.sql<{ id: string; status: string }[]>`
+        SELECT id, status FROM app.messages
+        WHERE thread_id = ${thread.id} AND role = 'assistant'
+        ORDER BY "order" DESC, step_order DESC
+        LIMIT 1
+      `;
+        const last = newest[0];
+        return c.json({
+          status: 'idle',
+          ...(last !== undefined
+            ? { lastMessageId: last.id, lastStatus: last.status }
+            : {}),
+        });
       }
+      // The delta: what arrived after the characters the caller holds. A
+      // `since` past the current length means the tail was reset (a tool
+      // round settled its text onto the parts) — answer from 0, and the
+      // offset tells the caller to replace what it holds.
+      const fullText = generation.text ?? '';
+      const textOffset = since <= fullText.length ? since : 0;
       return c.json({
         status: generation.messageId === null ? 'queued' : 'streaming',
         ...(generation.messageId !== null
           ? { messageId: generation.messageId }
           : {}),
-        text: generation.text ?? '',
+        text: fullText.slice(textOffset),
+        textOffset,
+        textLength: fullText.length,
         reasoning: generation.reasoning ?? '',
         cancelRequested: generation.cancelRequested === true,
         ...(typeof generation.updatedAt === 'number'
@@ -711,41 +824,45 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     app.post(`${scope.item}/messages`, async (c) => {
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
-      const body = z
-        .object({
-          // Trimmed before the length check: a blank prompt is a mistake
-          // to name at the door, not a turn to spend on.
-          content: z.string().trim().min(1).max(MAX_MESSAGE),
-          model: z
-            .string({
-              error: (issue) =>
-                issue.input === undefined
-                  ? 'is required — GET /api/v1/models lists the models this key can send to'
-                  : undefined,
-            })
-            .min(1)
-            .max(MAX_MODEL_ID),
-          providerSlug: z.string().min(1).max(MAX_MODEL_ID).optional(),
-          // The reasoning-depth pick the app's composer offers, on the same
-          // five-step scale; absent samples the model's default.
-          reasoningEffort: z.enum(EFFORT_LEVELS).optional(),
-          // The caller's reply ceiling for this turn — checked below
-          // against the listed model's own, so a turn can be bounded.
-          maxOutputTokens: z.number().int().min(1).optional(),
-          locale: z
-            .string()
-            .max(20)
-            .regex(LOCALE_PATTERN, {
-              message:
-                'locale must be a BCP 47 language tag such as "de" or "en-GB"',
-            })
-            .optional(),
-        })
-        .strict()
-        .safeParse(await readJsonBody(c));
-      if (!body.success) {
-        return invalidBodyResponse(c, body.error);
-      }
+      const body = await parseBody(
+        c,
+        z
+          .object({
+            // Trimmed before the length check: a blank prompt is a mistake
+            // to name at the door, not a turn to spend on.
+            content: z.string().trim().min(1).max(MAX_MESSAGE),
+            model: z
+              .string({
+                error: (issue) =>
+                  issue.input === undefined
+                    ? 'is required — GET /api/v1/models lists the models this key can send to'
+                    : undefined,
+              })
+              .min(1)
+              .max(MAX_MODEL_ID),
+            providerSlug: z.string().min(1).max(MAX_MODEL_ID).optional(),
+            // The reasoning-depth pick the app's composer offers, on the same
+            // five-step scale; absent samples the model's default.
+            reasoningEffort: z.enum(EFFORT_LEVELS).optional(),
+            // The caller's reply ceiling for this turn — checked below
+            // against the listed model's own, so a turn can be bounded.
+            maxOutputTokens: z.number().int().min(1).optional(),
+            locale: z
+              .string()
+              .max(20)
+              .regex(LOCALE_PATTERN, {
+                message:
+                  'locale must be a BCP 47 language tag such as "de" or "en-GB"',
+              })
+              .optional(),
+          })
+          .strict(),
+      );
+      if (body instanceof Response) return body;
+      // A blank key is no key — the run-start door reads its header the
+      // same way.
+      const idempotencyKey =
+        c.req.header('idempotency-key')?.trim() || undefined;
       const projectId = projectIdFor(c);
       const thread = await loadRestThread(c, threadIdFor(c), projectId);
       if (thread === null)
@@ -758,17 +875,17 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       let models: Awaited<ReturnType<typeof restModels>>;
       try {
         models = await restModels(c);
-        if (body.data.providerSlug !== undefined) {
+        if (body.providerSlug !== undefined) {
           const refusal = refuseUnlistedProvider(
             c,
             models,
-            body.data.model,
-            body.data.providerSlug,
+            body.model,
+            body.providerSlug,
           );
           if (refusal) return refusal;
-          providerSlug = body.data.providerSlug;
+          providerSlug = body.providerSlug;
         } else {
-          const resolved = resolveModelProvider(c, models, body.data.model);
+          const resolved = resolveModelProvider(c, models, body.model);
           if (resolved instanceof Response) return resolved;
           providerSlug = resolved;
         }
@@ -780,13 +897,13 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // silently mean the model's.
       const listed = models.find(
         (model) =>
-          model.id === body.data.model && model.providerSlug === providerSlug,
+          model.id === body.model && model.providerSlug === providerSlug,
       );
       const ceiling = listed?.maxOutputTokens;
       if (
-        body.data.maxOutputTokens !== undefined &&
+        body.maxOutputTokens !== undefined &&
         ceiling !== undefined &&
-        body.data.maxOutputTokens > ceiling
+        body.maxOutputTokens > ceiling
       ) {
         return c.json(
           {
@@ -823,70 +940,125 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           409,
         );
       }
-      // At most one turn per thread — refuse a concurrent send rather than
-      // let two turns interleave. The detached job re-checks this.
-      if (await isGenerating(thread.id)) {
-        return c.json(
-          {
-            error: 'This conversation is already generating a response.',
-            code: 'CHAT_TURN_IN_PROGRESS',
-          },
-          409,
-        );
-      }
-
       // The reply's id is minted HERE, before the turn exists, so the 202
       // can name it: a caller that loses the response finds its reply by
       // that id, and the poll answers `queued` (not `idle`) until the
       // worker opens the turn — both in one transaction with the job, so
       // the marker and the job that ends it can never disagree.
+      //
+      // At most one turn per thread, and the marker write IS the gate: one
+      // conditional UPDATE that lands only while no send is queued and no
+      // turn is running. Its row lock serialises concurrent senders — the
+      // loser waits, re-reads the committed marker, and gets no row back.
+      // A read-then-write used to accept a second send while the first was
+      // still queued, overwriting its marker and the reply id it promised.
+      // The loser's throw rolls the whole transaction back, so nothing it
+      // claimed (the idempotency row included) outlives the refusal.
       const assistantMessageId = randomUUID();
-      await deps.sql.begin(async (tx) => {
-        await tx`
+      const accepted = {
+        threadId: thread.id,
+        status: 'accepted',
+        model: body.model,
+        providerSlug,
+        messageId: assistantMessageId,
+        poll:
+          projectId === null
+            ? `/api/v1/threads/${thread.id}/generation`
+            : `/api/v1/projects/${projectId}/threads/${thread.id}/generation`,
+      };
+      // An `Idempotency-Key` names the send: its ledger row is claimed
+      // FIRST, in this transaction, so a repeat waits on the row lock and
+      // then answers the 202 the first attempt got — and a refusal below
+      // (the thread mid-turn) rolls the claim back with everything else.
+      const scopeKey =
+        idempotencyKey === undefined
+          ? undefined
+          : sendIdempotencyScopeKey({
+              projectId,
+              threadId: thread.id,
+              key: idempotencyKey,
+            });
+      let replay: Record<string, unknown> | undefined;
+      try {
+        await deps.sql.begin(async (tx) => {
+          const now = Date.now();
+          if (scopeKey !== undefined) {
+            const claim = await claimSendIdempotency(tx, {
+              organizationId: c.get('organizationId'),
+              scopeKey,
+              requestHash: sendIdempotencyRequestHash(body),
+              threadId: thread.id,
+              now,
+            });
+            if (claim.kind === 'replay') {
+              replay = claim.response;
+              return;
+            }
+          }
+          const claimed = await tx<{ threadId: string }[]>`
           UPDATE app.thread_metadata SET
-            generation_queued_since_ms = ${Date.now()},
+            generation_queued_since_ms = ${now},
             stream_id = ${assistantMessageId}
           WHERE thread_id = ${thread.id}
+            AND generation_queued_since_ms IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM app.generations WHERE thread_id = ${thread.id}
+            )
+          RETURNING thread_id AS "threadId"
         `;
-        await addJobInTx(tx, 'chat.api_turn', {
-          organizationId: c.get('organizationId'),
-          userId: c.get('userId'),
-          threadId: thread.id,
-          expectedProjectId: projectId,
-          userText: body.data.content,
-          modelId: body.data.model,
-          // The resolved provider is the choice all the way to the wire —
-          // the 202 names it, and the turn refuses a pair that stops
-          // resolving rather than falling back to another connector.
-          providerSlug,
-          providerStrict: true,
-          assistantMessageId,
-          ...(body.data.reasoningEffort !== undefined
-            ? { reasoningEffort: body.data.reasoningEffort }
-            : {}),
-          ...(body.data.maxOutputTokens !== undefined
-            ? { maxOutputTokens: body.data.maxOutputTokens }
-            : {}),
-          ...(body.data.locale !== undefined
-            ? { locale: body.data.locale }
-            : {}),
+          if (claimed.length === 0) throw new TurnInProgress();
+          await addJobInTx(tx, 'chat.api_turn', {
+            organizationId: c.get('organizationId'),
+            userId: c.get('userId'),
+            threadId: thread.id,
+            expectedProjectId: projectId,
+            userText: body.content,
+            modelId: body.model,
+            // The resolved provider is the choice all the way to the wire —
+            // the 202 names it, and the turn refuses a pair that stops
+            // resolving rather than falling back to another connector.
+            providerSlug,
+            providerStrict: true,
+            assistantMessageId,
+            ...(body.reasoningEffort !== undefined
+              ? { reasoningEffort: body.reasoningEffort }
+              : {}),
+            ...(body.maxOutputTokens !== undefined
+              ? { maxOutputTokens: body.maxOutputTokens }
+              : {}),
+            ...(body.locale !== undefined ? { locale: body.locale } : {}),
+          });
+          if (scopeKey !== undefined) {
+            await rememberAcceptedSend(tx, {
+              organizationId: c.get('organizationId'),
+              scopeKey,
+              messageId: assistantMessageId,
+              response: accepted,
+              now,
+            });
+          }
         });
-      });
+      } catch (error) {
+        if (error instanceof TurnInProgress) {
+          return c.json(
+            {
+              error: 'This conversation is already generating a response.',
+              code: 'CHAT_TURN_IN_PROGRESS',
+            },
+            409,
+          );
+        }
+        // A reused key with another body (`IDEMPOTENCY_KEY_REUSED`) and any
+        // other domain refusal keep their own status and code.
+        return domainErrorResponse(c, error);
+      }
 
-      return c.json(
-        {
-          threadId: thread.id,
-          status: 'accepted',
-          model: body.data.model,
-          providerSlug,
-          messageId: assistantMessageId,
-          poll:
-            projectId === null
-              ? `/api/v1/threads/${thread.id}/generation`
-              : `/api/v1/projects/${projectId}/threads/${thread.id}/generation`,
-        },
-        202,
-      );
+      // The repeat answers what the first attempt answered, flagged — the
+      // same messageId to poll for, and nothing new queued.
+      if (replay !== undefined) {
+        return c.json({ ...replay, duplicate: true }, 202);
+      }
+      return c.json(accepted, 202);
     });
   }
 

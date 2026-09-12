@@ -33,6 +33,7 @@ import {
   messageText,
   type ChatMessage,
   type MessagePart,
+  type TurnFinishReason,
   type TurnUsage,
 } from '../../../lib/chat/types';
 import {
@@ -240,17 +241,59 @@ export interface StreamDecodeState {
   readonly drafts: Map<number, ToolCallDraft>;
 }
 
-/** Pull the incremental text, any usage, and any tool-call fragments out of
- * one streamed event, per the connector's dialect. Returns empty text for
- * the many control events (role announcements, pings) that carry no
- * content; tool fragments accumulate on `state.drafts` and surface as one
- * chunk when the stream ends. Exported for its unit tests — fragment
- * accumulation across events is exactly the kind of seam a live stream hides. */
+/** The OpenAI `finish_reason` vocabulary folded onto the platform's. */
+function openAiFinishReason(value: unknown): TurnFinishReason | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  switch (value) {
+    case 'stop':
+      return 'stop';
+    case 'length':
+      return 'length';
+    case 'tool_calls':
+    case 'function_call':
+      return 'tool-calls';
+    case 'content_filter':
+      return 'content-filter';
+    default:
+      return 'other';
+  }
+}
+
+/** The Anthropic `stop_reason` vocabulary folded onto the platform's. */
+function anthropicStopReason(value: unknown): TurnFinishReason | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  switch (value) {
+    case 'end_turn':
+    case 'stop_sequence':
+      return 'stop';
+    case 'max_tokens':
+      return 'length';
+    case 'tool_use':
+      return 'tool-calls';
+    case 'refusal':
+      return 'content-filter';
+    default:
+      return 'other';
+  }
+}
+
+/** Pull the incremental text, any usage, any finish reason, and any
+ * tool-call fragments out of one streamed event, per the connector's
+ * dialect. Returns empty text for the many control events (role
+ * announcements, pings) that carry no content; tool fragments accumulate on
+ * `state.drafts` and surface as one chunk when the stream ends. Exported
+ * for its unit tests — fragment accumulation across events is exactly the
+ * kind of seam a live stream hides. */
 export function readEvent(
   apiFormat: ApiFormat,
   event: Record<string, unknown>,
   state: StreamDecodeState,
-): { text: string; reasoning?: string; usage?: TurnUsage } {
+): {
+  text: string;
+  reasoning?: string;
+  usage?: TurnUsage;
+  finishReason?: TurnFinishReason;
+} {
   const runningUsage = state.running;
   if (apiFormat === 'anthropic') {
     const type = event.type;
@@ -261,6 +304,10 @@ export function readEvent(
         runningUsage.input = tokenCount(usage, 'input_tokens');
         const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
         if (cached !== undefined) runningUsage.cached = cached;
+        // Surfaced NOW, not on the closing delta: the prompt is billed in
+        // full before the first output token, and a cancel that aborts the
+        // fetch before `message_delta` used to lose the count entirely.
+        return { text: '', usage: totals(runningUsage) };
       }
       return { text: '' };
     }
@@ -308,9 +355,13 @@ export function readEvent(
         const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
         if (cached !== undefined) runningUsage.cached = cached;
       }
+      const finishReason = anthropicStopReason(
+        asRecord(event.delta)?.stop_reason,
+      );
       return {
         text: '',
         usage: totals(runningUsage),
+        ...(finishReason !== undefined ? { finishReason } : {}),
       };
     }
     return { text: '' };
@@ -351,6 +402,9 @@ export function readEvent(
       : typeof delta?.reasoning === 'string'
         ? delta.reasoning
         : '';
+  // The reason rides the choice that ended, one event before (or on) the
+  // usage frame; null on every earlier delta.
+  const finishReason = openAiFinishReason(asRecord(choices[0])?.finish_reason);
   const usage = asRecord(event.usage);
   if (usage) {
     runningUsage.input = tokenCount(usage, 'prompt_tokens');
@@ -369,9 +423,14 @@ export function readEvent(
       text,
       ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
       usage: totals(runningUsage),
+      ...(finishReason !== undefined ? { finishReason } : {}),
     };
   }
-  return { text, ...(reasoningDelta ? { reasoning: reasoningDelta } : {}) };
+  return {
+    text,
+    ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
+    ...(finishReason !== undefined ? { finishReason } : {}),
+  };
 }
 
 /** Settle the accumulated tool-call drafts into parsed requests, in the
@@ -466,6 +525,7 @@ export async function* streamSse(
   };
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
+  let lastFinishReason: TurnFinishReason | undefined;
   const stalled = stall === undefined ? undefined : rejectOnAbort(stall.signal);
 
   while (true) {
@@ -512,20 +572,40 @@ export async function* streamSse(
         continue;
       }
       if (!event) continue;
-      const { text, reasoning, usage } = readEvent(apiFormat, event, state);
+      const { text, reasoning, usage, finishReason } = readEvent(
+        apiFormat,
+        event,
+        state,
+      );
       if (usage) lastUsage = usage;
-      if (text.length > 0 || reasoning !== undefined) {
-        yield { text, ...(reasoning !== undefined ? { reasoning } : {}) };
+      if (finishReason !== undefined) lastFinishReason = finishReason;
+      // A usage frame is yielded the moment it arrives, not only on the
+      // settle chunk below: a stream cut by a cancel never reaches the
+      // settle, and the counts it had already reported must survive.
+      if (text.length > 0 || reasoning !== undefined || usage !== undefined) {
+        yield {
+          text,
+          ...(reasoning !== undefined ? { reasoning } : {}),
+          ...(usage !== undefined ? { usage } : {}),
+        };
       }
     }
   }
-  // The stream's settle chunk: the final usage and any tool calls the model
-  // ended on, decoded from the accumulated fragments.
+  // The stream's settle chunk: the final usage, the reason the model
+  // stopped, and any tool calls it ended on, decoded from the accumulated
+  // fragments.
   const toolCalls = settleToolCalls(state.drafts);
-  if (lastUsage !== undefined || toolCalls.length > 0) {
+  if (
+    lastUsage !== undefined ||
+    lastFinishReason !== undefined ||
+    toolCalls.length > 0
+  ) {
     yield {
       text: '',
       ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
+      ...(lastFinishReason !== undefined
+        ? { finishReason: lastFinishReason }
+        : {}),
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   }

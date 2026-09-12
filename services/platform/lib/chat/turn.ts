@@ -67,10 +67,12 @@ import {
   type WireTool,
 } from './tools';
 import {
+  estimateJsonTokens,
   estimateMessageTokens,
   estimateTokens,
   type ChatMessage,
   type MessagePart,
+  type TurnFinishReason,
   type TurnUsage,
 } from './types';
 
@@ -141,6 +143,8 @@ export interface ModelStreamChunk {
    * by the host. Yielded at most once, at the end of the stream — a chunk
    * carrying these carries no new text. */
   readonly toolCalls?: readonly ToolCallRequest[];
+  /** Why the model stopped, when the dialect said — on the settle chunk. */
+  readonly finishReason?: TurnFinishReason;
 }
 
 export interface ModelCallRequest {
@@ -641,6 +645,8 @@ async function streamWithOutputGuardrails(
   /** The user asked the turn to stop; `text` holds what streamed. */
   cancelled?: boolean;
   reportedUsage?: TurnUsage;
+  /** Why the model stopped this round, when the provider said. */
+  finishReason?: TurnFinishReason;
   /** When the first provider text SSE arrived — the TTFT anchor. */
   firstChunkAtMs?: number;
   /** When the first reasoning delta arrived, when the round produced any. */
@@ -657,6 +663,7 @@ async function streamWithOutputGuardrails(
   let reasoning = '';
   let toolCalls: readonly ToolCallRequest[] | undefined;
   let reportedUsage: TurnUsage | undefined;
+  let finishReason: TurnFinishReason | undefined;
   let firstChunkAtMs: number | undefined;
   let firstReasoningAtMs: number | undefined;
   let cancelled = false;
@@ -756,6 +763,7 @@ async function streamWithOutputGuardrails(
       if (winner.done === true) break;
       const chunk = winner.value;
       if (chunk.usage) reportedUsage = chunk.usage;
+      if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
       // Reasoning bypasses the output guardrails: it is display-only, never
       // wire-replayed, and holding the answer hostage to filtered thinking
@@ -841,6 +849,7 @@ async function streamWithOutputGuardrails(
     ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls } : {}),
     ...(cancelled ? { cancelled: true } : {}),
     reportedUsage,
+    ...(finishReason !== undefined ? { finishReason } : {}),
     firstChunkAtMs,
     firstReasoningAtMs,
     roundStartedAtMs,
@@ -874,6 +883,75 @@ export function estimateCostCents(
     (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
     (outputTokens / 1_000_000) * pricing.outputCentsPerMillion
   );
+}
+
+/**
+ * One round's counts: what the provider reported, else the platform's own
+ * estimate at the rates the context assembly uses — the system prompt,
+ * every message on the wire, and the tool schemas the round offered (the
+ * assistant's retrieval tools are most of a short turn's prompt; an
+ * estimate that skipped them under-billed a cancelled turn by half). A
+ * cancelled round is the mixed case: the abort cuts the stream before an
+ * OpenAI usage frame (sent last) and after an Anthropic `message_start`
+ * (input only), so each side is taken from the provider where it reported
+ * a count and estimated where it did not. `estimated` marks any round that
+ * carries an estimate, so the stamp never passes one off as a fact.
+ */
+function roundUsage(
+  streamed: {
+    text: string;
+    reasoning?: string;
+    cancelled?: boolean;
+    reportedUsage?: TurnUsage;
+  },
+  wire: {
+    system: string;
+    messages: readonly ChatMessage[];
+    tools: readonly WireTool[] | undefined;
+  },
+): {
+  input: number;
+  output: number;
+  cached?: number;
+  reasoning?: number;
+  estimated: boolean;
+} {
+  const reported = streamed.reportedUsage;
+  const detail = {
+    ...(reported?.cachedInputTokens !== undefined
+      ? { cached: reported.cachedInputTokens }
+      : {}),
+    ...(reported?.reasoningTokens !== undefined
+      ? { reasoning: reported.reasoningTokens }
+      : {}),
+  };
+  if (reported !== undefined && streamed.cancelled !== true) {
+    return {
+      input: reported.inputTokens,
+      output: reported.outputTokens,
+      ...detail,
+      estimated: false,
+    };
+  }
+  const inputReported = reported !== undefined && reported.inputTokens > 0;
+  const outputReported = reported !== undefined && reported.outputTokens > 0;
+  const estimatedInput =
+    estimateTokens(wire.system) +
+    wire.messages.reduce(
+      (sum, message) => sum + estimateMessageTokens(message),
+      0,
+    ) +
+    (wire.tools !== undefined && wire.tools.length > 0
+      ? estimateJsonTokens(wire.tools)
+      : 0);
+  const estimatedOutput =
+    estimateTokens(streamed.text) + estimateTokens(streamed.reasoning ?? '');
+  return {
+    input: inputReported ? reported.inputTokens : estimatedInput,
+    output: outputReported ? reported.outputTokens : estimatedOutput,
+    ...detail,
+    estimated: !inputReported || !outputReported,
+  };
 }
 
 /**
@@ -1067,13 +1145,15 @@ export async function runTurn(
     const settledParts: MessagePart[] = [];
     /** Usage summed across rounds — every round bills its own full prompt.
      * A round that reports nothing is estimated at the same rates the
-     * context assembly uses. Cache and reasoning counts stay undefined until
-     * a round actually reports one, so the stamp never invents a zero. */
+     * context assembly uses (`roundUsage`), and marks the sum estimated.
+     * Cache and reasoning counts stay undefined until a round actually
+     * reports one, so the stamp never invents a zero. */
     const summed: {
       input: number;
       output: number;
       cached?: number;
       reasoning?: number;
+      estimated?: true;
     } = { input: 0, output: 0 };
     /** The TTFT anchor is the FIRST round's first provider text SSE;
      * reasoning and setup anchor the same way (first round wins). */
@@ -1156,28 +1236,20 @@ export async function runTurn(
       firstChunkAtMs ??= streamed.firstChunkAtMs;
       firstReasoningAtMs ??= streamed.firstReasoningAtMs;
       firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
-      if (streamed.reportedUsage) {
-        summed.input += streamed.reportedUsage.inputTokens;
-        summed.output += streamed.reportedUsage.outputTokens;
-        if (streamed.reportedUsage.cachedInputTokens !== undefined) {
-          summed.cached =
-            (summed.cached ?? 0) + streamed.reportedUsage.cachedInputTokens;
-        }
-        if (streamed.reportedUsage.reasoningTokens !== undefined) {
-          summed.reasoning =
-            (summed.reasoning ?? 0) + streamed.reportedUsage.reasoningTokens;
-        }
-      } else {
-        summed.input +=
-          estimateTokens(context.system) +
-          roundMessages.reduce(
-            (sum, message) => sum + estimateMessageTokens(message),
-            0,
-          );
-        summed.output +=
-          estimateTokens(streamed.text) +
-          estimateTokens(streamed.reasoning ?? '');
+      const round = roundUsage(streamed, {
+        system: context.system,
+        messages: roundMessages,
+        tools: offeredTools,
+      });
+      summed.input += round.input;
+      summed.output += round.output;
+      if (round.cached !== undefined) {
+        summed.cached = (summed.cached ?? 0) + round.cached;
       }
+      if (round.reasoning !== undefined) {
+        summed.reasoning = (summed.reasoning ?? 0) + round.reasoning;
+      }
+      if (round.estimated) summed.estimated = true;
 
       const calls = streamed.toolCalls ?? [];
       if (
@@ -1323,7 +1395,16 @@ export async function runTurn(
     // rounds are summed, because every round was billed. The cost stamp is
     // the ledger's own formula on the same counts, so the message and the
     // ledger always tell the same story; `stepLimitHit` marks a turn whose
-    // final round had tools withheld because the round budget was spent.
+    // final round had tools withheld because the round budget was spent;
+    // `estimated` marks counts the platform had to guess. The finish
+    // reason is the FINAL round's — the platform's own verdicts (a stop, a
+    // guardrail block) win over what the provider said about that round.
+    const finishReason: TurnFinishReason | undefined =
+      streamed.refusal !== undefined
+        ? 'content-filter'
+        : streamed.cancelled === true
+          ? 'cancelled'
+          : streamed.finishReason;
     const usage: TurnUsage = {
       inputTokens: summed.input,
       outputTokens: summed.output,
@@ -1344,6 +1425,8 @@ export async function runTurn(
           }
         : {}),
       ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
+      ...(summed.estimated === true ? { estimated: true } : {}),
+      ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
     };
 

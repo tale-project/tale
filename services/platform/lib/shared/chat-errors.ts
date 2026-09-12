@@ -45,6 +45,7 @@ export const CHAT_ERROR_CODES = [
   'tool_failure',
   'provider_unreachable',
   'provider_error',
+  'thread_busy',
   'generic',
 ] as const;
 
@@ -73,6 +74,12 @@ export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
   tool_failure: 'errorHintToolFailure',
   provider_unreachable: 'errorHintProviderUnreachable',
   provider_error: 'errorHintProviderError',
+  // The pipeline's own at-most-one-turn claim lost to another turn on the
+  // thread — a REST-accepted send that found the thread busy when its job
+  // ran. Rendered with the generic hint (no locale key of its own): the app
+  // door refuses a busy send before any row exists, so only a REST send
+  // can ever carry it.
+  thread_busy: 'errorGeneratingDescription',
   generic: 'errorGeneratingDescription',
 };
 
@@ -171,6 +178,10 @@ export function describeChatError(error: unknown, fallback: string): string {
  */
 export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   const { status, code, message } = extractErrorFacts(error);
+
+  // The pipeline's own busy claim (`ThreadBusyError`): another turn holds
+  // the thread — a stable code, never the generic bucket.
+  if (code === 'THREAD_BUSY') return 'thread_busy';
 
   // The platform's own credential refusals, by code: no usable key at all
   // is a setup error; a key that exists but cannot serve is an auth error.

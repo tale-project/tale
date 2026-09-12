@@ -4,6 +4,7 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
+import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -41,16 +42,29 @@ interface TitleModelTarget {
 }
 
 /**
- * The model the title call runs on. The thread owner's sticky chat pick wins
- * whenever a direct-credentialed connector serves it — the conversation is
- * then named by the same model its owner chats with, which is also the model
+ * A catalog entry the wire can run WITHOUT thinking: no reasoning knob at
+ * all, or an effort knob with a declared off literal the wire spells. A
+ * thinking-by-default model with no off literal spends the title's whole
+ * 48-token budget reasoning and answers nothing — a paid miss.
+ */
+function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
+  return entry.reasoning === undefined || entry.reasoning.off !== undefined;
+}
+
+/**
+ * The model the title call runs on. A model the wire can run without
+ * thinking is preferred throughout (see {@link runsWithoutThinking}): the
+ * thread owner's sticky chat pick wins whenever a direct-credentialed
+ * connector serves it and it needs no thinking — the conversation is then
+ * named by the same model its owner chats with, which is also the model
  * most likely to actually answer (an aggregator catalog is full of models a
- * given key or region cannot call). Only without a usable pick does the
- * fallback scan take over: the first connector (shipped order, then
- * org-defined) whose default credential is active and direct-capable, taking
- * its alphabetically first allowlist-permitted catalog model. Null when the
- * org has nothing a direct call could use; the caller falls back to the
- * derived title.
+ * given key or region cannot call); else the first connector (shipped
+ * order, then org-defined) whose default credential is active and
+ * direct-capable, taking its alphabetically first allowlist-permitted
+ * thinking-free catalog model. Only when nothing runs without thinking does
+ * the same walk take a thinking model (the pick, then the first permitted).
+ * Null when the org has nothing a direct call could use; the caller falls
+ * back to the derived title.
  */
 async function pickTitleModel(
   ctx: ActionCtx,
@@ -63,7 +77,7 @@ async function pickTitleModel(
   const candidates: Array<{
     providerSlug: string;
     allowlist: readonly string[] | undefined;
-    catalogIds: readonly string[];
+    catalog: readonly ModelCatalogEntry[];
   }> = [];
   for (const connector of connectors) {
     const row: unknown = await ctx.runQuery(
@@ -89,7 +103,7 @@ async function pickTitleModel(
     candidates.push({
       providerSlug: connector.name,
       allowlist: credential.modelAllowlist,
-      catalogIds: catalog.map((entry) => entry.id),
+      catalog,
     });
   }
 
@@ -100,26 +114,38 @@ async function pickTitleModel(
     modelId: string,
   ): boolean => modelAllowlistPermits(candidate.allowlist, modelId);
 
-  if (preferredModelId !== null) {
-    const serving = candidates.find(
-      (candidate) =>
-        candidate.catalogIds.includes(preferredModelId) &&
-        permits(candidate, preferredModelId),
-    );
-    if (serving) {
-      return { providerSlug: serving.providerSlug, modelId: preferredModelId };
+  const walk = (
+    admits: (entry: ModelCatalogEntry) => boolean,
+  ): TitleModelTarget | null => {
+    if (preferredModelId !== null) {
+      const serving = candidates.find((candidate) =>
+        candidate.catalog.some(
+          (entry) =>
+            entry.id === preferredModelId &&
+            admits(entry) &&
+            permits(candidate, entry.id),
+        ),
+      );
+      if (serving) {
+        return {
+          providerSlug: serving.providerSlug,
+          modelId: preferredModelId,
+        };
+      }
     }
-  }
+    for (const candidate of candidates) {
+      const modelId = candidate.catalog
+        .filter((entry) => admits(entry) && permits(candidate, entry.id))
+        .map((entry) => entry.id)
+        .sort((a, b) => a.localeCompare(b))[0];
+      if (modelId !== undefined) {
+        return { providerSlug: candidate.providerSlug, modelId };
+      }
+    }
+    return null;
+  };
 
-  for (const candidate of candidates) {
-    const modelId = candidate.catalogIds
-      .filter((id) => permits(candidate, id))
-      .sort((a, b) => a.localeCompare(b))[0];
-    if (modelId !== undefined) {
-      return { providerSlug: candidate.providerSlug, modelId };
-    }
-  }
-  return null;
+  return walk(runsWithoutThinking) ?? walk(() => true);
 }
 
 /** The agent slug the title call books its tokens under. Distinct from the
@@ -150,12 +176,13 @@ async function generateWithModel(
   firstMessage: string,
   signal: AbortSignal,
 ): Promise<TitleAttempt> {
+  let target: TitleModelTarget | null = null;
   try {
     const preferredModelId: string | null = await ctx.runQuery(
       internal.user_preferences.queries.getChatModelInternal,
       { userId, organizationId },
     );
-    const target = await pickTitleModel(ctx, organizationId, preferredModelId);
+    target = await pickTitleModel(ctx, organizationId, preferredModelId);
     if (target === null) return { title: null };
     const model = createBuilderModel(ctx, {
       organizationId,
@@ -198,6 +225,23 @@ async function generateWithModel(
         `[generateThreadTitle] model call aborted after ${TITLE_TIMEOUT_MS}ms; fallback title used`,
       );
       return { title: null };
+    }
+    if (error instanceof EmptyReplyError && target !== null) {
+      // The call happened — a thinking-by-default model spent the reply
+      // budget reasoning and said nothing. A miss, not a fault: one line,
+      // no stack, and the tokens it cost leave with the fallback.
+      console.warn(
+        `[generateThreadTitle] ${target.providerSlug}/${target.modelId} returned no text (${error.usage.prompt} in, ${error.usage.completion} out); fallback title used`,
+      );
+      return {
+        title: null,
+        spend: {
+          model: target.modelId,
+          provider: target.providerSlug,
+          inputTokens: error.usage.prompt,
+          outputTokens: error.usage.completion,
+        },
+      };
     }
     console.warn('[generateThreadTitle] model generation failed:', error);
     return { title: null };

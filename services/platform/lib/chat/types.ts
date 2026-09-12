@@ -80,6 +80,26 @@ export type MessagePart =
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
 
+/**
+ * Why the model stopped writing, in one vocabulary over both wire dialects
+ * (OpenAI `finish_reason`, Anthropic `stop_reason`): `stop` is a natural
+ * end, `length` the output cap (the reply is cut short — the row still
+ * settles `complete`, so this is the only signal a client has), `tool-calls`
+ * a round that ended on tool calls, `content-filter` the provider's — or
+ * the platform's own — filter, `cancelled` a user stop, `other` a reason
+ * the dialect names that has no bucket here.
+ */
+export const TURN_FINISH_REASONS = [
+  'stop',
+  'length',
+  'tool-calls',
+  'content-filter',
+  'cancelled',
+  'other',
+] as const;
+
+export type TurnFinishReason = (typeof TURN_FINISH_REASONS)[number];
+
 /** One message as the pipeline reads and writes it. Mirrors the `messages`
  * table without importing Convex, so the pipeline stays testable. */
 export interface ChatMessage {
@@ -130,6 +150,15 @@ export interface TurnUsage {
    * round had tools withheld — the answer may have been forced. The field
    * name is a UI contract; the client renders a notice from it. */
   readonly stepLimitHit?: boolean;
+  /** Why the final round stopped, when the dialect said (or the platform
+   * decided: a stop, a filter). Stamped here, beside the counters, because
+   * the settled row's `usage` JSON is the pipeline's record of the turn. */
+  readonly finishReason?: TurnFinishReason;
+  /** True when any round's counts are the platform's own estimate — the
+   * provider's frame was lost (a cancelled OpenAI stream sends usage last)
+   * or never sent — so the cost is an estimate of an estimate. Absent when
+   * every round reported. */
+  readonly estimated?: boolean;
 }
 
 /** Concatenate the text parts of a message — what token estimation and the
@@ -219,8 +248,9 @@ export function estimateTokens(text: string): number {
   );
 }
 
-/** Token estimate for a structured value (tool payloads) at the JSON rate. */
-function estimateJsonTokens(value: unknown): number {
+/** Token estimate for a structured value (tool payloads, the tool schemas
+ * a round offers) at the JSON rate. */
+export function estimateJsonTokens(value: unknown): number {
   return Math.ceil(safeJson(value).length / CHARS_PER_TOKEN_JSON);
 }
 

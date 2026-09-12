@@ -27,7 +27,11 @@ import {
   type TurnStore,
   type UsageLedgerEntry,
 } from './turn';
-import type { ChatMessage, MessagePart } from './types';
+import {
+  estimateJsonTokens,
+  type ChatMessage,
+  type MessagePart,
+} from './types';
 
 /**
  * The pipeline's contract is its ORDER and its short-circuits. Every outside
@@ -1559,6 +1563,136 @@ describe('runTurn — the tool loop', () => {
     const text = finalParts.find((part) => part.type === 'text');
     expect(text).toEqual({ type: 'text', text: short });
     expect(calls.generations).toEqual(['begin', 'end']);
+  });
+
+  /**
+   * A reply the output cap cut short settled `complete` with nothing marking
+   * it, and a cancelled turn's usage was the platform's guess minus the
+   * assistant's whole tool preamble — ~63% under what the same prompt had
+   * just billed. The stamp now carries why the model stopped and whether
+   * the counts are an estimate; the estimate charges the tools.
+   */
+  it('stamps the reason the model stopped — stop, or length when the cap cut the reply', async () => {
+    for (const reason of ['stop', 'length'] as const) {
+      const reporting: ModelCall = async function* stream() {
+        yield { text: '1\n2\n' };
+        yield {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 64, totalTokens: 164 },
+          finishReason: reason,
+        };
+      };
+      const d = deps({ model: reporting });
+      const outcome = await runTurn(request(), d.deps);
+      expect(outcome).toMatchObject({
+        status: 'completed',
+        usage: { finishReason: reason },
+      });
+      expect(outcome).not.toMatchObject({ usage: { estimated: true } });
+      expect(d.store.finalized[0]).not.toHaveProperty('cancelled');
+      expect(d.store.finalized[0]).toMatchObject({
+        usage: expect.objectContaining({ finishReason: reason }),
+      });
+    }
+  });
+
+  it('stamps cancelled, and estimates what the abort lost — the offered tools charged', async () => {
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const endless: ModelCall = async function* stream() {
+      yield { text: 'x'.repeat(400) };
+      yield { text: 'Second chunk. ' };
+      yield { text: 'Third chunk. ' };
+    };
+    const wireTools = [
+      {
+        name: 'rag_search',
+        description: 'Search the workspace knowledge for passages.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'What to look for' },
+            limit: { type: 'integer' },
+          },
+          required: ['query'],
+        },
+      },
+    ];
+    const executor: ChatToolExecutor = {
+      wireTools,
+      execute: () => Promise.resolve({ status: 'ok', results: [] }),
+    };
+    const d = deps({ model: endless, store, tools: executor });
+    const outcome = await runTurn(request(), d.deps);
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    expect(outcome.cancelled).toBe(true);
+    expect(outcome.usage.finishReason).toBe('cancelled');
+    expect(outcome.usage.estimated).toBe(true);
+    // The same turn, tools withheld: the difference is the tools' schema
+    // at the JSON rate — the share the old estimate silently dropped.
+    const bare = fakeStore({ cancelAfterStreamWrites: 1 });
+    const plain = deps({ model: endless, store: bare.store, tools: undefined });
+    const withoutTools = await runTurn(request(), plain.deps);
+    if (withoutTools.status !== 'completed')
+      throw new Error('expected completion');
+    expect(outcome.usage.inputTokens - withoutTools.usage.inputTokens).toBe(
+      estimateJsonTokens(wireTools),
+    );
+    // The ledger books the same figures the message carries.
+    expect(d.usage[0]).toMatchObject({
+      inputTokens: outcome.usage.inputTokens,
+      outputTokens: outcome.usage.outputTokens,
+    });
+    expect(calls.finalized[0]).toMatchObject({
+      cancelled: true,
+      usage: expect.objectContaining({
+        finishReason: 'cancelled',
+        estimated: true,
+      }),
+    });
+  });
+
+  it('keeps a cancelled round’s reported input (an Anthropic message_start) and estimates only the output', async () => {
+    const { store } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const anthropicLike: ModelCall = async function* stream() {
+      yield {
+        text: '',
+        usage: {
+          inputTokens: 2711,
+          outputTokens: 0,
+          totalTokens: 2711,
+          cachedInputTokens: 512,
+        },
+      };
+      yield { text: 'y'.repeat(400) };
+      yield { text: 'more' };
+    };
+    const d = deps({ model: anthropicLike, store });
+    const outcome = await runTurn(request(), d.deps);
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    expect(outcome.usage).toMatchObject({
+      inputTokens: 2711,
+      cachedInputTokens: 512,
+      finishReason: 'cancelled',
+      estimated: true,
+    });
+    expect(outcome.usage.outputTokens).toBeGreaterThan(0);
+  });
+
+  it('marks a round the provider never counted as estimated, and one it counted as not', async () => {
+    const guessed = await runTurn(request(), deps().deps);
+    if (guessed.status !== 'completed') throw new Error('expected completion');
+    expect(guessed.usage.estimated).toBe(true);
+    expect(guessed.usage.finishReason).toBeUndefined();
+
+    const reporting: ModelCall = async function* stream() {
+      yield {
+        text: 'counted',
+        usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+      };
+    };
+    const counted = await runTurn(request(), deps({ model: reporting }).deps);
+    if (counted.status !== 'completed') throw new Error('expected completion');
+    expect(counted.usage.estimated).toBeUndefined();
   });
 
   it('settles a reply nobody stopped as complete, with no cancelled flag', async () => {

@@ -109,20 +109,23 @@ async function resolveWireTarget(
   }
 
   // Resolved once per session, like the credential: which models reason is a
-  // catalog fact, and the catalog is cached anyway.
+  // catalog fact, and the catalog is cached anyway. The off literal is read
+  // for EVERY connector — a classic OpenAI-compatible wire spells it as
+  // `reasoning_effort` too, and a builder or title call that must not
+  // think depends on it being sent; the reasoning fact itself only matters
+  // to the dialects that gate temperature on it.
   let reasoningModel: boolean | undefined;
-  let reasoningOff: WireTarget['reasoningOff'];
+  const entry = (await getProviderCatalog(connector)).find(
+    (candidate) => candidate.id === target.modelId,
+  );
   if (
     connector.wireDialect !== undefined ||
     connector.apiFormat === 'anthropic'
   ) {
-    const entry = (await getProviderCatalog(connector)).find(
-      (candidate) => candidate.id === target.modelId,
-    );
     reasoningModel =
       entry === undefined ? undefined : entry.reasoning !== undefined;
-    reasoningOff = entry?.reasoning?.off;
   }
+  const reasoningOff: WireTarget['reasoningOff'] = entry?.reasoning?.off;
 
   return {
     apiFormat: connector.apiFormat,
