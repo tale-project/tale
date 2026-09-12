@@ -28,12 +28,39 @@
 		# an advertised HTTP/3 (`Alt-Svc: h3`) only invites clients to race a
 		# QUIC connection that cannot arrive; name the protocols we serve.
 		protocols h1 h2
-		# The header budget — the request target included. Above it Caddy
-		# answers a clean 431 on both HTTP/1.1 and HTTP/2; the backend's own
-		# cap is 64 KiB, so a request that reaches it never overflows there
-		# (an overflow used to surface as an HTTP/2 stream reset).
-		max_header_size 32KB
+		# The header budget — the request target included — and what Go
+		# does above it is not Caddy's to choose: over HTTP/1.1 a request a
+		# few KiB past the cap still reaches the route (the reader keeps
+		# 4 KiB of slack) and a larger one answers a bare text 431; over
+		# HTTP/2 a header LIST past the cap answers a bare HTML 431, but a
+		# single field past it (a long URL is one field) fails HPACK
+		# decoding and CLOSES THE CONNECTION with no response at all. At
+		# 32KB (32,000 bytes) that cliff sat exactly where the contract
+		# promised a refusal for a 32 KiB URL, so a 33 KB URL died as a
+		# network fault a client retries forever. The documented URL cap is
+		# answered explicitly instead — 414 in the JSON envelope, by the
+		# @apiUriTooLong rule the entrypoint injects and by the backend's
+		# own guard — and this budget sits well above it so the cliff is
+		# only reachable by a request no client could mean. The backend
+		# listener's cap (main.ts) stays above this plus Go's slack, so a
+		# request the edge forwards is never a bare 431 upstream either.
+		max_header_size 64KiB
 	}
+}
+
+# The JSON refusal an edge rule answers before any lane: the envelope the
+# API reference promises, uncacheable, with the same transport headers the
+# backend stamps and a request id of its own (`{http.request.uuid}` lands
+# in the access log's resp_headers, so it can be quoted). The entrypoint
+# fills the HSTS placeholder when the public origin is https.
+(edge_json_refusal) {
+	header Content-Type application/json
+	header X-Request-Id {http.request.uuid}
+	header Cache-Control no-store
+	header X-Content-Type-Options nosniff
+	header X-Frame-Options DENY
+	header Referrer-Policy strict-origin-when-cross-origin
+	# HSTS_PLACEHOLDER
 }
 
 # Health check endpoint (internal only, not exposed externally)
