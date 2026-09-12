@@ -35,6 +35,12 @@ describePosix('managed preparation native-owner binding', () => {
       elf.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]);
       elf.writeUInt16LE(62, 18);
       await writeFile(binary, elf);
+      // The interpreted bundle rides beside the executable for the
+      // backend-local provision phase; copyDeploymentCli requires it.
+      await writeFile(
+        `${binary}.mjs`,
+        '#!/usr/bin/env bun\nprocess.exit(0);\n',
+      );
       const spec = {
         schemaVersion: 1,
         name: 'fresh-team',

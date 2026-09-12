@@ -262,4 +262,21 @@ export async function copyDeploymentCli(
   await mkdir(target, { mode: 0o755 });
   await writeFile(join(target, 'tale'), bytes, { mode: 0o755, flag: 'wx' });
   await chmod(join(target, 'tale'), 0o755);
+  // Beside the executable, ship the interpreted bundle the backend-local
+  // provision runs under the target's OWN bun. A compiled executable cannot
+  // resolve the backend's dynamically imported node_modules (postgres,
+  // better-auth), so that phase must run interpreted. It is the same reviewed
+  // source, and its bytes ride the same manifest hashes as every other file.
+  const interpreted = await readFile(`${binary}.mjs`);
+  if (
+    interpreted.length === 0 ||
+    interpreted.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))
+  )
+    throw preconditionError(
+      'Prepare this bundle with the interpreted Tale bundle beside the executable.',
+    );
+  await writeFile(join(target, 'tale.mjs'), interpreted, {
+    mode: 0o644,
+    flag: 'wx',
+  });
 }
