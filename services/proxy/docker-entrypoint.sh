@@ -255,6 +255,13 @@ BACKEND_BLOCK=$(cat <<EOF
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
 	handle /api/v1/* {
+		# The edge backstop above every body cap the door applies itself
+		# (1 MiB by default, 32 MiB for a document's inline content), so the
+		# door's JSON 413 is the one a client sees and nothing larger than
+		# this is ever buffered upstream.
+		request_body {
+			max_size 64MB
+		}
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
 	handle /api/control/* {

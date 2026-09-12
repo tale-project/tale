@@ -23,6 +23,17 @@
 # Global options
 {
 	default_sni {$HOST:localhost}
+	servers {
+		# Only TCP 443 is published (compose and the CLI map no UDP port), so
+		# an advertised HTTP/3 (`Alt-Svc: h3`) only invites clients to race a
+		# QUIC connection that cannot arrive; name the protocols we serve.
+		protocols h1 h2
+		# The header budget — the request target included. Above it Caddy
+		# answers a clean 431 on both HTTP/1.1 and HTTP/2; the backend's own
+		# cap is 64 KiB, so a request that reaches it never overflows there
+		# (an overflow used to surface as an HTTP/2 stream reset).
+		max_header_size 32KB
+	}
 }
 
 # Health check endpoint (internal only, not exposed externally)
@@ -265,6 +276,9 @@
 
 	header {
 		-Server
+		# Caddy stamps `Via: 1.1 Caddy` on every proxied response — the same
+		# product disclosure `-Server` removes.
+		-Via
 		# Content security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options,
 		# Referrer-Policy, Permissions-Policy) are emitted by the platform server via
 		# Hono `secureHeaders` middleware (see services/platform/server.ts) so the
