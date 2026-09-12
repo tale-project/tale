@@ -5,6 +5,7 @@ import {
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../core/knowledge/pool.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { hintVideoJobs, type VideoJobHintRow } from '../video_links/hints.ts';
 
 /**
  * The file-pipeline recovery sweeps — the 0.5 twins of 0.4's
@@ -86,15 +87,16 @@ export async function recoverStuckTranscriptions(
     .map((row) => row.storageRef)
     .filter((ref): ref is string => ref !== null);
   if (refs.length === 0) return { failed: failed.length, cascaded: 0 };
-  const cascaded = await sql<{ id: string }[]>`
+  const cascaded = await sql<VideoJobHintRow[]>`
     UPDATE app.video_link_jobs SET
       status = 'failed',
       status_changed_at_ms = ${now},
       error_reason_code = 'whisperFailed',
       error_message = 'Whisper transcription timed out (watchdog)'
     WHERE status = 'transcribing_handoff' AND storage_ref = ANY(${refs})
-    RETURNING id
+    RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
   `;
+  await hintVideoJobs(sql, cascaded);
   console.info(
     `[watchdog] failed ${failed.length} stuck transcription(s); cascaded ${cascaded.length} video-link job(s)`,
   );

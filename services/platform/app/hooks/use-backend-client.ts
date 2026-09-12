@@ -4,10 +4,11 @@ import { useMemo } from 'react';
 import {
   ACTION_QUERY_ADAPTERS,
   activeOrganizationId,
+  projectAdaptedRead,
   READ_ADAPTERS,
   runAdapted,
-  WRITE_ADAPTERS,
   type WriteAdapter,
+  WRITE_ADAPTERS,
 } from '@/app/lib/backend/adapters';
 import type {
   ActionName,
@@ -80,7 +81,9 @@ export function makeAdapterAwareClient(
       if (read !== undefined) {
         const adapted = read(args ?? {}, adapterCtx());
         if (adapted !== null) {
-          return runAdapted(adapted.queryFn) as Promise<ReturnsOf<Name>>;
+          return runAdapted(adapted.queryFn).then((data) =>
+            projectAdaptedRead(adapted, data),
+          ) as Promise<ReturnsOf<Name>>;
         }
       }
       return Promise.reject(new MissingBackendRowError(name));

@@ -24,6 +24,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
+import { hintVideoJobs } from '../video_links/hints.ts';
 
 /**
  * GDPR Art 17 erasure — the 0.5 twin of `convex/governance/erasure*`:
@@ -983,8 +984,17 @@ export async function processErasure(
   // Same STRICT blob-then-row posture the uploads pass above uses, and for
   // the same reason: a receipt that says done is a claim about the bytes.
   await pass('videoLinks', async () => {
-    const jobs = await sql<{ id: string; storageRef: string | null }[]>`
-      SELECT id, storage_ref AS "storageRef" FROM app.video_link_jobs
+    const jobs = await sql<
+      {
+        id: string;
+        organizationId: string;
+        uploadedBy: string;
+        storageRef: string | null;
+      }[]
+    >`
+      SELECT id, org_id AS "organizationId", uploaded_by AS "uploadedBy",
+             storage_ref AS "storageRef"
+      FROM app.video_link_jobs
       WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
     `;
     if (jobs.length === 0) return 0;
@@ -1012,6 +1022,9 @@ export async function processErasure(
       }
       await sql`DELETE FROM app.video_link_jobs WHERE id = ${job.id}`;
     }
+    // The subject's own tabs, if any are still open, drop the chips now
+    // rather than on their next mount — every job write hints.
+    await hintVideoJobs(sql, jobs);
     return jobs.length;
   });
 

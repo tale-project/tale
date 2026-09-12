@@ -171,14 +171,20 @@ describe('enqueueDeferredSend', () => {
         ? `job:${entry.text}`
         : entry.text.includes('UPDATE app.video_link_jobs')
           ? 'claim'
-          : entry.text.includes('INSERT INTO app.deferred_sends')
-            ? 'insert'
-            : 'other',
+          : entry.text.includes('INSERT INTO app_realtime.outbox')
+            ? 'hint'
+            : entry.text.includes('INSERT INTO app.deferred_sends')
+              ? 'insert'
+              : 'other',
     );
+    // The claim hints the uploader's chip reads on the same transaction
+    // (`video_links/hints.ts`) — the chips leave the composer without a
+    // poll — and the row lands after it, the poll last.
     expect(order).toEqual([
       'other',
       'claim',
       'claim',
+      'hint',
       'insert',
       'job:chat.deferred_send_poll',
     ]);

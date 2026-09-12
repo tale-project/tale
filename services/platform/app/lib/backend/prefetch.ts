@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import {
   activeOrganizationId,
+  projectAdaptedRead,
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
@@ -67,16 +68,18 @@ export async function ensureAdaptedQueryData<Name extends QueryName>(
       orgId !== undefined ? { organizationId: orgId } : {},
     );
     if (adapted !== null) {
-      // The row projects to this name's contract return shape by construction.
-      return await queryClient.ensureQueryData<ReturnsOf<Name>>({
+      // The row projects to this name's contract return shape by
+      // construction — through its `select` when the cached body is shared.
+      const data = await queryClient.ensureQueryData<unknown>({
         queryKey: adapted.queryKey,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row and this name's contract entry are keyed alike, so the row's projection IS this return shape
-        queryFn: () => runAdapted(adapted.queryFn) as Promise<ReturnsOf<Name>>,
+        queryFn: () => runAdapted(adapted.queryFn),
         ...(adapted.staleTime !== undefined
           ? { staleTime: adapted.staleTime }
           : {}),
         retry: retryAdaptedRead,
       });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row and this name's contract entry are keyed alike, so the row's projection IS this return shape
+      return projectAdaptedRead(adapted, data) as ReturnsOf<Name>;
     }
   }
   // A loader that NEEDS the value cannot degrade quietly.

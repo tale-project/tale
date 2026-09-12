@@ -31,9 +31,10 @@ import {
   keepPreviousData,
   QueryClient,
   QueryClientContext,
+  queryOptions,
   useQuery,
 } from '@tanstack/react-query';
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { backendFetch } from '@/app/lib/backend/api-client';
 import {
@@ -68,8 +69,9 @@ import {
   threadShareStatusQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
-import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
+import { backendEntityPrefix, backendKey } from '@/app/lib/backend/query-keys';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -601,12 +603,45 @@ function recallComposerCatalog(
 }
 
 /**
+ * The composer catalog read — one cache entry per organization, shared by
+ * every mount that asks (the chat surface's picker and the voice
+ * capabilities both do, on the same page, and used to fetch it twice).
+ * Keyed under the provider-credential entity because the catalog IS the
+ * set of models the org's credentials can serve: a credential write
+ * invalidates it — locally through the settings write adapters, org-wide
+ * through the backend's hint. It also depends on the model-access policy,
+ * team membership and the provider definitions, none of which hint this
+ * entity, so it stays stale-on-mount: a remount refreshes it in the
+ * background (the cached answer paints first) exactly as the per-mount
+ * fetch did, and mounts that ask together still share one request. No
+ * retry: a picker that cannot list its models says so at once rather than
+ * loading through the client's backoff.
+ */
+function composerCatalogQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(
+      organizationId,
+      PROVIDER_CREDENTIAL_HINT_ENTITY,
+      'composer-catalog',
+    ),
+    queryFn: ({ signal }) =>
+      backendFetch<ComposerCatalog>('/chat/composer/models', {
+        orgId: organizationId,
+        signal,
+      }),
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/**
  * What the composer's model picker offers. The model catalog and sandbox
- * harnesses are file-backed config the providers domain owns, so — like the
- * agent read below — this is an ACTION, not a reactive watch: it resolves the
- * org's models the same way a turn does (the connectors it has an active
- * credential for) plus the shipped harnesses, loading once per org and again
- * per mount. Failures degrade to `unavailable`, so the picker says "not
+ * harnesses are file-backed config the providers domain owns: the read
+ * resolves the org's models the same way a turn does (the connectors it has
+ * an active credential for) plus the shipped harnesses. The device store's
+ * last answer paints first — a reload starts warm — as placeholder data,
+ * never as a fresh cache entry, so the shared read still asks once and
+ * corrects it. Failures degrade to `unavailable`, so the picker says "not
  * connected" rather than offering a model no configured credential could
  * serve — unless a previous answer exists, which then keeps serving (a
  * transient refresh failure must not blank a working composer).
@@ -614,47 +649,46 @@ function recallComposerCatalog(
 export function useComposerModels(
   organizationId: string,
 ): ChatQuery<ComposerCatalog> {
-  const [state, setState] = useState<ChatQuery<ComposerCatalog>>(() => {
-    const cached = recallComposerCatalog(organizationId);
-    return cached ? { status: 'ready', data: cached } : { status: 'loading' };
-  });
+  const stored = useMemo(
+    () =>
+      organizationId === '' ? undefined : recallComposerCatalog(organizationId),
+    [organizationId],
+  );
+  const query = useQuery(
+    {
+      ...composerCatalogQuery(organizationId),
+      enabled: organizationId !== '',
+      ...(stored === undefined ? {} : { placeholderData: stored }),
+    },
+    useChatQueryClient(),
+  );
+  const { data, isPlaceholderData, isError, error } = query;
 
   useEffect(() => {
-    if (!organizationId) return () => {};
-    let cancelled = false;
-    const cached = recallComposerCatalog(organizationId);
-    setState(
-      cached ? { status: 'ready', data: cached } : { status: 'loading' },
-    );
-    backendFetch<ComposerCatalog>('/chat/composer/models', {
-      orgId: organizationId,
-    }).then(
-      (data) => {
-        if (cancelled) return;
-        composerCatalogCache.set(organizationId, data);
-        storeComposerCatalog(organizationId, data);
-        setState({ status: 'ready', data });
-      },
-      (error: unknown) => {
-        if (cancelled) return;
-        // Pre-auth or backend failure: report honestly; the picker renders
-        // its unavailable state instead of an empty model list. A stale
-        // answer, when one exists, beats flipping a working surface.
-        console.warn(
-          '[chat] could not list composer models for the picker',
-          error,
-        );
-        if (!composerCatalogCache.has(organizationId)) {
-          setState(UNAVAILABLE);
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [organizationId]);
+    if (data === undefined || isPlaceholderData || organizationId === '') {
+      return;
+    }
+    composerCatalogCache.set(organizationId, data);
+    storeComposerCatalog(organizationId, data);
+  }, [data, isPlaceholderData, organizationId]);
 
-  return state;
+  useEffect(() => {
+    if (error === null) return;
+    // Pre-auth or backend failure: report honestly; the picker renders its
+    // unavailable state instead of an empty model list.
+    console.warn('[chat] could not list composer models for the picker', error);
+  }, [error]);
+
+  return useMemo<ChatQuery<ComposerCatalog>>(() => {
+    if (data !== undefined) return { status: 'ready', data };
+    if (isError) {
+      // A stale answer, when one exists, beats flipping a working surface.
+      return stored === undefined
+        ? UNAVAILABLE
+        : { status: 'ready', data: stored };
+    }
+    return LOADING;
+  }, [data, isError, stored]);
 }
 
 /**

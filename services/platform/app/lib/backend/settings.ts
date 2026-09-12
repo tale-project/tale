@@ -7,6 +7,7 @@
  */
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import type {
   ActionQueryAdapter,
@@ -426,7 +427,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'provider_credential', 'list'),
+      queryKey: backendKey(orgId, PROVIDER_CREDENTIAL_HINT_ENTITY, 'list'),
       queryFn: () =>
         backendFetch<{ credentials: ProviderCredentialItem[] }>(
           '/provider-credentials',
@@ -902,7 +903,7 @@ function invalidateProviderCredentials(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'provider_credential'),
+    queryKey: backendEntityPrefix(orgId, PROVIDER_CREDENTIAL_HINT_ENTITY),
   });
 }
 

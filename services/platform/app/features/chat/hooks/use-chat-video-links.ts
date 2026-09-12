@@ -12,8 +12,10 @@ import {
   videoJobsForThreadQuery,
   videoJobsUnboundQuery,
 } from '@/app/lib/backend/chat';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
+import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { extractVideoUrls } from '@/lib/shared/video-url';
 
 import { useChatQueryClient } from '../data/chat-backend';
@@ -182,6 +184,19 @@ export function useChatVideoLinks(args: {
     [jobs],
   );
 
+  // The writer's own tab asks at once (the backend's hint lands within a
+  // poll tick for everyone else): a paste paints its chip, a retry flips a
+  // failed chip back to live so the fallback poll resumes, a cancel settles
+  // — none of them wait for a hint that a reconnect gap could swallow.
+  const nudgeChips = useCallback(() => {
+    void chatQueryClient.invalidateQueries({
+      queryKey: backendEntityPrefix(
+        args.organizationId,
+        VIDEO_LINK_HINT_ENTITY,
+      ),
+    });
+  }, [chatQueryClient, args.organizationId]);
+
   const ingestUrlsFromText = useCallback(
     async (text: string): Promise<number> => {
       const matches = extractVideoUrls(text, { maxUrls: 3 });
@@ -217,9 +232,10 @@ export function useChatVideoLinks(args: {
           );
         }
       }
+      if (ingested > 0) nudgeChips();
       return ingested;
     },
-    [args.organizationId, args.threadId, args.locale, t],
+    [args.organizationId, args.threadId, args.locale, t, nudgeChips],
   );
 
   const cancelJob = useCallback(
@@ -233,6 +249,7 @@ export function useChatVideoLinks(args: {
       });
       try {
         await cancelVideoLinkRequest(args.organizationId, jobId);
+        nudgeChips();
       } catch (err) {
         setHideJobIds((prev) => {
           if (!prev.has(jobId)) return prev;
@@ -247,13 +264,14 @@ export function useChatVideoLinks(args: {
         throw err;
       }
     },
-    [args.organizationId],
+    [args.organizationId, nudgeChips],
   );
 
   const retryJob = useCallback(
     async (jobId: string) => {
       try {
         await retryVideoLinkRequest(args.organizationId, jobId);
+        nudgeChips();
       } catch (err) {
         // The mutation refuses with structured codes (cooldown, budget,
         // in-flight cap); without this catch the click reads as dead.
@@ -275,7 +293,7 @@ export function useChatVideoLinks(args: {
         );
       }
     },
-    [args.organizationId, t],
+    [args.organizationId, t, nudgeChips],
   );
 
   return {

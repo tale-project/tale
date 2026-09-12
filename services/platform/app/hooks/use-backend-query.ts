@@ -72,6 +72,7 @@ export function useBackendQuery<Name extends QueryName>(
             ...(adapted.refetchInterval !== undefined
               ? { refetchInterval: adapted.refetchInterval }
               : {}),
+            ...(adapted.select !== undefined ? { select: adapted.select } : {}),
             retry: retryAdaptedRead,
             ...queryOpts,
           }

@@ -214,6 +214,31 @@ function ModelsProbe({ org }: { org: string }) {
   );
 }
 
+describe('useComposerModels', () => {
+  it('shares one request between every mount that asks for the same org', () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() => new Promise(() => {}));
+    try {
+      // The chat surface's picker and the voice capabilities both read the
+      // catalog on one page; each mount used to fetch it again.
+      render(
+        <>
+          <ModelsProbe org="org-shared" />
+          <ModelsProbe org="org-shared" />
+        </>,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const url = fetchSpy.mock.calls[0]?.[0];
+      expect(typeof url === 'string' ? url : '').toContain(
+        '/api/app/chat/composer/models',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe('useComposerModels device store', () => {
   it('starts ready from the stored catalog on a fresh session', () => {
     // A previous SESSION persisted this org's catalog; the in-memory session

@@ -30,6 +30,10 @@ vi.mock('@/app/lib/backend/adapters', () => ({
   ACTION_QUERY_ADAPTERS: {},
   activeOrganizationId: () => 'org-1',
   runAdapted: async (fn: () => Promise<unknown>) => fn(),
+  projectAdaptedRead: (
+    adapted: { select?: (data: unknown) => unknown },
+    data: unknown,
+  ) => (adapted.select === undefined ? data : adapted.select(data)),
 }));
 
 const queryClient = { invalidateQueries: vi.fn() };
