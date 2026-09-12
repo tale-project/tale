@@ -15,7 +15,8 @@ DefaultErrorFile "/usr/share/tinyproxy/default.html"
 # which can leak tokens/secrets a sandboxed user pastes into a URL.
 LogLevel Notice
 LogFile "/var/log/tinyproxy/tinyproxy.log"
-PidFile "/tmp/tinyproxy.pid"
+# entrypoint.sh supervises tinyproxy -d and tracks its child PID for shutdown.
+# Foreground operation needs no PID file or write access to /tmp.
 MaxClients 100
 ViaProxyName "tale-sandbox-egress"
 

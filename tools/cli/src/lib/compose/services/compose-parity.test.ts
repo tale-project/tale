@@ -52,6 +52,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
     {
       networks?: unknown;
       cap_add?: string[];
+      cap_drop?: string[];
       sysctls?: Record<string, string>;
       stop_grace_period?: string;
       stop_signal?: string;
@@ -162,6 +163,25 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
 
   test('compose.yml keeps NET_ADMIN on the sandbox-egress proxy', () => {
     expect(compose.services['sandbox-egress']?.cap_add).toContain('NET_ADMIN');
+  });
+
+  test('egress uses the exact capability set in both compose pipelines', () => {
+    const expected = [
+      'CHOWN',
+      'DAC_OVERRIDE',
+      'KILL',
+      'NET_ADMIN',
+      'NET_BIND_SERVICE',
+      'SETGID',
+      'SETUID',
+    ];
+    for (const service of [
+      compose.services['sandbox-egress'],
+      createSandboxEgressService(config),
+    ]) {
+      expect(service?.cap_drop).toEqual(['ALL']);
+      expect([...(service?.cap_add ?? [])].sort()).toEqual(expected);
+    }
   });
 });
 

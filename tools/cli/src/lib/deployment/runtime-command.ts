@@ -28,8 +28,20 @@ export function runtimeProcessEnvironment(): Record<string, string> {
 export async function runtimeCommand(
   args: string[],
   dependencies: RuntimeDependencies,
-  options: { cwd?: string; timeout?: number; allowFailure?: boolean } = {},
+  options: {
+    cwd?: string;
+    timeout?: number;
+    allowFailure?: boolean;
+    operation?: 'compose-validation' | 'compose-startup';
+  } = {},
 ): Promise<ExecResult> {
+  // Use only fixed labels: Docker arguments and failures can contain secrets.
+  const operation =
+    options.operation === 'compose-validation'
+      ? 'managed Compose validation'
+      : options.operation === 'compose-startup'
+        ? 'managed Compose startup'
+        : 'the managed runtime operation';
   let result: ExecResult;
   try {
     result = await (dependencies.exec ?? exec)('docker', args, {
@@ -39,12 +51,10 @@ export async function runtimeCommand(
       env: runtimeProcessEnvironment(),
     });
   } catch {
-    throw externalDepError(
-      'Docker could not complete the managed runtime operation.',
-    );
+    throw externalDepError(`Docker could not complete ${operation}.`);
   }
   if (!result.success && !options.allowFailure) {
-    throw externalDepError('Docker refused the managed runtime operation.');
+    throw externalDepError(`Docker refused ${operation}.`);
   }
   return result;
 }

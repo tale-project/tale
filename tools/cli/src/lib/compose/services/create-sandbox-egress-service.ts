@@ -52,7 +52,8 @@ export function createSandboxEgressService(
     // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
     // bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53 to serve
     // external DNS to the internal-only sandbox network (dnsmasq requires the
-    // cap explicitly, even as root). Keep in sync with sandbox-egress in compose.yml.
+    // cap explicitly, even as root). KILL lets the root supervisor signal its
+    // nobody child for graceful shutdown. Keep in sync with compose.yml.
     cap_drop: ['ALL'],
     cap_add: [
       'NET_ADMIN',
@@ -61,6 +62,7 @@ export function createSandboxEgressService(
       'SETUID',
       'SETGID',
       'NET_BIND_SERVICE',
+      'KILL',
     ],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
