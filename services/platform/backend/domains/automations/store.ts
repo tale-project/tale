@@ -722,6 +722,34 @@ export interface TriggerInput {
   rotateToken?: boolean;
 }
 
+/** Which kind each optional key belongs to. A key of another kind used to be
+ * stored as sent, so a webhook trigger could read back as one that also ran
+ * on a schedule and on an event (`{kind: "webhook", cron, event}` answered
+ * 200). The REST and app doors refuse such a body as an unknown key; this is
+ * the guard the MCP twin and every other caller converge on. */
+const TRIGGER_KEY_KINDS: ReadonlyArray<
+  [
+    key: 'cron' | 'timezone' | 'event' | 'rotateToken',
+    kind: TriggerInput['kind'],
+  ]
+> = [
+  ['cron', 'schedule'],
+  ['timezone', 'schedule'],
+  ['event', 'event'],
+  ['rotateToken', 'webhook'],
+];
+
+function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
+  for (const [key, kind] of TRIGGER_KEY_KINDS) {
+    if (trigger.kind !== kind && trigger[key] !== undefined) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        `"${key}" belongs to a ${kind} trigger — a ${trigger.kind} trigger does not take it.`,
+      );
+    }
+  }
+}
+
 /**
  * The single validation door for a trigger's shape. Both entry points — the
  * HTTP door (`routes.ts`) and the engine door (`dispatch-store.ts`) — reach
@@ -732,6 +760,7 @@ export interface TriggerInput {
  * an {@link AutomationError} the surfaces map to a 400 the author sees.
  */
 export function assertTriggerValid(trigger: TriggerInput): void {
+  assertTriggerKeysMatchKind(trigger);
   if (trigger.kind === 'schedule') {
     const cron = trigger.cron?.trim() ?? '';
     if (cron === '') {
@@ -795,9 +824,12 @@ export function assertTriggerValid(trigger: TriggerInput): void {
  * database (the CASE on the existing row), read back from RETURNING: the
  * plaintext is handed out only when the hash minted here is the one that
  * landed. A re-bind that CHANGES the kind is a new trigger in the same row:
- * its `lastFiredAt` is cleared, so a fresh event trigger never claims the
- * firing history of the webhook it replaced (the schedule scanner also
- * reads a cleared stamp as "nothing due before this bind").
+ * its fire ledger (`lastFiredAt`, `lastRunId`, the claim cursor, the skip
+ * stamp) is cleared, so a fresh event trigger never claims the firing
+ * history of the webhook it replaced (the schedule scanner also reads a
+ * cleared cursor as "nothing due before this bind") — and when the row it
+ * replaces held a LIVE webhook token, the answer says so (`revoked`): the
+ * URL a partner posts to died with this bind, silently until now.
  */
 export async function setTrigger(
   sql: Sql,
@@ -807,7 +839,7 @@ export async function setTrigger(
     trigger: TriggerInput;
     actor: string;
   },
-): Promise<{ token?: string }> {
+): Promise<{ token?: string; revoked?: 'webhook' }> {
   assertTriggerValid(args.trigger);
   const now = Date.now();
   const minted =
@@ -816,7 +848,17 @@ export async function setTrigger(
     minted !== undefined ? await hashWebhookToken(minted) : null;
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
-  const rows = await sql.begin(async (tx) => {
+  const { rows, revoked } = await sql.begin(async (tx) => {
+    // The row this bind replaces, locked for the rest of the transaction:
+    // what it held decides whether a webhook URL dies here, and two binds
+    // racing on one name settle their order on this lock before the
+    // upsert (a first bind finds nothing, and the upsert's ON CONFLICT
+    // settles that race by itself).
+    const existing = await tx<{ kind: string; tokenHash: string | null }[]>`
+      SELECT kind, token_hash AS "tokenHash" FROM app.automation_triggers
+      WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      FOR UPDATE
+    `;
     const upserted = await tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
@@ -841,17 +883,44 @@ export async function setTrigger(
           WHEN t.kind = EXCLUDED.kind THEN t.last_fired_at_ms
           ELSE NULL
         END,
+        last_due_at_ms = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_due_at_ms
+          ELSE NULL
+        END,
+        last_run_id = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_run_id
+          ELSE NULL
+        END,
+        last_skipped_at_ms = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_skipped_at_ms
+          ELSE NULL
+        END,
+        last_skip_reason = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_skip_reason
+          ELSE NULL
+        END,
         enabled = EXCLUDED.enabled,
         updated_at_ms = EXCLUDED.updated_at_ms
       RETURNING token_hash AS "tokenHash"
     `;
     await emitDefinitionHint(tx, args.organizationId, args.name);
-    return upserted;
+    const before = existing[0];
+    return {
+      rows: upserted,
+      revoked:
+        before !== undefined &&
+        before.kind === 'webhook' &&
+        before.tokenHash !== null &&
+        args.trigger.kind !== 'webhook',
+    };
   });
   const landed = rows[0]?.tokenHash ?? null;
-  return minted !== undefined && landed !== null && landed === mintedHash
-    ? { token: minted }
-    : {};
+  return {
+    ...(minted !== undefined && landed !== null && landed === mintedHash
+      ? { token: minted }
+      : {}),
+    ...(revoked ? { revoked: 'webhook' as const } : {}),
+  };
 }
 
 export async function deleteTrigger(
@@ -871,38 +940,38 @@ export async function deleteTrigger(
   });
 }
 
+/** A trigger binding as a reader sees it — never the secret that verifies
+ * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
+ * `lastRunId` name the last run it started, `lastSkippedAt` and
+ * `lastSkipReason` the last time it came due and started nothing. */
+export interface TriggerListing {
+  id: string;
+  name: string;
+  kind: string;
+  cron: string | null;
+  timezone: string | null;
+  event: string | null;
+  hasToken: boolean;
+  enabled: boolean;
+  lastFiredAt: number | null;
+  lastRunId: string | null;
+  lastSkippedAt: number | null;
+  lastSkipReason: 'not_deployed' | 'unusable_cron' | 'start_refused' | null;
+}
+
 export async function listTriggers(
   sql: Sql,
   organizationId: string,
   name?: string,
-): Promise<
-  Array<{
-    name: string;
-    kind: string;
-    cron: string | null;
-    timezone: string | null;
-    event: string | null;
-    hasToken: boolean;
-    enabled: boolean;
-    lastFiredAt: number | null;
-  }>
-> {
-  return sql<
-    {
-      name: string;
-      kind: string;
-      cron: string | null;
-      timezone: string | null;
-      event: string | null;
-      hasToken: boolean;
-      enabled: boolean;
-      lastFiredAt: number | null;
-    }[]
-  >`
-    SELECT name, kind, cron, timezone, event,
+): Promise<TriggerListing[]> {
+  return sql<TriggerListing[]>`
+    SELECT id, name, kind, cron, timezone, event,
            (token_hash IS NOT NULL AND token_hash <> '') AS "hasToken",
            enabled,
-           last_fired_at_ms::float8 AS "lastFiredAt"
+           last_fired_at_ms::float8 AS "lastFiredAt",
+           last_run_id AS "lastRunId",
+           last_skipped_at_ms::float8 AS "lastSkippedAt",
+           last_skip_reason AS "lastSkipReason"
     FROM app.automation_triggers
     WHERE org_id = ${organizationId}
       AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
@@ -931,13 +1000,22 @@ export interface RunRow {
   chainSeq: number;
   startedAt: number;
   finishedAt: number | null;
+  /** Whether a question of this run is waiting on a person — what tells an
+   * `agent:<node>` park that is an ask apart from one that is an agent turn
+   * still running (`waitingFor`). Read with the row, never answered raw. */
+  askPending: boolean;
 }
 
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
   status, mode, started_by AS "startedBy", input, output, checkpoints, trace,
   effects, detail, claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
-  started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt"
+  started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt",
+  EXISTS (
+    SELECT 1 FROM app.automation_human_asks a
+    WHERE a.run_id = app.automation_runs.id AND a.status = 'pending'
+      AND a.expires_at_ms > (extract(epoch FROM now()) * 1000)::bigint
+  ) AS "askPending"
 `;
 
 async function runRow(
@@ -1086,8 +1164,10 @@ export function toRunSummary(
     | 'detail'
     | 'startedAt'
     | 'finishedAt'
+    | 'askPending'
   >,
 ): RunSummary {
+  const waitingFor = runWaitingFor(row);
   return {
     runId: row.id,
     name: row.name,
@@ -1100,9 +1180,39 @@ export function toRunSummary(
     mode: row.mode,
     startedBy: row.startedBy,
     ...(row.detail !== null ? { detail: row.detail } : {}),
+    ...(waitingFor !== undefined ? { waitingFor } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/**
+ * What a `waiting` run is parked on, read off the park's `detail` — the
+ * stepper writes `approval:<approvalId>`, `agent:<nodeId>` and
+ * `repeat:<nodeId>` — with the one distinction the detail cannot carry: an
+ * agent park whose question is pending is an `ask`, waiting on a person,
+ * where the same park without one is an agent turn still running. A client
+ * used to have to filter on the undocumented prefix to tell "needs a human"
+ * from "polling"; `status=waiting` alone filled an alert with healthy runs.
+ */
+export function runWaitingFor(
+  row: Pick<RunRow, 'status' | 'detail' | 'askPending'>,
+): RunSummary['waitingFor'] {
+  if (row.status !== 'waiting' || row.detail === null) return undefined;
+  if (row.detail.startsWith('approval:')) return 'approval';
+  if (row.detail.startsWith('repeat:')) return 'repeat';
+  if (row.detail.startsWith('agent:')) return row.askPending ? 'ask' : 'agent';
+  return undefined;
+}
+
+/** The full row as the single read answers it: every column, `waitingFor`
+ * beside `detail` while the run is parked, and never the raw ask fact. */
+export function toRunDetail(
+  row: RunRow,
+): Omit<RunRow, 'askPending'> & { waitingFor?: RunSummary['waitingFor'] } {
+  const { askPending: _askPending, ...rest } = row;
+  const waitingFor = runWaitingFor(row);
+  return waitingFor === undefined ? rest : { ...rest, waitingFor };
 }
 
 export interface ListRunsOptions {

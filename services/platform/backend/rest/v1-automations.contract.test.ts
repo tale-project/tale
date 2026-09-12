@@ -111,6 +111,7 @@ const runRow = {
   chainSeq: 0,
   startedAt: 1_700_000_000_000,
   finishedAt: 1_700_000_000_500,
+  askPending: false,
 };
 
 /** What a listing answers for `runRow`: identity, scope, status, timing. */
@@ -467,6 +468,47 @@ describe('POST /runs/{runId}/cancel', () => {
  * stop route's scope and capability rules, 204 on success, the same 404 for
  * a run that is not there or not in this scope, the store's 409 in flight.
  */
+/**
+ * The single read names what a `waiting` run is parked on beside the park
+ * detail, and never answers the raw ask fact the row carries to derive it —
+ * a client used to filter on the undocumented `detail` prefix to tell
+ * "needs a person" from "polling".
+ */
+describe('GET /runs/{runId}', () => {
+  it('answers the row in full, without the ask fact, and with waitingFor while parked', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...runRow,
+      status: 'waiting',
+      detail: 'agent:review',
+      finishedAt: null,
+      askPending: true,
+    });
+    const res = await mount().app.request('http://localhost/api/v1/runs/run-1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      id: 'run-1',
+      status: 'waiting',
+      detail: 'agent:review',
+      waitingFor: 'ask',
+      claimEpoch: 1,
+      chainSeq: 0,
+      finishedAt: null,
+    });
+    expect(body).not.toHaveProperty('askPending');
+  });
+
+  it('carries no waitingFor on a finished run', async () => {
+    vi.mocked(getRun).mockResolvedValue(runRow);
+    const res = await mount().app.request('http://localhost/api/v1/runs/run-1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('waitingFor');
+    expect(body).not.toHaveProperty('askPending');
+    expect(body.output).toBe(2);
+  });
+});
+
 describe('DELETE /runs/{runId}', () => {
   it('removes a finished organization run and answers 204', async () => {
     vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
@@ -583,6 +625,56 @@ describe('triggers of an automation nobody saved', () => {
     expect(del.status).toBe(204);
   });
 
+  /**
+   * A bind that replaces a live webhook with another kind kills its URL;
+   * the store says so and the door hands it on beside the name — the 200
+   * used to say nothing, and the partner's next delivery answered 404.
+   */
+  it('PUT names the webhook URL a kind change revoked', async () => {
+    vi.mocked(setTrigger).mockResolvedValue({ revoked: 'webhook' });
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "schedule", "cron": "0 9 * * 1"}'),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: SAVED, revoked: 'webhook' });
+  });
+
+  it('GET answers the binding with its fire ledger as the store reports it', async () => {
+    vi.mocked(listTriggers).mockResolvedValueOnce([
+      {
+        id: 'trig-1',
+        name: SAVED,
+        kind: 'schedule',
+        cron: '*/5 * * * *',
+        timezone: 'UTC',
+        event: null,
+        hasToken: false,
+        enabled: true,
+        lastFiredAt: null,
+        lastRunId: null,
+        lastSkippedAt: 1_789_193_100_000,
+        lastSkipReason: 'not_deployed',
+      },
+    ]);
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      triggers: [
+        expect.objectContaining({
+          id: 'trig-1',
+          lastFiredAt: null,
+          lastRunId: null,
+          lastSkippedAt: 1_789_193_100_000,
+          lastSkipReason: 'not_deployed',
+        }),
+      ],
+    });
+  });
+
   it('PUT refuses an unknown key with INVALID_BODY, naming it', async () => {
     const res = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/triggers`,
@@ -606,6 +698,84 @@ describe('triggers of an automation nobody saved', () => {
       error: 'invalid body: "kind" is required',
       code: 'INVALID_BODY',
       data: { issues: [{ path: 'kind', message: 'is required' }] },
+    });
+  });
+
+  it('PUT names a kind outside the closed set as one of the three', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "cronjob"}'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error:
+        'invalid body: "kind" must be one of "schedule", "webhook", "event"',
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          {
+            path: 'kind',
+            message: 'must be one of "schedule", "webhook", "event"',
+          },
+        ],
+      },
+    });
+    expect(setTrigger).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Each kind takes its own keys. A body mixing all three kinds' fields
+   * used to bind with 200 and read back as a webhook that also ran on a
+   * schedule and on an event; the keys of another kind are the unknown
+   * keys they are, each named.
+   */
+  it.each([
+    [
+      'webhook',
+      '{"kind": "webhook", "cron": "0 9 * * *", "event": "contact.created"}',
+      ['cron', 'event'],
+    ],
+    [
+      'schedule',
+      '{"kind": "schedule", "cron": "0 9 * * *", "rotateToken": true}',
+      ['rotateToken'],
+    ],
+    [
+      'event',
+      '{"kind": "event", "event": "contact.created", "timezone": "UTC"}',
+      ['timezone'],
+    ],
+  ])(
+    'PUT refuses keys of another kind on a %s trigger, naming each',
+    async (_kind, body, keys) => {
+      const res = await mount().app.request(
+        `http://localhost/api/v1/automations/${SAVED}/triggers`,
+        json('PUT', body),
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: `invalid body: "${keys[0]}" is not a field this body takes`,
+        code: 'INVALID_BODY',
+        data: {
+          issues: keys.map((path) => ({
+            path,
+            message: 'is not a field this body takes',
+          })),
+        },
+      });
+      expect(setTrigger).not.toHaveBeenCalled();
+    },
+  );
+
+  it('PUT keeps a body that is not an object on the house phrase', async () => {
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '"webhook"'),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: '', message: 'must be an object' }] },
     });
   });
 

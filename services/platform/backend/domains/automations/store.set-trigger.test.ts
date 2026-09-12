@@ -27,11 +27,16 @@ interface Statement {
 const TOKEN_HASH_PARAM = 6;
 
 /**
- * Scripted `sql`: the upsert answers with the token_hash that "landed" —
- * `fresh` echoes the minted hash back (an insert, or a rotate), `kept`
- * answers an existing row's hash (a re-bind that kept its token).
+ * Scripted `sql`: the locked read of the row being replaced answers
+ * `existing` (nothing on a first bind); the upsert answers with the
+ * token_hash that "landed" — `fresh` echoes the minted hash back (an insert,
+ * or a rotate), `kept` answers an existing row's hash (a re-bind that kept
+ * its token).
  */
-function fakeUpsert(landing: 'fresh' | 'kept'): {
+function fakeUpsert(
+  landing: 'fresh' | 'kept',
+  existing: { kind: string; tokenHash: string | null } | null = null,
+): {
   sql: Sql;
   /** The trigger-table statements — the write shape under test. */
   statements: Statement[];
@@ -47,6 +52,9 @@ function fakeUpsert(landing: 'fresh' | 'kept'): {
       return Promise.resolve([]);
     }
     statements.push({ text, values });
+    if (text.includes('FOR UPDATE')) {
+      return Promise.resolve(existing === null ? [] : [existing]);
+    }
     if (!text.includes('INSERT INTO app.automation_triggers')) {
       throw new Error(`unexpected statement: ${text}`);
     }
@@ -62,6 +70,12 @@ function fakeUpsert(landing: 'fresh' | 'kept'): {
   return { sql: fn as unknown as Sql, statements, hints };
 }
 
+/** The upsert — the one write of the bind. */
+const upsertOf = (statements: Statement[]): Statement | undefined =>
+  statements.find((s) =>
+    s.text.includes('INSERT INTO app.automation_triggers'),
+  );
+
 const args = (trigger: Parameters<typeof setTrigger>[1]['trigger']) => ({
   organizationId: 'org_1',
   name: 'ops/greet',
@@ -70,12 +84,16 @@ const args = (trigger: Parameters<typeof setTrigger>[1]['trigger']) => ({
 });
 
 describe('setTrigger', () => {
-  it('binds with one upsert on (org_id, name)', async () => {
+  it('binds with one upsert on (org_id, name), behind a lock on the row it replaces', async () => {
     const fake = fakeUpsert('fresh');
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
 
-    expect(fake.statements).toHaveLength(1);
-    const [statement] = fake.statements;
+    // The locked read of the row being replaced, then the ONE write — never
+    // a SELECT-then-INSERT that decides existence in JavaScript.
+    expect(fake.statements).toHaveLength(2);
+    const [read, statement] = fake.statements;
+    expect(read?.text).toContain('FOR UPDATE');
+    expect(read?.values).toEqual(['org_1', 'ops/greet']);
     expect(statement?.text).toContain(
       'ON CONFLICT (org_id, name) DO UPDATE SET',
     );
@@ -98,10 +116,13 @@ describe('setTrigger', () => {
     const minted = await setTrigger(fresh.sql, args({ kind: 'webhook' }));
     expect(minted.token).toBeTypeOf('string');
     expect(await hashWebhookToken(minted.token ?? '')).toBe(
-      fresh.statements[0]?.values[TOKEN_HASH_PARAM],
+      upsertOf(fresh.statements)?.values[TOKEN_HASH_PARAM],
     );
 
-    const kept = fakeUpsert('kept');
+    const kept = fakeUpsert('kept', {
+      kind: 'webhook',
+      tokenHash: 'existing-hash',
+    });
     const rebound = await setTrigger(kept.sql, args({ kind: 'webhook' }));
     expect(rebound).toEqual({});
   });
@@ -116,26 +137,77 @@ describe('setTrigger', () => {
     );
     // The rotate flag is the CASE's boolean parameter (the last one), decided
     // in SQL against the existing row.
-    expect(plain.statements[0]?.values.at(-1)).toBe(false);
-    expect(rotate.statements[0]?.values.at(-1)).toBe(true);
+    expect(upsertOf(plain.statements)?.values.at(-1)).toBe(false);
+    expect(upsertOf(rotate.statements)?.values.at(-1)).toBe(true);
     expect(rotated.token).toBeTypeOf('string');
   });
 
-  it('clears the fire stamp when the kind changes, and keeps it otherwise', async () => {
+  it('clears the whole fire ledger when the kind changes, and keeps it otherwise', async () => {
     // Decided in SQL against the existing row: a fresh event trigger never
-    // inherits the firing history of the webhook it replaced.
+    // inherits the firing history of the webhook it replaced — neither the
+    // fire stamp nor the run it named, the claim cursor or the last skip.
     const fake = fakeUpsert('fresh');
     await setTrigger(
       fake.sql,
       args({ kind: 'event', event: 'contact.created' }),
     );
-    const text = fake.statements[0]?.text ?? '';
-    expect(text).toContain('last_fired_at_ms = CASE');
-    expect(text).toContain(
-      'WHEN t.kind = EXCLUDED.kind THEN t.last_fired_at_ms',
-    );
+    const text = upsertOf(fake.statements)?.text ?? '';
+    for (const column of [
+      'last_fired_at_ms',
+      'last_due_at_ms',
+      'last_run_id',
+      'last_skipped_at_ms',
+      'last_skip_reason',
+    ]) {
+      expect(text).toContain(`${column} = CASE`);
+      expect(text).toContain(`WHEN t.kind = EXCLUDED.kind THEN t.${column}`);
+    }
     expect(text).toContain('ELSE NULL');
   });
+
+  /**
+   * Binding another kind over a live webhook kills its URL — the bind used
+   * to answer `{name}` and the partner's next delivery answered 404 with no
+   * explanation. The answer names it; a first bind and a same-kind re-bind
+   * (which keeps the token) say nothing.
+   */
+  it('names the webhook URL a kind change revoked', async () => {
+    const fake = fakeUpsert('fresh', {
+      kind: 'webhook',
+      tokenHash: 'existing-hash',
+    });
+    const outcome = await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1' }),
+    );
+    expect(outcome).toEqual({ revoked: 'webhook' });
+  });
+
+  it.each([
+    ['a first bind', null, { kind: 'schedule', cron: '0 9 * * 1' } as const],
+    [
+      'a same-kind re-bind of a webhook',
+      { kind: 'webhook', tokenHash: 'existing-hash' },
+      { kind: 'webhook' } as const,
+    ],
+    [
+      'a kind change over a schedule',
+      { kind: 'schedule', tokenHash: null },
+      { kind: 'event', event: 'contact.created' } as const,
+    ],
+    [
+      'a kind change over a webhook row that never minted a token',
+      { kind: 'webhook', tokenHash: null },
+      { kind: 'schedule', cron: '0 9 * * 1' } as const,
+    ],
+  ])(
+    'says nothing about revocation on %s',
+    async (_case, existing, trigger) => {
+      const fake = fakeUpsert('kept', existing);
+      const outcome = await setTrigger(fake.sql, args(trigger));
+      expect(outcome.revoked).toBeUndefined();
+    },
+  );
 
   it('stores the event name trimmed, as it was validated', async () => {
     const fake = fakeUpsert('fresh');
@@ -144,7 +216,7 @@ describe('setTrigger', () => {
       args({ kind: 'event', event: '  contact.created  ' }),
     );
     // VALUES order: org, name, kind, cron, timezone, event, token_hash, …
-    expect(fake.statements[0]?.values[5]).toBe('contact.created');
+    expect(upsertOf(fake.statements)?.values[5]).toBe('contact.created');
   });
 
   it('refuses an invalid trigger before touching the database', async () => {

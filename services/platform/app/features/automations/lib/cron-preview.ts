@@ -1,5 +1,7 @@
 import { CronExpressionParser } from 'cron-parser';
 
+import { impossibleCronDate } from '@/lib/automations/cron-feasibility';
+
 export type CronPreview =
   | { readonly kind: 'empty' }
   | { readonly kind: 'invalid' }
@@ -40,6 +42,20 @@ export function previewCronExpression(
       currentDate: now,
       ...(timezone.trim() !== '' && { tz: timezone.trim() }),
     });
+    // The parser's own feasibility check is narrower than the platform's
+    // (it refuses `0 0 30 2 *` but walks decades ahead for `0 0 31 4,6 *`
+    // and reports a fantasy date); the shared rule refuses exactly what the
+    // bind refuses, so the preview never promises a schedule the save will
+    // turn down.
+    const numbers = (values: readonly unknown[]): number[] =>
+      values.filter((value): value is number => typeof value === 'number');
+    const impossible = impossibleCronDate({
+      dayOfMonth: numbers(interval.fields.dayOfMonth.values),
+      dayOfMonthWildcard: interval.fields.dayOfMonth.isWildcard,
+      month: numbers(interval.fields.month.values),
+      dayOfWeekWildcard: interval.fields.dayOfWeek.isWildcard,
+    });
+    if (impossible !== null) return { kind: 'invalid' };
     const nextAt = interval.next().toDate();
 
     let pattern: Extract<CronPreview, { kind: 'ok' }>['pattern'] = null;

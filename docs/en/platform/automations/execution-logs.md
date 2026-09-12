@@ -17,12 +17,12 @@ An automation that has never run says so rather than showing an empty table.
 | ------------- | ----------------------------------------------------------------- |
 | **Queued**    | The run exists and is waiting for the engine to pick it up        |
 | **Running**   | The engine is working through the nodes                           |
-| **Waiting**   | The run is parked on a human decision or an answer it needs       |
+| **Waiting**   | The run is parked — on a person, or on something still in flight  |
 | **Succeeded** | Every node the graph reached finished and the output was produced |
 | **Failed**    | A node errored and nothing was configured to carry on past it     |
 | **Stopped**   | Somebody cancelled the run; work already performed is not undone  |
 
-**Waiting** is the one people misread. It is not a stall and not a failure — the run is holding its place and will carry on from the node it stopped at as soon as the decision it needs is made. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers what it is waiting for.
+**Waiting** is the one people misread. It is not a stall and not a failure — the run is holding its place and will carry on from the node it stopped at. What it waits for comes in two families, and only one of them needs you: a run parked on an **approval** or on a **question** an agent asked is waiting for a person, and stays there until the decision is made or the question answered; a run parked on an agent turn that is still working, or on a node that polls until its condition holds, is waiting on itself and moves on without anyone. The row names the wait, so a run that reads _waiting_ for minutes while a poll ticks is healthy, not stuck. Over the API the same distinction is the `waitingFor` field — `approval`, `ask`, `agent` or `repeat` — and "runs that need a human" is `waitingFor` in the first two, never the status alone. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates.
 
 ## Test runs and live runs
 

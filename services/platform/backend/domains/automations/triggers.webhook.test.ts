@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { Hono } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,7 +9,7 @@ import {
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
 import { AutomationError, beginRunInTx } from './store.ts';
-import { createWebhookRoutes } from './triggers.ts';
+import { createWebhookRoutes, dispatchAutomationEvent } from './triggers.ts';
 
 vi.mock('./store.ts', async (original) => ({
   ...(await original<typeof import('./store.ts')>()),
@@ -347,12 +347,35 @@ describe('organization webhook scope and delivery contract', () => {
   });
 
   it('does not keep a delivery claim when the automation is not deployed', async () => {
-    const { deliver, ledger } = await webhook({
+    const { deliver, ledger, queries } = await webhook({
       bindings: [],
       undeployed: true,
     });
     expect((await deliver()).status).toBe(409);
     expect(ledger.size).toBe(0);
+    // The delivery's transaction rolled back; the skip is recorded on its
+    // own, so the trigger read shows the URL was hit and why nothing ran.
+    const skip = queries.find((text) =>
+      text.includes('SET last_skipped_at_ms'),
+    );
+    expect(skip).toContain('last_skip_reason = ?');
+    expect(queries.some((text) => text.includes('SET last_fired_at_ms'))).toBe(
+      false,
+    );
+  });
+
+  it('stamps the fire and the run it started together, and nothing on a replay', async () => {
+    const { deliver, queries } = await webhook({ bindings: [] });
+    expect((await deliver(undefined, { deliveryId: 'd-1' })).status).toBe(202);
+    const stamps = queries.filter((text) =>
+      text.includes('SET last_fired_at_ms'),
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]).toContain('last_run_id = ?');
+    expect((await deliver(undefined, { deliveryId: 'd-1' })).status).toBe(202);
+    expect(
+      queries.filter((text) => text.includes('SET last_fired_at_ms')),
+    ).toHaveLength(1);
   });
 
   it('forwards a refused input with its problems and keeps no claim', async () => {
@@ -424,5 +447,113 @@ describe('webhook door budgets', () => {
     expect(response.headers.get('retry-after')).toMatch(/^\d+$/);
     expect(ledger.size).toBe(0);
     expect(beginRunInTx).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The event path is the schedule's twin inside the producer's transaction:
+ * the fire stamp and the run it names land only when a run was inserted,
+ * and a binding whose automation has nothing deployed records the skip —
+ * it used to stamp "fired" before asking the store for a run at all.
+ */
+describe('dispatchAutomationEvent stamps', () => {
+  const eventTx = () => {
+    const queries: { text: string; values: unknown[] }[] = [];
+    const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      queries.push({ text, values });
+      if (text.includes('FROM app.automation_triggers')) {
+        return [
+          { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
+        ];
+      }
+      return [];
+    };
+    return {
+      tx: Object.assign(tag, { unsafe: (text: string) => text }),
+      queries,
+    };
+  };
+
+  it('stamps the fire with the run id when a run started', async () => {
+    const { tx, queries } = eventTx();
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({
+      runId: 'run-e',
+      version: 3,
+    });
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        payload: { id: 'c-1' },
+        origin: 'platform',
+      },
+    );
+    expect(outcome).toEqual({ started: ['run-e'], refused: false });
+    const stamps = queries.filter((q) =>
+      q.text.startsWith('UPDATE app.automation_triggers'),
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.text).toContain(
+      'SET last_fired_at_ms = ?, last_run_id = ?',
+    );
+    expect(stamps[0]?.values).toEqual([
+      expect.any(Number),
+      'run-e',
+      'trigger-e',
+    ]);
+    // The stamp follows the run insert, never precedes it.
+    expect(vi.mocked(beginRunInTx)).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        name: 'crm/welcome',
+        startedBy: 'trigger:trigger-e',
+        input: {
+          trigger: 'event',
+          event: 'contact.created',
+          payload: { id: 'c-1' },
+        },
+      }),
+    );
+  });
+
+  it('records not_deployed instead of a fire when nothing is deployed', async () => {
+    const { tx, queries } = eventTx();
+    vi.mocked(beginRunInTx).mockResolvedValueOnce(null);
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      { organizationId: 'org-1', event: 'contact.created', origin: 'platform' },
+    );
+    expect(outcome).toEqual({ started: [], refused: false });
+    const stamps = queries.filter((q) =>
+      q.text.startsWith('UPDATE app.automation_triggers'),
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.text).toContain(
+      'SET last_skipped_at_ms = ?, last_skip_reason = ?',
+    );
+    expect(stamps[0]?.values).toEqual([
+      expect.any(Number),
+      'not_deployed',
+      'trigger-e',
+    ]);
+  });
+
+  it('fires nothing and stamps nothing for an event an automation raised', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx, queries } = eventTx();
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-1',
+        event: 'contact.created',
+        origin: 'automation',
+      },
+    );
+    expect(outcome).toEqual({ started: [], refused: true });
+    expect(queries).toHaveLength(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

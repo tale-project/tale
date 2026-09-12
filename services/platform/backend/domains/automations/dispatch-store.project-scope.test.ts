@@ -63,6 +63,9 @@ function store(
     scopeProjectId?: string;
     bindings?: string[];
     writes?: unknown[][];
+    /** The scope's actor — `api-key:<id>` (MCP) unless a test hands the
+     * bare id the builder session and the chat capability pass. */
+    actor?: string;
   } = {},
 ) {
   const selected =
@@ -92,7 +95,7 @@ function store(
   }) as unknown as Sql;
   return pgAutomationStore(sql, {
     organizationId: 'org-1',
-    actor: 'api-key:user-1',
+    actor: options.actor ?? 'api-key:user-1',
     ...(options.scopeProjectId !== undefined
       ? { projectId: options.scopeProjectId }
       : {}),
@@ -251,6 +254,48 @@ describe('MCP and engine actor project scope', () => {
     );
     expect(writes).toHaveLength(1);
     expect(writes[0]?.[3]).toBe('p-1');
+  });
+
+  /**
+   * The builder session and the chat capability hand the store a bare user
+   * id; the runs they start used to record it as sent, a fourth `startedBy`
+   * form the contract never named and the erasure pass never matched. The
+   * store records the app door's form for it, and leaves a prefixed actor
+   * as it is.
+   */
+  it('records a bare actor as user:<id> on the runs it starts, and a prefixed one as is', async () => {
+    const writes: unknown[][] = [];
+    const builder = store({
+      actor: 'user-1',
+      scopeProjectId: 'p-1',
+      bindings: ['p-1'],
+      writes,
+    });
+    await builder.startRun?.('billing/dunning', {}, 'mock', 1);
+    expect(beginRunInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedBy: 'user:user-1' }),
+    );
+    await builder.recordRun?.(
+      'billing/dunning',
+      1,
+      { status: 'success', trace: [], effects: [] },
+      'mock',
+    );
+    // VALUES order: org, name, version, project, status, mode, started_by.
+    expect(writes[0]?.[6]).toBe('user:user-1');
+
+    vi.mocked(beginRunInTx).mockClear();
+    await store({ scopeProjectId: 'p-1', bindings: ['p-1'] }).startRun?.(
+      'billing/dunning',
+      {},
+      'mock',
+      1,
+    );
+    expect(beginRunInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedBy: 'api-key:user-1' }),
+    );
   });
 
   it('refuses unscoped in-process execution and recording of a project-bound automation', async () => {
