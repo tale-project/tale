@@ -98,19 +98,29 @@ export interface KnowledgeSource {
   readonly conversationId?: string | null;
   /**
    * The document record that currently exposes `ref`, for a documents-corpus
-   * hit the org's search resolved — the id `GET /api/v1/documents/{id}`
-   * takes, where `ref` is the blob reference the corpus is keyed by. Absent
-   * for web pages and for a ref no active document holds in the hit's own
-   * project scope (a thread upload, an emailed attachment).
+   * hit the org's search resolved, where `ref` is the blob reference the
+   * corpus is keyed by. For a Hub hit (`projectId` null) it is the id
+   * `GET /api/v1/documents/{id}` takes; for a project hit it is the file id
+   * the project routes take (`GET /api/v1/projects/{projectId}/files/{id}/
+   * content`, `DELETE …/files/{id}`) — `/api/v1/documents/{id}` answers
+   * 404 for a project file. Absent for web pages and for a ref no active
+   * document holds in the hit's own project scope (a thread upload, an
+   * emailed attachment).
    */
   readonly documentId?: string;
 }
 
 /** A hit after fusion, carrying the rank-based score it was ordered by. */
 export interface FusedKnowledgeHit extends KnowledgeHit {
-  /** Reciprocal-rank-fusion score. Comparable across legs; the leg scores are
-   * not. */
+  /** Reciprocal-rank-fusion score, normalized so a passage every leg ranked
+   * first scores 1. The ORDER key of one response — comparable only within
+   * that response, because the normalization depends on how many legs
+   * answered; not a confidence, and not stable across searches. */
   readonly fusedScore: number;
+  /** How many retrieval legs of its corpus returned the passage: 2 when the
+   * keyword and the dense leg agreed, 1 when only one found it — the
+   * model-independent confidence signal `fusedScore` is not. */
+  readonly legs?: number;
   /** Set only when a reranker ran and scored this hit. */
   readonly rerankScore?: number;
 }
@@ -290,6 +300,10 @@ export interface KnowledgeDiagnostics {
   readonly reranked: boolean;
   /** True when the answer came from the semantic cache. */
   readonly cached: boolean;
-  /** Hits each leg contributed before fusion, for the two legs that ran. */
+  /** Fused candidates the admission re-check kept (the live-document check
+   * of each documents-corpus hit), before repeated passages were dropped
+   * and the page was cut to `limit`. */
+  readonly admitted: number;
+  /** Hits each leg contributed before fusion (counts, keyed by leg). */
   readonly legs: Readonly<Record<string, number>>;
 }

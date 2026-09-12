@@ -50,7 +50,7 @@ import { retrieve, type CorpusReader } from '../../../lib/knowledge/retrieve';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   corporaFor,
-  type KnowledgeHit,
+  type FusedKnowledgeHit,
   type KnowledgeQuery,
   type KnowledgeResult,
 } from '../../../lib/knowledge/types';
@@ -87,8 +87,60 @@ export async function searchKnowledge(
 ): Promise<KnowledgeResult> {
   const config = await readOrgEmbeddingConfig(args.orgSlug);
   const { readers, embedder } = await bindOrg(ctx, args, config);
-  const result = await retrieve(
-    { readers, embedder, orgSlug: args.orgSlug },
+  // The SQL row is a projection. Re-check the current document/file,
+  // completion, lifecycle, scope, and folder before any private hit is
+  // shown — as the ADMISSION step of retrieval, on the whole fused pool and
+  // before the page is cut, so a refused candidate never costs the page a
+  // slot (it also decides again on a semantic-cache pool, which can outlive
+  // a replacement). Repeated passages are dropped after admission, inside
+  // retrieval too.
+  const admit = async (
+    hits: readonly FusedKnowledgeHit[],
+  ): Promise<readonly FusedKnowledgeHit[]> => {
+    const documentRefs = [
+      ...new Set(
+        hits
+          .filter((hit) => hit.corpus === 'documents')
+          .map((hit) => hit.source.ref),
+      ),
+    ];
+    if (documentRefs.length === 0) return hits;
+    const retrievable = await ctx.runQuery(
+      internal.documents.internal_queries.filterRetrievableRagFileIds,
+      {
+        organizationId: args.organizationId,
+        fileIds: documentRefs,
+        ...(args.access?.userId !== undefined
+          ? { userId: args.access.userId }
+          : {}),
+        ...(args.access !== undefined
+          ? {
+              access: {
+                teamIds: [...args.access.teamIds],
+                projectIds: [...args.access.projectIds],
+                includeHub: args.access.includeHub,
+                ...(args.access.includeConversationScoped !== undefined
+                  ? {
+                      includeConversationScoped:
+                        args.access.includeConversationScoped,
+                    }
+                  : {}),
+                ...(args.access.threadIds !== undefined
+                  ? { threadIds: [...args.access.threadIds] }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(args.folder !== undefined ? { folder: args.folder } : {}),
+      },
+    );
+    const allowed = new Set(retrievable);
+    return hits.filter(
+      (hit) => hit.corpus !== 'documents' || allowed.has(hit.source.ref),
+    );
+  };
+  return retrieve(
+    { readers, embedder, orgSlug: args.orgSlug, admit },
     {
       query: args.query,
       ...(args.corpus !== undefined && { corpus: args.corpus }),
@@ -103,88 +155,6 @@ export async function searchKnowledge(
       }),
     },
   );
-  const documentRefs = [
-    ...new Set(
-      result.hits
-        .filter((hit) => hit.corpus === 'documents')
-        .map((hit) => hit.source.ref),
-    ),
-  ];
-  if (documentRefs.length === 0) return result;
-
-  // The SQL row is a projection. Re-check the current Convex document/file,
-  // completion, lifecycle, scope, and folder before returning any private hit.
-  // This also filters semantic-cache hits, which can outlive a replacement.
-  const retrievable = await ctx.runQuery(
-    internal.documents.internal_queries.filterRetrievableRagFileIds,
-    {
-      organizationId: args.organizationId,
-      fileIds: documentRefs,
-      ...(args.access?.userId !== undefined
-        ? { userId: args.access.userId }
-        : {}),
-      ...(args.access !== undefined
-        ? {
-            access: {
-              teamIds: [...args.access.teamIds],
-              projectIds: [...args.access.projectIds],
-              includeHub: args.access.includeHub,
-              ...(args.access.includeConversationScoped !== undefined
-                ? {
-                    includeConversationScoped:
-                      args.access.includeConversationScoped,
-                  }
-                : {}),
-              ...(args.access.threadIds !== undefined
-                ? { threadIds: [...args.access.threadIds] }
-                : {}),
-            },
-          }
-        : {}),
-      ...(args.folder !== undefined ? { folder: args.folder } : {}),
-    },
-  );
-  const allowed = new Set(retrievable);
-  return {
-    ...result,
-    hits: dropRepeatedPassages(
-      result.hits.filter(
-        (hit) => hit.corpus !== 'documents' || allowed.has(hit.source.ref),
-      ),
-    ),
-  };
-}
-
-/**
- * Drop a passage the caller has already been given, keeping the best-scoring
- * one.
- *
- * The same text can sit in the corpus twice — the same file uploaded as two
- * documents, or a paragraph two documents share. Both copies match, and a
- * bounded result set then spends two of its slots saying one thing while a
- * different answer falls off the end.
- *
- * Runs AFTER the retrievability filter, deliberately. Deduping first could
- * keep a copy the caller cannot read and drop the readable one, and the gate
- * would then remove what was kept — losing the passage entirely rather than
- * showing it once. Fusion has already sorted by score, so the first
- * occurrence is the best one.
- */
-function dropRepeatedPassages<Hit extends KnowledgeHit>(
-  hits: readonly Hit[],
-): Hit[] {
-  const seen = new Set<string>();
-  const kept: Hit[] = [];
-  for (const hit of hits) {
-    // Keyed on the text a caller actually reads. Whitespace is normalized so
-    // two copies that differ only in how their source wrapped lines still
-    // count as one.
-    const key = `${hit.corpus}\u0000${hit.text.replace(/\s+/g, ' ').trim()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    kept.push(hit);
-  }
-  return kept;
 }
 
 /**

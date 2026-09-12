@@ -120,6 +120,14 @@ export function htmlToText(html: string): string {
   let work = html;
   // Comments and whole-content noise first, so nothing inside them leaks.
   work = work.replace(/<!--[\s\S]*?-->/g, ' ');
+  // Declarations, processing instructions and CDATA sections are not
+  // elements: the generic tag strip below needs a letter after `<`, so
+  // `<!DOCTYPE html>` survived it and led every indexed passage of a page.
+  work = work
+    .replace(/<!DOCTYPE[^>]*>/gi, ' ')
+    .replace(/<\?[\s\S]*?\?>/g, ' ')
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, ' ')
+    .replace(/<!\[[^\]]*\]>/g, ' ');
   for (const tag of DROP_CONTENT_TAGS) {
     work = work.replace(
       new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>`, 'gi'),

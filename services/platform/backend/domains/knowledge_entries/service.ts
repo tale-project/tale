@@ -14,6 +14,7 @@ import {
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
+import { releaseCorpusRefs } from '../knowledge/release.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 
 /**
@@ -501,6 +502,26 @@ export async function markEntryChainsDeletedForDocuments(
 }
 
 /**
+ * The ACTIVE entry a document backs, or null — what a document door asks
+ * before it deletes or rewrites a `knowledge`-sourced document: the entry
+ * is the fact and its own delete is the sanctioned path, so a document
+ * delete that would silently retire the chain is refused instead.
+ */
+export async function findActiveEntryForDocument(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  documentId: string,
+): Promise<{ id: string; topic: string } | null> {
+  const rows = await sql<{ id: string; topic: string }[]>`
+    SELECT id, topic FROM app.knowledge_entries
+    WHERE org_id = ${organizationId} AND document_id = ${documentId}
+      AND status = 'active' AND deleted_at_ms IS NULL
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/**
  * Delete one addressed row — with what that means for its chain:
  *
  * - the ACTIVE row is the fact itself: deleting it retires the whole chain
@@ -525,16 +546,23 @@ export async function deleteKnowledgeEntry(
   args: { organizationId: string; entryId: string; role: string },
 ): Promise<void> {
   assertCanWriteEntries(args.role);
-  await sql.begin(async (tx) => {
+  const retired = await sql.begin(async (tx) => {
     // A row already soft-deleted is not there to delete: a second DELETE
     // answers the documented 404, not a 204 that re-stamps nothing.
     const rows = await tx<
-      { status: string; topicKey: string; documentId: string | null }[]
+      {
+        status: string;
+        topicKey: string;
+        documentId: string | null;
+        fileRef: string | null;
+      }[]
     >`
-      SELECT status, topic_key AS "topicKey", document_id AS "documentId"
-      FROM app.knowledge_entries
-      WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
-        AND deleted_at_ms IS NULL
+      SELECT ke.status, ke.topic_key AS "topicKey",
+             ke.document_id AS "documentId", d.file_ref AS "fileRef"
+      FROM app.knowledge_entries ke
+      LEFT JOIN app.documents d ON d.id = ke.document_id
+      WHERE ke.id = ${args.entryId} AND ke.org_id = ${args.organizationId}
+        AND ke.deleted_at_ms IS NULL
       LIMIT 1
     `;
     const entry = rows[0];
@@ -552,7 +580,7 @@ export async function deleteKnowledgeEntry(
         WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
           AND deleted_at_ms IS NULL
       `;
-      return;
+      return null;
     }
     if (entry.documentId === null) {
       await tx`
@@ -561,7 +589,7 @@ export async function deleteKnowledgeEntry(
           AND topic_key = ${entry.topicKey} AND document_id IS NULL
           AND deleted_at_ms IS NULL
       `;
-      return;
+      return null;
     }
     await tx`
       UPDATE app.knowledge_entries SET deleted_at_ms = ${now}
@@ -575,7 +603,31 @@ export async function deleteKnowledgeEntry(
       WHERE id = ${entry.documentId}
         AND org_id = ${args.organizationId}
     `;
+    return { documentId: entry.documentId, fileRef: entry.fileRef };
   });
+  // De-index NOW, after the commit (the corpus is network I/O — never
+  // inside the transaction): a trashed document's chunks are dark to the
+  // admission re-check but used to keep winning candidate slots until the
+  // retention purge, so a small page could come back empty while a live
+  // passage sat just below the cut. Corpus rows only — the bytes stay for
+  // the Trash and the purge. A failure is logged, never surfaced: the
+  // delete the caller asked for has happened, and the purge is the backstop.
+  if (retired !== null && typeof retired.fileRef === 'string') {
+    const orgSlug = await resolveOrgSlug(sql, args.organizationId);
+    if (orgSlug !== null) {
+      const outcome = await releaseCorpusRefs(sql, {
+        organizationId: args.organizationId,
+        orgSlug,
+        refs: [retired.fileRef],
+        excludeDocumentId: retired.documentId,
+      });
+      for (const failure of outcome.failures) {
+        console.warn(
+          `[knowledge-entries] de-indexing ${retired.documentId} after its entry was deleted failed (the retention purge retries): ${failure.message}`,
+        );
+      }
+    }
+  }
 }
 
 export interface KnowledgeEntryRow {

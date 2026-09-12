@@ -37,6 +37,13 @@ describe('htmlToText', () => {
     expect(decodeHtmlEntities('&nosuchentity;')).toBe('&nosuchentity;');
   });
 
+  it('drops the doctype, processing instructions and CDATA wrappers, not only elements', () => {
+    const text = htmlToText(
+      '<!DOCTYPE html><?xml version="1.0"?><html><body><![CDATA[raw]]><p>Example Domain</p><!--[if IE]>old<![endif]--></body></html>',
+    );
+    expect(text).toBe('Example Domain');
+  });
+
   it('renders table cells with separators instead of gluing them', () => {
     const text = htmlToText(
       '<table><tr><th>Name</th><th>Price</th></tr><tr><td>Widget</td><td>9</td></tr></table>',

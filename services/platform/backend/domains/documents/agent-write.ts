@@ -250,7 +250,7 @@ export async function upsertAgentDocument(
     // CONFLICT waits for it) — refresh it exactly as a re-run would.
     const winner = await lockAgentDocument(tx, args);
     if (winner === null) {
-      throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+      throw new Error('DOCUMENT_CREATE_FAILED: the insert answered no row');
     }
     return refresh(winner);
   });

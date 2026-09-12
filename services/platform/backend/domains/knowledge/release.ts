@@ -216,6 +216,60 @@ export async function releaseRefs(
   return outcome;
 }
 
+/**
+ * De-index without touching bytes: delete the CORPUS rows of every ref
+ * nothing else keeps in the corpus — a document being retired in the same
+ * operation excluded through `excludeDocumentId` — and leave the blob for
+ * whoever restores or purges the document later. A trashed knowledge
+ * document's chunks used to stay in the corpus until the retention purge:
+ * dark to the admission re-check, but still winning candidate slots, so a
+ * small page could come back empty while a live passage sat just below
+ * the cut. Failures are returned, never thrown — the caller's own write
+ * already happened; the purge is the backstop.
+ */
+export async function releaseCorpusRefs(
+  sql: Sql,
+  args: ReleaseRefsArgs,
+): Promise<ReleaseOutcome> {
+  const outcome: ReleaseOutcome = { released: [], kept: [], failures: [] };
+  const refs = [
+    ...new Set(
+      args.refs.filter(
+        (ref): ref is string => typeof ref === 'string' && ref.length > 0,
+      ),
+    ),
+  ].filter((ref) => !isMessageRef(ref));
+  if (refs.length === 0) return outcome;
+  const liveness = await assessRefLiveness(sql, {
+    organizationId: args.organizationId,
+    refs,
+    ...(args.excludeDocumentId !== undefined
+      ? { excludeDocumentId: args.excludeDocumentId }
+      : {}),
+    ...(args.excludeFileMetadataId !== undefined
+      ? { excludeFileMetadataId: args.excludeFileMetadataId }
+      : {}),
+  });
+  const corpusDead = liveness.filter((entry) => !entry.corpusLive);
+  outcome.kept.push(
+    ...liveness.filter((entry) => entry.corpusLive).map((entry) => entry.ref),
+  );
+  if (corpusDead.length === 0) return outcome;
+  try {
+    await deleteKnowledgeDocumentsBatch({
+      orgSlug: args.orgSlug,
+      fileIds: corpusDead.map((entry) => entry.ref),
+    });
+    outcome.released.push(...corpusDead.map((entry) => entry.ref));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    for (const entry of corpusDead) {
+      outcome.failures.push({ ref: entry.ref, stage: 'corpus', message });
+    }
+  }
+  return outcome;
+}
+
 /** The `knowledge.release_refs` job body: resolve the org, release, and
  * THROW on any failure so pg-boss retries (the enqueue is transactional
  * with the rotation that orphaned the refs). */
