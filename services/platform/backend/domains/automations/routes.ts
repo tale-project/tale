@@ -584,7 +584,7 @@ export function createAutomationRoutes(deps: {
       const started = await beginRun(deps.sql, {
         organizationId: c.get('orgId'),
         name: nameFrom(c, 'start'),
-        input: body.data.input ?? {},
+        input: body.data.input === undefined ? {} : body.data.input,
         mode,
         startedBy: `user:${c.get('sessionBundle').user.id}`,
         ...(body.data.version !== undefined

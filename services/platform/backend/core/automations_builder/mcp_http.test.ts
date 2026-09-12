@@ -19,11 +19,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { internal } from '../lib/handler_names';
 import type { RestContext } from '../lib/rest/helpers';
-import {
-  handleMcpRequest,
-  MAX_BATCH_MESSAGES,
-  mcpGetNotAllowed,
-} from './mcp_http';
+import { handleMcpRequest, MAX_BATCH_MESSAGES } from './mcp_http';
 
 // The REST helpers resolve identity through Better Auth; the handler under test
 // never reaches it, but importing the module must not boot the auth stack.
@@ -259,6 +255,38 @@ describe('tools/list', () => {
     expect(payload.error).toMatchObject({
       code: -32602,
       message: expect.stringContaining('automation'),
+    });
+  });
+
+  it('annotates every tool with the four MCP hints', async () => {
+    const { payload } = await call({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/list',
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted below
+    const tools = (
+      payload.result as {
+        tools: Array<{ name: string; annotations?: Record<string, unknown> }>;
+      }
+    ).tools;
+    for (const tool of tools) {
+      expect(tool.annotations, tool.name).toEqual({
+        readOnlyHint: expect.any(Boolean),
+        destructiveHint: expect.any(Boolean),
+        idempotentHint: expect.any(Boolean),
+        openWorldHint: expect.any(Boolean),
+      });
+    }
+    const byName = new Map(tools.map((tool) => [tool.name, tool.annotations]));
+    expect(byName.get('get_run')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('delete_trigger')).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    expect(byName.get('invoke_capability')).toMatchObject({
+      readOnlyHint: false,
+      openWorldHint: true,
     });
   });
 
@@ -770,16 +798,6 @@ describe('protocol errors', () => {
     });
   });
 
-  it('answers GET with 405, an Allow header and the JSON envelope — there is no SSE stream here', async () => {
-    const response = mcpGetNotAllowed();
-    expect(response.status).toBe(405);
-    expect(response.headers.get('allow')).toBe('POST');
-    await expect(response.json()).resolves.toEqual({
-      error: 'Use POST with a JSON-RPC message',
-      code: 'METHOD_NOT_ALLOWED',
-    });
-  });
-
   it('refuses params that are neither an object nor an array (-32600)', async () => {
     for (const params of ['ping', 7, true]) {
       const { status, payload } = await call({
@@ -931,6 +949,39 @@ describe('run tools', () => {
     );
     expect(isErrorFlag(payload)).toBe(flagged);
   });
+
+  /**
+   * `test_automation` has two answers that look alike: `status: 'invalid'`
+   * means the document could not even be tested (the call did not do its
+   * job), while a report with failing tests is the verdict it was asked
+   * for. Used to be: both `isError: false`.
+   */
+  it.each([
+    [
+      { status: 'invalid', errors: [{ code: 'NODES_MISSING' }], warnings: [] },
+      true,
+    ],
+    [{ passed: 1, failed: 2, results: [] }, false],
+    [{ passed: 3, failed: 0, results: [] }, false],
+  ])(
+    'reads a test_automation answer %j as isError=%s',
+    async (answer, flagged) => {
+      const runAction = vi.fn().mockResolvedValue(answer);
+      const { payload } = await call(
+        {
+          jsonrpc: '2.0',
+          id: 31,
+          method: 'tools/call',
+          params: {
+            name: 'test_automation',
+            arguments: { automation: { name: 'math/sum', nodes: [] } },
+          },
+        },
+        runAction,
+      );
+      expect(isErrorFlag(payload)).toBe(flagged);
+    },
+  );
 
   it('lets a run input be any JSON value — the automation’s own schema judges it', async () => {
     const runAction = vi

@@ -24,7 +24,7 @@ import {
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
-import { runApiTurn } from '../domains/chat/rest-turn.ts';
+import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { createPgUsageLedger } from '../domains/chat/store.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
@@ -515,19 +515,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       );
     },
     'chat.api_turn': async (payload) => {
-      const input = z
-        .object({
-          organizationId: z.string().min(1),
-          userId: z.string().min(1),
-          threadId: z.string().min(1),
-          expectedProjectId: z.string().min(1).nullable(),
-          userText: z.string().min(1),
-          modelId: z.string().min(1),
-          providerSlug: z.string().min(1).optional(),
-          locale: z.string().min(1).optional(),
-        })
-        .parse(payload);
-      await runApiTurn(deps.sql, input);
+      // The schema lives with the payload (rest-turn.ts) so the door and
+      // the handler cannot disagree about what rides the job.
+      await runApiTurn(deps.sql, apiTurnPayloadSchema.parse(payload));
     },
     'tts.watchdog_chunk': async (payload) => {
       const input = z

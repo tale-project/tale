@@ -25,8 +25,10 @@ function fakeStore(deployed: number | undefined = 1, projects: string[] = []) {
               type: 'object',
               required: ['orderId'],
               properties: { orderId: { type: 'string' } },
+              additionalProperties: false,
             },
           },
+          createdAt: 1_700_000_000_000,
         },
       ];
     }
@@ -68,7 +70,7 @@ describe('durable run admission', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it.each([{}, 'wrong', { orderId: 9 }])(
+  it.each([{}, 'wrong', { orderId: 9 }, null])(
     'refuses invalid input %j before any run or job exists',
     async (input) => {
       const { sql, writes } = fakeStore();
@@ -80,6 +82,39 @@ describe('durable run admission', () => {
       expect(addJobInTx).not.toHaveBeenCalled();
     },
   );
+
+  /**
+   * The refusal says WHAT is wrong, the way a refused request body does:
+   * every problem under `data.issues` as `{path, message}`, the first one
+   * in the sentence — a client used to bisect its payload against a
+   * sentence that named nothing.
+   */
+  it.each([
+    [
+      {},
+      '"orderId" is required',
+      [{ path: 'orderId', message: 'is required' }],
+    ],
+    [
+      { orderId: 9 },
+      '"orderId" must be string',
+      [{ path: 'orderId', message: 'must be string' }],
+    ],
+    [
+      { orderId: 'o-1', extra: true },
+      '"extra" is not a field the inputs schema takes',
+      [{ path: 'extra', message: 'is not a field the inputs schema takes' }],
+    ],
+    ['wrong', 'must be object', [{ path: '', message: 'must be object' }]],
+    [null, 'must be object', [{ path: '', message: 'must be object' }]],
+  ])('names the problems of input %j', async (input, sentence, issues) => {
+    const { sql } = fakeStore();
+    await expect(beginRun(sql, { ...args, input })).rejects.toMatchObject({
+      code: 'AUTOMATION_INPUT_INVALID',
+      message: `Run input does not match the automation inputs schema: ${sentence}`,
+      data: { issues },
+    });
+  });
 
   it('starts the deployed live version and accepts repeated schema ids', async () => {
     const { sql, writes } = fakeStore();

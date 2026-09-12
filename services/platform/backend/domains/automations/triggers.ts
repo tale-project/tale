@@ -15,6 +15,16 @@ import {
   tokenHashEquals,
 } from '../../core/automations/webhook_token.ts';
 import {
+  getClientIp,
+  nodePeerAddress,
+} from '../../core/lib/utils/client_ip.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
+import {
+  RateLimitExceededError,
+  checkIpRateLimit,
+  checkKeyedRateLimit,
+} from '../../lib/rate-limit.ts';
+import {
   AutomationError,
   beginRun,
   beginRunInTx,
@@ -36,7 +46,10 @@ import {
  *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
  *    redelivery (the sender's delivery id, or a byte-identical body inside
  *    the short window — `webhook_delivery.ts`) answers with the run the
- *    first delivery started instead of starting another;
+ *    first delivery started instead of starting another. Nothing
+ *    authenticates the sender, so the door is budgeted twice: per sender IP
+ *    before the token is hashed (`webhook:ip`), and per verified trigger
+ *    (`webhook:trigger`), so a leaked URL starts a bounded number of runs;
  *  - `dispatchAutomationEvent` — platform events fan out to enabled `event`
  *    triggers (never events raised BY an automation — loop safety), wired
  *    into the events emit seam.
@@ -62,13 +75,18 @@ interface TriggerRow {
   enabled: boolean;
   lastFiredAt: number | null;
   createdAt: number;
+  /** The last (re)bind — where a schedule's "since" starts when the bind
+   * cleared its fire stamp (a kind change), so a trigger re-bound as a
+   * schedule never fires an occurrence from before it was one. */
+  updatedAt: number;
 }
 
 const TRIGGER_COLUMNS = `
   id, org_id AS "organizationId", name, kind, cron, timezone,
   token_hash AS "tokenHash", event, enabled,
   last_fired_at_ms::float8 AS "lastFiredAt",
-  created_at_ms::float8 AS "createdAt"
+  created_at_ms::float8 AS "createdAt",
+  updated_at_ms::float8 AS "updatedAt"
 `;
 
 export interface ScheduleScanResult {
@@ -116,7 +134,7 @@ export async function scanScheduledTriggers(
     result.examined += page.length;
     for (const trigger of page) {
       if (trigger.cron === null || trigger.cron === '') continue;
-      const since = trigger.lastFiredAt ?? trigger.createdAt;
+      const since = trigger.lastFiredAt ?? trigger.updatedAt;
       let due: number | null;
       try {
         due = dueOccurrence(
@@ -227,6 +245,25 @@ class NotDeployedError extends Error {
   }
 }
 
+/** The store's project-scope refusals, which the token door answers as ONE
+ * 403 that names neither the automation nor the reason: a caller holding
+ * only a URL must not learn which project ids exist in the organization,
+ * whether one is archived, or what the automation behind the token is
+ * called (its slug used to ride in the "not bound" sentence). */
+const PROJECT_SCOPE_CODES: ReadonlySet<string> = new Set([
+  'AUTOMATION_PROJECT_UNKNOWN',
+  'AUTOMATION_PROJECT_FORBIDDEN',
+  'AUTOMATION_PROJECT_ARCHIVED',
+]);
+
+function projectForbidden(): AutomationError {
+  return new AutomationError(
+    'AUTOMATION_PROJECT_FORBIDDEN',
+    'The automation cannot run in that project.',
+    403,
+  );
+}
+
 /**
  * Accept one webhook delivery: claim its identity and start the run in ONE
  * transaction. The claim goes first so a concurrent repeat blocks on the row
@@ -253,31 +290,30 @@ async function acceptWebhookDelivery(
       args.projectId === undefined
         ? { requireOrgScope: true }
         : { projectId: args.projectId, requireProjectBinding: true };
-    await resolveRunProject(tx, {
-      organizationId: trigger.organizationId,
-      name: trigger.name,
-      ...scope,
-    });
+    try {
+      await resolveRunProject(tx, {
+        organizationId: trigger.organizationId,
+        name: trigger.name,
+        ...scope,
+      });
+    } catch (error) {
+      if (
+        error instanceof AutomationError &&
+        PROJECT_SCOPE_CODES.has(error.code)
+      )
+        throw projectForbidden();
+      throw error;
+    }
     if (args.projectId !== undefined) {
+      // The project exists in the organization (`resolveRunProject` refused
+      // it otherwise); an archived one is closed to deliveries, replays
+      // included, with the same uninformative refusal.
       const projects = await tx<{ archivedAt: number | null }[]>`
         SELECT archived_at_ms AS "archivedAt" FROM app.projects
         WHERE org_id = ${trigger.organizationId} AND id = ${args.projectId}
         LIMIT 1
       `;
-      if (projects[0] === undefined) {
-        throw new AutomationError(
-          'AUTOMATION_PROJECT_UNKNOWN',
-          'The project does not exist in this organization.',
-          404,
-        );
-      }
-      if (projects[0].archivedAt !== null) {
-        throw new AutomationError(
-          'AUTOMATION_PROJECT_ARCHIVED',
-          'The project is archived.',
-          403,
-        );
-      }
+      if ((projects[0]?.archivedAt ?? null) !== null) throw projectForbidden();
     }
     const claimed = await tx<{ triggerId: string }[]>`
       INSERT INTO app.automation_webhook_deliveries AS d (
@@ -352,8 +388,14 @@ async function acceptWebhookDelivery(
 }
 
 /** Token-only ingress, mounted at `/api/automations/webhook` and
- * `/api/projects/:id/automations/webhook`; the latter supplies URL scope. */
-export function createWebhookRoutes(deps: { sql: Sql }): Hono {
+ * `/api/projects/:id/automations/webhook`; the latter supplies URL scope.
+ * `trustedProxies` is the deployment's proxy list (`loadTrustedProxies`),
+ * injected by the mount so this module — which every domain service reaches
+ * through the events seam — never pulls the auth stack in. */
+export function createWebhookRoutes(deps: {
+  sql: Sql;
+  trustedProxies: () => Promise<string[]>;
+}): Hono {
   const app = new Hono();
 
   // Every refusal on this door is the flat JSON envelope the API reference
@@ -362,11 +404,38 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
   const notFound = (c: Context) =>
     c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
 
+  /** The 429 for a spent budget, `Retry-After` included; null to proceed. */
+  const charge = async (
+    c: Context,
+    check: () => Promise<void>,
+  ): Promise<Response | null> => {
+    try {
+      await check();
+      return null;
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return rateLimitedResponse(c, error);
+      }
+      throw error;
+    }
+  };
+
   app.post('/:token', async (c) => {
     const token = c.req.param('token');
     if (!isPlausibleWebhookToken(token)) {
       return notFound(c);
     }
+    // No key authenticates a sender, so the sender's IP — derived through
+    // the deployment's trusted-proxy list, exactly as the REST door's
+    // pre-auth lane does — is charged before the body is read or the token
+    // hashed: a flood of plausible tokens costs the door nothing past this.
+    const ip = getClientIp(c.req.raw.headers, await deps.trustedProxies(), {
+      peer: nodePeerAddress(c.env),
+    });
+    const ipLimited = await charge(c, () =>
+      checkIpRateLimit(deps.sql, 'webhook:ip', ip),
+    );
+    if (ipLimited) return ipLimited;
     // The cap is enforced in BYTES as the body streams — nothing past it is
     // buffered, and a declared Content-Length over it is refused before the
     // first byte. (The former `text().length` check counted UTF-16 code units
@@ -413,6 +482,13 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
     ) {
       return notFound(c);
     }
+    // A verified token's trigger has a budget of its own — a delivery costs
+    // a durable run, so it is the run-start lane's size — keyed on the
+    // trigger id, which no sender can choose.
+    const triggerLimited = await charge(c, () =>
+      checkKeyedRateLimit(deps.sql, 'webhook:trigger', `trigger:${trigger.id}`),
+    );
+    if (triggerLimited) return triggerLimited;
     if (c.req.query('projectId') !== undefined) {
       return c.json(
         {
@@ -448,10 +524,22 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
           409,
         );
       }
-      // The token proved the caller may start this automation, so a bad
-      // project scope is a plain 400 with the reason, not the token-secrecy 404.
+      // The token proved the caller may start this automation, so its
+      // refusals answer with their own status and code — the 409 of a bound
+      // automation at the flat URL or of a delivery recorded in another
+      // scope, the 400 of an input the schema refuses (its problems under
+      // `data.issues`), the one 403 of a project it cannot run in — never a
+      // flat 400 that made a client branch on the URL instead of the code,
+      // and never the token-secrecy 404.
       if (error instanceof AutomationError) {
-        return c.json({ error: error.message, code: error.code }, 400);
+        return c.json(
+          {
+            error: error.message,
+            code: error.code,
+            ...(error.data === undefined ? {} : { data: error.data }),
+          },
+          error.status,
+        );
       }
       throw error;
     }

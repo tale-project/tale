@@ -18,7 +18,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { EVENT_TYPES } from '@/lib/shared/event-types';
+import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
 import {
   useDeleteAutomationTrigger,
@@ -365,7 +365,7 @@ export function TriggerEditor({
                   id={eventId}
                   placeholder={t('trigger.eventPlaceholder')}
                   disabled={!canEdit}
-                  options={EVENT_TYPES.map((value) => ({
+                  options={EMITTED_EVENT_TYPES.map((value) => ({
                     value,
                     label: value,
                   }))}

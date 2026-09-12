@@ -108,7 +108,7 @@ describe('emitEvent', () => {
     const fake = fakeTx();
     await emitEvent(fake.tx, {
       organizationId: 'org-1',
-      eventType: 'task.deleted',
+      eventType: 'contact.deleted',
     });
     expect(dispatch.mock.calls[0]?.[1]).not.toHaveProperty('payload');
   });

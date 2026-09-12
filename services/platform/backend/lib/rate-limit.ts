@@ -145,6 +145,24 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 200,
   },
+  // The inbound automation webhook door, which no key authenticates: every
+  // delivery is charged to its sender's IP (trusted-proxy-derived, like
+  // `rest:auth-fail-ip`) BEFORE the token is hashed or looked up, and an
+  // accepted token's trigger has a budget of its own — the run-start lane's
+  // size, since a delivery costs a durable run — so a leaked URL can start
+  // at most a bounded number of runs a minute.
+  'webhook:ip': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
+  'webhook:trigger': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   // Bearer keys that FAIL to authenticate at the /api/v1 door, keyed on
   // the trusted-proxy-derived client IP — the pre-auth lane, so a stranger
   // never draws from a key holder's `rest:api` budget (the `webdav:auth-
@@ -329,4 +347,15 @@ export async function checkIpRateLimit(
   count = 1,
 ): Promise<void> {
   throwIfLimited(name, await limitRate(sql, name, { key: `ip:${ip}`, count }));
+}
+
+/** Charge a rule keyed on a resource the caller names (`trigger:<id>`);
+ * throws `RateLimitExceededError` when over. */
+export async function checkKeyedRateLimit(
+  sql: Sql | TransactionSql,
+  name: RateLimitName,
+  key: string,
+  count = 1,
+): Promise<void> {
+  throwIfLimited(name, await limitRate(sql, name, { key, count }));
 }

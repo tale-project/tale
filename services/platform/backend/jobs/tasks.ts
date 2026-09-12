@@ -151,6 +151,11 @@ export interface TaskPayloads {
     modelId: string;
     providerSlug?: string;
     providerStrict?: boolean;
+    /** The placeholder id the 202 named (absent on a job an older image
+     * enqueued during a rolling deploy). */
+    assistantMessageId?: string;
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';
+    maxOutputTokens?: number;
     locale?: string;
   };
   /** One outbound conversation send — fired after the undo window; the

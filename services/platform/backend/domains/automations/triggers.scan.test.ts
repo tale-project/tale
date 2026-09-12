@@ -38,6 +38,7 @@ function triggerRow(id: string, now: number): Record<string, unknown> {
     enabled: true,
     lastFiredAt: now - 120_000,
     createdAt: now - 600_000,
+    updatedAt: now - 600_000,
   };
 }
 
@@ -77,6 +78,7 @@ function fakeScan(script: {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('scanScheduledTriggers', () => {
@@ -149,6 +151,34 @@ describe('scanScheduledTriggers', () => {
     expect(result).toEqual({ examined: 1, fired: 0, pages: 1, undeployed: 0 });
     expect(fake.begins).toBe(0);
     expect(fake.statements).toHaveLength(1);
+  });
+
+  it('counts a re-bound schedule from its bind, never from the row\u2019s creation', async () => {
+    // A trigger re-bound as a schedule has its fire stamp cleared (the
+    // kind changed), so "since" is the bind itself: an occurrence between
+    // the row's creation and the bind must not fire. Pinned 30 s past a
+    // minute boundary, with the bind 10 s past it: the boundary's
+    // occurrence precedes the bind.
+    vi.useFakeTimers();
+    const boundary = Date.UTC(2026, 8, 11, 10, 0, 0);
+    vi.setSystemTime(boundary + 30_000);
+    const rebound = {
+      ...triggerRow('t7', boundary),
+      lastFiredAt: null,
+      createdAt: boundary - 600_000,
+      updatedAt: boundary + 10_000,
+    };
+    const fake = fakeScan({ pages: [[rebound]], claims: [], starts: [] });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+
+    expect(result).toEqual({ examined: 1, fired: 0, pages: 1, undeployed: 0 });
+    expect(fake.begins).toBe(0);
+    expect(
+      fake.statements.some((s) =>
+        s.text.includes('UPDATE app.automation_triggers'),
+      ),
+    ).toBe(false);
   });
 
   it('keeps scanning past a schedule whose cron cannot parse', async () => {
