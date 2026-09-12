@@ -2507,6 +2507,33 @@ async function checkTasks(
     afterTaskArchive.findIndex((h) => h.taskId === liveTaskId) <
     afterTaskArchive.findIndex((h) => h.taskId === archivedTaskId);
 
+  // The tasks page renders `board ∩ search`, so a board that includes archived
+  // tasks and a search that excludes them cancel out: the row vanishes the
+  // moment you type. Both reads are asserted here over one archived task.
+  const boardSchema = z.object({
+    tasks: z.array(z.object({ _id: z.string() }).loose()),
+  });
+  const boardWith = boardSchema.safeParse(
+    await get(
+      `/api/app/tasks?orgId=${orgId}&projectId=${archProjectId}&includeArchived=true`,
+    ),
+  );
+  const boardWithout = boardSchema.safeParse(
+    await get(`/api/app/tasks?orgId=${orgId}&projectId=${archProjectId}`),
+  );
+  const onBoardWith =
+    boardWith.success &&
+    boardWith.data.tasks.some((t) => t._id === archivedTaskId);
+  const onBoardWithout =
+    boardWithout.success &&
+    boardWithout.data.tasks.some((t) => t._id === archivedTaskId);
+  const inSearch = afterTaskArchive.some((h) => h.taskId === archivedTaskId);
+  record(
+    'Show archived + a search query still shows the archived task (#3325)',
+    onBoardWith && !onBoardWithout && inSearch,
+    `board(includeArchived)=${onBoardWith} (want true), board(default)=${onBoardWithout} (want false), search=${inSearch} (want true) — the page renders the intersection`,
+  );
+
   await send(
     'POST',
     `/api/app/projects/${archProjectId}/archive?orgId=${orgId}`,
