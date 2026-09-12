@@ -64,6 +64,47 @@ describe('assertTriggerValid', () => {
     }
   });
 
+  /**
+   * A cron whose fields are each in range can still name a date no calendar
+   * has: `0 0 30 2 *` used to bind with 200 and never fire. The refusal is
+   * the same 400 the range checks answer, and its sentence names the pair.
+   */
+  it.each([
+    ['0 0 30 2 *', 'day-of-month 30 never occurs in month 2'],
+    ['0 0 31 2 *', 'day-of-month 31 never occurs in month 2'],
+    ['0 0 31 4 *', 'day-of-month 31 never occurs in month 4'],
+    ['0 0 31 4,6,9,11 *', 'day-of-month 31 never occurs in months 4, 6, 9, 11'],
+  ])('refuses %s, a day no named month has', (cron, sentence) => {
+    try {
+      assertTriggerValid({ kind: 'schedule', cron });
+      expect.unreachable('an impossible date must refuse');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AutomationError);
+      const refusal = error as AutomationError;
+      expect(refusal.code).toBe('AUTOMATION_TRIGGER_INVALID');
+      expect(refusal.status).toBe(400);
+      expect(refusal.message).toBe(
+        `That cron expression will never fire: ${sentence}`,
+      );
+    }
+  });
+
+  it.each(['0 0 31 * *', '0 0 29 2 *', '0 0 31 4,5 *', '0 0 30 2 1'])(
+    'accepts %s — some named month has the day, or day-of-week fires it',
+    (cron) => {
+      expect(() =>
+        assertTriggerValid({ kind: 'schedule', cron }),
+      ).not.toThrow();
+    },
+  );
+
+  it('refuses a range with an end missing instead of reading it as the floor', () => {
+    // `-5` used to parse as `0-5`.
+    expect(() =>
+      assertTriggerValid({ kind: 'schedule', cron: '-5 * * * *' }),
+    ).toThrowError('"-5" is not a range');
+  });
+
   it('refuses an unknown timezone', () => {
     try {
       assertTriggerValid({
@@ -87,6 +128,69 @@ describe('assertTriggerValid', () => {
     expect(() =>
       assertTriggerValid({ kind: 'event', event: '  ' }),
     ).toThrowError(AutomationError);
+  });
+
+  /**
+   * Each kind takes its own keys: the doors refuse a key of another kind
+   * with their schemas, and this guard is what every other caller (MCP
+   * `set_trigger`, the seed) converges on — a webhook trigger used to store
+   * a `cron` and an `event` and read back as one that ran on all three.
+   */
+  it.each([
+    [{ kind: 'webhook', cron: '0 9 * * *' }, 'cron', 'schedule'],
+    [{ kind: 'webhook', timezone: 'UTC' }, 'timezone', 'schedule'],
+    [
+      { kind: 'schedule', cron: '0 9 * * *', event: 'contact.created' },
+      'event',
+      'event',
+    ],
+    [
+      { kind: 'event', event: 'contact.created', rotateToken: true },
+      'rotateToken',
+      'webhook',
+    ],
+    [
+      { kind: 'schedule', cron: '0 9 * * *', rotateToken: false },
+      'rotateToken',
+      'webhook',
+    ],
+  ] as const)(
+    'refuses %j — the key belongs to another kind',
+    (trigger, key, owner) => {
+      try {
+        assertTriggerValid({ ...trigger });
+        expect.unreachable('a key of another kind must refuse');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AutomationError);
+        const refusal = error as AutomationError;
+        expect(refusal.code).toBe('AUTOMATION_TRIGGER_INVALID');
+        expect(refusal.status).toBe(400);
+        expect(refusal.message).toBe(
+          `"${key}" belongs to a ${owner} trigger — a ${trigger.kind} trigger does not take it.`,
+        );
+      }
+    },
+  );
+
+  it('lets every kind carry its own keys and the shared switch', () => {
+    expect(() =>
+      assertTriggerValid({
+        kind: 'schedule',
+        cron: '0 9 * * 1',
+        timezone: 'UTC',
+        enabled: false,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertTriggerValid({ kind: 'webhook', rotateToken: true, enabled: true }),
+    ).not.toThrow();
+    expect(() =>
+      assertTriggerValid({
+        kind: 'event',
+        event: 'contact.created',
+        enabled: false,
+      }),
+    ).not.toThrow();
   });
 
   it('does not require a cron for webhook or event triggers', () => {

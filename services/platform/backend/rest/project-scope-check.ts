@@ -193,6 +193,55 @@ export async function checkProjectResourceRest(args: {
     projectId,
   });
 
+  // A thread mid-turn cannot be trashed, on the real schema: the generation
+  // row (a running turn) and the queued marker (an accepted send waiting
+  // for a worker — its job would open a turn on a trashed thread) both
+  // refuse the delete; cleared, it goes through.
+  const doomed = threadEnvelope.parse(
+    await (
+      await expectStatus('POST', `${path}/threads`, 201, {
+        title: 'Doomed chat',
+      })
+    ).json(),
+  );
+  const doomedAt = Date.now();
+  await sql`
+    INSERT INTO app.generations (
+      thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms, updated_at_ms
+    ) VALUES (${doomed.id}, ${orgId}, NULL, ${doomedAt}, ${doomedAt}, ${doomedAt})
+  `;
+  const busyDelete = await expectStatus(
+    'DELETE',
+    `${path}/threads/${doomed.id}`,
+    409,
+  );
+  assert.equal(
+    code.parse(await busyDelete.json()).code,
+    'CHAT_TURN_IN_PROGRESS',
+  );
+  await sql`DELETE FROM app.generations WHERE thread_id = ${doomed.id}`;
+  await sql`
+    UPDATE app.thread_metadata
+    SET generation_queued_since_ms = ${doomedAt}, stream_id = ${randomUUID()}
+    WHERE thread_id = ${doomed.id}
+  `;
+  const queuedDelete = await expectStatus(
+    'DELETE',
+    `${path}/threads/${doomed.id}`,
+    409,
+  );
+  assert.equal(
+    code.parse(await queuedDelete.json()).code,
+    'CHAT_TURN_IN_PROGRESS',
+  );
+  await sql`
+    UPDATE app.thread_metadata
+    SET generation_queued_since_ms = NULL, stream_id = NULL
+    WHERE thread_id = ${doomed.id}
+  `;
+  await expectStatus('DELETE', `${path}/threads/${doomed.id}`, 204);
+  await expectStatus('GET', `${path}/threads/${doomed.id}`, 404);
+
   // Definitions stay organization-owned; install and execution live at a project URL.
   const name = `scope/probe-${randomUUID().slice(0, 8)}`;
   const slug = name.replaceAll('/', '__');

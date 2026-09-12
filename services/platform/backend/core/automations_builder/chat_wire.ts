@@ -35,6 +35,23 @@ export interface ChatWireReply {
   usage: { prompt: number; completion: number };
 }
 
+/**
+ * A well-formed reply that carries no text — a thinking-by-default model
+ * that spent its whole output cap reasoning, say. Distinct from a malformed
+ * payload: the call happened and was billed, so the counts ride the error
+ * for the caller to book, and a caller that can use nothing else still
+ * learns what it paid. The message is the one every consumer already
+ * matches on.
+ */
+export class EmptyReplyError extends Error {
+  readonly usage: ChatWireReply['usage'];
+  constructor(usage: ChatWireReply['usage']) {
+    super('the model returned no text content');
+    this.name = 'EmptyReplyError';
+    this.usage = usage;
+  }
+}
+
 export type {
   ChatWireMessage,
   WireToolCall,
@@ -461,7 +478,9 @@ function textOf(content: unknown): string {
 /**
  * Pull the reply text out of a provider payload. A payload with no text at
  * all is an error rather than an empty turn: the loop would otherwise spend a
- * turn nudging a model that never spoke.
+ * turn nudging a model that never spoke. A WELL-FORMED message with no text
+ * (a reasoning-only reply) throws {@link EmptyReplyError} with the usage it
+ * cost; a payload with no message at all throws a plain error.
  */
 export function parseChatReply(
   apiFormat: ApiFormat,
@@ -471,28 +490,28 @@ export function parseChatReply(
   if (!root) throw new Error('the model returned a non-object payload');
 
   if (apiFormat === 'anthropic') {
-    const usage = asRecord(root.usage);
-    const content = textOf(root.content);
-    if (!content) throw new Error('the model returned no text content');
-    return {
-      content,
-      usage: {
-        prompt: tokenCount(usage, 'input_tokens'),
-        completion: tokenCount(usage, 'output_tokens'),
-      },
+    const usage = {
+      prompt: tokenCount(asRecord(root.usage), 'input_tokens'),
+      completion: tokenCount(asRecord(root.usage), 'output_tokens'),
     };
+    const content = textOf(root.content);
+    if (!content) {
+      if (Array.isArray(root.content)) throw new EmptyReplyError(usage);
+      throw new Error('the model returned no text content');
+    }
+    return { content, usage };
   }
 
   const choices = Array.isArray(root.choices) ? root.choices : [];
   const message = asRecord(asRecord(choices[0])?.message);
-  const content = textOf(message?.content);
-  if (!content) throw new Error('the model returned no text content');
-  const usage = asRecord(root.usage);
-  return {
-    content,
-    usage: {
-      prompt: tokenCount(usage, 'prompt_tokens'),
-      completion: tokenCount(usage, 'completion_tokens'),
-    },
+  const usage = {
+    prompt: tokenCount(asRecord(root.usage), 'prompt_tokens'),
+    completion: tokenCount(asRecord(root.usage), 'completion_tokens'),
   };
+  const content = textOf(message?.content);
+  if (!content) {
+    if (message) throw new EmptyReplyError(usage);
+    throw new Error('the model returned no text content');
+  }
+  return { content, usage };
 }

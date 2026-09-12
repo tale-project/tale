@@ -98,7 +98,12 @@ function buildKnowledgeBackend(
             text: hit.text,
             source: hit.source.title ?? hit.source.ref,
             ref: hit.source.ref,
+            // The rank key orders; the cosine says how close — both go to
+            // the model, so it can tell a weak best-available from a match.
             score: hit.fusedScore,
+            ...(typeof hit.similarity === 'number'
+              ? { similarity: hit.similarity }
+              : {}),
           };
           if (hit.source.url !== undefined && hit.source.url !== null) {
             passages.push({ ...passage, url: hit.source.url });

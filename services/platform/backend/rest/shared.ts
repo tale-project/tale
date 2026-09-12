@@ -1,14 +1,24 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Context, MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import type { Sql, TransactionSql } from 'postgres';
 import { z, type ZodError } from 'zod';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
-import { DocumentError } from '../domains/documents/service.ts';
+import {
+  DocumentError,
+  type DocumentRow,
+} from '../domains/documents/service.ts';
+import {
+  type FileContent,
+  FileError,
+  openFileContent,
+} from '../domains/files/service.ts';
 import {
   assertReadable,
   assertWritable,
@@ -23,6 +33,7 @@ import {
   codedAppError,
   type CodedRefusalStatus,
 } from '../lib/app-error-response.ts';
+import { entityTagOf, ifNoneMatchMatches } from '../lib/conditional-get.ts';
 import {
   rateLimitedResponse,
   rateLimitExceededCause,
@@ -54,6 +65,11 @@ export interface RestVars {
   /** The trusted-proxy-derived client IP (the door's pre-auth limiter key;
    * kept for attribution — authenticated budgets key on the user). */
   clientIp: string;
+  /** The id of the API key row the bearer verified as — the api-key
+   * plugin's synthesized session names it as its session id — so `/me` can
+   * read the key's own facts (name, expiry) without a second verification.
+   * Empty when the session carried none (never on the real door). */
+  apiKeyId: string;
   /** Why `readJsonBody` refused a body that parsed as JSON but carried a
    * value no field accepts (a U+0000) — `invalidBodyResponse` names it. */
   bodyIssue?: { path: string; message: string };
@@ -152,10 +168,12 @@ export function noteRestErrorCode(code: string): void {
 
 /**
  * A coded `AppError` in the REST envelope — `{error: <sentence>, code}` at
- * the status the family's map gives its code. The app doors answer the
- * same errors as `{error: <code>, message}` (`appErrorResponse`); this
- * door documents one envelope, so it speaks one. Anything else is
- * rethrown for the door's 500.
+ * the status the family's map gives its code, with the refusal's own
+ * `data` handed on when it carries one (a failed precondition names the
+ * current entity tag there), as `domainErrorResponse` does for the domain
+ * error classes. The app doors answer the same errors as `{error: <code>,
+ * message}` (`appErrorResponse`); this door documents one envelope, so it
+ * speaks one. Anything else is rethrown for the door's 500.
  */
 export function codedRefusalResponse(
   c: Context<RestEnv>,
@@ -166,7 +184,14 @@ export function codedRefusalResponse(
   const status = coded === null ? undefined : statusByCode[coded.code];
   if (coded === null || status === undefined) throw error;
   noteRestErrorCode(coded.code);
-  return c.json({ error: coded.message, code: coded.code }, status);
+  return c.json(
+    {
+      error: coded.message,
+      code: coded.code,
+      ...(coded.data === undefined ? {} : { data: coded.data }),
+    },
+    status,
+  );
 }
 
 export function domainErrorResponse(
@@ -217,6 +242,10 @@ function domainErrorData(error: Error): { data?: Record<string, unknown> } {
  * schema accepts, so `safeParse` refuses it like any other malformed body. */
 export const INVALID_JSON: unique symbol = Symbol('invalid-json');
 
+/** The sentence a body that is not JSON answers, whatever schema refused
+ * the sentinel `readJsonBody` handed it. */
+const NOT_JSON_MESSAGE = 'The body is not valid JSON';
+
 /**
  * The byte cap every JSON body on this door gets unless its route asks for
  * a larger one (`readJsonBody(c, {maxBytes})`): the routes' own field caps
@@ -228,6 +257,43 @@ export const INVALID_JSON: unique symbol = Symbol('invalid-json');
  */
 export const DEFAULT_BODY_BYTES = 1024 * 1024;
 
+/** A byte count the way the docs write it: whole MiB above a mebibyte,
+ * KiB below. */
+function describeByteCap(maxBytes: number): string {
+  return maxBytes >= 1024 * 1024 && maxBytes % (1024 * 1024) === 0
+    ? `${maxBytes / (1024 * 1024)} MiB`
+    : `${Math.round(maxBytes / 1024)} KiB`;
+}
+
+/**
+ * The 413 every oversized body on this door answers (`BODY_TOO_LARGE`
+ * through the door's error handler), naming the cap the route holds it to
+ * — the caps differ per operation (1 MiB by default, 4 MiB for a skill,
+ * 8 MiB for a snapshot), and a refusal that says only "Request refused"
+ * sends the caller to the documentation for a number the door knows.
+ */
+export function bodyTooLarge(maxBytes: number): HTTPException {
+  return new HTTPException(413, {
+    message: `Request body exceeds the ${describeByteCap(maxBytes)} limit of this route`,
+  });
+}
+
+/**
+ * The byte cap for a route whose handler reads the body itself (the MCP
+ * endpoint, a delivery claim): hono's `bodyLimit` with the door's own
+ * refusal, so the 413 names the cap like `readJsonBody`'s does instead of
+ * the middleware's bare "Payload Too Large" — which the door's handler
+ * could only render as "Request refused".
+ */
+export function restBodyLimit(maxBytes: number): MiddlewareHandler<RestEnv> {
+  return bodyLimit({
+    maxSize: maxBytes,
+    onError: () => {
+      throw bodyTooLarge(maxBytes);
+    },
+  });
+}
+
 /** The bounded body read behind `readJsonBody`: the declared length is
  * refused before a byte is read, the bytes actually received are counted
  * as they arrive, and the read stops at the first chunk past the cap. */
@@ -235,10 +301,7 @@ async function readBodyBytes(
   c: Context<RestEnv>,
   maxBytes: number,
 ): Promise<Uint8Array> {
-  const tooLarge = () =>
-    new HTTPException(413, {
-      message: `Request body exceeds the ${Math.round(maxBytes / 1024)} KiB limit of this route`,
-    });
+  const tooLarge = () => bodyTooLarge(maxBytes);
   const declared = Number(c.req.header('content-length') ?? '');
   if (Number.isSafeInteger(declared) && declared > maxBytes) {
     await c.req.raw.body?.cancel().catch((error: unknown) => {
@@ -461,6 +524,134 @@ export async function readOptionalJsonBody(
  * round trip, bounded so a hostile body cannot echo itself back at length. */
 const MAX_BODY_ISSUES = 20;
 
+/** zod's `expected` vocabulary, said the way the rest of the envelope
+ * speaks ("must be a whole number"), never the validator's own dialect. */
+function describeExpectedType(expected: string): string {
+  switch (expected) {
+    case 'string':
+      return 'a string';
+    case 'number':
+      return 'a number';
+    case 'int':
+    case 'bigint':
+      return 'a whole number';
+    case 'boolean':
+      return 'a boolean';
+    case 'object':
+      return 'an object';
+    case 'array':
+      return 'an array';
+    case 'null':
+      return 'null';
+    case 'date':
+      return 'a date';
+    default:
+      return expected;
+  }
+}
+
+function describeQuantity(origin: string | undefined, count: unknown): string {
+  const n = String(count);
+  switch (origin) {
+    case 'string':
+      return `${n} character${n === '1' ? '' : 's'}`;
+    case 'array':
+    case 'set':
+      return `${n} item${n === '1' ? '' : 's'}`;
+    default:
+      return n;
+  }
+}
+
+function quoteValue(value: unknown): string {
+  return typeof value === 'string' ? `"${value}"` : String(value);
+}
+
+/**
+ * The reason a schema refusal states, in the house voice, for every zod
+ * issue a body or query can raise: "is required", "must be a string",
+ * "must not be blank", "must be at most 200 characters", "must be one of
+ * "a", "b"" — short phrases a consumer can show a person. Passed to every
+ * parse on this door as the per-parse error map, which zod 4 consults
+ * AFTER a schema's own message (`nonBlank`'s "must not be blank", a
+ * route's `.regex(…, { message })`) and BEFORE its locale text, so the
+ * validator's dialect ("Invalid input: expected string, received number",
+ * "Too small: expected string to have >=1 characters") never reaches the
+ * wire, and a message a client happens to match on stays ours to keep.
+ */
+export function houseIssueMessage(
+  issue: z.core.$ZodRawIssue,
+): string | undefined {
+  switch (issue.code) {
+    case 'invalid_type':
+      if (issue.input === undefined) return 'is required';
+      // `readJsonBody` answers a body that is not JSON with a symbol no
+      // schema accepts (`INVALID_JSON`).
+      if (typeof issue.input === 'symbol') return NOT_JSON_MESSAGE;
+      return `must be ${describeExpectedType(issue.expected)}`;
+    case 'invalid_value': {
+      // An absent enum field is "required", not a wrong option.
+      if (issue.input === undefined) return 'is required';
+      const values = issue.values.map(quoteValue);
+      return values.length === 1
+        ? `must be ${values[0]}`
+        : `must be one of ${values.join(', ')}`;
+    }
+    case 'too_small': {
+      const inclusive = issue.inclusive !== false;
+      if (
+        issue.origin === 'string' &&
+        Number(issue.minimum) === 1 &&
+        inclusive
+      ) {
+        return 'must not be blank';
+      }
+      const quantity = describeQuantity(issue.origin, issue.minimum);
+      if (issue.origin === 'array' || issue.origin === 'set') {
+        return `must have at least ${quantity}`;
+      }
+      return inclusive
+        ? `must be at least ${quantity}`
+        : `must be greater than ${quantity}`;
+    }
+    case 'too_big': {
+      const inclusive = issue.inclusive !== false;
+      const quantity = describeQuantity(issue.origin, issue.maximum);
+      if (issue.origin === 'array' || issue.origin === 'set') {
+        return `must have at most ${quantity}`;
+      }
+      return inclusive
+        ? `must be at most ${quantity}`
+        : `must be less than ${quantity}`;
+    }
+    case 'invalid_format':
+      switch (issue.format) {
+        case 'email':
+          return 'must be an email address';
+        case 'url':
+          return 'must be an absolute URL';
+        case 'uuid':
+          return 'must be a UUID';
+        case 'regex':
+          return issue.pattern === undefined
+            ? 'must match the required pattern'
+            : `must match ${issue.pattern}`;
+        default:
+          return `must be a valid ${issue.format}`;
+      }
+    case 'not_multiple_of':
+      return `must be a multiple of ${String(issue.divisor)}`;
+    case 'invalid_union':
+      return issue.input === undefined
+        ? 'is required'
+        : 'does not match any accepted shape';
+    default:
+      // `unrecognized_keys` is spelled out per key by `schemaIssues`; a
+      // `custom` refinement carries its own sentence.
+      return undefined;
+  }
+}
+
 /** The `{path, message}` list a schema refusal answers under `data.issues`.
  * zod reports every unknown key of an object as ONE issue at the object's
  * path; the envelope names each key as its own problem (`unknownKey` is its
@@ -480,13 +671,14 @@ function schemaIssues(
             {
               path: issue.path.map(String).join('.'),
               // A required field that was not sent is "required", not a
-              // type mismatch with `undefined` or an enum listing every
-              // option (`parseBody` reports the input, so absence is
-              // told apart from a wrong value).
+              // type mismatch with `undefined`: `houseIssueMessage` says
+              // so for every parse on this door, and a parse that skipped
+              // it still gets zod's default text rewritten here. A
+              // schema's own sentence for an absent field (the model
+              // field's pointer to the catalog) is kept as written.
               message:
                 issue.path.length > 0 &&
-                'input' in issue &&
-                issue.input === undefined
+                issue.message.endsWith('received undefined')
                   ? 'is required'
                   : issue.message,
             },
@@ -511,7 +703,10 @@ export async function parseBody<Schema extends z.ZodType>(
   const body = options.optional
     ? await readOptionalJsonBody(c, options)
     : await readJsonBody(c, options);
-  const parsed = schema.safeParse(body, { reportInput: true });
+  const parsed = schema.safeParse(body, {
+    reportInput: true,
+    error: houseIssueMessage,
+  });
   return parsed.success ? parsed.data : invalidBodyResponse(c, parsed.error);
 }
 
@@ -534,13 +729,14 @@ export function invalidBodyResponse(
     (issue) =>
       issue.path.length === 0 &&
       issue.code === 'invalid_type' &&
-      issue.message.endsWith('received symbol'),
+      (issue.message === NOT_JSON_MESSAGE ||
+        issue.message.endsWith('received symbol')),
   );
   const issues = notJson
     ? [
         c.get('bodyIssue') ?? {
           path: '',
-          message: 'The body is not valid JSON',
+          message: NOT_JSON_MESSAGE,
         },
       ]
     : schemaIssues(error, 'is not a field this body takes');
@@ -640,6 +836,18 @@ export function parseKeysetCursor(
   return Number.isSafeInteger(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
+/** The 400 a blank `?cursor=` or `?limit=` answers — the same envelope a
+ * blank named filter gets from `readQuery`, for a route that reads the
+ * parameter without declaring it through `PAGE_QUERY`. */
+function blankParameterResponse(c: Context<RestEnv>, name: string): Response {
+  return invalidQueryResponse(
+    c,
+    'INVALID_QUERY',
+    `invalid query: "${name}" must not be blank`,
+    [{ path: name, message: 'must not be blank' }],
+  );
+}
+
 /** The 400 for a query parameter a list cannot act on: the stable code,
  * the sentence, and — when a schema refused it — every problem under
  * `data.issues`, the same shape `invalidBodyResponse` gives a body. */
@@ -677,20 +885,35 @@ export function invalidQueryFromSchema(
   );
 }
 
+/**
+ * A text field or parameter that must carry something once trimmed — the
+ * one schema behind every "present with a value, or absent" rule on this
+ * door, so a whitespace-only value is refused with the house sentence
+ * ("must not be blank") rather than zod's "Too small: expected string to
+ * have >=1 characters", which reports the length AFTER the trim as if it
+ * were what the caller sent. The value the route reads is the trimmed one.
+ */
+export function nonBlank(max = 256) {
+  return z.string().trim().min(1, 'must not be blank').max(max);
+}
+
 /** The `{cursor, limit}` pair every paginated list takes, for `readQuery`:
- * declared as free text here and read by `readPageLimit` /
- * `readKeysetCursor`, where a blank value keeps its meaning (an absent
- * limit, the first page). */
+ * present with a value or absent, like every other parameter — a blank
+ * `?cursor=` used to read as the first page, which is exactly the value
+ * the last page's empty `continueCursor` hands a naive pager, so a loop
+ * that sent it back walked the list from the start forever. The readers
+ * (`readPageLimit`, `readKeysetCursor`, `readIntegerCursor`) refuse a blank
+ * value too, for a route that declares its own shape. */
 export const PAGE_QUERY = {
-  cursor: z.string().optional(),
-  limit: z.string().optional(),
+  cursor: nonBlank(2048).optional(),
+  limit: nonBlank(32).optional(),
 };
 
 /** A named filter of a list (`?status=`, `?folderId=`): present with a
  * value, or absent. A blank value is refused rather than read as "match
  * nothing" on one route and "match everything" on the next. */
 export function queryFilter(max = 256) {
-  return z.string().trim().min(1, 'must not be blank').max(max);
+  return nonBlank(max);
 }
 
 /**
@@ -722,7 +945,10 @@ export function readQuery<Shape extends z.ZodRawShape>(
   const single = Object.fromEntries(
     Object.entries(queries).map(([name, values]) => [name, values[0] ?? '']),
   );
-  const parsed = z.object(shape).strict().safeParse(single);
+  const parsed = z.object(shape).strict().safeParse(single, {
+    reportInput: true,
+    error: houseIssueMessage,
+  });
   if (!parsed.success) return invalidQueryFromSchema(c, parsed.error);
   return parsed.data;
 }
@@ -845,7 +1071,8 @@ export function readKeysetCursor(
   list: string,
 ): { at: number; id: string } | null | Response {
   const raw = c.req.query('cursor');
-  if (raw === undefined || raw === '') return null;
+  if (raw === undefined) return null;
+  if (raw.trim() === '') return blankParameterResponse(c, 'cursor');
   const position = verifyCursor(c, list, raw);
   return (
     (position === null ? null : parseKeysetCursor(position)) ??
@@ -864,7 +1091,8 @@ export function readIntegerCursor(
   bounds: { max?: number } = {},
 ): number | null | Response {
   const raw = c.req.query('cursor');
-  if (raw === undefined || raw.trim() === '') return null;
+  if (raw === undefined) return null;
+  if (raw.trim() === '') return blankParameterResponse(c, 'cursor');
   const position = verifyCursor(c, list, raw);
   const parsed = position === null ? Number.NaN : Number(position);
   return /^\d{1,15}$/.test(position ?? '') &&
@@ -907,7 +1135,10 @@ export function readPageLimit(
   defaults: { fallback: number; max: number },
 ): number | Response {
   const raw = c.req.query('limit');
-  if (raw !== undefined && raw.trim() !== '' && !/^-?\d+$/.test(raw.trim())) {
+  if (raw !== undefined && raw.trim() === '') {
+    return blankParameterResponse(c, 'limit');
+  }
+  if (raw !== undefined && !/^-?\d+$/.test(raw.trim())) {
     return invalidQueryResponse(
       c,
       'INVALID_LIMIT',
@@ -970,4 +1201,186 @@ export async function lockRestProjectForWrite(
     FOR SHARE
   `;
   return loadRestProject(tx, auth, projectId, { write: true });
+}
+
+/** The document fields the bytes lane reads: the blob it serves, the name
+ * the download carries, and — for a content-only document — the type and
+ * freshness of its inline text. */
+export type ServableDocument = Pick<
+  DocumentRow,
+  'fileRef' | 'title' | 'mimeType' | 'updatedAt'
+>;
+
+/** What a 503 from the object store asks a consumer to wait — advisory,
+ * in whole seconds, the way the rate-limits page's own 429 speaks. */
+const OBJECT_STORE_RETRY_AFTER_SECONDS = '5';
+
+/**
+ * The bytes lane both document families share — a project file's
+ * `GET …/files/{documentId}/content` and a Hub document's
+ * `GET /api/v1/documents/{id}/content`: the blob streamed from the object
+ * store in the response itself (no redirect a client would re-send its
+ * bearer across), the document's title as the RFC 6266 download name,
+ * `Range` honoured (206, or a bodiless 416 naming the size for a range
+ * the file cannot satisfy — judged in `openFileContent` before any byte
+ * is fetched), the validators the store issued compared by the store
+ * (`If-None-Match` / `If-Modified-Since` answer 304 with no bytes;
+ * `If-Range` guards a resumed download), HEAD answering the headers alone
+ * (`Range` ignored), and a store that does not answer as the documented
+ * 503 with `Retry-After`. The bytes are user-uploaded, so they never render as a
+ * document on this origin: attachment + nosniff, as every blob lane; the
+ * client's own cache may keep what the tag lets it revalidate
+ * (`private, no-cache`), no shared cache may.
+ *
+ * `absent` is the family's own opaque 404 (a project file is
+ * `FILE_NOT_FOUND`, a Hub document `DOCUMENT_NOT_FOUND`) — for a blob the
+ * store no longer holds, and for a content-only document unless the family
+ * hands over `inline`: the Hub lane serves such a document's text itself,
+ * typed as its stored MIME type (`text/plain` when it has none), so what
+ * `POST /api/v1/documents` accepted inline reads back from the same URL
+ * every file-backed document answers.
+ */
+export async function serveDocumentBytes(
+  c: Context<RestEnv>,
+  sql: Sql,
+  doc: ServableDocument,
+  options: {
+    absent: { message: string; code: string };
+    inline?: () => Promise<string | null>;
+  },
+): Promise<Response> {
+  const head = c.req.method === 'HEAD';
+  if (doc.fileRef === null) {
+    if (options.inline === undefined) {
+      return notFound(c, options.absent.message, options.absent.code);
+    }
+    const text = (await options.inline()) ?? '';
+    const bytes = new TextEncoder().encode(text);
+    const mime = doc.mimeType ?? 'text/plain';
+    // The text is the representation, so its tag is computed here — the
+    // same validator a JSON read carries — and compared here.
+    const etag = entityTagOf(bytes);
+    const ifNoneMatch = c.req.header('if-none-match');
+    if (ifNoneMatch !== undefined && ifNoneMatchMatches(ifNoneMatch, etag)) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          etag,
+          'last-modified': new Date(doc.updatedAt).toUTCString(),
+          'accept-ranges': 'none',
+          'cache-control': 'private, no-cache',
+        },
+      });
+    }
+    const headers = new Headers({
+      'content-type': /;\s*charset=/i.test(mime)
+        ? mime
+        : `${mime}; charset=utf-8`,
+      'content-length': String(bytes.byteLength),
+      etag,
+      'last-modified': new Date(doc.updatedAt).toUTCString(),
+      // Inline text is not sliceable: a `Range` is ignored and the whole
+      // text answers 200, which is what `none` tells a resuming client.
+      'accept-ranges': 'none',
+    });
+    stampDownloadHeaders(headers, doc.title);
+    return new Response(head ? null : bytes, { status: 200, headers });
+  }
+  const range = c.req.header('range');
+  const ifNoneMatch = c.req.header('if-none-match');
+  const ifModifiedSince = c.req.header('if-modified-since');
+  const ifRange = c.req.header('if-range');
+  let served: FileContent | null;
+  try {
+    served = await openFileContent(
+      sql,
+      { organizationId: c.get('organizationId') },
+      doc.fileRef,
+      {
+        head,
+        ...(range === undefined ? {} : { range }),
+        // The validators this lane ships are the store's, so the store
+        // compares them: a match answers 304 and no bytes move.
+        conditions: {
+          ...(ifNoneMatch === undefined ? {} : { ifNoneMatch }),
+          ...(ifModifiedSince === undefined ? {} : { ifModifiedSince }),
+          ...(ifRange === undefined ? {} : { ifRange }),
+        },
+        signal: c.req.raw.signal,
+      },
+    );
+  } catch (error) {
+    if (!(error instanceof FileError)) throw error;
+    console.warn(
+      '[rest] content serve failed:',
+      error instanceof Error ? error.message : String(error),
+    );
+    if (error.status === 503) {
+      return c.json(
+        {
+          error: 'The object store did not serve the file; retry shortly.',
+          code: 'OBJECT_STORE_UNAVAILABLE',
+        },
+        503,
+        { 'retry-after': OBJECT_STORE_RETRY_AFTER_SECONDS },
+      );
+    }
+    return notFound(c, options.absent.message, options.absent.code);
+  }
+  if (served === null) {
+    return notFound(c, options.absent.message, options.absent.code);
+  }
+  const headers = new Headers();
+  // A 304 carries the validators and nothing about a body it does not
+  // have (RFC 9110 §15.4.5); a 416 carries `Content-Range` naming the size
+  // and an explicitly empty body — never the type or length of anything
+  // (the store's own 416 describes an XML error document, and copying
+  // that length onto a bodiless answer made the edge abort the stream);
+  // everything else describes the bytes.
+  const notModified = served.status === 304;
+  const unsatisfiable = served.status === 416;
+  const copied = notModified
+    ? ['etag', 'last-modified', 'accept-ranges']
+    : unsatisfiable
+      ? ['content-range', 'etag', 'last-modified', 'accept-ranges']
+      : [
+          'content-type',
+          'content-length',
+          'content-range',
+          'etag',
+          'last-modified',
+          'accept-ranges',
+        ];
+  for (const name of copied) {
+    const value = served.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  if (!notModified && !unsatisfiable && !headers.has('content-type')) {
+    headers.set('content-type', 'application/octet-stream');
+  }
+  if (!headers.has('accept-ranges')) headers.set('accept-ranges', 'bytes');
+  if (unsatisfiable) headers.set('content-length', '0');
+  if (notModified) {
+    headers.set('cache-control', 'private, no-cache');
+  } else if (!unsatisfiable) {
+    stampDownloadHeaders(headers, doc.title);
+  }
+  return new Response(unsatisfiable ? null : served.body, {
+    status: served.status,
+    headers,
+  });
+}
+
+/** Object keys are nameless (`<org>/<uuid>`); the document's title is the
+ * filename the documented Content-Disposition carries. */
+function stampDownloadHeaders(headers: Headers, title: string | null): void {
+  headers.set(
+    'content-disposition',
+    attachmentDisposition(title ?? 'download'),
+  );
+  headers.set('x-content-type-options', 'nosniff');
+  // The client's own cache may keep the bytes it must revalidate — that is
+  // what the ETag is for; no shared cache may (`private`). `no-store` used
+  // to tell a mirror to discard the very body the tag would let it keep.
+  headers.set('cache-control', 'private, no-cache');
 }

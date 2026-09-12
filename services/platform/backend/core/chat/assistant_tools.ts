@@ -29,7 +29,6 @@ import {
   RAG_SEARCH_ENTITY_LIMIT,
   RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
-  RAG_SEARCH_MIN_SIMILARITY,
   RAG_SEARCH_STATUS_VALUES,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
@@ -167,6 +166,10 @@ interface SearchResultEntry {
    * means nothing across searches. Absent on listed rows: a listing is
    * ordered by recency, not relevance. */
   readonly score?: number;
+  /** The dense leg's cosine similarity (0..1) of a corpus hit — how close
+   * the passage is to the question on the embedding model's own scale;
+   * absent when only the keyword leg found it, and on entity rows. */
+  readonly similarity?: number;
   readonly data?: Record<string, unknown>;
 }
 
@@ -825,7 +828,10 @@ export function createChatToolExecutor(
             query,
             corpus,
             limit,
-            minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
+            // The organization's own floor (`embedding.json`
+            // `minSimilarity`), else the built-in default — resolved next
+            // to the model, not hard-wired here.
+            floorByDefault: true,
             access: docAccess,
           });
           const found = { document: 0, mailAttachment: 0, webPage: 0 };
@@ -871,6 +877,9 @@ export function createChatToolExecutor(
                 : snippet,
               ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
               score: Math.round(score * 1000) / 1000,
+              ...(typeof hit.similarity === 'number'
+                ? { similarity: Math.round(hit.similarity * 1000) / 1000 }
+                : {}),
               ...(flags.projectArchived ? { data: flags } : {}),
             });
           }

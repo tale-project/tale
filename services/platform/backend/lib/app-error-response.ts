@@ -10,10 +10,14 @@ import { AppError } from '../../lib/shared/errors/app-error';
  */
 export type CodedRefusalStatus = 400 | 403 | 404 | 409 | 412 | 422;
 
-/** The `{ code, message }` an `AppError` carries, or `null` for anything else. */
-export function codedAppError(
-  error: unknown,
-): { code: string; message: string } | null {
+/** The `{ code, message }` an `AppError` carries, or `null` for anything
+ * else — plus the structured `data` a refusal explains itself with (the
+ * current entity tag of a failed precondition), when it is a plain object. */
+export function codedAppError(error: unknown): {
+  code: string;
+  message: string;
+  data?: Record<string, unknown>;
+} | null {
   if (!(error instanceof AppError)) return null;
   const data: unknown = error.data;
   if (data === null || typeof data !== 'object' || !('code' in data)) {
@@ -22,7 +26,15 @@ export function codedAppError(
   const code: unknown = Reflect.get(data, 'code');
   if (typeof code !== 'string') return null;
   const message: unknown = Reflect.get(data, 'message');
-  return { code, message: typeof message === 'string' ? message : code };
+  const extra: unknown = Reflect.get(data, 'data');
+  return {
+    code,
+    message: typeof message === 'string' ? message : code,
+    ...(extra !== null && typeof extra === 'object' && !Array.isArray(extra)
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a plain object, checked above
+        { data: extra as Record<string, unknown> }
+      : {}),
+  };
 }
 
 /**

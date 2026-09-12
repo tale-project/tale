@@ -3,21 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { buildDavPath, lockKeyFromParsed, parseDavPath } from './paths';
 
 describe('parseDavPath', () => {
-  it('parses the root pseudo-collection', () => {
+  it('parses the root pseudo-collection, flagged as the root', () => {
     expect(parseDavPath('/dav/myorg/')).toMatchObject({
       orgSlug: 'myorg',
       namespace: 'documents',
       segments: [],
       isCollection: true,
+      isRoot: true,
     });
+    // With or without the trailing slash — the URL is not the signal.
+    expect(parseDavPath('/dav/myorg')).toMatchObject({ isRoot: true });
   });
 
-  it('parses a documents namespace root', () => {
+  it('parses a documents namespace root — the documents tree, not the root', () => {
     expect(parseDavPath('/dav/myorg/documents/')).toMatchObject({
       orgSlug: 'myorg',
       namespace: 'documents',
       segments: [],
       isCollection: true,
+      isRoot: false,
     });
   });
 

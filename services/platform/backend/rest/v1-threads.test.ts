@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { listComposerModels } from '../domains/chat/composer.ts';
+import { sendIdempotencyRequestHash } from '../domains/chat/send-idempotency.ts';
 import {
   renameThread,
   setThreadArchived,
@@ -12,7 +13,7 @@ import {
 } from '../domains/chat/threads.ts';
 import { resolveModelGovernanceForUser } from '../domains/governance/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
-import type { RestEnv } from './shared.ts';
+import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
@@ -118,7 +119,12 @@ function fakeSql(
     /** The accepted send waits for a worker: the 202's marker is set. */
     queued?: boolean;
     archived?: boolean;
+    /** The text the generation row holds while streaming. */
+    generationText?: string;
     messages?: Record<string, unknown>[];
+    /** A live ledger row an earlier keyed send committed — the claim finds
+     * it and reads it back. */
+    remembered?: { requestHash: string; response: Record<string, unknown> };
   } = {},
 ): { sql: Sql; queries: Captured[] } {
   const queries: Captured[] = [];
@@ -129,6 +135,11 @@ function fakeSql(
       return Promise.resolve([
         {
           ...thread,
+          // The loader's one join: the generation row's existence IS the
+          // `generating` flag every gate reads.
+          ...(options.generating
+            ? { generating: true, streamId: 'm-pending' }
+            : {}),
           ...(options.queued
             ? { queuedSince: 1_700_000_000_005, streamId: 'm-pre' }
             : {}),
@@ -149,9 +160,41 @@ function fakeSql(
         options.generating ? [{ messageId: 'm-pending' }] : [],
       );
     }
+    // The send's claim: the conditional marker write lands only while no
+    // send is queued and no turn is running — the row lock's verdict, as
+    // the real schema answers it.
+    if (
+      text.startsWith(
+        'UPDATE app.thread_metadata SET generation_queued_since_ms',
+      )
+    ) {
+      return Promise.resolve(
+        options.generating || options.queued ? [] : [{ threadId: 't-1' }],
+      );
+    }
     if (text.includes('FROM app.generations WHERE thread_id')) {
       return Promise.resolve(
-        options.generating ? [{ threadId: 't-1', messageId: 'm-pending' }] : [],
+        options.generating
+          ? [
+              {
+                threadId: 't-1',
+                messageId: 'm-pending',
+                ...(options.generationText !== undefined
+                  ? { text: options.generationText }
+                  : {}),
+              },
+            ]
+          : [],
+      );
+    }
+    if (text.startsWith('INSERT INTO app.chat_send_idempotency')) {
+      return Promise.resolve(
+        options.remembered === undefined ? [{ scopeKey: 'k' }] : [],
+      );
+    }
+    if (text.startsWith('SELECT request_hash AS "requestHash", response')) {
+      return Promise.resolve(
+        options.remembered === undefined ? [] : [options.remembered],
       );
     }
     if (text.includes('FROM app.messages WHERE thread_id')) {
@@ -183,8 +226,9 @@ function fakeSql(
     return Promise.resolve([]);
   };
   const unsafe = (text: string) => ({ unsafe: text });
+  const json = (value: unknown) => ({ json: value });
   const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
-  const sql = Object.assign(tag, { unsafe, begin });
+  const sql = Object.assign(tag, { unsafe, json, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: sql as unknown as Sql, queries };
 }
@@ -514,6 +558,53 @@ describe('GET /threads/{id}/messages', () => {
     expect(body.page[0]?.usage).not.toHaveProperty('provider');
   });
 
+  it('lifts the finish reason to the message and whitelists the two usage flags', async () => {
+    const { sql } = fakeSql({
+      messages: [
+        {
+          id: 'm-3',
+          role: 'assistant',
+          parts: [{ type: 'text', text: '1\n2\n3' }],
+          text: '1\n2\n3',
+          sequence: 3,
+          stepOrder: 0,
+          model: 'model-a',
+          providerSlug: 'provider-a',
+          blockedReason: null,
+          error: null,
+          status: 'complete',
+          usage: {
+            inputTokens: 2711,
+            outputTokens: 64,
+            costEstimateCents: 0.0397,
+            finishReason: 'length',
+            estimated: true,
+            stepLimitHit: true,
+            durationMs: 1234,
+          },
+          createdAt: 1_700_000_000_004,
+        },
+      ],
+    });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+    );
+    const body = (await res.json()) as { page: Record<string, unknown>[] };
+    expect(body.page[0]).toMatchObject({
+      status: 'complete',
+      finishReason: 'length',
+      usage: {
+        inputTokens: 2711,
+        outputTokens: 64,
+        costEstimateCents: 0.0397,
+        estimated: true,
+        stepLimitHit: true,
+      },
+    });
+    expect(body.page[0]?.usage).not.toHaveProperty('finishReason');
+    expect(body.page[0]?.usage).not.toHaveProperty('durationMs');
+  });
+
   it('omits usage the row never recorded', async () => {
     const { sql } = fakeSql({
       messages: [
@@ -635,6 +726,21 @@ describe('thread lifecycle', () => {
     expect(trashThread).toHaveBeenCalledTimes(1);
   });
 
+  it('DELETE refuses a thread whose accepted send is still queued', async () => {
+    // The 202 was answered and the worker has not opened the turn: the
+    // job would otherwise open a turn on a trashed thread.
+    const queued = fakeSql({ queued: true });
+    const refused = await mount(queued.sql).request(
+      'http://localhost/threads/t-1',
+      { method: 'DELETE' },
+    );
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({
+      code: 'CHAT_TURN_IN_PROGRESS',
+    });
+    expect(trashThread).not.toHaveBeenCalled();
+  });
+
   it('DELETE …/generation asks the running turn to stop, and is a 404 when idle', async () => {
     const busy = fakeSql({ generating: true });
     const res = await mount(busy.sql).request(
@@ -691,6 +797,46 @@ describe('POST /threads uses the built-in assistant', () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ id: 't-new' });
   });
+
+  /**
+   * One title bound for the whole lifecycle: create accepted 200
+   * characters, untrimmed, while PATCH and the assistant's own naming
+   * held 120 — so a read-modify-write of a title the API itself minted
+   * was refused. Create now trims and caps like the rename does.
+   */
+  it('trims the title and holds it to the rename bound', async () => {
+    const { sql, queries } = fakeSql();
+    const padded = await mount(sql).request('http://localhost/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '  Q3 review ' }),
+    });
+    expect(padded.status).toBe(201);
+    const insert = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.threads'),
+    );
+    expect(insert?.values).toContain('Q3 review');
+    expect(insert?.values).not.toContain('  Q3 review ');
+
+    for (const title of ['L'.repeat(121), '   \n\t']) {
+      const refused = await mount(sql).request('http://localhost/threads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: { issues: [{ path: 'title' }] },
+      });
+    }
+    const atCap = await mount(sql).request('http://localhost/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'L'.repeat(120) }),
+    });
+    expect(atCap.status).toBe(201);
+  });
 });
 
 /**
@@ -730,6 +876,60 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
       ),
     );
     expect(marker?.values).toContain(body.messageId);
+    // The marker write is the claim: it lands only while no send is
+    // queued and no turn is running, and the row it returns is the verdict.
+    expect(marker?.text).toContain('generation_queued_since_ms IS NULL');
+    expect(marker?.text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM app.generations WHERE thread_id = $? )',
+    );
+    expect(marker?.text).toContain('RETURNING thread_id');
+  });
+
+  /**
+   * The one-turn-per-thread rule held only against a RUNNING turn: a second
+   * send while the first was still queued (accepted, no worker yet) was
+   * answered 202, overwrote the first send's marker and reply id, and ran
+   * a second turn — two bills, and a poll handle stolen from the first.
+   */
+  it('refuses a send while an accepted one is still queued, and queues nothing', async () => {
+    const { sql } = fakeSql({ queued: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'This conversation is already generating a response.',
+      code: 'CHAT_TURN_IN_PROGRESS',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses a send while a turn streams — the claim finds no row, no pre-read needed', async () => {
+    const { sql, queries } = fakeSql({ generating: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello', model: 'model-a' }),
+      },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS' });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    // No separate existence read: the conditional write is the whole gate.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith(
+          'SELECT thread_id AS "threadId" FROM app.generations',
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('forwards the effort pick and the reply ceiling to the turn', async () => {
@@ -851,6 +1051,135 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
   });
 });
 
+/**
+ * The one operation on this surface that spends money had no way to be
+ * retried safely: a lost 202 retried as a second POST started and billed a
+ * second turn. `Idempotency-Key` names the send, exactly as it names a run
+ * start — the claim lives in the accept's own transaction, before the
+ * turn gate, so a refusal is never remembered.
+ */
+describe('POST …/messages — Idempotency-Key', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockClear();
+    catalog();
+  });
+
+  const keyedSend = (
+    sql: Sql,
+    key: string,
+    body: Record<string, unknown> = { content: 'Hello', model: 'model-a' },
+  ) =>
+    mount(sql).request('http://localhost/threads/t-1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify(body),
+    });
+
+  it('claims the key before the turn gate, and remembers the 202 with the job', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await keyedSend(sql, 'send-1');
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('duplicate');
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    const at = (prefix: string) =>
+      queries.findIndex((q) => q.text.startsWith(prefix));
+    const claim = at('INSERT INTO app.chat_send_idempotency');
+    const marker = at(
+      'UPDATE app.thread_metadata SET generation_queued_since_ms',
+    );
+    const remember = at('UPDATE app.chat_send_idempotency SET message_id');
+    expect(claim).toBeGreaterThanOrEqual(0);
+    expect(claim).toBeLessThan(marker);
+    expect(remember).toBeGreaterThan(marker);
+    expect(queries[remember]?.values).toContain(body.messageId);
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('DELETE FROM app.chat_send_idempotency'),
+      ),
+    ).toBe(true);
+  });
+
+  it('answers the remembered 202 with duplicate: true for the same request, and queues nothing', async () => {
+    const response = {
+      threadId: 't-1',
+      status: 'accepted',
+      model: 'model-a',
+      providerSlug: 'provider-a',
+      messageId: 'm-first',
+      poll: '/api/v1/threads/t-1/generation',
+    };
+    const { sql, queries } = fakeSql({
+      remembered: {
+        requestHash: sendIdempotencyRequestHash({
+          content: 'Hello',
+          model: 'model-a',
+        }),
+        response,
+      },
+    });
+    const res = await keyedSend(sql, 'send-1');
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ...response, duplicate: true });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(
+      queries.some((q) =>
+        q.text.startsWith(
+          'UPDATE app.thread_metadata SET generation_queued_since_ms',
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a live key reused with another body (409 IDEMPOTENCY_KEY_REUSED) and queues nothing', async () => {
+    const { sql } = fakeSql({
+      remembered: {
+        requestHash: sendIdempotencyRequestHash({
+          content: 'Something else',
+          model: 'model-a',
+        }),
+        response: { messageId: 'm-first' },
+      },
+    });
+    const res = await keyedSend(sql, 'send-1');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('already used for a different request'),
+      code: 'IDEMPOTENCY_KEY_REUSED',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('never remembers a refusal: a busy thread refuses after the claim, and the accept never lands', async () => {
+    const { sql, queries } = fakeSql({ queued: true });
+    const res = await keyedSend(sql, 'send-1');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'CHAT_TURN_IN_PROGRESS' });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    // The claim was taken inside the transaction the refusal rolled back;
+    // the 202 that would have made the row a memory was never written.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('INSERT INTO app.chat_send_idempotency'),
+      ),
+    ).toBe(true);
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('UPDATE app.chat_send_idempotency SET message_id'),
+      ),
+    ).toBe(false);
+  });
+
+  it('reads a blank key as no key', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await keyedSend(sql, '   ');
+    expect(res.status).toBe(202);
+    expect(
+      queries.some((q) => q.text.includes('app.chat_send_idempotency')),
+    ).toBe(false);
+  });
+});
+
 describe('GET …/generation — queued, streaming with progress, idle', () => {
   it('answers queued with the promised id while the accepted send waits for a worker', async () => {
     const { sql } = fakeSql({ queued: true });
@@ -871,17 +1200,68 @@ describe('GET …/generation — queued, streaming with progress, idle', () => {
       status: 'streaming',
       messageId: 'm-pending',
       text: '',
+      textOffset: 0,
+      textLength: 0,
       reasoning: '',
       cancelRequested: false,
     });
   });
 
-  it('is idle once neither the marker nor the generation row exists', async () => {
+  /**
+   * The poll returned the whole reply on every call — a long answer
+   * polled every two seconds was downloaded quadratically. `since` names
+   * the characters the caller holds; the answer is the delta, and a reset
+   * (a tool round settled the text onto the parts) answers from 0 with an
+   * offset below what was sent.
+   */
+  it('answers the delta past ?since, from 0 when since passes the length, and refuses a non-number', async () => {
+    const { sql } = fakeSql({
+      generating: true,
+      generationText: '1\n2\n3\n4\n',
+    });
+    const delta = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?since=4',
+    );
+    expect(await delta.json()).toMatchObject({
+      status: 'streaming',
+      text: '3\n4\n',
+      textOffset: 4,
+      textLength: 8,
+    });
+    const reset = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?since=500',
+    );
+    expect(await reset.json()).toMatchObject({
+      text: '1\n2\n3\n4\n',
+      textOffset: 0,
+      textLength: 8,
+    });
+    const bad = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?since=-1',
+    );
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'since' }] },
+    });
+  });
+
+  it('is idle once neither the marker nor the generation row exists, naming the newest assistant message', async () => {
     const { sql } = fakeSql();
     const res = await mount(sql).request(
       'http://localhost/threads/t-1/generation',
     );
-    expect(await res.json()).toEqual({ status: 'idle' });
+    expect(await res.json()).toEqual({
+      status: 'idle',
+      lastMessageId: 'm-1',
+      lastStatus: 'complete',
+    });
+    // A thread nobody has written to yet: idle, and nothing to name.
+    const empty = fakeSql({ messages: [] });
+    const bare = await mount(empty.sql).request(
+      'http://localhost/threads/t-1/generation',
+    );
+    expect(await bare.json()).toEqual({ status: 'idle' });
   });
 
   it('DELETE stamps the stop on the thread beside the cancel flag', async () => {
@@ -895,6 +1275,88 @@ describe('GET …/generation — queued, streaming with progress, idle', () => {
       q.text.startsWith('UPDATE app.thread_metadata SET cancelled_at_ms'),
     );
     expect(stamp?.values).toContain('m-pending');
+  });
+});
+
+/**
+ * The documented "poll until idle, then read the messages" recipe walked
+ * the transcript oldest-first, forward-only: past 25 messages the reply
+ * just paid for sat on the last page. Newest-first paging and a read by
+ * id make one turn one round trip on a thread of any length.
+ */
+describe('GET …/messages — newest first, and one message by id', () => {
+  it('pages newest first with ?order=desc, and binds the cursor to its direction', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?order=desc',
+    );
+    expect(res.status).toBe(200);
+    const page = queries.find((q) => q.text.includes('FROM app.messages'));
+    expect(
+      page?.values.some(
+        (value) =>
+          typeof value === 'object' &&
+          value !== null &&
+          'unsafe' in value &&
+          value.unsafe === 'DESC',
+      ),
+    ).toBe(true);
+    const ascending = fakeSql();
+    await mount(ascending.sql).request('http://localhost/threads/t-1/messages');
+    const plain = ascending.queries.find((q) =>
+      q.text.includes('FROM app.messages'),
+    );
+    expect(
+      plain?.values.some(
+        (value) =>
+          typeof value === 'object' &&
+          value !== null &&
+          'unsafe' in value &&
+          value.unsafe === 'ASC',
+      ),
+    ).toBe(true);
+    // A cursor minted walking oldest-first is not one the newest-first
+    // walk answered.
+    const crossed = await mount(sql).request(
+      `http://localhost/threads/t-1/messages?order=desc&cursor=${mintCursorFor('org-1', 'messages:t-1:asc', '3')}`,
+    );
+    expect(crossed.status).toBe(400);
+    expect(await crossed.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+    const own = await mount(sql).request(
+      `http://localhost/threads/t-1/messages?order=desc&cursor=${mintCursorFor('org-1', 'messages:t-1:desc', '3')}`,
+    );
+    expect(own.status).toBe(200);
+    const unknown = await mount(sql).request(
+      'http://localhost/threads/t-1/messages?order=sideways',
+    );
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'order' }] },
+    });
+  });
+
+  it('reads one message by id in the list’s shape, and answers 404 MESSAGE_NOT_FOUND for a stranger', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages/m-1',
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      id: 'm-1',
+      role: 'assistant',
+      status: 'complete',
+      usage: { inputTokens: 12, outputTokens: 3 },
+    });
+    const missing = fakeSql({ messages: [] });
+    const none = await mount(missing.sql).request(
+      'http://localhost/threads/t-1/messages/m-nope',
+    );
+    expect(none.status).toBe(404);
+    expect(await none.json()).toEqual({
+      error: 'Message not found',
+      code: 'MESSAGE_NOT_FOUND',
+    });
   });
 });
 

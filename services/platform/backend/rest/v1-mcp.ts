@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 
 import { loadConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
@@ -14,7 +13,7 @@ import {
   RateLimitExceededError,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import { DEFAULT_BODY_BYTES, type RestEnv } from './shared.ts';
+import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
 
 /**
  * POST /api/v1/mcp — the platform MCP endpoint. The 0.4 protocol layer
@@ -94,7 +93,7 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   // The protocol layer reads the body itself, so the door's default byte
   // cap is applied here as middleware (a 413 in the door envelope).
-  app.post('/mcp', bodyLimit({ maxSize: DEFAULT_BODY_BYTES }), async (c) => {
+  app.post('/mcp', restBodyLimit(DEFAULT_BODY_BYTES), async (c) => {
     const rc = {
       ctx: createCtxShim(mcpShimHandlers(deps.sql)),
       org: {

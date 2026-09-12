@@ -53,7 +53,13 @@ export const platformResourceSchema = z.union([
   }),
   z.strictObject({
     kind: z.literal('knowledge-embedding'),
-    config: knowledgeEmbeddingSchema.strict(),
+    // The platform keeps a stored `minSimilarity` when a save omits it and
+    // clears it only on an explicit null (the Settings form never carries
+    // the knob) — so the declaration speaks the same three ways: a number
+    // sets the floor, `null` clears it, omitted leaves whatever is stored.
+    config: knowledgeEmbeddingSchema.strict().extend({
+      minSimilarity: z.number().min(0).max(1).nullable().optional(),
+    }),
   }),
   z.strictObject({
     kind: z.literal('provider'),
@@ -236,3 +242,49 @@ export const configurationPlanSchema = z.strictObject({
 export type ConfigurationPlan = z.infer<typeof configurationPlanSchema>;
 export const sameConfiguration = (left: unknown, right: unknown) =>
   valueHash(left) === valueHash(right);
+
+function withoutKey(value: unknown, key: string): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).filter(([entry]) => entry !== key),
+  );
+}
+
+/**
+ * Whether the native state already IS what the declaration asks for — the
+ * one comparison plan, apply and readback all use, so a resource whose
+ * write semantics are not "replace the whole object" converges on the
+ * platform's own terms rather than never at all.
+ *
+ * Every resource compares whole, except the embedding floor: the platform
+ * keeps a stored `minSimilarity` when the write omits it and clears it on
+ * an explicit null, so a declaration that omits the floor converges with
+ * ANY stored floor, one that declares `null` converges only once none is
+ * stored, and a declared number must match exactly.
+ */
+export function resourceConverged(
+  resource: PlatformResource,
+  current: unknown,
+): boolean {
+  if (resource.kind !== 'knowledge-embedding') {
+    return sameConfiguration(current, resource.config);
+  }
+  const declared = resource.config.minSimilarity;
+  const stored =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? Reflect.get(current, 'minSimilarity')
+      : undefined;
+  if (declared === undefined) {
+    return sameConfiguration(
+      withoutKey(current, 'minSimilarity'),
+      resource.config,
+    );
+  }
+  if (declared === null) {
+    return (
+      stored === undefined &&
+      sameConfiguration(current, withoutKey(resource.config, 'minSimilarity'))
+    );
+  }
+  return sameConfiguration(current, resource.config);
+}

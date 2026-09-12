@@ -1,3 +1,9 @@
+import {
+  formatRangeHeader,
+  ifRangeMatches,
+  parseRangeHeader,
+  unsatisfiableContentRange,
+} from '@tale/shared/http/range';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { encodeS3Ref, parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
@@ -352,7 +358,7 @@ export async function getFileUrl(
   });
 }
 
-/** What `openFileContent` hands a door: the store's status and headers,
+/** What `openFileContent` hands a door: the status and headers to answer,
  * and the body to stream (null for a HEAD, a 304 or a 416). */
 export interface FileContent {
   status: number;
@@ -360,10 +366,12 @@ export interface FileContent {
   body: ReadableStream<Uint8Array> | null;
 }
 
-/** The client's preconditions on a content read, forwarded to the store:
- * the store owns the validators it issued (`ETag`, `Last-Modified`) and
- * answers 304 itself — or, for `If-Range` on a resumed download, the
- * whole file again when the bytes changed under the client. */
+/** The client's preconditions on a content read: `If-None-Match` and
+ * `If-Modified-Since` are forwarded to the store, which owns the
+ * validators it issued (`ETag`, `Last-Modified`) and answers 304 itself;
+ * `If-Range` on a resumed download is judged HERE against the object's
+ * validators — a mismatch serves the whole file again, since the client's
+ * partial copy is of other bytes. */
 export interface FileContentConditions {
   ifNoneMatch?: string;
   ifModifiedSince?: string;
@@ -386,6 +394,49 @@ function strongIfNoneMatch(header: string): string {
     .join(', ');
 }
 
+/** The validators a HEAD attests, as response headers: what a GET of the
+ * same bytes carries, so a HEAD answers them too (the document lane's
+ * "the headers alone" promise) and a 416 can name the representation. */
+function validatorHeaders(head: {
+  etag: string | null;
+  lastModified: string | null;
+}): Headers {
+  const headers = new Headers();
+  if (head.etag !== null) headers.set('etag', head.etag);
+  if (head.lastModified !== null) {
+    headers.set('last-modified', head.lastModified);
+  }
+  return headers;
+}
+
+/**
+ * The 416 a range the file cannot satisfy answers (RFC 9110 §15.5.17):
+ * an EMPTY body, a `Content-Range` naming the size alone (so the client
+ * learns where the file ends), and nothing that describes a body —
+ * the store's own 416 carries the `Content-Type`/`Content-Length` of its
+ * XML error document, which, forwarded onto a bodiless answer, promised
+ * bytes that never came and made the edge abort the stream.
+ */
+function unsatisfiable(
+  size: number,
+  validators: { etag: string | null; lastModified: string | null },
+): FileContent {
+  const headers = validatorHeaders(validators);
+  headers.set('content-range', unsatisfiableContentRange(size));
+  headers.set('accept-ranges', 'bytes');
+  headers.set('content-length', '0');
+  return { status: 416, headers, body: null };
+}
+
+/** The size a store's own 416 names in its `Content-Range` (the
+ * unsatisfied form carries no positions, only the size), or null when it
+ * names none. */
+function sizeFromContentRange(header: string | null): number | null {
+  const match = /^bytes \*\/(\d+)$/.exec(header?.trim() ?? '');
+  const size = match === null ? NaN : Number(match[1]);
+  return Number.isSafeInteger(size) ? size : null;
+}
+
 /**
  * Open a blob's bytes for a door that serves them ITSELF — the REST file
  * lane. Signed against the store's own endpoint (the platform dials it,
@@ -393,14 +444,27 @@ function strongIfNoneMatch(header: string): string {
  * authentication ever reaches the client: the old 302 sent a bearer-
  * carrying client to a presigned URL on the platform's own origin, where
  * the store refused the two authentications and `curl -L -o` wrote that
- * refusal into the file. A `Range` is forwarded (the store answers 206 or
- * 416), and so are `If-None-Match` / `If-Modified-Since` (the store answers
+ * refusal into the file.
+ *
+ * A `Range` is judged HERE, against the object's HEAD, before any byte is
+ * asked for: a satisfiable range reaches the store normalised (a suffix
+ * resolved, the end clamped) and answers 206; one starting at or past the
+ * end — `bytes=<size>-`, what a resumed download sends once its copy is
+ * complete — answers a local 416 with an empty body and no upstream GET;
+ * one this lane cannot read (another unit, several ranges, `bytes=abc`)
+ * is ignored and the whole file answers 200; and `If-Range` naming
+ * another representation drops the range for the same reason. The store's
+ * own 416, when a race still produces one, is never forwarded: its headers
+ * describe an XML error body this answer does not carry, and the edge
+ * aborted the stream on the promise.
+ *
+ * `If-None-Match` / `If-Modified-Since` are forwarded (the store answers
  * 304 with no body — a mirror that already holds the bytes spends a round
- * trip instead of the file; before this the door shipped the validators and
- * never compared them); `head` answers the metadata only. Null when the
- * blob is gone; a store that cannot be reached or answers an error is
- * `OBJECT_STORE_UNAVAILABLE` (503) — never a 404 that would read as "the
- * file does not exist".
+ * trip instead of the file); `head` answers the metadata alone — size,
+ * type, `ETag`, `Last-Modified`, `Accept-Ranges` — and ignores `Range`.
+ * Null when the blob is gone; a store that cannot be reached or answers
+ * an error is `OBJECT_STORE_UNAVAILABLE` (503) — never a 404 that would
+ * read as "the file does not exist".
  */
 export async function openFileContent(
   sql: Sql,
@@ -424,23 +488,45 @@ export async function openFileContent(
       `The object store did not serve the file: ${why}`,
       503,
     );
-  if (opts.head === true) {
-    let head;
+  const headObject = async () => {
     try {
-      head = await s3HeadObject(store, key);
+      return await s3HeadObject(store, key);
     } catch (error) {
       throw unavailable(error instanceof Error ? error.message : String(error));
     }
+  };
+  if (opts.head === true) {
+    const head = await headObject();
     if (head === null) return null;
-    const headers = new Headers({ 'content-length': String(head.size) });
-    if (head.contentType !== null)
+    const headers = validatorHeaders(head);
+    headers.set('content-length', String(head.size));
+    if (head.contentType !== null) {
       headers.set('content-type', head.contentType);
+    }
+    headers.set('accept-ranges', 'bytes');
     return { status: 200, headers, body: null };
   }
-  const presigned = await s3PresignGetUrl(store, key);
   const conditions = opts.conditions ?? {};
+  // The range the store is asked for — normalised, or none: the whole file.
+  let range: string | undefined;
+  let attested: { etag: string | null; lastModified: string | null } | null =
+    null;
+  if (opts.range !== undefined) {
+    const head = await headObject();
+    if (head === null) return null;
+    attested = head;
+    const lastModified =
+      head.lastModified === null ? null : new Date(head.lastModified);
+    const rangeHolds =
+      conditions.ifRange === undefined ||
+      ifRangeMatches(conditions.ifRange, head.etag, lastModified);
+    const parsed = rangeHolds ? parseRangeHeader(opts.range, head.size) : null;
+    if (parsed === 'unsatisfiable') return unsatisfiable(head.size, head);
+    if (parsed !== null) range = formatRangeHeader(parsed);
+  }
+  const presigned = await s3PresignGetUrl(store, key);
   const forwarded: Record<string, string> = {
-    ...(opts.range === undefined ? {} : { range: opts.range }),
+    ...(range === undefined ? {} : { range }),
     ...(conditions.ifNoneMatch === undefined
       ? {}
       : { 'if-none-match': strongIfNoneMatch(conditions.ifNoneMatch) }),
@@ -451,8 +537,9 @@ export async function openFileContent(
     conditions.ifNoneMatch !== undefined
       ? {}
       : { 'if-modified-since': conditions.ifModifiedSince }),
-    // `If-Range` compares strongly by definition: verbatim, never reduced.
-    ...(conditions.ifRange === undefined || opts.range === undefined
+    // Judged above against the HEAD; forwarded verbatim with the range so
+    // a store that honours it re-checks the bytes it is about to send.
+    ...(conditions.ifRange === undefined || range === undefined
       ? {}
       : { 'if-range': conditions.ifRange }),
   };
@@ -469,9 +556,19 @@ export async function openFileContent(
     await upstream.body?.cancel().catch(() => undefined);
     return null;
   }
-  if (upstream.status === 304 || upstream.status === 416) {
+  if (upstream.status === 304) {
     await upstream.body?.cancel().catch(() => undefined);
-    return { status: upstream.status, headers: upstream.headers, body: null };
+    return { status: 304, headers: upstream.headers, body: null };
+  }
+  if (upstream.status === 416) {
+    // The bytes moved under the HEAD (or the store disagrees about the
+    // size): answer the lane's own 416, sized by what the store names.
+    await upstream.body?.cancel().catch(() => undefined);
+    const size = sizeFromContentRange(upstream.headers.get('content-range'));
+    return unsatisfiable(
+      size ?? (await headObject())?.size ?? 0,
+      attested ?? { etag: null, lastModified: null },
+    );
   }
   if (!upstream.ok) {
     await upstream.body?.cancel().catch(() => undefined);

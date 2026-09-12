@@ -10,16 +10,14 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   countWebsites,
-  createWebsiteRow,
   deregisterAndDeleteWebsite,
   fetchPageChunks,
   fetchWebsitePages,
   getWebsite,
-  getWebsiteByDomain,
   listWebsites,
   needsStatusSync,
-  normalizeListUrls,
   patchWebsite,
+  registerWebsite,
   resumeScanning,
   searchWebsiteContent,
   syncScanIntervalToCorpus,
@@ -41,7 +39,14 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof WebsiteError) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data === undefined ? {} : { data: error.data }),
+      },
+      error.status,
+    );
   }
   throw error;
 }
@@ -108,58 +113,21 @@ export function createWebsiteRoutes(deps: {
     );
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
-      const domain = new URL(
-        body.data.domain.startsWith('http')
-          ? body.data.domain
-          : `https://${body.data.domain}`,
-      ).hostname;
-      const isList = (body.data.urls?.length ?? 0) > 0;
-      const listedUrls = isList
-        ? normalizeListUrls(domain, body.data.urls ?? [])
-        : undefined;
-
-      // Same-org re-registration of a LIST merges (the corpus upsert adds
-      // the new URLs); site mode keeps the duplicate guard (the 0.4 #2056
-      // posture). The row write and the register job commit together: a
-      // 'scanning' row whose register job never landed would sit for the
-      // stuck-scan window and then scan a domain the corpus never saw.
-      const websiteId = await deps.sql.begin(async (tx) => {
-        let id: string;
-        const existing = isList
-          ? await getWebsiteByDomain(tx, c.get('orgId'), domain)
-          : null;
-        if (existing) {
-          await patchWebsite(tx, {
-            websiteId: existing.id,
-            scanInterval: body.data.scanInterval,
-            status: 'scanning',
-          });
-          id = existing.id;
-        } else {
-          id = await createWebsiteRow(tx, {
-            organizationId: c.get('orgId'),
-            domain,
-            ...(isList ? { kind: 'list' as const } : {}),
-            ...(body.data.title !== undefined
-              ? { title: body.data.title }
-              : {}),
-            ...(body.data.description !== undefined
-              ? { description: body.data.description }
-              : {}),
-            scanInterval: body.data.scanInterval,
-            status: 'scanning',
-          });
-        }
-        await addJobInTx(tx, 'websites.register', {
-          websiteId: id,
-          domain,
-          scanInterval: body.data.scanInterval,
-          organizationId: c.get('orgId'),
-          ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
-        });
-        return id;
+      // The one registration choreography, shared with the REST door
+      // (`registerWebsite`): a same-org re-post of a LIST merges (the
+      // corpus upsert adds the new URLs); a whole-site crawl, a bare
+      // duplicate or the www/apex sibling is the 409 naming the row.
+      const outcome = await registerWebsite(deps.sql, {
+        organizationId: c.get('orgId'),
+        domain: body.data.domain,
+        scanInterval: body.data.scanInterval,
+        ...(body.data.title !== undefined ? { title: body.data.title } : {}),
+        ...(body.data.description !== undefined
+          ? { description: body.data.description }
+          : {}),
+        ...(body.data.urls !== undefined ? { urls: body.data.urls } : {}),
       });
-      return c.json({ id: websiteId }, 201);
+      return c.json({ id: outcome.id }, 201);
     } catch (error) {
       return handleError(c, error);
     }

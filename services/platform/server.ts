@@ -763,14 +763,33 @@ export function createApp(
     });
   });
 
+  // The JSON twin is the one a browser-based monitor polls, so it is the
+  // one door of this tier that answers CORS: a public, key-less verdict
+  // carries nothing an origin could misuse, and without the header every
+  // dashboard had to proxy it. The HTML page gets no CORS — a person
+  // opens it directly.
+  const STATUS_JSON_CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Max-Age': '600',
+  };
   app.get('/status.json', async () => {
     const feed = buildStatusFeed(await probeServices());
     return new Response(renderStatusJson(feed), {
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=5',
+        ...STATUS_JSON_CORS,
       },
     });
+  });
+  // A preflight or a method probe on either status door answers 204 with
+  // the verbs it takes — the SPA fallback used to answer 404 to OPTIONS,
+  // which failed every cross-origin poll before it was made.
+  app.on('OPTIONS', ['/status', '/status.json'], (c) => {
+    const headers: Record<string, string> = { Allow: 'GET, HEAD, OPTIONS' };
+    if (c.req.path === '/status.json') Object.assign(headers, STATUS_JSON_CORS);
+    return new Response(null, { status: 204, headers });
   });
 
   app.get('/events/file', async (c) => {

@@ -1,3 +1,10 @@
+import path from 'node:path';
+
+import {
+  ifNoneMatchHolds,
+  parseEntityTag,
+  parseEntityTagList,
+} from '@tale/shared/http/entity-tag';
 import {
   isValidSkillSlug,
   SKILL_EDIT_VISIBILITIES,
@@ -9,23 +16,28 @@ import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import {
   blankStringsAsAbsent,
   blankStringsAsNull,
 } from '../../lib/shared/utils/blank-strings.ts';
 import { boundedJsonObject } from '../../lib/shared/utils/json-bounds.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
+import { decideInstanceAdmin } from '../core/deployment/auth_policy.ts';
 import {
   CONTENT_MAX_LENGTH,
+  KNOWLEDGE_SOURCE_PROVIDER,
+  normalizeTopicKey,
   TOPIC_MAX_LENGTH,
 } from '../core/knowledge_entries/constants.ts';
-import { KNOWLEDGE_SOURCE_PROVIDER } from '../core/knowledge_entries/constants.ts';
 import { PRODUCT_CATEGORY_MAX } from '../core/products/field_limits.ts';
 import {
   deleteSkillForViewer,
   listSkillsForViewer,
+  readSkillAssetForViewer,
   readSkillForViewer,
   saveSkillForViewer,
+  type SkillWritePrecondition,
 } from '../core/skills/file_actions.ts';
 import {
   contactBulkItemSchema,
@@ -66,6 +78,7 @@ import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
   findActiveEntryForDocument,
+  getKnowledgeEntryVersions,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
 import { listUserOrganizations } from '../domains/organizations/service.ts';
@@ -92,21 +105,21 @@ import {
   documentDeleteRefusal,
   domainErrorResponse,
   formatKeysetCursor,
-  invalidBodyResponse,
   loadRestProject,
   mintCursor,
   noQuery,
   notFound,
   PAGE_QUERY,
+  nonBlank,
   parseBody,
   queryFilter,
   readIntegerCursor,
-  readJsonBody,
   readKeysetCursor,
   readPageLimit,
   readQuery,
   type RestEnv,
   restProjectAuth,
+  serveDocumentBytes,
 } from './shared.ts';
 
 /**
@@ -171,6 +184,44 @@ const contactPatchBody = blankStringsAsNull(
 const productCreateBody = blankStringsAsAbsent(productCreateSchema);
 const productPatchBody = blankStringsAsNull(productPatchSchema);
 
+/** What `/me` says about the key itself. Keys are minted, rotated and
+ * revoked in the app — nothing under `/api/v1` does — so this is the one
+ * place an unattended caller can see its own expiry coming. */
+interface KeyFacts {
+  id: string;
+  name: string | null;
+  /** Epoch ms; null for a key that never expires. */
+  expiresAt: number | null;
+}
+
+/**
+ * The key row behind the verified session — by the id the door stashed,
+ * never by the plaintext. The api-key plugin's synthesized session names
+ * the key's expiry only when it has one (a never-expiring key gets a
+ * session-length date instead), so the row is the honest source. A row
+ * that vanished between the door and here (revoked mid-request) reads as
+ * no key.
+ */
+async function readKeyFacts(
+  sql: Sql,
+  apiKeyId: string,
+): Promise<KeyFacts | null> {
+  if (apiKeyId === '') return null;
+  const rows = await sql<
+    { id: string; name: string | null; expiresAt: Date | null }[]
+  >`
+    SELECT "id", "name", "expiresAt" FROM "apikey" WHERE "id" = ${apiKeyId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    expiresAt: row.expiresAt instanceof Date ? row.expiresAt.getTime() : null,
+  };
+}
+
 export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
@@ -187,6 +238,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * tells a client its own slug. */
   app.get('/me', noQuery, async (c) => {
     const memberships = await listUserOrganizations(deps.sql, c.get('userId'));
+    // The one gate on this surface a role does not decide — the
+    // browser-session pool's import and delete sit behind the deployment
+    // editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — answered here
+    // from the memberships already loaded, so a client learns before its
+    // first write whether the key may make it instead of branching on a
+    // 403 it could not have foreseen.
+    const deploymentEditor = decideInstanceAdmin({
+      email: c.get('userEmail'),
+      members: memberships.map((membership) => ({
+        organizationId: membership.organizationId,
+        role: membership.role,
+      })),
+      write: true,
+    }).ok;
     return c.json({
       user: { id: c.get('userId'), email: c.get('userEmail') },
       organization: {
@@ -200,6 +265,8 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: membership.name,
         role: membership.role,
       })),
+      capabilities: { deploymentEditor },
+      key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });
   });
 
@@ -459,6 +526,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     teamId: doc.teamId,
     folderId: doc.folderId,
     metadata: doc.metadata,
+    // The platform's own digest of the stored bytes (a knowledge entry's
+    // content, a synced file) — a column, never a key in the caller-owned
+    // `metadata` bag, so a metadata patch can no longer drop it.
+    contentHash: doc.contentHash,
     createdBy: doc.createdBy,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -550,27 +621,31 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/documents', async (c) => {
-    const body = z
-      .object({
-        title: z.string().min(1).max(512),
-        content: z.string().max(5_000_000).optional(),
-        fileId: z.string().max(2048).optional(),
-        mimeType: z.string().max(255).optional(),
-        extension: z.string().max(32).optional(),
-        sourceProvider: z.string().max(64).optional(),
-        metadata: boundedJsonObject().optional(),
-        teamId: z.string().max(128).optional(),
-        folderId: z.string().max(64).optional(),
-      })
-      .strict()
-      .safeParse(await readJsonBody(c, { maxBytes: DOCUMENT_BODY_BYTES }));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(
+      c,
+      z
+        .object({
+          // Trimmed before the check, as the domain stores it: a blank
+          // title is refused here with the house sentence, never as the
+          // domain's own `DOCUMENT_TITLE_INVALID`.
+          title: nonBlank(512),
+          content: z.string().max(5_000_000).optional(),
+          fileId: z.string().max(2048).optional(),
+          mimeType: z.string().max(255).optional(),
+          extension: z.string().max(32).optional(),
+          sourceProvider: z.string().max(64).optional(),
+          metadata: boundedJsonObject().optional(),
+          teamId: z.string().max(128).optional(),
+          folderId: z.string().max(64).optional(),
+        })
+        .strict(),
+      { maxBytes: DOCUMENT_BODY_BYTES },
+    );
+    if (body instanceof Response) return body;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const id = await deps.sql.begin((tx) =>
-        createHubDocument(tx, auth, body.data),
+        createHubDocument(tx, auth, body),
       );
       return c.json({ id }, 201);
     } catch (error) {
@@ -614,29 +689,53 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** The bytes lane of the Hub family — what `GET /documents/{id}` cannot
+   * carry for a file-backed document (`content` is null there): the blob
+   * streamed with the shared download choreography, or a content-only
+   * document's inline text, so every Hub document reads back from one
+   * URL. The same opaque 404 as the metadata read; HEAD answers the
+   * headers alone (Hono routes HEAD through the GET handler). */
+  app.get('/documents/:id/content', noQuery, async (c) => {
+    try {
+      const doc = await loadHubDocument(c, c.req.param('id'));
+      if (doc instanceof Response) return doc;
+      return await serveDocumentBytes(c, deps.sql, doc, {
+        absent: { message: 'Document not found', code: 'DOCUMENT_NOT_FOUND' },
+        inline: async () =>
+          (await readDocumentRestExtras(deps.sql, doc.id))?.content ?? null,
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
   /** Partial update. Answers 200 with the document as it now stands (the
    * GET view) — a client that sent `expectedUpdatedAt` needs the new
    * `updatedAt` for its next write, which a 204 could never carry. */
   app.patch('/documents/:id', async (c) => {
-    const body = z
-      .object({
-        title: z.string().min(1).max(512).optional(),
-        content: z.string().max(5_000_000).nullable().optional(),
-        metadata: boundedJsonObject().nullable().optional(),
-        mimeType: z.string().max(255).nullable().optional(),
-        extension: z.string().max(32).nullable().optional(),
-        sourceProvider: z.string().max(64).nullable().optional(),
-        teamId: z.string().max(128).nullable().optional(),
-        folderId: z.string().max(64).nullable().optional(),
-        // The contacts/products precondition: the `updatedAt` last read;
-        // a document another writer moved on answers 409 DOCUMENT_STALE.
-        expectedUpdatedAt: z.number().int().min(0).optional(),
-      })
-      .strict()
-      .safeParse(await readJsonBody(c, { maxBytes: DOCUMENT_BODY_BYTES }));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(
+      c,
+      z
+        .object({
+          title: nonBlank(512).optional(),
+          content: z.string().max(5_000_000).nullable().optional(),
+          // Merged per RFC 7396 by the service (the contacts/products
+          // rule): sent keys are set, omitted keys stay, a key sent as
+          // `null` is removed, the whole field as `null` clears it.
+          metadata: boundedJsonObject().nullable().optional(),
+          mimeType: z.string().max(255).nullable().optional(),
+          extension: z.string().max(32).nullable().optional(),
+          sourceProvider: z.string().max(64).nullable().optional(),
+          teamId: z.string().max(128).nullable().optional(),
+          folderId: z.string().max(64).nullable().optional(),
+          // The contacts/products precondition: the `updatedAt` last read;
+          // a document another writer moved on answers 409 DOCUMENT_STALE.
+          expectedUpdatedAt: z.number().int().min(0).optional(),
+        })
+        .strict(),
+      { maxBytes: DOCUMENT_BODY_BYTES },
+    );
+    if (body instanceof Response) return body;
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
@@ -644,17 +743,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // through the entry (a supersede rewrites them); the entry door is
       // the way to change what it says.
       if (
-        body.data.title !== undefined ||
-        body.data.content !== undefined ||
-        body.data.mimeType !== undefined ||
-        body.data.extension !== undefined
+        body.title !== undefined ||
+        body.content !== undefined ||
+        body.mimeType !== undefined ||
+        body.extension !== undefined
       ) {
         const backing = await knowledgeEntryBehind(c, doc);
         if (backing) return backing;
       }
       const auth = await restProjectAuth(deps.sql, c);
       const result = await deps.sql.begin((tx) =>
-        updateDocument(tx, auth, { documentId: doc.id, ...body.data }),
+        updateDocument(tx, auth, { documentId: doc.id, ...body }),
       );
       // Same post-commit re-stamp as the app door: a team or folder change
       // moves the corpus filters, not the embeddings.
@@ -768,12 +867,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * speaks. */
   const EMBEDDING_RETRY_AFTER_SECONDS = '5';
   const search = async (c: Context<RestEnv>, projectId: string | null) => {
-    const body = (
-      projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
-    ).safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(
+      c,
+      projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody,
+    );
+    if (body instanceof Response) return body;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       let access: KnowledgeAccessScope;
@@ -800,12 +898,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('organizationId'),
-        query: body.data.query,
-        corpus: projectId === null ? (body.data.corpus ?? 'all') : 'documents',
+        query: body.query,
+        corpus: projectId === null ? (body.corpus ?? 'all') : 'documents',
         access,
-        ...(body.data.limit !== undefined ? { limit: body.data.limit } : {}),
-        ...(body.data.minSimilarity !== undefined
-          ? { minSimilarity: body.data.minSimilarity }
+        ...(body.limit !== undefined ? { limit: body.limit } : {}),
+        ...(body.minSimilarity !== undefined
+          ? { minSimilarity: body.minSimilarity }
           : {}),
       });
       return c.json(result);
@@ -854,9 +952,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     source: string;
     documentId: string | null;
     supersededBy: string | null;
+    supersededAt: number | null;
     createdBy: string;
     createdAt: number;
-    seq: number;
   }
 
   const entryView = (row: RestEntryRow) => ({
@@ -867,13 +965,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     source: row.source,
     ...(row.documentId !== null ? { documentId: row.documentId } : {}),
     ...(row.supersededBy !== null ? { supersededBy: row.supersededBy } : {}),
+    // When the row was replaced — the moment the version history shows;
+    // only a superseded row carries it.
+    ...(row.supersededAt !== null ? { supersededAt: row.supersededAt } : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt,
   });
 
   const ENTRY_VIEW_COLUMNS = `
     id, topic, content, status, source, document_id AS "documentId",
-    superseded_by AS "supersededBy", created_by AS "createdBy",
+    superseded_by AS "supersededBy",
+    superseded_at_ms::float8 AS "supersededAt", created_by AS "createdBy",
     created_at_ms::float8 AS "createdAt", seq::float8 AS seq
   `;
 
@@ -881,18 +983,26 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const query = readQuery(c, {
       ...PAGE_QUERY,
       status: z.enum(['active', 'superseded']).optional(),
+      // One topic's rows, matched the way duplicates are (trimmed,
+      // whitespace collapsed, case-insensitive) on the indexed key —
+      // composable with `status`, so `?topic=…&status=superseded` is a
+      // fact's history without paging the organization's whole past.
+      topic: queryFilter(TOPIC_MAX_LENGTH).optional(),
     });
     if (query instanceof Response) return query;
     const status = query.status ?? 'active';
+    const topicKey =
+      query.topic === undefined ? null : normalizeTopicKey(query.topic);
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
     const cursor = readIntegerCursor(c, 'knowledge-entries');
     if (cursor instanceof Response) return cursor;
-    const rows = await deps.sql<RestEntryRow[]>`
+    const rows = await deps.sql<(RestEntryRow & { seq: number })[]>`
       SELECT ${deps.sql.unsafe(ENTRY_VIEW_COLUMNS)}
       FROM app.knowledge_entries
       WHERE org_id = ${c.get('organizationId')} AND status = ${status}
         AND deleted_at_ms IS NULL
+        AND (${topicKey}::text IS NULL OR topic_key = ${topicKey})
         AND (${cursor}::bigint IS NULL OR seq < ${cursor})
       ORDER BY seq DESC
       LIMIT ${limit + 1}
@@ -915,8 +1025,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * bare `KNOWLEDGE_ENTRY_TOPIC_TOO_LONG`; unknown keys are refused too. */
   const entryBody = z
     .object({
-      topic: z.string().min(1).max(TOPIC_MAX_LENGTH),
-      content: z.string().min(1).max(CONTENT_MAX_LENGTH),
+      // Trimmed before the checks, as the domain stores them: a
+      // whitespace-only topic used to pass the door's `min(1)` and surface
+      // as the domain's own `KNOWLEDGE_ENTRY_TOPIC_REQUIRED`, a code no
+      // contract listed.
+      topic: nonBlank(TOPIC_MAX_LENGTH),
+      content: nonBlank(CONTENT_MAX_LENGTH),
     })
     .strict();
 
@@ -948,22 +1062,22 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   app.post('/knowledge-entries', async (c) => {
-    const body = entryBody.safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, entryBody);
+    if (body instanceof Response) return body;
     const limited = await chargeKnowledgeMutate(c);
     if (limited) return limited;
     try {
-      const id = await createKnowledgeEntry(deps.sql, {
+      // `{id, documentId}`: the document is what a caller polls for
+      // `indexing`, so a create-then-poll is two calls, not three.
+      const written = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
         role: c.get('role'),
-        topic: body.data.topic,
-        content: body.data.content,
+        topic: body.topic,
+        content: body.content,
         source: 'manual',
       });
-      return c.json({ id }, 201);
+      return c.json(written, 201);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -977,25 +1091,41 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json(entryView(entry));
   });
 
+  /** The whole version chain of the entry's topic, newest first — active
+   * and superseded rows alike, keyed by the document every version
+   * re-materializes onto (a topic rename keeps the chain together); pruned
+   * versions are not listed. The same service the app's history panel
+   * reads. */
+  app.get('/knowledge-entries/:id/versions', noQuery, async (c) => {
+    const entry = await loadEntry(c, c.req.param('id'));
+    if (entry === null) {
+      return notFound(c, 'Entry not found', 'KNOWLEDGE_ENTRY_NOT_FOUND');
+    }
+    const versions = await getKnowledgeEntryVersions(
+      deps.sql,
+      c.get('organizationId'),
+      entry.id,
+    );
+    return c.json({ versions: versions.map(entryView) });
+  });
+
   /** Replace an entry's topic/content. Answers with the NEW row's id — an
    * update INSERTS the next active version and supersedes this one. */
   app.patch('/knowledge-entries/:id', async (c) => {
-    const body = entryBody.safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
+    const body = await parseBody(c, entryBody);
+    if (body instanceof Response) return body;
     const limited = await chargeKnowledgeMutate(c);
     if (limited) return limited;
     try {
-      const id = await updateKnowledgeEntry(deps.sql, {
+      const written = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
         role: c.get('role'),
         entryId: c.req.param('id'),
-        topic: body.data.topic,
-        content: body.data.content,
+        topic: body.topic,
+        content: body.content,
       });
-      return c.json({ id });
+      return c.json(written);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -1034,6 +1164,26 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     },
   });
 
+  /**
+   * The conditional headers of a skill write, parsed for the file layer,
+   * which evaluates them under the writer lock: absent stays absent;
+   * anything present — `*`, a tag list, or a value that is neither — is
+   * handed on as parsed. A malformed value matches nothing, so `If-Match`
+   * refuses and `If-None-Match` lets the write through, as RFC 9110 has it.
+   */
+  const skillPrecondition = (c: Context<RestEnv>): SkillWritePrecondition => {
+    const ifMatch = c.req.header('if-match');
+    const ifNoneMatch = c.req.header('if-none-match');
+    return {
+      ...(ifMatch === undefined
+        ? {}
+        : { ifMatch: parseEntityTagList(ifMatch) }),
+      ...(ifNoneMatch === undefined
+        ? {}
+        : { ifNoneMatch: parseEntityTagList(ifNoneMatch) }),
+    };
+  };
+
   app.get('/skills', noQuery, async (c) => {
     return c.json(await listSkillsForViewer(await skillCaller(c)));
   });
@@ -1052,7 +1202,65 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         slug,
       });
       if (!skill) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
-      return c.json(skill);
+      // The document's tag rides as `ETag` (RFC 9110 §8.8.3) so a client can
+      // send it back as `If-Match` on its save; a tag the client already
+      // holds answers 304 with the tag and no body (§13.1.2 — weak
+      // comparison, so a `W/` prefix counts).
+      const ifNoneMatch = c.req.header('if-none-match');
+      if (
+        ifNoneMatch !== undefined &&
+        !ifNoneMatchHolds(
+          parseEntityTagList(ifNoneMatch),
+          parseEntityTag(skill.etag),
+        )
+      ) {
+        return c.body(null, 304, { etag: skill.etag });
+      }
+      return c.json(skill, 200, { etag: skill.etag });
+    } catch (error) {
+      return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
+    }
+  });
+
+  /**
+   * One file of a bundle, raw — `files[].path` of the skill names it, `/`
+   * raw or `%2F`. The bytes are whatever the author staged, so they never
+   * render on this origin: `application/octet-stream`, an attachment
+   * disposition carrying the file's own name, `nosniff`, private and
+   * uncacheable — the posture of every blob lane on this door. A path the
+   * bundle walk would never produce (`..`, a dot-entry, `node_modules/…`)
+   * reads as a file the bundle does not have.
+   */
+  app.get('/skills/:slug/files/:path{.+}', noQuery, async (c) => {
+    const slug = c.req.param('slug');
+    if (!isValidSkillSlug(slug)) {
+      return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
+    }
+    try {
+      const asset = await readSkillAssetForViewer({
+        ...(await skillCaller(c)),
+        slug,
+        path: c.req.param('path'),
+      });
+      if (asset.kind === 'no-skill') {
+        return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
+      }
+      if (asset.kind === 'no-file') {
+        return notFound(c, 'Skill file not found', 'SKILL_FILE_NOT_FOUND');
+      }
+      const headers = new Headers({
+        'content-type': 'application/octet-stream',
+        'content-length': String(asset.content.byteLength),
+        'content-disposition': attachmentDisposition(
+          path.posix.basename(asset.path),
+        ),
+        'x-content-type-options': 'nosniff',
+        'cache-control': 'private, no-store',
+      });
+      return new Response(
+        c.req.method === 'HEAD' ? null : new Uint8Array(asset.content),
+        { status: 200, headers },
+      );
     } catch (error) {
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
@@ -1084,22 +1292,24 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         );
       }
     }
-    // RFC 9110 §13.1.2: `If-None-Match: *` asks for a pure create — the
-    // write happens only when nothing is stored under the slug. No entity
-    // tag is issued, so a tag list can match nothing and the write goes
-    // ahead, as the RFC has it.
-    const createOnly = c.req.header('if-none-match')?.trim() === '*';
+    // RFC 9110 §13.1.1 / §13.1.2: `If-Match` guards an update with the tag
+    // the caller last read (412 `SKILL_STALE` when the document moved or
+    // is not there), `If-None-Match: *` asks for a pure create (412
+    // `SKILL_EXISTS` when the slug is taken). Both are evaluated by the
+    // file layer inside the writer lock, against the document the save
+    // would replace.
+    const precondition = skillPrecondition(c);
     try {
       const who = await skillCaller(c);
       const slug = c.req.param('slug');
       // Serialized with the upload lane and the app editor on the per-slug
-      // writer lock (`writer_lock.ts`); the create-only check runs inside
-      // it, so two racing creates cannot both win.
+      // writer lock (`writer-lock.ts`); the precondition runs inside it, so
+      // two racing conditional saves cannot both find their tag current.
       const saved = await withSkillWriterLock(
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, createOnly, ...body }),
+        () => saveSkillForViewer({ ...who, slug, precondition, ...body }),
       );
       return c.json(saved);
     } catch (error) {
@@ -1112,13 +1322,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (!isValidSkillSlug(slug)) {
       return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
     }
+    const precondition = skillPrecondition(c);
     try {
       const who = await skillCaller(c);
       const deleted = await withSkillWriterLock(
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => deleteSkillForViewer({ ...who, slug }),
+        () => deleteSkillForViewer({ ...who, slug, precondition }),
       );
       if (!deleted) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       return c.body(null, 204);

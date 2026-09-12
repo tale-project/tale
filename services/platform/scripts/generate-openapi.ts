@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { contractFingerprint } from './openapi/fingerprint.ts';
 import { buildSpec } from './openapi/spec.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,8 +28,23 @@ function main() {
   const outputPath = join(platformDir, 'public', 'openapi.json');
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
-  writeFileSync(outputPath, JSON.stringify(buildSpec(), null, 2), 'utf-8');
+  const spec = buildSpec();
+  writeFileSync(outputPath, JSON.stringify(spec, null, 2), 'utf-8');
   console.log(`OpenAPI spec written to ${outputPath}`);
+  // The fingerprint `spec.test.ts` holds `info.version` to: regenerate it
+  // with every contract change, and bump the version when it moves.
+  const fingerprintPath = join(
+    __dirname,
+    'openapi',
+    'contract-fingerprint.json',
+  );
+  const info = spec.info as { version: string };
+  writeFileSync(
+    fingerprintPath,
+    `${JSON.stringify({ version: info.version, ...contractFingerprint(spec) }, null, 2)}\n`,
+    'utf-8',
+  );
+  console.log(`Contract fingerprint written to ${fingerprintPath}`);
 }
 
 main();

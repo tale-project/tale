@@ -26,7 +26,6 @@ import {
 } from '../../lib/rate-limit.ts';
 import {
   AutomationError,
-  beginRun,
   beginRunInTx,
   getRun,
   resolveRunProject,
@@ -73,10 +72,18 @@ interface TriggerRow {
   tokenHash: string | null;
   event: string | null;
   enabled: boolean;
+  /** The last occurrence (schedule) or moment (event, webhook) this binding
+   * STARTED A RUN for — stamped with the run, never before it. */
   lastFiredAt: number | null;
+  /** The occurrence the scan last CLAIMED — the cursor an overlapping scan
+   * loses against, whether or not a run followed (migration 0096). */
+  lastDueAt: number | null;
+  /** The last time the binding came due and started nothing, and why. */
+  lastSkippedAt: number | null;
+  lastSkipReason: string | null;
   createdAt: number;
   /** The last (re)bind — where a schedule's "since" starts when the bind
-   * cleared its fire stamp (a kind change), so a trigger re-bound as a
+   * cleared its stamps (a kind change), so a trigger re-bound as a
    * schedule never fires an occurrence from before it was one. */
   updatedAt: number;
 }
@@ -85,9 +92,50 @@ const TRIGGER_COLUMNS = `
   id, org_id AS "organizationId", name, kind, cron, timezone,
   token_hash AS "tokenHash", event, enabled,
   last_fired_at_ms::float8 AS "lastFiredAt",
+  last_due_at_ms::float8 AS "lastDueAt",
+  last_skipped_at_ms::float8 AS "lastSkippedAt",
+  last_skip_reason AS "lastSkipReason",
   created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt"
 `;
+
+/** Why a binding came due and started nothing — the ledger's closed set
+ * (the column's CHECK, migration 0096). */
+type SkipReason = 'not_deployed' | 'unusable_cron' | 'start_refused';
+
+/** A schedule whose expression cannot be read is left alone until its next
+ * edit; should the stamp that keeps it out of the page ever fail to hold,
+ * the line is written again at most this often. */
+const UNUSABLE_WARN_INTERVAL_MS = 60 * 60 * 1000;
+
+/** The binding started a run: the fire stamp and the run it names, in the
+ * caller's transaction — the one that inserts the run. */
+async function stampFired(
+  sql: Sql | TransactionSql,
+  triggerId: string,
+  at: number,
+  runId: string,
+): Promise<void> {
+  await sql`
+    UPDATE app.automation_triggers
+    SET last_fired_at_ms = ${at}, last_run_id = ${runId}
+    WHERE id = ${triggerId}
+  `;
+}
+
+/** The binding came due and started nothing. */
+async function stampSkipped(
+  sql: Sql | TransactionSql,
+  triggerId: string,
+  at: number,
+  reason: SkipReason,
+): Promise<void> {
+  await sql`
+    UPDATE app.automation_triggers
+    SET last_skipped_at_ms = ${at}, last_skip_reason = ${reason}
+    WHERE id = ${triggerId}
+  `;
+}
 
 export interface ScheduleScanResult {
   /** Enabled schedules examined — every one of them, across all pages. */
@@ -98,6 +146,10 @@ export interface ScheduleScanResult {
   pages: number;
   /** Occurrences claimed whose automation has no deployed version to run. */
   undeployed: number;
+  /** Occurrences claimed whose deployed version refused the run's input. */
+  refused: number;
+  /** Schedules whose expression or zone could not be read this scan. */
+  unusable: number;
 }
 
 export async function scanScheduledTriggers(
@@ -114,18 +166,29 @@ export async function scanScheduledTriggers(
     fired: 0,
     pages: 0,
     undeployed: 0,
+    refused: 0,
+    unusable: 0,
   };
   const undeployedNames: string[] = [];
+  const refusedNames: string[] = [];
   let cursor: string | null = null;
   for (;;) {
     // A keyset walk in id order: deterministic, complete, and bounded per
     // page — the LIMIT is how much sits in memory at once, not how many
     // triggers the platform serves. The 0.4-era `LIMIT 200` with no ORDER BY
     // handed the 201st enabled schedule to heap order, i.e. to never.
+    // The cursor is the LATER of the claim and the fire stamp: a previous
+    // image still claims on `last_fired_at_ms` alone during a roll (0096).
+    // A schedule stamped unusable stays out of the page until it is edited
+    // — re-parsing a broken expression every minute told nobody anything.
     const page: TriggerRow[] = await sql<TriggerRow[]>`
       SELECT ${sql.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
       WHERE kind = 'schedule' AND enabled = true
-        AND (last_fired_at_ms IS NULL OR last_fired_at_ms < ${floor})
+        AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
+             OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${floor})
+        AND (last_skip_reason IS DISTINCT FROM 'unusable_cron'
+             OR last_skipped_at_ms IS NULL
+             OR updated_at_ms > last_skipped_at_ms)
         AND (${cursor}::text IS NULL OR id > ${cursor})
       ORDER BY id
       LIMIT ${pageSize}
@@ -134,7 +197,10 @@ export async function scanScheduledTriggers(
     result.examined += page.length;
     for (const trigger of page) {
       if (trigger.cron === null || trigger.cron === '') continue;
-      const since = trigger.lastFiredAt ?? trigger.updatedAt;
+      const stamps = [trigger.lastDueAt, trigger.lastFiredAt].filter(
+        (stamp): stamp is number => stamp !== null,
+      );
+      const since = stamps.length > 0 ? Math.max(...stamps) : trigger.updatedAt;
       let due: number | null;
       try {
         due = dueOccurrence(
@@ -145,38 +211,80 @@ export async function scanScheduledTriggers(
         );
       } catch (error) {
         // A schedule the author wrote wrong must not stop the whole scan.
-        console.warn(
-          `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
-          error instanceof Error ? error.message : error,
-        );
+        // The skip stamp is what the trigger read shows for it and what
+        // keeps it out of the next page; the line is written when the
+        // reason is news (or once an hour, should the stamp not hold).
+        result.unusable++;
+        if (
+          trigger.lastSkipReason !== 'unusable_cron' ||
+          trigger.lastSkippedAt === null ||
+          now - trigger.lastSkippedAt > UNUSABLE_WARN_INTERVAL_MS
+        ) {
+          console.warn(
+            `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+        await stampSkipped(sql, trigger.id, now, 'unusable_cron');
         continue;
       }
       if (due === null) continue;
-      // CLAIM the occurrence BEFORE starting — and conditionally: a run that
-      // throws must not leave the schedule re-firing the same minute on every
-      // tick, and two overlapping scans (an expired job's retry, two workers)
-      // must fire it once. The loser's UPDATE matches no row and moves on.
-      const claimed = await sql<{ id: string }[]>`
-        UPDATE app.automation_triggers SET last_fired_at_ms = ${due}
-        WHERE id = ${trigger.id}
-          AND (last_fired_at_ms IS NULL OR last_fired_at_ms < ${due})
-        RETURNING id
-      `;
-      if (claimed.length === 0) continue;
-      const started = await beginRun(sql, {
-        organizationId: trigger.organizationId,
-        name: trigger.name,
-        input: { trigger: 'schedule', firedAt: due },
-        mode: 'live',
-        startedBy: `trigger:${trigger.id}`,
-      });
-      if (started) {
-        result.fired++;
-      } else {
-        result.undeployed++;
-        if (undeployedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
-          undeployedNames.push(`${trigger.organizationId}/${trigger.name}`);
+      // CLAIM the occurrence first, conditionally: two overlapping scans (an
+      // expired job's retry, two workers) must fire it once — the loser's
+      // UPDATE waits on the row and then matches nothing. The claim, the
+      // run and the fire stamp commit TOGETHER, so the stamp can never
+      // precede the run it names and a start that fails to commit takes
+      // its claim with it. What the deployed version refuses keeps its
+      // claim — rolling it back would retry the same refusal every minute.
+      const outcome = await sql.begin(async (tx) => {
+        const claimed = await tx<{ id: string }[]>`
+          UPDATE app.automation_triggers SET last_due_at_ms = ${due}
+          WHERE id = ${trigger.id}
+            AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
+                 OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
+          RETURNING id
+        `;
+        if (claimed.length === 0) return { kind: 'lost' as const };
+        let started: { runId: string; version: number } | null;
+        try {
+          started = await beginRunInTx(tx, {
+            organizationId: trigger.organizationId,
+            name: trigger.name,
+            input: { trigger: 'schedule', firedAt: due },
+            mode: 'live',
+            startedBy: `trigger:${trigger.id}`,
+          });
+        } catch (error) {
+          if (!(error instanceof AutomationError)) throw error;
+          await stampSkipped(tx, trigger.id, now, 'start_refused');
+          return { kind: 'refused' as const, reason: error.message };
         }
+        if (started === null) {
+          await stampSkipped(tx, trigger.id, now, 'not_deployed');
+          return { kind: 'not_deployed' as const };
+        }
+        await stampFired(tx, trigger.id, due, started.runId);
+        return { kind: 'fired' as const };
+      });
+      const label = `${trigger.organizationId}/${trigger.name}`;
+      switch (outcome.kind) {
+        case 'fired':
+          result.fired++;
+          break;
+        case 'not_deployed':
+          result.undeployed++;
+          if (undeployedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
+            undeployedNames.push(label);
+          }
+          break;
+        case 'refused':
+          result.refused++;
+          if (refusedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
+            refusedNames.push(`${label} (${outcome.reason})`);
+          }
+          break;
+        case 'lost':
+          break;
       }
     }
     if (page.length < pageSize) break;
@@ -190,6 +298,12 @@ export async function scanScheduledTriggers(
     const more = result.undeployed - undeployedNames.length;
     console.warn(
       `[automations] trigger scan: ${result.undeployed} due schedule(s) have no deployed version to run: ${undeployedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
+    );
+  }
+  if (result.refused > 0) {
+    const more = result.refused - refusedNames.length;
+    console.warn(
+      `[automations] trigger scan: ${result.refused} due schedule(s) were refused by their deployed version: ${refusedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
     );
   }
   return result;
@@ -219,10 +333,9 @@ export async function dispatchAutomationEvent(
   `;
   const started: string[] = [];
   for (const trigger of triggers) {
-    await tx`
-      UPDATE app.automation_triggers SET last_fired_at_ms = ${Date.now()}
-      WHERE id = ${trigger.id}
-    `;
+    // The producer's transaction carries the run AND the stamp that names
+    // it; a binding whose automation has nothing deployed records the
+    // skip instead of a "fire" that started nothing.
     const run = await beginRunInTx(tx, {
       organizationId: args.organizationId,
       name: trigger.name,
@@ -230,7 +343,13 @@ export async function dispatchAutomationEvent(
       mode: 'live',
       startedBy: `trigger:${trigger.id}`,
     });
-    if (run) started.push(run.runId);
+    const now = Date.now();
+    if (run) {
+      await stampFired(tx, trigger.id, now, run.runId);
+      started.push(run.runId);
+    } else {
+      await stampSkipped(tx, trigger.id, now, 'not_deployed');
+    }
   }
   return { started, refused: false };
 }
@@ -248,12 +367,12 @@ class NotDeployedError extends Error {
 /** The store's project-scope refusals, which the token door answers as ONE
  * 403 that names neither the automation nor the reason: a caller holding
  * only a URL must not learn which project ids exist in the organization,
- * whether one is archived, or what the automation behind the token is
- * called (its slug used to ride in the "not bound" sentence). */
+ * whether one is archived (checked below, after the scope), or what the
+ * automation behind the token is called (its slug used to ride in the "not
+ * bound" sentence). */
 const PROJECT_SCOPE_CODES: ReadonlySet<string> = new Set([
   'AUTOMATION_PROJECT_UNKNOWN',
   'AUTOMATION_PROJECT_FORBIDDEN',
-  'AUTOMATION_PROJECT_ARCHIVED',
 ]);
 
 function projectForbidden(): AutomationError {
@@ -369,14 +488,11 @@ async function acceptWebhookDelivery(
       UPDATE app.automation_webhook_deliveries SET run_id = ${started.runId}
       WHERE trigger_id = ${trigger.id} AND delivery_key = ${identity.key}
     `;
-    // The trigger's `lastFiredAt` is the one thing the trigger read shows
-    // about a webhook's history; the schedule and event paths stamp it,
-    // and this path never did — an accepted delivery left it null forever.
-    // A replayed delivery reuses its run and stamps nothing.
-    await tx`
-      UPDATE app.automation_triggers SET last_fired_at_ms = ${now}
-      WHERE id = ${trigger.id}
-    `;
+    // The trigger's `lastFiredAt` and `lastRunId` are what the trigger read
+    // shows about a webhook's history; the schedule and event paths stamp
+    // them, and this path never did — an accepted delivery left them null
+    // forever. A replayed delivery reuses its run and stamps nothing.
+    await stampFired(tx, trigger.id, now, started.runId);
     // Lazy housekeeping on the accepted path: this trigger's expired
     // identities go with the delivery that outlived them (no sweeper job).
     await tx`
@@ -519,6 +635,10 @@ export function createWebhookRoutes(deps: {
       );
     } catch (error) {
       if (error instanceof NotDeployedError) {
+        // The delivery's transaction rolled back with its claim; the skip
+        // is recorded on its own, so the trigger read shows that the URL
+        // was hit and why nothing started.
+        await stampSkipped(deps.sql, trigger.id, Date.now(), 'not_deployed');
         return c.json(
           { error: error.message, code: 'AUTOMATION_NOT_DEPLOYED' },
           409,

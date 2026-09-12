@@ -234,6 +234,20 @@ describe('classifyChatErrorCode', () => {
   });
 });
 
+describe('the pipeline’s own busy claim', () => {
+  it('classifies THREAD_BUSY as thread_busy, never the generic bucket', () => {
+    const busy = Object.assign(
+      new Error('This conversation is already generating a response.'),
+      { code: 'THREAD_BUSY' },
+    );
+    expect(classifyChatErrorCode(busy)).toBe('thread_busy');
+    expect(
+      decodeChatError(encodeChatError({ code: 'thread_busy', raw: 'busy' }))
+        .code,
+    ).toBe('thread_busy');
+  });
+});
+
 describe('isChatErrorCode', () => {
   it('accepts every declared code and rejects others', () => {
     for (const code of CHAT_ERROR_CODES) {

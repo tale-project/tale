@@ -7,6 +7,8 @@ import {
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
+import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config.ts';
+import { applyJsonMergePatch } from '../../../lib/shared/utils/json-merge-patch.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
@@ -644,16 +646,59 @@ export async function updateDocument(
   // A folder move is a corpus FILTER change too (folder-scoped search
   // matches the stamped path) — the caller re-stamps after commit.
   const folderChanged = folderId !== doc.folderId;
+  // `metadata` is a bag of attributes and merges per RFC 7396 — the
+  // contacts/products rule: sent keys are set, omitted keys stay, a key
+  // sent as `null` is removed, and the whole field sent as `null` clears
+  // it. It used to be replaced whole, so a caller tagging a document
+  // wiped every other key in the bag, in silence.
+  const metadata =
+    args.metadata === undefined
+      ? doc.metadata
+      : args.metadata === null
+        ? null
+        : applyJsonMergePatch(doc.metadata, args.metadata);
+  const mimeType = args.mimeType === undefined ? doc.mimeType : args.mimeType;
+  const extension =
+    args.extension === undefined ? doc.extension : args.extension;
+  const sourceProvider =
+    args.sourceProvider === undefined
+      ? doc.sourceProvider
+      : args.sourceProvider;
+  // A write that changes nothing writes nothing: `updated_at_ms` is the
+  // optimistic-concurrency token every other client holds, so an empty
+  // PATCH, or a retry whose diff reduced to nothing, must not spend it
+  // and hand every concurrent writer a spurious DOCUMENT_STALE. The bytes
+  // are compared in the database (`IS NOT DISTINCT FROM`) rather than
+  // read back — inline content runs to megabytes.
+  const contentChanged =
+    args.content !== undefined &&
+    !(await contentMatches(tx, args.documentId, args.content));
+  const changed =
+    title !== doc.title ||
+    folderChanged ||
+    teamScopeChanged ||
+    contentChanged ||
+    canonicalJson(metadata) !== canonicalJson(doc.metadata) ||
+    mimeType !== doc.mimeType ||
+    extension !== doc.extension ||
+    sourceProvider !== doc.sourceProvider;
+  if (!changed) {
+    return {
+      teamScopeChanged: false,
+      folderChanged: false,
+      fileRef: doc.fileRef,
+    };
+  }
 
   await tx`
     UPDATE app.documents SET
       title = ${title}, folder_id = ${folderId}, team_id = ${teamId},
       team_tags = ${teamTags},
       content = ${args.content !== undefined ? args.content : tx.unsafe('content')},
-      metadata = ${args.metadata !== undefined ? (args.metadata === null ? null : tx.json(toJson(args.metadata))) : tx.unsafe('metadata')},
-      mime_type = ${args.mimeType !== undefined ? args.mimeType : tx.unsafe('mime_type')},
-      extension = ${args.extension !== undefined ? args.extension : tx.unsafe('extension')},
-      source_provider = ${args.sourceProvider !== undefined ? args.sourceProvider : tx.unsafe('source_provider')},
+      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
+      mime_type = ${mimeType},
+      extension = ${extension},
+      source_provider = ${sourceProvider},
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.documentId}
   `;
@@ -663,6 +708,27 @@ export async function updateDocument(
     projectId: doc.projectId,
   });
   return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
+}
+
+/** Whether the stored `content` already IS `content` — decided by the
+ * database, so a multi-megabyte inline text is never read back to compare
+ * (`IS NOT DISTINCT FROM` treats two NULLs as the same). */
+async function contentMatches(
+  tx: TransactionSql,
+  documentId: string,
+  content: string | null,
+): Promise<boolean> {
+  const rows = await tx<{ same: boolean }[]>`
+    SELECT (content IS NOT DISTINCT FROM ${content}::text) AS same
+    FROM app.documents WHERE id = ${documentId} LIMIT 1
+  `;
+  return rows[0]?.same ?? false;
+}
+
+/** One spelling per JSON value, so two metadata bags compare by meaning
+ * (key order is not a change). */
+function canonicalJson(value: Record<string, unknown> | null): string {
+  return JSON.stringify(value === null ? null : sortObjectKeysDeep(value));
 }
 
 // ---------------------------------------------------------------------------
@@ -1654,11 +1720,136 @@ export async function assertUploadTypeAllowedForOrg(
   return { contentType, extension };
 }
 
+/** A byte count in the unit the caps are set in — binary mebibytes, and
+ * named so: the platform's ceiling is 100 MiB (104,857,600 bytes), which a
+ * client that read "100 MB" and sent 100,000,000 bytes was refused on. */
+function mebibytes(bytes: number): string {
+  const whole = bytes / (1024 * 1024);
+  return `${Number.isInteger(whole) ? whole : whole.toFixed(1)} MiB`;
+}
+
+/**
+ * The organization's per-file size cap for a content type: the policy's
+ * per-MIME override (longest prefix wins) over its global cap, or none.
+ * ONE reading for the bind gate and the mint, so the number the mint
+ * advertises is the number the bind refuses on.
+ */
+function resolvePolicySizeLimit(
+  policy: UploadPolicyConfig,
+  contentType: string,
+): number | undefined {
+  let limit = policy.maxFileSizeBytes ?? undefined;
+  if ((policy.maxFileSizeLimits?.length ?? 0) > 0) {
+    const override = [...(policy.maxFileSizeLimits ?? [])]
+      .filter((entry) => contentType.startsWith(entry.mimeTypePrefix))
+      .sort((a, b) => b.mimeTypePrefix.length - a.mimeTypePrefix.length)[0];
+    if (override) limit = override.maxBytes;
+  }
+  return limit;
+}
+
+/**
+ * The largest file the organization accepts for a content type, in bytes:
+ * the platform ceiling (`DOCUMENT_MAX_FILE_SIZE`) or the policy's cap
+ * when it is lower. What an upload mint answers as `maxBytes`, so a
+ * client learns the number before its bytes travel — it used to be
+ * discoverable only by uploading past it and reading the bind's refusal.
+ */
+export async function effectiveUploadMaxBytes(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: { fileName?: string; contentType?: string } = {},
+): Promise<number> {
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'upload_policy',
+  );
+  if (policy?.enabled !== true) return DOCUMENT_MAX_FILE_SIZE;
+  const contentType = resolveFileType(
+    args.fileName ?? '',
+    args.contentType ?? '',
+  );
+  const limit = resolvePolicySizeLimit(policy, contentType);
+  return limit === undefined
+    ? DOCUMENT_MAX_FILE_SIZE
+    : Math.min(limit, DOCUMENT_MAX_FILE_SIZE);
+}
+
+/**
+ * The size half of the upload policy: the platform ceiling, the policy's
+ * per-file cap for the resolved type, and the per-user volume quota —
+ * against `size`, the bytes as HEADed at the bind or as declared at the
+ * mint. Shared by the bind gate below and the mint, so a size the bind
+ * would refuse is refused before the bytes travel (D-03: a 128 MiB blob
+ * used to upload for over a minute and be refused on arrival).
+ */
+export async function assertUploadSizeAllowedForOrg(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  args: { fileName: string; contentType?: string; size: number },
+): Promise<void> {
+  const contentType = resolveFileType(args.fileName, args.contentType ?? '');
+  if (!Number.isFinite(args.size) || args.size < 0) {
+    throw new DocumentError(
+      'UPLOAD_BLOB_INVALID',
+      'The uploaded file size is invalid.',
+    );
+  }
+  if (args.size > DOCUMENT_MAX_FILE_SIZE) {
+    throw new DocumentError(
+      'FILE_TOO_LARGE',
+      `File exceeds the ${mebibytes(DOCUMENT_MAX_FILE_SIZE)} limit`,
+      400,
+      { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
+    );
+  }
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'upload_policy',
+  );
+  if (policy?.enabled !== true) return;
+  const limit = resolvePolicySizeLimit(policy, contentType);
+  if (limit !== undefined && args.size > limit) {
+    throw new DocumentError(
+      'UPLOAD_POLICY_REJECTED',
+      `File size exceeds the ${mebibytes(limit)} limit`,
+      400,
+      { reasonCode: 'file_too_large', limitBytes: limit },
+    );
+  }
+  if (policy.maxTotalVolumeBytesPerUser != null) {
+    const rows = await sql<{ total: string | null }[]>`
+      SELECT sum(size)::text AS total FROM app.file_metadata
+      WHERE org_id = ${auth.organizationId}
+        AND uploaded_by = ${auth.userId}
+    `;
+    const usedBytes = Number(rows[0]?.total ?? '0');
+    if (usedBytes + args.size > policy.maxTotalVolumeBytesPerUser) {
+      const maxGiB = Math.round(
+        policy.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024),
+      );
+      throw new DocumentError(
+        'UPLOAD_POLICY_REJECTED',
+        `Total upload volume would exceed the ${maxGiB} GiB limit`,
+        400,
+        {
+          reasonCode: 'volume_exceeded',
+          usedBytes,
+          limitBytes: policy.maxTotalVolumeBytesPerUser,
+        },
+      );
+    }
+  }
+}
+
 /**
  * Gate a blob before it becomes a document's current file: org rate limit,
- * global size ceiling, the org's upload policy (extension/MIME/size caps +
- * per-user volume quota), then the global format allowlist. Throws
- * `DocumentError` with the 0.4 wire codes + structured refusal data.
+ * the org's upload policy (extension/MIME allowlists), the size half —
+ * global ceiling, the policy's size caps, the per-user volume quota — then
+ * the global format allowlist. Throws `DocumentError` with the 0.4 wire
+ * codes + structured refusal data.
  */
 export async function validateDocumentUploadForOrg(
   sql: Sql | TransactionSql,
@@ -1683,21 +1874,6 @@ export async function validateDocumentUploadForOrg(
   }
   const contentType = resolveFileType(args.fileName, args.contentType ?? '');
   const extension = extractExtension(args.fileName);
-  if (!Number.isFinite(args.size) || args.size < 0) {
-    throw new DocumentError(
-      'UPLOAD_BLOB_INVALID',
-      'The uploaded file size is invalid.',
-    );
-  }
-  if (args.size > DOCUMENT_MAX_FILE_SIZE) {
-    throw new DocumentError(
-      'FILE_TOO_LARGE',
-      `File exceeds the ${Math.round(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024))} MB limit`,
-      400,
-      { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
-    );
-  }
-
   const policy = await readGovernancePolicyForOrg(
     sql,
     auth.organizationId,
@@ -1705,46 +1881,8 @@ export async function validateDocumentUploadForOrg(
   );
   if (policy?.enabled === true) {
     assertUploadTypeAllowedByPolicy(policy, contentType, extension);
-    // Per-MIME override wins over the global cap; longest prefix match.
-    let limit = policy.maxFileSizeBytes ?? undefined;
-    if ((policy.maxFileSizeLimits?.length ?? 0) > 0) {
-      const override = [...(policy.maxFileSizeLimits ?? [])]
-        .filter((entry) => contentType.startsWith(entry.mimeTypePrefix))
-        .sort((a, b) => b.mimeTypePrefix.length - a.mimeTypePrefix.length)[0];
-      if (override) limit = override.maxBytes;
-    }
-    if (limit !== undefined && args.size > limit) {
-      throw new DocumentError(
-        'UPLOAD_POLICY_REJECTED',
-        `File size exceeds the ${Math.round(limit / (1024 * 1024))} MB limit`,
-        400,
-        { reasonCode: 'file_too_large', limitBytes: limit },
-      );
-    }
-    if (policy.maxTotalVolumeBytesPerUser != null) {
-      const rows = await sql<{ total: string | null }[]>`
-        SELECT sum(size)::text AS total FROM app.file_metadata
-        WHERE org_id = ${auth.organizationId}
-          AND uploaded_by = ${auth.userId}
-      `;
-      const usedBytes = Number(rows[0]?.total ?? '0');
-      if (usedBytes + args.size > policy.maxTotalVolumeBytesPerUser) {
-        const maxGB = Math.round(
-          policy.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024),
-        );
-        throw new DocumentError(
-          'UPLOAD_POLICY_REJECTED',
-          `Total upload volume would exceed the ${maxGB} GB limit`,
-          400,
-          {
-            reasonCode: 'volume_exceeded',
-            usedBytes,
-            limitBytes: policy.maxTotalVolumeBytesPerUser,
-          },
-        );
-      }
-    }
   }
+  await assertUploadSizeAllowedForOrg(sql, auth, args);
 
   assertUploadFormatSupported(contentType, args.fileName);
   return { contentType, extension };

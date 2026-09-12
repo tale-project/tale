@@ -11,6 +11,25 @@ describe('previewCronExpression', () => {
     expect(previewCronExpression('not a cron', 'UTC').kind).toBe('invalid');
   });
 
+  it.each(['0 0 30 2 *', '0 0 31 4 *', '0 0 31 4,6,9,11 *'])(
+    'flags %s — a day no month it names has — like the bind refuses it',
+    (cron) => {
+      // The parser alone accepted `0 0 31 4,6 *` and previewed a date
+      // decades ahead; the preview now refuses exactly what the save does.
+      expect(previewCronExpression(cron, 'UTC').kind).toBe('invalid');
+    },
+  );
+
+  it.each(['0 0 31 * *', '0 0 29 2 *', '0 0 31 4,5 *'])(
+    'keeps %s — a day some named month has',
+    (cron) => {
+      expect(
+        previewCronExpression(cron, 'UTC', new Date('2026-09-02T14:41:00Z'))
+          .kind,
+      ).toBe('ok');
+    },
+  );
+
   it('summarizes every-N-minutes and returns the next fire', () => {
     const preview = previewCronExpression(
       '*/5 * * * *',

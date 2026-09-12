@@ -27,7 +27,7 @@ Il n’y a aucun interrupteur d’écriture dans les connaissances à activer ag
 
 Le sujet est la clé de déduplication : une modification remplace la version active au lieu d’en ajouter une seconde — la base de connaissances ne sert jamais deux versions du même fait. Ajouter une nouvelle entrée sous un sujet existant est refusé avec une erreur de sujet en double ; modifie l’entrée existante à la place.
 
-Les versions remplacées ne sont pas perdues. Ouvre une entrée pour voir ses détails — le statut d’indexation, la dernière mise à jour et l’**Historique des versions**, avec chaque version remplacée et la date de son remplacement. Seule la version active est indexée pour la récupération ; l’historique existe pour l’audit et la référence.
+Les versions remplacées ne sont pas perdues. Ouvre une entrée pour voir ses détails — le statut d’indexation, la dernière mise à jour et l’**Historique des versions**, avec chaque version remplacée et la date de son remplacement. Seule la version active est indexée pour la récupération ; l’historique existe pour l’audit et la référence. Par l’API, le même historique est `GET /api/v1/knowledge-entries/{id}/versions`, et `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` liste les versions remplacées d’un sujet, chacune avec son `supersededAt` — voir la [référence API](/fr/develop/api-reference).
 
 ## Modifier, indexer, supprimer
 

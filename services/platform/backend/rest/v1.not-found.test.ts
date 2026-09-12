@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../auth/auth.ts';
+import { apiPathWithoutTrailingSlash } from '../lib/http-hygiene.ts';
 import { mountRestV1Routes } from './v1.ts';
 
 /**
@@ -156,5 +157,105 @@ describe('/api/v1 door — unknown paths', () => {
     const res = await root().request('http://localhost/elsewhere');
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('outside the door');
+  });
+});
+
+describe('/api/v1 door — OPTIONS without a key, and no CORS', () => {
+  it('answers a key-less OPTIONS on a served path with 204 and the Allow list', async () => {
+    const res = await root().request('http://localhost/api/v1/contacts', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://example.com',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('GET, POST, HEAD, OPTIONS');
+    for (const name of [
+      'access-control-allow-origin',
+      'access-control-allow-methods',
+      'access-control-allow-headers',
+    ]) {
+      expect(res.headers.get(name)).toBeNull();
+    }
+  });
+
+  it('answers a key-less OPTIONS on a path nobody serves with the 404 envelope', async () => {
+    const res = await root().request('http://localhost/api/v1/nope', {
+      method: 'OPTIONS',
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
+  });
+
+  it('still needs a key for anything but OPTIONS', async () => {
+    const res = await root().request('http://localhost/api/v1/contacts');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('/api/v1 door — what every answer carries', () => {
+  const bearer = { headers: { authorization: 'Bearer tale_good' } };
+
+  it('names the contract version and no-store on the catch-all too', async () => {
+    const missing = await root().request(
+      'http://localhost/api/v1/nope',
+      bearer,
+    );
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get('x-tale-api-version')).toMatch(
+      /^\d+\.\d+\.\d+$/,
+    );
+    expect(missing.headers.get('cache-control')).toBe('no-store');
+    const wrongVerb = await root().request(
+      'http://localhost/api/v1/automations',
+      { method: 'PATCH', ...bearer },
+    );
+    expect(wrongVerb.status).toBe(405);
+    expect(wrongVerb.headers.get('x-tale-api-version')).toMatch(
+      /^\d+\.\d+\.\d+$/,
+    );
+  });
+
+  it('measures a JSON answer for HEAD, so a client can size it before fetching', async () => {
+    const got = await root().request('http://localhost/api/v1/me', bearer);
+    expect(got.status).toBe(200);
+    const body = await got.text();
+    const head = await root().request('http://localhost/api/v1/me', {
+      method: 'HEAD',
+      ...bearer,
+    });
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-length')).toBe(
+      String(Buffer.byteLength(body)),
+    );
+    expect(await head.text()).toBe('');
+  });
+});
+
+describe('/api/v1 door — a trailing slash', () => {
+  /** The app's root wiring: the path normaliser installed as `getPath`. */
+  function normalisingRoot() {
+    const app = new Hono({ getPath: apiPathWithoutTrailingSlash });
+    mountRestV1Routes(app, { sql: fakeSql(), auth: fakeAuth() });
+    return app;
+  }
+
+  it('routes /api/v1/automations/ like /api/v1/automations', async () => {
+    const res = await normalisingRoot().request(
+      'http://localhost/api/v1/automations/',
+      { method: 'OPTIONS' },
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('allow')).toBe('GET, HEAD, OPTIONS');
+  });
+
+  it('keeps a doubled slash a 404', async () => {
+    const res = await normalisingRoot().request(
+      'http://localhost/api/v1/automations//',
+      { method: 'OPTIONS' },
+    );
+    expect(res.status).toBe(404);
   });
 });

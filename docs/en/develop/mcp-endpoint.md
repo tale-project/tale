@@ -45,7 +45,7 @@ The server identifies as `tale-platform`. In a client that takes a config block,
 }
 ```
 
-`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST, OPTIONS` header (an `OPTIONS` answers **204** with the same list) — there is no event stream to subscribe to and no session to delete — and the endpoint sends no CORS headers: it is for server-side clients, never for a browser page holding a key. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
+`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST, OPTIONS` header (an `OPTIONS` answers **204** with the same list, key or no key) — there is no event stream to subscribe to and no session to delete — and the endpoint sends no CORS headers: it is for server-side clients, never for a browser page holding a key. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
 
 ## The tools
 

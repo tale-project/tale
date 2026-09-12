@@ -13,8 +13,10 @@ import { findOrCreateSsoUser } from '../domains/sso/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { Auth } from './auth.ts';
 import {
+  OIDC_ACR_VALUE,
   OIDC_DISABLED_PATHS,
   OIDC_ORGANIZATION_CLAIM,
+  OIDC_PROMPT_VALUES_SUPPORTED,
   OIDC_SCOPES,
 } from './oidc.ts';
 
@@ -179,6 +181,9 @@ export async function checkNativeIdentity(
       authorization_endpoint: z.string(),
       token_endpoint: z.string(),
       claims_supported: z.array(z.string()),
+      acr_values_supported: z.array(z.string()),
+      prompt_values_supported: z.array(z.string()),
+      token_endpoint_auth_methods_supported: z.array(z.string()),
     })
     .parse(await discovery.json());
   check(
@@ -191,6 +196,24 @@ export async function checkNativeIdentity(
   check(
     'discovery advertises the organization claim',
     metadata.claims_supported.includes(OIDC_ORGANIZATION_CLAIM),
+  );
+  // The acr the ID token carries is advertised as a claim, not only as a
+  // value; and the prompt values are the ones this issuer honours — the
+  // library's five include two this deployment refuses or misroutes.
+  check(
+    'discovery advertises the acr claim beside its one value, and only the honoured prompt values',
+    metadata.claims_supported.includes('acr') &&
+      JSON.stringify(metadata.acr_values_supported) ===
+        JSON.stringify([OIDC_ACR_VALUE]) &&
+      JSON.stringify(metadata.prompt_values_supported) ===
+        JSON.stringify(OIDC_PROMPT_VALUES_SUPPORTED) &&
+      metadata.token_endpoint_auth_methods_supported.includes(
+        'client_secret_basic',
+      ) &&
+      metadata.token_endpoint_auth_methods_supported.includes(
+        'client_secret_post',
+      ),
+    `claims=${metadata.claims_supported.join(',')} acr=${metadata.acr_values_supported.join(',')} prompt=${metadata.prompt_values_supported.join(',')} auth=${metadata.token_endpoint_auth_methods_supported.join(',')}`,
   );
   const authServerMetadata = await fetch(
     `${base}/.well-known/oauth-authorization-server/api/auth`,
@@ -353,6 +376,11 @@ export async function checkNativeIdentity(
       tokens.refresh_token === undefined &&
       (payload.exp ?? 0) - (payload.iat ?? 0) <= 300,
   );
+  check(
+    'the ID token carries the one acr discovery advertises — always bronze',
+    payload.acr === OIDC_ACR_VALUE,
+    `acr=${String(payload.acr)} (want ${OIDC_ACR_VALUE})`,
+  );
   const info = await fetch(`${issuer}/oauth2/userinfo`, {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
@@ -409,6 +437,81 @@ export async function checkNativeIdentity(
     passwordGrant.status === 400 &&
       passwordGrantBody.error === 'unsupported_grant_type',
     `status=${passwordGrant.status} body=${JSON.stringify(passwordGrantBody)} (want 400 unsupported_grant_type)`,
+  );
+  // §5.2 again: a request MISSING grant_type is a malformed request, not
+  // an unsupported grant — judged before the handler consumes the body.
+  const noGrant = await fetch(`${issuer}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'nonsense=1',
+  });
+  const noGrantBody = z
+    .object({ error: z.string(), error_description: z.string() })
+    .parse(await noGrant.json());
+  check(
+    'token endpoint answers a request without grant_type as invalid_request naming the parameter',
+    noGrant.status === 400 &&
+      noGrantBody.error === 'invalid_request' &&
+      noGrantBody.error_description === 'grant_type is required' &&
+      noGrant.headers.get('cache-control') === 'no-store',
+    `status=${noGrant.status} body=${JSON.stringify(noGrantBody)} (want 400 invalid_request "grant_type is required")`,
+  );
+  // A JSON-only endpoint sent a form: the RFC envelope, never the body
+  // layer's 415 `{message, code}`.
+  const formRegister = await fetch(`${issuer}/oauth2/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'client_name=x',
+  });
+  const formRegisterBody = z
+    .object({ error: z.string(), error_description: z.string() })
+    .safeParse(await formRegister.json());
+  check(
+    'a form body on a JSON-only OAuth endpoint answers 400 invalid_request, not 415',
+    formRegister.status === 400 &&
+      formRegisterBody.success &&
+      formRegisterBody.data.error === 'invalid_request' &&
+      formRegisterBody.data.error_description ===
+        'the request body must be application/json',
+    `status=${formRegister.status} body=${JSON.stringify(formRegisterBody.success ? formRegisterBody.data : formRegisterBody.error.issues)}`,
+  );
+  // An unknown client at authorize lands on the error page (never on the
+  // attacker-supplied redirect_uri) with a description that names the
+  // real problem — the library says "client_id is required" for both.
+  const unknownClient = await fetch(
+    `${metadata.authorization_endpoint}?${new URLSearchParams({
+      client_id: 'itest-no-such-client',
+      response_type: 'code',
+      redirect_uri: 'https://evil.example.test/cb',
+      scope: 'openid',
+      state: 'x',
+    }).toString()}`,
+    { redirect: 'manual', headers: { cookie: member.cookie } },
+  );
+  // Node's fetch declares `sec-fetch-mode: cors` and cannot be told
+  // otherwise, so the provider hands it the redirect in its JSON form —
+  // `200 {redirect: true, url}` — the same URL a browser navigation gets
+  // as the 302's Location (that form is covered by the conformance unit
+  // tests).
+  const unknownClientBody = z
+    .object({ redirect: z.literal(true), url: z.string() })
+    .safeParse(
+      unknownClient.status === 200 ? await unknownClient.json() : null,
+    );
+  const unknownClientLocation = new URL(
+    unknownClientBody.success ? unknownClientBody.data.url : '/',
+    base,
+  );
+  check(
+    'an unknown client_id at authorize names an unknown client, on the issuer’s error page',
+    unknownClient.status === 200 &&
+      unknownClientBody.success &&
+      unknownClientLocation.origin === new URL(base).origin &&
+      unknownClientLocation.pathname === '/api/auth/error' &&
+      unknownClientLocation.searchParams.get('error') === 'invalid_client' &&
+      unknownClientLocation.searchParams.get('error_description') ===
+        'client_id names no registered client',
+    `status=${unknownClient.status} url=${unknownClientLocation.toString()}`,
   );
   check(
     'an authorization code cannot be replayed',

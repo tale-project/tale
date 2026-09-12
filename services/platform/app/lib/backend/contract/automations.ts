@@ -96,7 +96,9 @@ export interface AutomationsContract {
         kind: 'schedule' | 'webhook' | 'event';
       };
     };
-    returns: { token?: string };
+    /** `revoked` names a live webhook URL this bind replaced with another
+     * kind — it stopped answering the moment the bind committed. */
+    returns: { token?: string; revoked?: 'webhook' };
   };
   'automations/mutations:startRun': {
     kind: 'mutation';
@@ -267,7 +269,17 @@ export interface AutomationsContract {
     kind: 'query';
     args: { name?: string; organizationId: string };
     returns: Array<{
+      id?: string;
+      /** The last time this binding started a run — `lastRunId` names it. */
       lastFiredAt?: number;
+      lastRunId?: string | null;
+      /** The last time it came due and started nothing, and why. */
+      lastSkippedAt?: number | null;
+      lastSkipReason?:
+        | 'not_deployed'
+        | 'unusable_cron'
+        | 'start_refused'
+        | null;
       hasToken: boolean;
       enabled: boolean;
       event?: string;

@@ -24,7 +24,7 @@ import {
   createOrgSkillReader,
   listSkillBundleFileEntries,
   listSkillSlugs,
-  readSkillBundleAsset,
+  readSkillBundleAssetBytes,
   readSkillBundleFiles,
   readSkillMdText,
   removeSkillBundle,
@@ -436,7 +436,7 @@ describe('readSkillBundleFiles', () => {
     );
 
     await expect(readSkillBundleFiles('acme', 'fat-file')).rejects.toThrow(
-      /bundle file exceeds/,
+      /the file exceeds/,
     );
   });
 
@@ -517,7 +517,7 @@ describe('writeSkillBundleFiles', () => {
     const entries = await listSkillBundleFileEntries('acme', 'invoice-audit');
     expect(entries?.map((e) => e.path)).toEqual(['SKILL.md', 'new-asset.md']);
     expect(
-      await readSkillBundleAsset('acme', 'invoice-audit', 'old-asset.md'),
+      await readSkillBundleAssetBytes('acme', 'invoice-audit', 'old-asset.md'),
     ).toBeNull();
     // No staging or replacing leftovers beside the bundle.
     expect(await listSkillSlugs('acme')).toEqual(['invoice-audit']);

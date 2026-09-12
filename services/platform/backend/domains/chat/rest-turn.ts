@@ -82,16 +82,25 @@ export const apiTurnPayloadSchema = z.object({
  * `stream_id`), cleared by the turn-open write when the run starts, and by
  * every path on which the job ends WITHOUT opening a turn — otherwise the
  * poll would answer `queued` forever for a send that will never run.
+ *
+ * Only THIS job's marker: the send that follows a settled turn can claim
+ * the thread between the turn's close and this clear, and its marker
+ * carries its own reply id — clearing that one would answer `idle` to a
+ * poller whose send is queued. A job an older image enqueued without the
+ * id keeps the unscoped clear.
  */
 export async function clearQueuedTurn(
   sql: Sql,
   threadId: string,
+  streamId?: string,
 ): Promise<void> {
+  const own = streamId ?? null;
   await sql`
     UPDATE app.thread_metadata SET
       generation_queued_since_ms = NULL,
       stream_id = CASE WHEN generation_status = 'generating' THEN stream_id ELSE NULL END
     WHERE thread_id = ${threadId} AND generation_queued_since_ms IS NOT NULL
+      AND (${own}::text IS NULL OR stream_id = ${own})
   `;
 }
 
@@ -111,7 +120,7 @@ export async function runApiTurn(
   try {
     await runAcceptedTurn(sql, payload);
   } finally {
-    await clearQueuedTurn(sql, payload.threadId);
+    await clearQueuedTurn(sql, payload.threadId, payload.assistantMessageId);
   }
 }
 
@@ -187,16 +196,19 @@ async function runAcceptedTurn(
     WHERE thread_id = ${payload.threadId} LIMIT 1
   `;
   if (generating.length > 0) {
+    // The accepted prompt lands beside the refusal: the caller's text is
+    // the only copy, and a busy verdict must not make it vanish. The code
+    // names the fact (`thread_busy`), not the generic bucket.
     console.warn(
-      `[rest-turn] thread ${payload.threadId} busy — accepted message dropped`,
+      `[rest-turn] thread ${payload.threadId} busy — accepted message recorded, no turn run`,
     );
     await recordFailure(
       encodeChatError({
-        code: 'generic',
+        code: 'thread_busy',
         model: payload.modelId,
         raw: 'This conversation was already generating a response.',
       }),
-      false,
+      true,
     );
     return;
   }

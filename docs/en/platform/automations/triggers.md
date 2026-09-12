@@ -3,9 +3,9 @@ title: Automation triggers
 description: The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy.
 ---
 
-A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation carries one trigger at a time — binding a different kind replaces the one it has. The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
+A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation carries one trigger at a time — binding a different kind replaces the one it has, and replacing a webhook with a schedule or an event revokes the webhook's URL on the spot (the save says so, and no later webhook bind brings that URL back). The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
 
-Every trigger fires against the automation's deployed version and runs in live mode, so an automation with no deployment cannot be started by one. Each trigger carries an on-off switch and records when the scheduler last acted on it.
+Every trigger fires against the automation's deployed version and runs in live mode, so an automation with no deployment cannot be started by one. Each trigger carries an on-off switch and keeps two records of its own: the last run it started, and the last time it came due and started nothing — with the reason, so an automation that is not running tells you why.
 
 ## The three kinds
 
@@ -32,7 +32,7 @@ Day of week runs 0 to 7 with both 0 and 7 meaning Sunday. When you restrict both
 
 The timezone is resolved as wall-clock time, so a schedule written for 09:00 in `Europe/Zurich` stays at 09:00 across a daylight-saving change instead of drifting an hour twice a year. A schedule that names no timezone is read in UTC.
 
-Resolution is one minute, and a schedule is a heartbeat rather than a queue: after an outage the automation resumes at its next occurrence instead of replaying the ones it missed. A schedule whose cron expression cannot be parsed is skipped rather than stopping the platform's other schedules, and its last-fired time stops advancing — which is the signal to go and read it.
+Resolution is one minute, and a schedule is a heartbeat rather than a queue: after an outage the automation resumes at its next occurrence instead of replaying the ones it missed. A cron that names a date no calendar has — `0 0 30 2 *`, or the 31st in a month with thirty days — is refused when you save it, so a schedule that binds is one that will come due. Should a saved expression still turn out unreadable (a time zone the platform no longer knows, say), the scheduler skips it rather than stopping the platform's other schedules, records the skip on the trigger as `unusable_cron`, and leaves it alone until you edit it. A schedule's last-fired time moves only when a run actually started; a schedule that comes due with nothing deployed records `not_deployed` instead, and one whose deployed version refuses the run's input records `start_refused` — read the trigger and you know which.
 
 ## Webhooks
 
@@ -44,11 +44,11 @@ curl -X POST "https://<your-tale-host>/api/projects/<projectId>/automations/webh
   -d '{"invoiceId": "inv-1"}'
 ```
 
-A successful call is accepted immediately and answers with the id of the run it started, so the caller never waits for the automation to finish. A body that is not JSON is handed through as text rather than refused, because some vendors post form or plain-text payloads. Bodies are capped at 256 KB — a webhook takes a payload, not an upload.
+A successful call is accepted immediately and answers with the id of the run it started, so the caller never waits for the automation to finish. A body that is not JSON is handed through as text rather than refused, because some vendors post form or plain-text payloads. Bodies are capped at 256 KiB (262,144 bytes) — a webhook takes a payload, not an upload.
 
 Deliveries are idempotent, because every vendor delivers at least once — a slow response, a dropped connection, or someone pressing _redeliver_ sends the same delivery again. A request that names its delivery (`Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, and the other common vendor headers) is remembered for 24 hours: a repeat with the same id answers with the run the first one started, flagged `duplicate: true`, instead of starting another. A request without an id is recognised by its body — a byte-identical body posted to the same URL within two minutes is the same delivery. Distinct deliveries each run; if your payloads can legitimately repeat inside two minutes, send an id. [Webhooks](/develop/webhooks) has the full header list and the response shapes.
 
-The example URL names the project that will receive the run. The automation must be installed in that active project, in the token's organization. The token cannot select any other project. For an automation with no project bindings, `/api/automations/webhook/{token}` starts a non-project run; a bound automation answers **400** there. A `projectId` query parameter also answers **400**. Delivery IDs and body deduplication apply separately to each project URL. Poll a project delivery through `/api/v1/projects/{id}/runs/{runId}` with an API key that can read the project.
+The example URL names the project that will receive the run. The automation must be installed in that active project, in the token's organization. The token cannot select any other project: a project it cannot run in — one that does not exist, is archived, or where the automation is not installed — answers **403** `AUTOMATION_PROJECT_FORBIDDEN`, one refusal for all three so a leaked URL cannot probe your project ids. For an automation with no project bindings, `/api/automations/webhook/{token}` starts a non-project run; a bound automation answers **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED` there — use its project URL. A `projectId` query parameter answers **400** `INVALID_QUERY`. Delivery IDs and body deduplication apply separately to each project URL. Poll a project delivery through `/api/v1/projects/{id}/runs/{runId}` with an API key that can read the project.
 
 Two refusals are worth recognising. An unknown token and a token belonging to a switched-off trigger both answer the same way, deliberately, so that nobody can probe the platform for which tokens exist. An automation with no deployed version answers with a conflict instead, which tells you the URL is fine and the deployment is missing.
 
@@ -96,4 +96,4 @@ Deleting a trigger is the permanent version of the same thing, and for a webhook
 
 ## Where this fits
 
-Three kinds, one behaviour: each starts the deployed version in live mode, each records when it last fired, and each can be paused without being lost — and none of them care how many times you have deployed since. [Automation concepts](/platform/automations/concepts) explains why binding to the name is what makes that true; [Execution logs](/platform/automations/execution-logs) shows the runs your triggers produced and which one started each.
+Three kinds, one behaviour: each starts the deployed version in live mode, each records the last run it started and the last time it came due without one, and each can be paused without being lost — and none of them care how many times you have deployed since. [Automation concepts](/platform/automations/concepts) explains why binding to the name is what makes that true; [Execution logs](/platform/automations/execution-logs) shows the runs your triggers produced and which one started each.

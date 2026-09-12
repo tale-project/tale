@@ -50,6 +50,16 @@ export const KNOWLEDGE_CONNECTION_KEY = 'connection';
 export const KNOWLEDGE_EMBEDDING_KEY = 'embedding';
 
 /**
+ * The dense-leg similarity floor the built-in assistant's search applies
+ * when `embedding.json` states none: a cosine under it reads as noise and is
+ * dropped before fusion. One value cannot fit every embedding model — some
+ * put unrelated text at 0.44–0.48 — which is why the file can override it
+ * per organization (`minSimilarity`). REST callers get no floor unless they
+ * send one.
+ */
+export const KNOWLEDGE_DEFAULT_MIN_SIMILARITY = 0.45;
+
+/**
  * `connection.json` — the organization's own knowledge Postgres.
  *
  * The corpus owns whole schemas on the target database (`private_knowledge` and
@@ -101,5 +111,13 @@ export const knowledgeEmbeddingSchema = z.object({
   dimensions: z.number().int().min(1).max(16_000),
   /** OpenAI-compatible base URL, when the provider is not the default one. */
   baseUrl: z.string().url().optional(),
+  /**
+   * The cosine floor the built-in assistant's search applies to this
+   * model's dense leg (0..1); absent means
+   * {@link KNOWLEDGE_DEFAULT_MIN_SIMILARITY}. Set it where the model places
+   * unrelated text above the default — the floor belongs to the model, so
+   * it lives next to the model.
+   */
+  minSimilarity: z.number().min(0).max(1).optional(),
 });
 export type KnowledgeEmbeddingConfig = z.infer<typeof knowledgeEmbeddingSchema>;

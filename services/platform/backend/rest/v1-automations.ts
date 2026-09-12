@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
+import { isRecord } from '../../lib/utils/type-utils.ts';
 import {
   AutomationError,
   automationExists,
@@ -29,6 +30,7 @@ import {
   listVersions,
   type RunRow,
   setTrigger,
+  toRunDetail,
   toRunSummary,
   unbindProjectInTx,
   versionRow,
@@ -126,13 +128,22 @@ const RUN_FIELDS = [
 ] as const satisfies readonly (keyof RunRow)[];
 // Every key the full read answers must be selectable: a `RunRow` column
 // added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
-type RunFieldsMissing = Exclude<keyof RunRow, (typeof RUN_FIELDS)[number]>;
+// `askPending` is the read's own input to `waitingFor`, stripped before the
+// wire — never a field a caller names.
+type RunFieldsMissing = Exclude<
+  keyof Omit<RunRow, 'askPending'>,
+  (typeof RUN_FIELDS)[number]
+>;
 const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
   true;
 void RUN_FIELDS_COMPLETE;
 
 /** The query a run read takes: the fields to keep, or all of them. */
 const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
+
+/** What a run read may project: every stored key, plus the wait family
+ * the read derives while a run is parked (`waitingFor`). */
+const RUN_READ_FIELDS = [...RUN_FIELDS, 'waitingFor'] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
  * full-row fields to inline. */
@@ -185,16 +196,50 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       version: z.number().int().min(1).optional(),
     })
     .strict();
-  const triggerBody = z
-    .object({
-      kind: z.enum(['schedule', 'webhook', 'event']),
-      cron: z.string().max(200).optional(),
-      timezone: z.string().max(100).optional(),
-      event: z.string().max(200).optional(),
-      enabled: z.boolean().optional(),
-      rotateToken: z.boolean().optional(),
-    })
-    .strict();
+  // One shape per kind, each strict: a key of another kind (`cron` on a
+  // webhook) is refused as the unknown key it is, named under `data.issues`
+  // — it used to be stored and read back as a webhook that also ran on a
+  // schedule. The kind's own presence rules (a schedule needs a cron, an
+  // event an event the platform raises) stay the store's, so those refusals
+  // keep their `AUTOMATION_TRIGGER_INVALID` sentence.
+  const triggerBody = z.discriminatedUnion(
+    'kind',
+    [
+      z
+        .object({
+          kind: z.literal('schedule'),
+          cron: z.string().max(200).optional(),
+          timezone: z.string().max(100).optional(),
+          enabled: z.boolean().optional(),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('webhook'),
+          enabled: z.boolean().optional(),
+          rotateToken: z.boolean().optional(),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('event'),
+          event: z.string().max(200).optional(),
+          enabled: z.boolean().optional(),
+        })
+        .strict(),
+    ],
+    {
+      // The union's own issue is the discriminator's: absent reads as
+      // required, anything else as the closed set of kinds — the house
+      // phrases, not zod's "no matching discriminator".
+      error: (issue) => {
+        if (issue.code !== 'invalid_union') return undefined;
+        return isRecord(issue.input) && issue.input.kind === undefined
+          ? 'is required'
+          : 'must be one of "schedule", "webhook", "event"';
+      },
+    },
+  );
 
   /** Whether any version of the automation exists in this org — the
    * trigger and run doors answer 404 for a name nobody saved, never a
@@ -812,7 +857,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const readRun = async (c: Context<RestEnv>) => {
     const query = readQuery(c, RUN_READ_QUERY);
     if (query instanceof Response) return query;
-    const fields = readSetQuery(c, 'fields', query.fields, RUN_FIELDS);
+    const fields = readSetQuery(c, 'fields', query.fields, RUN_READ_FIELDS);
     if (fields instanceof Response) return fields;
     try {
       const projectId = c.req.param('id');
@@ -827,12 +872,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       );
       if (run === null || run.projectId !== (projectId ?? null))
         return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
-      if (fields === undefined) return c.json(run);
+      const detail = toRunDetail(run);
+      if (fields === undefined) return c.json(detail);
       return c.json(
         Object.fromEntries(
-          RUN_FIELDS.filter((key) => fields.includes(key)).map((key) => [
+          RUN_READ_FIELDS.filter((key) => fields.includes(key)).map((key) => [
             key,
-            run[key],
+            detail[key],
           ]),
         ),
       );

@@ -1,3 +1,10 @@
+import {
+  ifNoneMatchHolds,
+  parseEntityTag,
+  parseEntityTagList,
+} from '@tale/shared/http/entity-tag';
+import { ifRangeMatches, parseRangeHeader } from '@tale/shared/http/range';
+
 import { anyRefs } from '../../shared/handlers/function-refs';
 import { attachmentDisposition } from '../../shared/http/content-disposition';
 import type {
@@ -78,53 +85,6 @@ function buildContentDisposition(doc: DocumentForResponse): string {
   return attachmentDisposition(filename);
 }
 
-interface ParsedRange {
-  start: number;
-  end: number;
-}
-
-// RFC 7233 §2.1: parse a single-range `bytes=` spec. Multi-range (e.g.
-// `bytes=0-99,200-299`) is intentionally not supported — clients that ask
-// for one get a full 200 back, which is RFC-compliant. Returns `null` for
-// unparseable input (caller ignores Range), or `'unsatisfiable'` for
-// well-formed-but-out-of-bounds requests (caller returns 416).
-// Exported for unit testing (the streamed GET paths are otherwise
-// excluded from the connector suite).
-export function parseRangeHeader(
-  header: string | null,
-  size: number,
-): ParsedRange | 'unsatisfiable' | null {
-  if (!header) return null;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!match) return null;
-  const [, startStr, endStr] = match;
-  if (startStr === '' && endStr === '') return null;
-  if (size <= 0) return 'unsatisfiable';
-
-  let start: number;
-  let end: number;
-  if (startStr === '') {
-    // Suffix range: last N bytes.
-    const suffix = Number(endStr);
-    if (!Number.isFinite(suffix) || suffix <= 0) return null;
-    start = Math.max(0, size - suffix);
-    end = size - 1;
-  } else {
-    start = Number(startStr);
-    if (!Number.isFinite(start) || start < 0) return null;
-    if (endStr === '') {
-      end = size - 1;
-    } else {
-      end = Number(endStr);
-      if (!Number.isFinite(end) || end < start) return null;
-      if (end > size - 1) end = size - 1;
-    }
-  }
-
-  if (start >= size) return 'unsatisfiable';
-  return { start, end };
-}
-
 function buildResponseHeaders(
   doc: DocumentForResponse,
   opts: { etag: string; lastModified: Date },
@@ -143,43 +103,14 @@ function buildResponseHeaders(
   return headers;
 }
 
-// RFC 7232 §3.1: `If-None-Match: *` matches any current representation.
-// Exported for unit testing — see parseRangeHeader.
-export function ifNoneMatchMatches(header: string, etag: string): boolean {
-  const trimmed = header.trim();
-  if (trimmed === '*') return true;
-  // Compare with weak-comparison semantics: strip the optional `W/` prefix
-  // from both sides before equality check (RFC 7232 §2.3.2).
-  const stripWeak = (s: string) => s.replace(/^W\//, '');
-  const target = stripWeak(etag);
-  return trimmed.split(',').some((part) => stripWeak(part.trim()) === target);
-}
-
+// The `If-None-Match` precondition, the Range parsing and the `If-Range`
+// check are the shared readings (`@tale/shared/http/entity-tag`,
+// `@tale/shared/http/range`) — one parser for every door, so no door
+// splits a list on a comma an opaque tag may itself contain.
 function parseHttpDate(s: string | null): number | null {
   if (!s) return null;
   const t = Date.parse(s);
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
-}
-
-// RFC 7233 §3.2: an If-Range value is either an entity-tag or an HTTP-date.
-// The Range is honored only if it matches the current representation. ETags
-// use strong comparison (a weak validator like our `W/"size-mtime"` must not
-// satisfy If-Range — strong comparison fails and we fall back to a full 200,
-// which is the safe outcome). Exported for unit testing.
-export function ifRangeMatches(
-  header: string,
-  etag: string,
-  lastModified: Date,
-): boolean {
-  const trimmed = header.trim();
-  if (trimmed.startsWith('"') || trimmed.startsWith('W/')) {
-    // Strong comparison: both sides must be strong and byte-identical.
-    if (trimmed.startsWith('W/') || etag.startsWith('W/')) return false;
-    return trimmed === etag;
-  }
-  const since = Date.parse(trimmed);
-  if (!Number.isFinite(since)) return false;
-  return Math.floor(lastModified.getTime() / 1000) <= Math.floor(since / 1000);
 }
 
 export async function handleGet(
@@ -231,7 +162,12 @@ export async function handleGet(
   const ifNoneMatch = req?.headers.get('if-none-match') ?? null;
   const ifModifiedSince = req?.headers.get('if-modified-since') ?? null;
   if (ifNoneMatch) {
-    if (ifNoneMatchMatches(ifNoneMatch, etag)) {
+    // RFC 9110 §13.1.2: a list that names the current tag (weak
+    // comparison) or `*` does not hold, and a GET answers 304; a
+    // malformed value matches nothing, so the body is served.
+    if (
+      !ifNoneMatchHolds(parseEntityTagList(ifNoneMatch), parseEntityTag(etag))
+    ) {
       return { status: 304, headers, body: null };
     }
   } else {

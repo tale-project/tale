@@ -175,6 +175,14 @@ function mount(
       return Promise.resolve([{ value: '1' }]);
     if (text.startsWith('INSERT INTO app.threads'))
       return Promise.resolve([{ id: 't-new' }]);
+    // The send's turn guard: the marker UPDATE claims the thread (no turn
+    // running or queued) and RETURNs it — an idle thread here.
+    if (
+      text.startsWith(
+        'UPDATE app.thread_metadata SET generation_queued_since_ms',
+      )
+    )
+      return Promise.resolve([{ threadId: bound('thread_id = ') }]);
     return Promise.resolve([]);
   };
   const sql = Object.assign(tag, {

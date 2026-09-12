@@ -75,6 +75,15 @@ function fakeSql(): Sql {
         },
       ]);
     }
+    if (text.includes('FROM "apikey"')) {
+      return Promise.resolve([
+        {
+          id: 'key-1',
+          name: 'Billing sync',
+          expiresAt: new Date('2026-10-12T00:00:00.000Z'),
+        },
+      ]);
+    }
     return Promise.resolve([]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
@@ -94,6 +103,7 @@ function mount() {
     c.set('role', 'admin');
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
+    c.set('apiKeyId', 'key-1');
     return next();
   });
   app.route('/', createCoreRoutes({ sql: fakeSql() }));
@@ -118,6 +128,17 @@ describe('GET /me', () => {
         { id: 'org-1', slug: 'acme', name: 'Acme', role: 'admin' },
         { id: 'org-2', slug: 'beta', name: 'Beta', role: 'member' },
       ],
+      // A plain org admin is no instance admin: the deployment editor stays
+      // closed (the capability's own cases live in v1-core.test.ts).
+      capabilities: { deploymentEditor: false },
+      // The key that made the request, by the id the door stashed — its
+      // expiry as epoch milliseconds (the key's own cases live in
+      // v1-core.test.ts).
+      key: {
+        id: 'key-1',
+        name: 'Billing sync',
+        expiresAt: Date.parse('2026-10-12T00:00:00.000Z'),
+      },
     });
   });
 });

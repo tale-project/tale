@@ -8,11 +8,13 @@ import { z } from 'zod';
 import {
   apiAttachmentSchema,
   apiDeliveryFailureSchema,
+  type ApiDeliveryStatus,
   replyConstraintsSchema,
   type ApiSnapshot,
 } from '../../../lib/shared/conversations/api-sync.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import { statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
@@ -454,11 +456,11 @@ const DELIVERY_FAILURE_LIMIT = 10;
  * users own is theirs (403), the same refusal the snapshot lane gives.
  */
 async function assertOwnedSource(
-  tx: TransactionSql,
+  sql: Sql,
   viewer: ConversationViewer,
   source: string,
 ): Promise<void> {
-  const rows = await tx<{ owned: boolean | null }[]>`
+  const rows = await sql<{ owned: boolean | null }[]>`
     SELECT bool_or(owner_user_id = ${viewer.userId}) AS owned
     FROM app.conversation_api_bindings
     WHERE org_id = ${viewer.organizationId} AND source = ${source}
@@ -478,7 +480,13 @@ async function assertOwnedSource(
     );
 }
 
-/** A visibility lease closes undo and lets later replies progress on a crash. */
+/**
+ * A visibility lease closes undo and lets later replies progress on a
+ * crash. Each item says where it stands in its own life — how many
+ * attempts failed before this one, when this lease ends, what the last
+ * failure reported, when it was first claimed — so a consumer can log
+ * "about to dead-letter" or back off itself instead of counting blind.
+ */
 export async function claimApiDeliveries(
   sql: Sql,
   viewer: ConversationViewer,
@@ -498,11 +506,15 @@ export async function claimApiDeliveries(
         actorEmail: string;
         body: string;
         availableAt: number;
+        attempts: number;
+        claimedAt: number | null;
+        lastErrorCode: string | null;
         metadata: Record<string, unknown> | null;
       }[]
     >`
       SELECT d.message_id AS "messageId", d.conversation_id AS "conversationId", b.external_id AS "externalId",
-        d.actor_user_id AS "actorUserId", d.actor_email AS "actorEmail", d.body, d.available_at_ms::float8 AS "availableAt", m.metadata
+        d.actor_user_id AS "actorUserId", d.actor_email AS "actorEmail", d.body, d.available_at_ms::float8 AS "availableAt",
+        d.attempt_count AS attempts, d.claimed_at_ms::float8 AS "claimedAt", d.last_error_code AS "lastErrorCode", m.metadata
       FROM app.conversation_api_deliveries d
       JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
       JOIN app.conversation_messages m ON m.id = d.message_id AND m.org_id = d.org_id
@@ -528,6 +540,10 @@ export async function claimApiDeliveries(
       actorEmail: row.actorEmail,
       body: row.body,
       availableAt: row.availableAt,
+      attempts: row.attempts,
+      leaseExpiresAt: now + DELIVERY_LEASE_MS,
+      lastErrorCode: row.lastErrorCode,
+      firstClaimedAt: row.claimedAt ?? now,
       attachments: z
         .array(
           z.object({
@@ -540,6 +556,163 @@ export async function claimApiDeliveries(
         .parse(row.metadata?.attachments ?? []),
     }));
   });
+}
+
+/** One row of the queue as the listing shows it — no claim token, no
+ * body: reading the queue must never hand out what only a claim earns. */
+export interface ApiDeliveryListRow {
+  messageId: string;
+  conversationId: string;
+  externalId: string;
+  status: ApiDeliveryStatus;
+  attempts: number;
+  availableAt: number;
+  retryAt: number;
+  claimedAt: number | null;
+  failedAt: number | null;
+  lastErrorCode: string | null;
+  acknowledgedAt: number | null;
+  receiptId: string | null;
+}
+
+/**
+ * The queue as it stands for a source this key user mirrored — no lease
+ * taken, nothing changed: what a consumer could otherwise learn only by
+ * claiming. `status` is read off the stamps: `delivered` once
+ * acknowledged, `failed` once dead-lettered (a permanent refusal or the
+ * tenth transient one), `leased` while a claim's lease runs, `queued` for
+ * everything else — the undo window, the backoff between attempts, and a
+ * lease that lapsed. Oldest-due first (`retryAt`, then `messageId`), the
+ * order a claim drains it in; the keyset continues where a page ended.
+ */
+export async function listApiDeliveries(
+  sql: Sql,
+  viewer: ConversationViewer,
+  source: string,
+  options: {
+    status?: ApiDeliveryStatus;
+    cursor: { at: number; id: string } | null;
+    limit: number;
+  },
+): Promise<{
+  deliveries: ApiDeliveryListRow[];
+  nextCursor: { at: number; id: string } | null;
+}> {
+  requireWriter(viewer);
+  await assertOwnedSource(sql, viewer, source);
+  const now = Date.now();
+  const rows = await sql<ApiDeliveryListRow[]>`
+    WITH q AS (
+      SELECT d.message_id AS "messageId", d.conversation_id AS "conversationId", b.external_id AS "externalId",
+        CASE
+          WHEN d.acknowledged_at_ms IS NOT NULL THEN 'delivered'
+          WHEN d.failed_at_ms IS NOT NULL THEN 'failed'
+          WHEN d.claim_token IS NOT NULL AND d.retry_at_ms > ${now} THEN 'leased'
+          ELSE 'queued'
+        END AS status,
+        d.attempt_count AS attempts, d.available_at_ms::float8 AS "availableAt", d.retry_at_ms::float8 AS "retryAt",
+        d.claimed_at_ms::float8 AS "claimedAt", d.failed_at_ms::float8 AS "failedAt", d.last_error_code AS "lastErrorCode",
+        d.acknowledged_at_ms::float8 AS "acknowledgedAt", d.receipt_id AS "receiptId",
+        d.retry_at_ms AS retry_key
+      FROM app.conversation_api_deliveries d
+      JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
+      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND b.owner_user_id = ${viewer.userId}
+    )
+    SELECT "messageId", "conversationId", "externalId", status, attempts, "availableAt", "retryAt",
+      "claimedAt", "failedAt", "lastErrorCode", "acknowledgedAt", "receiptId"
+    FROM q
+    WHERE ${options.status === undefined ? sql`true` : sql`status = ${options.status}`}
+      AND ${
+        options.cursor === null
+          ? sql`true`
+          : sql`(retry_key, "messageId") > (${options.cursor.at}, ${options.cursor.id})`
+      }
+    ORDER BY retry_key, "messageId"
+    LIMIT ${options.limit + 1}
+  `;
+  const deliveries = rows.slice(0, options.limit);
+  const last = deliveries.at(-1);
+  return {
+    deliveries,
+    nextCursor:
+      rows.length > options.limit && last !== undefined
+        ? { at: last.retryAt, id: last.messageId }
+        : null,
+  };
+}
+
+/**
+ * Re-drive a dead-lettered delivery and record who asked — the ONE
+ * audited retry both doors share: the app's Inbox Retry
+ * (`retrySendMessage`) and the REST door's
+ * `POST /conversations/deliveries/{id}/retry`. Runs inside the caller's
+ * transaction, after the caller established that the message is theirs
+ * to act on.
+ */
+export async function retryApiDeliveryAudited(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    messageId: string;
+    conversationId: string;
+    actor: { userId: string; email?: string };
+  },
+): Promise<void> {
+  await retryApiDelivery(tx, args.organizationId, args.messageId);
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor.userId,
+    ...(args.actor.email !== undefined ? { actorEmail: args.actor.email } : {}),
+    actorType: 'user',
+    action: 'retry_send_message',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: args.messageId,
+    newState: { conversationId: args.conversationId, channel: 'api' },
+    status: 'success',
+  });
+}
+
+/**
+ * The REST door's retry: a delivery of a source this key user owns that
+ * dead-lettered goes back to `queued` and is claimable at once. A delivery
+ * nobody owns under the id is absent (404 `DELIVERY_NOT_FOUND`); one that
+ * is not dead-lettered — still queued, leased, or already delivered — or
+ * whose conversation the source tore down or closed cannot be retried
+ * (409 `DELIVERY_RETRY_UNAVAILABLE`).
+ */
+export async function retryApiDeliveryForSource(
+  sql: Sql,
+  viewer: ConversationViewer,
+  messageId: string,
+  actorEmail?: string,
+): Promise<{ ok: true }> {
+  requireWriter(viewer);
+  await sql.begin(async (tx) => {
+    const rows = await tx<{ conversationId: string }[]>`
+      SELECT d.conversation_id AS "conversationId"
+      FROM app.conversation_api_deliveries d
+      JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+    `;
+    const row = rows[0];
+    if (!row)
+      throw new ConversationError(
+        'DELIVERY_NOT_FOUND',
+        'Delivery not found',
+        404,
+      );
+    await retryApiDeliveryAudited(tx, {
+      organizationId: viewer.organizationId,
+      messageId,
+      conversationId: row.conversationId,
+      actor: {
+        userId: viewer.userId,
+        ...(actorEmail === undefined ? {} : { email: actorEmail }),
+      },
+    });
+  });
+  return { ok: true };
 }
 
 /** Failure reports are idempotent per claim; a stale worker cannot fail a new lease. */

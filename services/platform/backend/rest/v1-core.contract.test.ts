@@ -1,6 +1,13 @@
 // @vitest-environment node
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -725,6 +732,7 @@ describe('the skills door over the file layer', () => {
     expect(await refused.json()).toEqual({
       error: 'The skill "probe" already exists.',
       code: 'SKILL_EXISTS',
+      data: { etag: expect.stringMatching(/^"[0-9a-f]{64}"$/) },
     });
     const read = await app.request('http://localhost/skills/probe');
     expect(await read.json()).toMatchObject({
@@ -809,7 +817,7 @@ describe('the skills door over the file layer', () => {
     expect(refusal.code).toBe('INVALID_BODY');
     expect(refusal.error).toContain('"visibility"');
     expect(refusal.error).not.toContain('private');
-    expect(refusal.error).toContain('"team"|"org"');
+    expect(refusal.error).toContain('must be one of "team", "org"');
   });
 
   it('reads a malformed slug as absent, and refuses to create one naming the rule it breaks', async () => {
@@ -841,5 +849,387 @@ describe('the skills door over the file layer', () => {
       code: 'INVALID_SKILL_SLUG',
       error: expect.stringContaining('reserved'),
     });
+  });
+});
+
+/**
+ * Optimistic concurrency on the skills door (2026-09-12 external evaluation,
+ * G-01/G-02/G-07b): every skill view names its version — `etag`, the quoted
+ * SHA-256 of SKILL.md, and `updatedAt` — the GET carries the tag as `ETag`
+ * and answers 304 to a validator the caller holds, and PUT/DELETE honour
+ * `If-Match` under RFC 9110 strong comparison with 412 `SKILL_STALE` and
+ * nothing written. Two simultaneous saves used to both answer 200 "the
+ * saved skill" while only one was stored; `If-Match` was read by nothing.
+ */
+describe('the skills door — entity tags and conditional writes', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-skills-etag-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) {
+      delete process.env.TALE_CONFIG_DIR;
+    } else {
+      process.env.TALE_CONFIG_DIR = savedConfigDir;
+    }
+    await rm(configRoot, { recursive: true, force: true });
+  });
+
+  const request = (
+    app: Hono<RestEnv>,
+    method: 'GET' | 'HEAD' | 'PUT' | 'DELETE',
+    slug: string,
+    options: { body?: unknown; headers?: Record<string, string> } = {},
+  ) =>
+    app.request(`http://localhost/skills/${slug}`, {
+      method,
+      headers: {
+        ...(options.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
+        ...options.headers,
+      },
+      ...(options.body === undefined
+        ? {}
+        : { body: JSON.stringify(options.body) }),
+    });
+  const skillMdOnDisk = (slug: string) =>
+    readFile(
+      path.join(configRoot, 'acme', 'skills', slug, 'SKILL.md'),
+      'utf-8',
+    );
+
+  it('names the version on every view and carries it as ETag on the GET', async () => {
+    const { app } = mount();
+    const created = await request(app, 'PUT', 'probe', {
+      body: { description: 'First', body: '# First' },
+    });
+    const saved: { etag: string; updatedAt: number } = await created.json();
+    expect(saved.etag).toMatch(/^"[0-9a-f]{64}"$/);
+    expect(saved.updatedAt).toBeGreaterThan(0);
+    // The JSON carries it; the header is the GET's.
+    expect(created.headers.get('etag')).toBeNull();
+
+    const read = await request(app, 'GET', 'probe');
+    expect(read.status).toBe(200);
+    expect(read.headers.get('etag')).toBe(saved.etag);
+    expect(await read.json()).toMatchObject({
+      etag: saved.etag,
+      updatedAt: saved.updatedAt,
+    });
+    const listed = await app.request('http://localhost/skills');
+    expect(await listed.json()).toMatchObject({
+      skills: [{ slug: 'probe', etag: saved.etag, updatedAt: saved.updatedAt }],
+    });
+  });
+
+  it('answers 304 with the tag and no body to a validator the caller holds — weakly compared', async () => {
+    const { app } = mount();
+    const saved: { etag: string } = await (
+      await request(app, 'PUT', 'probe', {
+        body: { description: 'First', body: '# First' },
+      })
+    ).json();
+    for (const header of [
+      saved.etag,
+      `W/${saved.etag}`,
+      `"other", ${saved.etag}`,
+      '*',
+    ]) {
+      const res = await request(app, 'GET', 'probe', {
+        headers: { 'if-none-match': header },
+      });
+      expect(res.status, header).toBe(304);
+      expect(res.headers.get('etag')).toBe(saved.etag);
+      expect(await res.text()).toBe('');
+    }
+    // A tag it does not hold — or a malformed value — is the full answer.
+    for (const header of ['"stale"', 'not-a-tag']) {
+      const res = await request(app, 'GET', 'probe', {
+        headers: { 'if-none-match': header },
+      });
+      expect(res.status, header).toBe(200);
+    }
+  });
+
+  it('refuses a stale, weak or malformed If-Match with 412 SKILL_STALE naming the current tag, the file untouched', async () => {
+    const { app } = mount();
+    const saved: { etag: string } = await (
+      await request(app, 'PUT', 'probe', {
+        body: { description: 'First', body: '# First' },
+      })
+    ).json();
+    const before = await skillMdOnDisk('probe');
+    for (const header of ['"stale"', `W/${saved.etag}`, 'not-a-tag']) {
+      const res = await request(app, 'PUT', 'probe', {
+        body: { description: 'Second', body: '# Second' },
+        headers: { 'if-match': header },
+      });
+      expect(res.status, header).toBe(412);
+      expect(await res.json()).toEqual({
+        error: expect.stringContaining('changed since you read it'),
+        code: 'SKILL_STALE',
+        data: { etag: saved.etag },
+      });
+      expect(await skillMdOnDisk('probe')).toBe(before);
+    }
+  });
+
+  it('lets a matching If-Match through and answers the new tag; `*` on an absent slug is 412 with nothing stored', async () => {
+    const { app } = mount();
+    const first: { etag: string } = await (
+      await request(app, 'PUT', 'probe', {
+        body: { description: 'First', body: '# First' },
+      })
+    ).json();
+    const updated = await request(app, 'PUT', 'probe', {
+      body: { description: 'Second', body: '# Second' },
+      headers: { 'if-match': `"other", ${first.etag}` },
+    });
+    expect(updated.status).toBe(200);
+    const second: { etag: string; body: string } = await updated.json();
+    expect(second.body).toBe('# Second\n');
+    expect(second.etag).not.toBe(first.etag);
+    expect((await request(app, 'GET', 'probe')).headers.get('etag')).toBe(
+      second.etag,
+    );
+
+    const absent = await request(app, 'PUT', 'fresh', {
+      body: { description: 'New', body: '# New' },
+      headers: { 'if-match': '*' },
+    });
+    expect(absent.status).toBe(412);
+    expect(await absent.json()).toEqual({
+      error: expect.stringContaining('does not exist'),
+      code: 'SKILL_STALE',
+      data: { etag: null },
+    });
+    expect((await request(app, 'GET', 'fresh')).status).toBe(404);
+  });
+
+  it('guards the delete the same way, and an absent slug stays a 404', async () => {
+    const { app } = mount();
+    const saved: { etag: string } = await (
+      await request(app, 'PUT', 'probe', {
+        body: { description: 'First', body: '# First' },
+      })
+    ).json();
+    const stale = await request(app, 'DELETE', 'probe', {
+      headers: { 'if-match': '"stale"' },
+    });
+    expect(stale.status).toBe(412);
+    expect(await stale.json()).toMatchObject({
+      code: 'SKILL_STALE',
+      data: { etag: saved.etag },
+    });
+    expect((await request(app, 'GET', 'probe')).status).toBe(200);
+
+    const gone = await request(app, 'DELETE', 'probe', {
+      headers: { 'if-match': saved.etag },
+    });
+    expect(gone.status).toBe(204);
+    expect((await request(app, 'GET', 'probe')).status).toBe(404);
+    // RFC 9110 §13.2.1: the 404 the request would answer anyway wins over
+    // the precondition.
+    const absent = await request(app, 'DELETE', 'never-made', {
+      headers: { 'if-match': '*' },
+    });
+    expect(absent.status).toBe(404);
+  });
+
+  it('rewrites SKILL.md only, preserving the other files and the frontmatter keys the body does not carry', async () => {
+    const { app } = mount();
+    const dir = path.join(configRoot, 'acme', 'skills', 'bundle');
+    await mkdir(path.join(dir, 'scripts'), { recursive: true });
+    await writeFile(
+      path.join(dir, 'SKILL.md'),
+      '---\nname: bundle\ndescription: Seeded.\nvisibility: org\nlicense: MIT\nrecommended-packages:\n  python:\n    - pandas\ncommunity-key: kept\n---\n\nSeeded.\n',
+      'utf-8',
+    );
+    await writeFile(path.join(dir, 'scripts', 'run.py'), 'print(1)\n', 'utf-8');
+
+    const saved = await request(app, 'PUT', 'bundle', {
+      body: { description: 'Edited.', body: 'Edited.' },
+    });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({
+      files: [
+        { path: 'SKILL.md', size: expect.any(Number) },
+        { path: 'scripts/run.py', size: 9 },
+      ],
+    });
+    const onDisk = await skillMdOnDisk('bundle');
+    expect(onDisk).toContain('license: MIT');
+    expect(onDisk).toContain('pandas');
+    expect(onDisk).toContain('community-key: kept');
+    expect(await readFile(path.join(dir, 'scripts', 'run.py'), 'utf-8')).toBe(
+      'print(1)\n',
+    );
+  });
+
+  it('takes disableModelInvocation: omitted keeps it, false drops it', async () => {
+    const { app } = mount();
+    const set = await request(app, 'PUT', 'probe', {
+      body: { description: 'a', body: 'x', disableModelInvocation: true },
+    });
+    expect(await set.json()).toMatchObject({ disableModelInvocation: true });
+    const kept = await request(app, 'PUT', 'probe', {
+      body: { description: 'b', body: 'y' },
+    });
+    expect(await kept.json()).toMatchObject({ disableModelInvocation: true });
+    const dropped = await request(app, 'PUT', 'probe', {
+      body: { description: 'c', body: 'z', disableModelInvocation: false },
+    });
+    expect(await dropped.json()).not.toHaveProperty('disableModelInvocation');
+    expect(await skillMdOnDisk('probe')).not.toContain(
+      'disable-model-invocation',
+    );
+  });
+});
+
+/**
+ * The bundle files behind `files[]` are readable (G-04a): raw bytes,
+ * named by an attachment disposition, private, never rendered on this
+ * origin; the two absences are told apart; a planted symlink is the
+ * bundle's own 422, not a 500 (M4).
+ */
+describe('GET /skills/{slug}/files/{path}', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-skill-files-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    const dir = path.join(configRoot, 'acme', 'skills', 'pdf-notes');
+    await mkdir(path.join(dir, 'scripts'), { recursive: true });
+    await mkdir(path.join(dir, '.turbo'), { recursive: true });
+    await writeFile(
+      path.join(dir, 'SKILL.md'),
+      '---\nname: pdf-notes\ndescription: Doc.\nvisibility: org\n---\n\nRead PDFs.\n',
+      'utf-8',
+    );
+    await writeFile(
+      path.join(dir, 'scripts', 'fill.py'),
+      'print("ü")\n',
+      'utf-8',
+    );
+    await writeFile(
+      path.join(dir, 'font.bin'),
+      Buffer.from([0x00, 0xff, 0x10, 0x80, 0x7f]),
+    );
+    await writeFile(path.join(dir, '.turbo', 'cache'), 'x', 'utf-8');
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) {
+      delete process.env.TALE_CONFIG_DIR;
+    } else {
+      process.env.TALE_CONFIG_DIR = savedConfigDir;
+    }
+    await rm(configRoot, { recursive: true, force: true });
+  });
+
+  const file = (
+    app: Hono<RestEnv>,
+    slug: string,
+    rawPath: string,
+    method = 'GET',
+  ) =>
+    app.request(`http://localhost/skills/${slug}/files/${rawPath}`, { method });
+
+  it('serves text and binary files byte-exact, with the download headers', async () => {
+    const { app } = mount();
+    const text = await file(app, 'pdf-notes', 'scripts/fill.py');
+    expect(text.status).toBe(200);
+    expect(text.headers.get('content-type')).toBe('application/octet-stream');
+    expect(text.headers.get('content-length')).toBe(
+      String(Buffer.byteLength('print("ü")\n')),
+    );
+    expect(text.headers.get('content-disposition')).toBe(
+      `attachment; filename="fill.py"; filename*=UTF-8''fill.py`,
+    );
+    expect(text.headers.get('cache-control')).toBe('private, no-store');
+    expect(text.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await text.text()).toBe('print("ü")\n');
+
+    const binary = await file(app, 'pdf-notes', 'font.bin');
+    expect(binary.status).toBe(200);
+    expect([...new Uint8Array(await binary.arrayBuffer())]).toEqual([
+      0x00, 0xff, 0x10, 0x80, 0x7f,
+    ]);
+
+    const encoded = await file(app, 'pdf-notes', 'scripts%2Ffill.py');
+    expect(encoded.status).toBe(200);
+    expect(await encoded.text()).toBe('print("ü")\n');
+
+    const document = await file(app, 'pdf-notes', 'SKILL.md');
+    expect(document.status).toBe(200);
+    expect(await document.text()).toContain('Read PDFs.');
+  });
+
+  it('answers HEAD with the headers alone', async () => {
+    const { app } = mount();
+    const head = await file(app, 'pdf-notes', 'font.bin', 'HEAD');
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-length')).toBe('5');
+    expect(await head.text()).toBe('');
+  });
+
+  it('tells a missing file from a missing skill, and refuses paths the walk never produces', async () => {
+    const { app } = mount();
+    for (const rawPath of [
+      'missing.md',
+      '.turbo/cache',
+      '%2e%2e/SKILL.md',
+      '..%2FSKILL.md',
+      'node_modules/x.js',
+    ]) {
+      const res = await file(app, 'pdf-notes', rawPath);
+      expect(res.status, rawPath).toBe(404);
+      // A dot-segment the URL parser resolves away leaves the route
+      // entirely (the door's catch-all 404); the rest reach the reader.
+      if (res.headers.get('content-type')?.includes('application/json')) {
+        expect(await res.json()).toEqual({
+          error: 'Skill file not found',
+          code: 'SKILL_FILE_NOT_FOUND',
+        });
+      }
+    }
+    const noSkill = await file(app, 'no-such-skill', 'SKILL.md');
+    expect(noSkill.status).toBe(404);
+    expect(await noSkill.json()).toEqual({
+      error: 'Skill not found',
+      code: 'SKILL_NOT_FOUND',
+    });
+    const malformedSlug = await file(app, 'Not-A-Slug', 'SKILL.md');
+    expect(malformedSlug.status).toBe(404);
+    expect(await malformedSlug.json()).toMatchObject({
+      code: 'SKILL_NOT_FOUND',
+    });
+  });
+
+  it('answers a planted symlink as 422 SKILL_MALFORMED naming the entry, never a 500', async () => {
+    const { app } = mount();
+    await symlink(
+      '/etc/hostname',
+      path.join(configRoot, 'acme', 'skills', 'pdf-notes', 'link.md'),
+    );
+    const res = await file(app, 'pdf-notes', 'link.md');
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error:
+        'skills/pdf-notes/link.md could not be read: the skill bundle contains a symlink',
+      code: 'SKILL_MALFORMED',
+    });
+    // The document read walks the bundle and meets the link too.
+    const document = await app.request('http://localhost/skills/pdf-notes');
+    expect(document.status).toBe(422);
+    expect(await document.json()).toMatchObject({ code: 'SKILL_MALFORMED' });
   });
 });

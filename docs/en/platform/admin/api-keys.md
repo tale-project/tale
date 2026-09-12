@@ -17,6 +17,8 @@ The keys listed here are different from the per-user session tokens Tale issues 
 
 Open **Settings > API > REST** and click **Create API key**. Give the key a name that says who or what will use it (`Billing sync`, `Slack relay`, `ops-cron`) and pick the expiration — 7, 30, or 90 days, a year, or never; the default is 30 days. Tale shows the secret exactly once on creation — copy it into your password manager or your deployment system before you close the dialog. After that, the table shows only a masked fragment of it.
 
+Keys are minted here, not by the API: nothing under `/api/v1` creates, lists, rotates or revokes one, so an unattended connector cannot roll its own credential. What it can do is see the expiry coming — `GET /api/v1/me` answers the key's `name` and `expiresAt` — and alert a person in time for the overlap described under [Rotating a key](#rotating-a-key).
+
 The key acts as you: every request it makes carries your role in the organisation. A key minted by a Developer can read every resource and write to most; there is no way to mint a key more powerful than its creator. Since keys are exactly as dangerous as the role behind them, let the least-privileged account that can do the job mint the key.
 
 ## What the table shows
@@ -35,7 +37,7 @@ Open the key's row menu and click **Revoke key**, then confirm. A revoked key st
 
 ## Scopes and limits
 
-Each key carries the permissions of its creator's role at the time of every request, not the time of creation. Change the person's role — or disable their membership — and every key they minted inherits the change on the next request. Requests through the REST API are rate-limited per calling address, and a [governance budget rule](/platform/admin/governance/policies-and-limits) can cap what a single key spends on models.
+Each key carries the permissions of its creator's role at the time of every request, not the time of creation. Change the person's role — or disable their membership — and every key they minted inherits the change on the next request. Requests through the REST API are rate-limited per key holder — the person the key acts as, never the calling address — so spreading a connector across several keys minted by the same person, or across egress addresses, buys no headroom; give a busy connector its own machine user instead. Only a request whose key fails to authenticate is charged to its source address. The budgets themselves are on [Rate limits](/develop/rate-limits), and a [governance budget rule](/platform/admin/governance/policies-and-limits) can cap what a single key spends on models.
 
 ## Where this fits
 

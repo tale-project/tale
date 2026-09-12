@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import type { PlatformConfigurationClient } from './platform-client';
 import {
+  resourceConverged,
   resourceId,
   sameConfiguration,
   type PlatformResource,
@@ -132,7 +133,7 @@ export async function checkResourceChange(
   current: ResourceObservation,
   declaredResources: readonly PlatformResource[] = [],
 ) {
-  if (sameConfiguration(current.config, resource.config)) return;
+  if (resourceConverged(resource, current.config)) return;
   if (resource.kind === 'provider-credential' && resource.config.isDefault) {
     const rows = credentials.parse(
       await client.request('/api/app/provider-credentials/'),
@@ -274,7 +275,7 @@ export async function verifyResource(
   resource: PlatformResource,
 ): Promise<ResourceObservation> {
   const actual = await readResource(client, resource);
-  if (!sameConfiguration(actual.config, resource.config))
+  if (!resourceConverged(resource, actual.config))
     throw preconditionError(
       `Native configuration did not converge for ${resourceId(resource)}.`,
     );

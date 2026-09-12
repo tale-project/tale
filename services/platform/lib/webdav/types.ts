@@ -143,4 +143,9 @@ export interface ParsedPath {
   namespace: 'documents' | '.trash';
   segments: string[];
   isCollection: boolean;
+  /** `/dav/<orgSlug>/` itself — the read-only pseudo-root that lists the
+   * two namespaces. It parses as the documents collection so every
+   * handler treats it as one, but it is not the documents tree: what it
+   * advertises and accepts is decided on this flag, never on the URL. */
+  isRoot: boolean;
 }

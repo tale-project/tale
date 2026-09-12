@@ -21,12 +21,16 @@ La ligne de version en haut de chaque page de release nomme le type de bump en c
 
 Chaque page de release est la même liste ordonnée de sections. Les sections vides sont omises, pas laissées vierges — si tu ne vois pas une section, c'est qu'il n'y a rien à rapporter là.
 
-- **Highlights** — un ou deux paragraphes nommant à quoi sert la release. Lis ça en premier.
+- **Highlights** — une courte section par changement livré, qui nomme à quoi il sert. Lis ça en premier.
 - **Changements breaking** — chaque changement qui demande à l'opérateur de faire quelque chose avant ou après la montée de version. Chaque ligne nomme le symptôme que tu rencontrerais si tu sautais, et l'action qui l'évite.
 - **Obsolescences** — fonctionnalités qui marchent encore dans cette release mais marquées pour suppression. Chaque ligne nomme la version de suppression pour que tu planifies la bascule.
+- **Changements de comportement** — ce qu’une personne ou un opérateur remarquera en faisant la même chose qu’avant : une valeur par défaut qui a bougé, un refus qui est nouveau, un écran qui se lit autrement.
+- **Changements du contrat API** — chaque changement filaire de la surface REST (`/api/v1`), de l’endpoint MCP, de WebDAV ou d’OpenID Connect, une ligne par changement qui nomme l’ancien et le nouveau comportement (`GET …/content` répond **200** avec les octets — c’était un 302), avec l’`info.version` du document OpenAPI où il atterrit. Un intégrateur qui épingle une version du contrat lit cette section et rien d’autre ; la [référence API](/fr/develop/api-reference#versionnage) explique comment la version bouge.
 - **Sécurité** — entrées au format CVE pour les fixes qui ferment une vulnérabilité. Le flux complet vit sous [Avis de sécurité](/fr/self-hosted/operate/security/advisories) ; les notes de version portent le résumé d'une ligne plus le lien vers l'avis.
-- **Fonctionnalités et corrections** — la longue liste. Groupée par domaine (Platform, CLI, Docs) ; chaque ligne se lit comme une phrase.
+- **Problèmes connus** — ce avec quoi la release est livrée et qu’elle n’a pas corrigé, chacun avec son contournement s’il y en a un.
 - **Notes de migration** _(versions majeures et certaines mineures)_ — le parcours lié à travers les migrations de schéma, les changements de fichier de config ou les renommages côté opérateur. À lire systématiquement pour les majeures.
+- **Montée de version** — la séquence `tale update` + `tale deploy` pour cette release, avec ce qu’elle demande au-delà de l’habituel.
+- **What's Changed** — la liste générée de chaque changement mergé, une ligne chacun avec sa Pull Request. La longue liste ; les sections au-dessus sont l’ordre de lecture.
 
 ## Comment scanner une release
 

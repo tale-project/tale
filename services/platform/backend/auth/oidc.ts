@@ -26,6 +26,12 @@ export const OIDC_CLAIMS_SUPPORTED = [
   'sid',
   'scope',
   'azp',
+  // The provider library stamps every ID token with `acr` — always
+  // OIDC_ACR_VALUE, the one value discovery lists under
+  // `acr_values_supported` — so a relying party that asked for it can
+  // verify it was honoured; discovery used to advertise the value but not
+  // the claim. Tale asserts no stronger level, MFA enforcement included.
+  'acr',
   'email',
   'email_verified',
   'name',
@@ -35,7 +41,34 @@ export const OIDC_CLAIMS_SUPPORTED = [
   OIDC_ORGANIZATION_CLAIM,
 ];
 
+/** The one authentication context class the library asserts. */
+export const OIDC_ACR_VALUE = 'urn:mace:incommon:iap:bronze';
+
+/**
+ * What discovery advertises as `prompt_values_supported`: the values this
+ * issuer actually honours. The provider library hard-codes five; of those,
+ * `select_account` is refused outright here (no account picker page is
+ * configured — `unsupported_prompt_select_account`) and `create` lands on
+ * the ordinary sign-in continuation rather than a registration page, so
+ * advertising either would send a relying party down a path that ends in
+ * an error or the wrong screen.
+ */
+export const OIDC_PROMPT_VALUES_SUPPORTED = ['none', 'login', 'consent'];
+
+/** The library's own discovery documents, under the auth mount and at the
+ * RFC 8414 path-insertion location. */
+export const OIDC_DISCOVERY_PATHS = [
+  '/api/auth/.well-known/openid-configuration',
+  '/.well-known/oauth-authorization-server/api/auth',
+];
+
+/** The provider library's own error page — where an authorization request
+ * that cannot be answered at the client's redirect URI lands. */
+export const OIDC_ERROR_PAGE_PATH = '/api/auth/error';
+
 export const OIDC_USERINFO_PATH = '/oauth2/userinfo';
+export const OIDC_AUTHORIZE_PATH = '/oauth2/authorize';
+export const OIDC_TOKEN_PATH = '/oauth2/token';
 /** The endpoints a client authenticates to with its secret (RFC 6749 §2.3). */
 const OAUTH_CLIENT_AUTHENTICATED_PATHS = new Set([
   '/oauth2/token',
@@ -64,35 +97,35 @@ function bearerChallenge(
   ].join(', ');
 }
 
-/** `[body.grant_type] …` / `[query.client_id] …` — the schema layer's field
- * addressing, rewritten to the parameter name the OAuth client sent. */
+/**
+ * The request-schema layer's message — `[query.client_id] Invalid input:
+ * expected string, received undefined` — as a sentence about the OAuth
+ * parameter: `client_id is required`, `code must be a string`,
+ * `response_type must be one of "code"`. The library's wording is zod's,
+ * so a client that matched on it would break on a library upgrade; a
+ * problem the rules below do not know keeps its text behind the
+ * parameter name. Several problems join with `; `.
+ */
 function describeValidation(message: string): string {
-  return message.replace(/\[(?:body|query)\.([^\]]+)\]\s*/g, '$1: ');
+  const problems = [
+    ...message.matchAll(/\[(?:body|query)\.([^\]]+)\]\s*([^[]*)/g),
+  ].map(([, parameter, detail]) => describeProblem(parameter ?? '', detail));
+  return problems.length === 0 ? message.trim() : problems.join('; ');
 }
 
-/**
- * The OAuth error envelope (RFC 6749 §5.2, RFC 6750 §3) for a refusal the
- * provider library shaped differently — null when the library's own answer
- * already conforms. Runs from the auth after-hook, where an endpoint's
- * thrown `APIError` is `returned`; the hook answers with a Response built
- * from it, since a hook's own thrown error keeps the endpoint's status.
- *
- *  - `/oauth2/userinfo` is a bearer-protected resource. An invalid or
- *    expired token is 401 `invalid_token` with a `WWW-Authenticate: Bearer`
- *    challenge — the library answered 400 and no challenge, which a
- *    conforming client reads as "malformed request, do not retry" instead
- *    of "re-authenticate", so every five-minute token expiry surfaced as a
- *    hard error. A missing token keeps its 401 and gains the challenge; a
- *    token without the openid scope is 403 `insufficient_scope`; any other
- *    refusal keeps its status and body and gains the bare challenge.
- *  - the request-schema layer's `{message, code: "VALIDATION_ERROR"}` on any
- *    `/oauth2/*` endpoint becomes `invalid_request`; an unknown grant at
- *    the token endpoint is `unsupported_grant_type`, as the library itself
- *    answers for the grants this deployment leaves off.
- *  - `invalid_client` at a client-authenticated endpoint gains the
- *    `WWW-Authenticate: Basic` challenge RFC 6749 §5.2 requires when the
- *    client authenticated through the Authorization header.
- */
+function describeProblem(
+  parameter: string,
+  detail: string | undefined,
+): string {
+  const text = (detail ?? '').trim().replace(/[.;,\s]+$/, '');
+  if (text.endsWith('received undefined')) return `${parameter} is required`;
+  const expected = /^Invalid input: expected (\w+)/.exec(text);
+  if (expected) return `${parameter} must be a ${expected[1]}`;
+  const option = /^Invalid option: expected one of (.+)$/.exec(text);
+  if (option) return `${parameter} must be one of ${option[1]}`;
+  return text === '' ? `${parameter} is invalid` : `${parameter}: ${text}`;
+}
+
 /**
  * The OAuth error envelope (RFC 6749 §5.2, RFC 6750 §3) for a refusal the
  * provider library shaped differently — null when the library's own answer
@@ -110,9 +143,14 @@ function describeValidation(message: string): string {
  *    token without the openid scope is 403 `insufficient_scope`; any other
  *    refusal keeps its status and body and gains the bare challenge.
  *  - the request-schema layer's `{message, code: "VALIDATION_ERROR"}` on any
- *    `/oauth2/*` endpoint becomes `invalid_request`; an unknown grant at
- *    the token endpoint is `unsupported_grant_type`, as the library itself
+ *    `/oauth2/*` endpoint becomes `invalid_request`, its message rewritten
+ *    to name the parameter (`describeValidation`); an unknown grant at the
+ *    token endpoint is `unsupported_grant_type`, as the library itself
  *    answers for the grants this deployment leaves off.
+ *  - the body layer's 415 `{message, code: "UNSUPPORTED_MEDIA_TYPE"}` —
+ *    a JSON-only endpoint sent a form — becomes 400 `invalid_request`
+ *    naming the media type it takes: RFC 6749 §5.2 knows no 415, and the
+ *    third envelope was the one shape no OAuth client could parse.
  *  - `invalid_client` at a client-authenticated endpoint gains the
  *    `WWW-Authenticate: Basic` challenge RFC 6749 §5.2 requires when the
  *    client authenticated through the Authorization header.
@@ -130,6 +168,22 @@ export function oauthRefusalFor(input: {
   const body: Record<string, unknown> = isRecord(input.body) ? input.body : {};
   const description =
     typeof body.error_description === 'string' ? body.error_description : null;
+
+  if (status === 415 || body.code === 'UNSUPPORTED_MEDIA_TYPE') {
+    const message = typeof body.message === 'string' ? body.message : '';
+    const allowed = /Allowed types: (.+)$/.exec(message)?.[1]?.trim();
+    return {
+      status: 400,
+      body: {
+        error: 'invalid_request',
+        error_description:
+          allowed === undefined
+            ? 'the request body is not a media type this endpoint takes'
+            : `the request body must be ${allowed}`,
+      },
+      headers: {},
+    };
+  }
 
   if (body.code === 'VALIDATION_ERROR') {
     const message = typeof body.message === 'string' ? body.message : '';
@@ -205,6 +259,98 @@ export function oauthRefusalFor(input: {
     };
   }
   return null;
+}
+
+/**
+ * The authorization endpoint's redirect to the error page, corrected for
+ * an unknown client: the provider library answers "client_id is required"
+ * both when the parameter is missing and when it names no registered
+ * client, so a developer whose client_id was present and mistyped was sent
+ * to re-check the one thing that was right. When the request DID carry a
+ * client_id, the description names the real problem; the error code
+ * (`invalid_client`) and the page stay the library's. Null when the
+ * location is not that redirect, or the parameter really was missing.
+ * The redirect never goes to the client's own `redirect_uri` for this
+ * error — RFC 6749 §4.1.2.1 — and that is left exactly as it was.
+ */
+export function authorizeRedirectFor(input: {
+  /** The authorization request's URL. */
+  requestUrl: string;
+  /** The `Location` the library answered. */
+  location: string;
+}): string | null {
+  let request: URL;
+  let target: URL;
+  try {
+    request = new URL(input.requestUrl);
+    target = new URL(input.location, request);
+  } catch {
+    return null;
+  }
+  if (
+    !target.pathname.endsWith(OIDC_ERROR_PAGE_PATH) ||
+    target.searchParams.get('error') !== 'invalid_client' ||
+    target.searchParams.get('error_description') !== 'client_id is required'
+  ) {
+    return null;
+  }
+  const clientId = request.searchParams.get('client_id')?.trim() ?? '';
+  if (clientId === '') return null;
+  target.searchParams.set(
+    'error_description',
+    'client_id names no registered client',
+  );
+  return target.toString();
+}
+
+/**
+ * The token endpoint's answer to a request without a `grant_type`: RFC
+ * 6749 §5.2 — a missing required parameter is `invalid_request`, where the
+ * library's schema layer reads the absence as an unsupported grant. Judged
+ * on the body text before the library consumes it (the mount clones the
+ * request); a body that names a grant, whatever it is, is the library's
+ * to judge. Null when the request is not a token request or names one.
+ */
+export function tokenRequestRefusal(input: {
+  method: string;
+  /** The path inside the auth mount (`/oauth2/token`). */
+  path: string;
+  contentType: string | null;
+  body: string;
+}): OAuthRefusal | null {
+  if (input.method !== 'POST' || input.path !== OIDC_TOKEN_PATH) return null;
+  if (readGrantType(input.contentType ?? '', input.body) !== 'absent') {
+    return null;
+  }
+  return {
+    status: 400,
+    body: {
+      error: 'invalid_request',
+      error_description: 'grant_type is required',
+    },
+    headers: {},
+  };
+}
+
+/** Whether the token request names a grant — `unreadable` when the body is
+ * not what its media type says, which is the library's own refusal. */
+function readGrantType(
+  contentType: string,
+  body: string,
+): 'named' | 'absent' | 'unreadable' {
+  const media = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  let value: unknown;
+  if (/^application\/([a-z0-9.+-]*\+)?json$/.test(media)) {
+    try {
+      const parsed: unknown = JSON.parse(body);
+      value = isRecord(parsed) ? parsed.grant_type : undefined;
+    } catch {
+      return 'unreadable';
+    }
+  } else {
+    value = new URLSearchParams(body).get('grant_type') ?? undefined;
+  }
+  return typeof value === 'string' && value.trim() !== '' ? 'named' : 'absent';
 }
 
 /** Client management is exposed through the organization-aware app routes. */

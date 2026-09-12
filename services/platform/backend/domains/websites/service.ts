@@ -78,16 +78,21 @@ import {
 export class WebsiteError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  /** Structured refusal payload the doors hand on (the row a duplicate
+   * registration collided with: `websiteId`, `domain`). */
+  readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'WebsiteError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -173,6 +178,28 @@ export async function getWebsiteByDomain(
   const rows = await db<WebsiteRow[]>`
     SELECT ${db.unsafe(WEBSITE_COLUMNS)} FROM app.websites
     WHERE org_id = ${organizationId} AND domain = ${domain} LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/**
+ * The organization's registration that already covers `domain` — the row
+ * stored under that exact host, or under its `www.`/apex sibling: the
+ * crawler treats the pair as ONE site (`siteHosts`), so a second row for
+ * the sibling would crawl, embed and cite the same pages twice. The exact
+ * spelling wins when, from before this rule, both exist.
+ */
+export async function getWebsiteCoveringDomain(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  domain: string,
+): Promise<WebsiteRow | null> {
+  const hosts = [...siteHosts(domain)];
+  const rows = await db<WebsiteRow[]>`
+    SELECT ${db.unsafe(WEBSITE_COLUMNS)} FROM app.websites
+    WHERE org_id = ${organizationId} AND domain = ANY(${hosts})
+    ORDER BY (domain = ${domain}) DESC
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -697,6 +724,116 @@ export function normalizeListUrls(
     normalized.add(url);
   }
   return [...normalized];
+}
+
+/** What a registration answers: the row's id, whether an existing URL
+ * list was extended rather than a row created, and the host stored. */
+export interface RegisterWebsiteResult {
+  id: string;
+  merged: boolean;
+  domain: string;
+}
+
+/**
+ * Register a website — the ONE choreography behind both write doors (the
+ * app's `POST /websites`, the REST `POST /api/v1/websites`), so the two
+ * cannot disagree about a duplicate. The domain is the crawl-target host
+ * of the input (`crawlableDomain`: `https://` and a path are read through,
+ * `www.` is KEPT — the corpus is keyed on the stored host and live rows
+ * cannot be renamed); a curated `urls` list is validated against the
+ * domain and its www/apex sibling.
+ *
+ * A row that already covers the domain — stored under it or under its
+ * sibling — decides the outcome BEFORE anything is written or queued:
+ *
+ *  - the same host, registered as a URL list, and `urls` given: the list
+ *    is extended (`merged: true`, the existing id) and a scan queued;
+ *  - anything else — no `urls`, a whole-site crawl (a list cannot quietly
+ *    fail to become one), or the sibling spelling — is refused with 409
+ *    `WEBSITE_DUPLICATE_DOMAIN`, `data.websiteId` and `data.domain` naming
+ *    the row (re-post under the stored spelling to extend a list).
+ *
+ * Before this, both doors patched the existing row, re-queued a full
+ * scan and answered "your list was extended" for a whole-site crawl —
+ * whose `kind` never changed — and registered the sibling as a second,
+ * independent crawl of the same site. The row write and the register job
+ * commit together: a 'scanning' row whose job never landed would sit for
+ * the stuck-scan window and then scan a domain the corpus never saw.
+ */
+export async function registerWebsite(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    domain: string;
+    scanInterval: string;
+    title?: string;
+    description?: string;
+    urls?: readonly string[];
+  },
+): Promise<RegisterWebsiteResult> {
+  const domain = crawlableDomain(args.domain);
+  const listEntries = args.urls ?? [];
+  const isList = listEntries.length > 0;
+  const listedUrls = isList
+    ? normalizeListUrls(domain, listEntries)
+    : undefined;
+  return sql.begin(async (tx) => {
+    const existing = await getWebsiteCoveringDomain(
+      tx,
+      args.organizationId,
+      domain,
+    );
+    let id: string;
+    let merged = false;
+    if (existing !== null) {
+      const duplicate = (why: string): WebsiteError =>
+        new WebsiteError('WEBSITE_DUPLICATE_DOMAIN', why, 409, {
+          websiteId: existing.id,
+          domain: existing.domain,
+        });
+      if (existing.domain !== domain) {
+        throw duplicate(
+          `Website with domain ${existing.domain} already covers ${domain} — the www and apex spellings are one site`,
+        );
+      }
+      if (!isList) {
+        throw duplicate(`Website with domain ${domain} already exists`);
+      }
+      if (existing.kind !== 'list') {
+        throw duplicate(
+          `Website with domain ${domain} is registered as a whole-site crawl; a URL list cannot extend it`,
+        );
+      }
+      await patchWebsite(tx, {
+        websiteId: existing.id,
+        callerOrgId: args.organizationId,
+        scanInterval: args.scanInterval,
+        status: 'scanning',
+      });
+      id = existing.id;
+      merged = true;
+    } else {
+      id = await createWebsiteRow(tx, {
+        organizationId: args.organizationId,
+        domain,
+        ...(isList ? { kind: 'list' as const } : {}),
+        ...(args.title !== undefined ? { title: args.title } : {}),
+        ...(args.description !== undefined
+          ? { description: args.description }
+          : {}),
+        scanInterval: args.scanInterval,
+        status: 'scanning',
+      });
+    }
+    await addJobInTx(tx, 'websites.register', {
+      websiteId: id,
+      domain,
+      scanInterval: args.scanInterval,
+      organizationId: args.organizationId,
+      ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
+    });
+    return { id, merged, domain };
+  });
 }
 
 /**

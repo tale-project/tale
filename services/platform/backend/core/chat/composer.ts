@@ -22,6 +22,43 @@
 
 import { walkChatCatalog } from '../lib/providers/chat_catalog';
 
+/** The vendor names a model id spells in lower case. */
+const BRANDS: Readonly<Record<string, string>> = {
+  deepseek: 'DeepSeek',
+  glm: 'GLM',
+  gpt: 'GPT',
+  claude: 'Claude',
+  qwen: 'Qwen',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  kimi: 'Kimi',
+};
+
+/**
+ * A display name from a model id, for a catalog that publishes none: the
+ * vendor prefix dropped (`z-ai/glm-5.3` → `glm-5.3`), the dash-separated
+ * tokens spaced, a brand token spelled the way its vendor spells it, a
+ * version token like `v4` upper-cased, a number kept as it is, and any
+ * other word capitalised — `deepseek-v4-flash` reads "DeepSeek V4 Flash",
+ * `glm-5v-turbo` "GLM 5v Turbo", `gpt-4o-mini` "GPT 4o Mini". A fallback
+ * every integrator's picker was hand-rolling; a catalog `label` will
+ * replace it where a source declares one.
+ */
+export function humaniseModelId(id: string): string {
+  const bare = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id;
+  const words = bare
+    .split(/[-_\s]+/)
+    .filter((token) => token.length > 0)
+    .map((token) => {
+      const brand = BRANDS[token.toLowerCase()];
+      if (brand !== undefined) return brand;
+      if (/^v\d+(?:\.\d+)*$/i.test(token)) return token.toUpperCase();
+      if (/^\d/.test(token)) return token;
+      return token.charAt(0).toUpperCase() + token.slice(1);
+    });
+  return words.length > 0 ? words.join(' ') : id;
+}
+
 /** The forced-execution constraints a subscription credential carries. */
 interface ExecutionConstraints {
   execution: 'sandbox';
@@ -110,7 +147,7 @@ export function collectComposerOptions(
     if (byId.has(key)) continue;
     byId.set(key, {
       id: entry.id,
-      label: entry.id,
+      label: humaniseModelId(entry.id),
       providerSlug: connector.name,
       providerLabel: connector.displayName,
       credential: credentialAuth,

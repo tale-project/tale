@@ -289,8 +289,75 @@ describe('filters narrow the search', () => {
 describe('admission runs before the page is cut', () => {
   const refuse =
     (...ids: string[]) =>
-    (hits: readonly (KnowledgeHit & { fusedScore: number })[]) =>
+    <Hit extends KnowledgeHit>(hits: readonly Hit[]) =>
       Promise.resolve(hits.filter((entry) => !ids.includes(entry.id)));
+
+  it('admits BEFORE fusing, so a refused candidate never holds a rank', async () => {
+    // With fusion first, `top` held rank 1 in both legs and `next` was
+    // scored as rank 2 — 0.98 of the best — while a caller who could not
+    // see `top` was told the page's only hit was second-best. Admission
+    // now runs on the raw leg lists: `next` IS the best admitted candidate
+    // and scores 1, and the legs report what was actually fused.
+    const reader = stubReader({
+      keyword: [hit('top', 'documents', 12), hit('next', 'documents', 8)],
+      dense: [hit('top', 'documents', 0.9), hit('next', 'documents', 0.7)],
+    });
+    const admitted: string[][] = [];
+    const result = await retrieve(
+      {
+        readers: [reader],
+        embedder,
+        orgSlug: 'acme',
+        admit: (hits) => {
+          admitted.push(hits.map((entry) => entry.id));
+          return refuse('top')(hits);
+        },
+      },
+      { query: 'q', limit: 5 },
+    );
+    // One check over the distinct candidates of every leg — not one per leg.
+    expect(admitted).toEqual([['top', 'next']]);
+    expect(result.hits.map((entry) => [entry.id, entry.fusedScore])).toEqual([
+      ['next', 1],
+    ]);
+    expect(result.diagnostics.legs).toEqual({
+      'documents:keyword': 1,
+      'documents:dense': 1,
+    });
+    expect(result.diagnostics.admitted).toBe(1);
+  });
+
+  it('names the legs that ranked each hit and carries their own scores beside the rank key', async () => {
+    const reader = stubReader({
+      keyword: [hit('kw', 'documents', 12), hit('shared', 'documents', 8)],
+      dense: [hit('dense', 'documents', 0.9), hit('shared', 'documents', 0.7)],
+    });
+    const result = await retrieve(
+      { readers: [reader], embedder, orgSlug: 'acme' },
+      { query: 'q' },
+    );
+    const byId = new Map(result.hits.map((entry) => [entry.id, entry]));
+    expect(byId.get('shared')).toMatchObject({
+      legs: 2,
+      matchedLegs: ['documents:keyword', 'documents:dense'],
+      similarity: 0.7,
+      keywordScore: 8,
+      // The surviving object is the keyword leg's copy — unchanged.
+      score: 8,
+    });
+    expect(byId.get('kw')).toMatchObject({
+      legs: 1,
+      matchedLegs: ['documents:keyword'],
+      similarity: null,
+      keywordScore: 12,
+    });
+    expect(byId.get('dense')).toMatchObject({
+      legs: 1,
+      matchedLegs: ['documents:dense'],
+      similarity: 0.9,
+      keywordScore: null,
+    });
+  });
 
   it('a refused top candidate does not empty a limit:1 page', async () => {
     const reader = stubReader({

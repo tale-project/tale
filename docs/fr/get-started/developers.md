@@ -11,7 +11,7 @@ Il te faut le rôle **Développeur** ou plus (les paramètres d’API sont masqu
 
 <Step title="Crée une clé API">
 
-Pour obtenir un identifiant que tes scripts peuvent porter, ouvre **Paramètres > API > REST** et clique sur **Créer une clé API**. Nomme-la d’après le système qui l’utilisera — les clés sont listées par nom, et dans un an « zapier-bridge » bat « test ». La valeur de la clé ne s’affiche qu’une fois, à la création ; range-la dans ton gestionnaire de secrets, pas dans le code.
+Pour obtenir un identifiant que tes scripts peuvent porter, ouvre **Paramètres > API > REST** et clique sur **Créer une clé API**. Nomme-la d’après le système qui l’utilisera — les clés sont listées par nom, et dans un an « zapier-bridge » bat « test ». La valeur de la clé ne s’affiche qu’une fois, à la création ; range-la dans ton gestionnaire de secrets, pas dans le code. Les clés se créent, se font tourner et se révoquent ici et nulle part ailleurs — rien sous `/api/v1` n’en crée, n’en liste ni n’en révoque une —, planifie donc la rotation comme une étape humaine ; la clé peut au moins voir venir sa propre expiration, comme `key.expiresAt` sur `GET /api/v1/me`.
 
 <Frame caption="Les paramètres de l’API REST — les clés se créent et se révoquent ici.">
 
@@ -23,16 +23,17 @@ Pour obtenir un identifiant que tes scripts peuvent porter, ouvre **Paramètres 
 
 <Step title="Envoie la première requête">
 
-La première requête liste les modèles que ta clé peut utiliser dans le chat direct. La clé passe comme jeton Bearer ; le contexte d’organisation suit tes appartenances :
+La première requête liste les modèles que ta clé peut utiliser dans le chat direct. La clé passe comme jeton Bearer. Une clé dont le détenteur n’appartient qu’à une organisation n’a besoin de rien d’autre ; si tu appartiens à plusieurs — une org bac à sable et une vraie, c’est le cas courant —, chaque requête, lectures comprises, doit nommer l’organisation dans `X-Organization-Slug` (son slug est dans la barre d’adresse de l’app, et `GET /api/v1/me` liste chaque slug que tu peux envoyer) :
 
 ```bash
 curl -sS --compressed https://your-host.example.com/api/v1/models \
-  -H "Authorization: Bearer $TALE_API_KEY"
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 ```
 
 <Check>
 
-Un objet JSON contenant un tableau `models` confirme la clé, l’authentification et la route. Le tableau peut être vide si aucun modèle de chat direct n’est disponible. Un `401` indique un en-tête d’autorisation mal formé ou une clé révoquée.
+Un objet JSON contenant un tableau `models` confirme la clé, l’authentification et la route. Le tableau peut être vide si aucun modèle de chat direct n’est disponible. Un `401` indique un en-tête d’autorisation mal formé ou une clé révoquée. Un `400` avec `"code": "ORG_SLUG_REQUIRED"` signifie que tu appartiens à plusieurs organisations et que la requête n’en a nommé aucune — ajoute l’en-tête `X-Organization-Slug` ; le corps liste les slugs que tu peux envoyer sous `data.organizations`
 
 </Check>
 

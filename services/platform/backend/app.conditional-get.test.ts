@@ -65,7 +65,8 @@ function fakeSql(): Sql {
 function fakeAuth(): Auth {
   const getSession = vi.fn(({ headers }: { headers: Headers }) =>
     Promise.resolve(
-      headers.get('x-api-key') === GOOD_KEY
+      headers.get('x-api-key') === GOOD_KEY ||
+        headers.get('cookie') === 'tale.session=good'
         ? {
             user: { id: 'user-1', email: 'user@example.com', name: 'U' },
             session: { id: 's-1', activeOrganizationId: 'org-1' },
@@ -144,7 +145,10 @@ describe('validated reads through the real app', () => {
   });
 
   it('validates the app surface the same way', async () => {
-    const headers = { 'x-api-key': GOOD_KEY };
+    // The app surface is a signed-in session; a key in `x-api-key` is
+    // refused before any door (it used to act as the key holder's session
+    // on every route), so the double answers a cookie here.
+    const headers = { cookie: 'tale.session=good' };
     const first = await app().request(
       'http://localhost/api/app/video-links/unbound?orgId=org-1',
       { headers },

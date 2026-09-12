@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BuilderMessage } from '../../../lib/automations_builder/session';
-import { buildChatRequest, parseChatReply } from './chat_wire';
+import { buildChatRequest, EmptyReplyError, parseChatReply } from './chat_wire';
 
 const messages: BuilderMessage[] = [
   { role: 'system', content: 'GUIDE' },
@@ -316,6 +316,65 @@ describe('unusable payloads', () => {
     expect(() => parseChatReply('openai', 'nope')).toThrow(
       'the model returned a non-object payload',
     );
+  });
+
+  /**
+   * A thinking-by-default model can spend its whole output cap reasoning
+   * and answer nothing — the call happened and was billed. A well-formed
+   * message with no text names itself, usage attached, so the caller can
+   * book what it paid; a payload with no message at all stays a plain error.
+   */
+  it('names a well-formed reply with no text as EmptyReplyError, usage attached', () => {
+    const openAi = (() => {
+      try {
+        parseChatReply('openai', {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: '',
+                reasoning_content: 'hmm',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 40, completion_tokens: 48 },
+        });
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    })();
+    expect(openAi).toBeInstanceOf(EmptyReplyError);
+    expect(openAi).toMatchObject({
+      message: 'the model returned no text content',
+      usage: { prompt: 40, completion: 48 },
+    });
+    const anthropic = (() => {
+      try {
+        parseChatReply('anthropic', {
+          content: [{ type: 'thinking', thinking: 'hmm' }],
+          usage: { input_tokens: 30, output_tokens: 48 },
+        });
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    })();
+    expect(anthropic).toBeInstanceOf(EmptyReplyError);
+    expect(anthropic).toMatchObject({ usage: { prompt: 30, completion: 48 } });
+    for (const [apiFormat, payload] of [
+      ['openai', { choices: [] }],
+      ['anthropic', {}],
+    ] as const) {
+      let thrown: unknown;
+      try {
+        parseChatReply(apiFormat, payload);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(Error);
+      expect(thrown).not.toBeInstanceOf(EmptyReplyError);
+    }
   });
 });
 

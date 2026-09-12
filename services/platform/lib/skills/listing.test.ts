@@ -41,9 +41,26 @@ function fakeReader(
 ): SkillBundleReader {
   return {
     listSlugs: () => Promise.resolve(Object.keys(files)),
-    readSkillMd: (slug) => Promise.resolve(files[slug] ?? null),
+    // The facts a filesystem reader would stat: a hash that is a function
+    // of the text, and a modification time.
+    readSkillDocument: (slug) => {
+      const text = files[slug];
+      return Promise.resolve(
+        text === undefined
+          ? null
+          : { text, hash: fakeHash(text), mtimeMs: FIXED_MTIME_MS },
+      );
+    },
     describe: (slug) => `${orgSlug}/skills/${slug}/SKILL.md`,
   };
+}
+
+const FIXED_MTIME_MS = 1_700_000_000_000;
+
+/** A stand-in for the SHA-256 a real reader computes: deterministic in the
+ * text, distinct for distinct texts of these fixtures. */
+function fakeHash(text: string): string {
+  return `h${text.length.toString(16)}-${text.replaceAll(/[^a-z0-9]/g, '').slice(0, 12)}`;
 }
 
 const acme = fakeReader('acme', {
@@ -102,6 +119,19 @@ describe('readOrgSkill', () => {
     expect(skill?.slug).toBe('write-notes');
     expect(skill?.meta.description).toBe('Acme note discipline.');
     expect(skill?.path).toBe('acme/skills/write-notes/SKILL.md');
+  });
+
+  it('names the version it read: the quoted hash as a strong entity tag, the mtime as updatedAt', async () => {
+    const skill = await readOrgSkill(acme, 'write-notes');
+    const other = await readOrgSkill(acme, 'red-notes');
+
+    expect(skill?.etag).toMatch(/^"[^"]+"$/);
+    expect(skill?.etag.startsWith('W/')).toBe(false);
+    expect(skill?.updatedAt).toBe(FIXED_MTIME_MS);
+    // Two different documents never share a tag.
+    expect(other?.etag).not.toBe(skill?.etag);
+    // The same document reads back with the same tag.
+    expect((await readOrgSkill(acme, 'write-notes'))?.etag).toBe(skill?.etag);
   });
 
   it('returns null for a bundle the org does not have', async () => {

@@ -90,7 +90,6 @@ export {
   RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_STATUS_VALUES,
-  RAG_SEARCH_MIN_SIMILARITY,
   type AwaitingAnswerResult,
   type ChatToolExecutor,
   type ChatToolName,

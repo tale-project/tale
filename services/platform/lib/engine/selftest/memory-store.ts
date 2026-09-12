@@ -16,6 +16,7 @@
 import type {
   RunDetail,
   RunSummary,
+  SetTriggerOutcome,
   TriggerSpec,
   TriggerView,
   VersionSummary,
@@ -44,7 +45,10 @@ export interface MemoryStore extends StoreAdapter {
   ): { version: number };
   deploy(name: string, version: number): void;
   listVersions(name: string): Promise<VersionSummary[]>;
-  setTrigger(name: string, trigger: TriggerSpec): Promise<void>;
+  setTrigger(
+    name: string,
+    trigger: TriggerSpec,
+  ): Promise<SetTriggerOutcome | undefined>;
   listTriggers(name?: string): Promise<TriggerView[]>;
   deleteTrigger(name: string): Promise<{ deleted: boolean }>;
   startRun(
@@ -160,6 +164,9 @@ export function memoryStore(): MemoryStore {
         hasToken: typeof trigger.tokenHash === 'string',
         enabled: trigger.enabled !== false,
       });
+      // Nothing durable is revoked here: the selftest store holds no
+      // webhook URL a partner posts to.
+      return undefined;
     },
     async listTriggers(name) {
       if (name !== undefined) {

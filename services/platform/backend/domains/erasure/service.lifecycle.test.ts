@@ -383,6 +383,54 @@ describe('processErasure', () => {
     expect(settle?.values[0]).toBe('done');
     expect(settle?.values[2]).toMatchObject({ agentRuns: 2 });
   });
+
+  /**
+   * Automation runs carry every node's resolved values, so the subject's
+   * runs go — under all three starter markers. The bare user id is the one
+   * the builder session and the chat capability recorded before the engine
+   * store prefixed its starter; the pass used to match only the two
+   * prefixed forms and left those runs behind.
+   */
+  it('deletes the automation runs the subject started under every starter marker', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.automation_runs'))
+        return [{ id: 'run-1' }, { id: 'run-2' }, { id: 'run-3' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const runs = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.automation_runs'),
+    );
+    expect(runs?.text).toBe(
+      'DELETE FROM app.automation_runs WHERE org_id = ? AND started_by = ANY(?) RETURNING id',
+    );
+    expect(runs?.values).toEqual([
+      'org_1',
+      ['user:subject', 'api-key:subject', 'subject'],
+    ]);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
 });
 
 describe('requestErasure — the limiter', () => {

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -49,14 +49,35 @@ function literalCodes(source: string): string[] {
  * `codedRefusalResponse`. Their `new XError('CODE', …)` literals are
  * codes the door can answer, so the registry must carry them too; the
  * runtime warn-once (`noteRestErrorCode`) only ever told an operator after
- * the fact. Modules are followed one level deep from the handlers (the
- * services they name), which is where the door's refusals are thrown.
+ * the fact. Modules are followed from the handlers through the backend's
+ * own layers (`domains`, `core`, `auth`, `lib`), up to `IMPORT_DEPTH` hops:
+ * one hop found the services the handlers name, but a service that
+ * delegates to a helper (`core/knowledge_entries/helpers.ts`, thrown
+ * through `domains/knowledge_entries/service.ts`) put its codes on the
+ * wire unseen — `KNOWLEDGE_ENTRY_TOPIC_REQUIRED` reached a client with no
+ * contract listing it, and the guard stayed green.
  */
+const IMPORT_DEPTH = 2;
+const BACKEND_ROOT = resolve(here, '..');
+
+function backendLayerImports(fromFile: string, source: string): string[] {
+  const found: string[] = [];
+  for (const match of source.matchAll(/from '(\.{1,2}\/[^']+)'/g)) {
+    const spec = match[1] ?? '';
+    const target = resolve(dirname(fromFile), spec);
+    const inside = relative(BACKEND_ROOT, target);
+    if (!/^(domains|core|auth|lib)(\/|$)/.test(inside)) continue;
+    found.push(target.endsWith('.ts') ? target : `${target}.ts`);
+  }
+  return found;
+}
+
 function domainSourcesReachableFromHandlers(): {
   path: string;
   source: string;
 }[] {
   const seen = new Map<string, string>();
+  let frontier: string[] = [];
   for (const name of readdirSync(here)) {
     if (
       !name.endsWith('.ts') ||
@@ -65,22 +86,26 @@ function domainSourcesReachableFromHandlers(): {
     ) {
       continue;
     }
-    const source = readFileSync(join(here, name), 'utf8');
-    for (const match of source.matchAll(
-      /from '((?:\.\.\/(?:domains|core|auth|lib)\/)[^']+)'/g,
-    )) {
-      const spec = match[1] ?? '';
-      const file = spec.endsWith('.ts') ? spec : `${spec}.ts`;
-      const path = join(here, file);
+    const file = join(here, name);
+    frontier.push(...backendLayerImports(file, readFileSync(file, 'utf8')));
+  }
+  for (let depth = 0; depth < IMPORT_DEPTH && frontier.length > 0; depth++) {
+    const next: string[] = [];
+    for (const path of frontier) {
       if (seen.has(path)) continue;
+      let source: string;
       try {
-        seen.set(path, readFileSync(path, 'utf8'));
+        source = readFileSync(path, 'utf8');
       } catch (error) {
         // A directory import, or a module without the .ts suffix on disk —
         // nothing to scan there; the handler guard covers the door itself.
-        console.warn(`[error-codes.test] skipped ${file}:`, error);
+        console.warn(`[error-codes.test] skipped ${path}:`, error);
+        continue;
       }
+      seen.set(path, source);
+      next.push(...backendLayerImports(path, source));
     }
+    frontier = next;
   }
   return [...seen].map(([path, source]) => ({ path, source }));
 }
@@ -117,6 +142,13 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
   'AUTOMATION_NAME_TAKEN',
+  // A project id the organization does not have: every REST door resolves
+  // the URL project first (`loadRestProject` → `PROJECT_NOT_FOUND`), the MCP
+  // store checks it before the run store does (`PROJECT_NOT_FOUND`), and the
+  // webhook door folds it into its one 403 — only the app door's start with
+  // a `projectId` in the body answers it. (`AUTOMATION_PROJECT_ARCHIVED` is
+  // thrown by nothing and left the registry with it.)
+  'AUTOMATION_PROJECT_UNKNOWN',
   'EMPTY_ANSWER',
   'HUMAN_ASK_EXPIRED',
   'HUMAN_ASK_NOT_FOUND',
@@ -135,23 +167,218 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'FOLDER_TEAM_FORBIDDEN',
   'FOLDER_TEAM_INHERITED',
   'TEAM_INHERITED_FROM_FOLDER',
+  // Documents: the REST door refuses a project file with the opaque 404
+  // and carries no `teamIds`, so a project+team clash never reaches the
+  // domain; a blank title is trimmed and refused at the door (`nonBlank`),
+  // so the domain's own title check cannot fire; detaching a document
+  // from its project is the app's own action; and a bare file row's delete
+  // (`FILE_BOUND_TO_DOCUMENT`) is the app's files lane — REST deletes the
+  // document, never the row.
+  'DOCUMENT_NOT_IN_PROJECT',
+  'DOCUMENT_SCOPE_CONFLICT',
+  'DOCUMENT_TITLE_INVALID',
+  'FILE_BOUND_TO_DOCUMENT',
+  // Knowledge entries: the chat/MCP listing lane's own cursor check —
+  // REST lists sign their cursors and refuse a foreign one as
+  // `INVALID_CURSOR` at the door.
+  'KNOWLEDGE_ENTRY_CURSOR_INVALID',
+  // Governance retention (the app's retention doors); the purge a REST
+  // delete runs never reads the retention config.
+  'RETENTION_CONFIG_MISSING',
   // Inputs the door's own schemas refuse before the domain sees them.
   'INVALID_ARGUMENTS',
   'INVALID_SCAN_INTERVAL',
   'PRODUCT_STATUS_INVALID',
   // Task fields no REST body carries: attachments, dependencies,
-  // subtasks, reviewers, schedules.
+  // subtasks, reviewers, schedules, assignees (the intake takes an
+  // `automationSlug`, never `assigneeType`/`assigneeId`; a reassignment
+  // and its live-run guard are the board's), comment edits and deletes
+  // (REST posts and lists), and the label catalog's own verbs (REST
+  // creates a missing label on the way in — `createIfMissing` — so the
+  // human path's unknown-label refusal never fires).
+  'AGENT_NOT_ALLOWED_IN_PROJECT',
+  'ASSIGNEE_NO_PROJECT_ACCESS',
+  'TASK_ASSIGNEE_INVALID',
   'TASK_ATTACHMENTS_INVALID',
   'TASK_ATTACHMENT_NOT_OWNED',
+  'TASK_COMMENT_FORBIDDEN',
+  'TASK_COMMENT_NOT_FOUND',
   'TASK_DEPENDENCY_CYCLE',
   'TASK_DEPENDENCY_PROJECT_MISMATCH',
   'TASK_DEPENDENCY_SELF',
   'TASK_DEPTH_EXCEEDED',
+  'TASK_HAS_LIVE_RUN',
   'TASK_HAS_OPEN_SUBTASKS',
+  'TASK_LABEL_IN_USE',
+  'TASK_LABEL_TAKEN',
+  'TASK_LABEL_UNKNOWN',
   'TASK_PARENT_ARCHIVED',
   'TASK_PARENT_PROJECT_MISMATCH',
   'TASK_REVIEWER_INVALID',
   'TASK_SCHEDULE_INVALID',
+  // Tasks: the door's schemas trim and cap the title, description, labels
+  // and comment body at the domain's own constants and canonicalize the
+  // external reference (`externalKeySchema`) before the intake runs, so
+  // the domain's own checks cannot fire from REST; the intake's
+  // `projectId` invariants are the caller's, always satisfied by the
+  // project URL. `TASK_FORBIDDEN` is the task-level access check behind
+  // `loadRestProject`, which applies the same matrix first.
+  'TASK_COMMENT_INVALID',
+  'TASK_DESCRIPTION_INVALID',
+  'TASK_EXTERNAL_REF_INVALID',
+  'TASK_FORBIDDEN',
+  'TASK_LABELS_INVALID',
+  'TASK_TITLE_INVALID',
+  // Projects: the door validates the name (`nonBlank`), description and
+  // external key (`externalKeySchema`) at the domain's own caps before the
+  // create or the PATCH reaches the cores, and the agent name and
+  // instructions the same way (`projectAgentInputSchema`); instructions,
+  // sharing and the recommended-agent subset are the app's settings
+  // dialogs — no REST body carries them.
+  'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_AGENT_NAME_INVALID',
+  'PROJECT_DESCRIPTION_INVALID',
+  'PROJECT_EXTERNAL_ITEM_ID_INVALID',
+  'PROJECT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_NAME_INVALID',
+  'PROJECT_RECOMMENDED_NOT_SUBSET',
+  'PROJECT_SHARING_INVALID',
+  // Products: the door's `productCreateSchema` / `productPatchSchema` cap
+  // every field at the domain's own constants (`field_limits.ts`), so the
+  // domain's catch-all never fires from REST.
+  'PRODUCT_FIELDS_INVALID',
+  // Project folders: the REST get-or-create pre-checks the parent (org and
+  // project) and answers the opaque `FOLDER_NOT_FOUND`; the scope, team
+  // and parent-access refusals are the hub folder tree's, which no REST
+  // body reaches (a project folder carries no team).
+  'FOLDER_ACCESS_DENIED',
+  'FOLDER_PARENT_NOT_ACCESSIBLE',
+  'FOLDER_PARENT_NOT_FOUND',
+  'FOLDER_SCOPE_CONFLICT',
+  // Two hops from the handlers (`IMPORT_DEPTH`): modules a REST-reached
+  // service imports for lanes only the app doors call. Listed so the
+  // guard's over-approximation stays honest — a code that becomes
+  // reachable through a REST route moves into the registry.
+  // Knowledge entries: the door trims and caps the body first
+  // (`nonBlank`), so the domain's own presence and length checks cannot
+  // fire from REST — they answered `KNOWLEDGE_ENTRY_TOPIC_REQUIRED` for a
+  // whitespace-only topic until the door caught up.
+  'KNOWLEDGE_ENTRY_CONTENT_REQUIRED',
+  'KNOWLEDGE_ENTRY_CONTENT_TOO_LONG',
+  'KNOWLEDGE_ENTRY_TOPIC_REQUIRED',
+  'KNOWLEDGE_ENTRY_TOPIC_TOO_LONG',
+  // Provider and connector credentials — Settings surfaces only.
+  'AUTH_METHOD_NOT_SUPPORTED',
+  'CONNECTOR_UNKNOWN',
+  'CREDENTIAL_BROKER_CONFIG_INVALID',
+  'CREDENTIAL_CONFIG_INVALID',
+  'CREDENTIAL_CONFIG_REQUIRED',
+  'CREDENTIAL_CREATE_FAILED',
+  'CREDENTIAL_DEFAULT_CONFLICT',
+  'CREDENTIAL_DISABLED',
+  'CREDENTIAL_DISABLED_DEFAULT',
+  'CREDENTIAL_ENDPOINT_INVALID',
+  'CREDENTIAL_ENDPOINT_REQUIRED',
+  'CREDENTIAL_ENV_NAME_INVALID',
+  'CREDENTIAL_KEY_ROTATED',
+  'CREDENTIAL_NAME_INVALID',
+  'CREDENTIAL_NAME_TAKEN',
+  'CREDENTIAL_NEEDS_REAUTH',
+  'CREDENTIAL_NONE_CONFIGURED',
+  'CREDENTIAL_NOT_FOUND',
+  'CREDENTIAL_PATCH_EMPTY',
+  'CREDENTIAL_REFRESH_FAILED',
+  'CREDENTIAL_SECRET_INVALID',
+  'CREDENTIAL_SECRET_REQUIRED',
+  'CREDENTIAL_SHAPE_INVALID',
+  'SYNC_CONFIG_NOT_FOUND',
+  // Membership, ownership and passkeys — the organization settings doors.
+  'CROSS_ORG_TARGET',
+  'DUPLICATE_MEMBER',
+  'MEMBER_ADD_FAILED',
+  'MEMBER_ALREADY_OWNER',
+  'MEMBER_CREATOR_ROLE_IMMUTABLE',
+  'MEMBER_LAST_ADMIN',
+  'MEMBER_NOT_FOUND',
+  'MEMBER_OWNER_REMOVAL_FORBIDDEN',
+  'MEMBER_OWNER_ROLE_ASSIGN_FORBIDDEN',
+  'MEMBER_OWNER_ROLE_IMMUTABLE',
+  'MEMBER_SELF_REMOVAL_FORBIDDEN',
+  'OWNERSHIP_TRANSFER_FORBIDDEN',
+  'PASSKEY_NOT_FOUND',
+  'TARGET_NOT_FOUND',
+  // Approvals, reviews and competence grants — interactive governance.
+  'APPROVAL_TOO_SOON',
+  'REASON_REQUIRED',
+  'REQUESTER_NO_LONGER_ADMIN',
+  'REQUEST_NOT_FOUND',
+  'REQUEST_NOT_PENDING',
+  'REVIEW_COMPETENCE_REQUIRED',
+  'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
+  'SELF_APPROVAL_BLOCKED',
+  // Legal holds and matters, retention floors, configuration versions.
+  'CONFIG_VERSION_CONFLICT',
+  'HOLD_NOT_FOUND',
+  'LEGAL_HOLD_ALREADY_ACTIVE',
+  'LEGAL_HOLD_ALREADY_RELEASED',
+  'LEGAL_HOLD_RELEASE_ALREADY_PENDING',
+  'MATTER_NOT_FOUND',
+  'RETENTION_BELOW_FLOOR',
+  // Spend gates the chat and automation lanes raise on the app doors.
+  'BUDGET_EXCEEDED',
+  'COST_LIMIT',
+  'COST_WARNING',
+  // Chat threads: sharing a thread with its project is the app's own toggle
+  // (no REST body carries `isShared`), and the write-scope check fires in
+  // the detached REST turn job, where the accepted send is dropped without
+  // an error row (the docs say so) — neither ever reaches the wire.
+  'THREAD_NOT_IN_PROJECT',
+  'THREAD_SCOPE_CHANGED',
+  // Conversations: a native reply is queued by the app's Inbox composer
+  // (`replyToConversation` → `queueApiReply`); REST only claims, fails,
+  // acknowledges, lists and retries what the app queued.
+  'REPLY_INVALID',
+  'REPLY_LIMITS',
+  // Skills: the REST body's visibility enum never carries `private`, and
+  // the file layer minting one is the only path to this code; the zip
+  // upload lane (`STORAGE_*`) is the app's, REST takes the body as text.
+  'SKILL_PRIVATE_RETIRED',
+  'STORAGE_NOT_FOUND',
+  'STORAGE_NOT_OWNED',
+  // Uploads: the REST bind proves ownership through its own
+  // `rest_upload_intents` consume (`registerUpload` with the external
+  // gate), sizes the blob from the store's HEAD and binds a fresh row, so
+  // the app's intent, size and scope refusals cannot fire from it.
+  'UPLOAD_BLOB_INVALID',
+  'UPLOAD_NOT_OWNED',
+  'UPLOAD_SCOPE_CONFLICT',
+  // Memories, message limits and text-to-speech — app-only lanes.
+  'EMPTY_MEMORY',
+  'MEMORIES_DISABLED',
+  'MESSAGE_CHAR_LIMIT',
+  'TTS_CHUNK_LIMIT',
+  'TTS_EMPTY_TEXT',
+  'TTS_TEXT_TOO_LONG',
+  // The REST bind consumes a single-use intent `FOR UPDATE` and binds the
+  // very `s3Ref` the organization minted, so a second row for one blob
+  // and a foreign blob reference cannot arise there — both are the app's
+  // session bind lane.
+  'BLOB_ALREADY_REGISTERED',
+  'BLOB_REF_INVALID',
+  // Find-or-create by e-mail is the mailbox sync's ingest lane, which
+  // reads the address off the message before it asks.
+  'CONTACT_EMAIL_REQUIRED',
+  // Legal holds, member creation and organization deletion — app lanes;
+  // the REST door's own role refusals carry their domain codes.
+  'FORBIDDEN',
+  // Organization delete (a row that vanished mid-delete) and create (a
+  // slug of an organization still being torn down): the REST door names
+  // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
+  'ORG_NOT_FOUND',
+  'ORG_SLUG_RETIRING',
+  // The skill bundle's zip upload lane; the REST save writes SKILL.md
+  // through the file layer, whose failure is a 500, never this code.
+  'WRITE_FAILED',
 ]);
 
 describe('the REST error-code registry', () => {
@@ -177,10 +404,14 @@ describe('the REST error-code registry', () => {
 
   it('carries every code the skills family maps onto a status', () => {
     // The bundle-upload refusals are the app's zip lane; REST takes the
-    // skill body as text and never reaches them.
+    // skill body as text and never reaches them — nor the app-only codes
+    // the map answers for the same lane.
     const bundleOnly: ReadonlySet<string> = new Set(SKILL_BUNDLE_REFUSAL_CODES);
     const unregistered = Object.keys(SKILL_ERROR_STATUS).filter(
-      (code) => !isRestErrorCode(code) && !bundleOnly.has(code),
+      (code) =>
+        !isRestErrorCode(code) &&
+        !bundleOnly.has(code) &&
+        !APP_ONLY_CODES.has(code),
     );
     expect(unregistered).toEqual([]);
   });

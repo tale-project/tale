@@ -46,7 +46,7 @@ Dans le produit, trois surfaces de contrôle comptent pour la conformité :
 
 ## Signaler les incidents
 
-Le contact incident sécurité de Tale est `security@tale.dev`. La divulgation de vulnérabilités présumées suit la politique de divulgation responsable sur le même e-mail. Les bulletins de sécurité côté client sont publiés sur la page de statut et envoyés par e-mail au Owner de l'organisation.
+Le contact incident sécurité de Tale est `security@tale.dev`. La divulgation de vulnérabilités présumées suit la politique de divulgation responsable sur le même e-mail. Les avis de sécurité côté client sont publiés dans le [flux d’avis de sécurité](/fr/self-hosted/operate/security/advisories) et envoyés par e-mail au Propriétaire de l’organisation ; la [page de statut](/fr/develop/status-page) ne rapporte que la disponibilité et ne porte aucun avis.
 
 ## Où ça s'inscrit
 

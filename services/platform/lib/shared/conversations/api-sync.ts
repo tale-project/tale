@@ -21,6 +21,18 @@ export const apiExternalIdSchema = z
   .min(1)
   .max(API_EXTERNAL_ID_MAX_LENGTH);
 
+/** Where a queued native reply stands, as the delivery listing derives it
+ * from the row's stamps: `queued` (the undo window, a backoff, a lapsed
+ * lease), `leased` (a claim's lease runs), `failed` (dead-lettered),
+ * `delivered` (acknowledged). */
+export const API_DELIVERY_STATUSES = [
+  'queued',
+  'leased',
+  'failed',
+  'delivered',
+] as const;
+export type ApiDeliveryStatus = (typeof API_DELIVERY_STATUSES)[number];
+
 export const apiDeliveryFailureSchema = z.strictObject({
   claimToken: z.uuid(),
   code: z.enum([

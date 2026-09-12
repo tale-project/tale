@@ -17,12 +17,12 @@ Eine Automatisierung, die noch nie gelaufen ist, sagt das, statt eine leere Tabe
 | ------------------------ | ------------------------------------------------------------------------------------- |
 | **In der Warteschlange** | Der Lauf existiert und wartet darauf, dass die Engine ihn aufnimmt                    |
 | **Läuft**                | Die Engine arbeitet sich durch die Nodes                                              |
-| **Wartet**               | Der Lauf steht auf einer menschlichen Entscheidung oder einer Antwort, die er braucht |
+| **Wartet**               | Der Lauf ist geparkt — auf einen Menschen oder auf etwas, das noch unterwegs ist      |
 | **Erfolgreich**          | Jede erreichte Node ist fertig geworden und die Ausgabe wurde erzeugt                 |
 | **Fehlgeschlagen**       | Eine Node lief auf einen Fehler, und nichts war so eingestellt, dass es weitergeht    |
 | **Gestoppt**             | Jemand hat den Lauf abgebrochen; bereits Erledigtes wird nicht rückgängig gemacht     |
 
-**Wartet** wird am häufigsten falsch gelesen. Es ist kein Stillstand und kein Fehler — der Lauf hält seinen Platz und macht an genau der Node weiter, an der er stehen geblieben ist, sobald die Entscheidung gefallen ist. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt, worauf er wartet.
+**Wartet** wird am häufigsten falsch gelesen. Es ist kein Stillstand und kein Fehler — der Lauf hält seinen Platz und macht an genau der Node weiter, an der er stehen geblieben ist. Worauf er wartet, kommt aus zwei Familien, und nur eine davon braucht dich: Ein Lauf, der auf einer **Freigabe** oder auf einer **Frage** eines Agents parkt, wartet auf einen Menschen und bleibt dort, bis die Entscheidung gefallen oder die Frage beantwortet ist; ein Lauf, der auf einem noch arbeitenden Agent-Turn parkt oder auf einer Node, die pollt, bis ihre Bedingung gilt, wartet auf sich selbst und geht ohne jemanden weiter. Die Zeile nennt das Warten; ein Lauf, der minutenlang als _wartet_ dasteht, während ein Poll tickt, ist gesund, nicht hängen geblieben. Über die API ist dieselbe Unterscheidung das Feld `waitingFor` — `approval`, `ask`, `agent` oder `repeat` —, und „Läufe, die einen Menschen brauchen“ heißt `waitingFor` in den ersten beiden, nie der Status allein. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte.
 
 ## Testläufe und Live-Läufe
 

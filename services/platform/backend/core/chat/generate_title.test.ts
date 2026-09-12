@@ -35,6 +35,7 @@ vi.mock('../automations_builder/model_call', () => ({
 }));
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
+import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { generateThreadTitleImpl, TITLE_AGENT_SLUG } from './generate_title';
 
 const ORG = 'org_a';
@@ -157,6 +158,135 @@ describe('generateThreadTitleImpl — model choice', () => {
       expect.objectContaining({
         target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
       }),
+    );
+  });
+
+  /**
+   * A thinking-by-default model (an effort knob with no off literal) spends
+   * the title's 48-token budget reasoning and answers nothing — a paid miss
+   * on every new thread. A model the wire can run without thinking is
+   * preferred: over the owner's pick when the pick thinks, and among the
+   * catalog otherwise; only a catalog with nothing else falls back to one.
+   */
+  it('prefers a model the wire can run without thinking over the owner’s thinking-by-default pick', async () => {
+    catalogMock.mockResolvedValue([
+      { id: 'glm-5.3', tags: ['chat'], reasoning: { knob: 'effort' } },
+      { id: 'glm-5.3-flash', tags: ['chat'], reasoning: { knob: 'effort' } },
+      {
+        id: 'glm-5.2',
+        tags: ['chat'],
+        reasoning: { knob: 'effort', off: 'none' },
+      },
+      { id: 'gpt-4o-mini', tags: ['chat'] },
+    ]);
+    const { ctx } = fakeCtx({
+      preferredModelId: 'glm-5.3',
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+    });
+    await generateThreadTitleImpl(ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    // Alphabetically first among the thinking-free: the off-literal model
+    // counts as one, the two thinking-by-default ones do not.
+    expect(createBuilderModelMock).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'glm-5.2' },
+      }),
+    );
+  });
+
+  it('keeps the owner’s pick when it runs without thinking, and takes a thinking model only when nothing else serves', async () => {
+    catalogMock.mockResolvedValue([
+      { id: 'glm-5.3', tags: ['chat'], reasoning: { knob: 'effort' } },
+      { id: 'gpt-4o-mini', tags: ['chat'] },
+    ]);
+    const owner = fakeCtx({
+      preferredModelId: 'gpt-4o-mini',
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+    });
+    await generateThreadTitleImpl(owner.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    expect(createBuilderModelMock).toHaveBeenLastCalledWith(
+      owner.ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
+      }),
+    );
+
+    catalogMock.mockResolvedValue([
+      { id: 'glm-5.3', tags: ['chat'], reasoning: { knob: 'effort' } },
+      { id: 'glm-5.2', tags: ['chat'], reasoning: { knob: 'effort' } },
+    ]);
+    const thinkingOnly = fakeCtx({
+      preferredModelId: 'glm-5.3',
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+    });
+    await generateThreadTitleImpl(thinkingOnly.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+    expect(createBuilderModelMock).toHaveBeenLastCalledWith(
+      thinkingOnly.ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'glm-5.3' },
+      }),
+    );
+  });
+
+  it('books the spend of a reply that carried no text, logs one line, and writes the fallback title', async () => {
+    createBuilderModelMock.mockReturnValue(() =>
+      Promise.reject(new EmptyReplyError({ prompt: 40, completion: 48 })),
+    );
+    const { ctx, runMutation } = servingCtx();
+    const recordUsage = vi.fn().mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+      },
+      recordUsage,
+    );
+
+    // The call was paid for whether or not a title came back.
+    expect(recordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentSlug: TITLE_AGENT_SLUG,
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        inputTokens: 40,
+        outputTokens: 48,
+        totalTokens: 88,
+      }),
+    );
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        threadId: THREAD,
+        title: deriveFallbackTitle(FIRST_MESSAGE),
+      }),
+    );
+    // One line naming the model and the counts — never the error object
+    // with its stack.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'openai/gpt-4o-mini returned no text (40 in, 48 out)',
+      ),
     );
   });
 

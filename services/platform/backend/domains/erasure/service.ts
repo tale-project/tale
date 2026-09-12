@@ -1083,13 +1083,17 @@ export async function processErasure(
 
   // Automation runs the subject started. `input`, `output`, `trace` and
   // `effects` hold every node's resolved values, so the run is subject data
-  // even though the row is org-owned. The two markers are the ones 0.5
-  // writes: `user:<id>` from the app door and `api-key:<id>` from REST.
+  // even though the row is org-owned. Three markers: `user:<id>` from the
+  // app door (and, since the engine store prefixes its starter, from the
+  // builder session and the chat capability), `api-key:<id>` from REST and
+  // MCP — and the BARE id those two engine lanes recorded before they did,
+  // which this pass used to leave behind: a retention defect, since a run
+  // started from the builder carried the subject's data as much as any.
   await pass('automationRuns', async () => {
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.automation_runs
       WHERE org_id = ${organizationId}
-        AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`]})
+        AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`, targetUserId]})
       RETURNING id
     `;
     return removed.length;

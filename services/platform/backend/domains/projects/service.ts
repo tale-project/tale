@@ -65,8 +65,10 @@ import {
  */
 
 // Name/description/instructions/sharing caps come from the shared schema
-// file — the editor counts against the same constants.
-const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
+// file — the editor counts against the same constants. The external key's
+// cap is the domain's own, exported so the machine door validates against
+// the same number it refuses on (two copies once drifted apart).
+export const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
 
 const MAX_PROJECT_AGENTS = 50;
 const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
@@ -498,6 +500,10 @@ async function resolveExternalItemId(
   tx: TransactionSql | Sql,
   organizationId: string,
   raw: string | undefined,
+  options: {
+    /** The project being re-keyed: its own current key is no collision. */
+    excludeProjectId?: string;
+  } = {},
 ): Promise<string | undefined> {
   if (raw == null) {
     return undefined;
@@ -515,6 +521,11 @@ async function resolveExternalItemId(
   const rows = await tx<{ id: string }[]>`
     SELECT id FROM app.projects
     WHERE org_id = ${organizationId} AND external_item_id = ${externalItemId}
+      ${
+        options.excludeProjectId === undefined
+          ? tx``
+          : tx`AND id <> ${options.excludeProjectId}`
+      }
     LIMIT 1
   `;
   if (rows.length > 0) {
@@ -804,6 +815,51 @@ export async function updateProjectIdentity(
     }),
   );
   await hintProject(tx, auth.organizationId, args.projectId);
+}
+
+/**
+ * Re-key a project: the caller-owned `externalItemId` a mirror looks the
+ * project up by, set to a new key (canonical NFC + trimmed, unique per
+ * organization — another project's key is the 409 with the key in
+ * `data`) or cleared with `null`. The key used to be immutable for the
+ * life of the project: when the source record was re-numbered, a mirror's
+ * only move was delete-and-recreate, which destroyed every file, folder,
+ * thread and task under it. Editors with project edit access, like the
+ * name; an unchanged key writes nothing.
+ */
+export async function updateProjectExternalItemId(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: { projectId: string; externalItemId: string | null },
+): Promise<void> {
+  const project = await loadProjectOrThrow(tx, args.projectId);
+  assertWritable(project, auth);
+  const externalItemId =
+    args.externalItemId === null
+      ? null
+      : ((await resolveExternalItemId(
+          tx,
+          auth.organizationId,
+          args.externalItemId,
+          { excludeProjectId: project.id },
+        )) ?? null);
+  if (externalItemId === (project.externalItemId ?? null)) {
+    return;
+  }
+  await tx`
+    UPDATE app.projects
+    SET external_item_id = ${externalItemId}, updated_at_ms = ${Date.now()}
+    WHERE id = ${project.id}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.updated, {
+      previousState: { externalItemId: project.externalItemId },
+      newState: { externalItemId },
+      changedFields: ['externalItemId'],
+    }),
+  );
+  await hintProject(tx, auth.organizationId, project.id);
 }
 
 /** Pin/unpin in the sidebar — read access suffices (benign UI preference). */
@@ -1651,7 +1707,10 @@ export async function createProjectAgent(
     LIMIT 1
   `;
   if (nameClash.length > 0) {
-    throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken');
+    // The state refuses the action — the 409 every other duplicate on the
+    // machine door answers (`PROJECT_KEY_TAKEN`, `FOLDER_NAME_TAKEN`), so a
+    // client that reuses on 409 and gives up on 400 does the right thing.
+    throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
   const now = Date.now();
@@ -1761,7 +1820,10 @@ export async function updateProjectAgent(
     LIMIT 1
   `;
   if (nameClash.length > 0) {
-    throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken');
+    // The state refuses the action — the 409 every other duplicate on the
+    // machine door answers (`PROJECT_KEY_TAKEN`, `FOLDER_NAME_TAKEN`), so a
+    // client that reuses on 409 and gives up on 400 does the right thing.
+    throw new ProjectError('PROJECT_AGENT_NAME_TAKEN', 'Agent name taken', 409);
   }
 
   const now = Date.now();

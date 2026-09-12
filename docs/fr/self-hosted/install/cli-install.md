@@ -259,14 +259,14 @@ Les répertoires de sortie et de reçus doivent déjà exister. Une connexion HT
 
 Ces types de ressources utilisent les schémas partagés et les permissions natives de la plateforme :
 
-| Type | Configuration | Portée |
-| --- | --- | --- |
-| `branding` | Champs natifs de personnalisation | Organisation |
-| `governance` | Politique stockée dans un fichier, avec `key` et `config` natif | Organisation |
-| `provider` | Définition d’un fournisseur et `expectedModels` facultatif | Organisation |
-| `provider-credential` | Métadonnées d’identifiants nommés issus de l’environnement | Organisation |
-| `knowledge-embedding` | Fournisseur, modèle, dimensions et endpoint | Organisation |
-| `deployment` | Paramètres de l’instance, dont le runtime du sandbox | Instance |
+| Type                  | Configuration                                                   | Portée       |
+| --------------------- | --------------------------------------------------------------- | ------------ |
+| `branding`            | Champs natifs de personnalisation                               | Organisation |
+| `governance`          | Politique stockée dans un fichier, avec `key` et `config` natif | Organisation |
+| `provider`            | Définition d’un fournisseur et `expectedModels` facultatif      | Organisation |
+| `provider-credential` | Métadonnées d’identifiants nommés issus de l’environnement      | Organisation |
+| `knowledge-embedding` | Fournisseur, modèle, dimensions et endpoint                     | Organisation |
+| `deployment`          | Paramètres de l’instance, dont le runtime du sandbox            | Instance     |
 
 Les politiques de conservation et DSAR exigent leurs workflows natifs dédiés. Interromps les envois, la synchronisation et les crawls avant de modifier la configuration d’embedding. La CLI vérifie le nombre de documents et de sites web dans toute l’organisation ; elle ne verrouille pas l’import et ne migre pas les vecteurs existants. Une organisation avec des documents ou des sites web enregistrés exige une migration native distincte de l’index. Les paramètres d’instance exigent aussi la liste native des éditeurs autorisés. L’application autonome signale `restartRequired` pour les paramètres de démarrage ; les enregistrer ne les active pas encore. Examine les effets du plan avant de l’appliquer.
 
@@ -303,9 +303,7 @@ Les déploiements gérés utilisent le même moteur via `configuration`. Ajoute 
           {
             "id": "Example-chat",
             "provider": "external-chat",
-            "tags": [
-              "chat"
-            ],
+            "tags": ["chat"],
             "supportsTools": true,
             "supportsVision": false,
             "contextWindow": 131072
@@ -319,9 +317,7 @@ Les déploiements gérés utilisent le même moteur via `configuration`. Ajoute 
           "authMethod": "env",
           "name": "Managed external provider",
           "envName": "TALE_PROVIDER_KEY_EXTERNAL",
-          "modelAllowlist": [
-            "Example-chat"
-          ]
+          "modelAllowlist": ["Example-chat"]
         }
       }
     ]
@@ -331,7 +327,7 @@ Les déploiements gérés utilisent le même moteur via `configuration`. Ajoute 
 
 `envName` suit le préfixe natif `TALE_PROVIDER_KEY_` et la limite de 40 caractères. Chaque alias exige une référence `environment` obligatoire. Les endpoints privés exigent aussi une référence explicite `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` dont la valeur est `1` ; les restrictions natives d’hôtes restent actives. `expectedModels` vérifie le catalogue fraîchement résolu par Tale lors de la relecture. Ce contrôle ne prouve ni la capacité d’inférence, ni la latence, ni les résultats métier.
 
-Pour la sélection du modèle de vision, utilise `governance` avec `key: "vision_model"` et les champs natifs `providerSlug`/`modelId`. L’embedding utilise `knowledge-embedding` avec `providerSlug`, `model`, `dimensions` et `baseUrl`. Pour remplacer les identifiants par défaut, déclare aussi les anciens identifiants d’environnement avec `isDefault: false` ; la CLI applique ce changement explicite en premier. Les secrets ne figurent ni dans la déclaration ni dans le reçu.
+Pour la sélection du modèle de vision, utilise `governance` avec `key: "vision_model"` et les champs natifs `providerSlug`/`modelId`. L’embedding utilise `knowledge-embedding` avec `providerSlug`, `model`, `dimensions` et `baseUrl`, plus un `minSimilarity` optionnel — le plancher de cosinus de l’assistant pour ce modèle, que la plateforme garde à côté du modèle dans [`embedding.json`](/fr/self-hosted/configuration/data-residency#le-modele-dembedding-de-lorganisation). Le plancher suit la règle de la plateforme elle-même : un nombre le fixe, une clé omise laisse ce que le fichier contient (un plancher posé à la main survit à une release qui ne le mentionne pas), et `"minSimilarity": null` l’efface — la seule façon de retirer un plancher par la CLI. Pour remplacer les identifiants par défaut, déclare aussi les anciens identifiants d’environnement avec `isDefault: false` ; la CLI applique ce changement explicite en premier. Les secrets ne figurent ni dans la déclaration ni dans le reçu.
 
 La configuration native suit la vérification d’identité et précède les versions de configuration. Le reçu `native.configuration` lie les hashes de déclaration et de bundle, l’organisation, les hashes des ressources et les révisions natives. Un reçu en attente précède la première écriture. Si une ressource échoue ensuite, les changements précédents peuvent rester en place. Relis l’état natif et le reçu avant de reprendre le même plan vérifié. Le compare-and-set natif protège chaque ressource des modifications concurrentes d’un admin ; aucune transaction ne couvre l’ensemble. Conserve l’état du déploiement, les snapshots et les reçus pour la restauration.
 

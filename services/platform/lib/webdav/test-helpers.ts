@@ -33,6 +33,10 @@ type StubHandler = (args: unknown) => unknown;
 interface StubOverrides {
   queries?: Record<string, StubHandler>;
   mutations?: Record<string, StubHandler>;
+  /** PUT's upload handoff (`files/blob_actions:generateWebdavBlobUpload`)
+   * is the one action the handlers call; a test that lets a PUT run past
+   * its preconditions stubs it here. */
+  actions?: Record<string, StubHandler>;
 }
 
 // Build a minimal backend that satisfies WebDAVCtx. query/mutation look
@@ -99,10 +103,15 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     query: (ref: unknown, args?: unknown) => dispatchByName(queries, ref, args),
     mutation: (ref: unknown, args?: unknown) =>
       dispatchByName(mutations, ref, args),
-    action: (ref: unknown) => {
-      throw new Error(
-        `No stubbed action for ${functionRefName(ref)} — the WebDAV handlers call none.`,
-      );
+    action: (ref: unknown, args?: unknown) => {
+      const name = functionRefName(ref);
+      const handler = overrides.actions?.[name];
+      if (handler === undefined) {
+        throw new Error(
+          `No stubbed action for ${name} — pass it under \`actions\` when the test lets a PUT reach its upload handoff.`,
+        );
+      }
+      return Promise.resolve(handler(args));
     },
   };
 

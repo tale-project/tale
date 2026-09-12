@@ -17,7 +17,7 @@ For the project delivery below, choose an active project where this automation i
 
 The first move is binding a webhook trigger to the automation. Without one, the automation runs only from the UI or a schedule; with one, it gets a URL any system can POST to.
 
-Open the automation's detail page and find **Trigger** in the settings panel on the right; on a narrow screen, the panel sits below the canvas. Set **Trigger type** to **Webhook**, then click **Save settings**. Tale shows the token once. Copy it when it appears: the token in the URL authorizes deliveries, and Tale stores only its hash.
+Open the automation's detail page and find **Trigger** in the settings panel on the right; on a narrow screen, the panel sits below the canvas. Set **Trigger type** to **Webhook**, then click **Save settings**. Tale shows the token once. Copy it when it appears: the token in the URL authorizes deliveries, and Tale stores only its hash. From a script, the same bind is `PUT /api/v1/automations/{name}/triggers` with `{"kind": "webhook"}` — the **200** carries `token` exactly once; a later `{"kind": "webhook", "rotateToken": true}` mints a new one and kills the old URL, and binding a schedule or an event over it kills the URL too (the answer says `"revoked": "webhook"`).
 
 The trigger binds to the automation's **name**, not to the version you deployed. Deploy a new version tomorrow and this URL keeps working — that is the whole point of separating the two.
 
@@ -41,11 +41,15 @@ An accepted call answers **202** with `{ "runId": "..." }`. The run continues as
 
 ## Step 3 — Read the failure cases
 
-Five responses cover this flow; the status tells you what to fix.
+Seven statuses cover this flow, and every refusal carries a stable `code` — branch on `code`, never on the sentence, which is written for a person and may change.
 
-**400** means the project scope is invalid, the project is archived or the automation is not installed there. A bound automation at the global URL, any `projectId` query parameter or input outside the declared schema also gives **400**. Correct the URL, binding or body before retrying.
-
-**404** means the token matches no enabled trigger — it is wrong, it was deleted, or the trigger is disabled. The response deliberately never says which, so a caller guessing tokens learns nothing from the difference. **409** with `{ "error": "automation has no deployed version" }` means the automation exists but nothing is live: deploy a version whose tests pass and the same call runs. **413** means the body is over 256 KB; post a reference instead of the payload. **202** is the only success.
+- **202** — the run started (`{ "runId": "..." }`), or this delivery was already accepted and the same `runId` comes back with `"duplicate": true`; no second run exists. This is the only success.
+- **400** `INVALID_QUERY` — a `projectId` query parameter; the project comes from the URL path. **400** `AUTOMATION_INPUT_INVALID` — the body does not fit the automation's declared `inputs` schema; `data.issues` names each problem. Fix the request; no run started.
+- **403** `AUTOMATION_PROJECT_FORBIDDEN` — the automation cannot run in the URL project: it does not exist, it is archived, or the automation is not installed there. One answer for all three, and it never names the automation, so a leaked URL cannot probe your project ids. Fix the URL or the installation; retrying changes nothing.
+- **404** `NOT_FOUND` — the token matches no enabled trigger: it is wrong, it was deleted or revoked, or the trigger is disabled. The response deliberately never says which, so a caller guessing tokens learns nothing from the difference.
+- **409** `AUTOMATION_NOT_DEPLOYED` — the automation exists but nothing is live: deploy a version whose tests pass and the same call runs. **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED` — a project-bound automation was called through the global `/api/automations/webhook/{token}` URL; use its project URL. **409** `AUTOMATION_DELIVERY_SCOPE_MISMATCH` — this delivery id was first accepted through another URL scope.
+- **413** `BODY_TOO_LARGE` — the body is over 256 KiB (262,144 bytes); post a reference instead of the payload.
+- **429** `RATE_LIMITED` — the sender's or the trigger's budget is spent; wait the seconds `Retry-After` names and resend with the same delivery id, so the retry is the same delivery and not a second run.
 
 Retries deserve one sentence of their own: the endpoint de-duplicates, so a retried POST does not start a second run. Send a delivery id — `Idempotency-Key`, or your vendor's own header such as `X-GitHub-Delivery` — and a repeat inside 24 hours answers with the run the first attempt started, flagged `duplicate: true`; without one, a byte-identical body within two minutes is treated the same way. Keep the id stable across attempts and a stalled request is safe to retry. The run itself checkpoints every completed node too, so a run resumed after an interruption never repeats a side effect it already produced. Delivery IDs and matching bodies are compared within the same project URL; a different installed project has its own deliveries. Removing the binding or archiving the project prevents further deliveries, including cached duplicate responses.
 

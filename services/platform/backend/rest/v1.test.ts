@@ -123,7 +123,11 @@ function fakeAuth(throws?: unknown): {
     if (throws !== undefined) return Promise.reject(throws);
     return Promise.resolve(
       headers.get('x-api-key') === GOOD_KEY
-        ? { user: { id: 'user-1', email: 'user@example.com' }, session: {} }
+        ? {
+            user: { id: 'user-1', email: 'user@example.com' },
+            // The api-key plugin names the key row as the session id.
+            session: { id: 'key-1' },
+          }
         : null,
     );
   });
@@ -134,7 +138,11 @@ function fakeAuth(throws?: unknown): {
 function door(sql: Sql, auth: Auth) {
   const app = createRestV1Routes({ sql, auth });
   app.get('/probe', (c) =>
-    c.json({ userId: c.get('userId'), clientIp: c.get('clientIp') }),
+    c.json({
+      userId: c.get('userId'),
+      clientIp: c.get('clientIp'),
+      apiKeyId: c.get('apiKeyId'),
+    }),
   );
   return app;
 }
@@ -191,6 +199,19 @@ describe('/api/v1 door — HTTP authentication conformance', () => {
     expect(res.headers.get('www-authenticate')).toBe(
       'Bearer error="invalid_token"',
     );
+  });
+
+  it('stashes the verified key’s row id for /me — the plugin’s session id — and never a plaintext', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ apiKeyId: 'key-1' });
+    expect(JSON.stringify(body)).not.toContain(GOOD_KEY);
   });
 });
 
@@ -281,6 +302,7 @@ describe('/api/v1 door — rate-limit attribution', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       userId: 'user-1',
+      apiKeyId: 'key-1',
       clientIp: '203.0.113.9',
     });
     expect(charges).toEqual([{ name: 'rest:api', key: 'user:user-1' }]);
@@ -359,6 +381,19 @@ describe('/api/v1 door — organization resolution statuses', () => {
     );
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+
+  it('folds the slug header to lowercase — slugs are stored lowercase, so `ACME` names acme', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: { acme: { id: 'org-1', slug: 'acme' } },
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': ' ACME ' }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ userId: 'user-1' });
   });
 
   it('answers 404 ORG_SLUG_INVALID for an unknown slug', async () => {

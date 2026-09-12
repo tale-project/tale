@@ -6,6 +6,7 @@ import type { PlatformConfigurationClient } from './platform-client';
 import {
   configurationPlanSchema,
   parsePlatformConfiguration,
+  resourceConverged,
   resourceId,
   sameConfiguration,
   type ConfigurationPlan,
@@ -63,7 +64,7 @@ export async function planPlatformConfiguration(
       current,
       configuration.resources,
     );
-    const same = sameConfiguration(current.config, resource.config);
+    const same = resourceConverged(resource, current.config);
     resources.push({
       id: resourceId(resource),
       scope: resource.kind === 'deployment' ? 'instance' : 'organization',
@@ -121,7 +122,7 @@ function assertUnchanged(
   // An exact completed write can be adopted after its response was lost. A
   // different concurrent edit cannot be adopted just to make a retry succeed.
   if (
-    !sameConfiguration(observed.config, resource.config) &&
+    !resourceConverged(resource, observed.config) &&
     (valueHash(observed.config) !== planned.currentSha256 ||
       observed.revision !== planned.revision)
   )
@@ -176,7 +177,7 @@ export async function applyPlatformConfiguration(
     try {
       const current = await readResource(client, resource);
       assertUnchanged(resource, current, plan.resources[index]);
-      if (!sameConfiguration(current.config, resource.config)) {
+      if (!resourceConverged(resource, current.config)) {
         await checkResourceChange(client, resource, current);
         await writeResource(client, resource, current);
         changed = true;
@@ -229,7 +230,7 @@ export async function readPlatformConfiguration(
       scope: resource.kind === 'deployment' ? 'instance' : 'organization',
       config: actual.config,
       revision: actual.revision,
-      matches: sameConfiguration(actual.config, resource.config),
+      matches: resourceConverged(resource, actual.config),
     });
   }
   return { target: client.target, resources };

@@ -90,6 +90,11 @@ export interface RunSummary {
   mode: string;
   startedBy: string;
   detail?: string;
+  /** What a `waiting` run is parked on — `approval` (a person's decision),
+   * `ask` (a question a person has to answer), `agent` (an agent turn
+   * still running), `repeat` (a node polling until its condition holds).
+   * Only the first two need a human; present only while waiting. */
+  waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
   startedAt: number;
   finishedAt?: number;
 }
@@ -115,6 +120,9 @@ export interface VersionSummary {
 
 /** A trigger as a caller may see it — never the secret that verifies it. */
 export interface TriggerView {
+  /** The binding's id — what a run's `startedBy` (`trigger:<id>`) names.
+   * A host without durable ids (the selftest store) leaves it out. */
+  id?: string;
   name: string;
   kind: string;
   cron?: string;
@@ -123,7 +131,19 @@ export interface TriggerView {
   /** Whether a webhook token was ever minted, WITHOUT revealing it. */
   hasToken: boolean;
   enabled: boolean;
+  /** The last time this binding started a run — `lastRunId` names it. */
   lastFiredAt?: number;
+  lastRunId?: string;
+  /** The last time the binding came due and started nothing, and why:
+   * `not_deployed`, `unusable_cron` or `start_refused`. */
+  lastSkippedAt?: number;
+  lastSkipReason?: string;
+}
+
+/** What binding a trigger changed besides recording it: `revoked` names a
+ * live webhook URL the bind replaced with another kind. */
+export interface SetTriggerOutcome {
+  revoked?: 'webhook';
 }
 
 /**
@@ -148,7 +168,13 @@ export interface DispatchStore extends StoreAdapter {
     version: number,
     options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
-  setTrigger?(name: string, trigger: TriggerSpec): Promise<void>;
+  /** Record a trigger binding. A host that revokes something by doing so (a
+   * live webhook URL replaced by another kind) says so in the outcome; a
+   * host with nothing to add answers nothing. */
+  setTrigger?(
+    name: string,
+    trigger: TriggerSpec,
+  ): Promise<SetTriggerOutcome | undefined>;
   /** Host authorization before an in-process deployed run starts executing. */
   authorizeRun?(name: string, mode: 'mock' | 'live'): Promise<void>;
   recordRun?(
@@ -706,10 +732,19 @@ export async function dispatch(
       if (missing) return missing;
       try {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape guarded by the host on persist
-        await store.setTrigger(name, trigger as TriggerSpec);
+        const outcome = await store.setTrigger(name, trigger as TriggerSpec);
         return {
           ok: true,
           note: 'trigger recorded; the host schedules and delivers it',
+          // A bind that replaced a live webhook with another kind killed
+          // its URL: the caller hears it here, as the REST door's answer
+          // does, instead of learning it from a partner's failed deliveries.
+          ...(outcome?.revoked !== undefined
+            ? {
+                revoked: outcome.revoked,
+                note: 'trigger recorded; the webhook URL it replaced is revoked and cannot be recovered — the host schedules and delivers the new one',
+              }
+            : {}),
         };
       } catch (e) {
         return refusalFrom(e);

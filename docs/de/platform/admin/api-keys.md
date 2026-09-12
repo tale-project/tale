@@ -17,6 +17,8 @@ Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-T
 
 Öffne **Einstellungen > API > REST** und klick auf **API-Schlüssel erstellen**. Gib dem Schlüssel einen Namen, der sagt, wer oder was ihn nutzt (`Billing-Sync`, `Slack-Relay`, `ops-cron`), und wähl das Ablaufdatum — 7, 30 oder 90 Tage, ein Jahr oder nie; Standard sind 30 Tage. Tale zeigt das Geheimnis genau einmal bei der Erstellung — kopier es in deinen Passwort-Manager oder dein Deployment-System, bevor du den Dialog schließt. Danach zeigt die Tabelle nur noch ein maskiertes Fragment davon.
 
+Schlüssel entstehen hier, nicht über die API: Nichts unter `/api/v1` erstellt, listet, rotiert oder widerruft einen, ein unbeaufsichtigter Connector kann sich also keinen eigenen Berechtigungsnachweis nachlegen. Was er kann: das Ablaufdatum kommen sehen — `GET /api/v1/me` antwortet mit `name` und `expiresAt` des Schlüssels — und rechtzeitig für die Überlappung, die [Einen Schlüssel rotieren](#einen-schluessel-rotieren) beschreibt, einen Menschen alarmieren.
+
 Der Schlüssel handelt als du: Jede Anfrage, die er macht, trägt deine Rolle in der Organisation. Ein Schlüssel, den ein Entwickler angelegt hat, kann jede Ressource lesen und in die meisten schreiben; einen Schlüssel mit mehr Macht als sein Ersteller gibt es nicht. Weil Schlüssel genau so gefährlich sind wie die Rolle dahinter, lass den am wenigsten privilegierten Account, der den Job erledigt, den Schlüssel anlegen.
 
 ## Was die Tabelle zeigt
@@ -35,7 +37,7 @@ Zum Rotieren erstellst du zuerst den neuen Schlüssel, deployst ihn auf das Syst
 
 ## Bereiche und Grenzen
 
-Jeder Schlüssel trägt die Berechtigungen der Rolle seines Erstellers zum Zeitpunkt jeder Anfrage, nicht zum Zeitpunkt der Erstellung. Ändert sich die Rolle der Person — oder wird ihre Mitgliedschaft deaktiviert —, erbt jeder Schlüssel, den sie angelegt hat, die Änderung bei der nächsten Anfrage. Anfragen über die REST-API sind pro aufrufender Adresse rate-limitiert, und eine [Governance-Budgetregel](/de/platform/admin/governance/policies-and-limits) kann deckeln, was ein einzelner Schlüssel für Modelle ausgibt.
+Jeder Schlüssel trägt die Berechtigungen der Rolle seines Erstellers zum Zeitpunkt jeder Anfrage, nicht zum Zeitpunkt der Erstellung. Ändert sich die Rolle der Person — oder wird ihre Mitgliedschaft deaktiviert —, erbt jeder Schlüssel, den sie angelegt hat, die Änderung bei der nächsten Anfrage. Anfragen über die REST-API sind pro Schlüsselinhaber rate-limitiert — pro Person, als die der Schlüssel handelt, nie pro aufrufender Adresse —, einen Connector über mehrere Schlüssel derselben Person oder über mehrere Egress-Adressen zu verteilen bringt also keinen Spielraum; gib einem ausgelasteten Connector stattdessen einen eigenen Maschinenbenutzer. Nur eine Anfrage, deren Schlüssel die Authentifizierung nicht besteht, wird ihrer Quelladresse angerechnet. Die Budgets selbst stehen unter [Rate-Limits](/de/develop/rate-limits), und eine [Governance-Budgetregel](/de/platform/admin/governance/policies-and-limits) kann deckeln, was ein einzelner Schlüssel für Modelle ausgibt.
 
 ## Wo das hingehört
 

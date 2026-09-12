@@ -28,11 +28,37 @@ const claimResult = z.object({
       externalId: z.string(),
       body: z.string(),
       actorEmail: z.string(),
+      attempts: z.number().int(),
+      leaseExpiresAt: z.number(),
+      lastErrorCode: z.string().nullable(),
+      firstClaimedAt: z.number(),
       attachments: z.array(
         z.object({ storageId: z.string(), filename: z.string() }),
       ),
     }),
   ),
+});
+/** The peek listing's rows are STRICT: a claim token or a body riding
+ * along would be the leak the listing exists to avoid. */
+const listResult = z.object({
+  deliveries: z.array(
+    z.strictObject({
+      messageId: z.string(),
+      conversationId: z.string(),
+      externalId: z.string(),
+      status: z.enum(['queued', 'leased', 'failed', 'delivered']),
+      attempts: z.number().int(),
+      availableAt: z.number(),
+      retryAt: z.number(),
+      claimedAt: z.number().nullable(),
+      failedAt: z.number().nullable(),
+      lastErrorCode: z.string().nullable(),
+      acknowledgedAt: z.number().nullable(),
+      receiptId: z.string().nullable(),
+    }),
+  ),
+  isDone: z.boolean(),
+  continueCursor: z.string(),
 });
 
 export async function checkConversationApi(
@@ -416,12 +442,53 @@ export async function checkConversationApi(
   assert.ok(delivery);
   assert.equal(delivery.body, 'Office reply');
   assert.equal(delivery.externalId, externalId);
+  // A claim says where the delivery stands (G-03b).
+  assert.equal(delivery.attempts, 0);
+  assert.equal(delivery.lastErrorCode, null);
+  assert.ok(delivery.leaseExpiresAt > Date.now());
+  assert.ok(delivery.firstClaimedAt <= Date.now());
   assert.equal(await claim(), undefined);
+  // The queue is readable without claiming (G-03a): the leased row shows
+  // `leased` with its stamps, and neither the claim token nor the body
+  // rides along (the row schema is strict).
+  const peek = async (query: Record<string, string>) =>
+    listResult.parse(
+      await (
+        await machine(
+          `/conversations/deliveries?${new URLSearchParams({ source: 'vatplus', ...query })}`,
+        )
+      ).json(),
+    );
+  const leased = (await peek({})).deliveries.find(
+    (row) => row.messageId === messageId,
+  );
+  assert.equal(leased?.status, 'leased');
+  assert.equal(leased?.attempts, 0);
+  assert.equal(leased?.claimedAt, delivery.firstClaimedAt);
+  assert.equal(leased?.retryAt, delivery.leaseExpiresAt);
+  assert.equal(
+    (await peek({ status: 'failed' })).deliveries.some(
+      (row) => row.messageId === messageId,
+    ),
+    false,
+  );
+  assert.equal(
+    (await peek({ status: 'leased' })).deliveries.some(
+      (row) => row.messageId === messageId,
+    ),
+    true,
+  );
   // A dead worker becomes replayable only after its visibility lease.
   await sql`UPDATE app.conversation_api_deliveries SET retry_at_ms = 0 WHERE message_id = ${messageId}`;
+  const queuedAgain = (await peek({ status: 'queued' })).deliveries.find(
+    (row) => row.messageId === messageId,
+  );
+  assert.equal(queuedAgain?.status, 'queued');
   const replay = await claim();
   assert.equal(replay?.messageId, delivery.messageId);
   assert.notEqual(replay?.claimToken, delivery.claimToken);
+  // A redelivery keeps the first claim's stamp.
+  assert.equal(replay?.firstClaimedAt, delivery.firstClaimedAt);
   assert.equal((await app(`/messages/${messageId}/undo`, {})).status, 409);
   const file = await machine(
     `/conversations/deliveries/${messageId}/attachments/0`,
@@ -470,6 +537,11 @@ export async function checkConversationApi(
     409,
   );
   assert.equal(await claim(), undefined);
+  const acknowledged = (await peek({ status: 'delivered' })).deliveries.find(
+    (row) => row.messageId === messageId,
+  );
+  assert.equal(acknowledged?.status, 'delivered');
+  assert.equal(acknowledged?.receiptId, receiptId);
   // An old source snapshot may arrive after a newer native delivery is
   // acknowledged. Its missing receipt must not erase that newer reply.
   assert.equal(
@@ -512,6 +584,32 @@ export async function checkConversationApi(
         availableAt: index,
       }),
     );
+  // The listing pages the queue in claim order with a signed cursor; one
+  // source's cursor never redeems on another's.
+  const pageOne = await peek({ limit: '100' });
+  assert.equal(pageOne.deliveries.length, 100);
+  assert.equal(pageOne.isDone, false);
+  const pageTwo = await peek({ limit: '100', cursor: pageOne.continueCursor });
+  assert.ok(pageTwo.deliveries.length >= 1);
+  assert.ok(
+    !pageTwo.deliveries.some((row) =>
+      pageOne.deliveries.some((one) => one.messageId === row.messageId),
+    ),
+  );
+  // A cursor is signed for the list it pages — one source's cursor is not
+  // a position on another's, and the door refuses it as it refuses every
+  // cursor it did not mint (400 INVALID_CURSOR), never as a missing row.
+  const foreignCursor = await machine(
+    `/conversations/deliveries?${new URLSearchParams({ source: 'other-source', cursor: pageOne.continueCursor })}`,
+  );
+  assert.equal(foreignCursor.status, 400);
+  assert.equal(
+    z
+      .object({ code: z.string() })
+      .loose()
+      .parse(await foreignCursor.json()).code,
+    'INVALID_CURSOR',
+  );
   const refused = await claimApiDeliveries(sql, viewer, 'vatplus', 100);
   assert.equal(refused.length, 100);
   for (const row of refused) {
@@ -608,7 +706,53 @@ export async function checkConversationApi(
     )[0]?.state,
     'failed',
   );
-  assert.equal((await app(`/messages/${goodId}/retry`, {})).status, 200);
+  // Dead-lettered: the listing shows it with its ten attempts and the last
+  // code (G-03a), and the REST retry re-drives it — the same audited
+  // action as the Inbox's Retry (G-03c); a second retry is 409, a foreign
+  // id 404.
+  const dead = (await peek({ status: 'failed' })).deliveries.find(
+    (row) => row.messageId === goodId,
+  );
+  assert.equal(dead?.status, 'failed');
+  assert.equal(dead?.attempts, 10);
+  assert.equal(dead?.lastErrorCode, 'network_error');
+  assert.ok(dead?.failedAt);
+  const restRetry = await machine(
+    `/conversations/deliveries/${goodId}/retry`,
+    {},
+  );
+  assert.equal(restRetry.status, 200);
+  assert.deepEqual(await restRetry.json(), { ok: true });
+  const retryAgain = await machine(
+    `/conversations/deliveries/${goodId}/retry`,
+    {},
+  );
+  assert.equal(retryAgain.status, 409);
+  assert.equal(
+    z
+      .object({ code: z.string() })
+      .loose()
+      .parse(await retryAgain.json()).code,
+    'DELIVERY_RETRY_UNAVAILABLE',
+  );
+  const retryForeign = await machine(
+    `/conversations/deliveries/no-such-${suffix}/retry`,
+    {},
+  );
+  assert.equal(retryForeign.status, 404);
+  assert.equal(
+    z
+      .object({ code: z.string() })
+      .loose()
+      .parse(await retryForeign.json()).code,
+    'DELIVERY_NOT_FOUND',
+  );
+  const requeued = (await peek({ status: 'queued' })).deliveries.find(
+    (row) => row.messageId === goodId,
+  );
+  assert.equal(requeued?.status, 'queued');
+  assert.equal(requeued?.attempts, 0);
+  assert.equal(requeued?.lastErrorCode, null);
   const retried = (await claimApiDeliveries(sql, viewer, 'vatplus', 100))[0];
   assert.equal(retried?.messageId, goodId);
   await failApiDelivery(sql, viewer, goodId, {
@@ -634,7 +778,7 @@ export async function checkConversationApi(
   record(
     'conversation API failure isolation and bounded retries',
     true,
-    '100 refused replies cannot starve reply 101; leases, failure replay, backoff, ten-attempt stop, native retry/discard and email-watchdog separation hold',
+    '100 refused replies cannot starve reply 101; leases, failure replay, backoff, ten-attempt stop, the peek listing (statuses, pages, no token), REST retry (200/409/404), native retry/discard and email-watchdog separation hold',
   );
 
   assert.equal(

@@ -29,7 +29,14 @@ import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-confi
 const TIMESTAMP_REGEX = /^\d{13,}(-[a-f0-9]+)?$/;
 
 export type FileReadResult<T> =
-  | { ok: true; data: T; hash: string }
+  | {
+      ok: true;
+      data: T;
+      /** Hex SHA-256 of the file's content. */
+      hash: string;
+      /** The file's modification time, epoch milliseconds (whole). */
+      mtimeMs: number;
+    }
   | {
       ok: false;
       error:
@@ -422,7 +429,12 @@ export async function readJsonFile<T>(
 
   try {
     const data = parse(content);
-    return { ok: true, data, hash: sha256(content) };
+    return {
+      ok: true,
+      data,
+      hash: sha256(content),
+      mtimeMs: Math.floor(fileStat.mtimeMs),
+    };
   } catch (err) {
     return {
       ok: false,

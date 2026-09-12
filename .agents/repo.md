@@ -45,9 +45,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   scoped and queried per organization. Per-org knowledge routing is
   `getKnowledgePoolForOrg(orgSlug)`, never the deployment-default `getKnowledgePool()`; introducing
   a new cross-org shared surface is a defect.
-- **A data-model or org-config schema change ships a migration** — versioned, reversible,
-  idempotent; `migrations:check` fails without one. Scaffold with `bun run gen:migration` (the
-  registries are generated — `migrations:sync`, never hand-edited) and follow the
+- **A data-model or org-config schema change ships a migration** — one numbered `.sql` file under
+  `services/platform/backend/db/migrations/`, forward-only and safe to apply to a live deployment
+  mid-roll; the real-Postgres proof is `bun run --filter @tale/platform backend:integration`
+  (there is no separate migrations gate or generated registry — filename order is the registry).
+  Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Every locale is covered, always** — a user-visible string never ships in fewer languages than
   the app supports: adding/changing/removing a key touches `en` AND every sibling locale (`de`,
@@ -77,11 +79,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` after editing one.
 
-| Skill                                                       | Read before…                                                                                       |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [`create-migration`](skills/create-migration/SKILL.md)      | adding/changing/testing a versioned data migration, or a red `migrations:check` / corpus gate       |
-| [`write-docs`](skills/write-docs/SKILL.md)                  | writing/editing any end-user docs page — journey-first, with the repo facts in `docs/AGENTS.md`      |
-| [`write-translations`](skills/write-translations/SKILL.md)  | editing any non-English locale file or doc, or touching the glossary                                 |
+| Skill                                                      | Read before…                                                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`create-migration`](skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `backend:integration` / corpus gate |
+| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing any end-user docs page — journey-first, with the repo facts in `docs/AGENTS.md`  |
+| [`write-translations`](skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                             |
 
 The product skills are not repo-dev workflows: they live under
 [`configs/platform/custom/skills/`](../configs/platform/custom/skills/) as the builtin catalog every

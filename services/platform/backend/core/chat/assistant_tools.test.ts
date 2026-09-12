@@ -14,7 +14,6 @@ import {
   CHAT_ASSISTANT_SLUG,
   RAG_SEARCH_ENTITY_LIMIT,
   RAG_SEARCH_MAX_LIMIT,
-  RAG_SEARCH_MIN_SIMILARITY,
 } from '../../../lib/chat';
 import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
@@ -502,7 +501,11 @@ describe('rag_search', () => {
       string,
       unknown
     >;
-    expect(searchArgs.minSimilarity).toBe(RAG_SEARCH_MIN_SIMILARITY);
+    // The floor is the organization's own (`embedding.json`), resolved
+    // next to the model — the tool asks for the default rather than
+    // hard-wiring one, and sends no floor of its own.
+    expect(searchArgs.floorByDefault).toBe(true);
+    expect(searchArgs.minSimilarity).toBeUndefined();
     // The reranker's score wins when it ran; either way three decimals.
     expect(result.results?.[0]?.score).toBe(0.016);
     expect(result.results?.[1]?.score).toBe(0.732);

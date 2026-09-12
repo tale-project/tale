@@ -9,6 +9,7 @@ import { platformConfigurationFixture } from './platform-fixture';
 import {
   parsePlatformConfiguration,
   platformConfigurationSchema,
+  resourceConverged,
   resourceId,
 } from './platform-model';
 
@@ -168,6 +169,69 @@ describe('native configuration declaration', () => {
     ).toBe(false);
     expect(
       deploymentSpecSchema.safeParse({ ...spec, inference: {} }).success,
+    ).toBe(false);
+  });
+});
+
+describe('the embedding floor in a declaration', () => {
+  const embedding = () =>
+    platformConfigurationFixture().resources.find(
+      (entry) => entry.kind === 'knowledge-embedding',
+    )!;
+  const declare = (config: object) =>
+    platformConfigurationSchema.safeParse({
+      schemaVersion: 1,
+      resources: [{ kind: 'knowledge-embedding', config }],
+    });
+
+  test('accepts a number, null (clear) and absence (keep); refuses anything else', () => {
+    expect(
+      declare({ ...embedding().config, minSimilarity: 0.55 }).success,
+    ).toBe(true);
+    expect(
+      declare({ ...embedding().config, minSimilarity: null }).success,
+    ).toBe(true);
+    expect(declare(embedding().config).success).toBe(true);
+    expect(
+      declare({ ...embedding().config, minSimilarity: '0.5' }).success,
+    ).toBe(false);
+    expect(declare({ ...embedding().config, minSimilarity: 1.5 }).success).toBe(
+      false,
+    );
+  });
+
+  test('converges on the platform’s own terms — omitted keeps, null clears, a number matches exactly', () => {
+    const resource = (minSimilarity?: number | null) =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          {
+            kind: 'knowledge-embedding',
+            config: {
+              ...embedding().config,
+              ...(minSimilarity === undefined ? {} : { minSimilarity }),
+            },
+          },
+        ],
+      }).resources[0]!;
+    const stored = (minSimilarity?: number) => ({
+      ...embedding().config,
+      ...(minSimilarity === undefined ? {} : { minSimilarity }),
+    });
+    // Omitted: whatever is stored is fine.
+    expect(resourceConverged(resource(), stored())).toBe(true);
+    expect(resourceConverged(resource(), stored(0.55))).toBe(true);
+    // Null: converged only once nothing is stored.
+    expect(resourceConverged(resource(null), stored())).toBe(true);
+    expect(resourceConverged(resource(null), stored(0.55))).toBe(false);
+    // A number: exact.
+    expect(resourceConverged(resource(0.6), stored(0.6))).toBe(true);
+    expect(resourceConverged(resource(0.6), stored(0.55))).toBe(false);
+    expect(resourceConverged(resource(0.6), stored())).toBe(false);
+    // Nothing stored at all, and a different model: never converged.
+    expect(resourceConverged(resource(), null)).toBe(false);
+    expect(
+      resourceConverged(resource(), { ...stored(), model: 'Other-model' }),
     ).toBe(false);
   });
 });

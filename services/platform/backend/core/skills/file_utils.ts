@@ -30,6 +30,7 @@ import {
   realpath,
   rename,
   rm,
+  stat,
 } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -42,7 +43,10 @@ import {
   MAX_SKILL_MD_BYTES,
 } from '@tale/shared/schemas/skills';
 
-import type { SkillBundleReader } from '../../../lib/skills/listing';
+import type {
+  SkillBundleReader,
+  SkillDocumentSource,
+} from '../../../lib/skills/listing';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -55,6 +59,7 @@ import {
   readJsonFile,
   removeDirSafe,
   safeJoinWithinDir,
+  sha256,
   validateOrgSlug,
   verifyPathWithinBase,
 } from '../lib/file_io';
@@ -67,6 +72,28 @@ export const SKILL_DOCUMENT_NAME = 'SKILL.md';
 
 /** How many superseded `SKILL.md` versions to keep per bundle. */
 const MAX_HISTORY_ENTRIES = 20;
+
+/**
+ * A bundle the file layer refuses to read as a skill: a symlink where the
+ * bundle directory or one of its files should be, a file over the staging
+ * cap, a walk past the file cap, a `SKILL.md` the reader cannot take. The
+ * message carries the absolute path — the operator's signal, for the
+ * server log — while `relPath` names the offending entry relative to the
+ * bundle (`''` for the bundle itself) and `detail` says what is wrong, so
+ * a door can tell the client without handing it the server's layout. A
+ * door answers it as the bundle's own 422, never as an outage.
+ */
+export class SkillBundleError extends Error {
+  override readonly name = 'SkillBundleError';
+
+  constructor(
+    readonly absPath: string,
+    readonly relPath: string,
+    readonly detail: string,
+  ) {
+    super(`${absPath}: ${detail}`);
+  }
+}
 
 /** `<orgSlug>/skills/` — the org's skill domain directory. */
 export function resolveSkillsDir(orgSlug: string): string {
@@ -128,14 +155,18 @@ export async function listSkillSlugs(orgSlug: string): Promise<string[]> {
 }
 
 /**
- * The raw `SKILL.md` text of one bundle, or `null` when there is none. A
- * symlinked, oversized or unreadable document throws — silently treating one
- * as absent would hide a broken bundle from the operator who has to fix it.
+ * The raw `SKILL.md` of one bundle with the facts that identify the version
+ * on disk — the hex SHA-256 of its text (the entity tag every skill view
+ * carries is this, quoted) and its modification time — or `null` when
+ * there is none. A symlinked or oversized document throws a
+ * {@link SkillBundleError}, an unreadable one a plain error — silently
+ * treating either as absent would hide a broken bundle from the operator
+ * who has to fix it.
  */
-export async function readSkillMdText(
+export async function readSkillMdDocument(
   orgSlug: string,
   slug: string,
-): Promise<string | null> {
+): Promise<SkillDocumentSource | null> {
   const skillDir = resolveSkillDir(orgSlug, slug);
   const filePath = resolveSkillMdPath(orgSlug, slug);
 
@@ -150,7 +181,11 @@ export async function readSkillMdText(
     throw err;
   }
   if (bundleStats.isSymbolicLink()) {
-    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
+    throw new SkillBundleError(
+      skillDir,
+      '',
+      'the skill bundle directory is a symlink',
+    );
   }
   // Belt and braces once the directory is known to exist: realpath it and
   // confirm it still lands inside the domain.
@@ -161,9 +196,40 @@ export async function readSkillMdText(
     MAX_SKILL_MD_BYTES,
     (content) => content,
   );
-  if (result.ok) return result.data;
+  if (result.ok) {
+    return { text: result.data, hash: result.hash, mtimeMs: result.mtimeMs };
+  }
   if (result.error === 'not_found') return null;
+  if (result.error === 'symlink' || result.error === 'too_large') {
+    throw new SkillBundleError(filePath, SKILL_DOCUMENT_NAME, result.message);
+  }
   throw new Error(`${filePath}: ${result.message}`);
+}
+
+/** The raw `SKILL.md` text of one bundle, or `null` when there is none —
+ * {@link readSkillMdDocument} without its facts. */
+export async function readSkillMdText(
+  orgSlug: string,
+  slug: string,
+): Promise<string | null> {
+  const document = await readSkillMdDocument(orgSlug, slug);
+  return document === null ? null : document.text;
+}
+
+/** Whether anything sits at the bundle's path — a directory, or a planted
+ * link the readers refuse. An upload that died mid-way leaves a directory
+ * with no `SKILL.md`: invisible to the library, yet present here. */
+export async function skillBundleDirExists(
+  orgSlug: string,
+  slug: string,
+): Promise<boolean> {
+  try {
+    await lstat(resolveSkillDir(orgSlug, slug));
+    return true;
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return false;
+    throw err;
+  }
 }
 
 /** One file of a skill bundle: its bundle-relative POSIX path plus bytes. */
@@ -189,7 +255,11 @@ async function resolveExistingBundleDir(
     throw err;
   }
   if (bundleStats.isSymbolicLink()) {
-    throw new Error(`${skillDir}: skill bundle directory is a symlink`);
+    throw new SkillBundleError(
+      skillDir,
+      '',
+      'the skill bundle directory is a symlink',
+    );
   }
   await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
   return skillDir;
@@ -216,7 +286,11 @@ async function walkBundleFiles(
       const relPath =
         relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
       if (entry.isSymbolicLink()) {
-        throw new Error(`${absPath}: skill bundle contains a symlink`);
+        throw new SkillBundleError(
+          absPath,
+          relPath,
+          'the skill bundle contains a symlink',
+        );
       }
       if (entry.isDirectory()) {
         await walk(absPath, relPath);
@@ -252,20 +326,26 @@ export async function readSkillBundleFiles(
 
   await walkBundleFiles(skillDir, async (absPath, relPath) => {
     if (files.length >= MAX_SKILL_BUNDLE_FILES) {
-      throw new Error(
-        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+      throw new SkillBundleError(
+        skillDir,
+        '',
+        `the bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
       );
     }
     const content = await readFile(absPath);
     if (content.byteLength > MAX_SKILL_BUNDLE_FILE_BYTES) {
-      throw new Error(
-        `${absPath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+      throw new SkillBundleError(
+        absPath,
+        relPath,
+        `the file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
       );
     }
     totalBytes += content.byteLength;
     if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-      throw new Error(
-        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
+      throw new SkillBundleError(
+        skillDir,
+        '',
+        `the bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes in total`,
       );
     }
     files.push({ path: relPath, contentBase64: content.toString('base64') });
@@ -297,8 +377,10 @@ export async function listSkillBundleFileEntries(
   const entries: Array<{ path: string; size: number }> = [];
   await walkBundleFiles(skillDir, async (absPath, relPath) => {
     if (entries.length >= MAX_SKILL_BUNDLE_FILES) {
-      throw new Error(
-        `${skillDir}: bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
+      throw new SkillBundleError(
+        skillDir,
+        '',
+        `the bundle exceeds ${MAX_SKILL_BUNDLE_FILES} files`,
       );
     }
     const stats = await lstat(absPath);
@@ -327,17 +409,25 @@ function isSafeBundleRelPath(relPath: string): boolean {
   );
 }
 
+/** One file of a bundle with its raw bytes. */
+export interface SkillBundleAssetBytes {
+  readonly path: string;
+  readonly content: Buffer;
+}
+
 /**
- * One named file of a bundle, base64-encoded, or `null` when the bundle or
+ * The bytes of one named file of a bundle, or `null` when the bundle or
  * the file does not exist. A path the walk would never produce reads as
  * absent rather than throwing — the file tree is the only legitimate source
- * of paths, so anything else is a probe, not a mistake to explain.
+ * of paths, so anything else is a probe, not a mistake to explain. A
+ * symlink at the path or a file over the staging cap throws a
+ * {@link SkillBundleError}, like the walk.
  */
-export async function readSkillBundleAsset(
+export async function readSkillBundleAssetBytes(
   orgSlug: string,
   slug: string,
   relPath: string,
-): Promise<SkillBundleFileContent | null> {
+): Promise<SkillBundleAssetBytes | null> {
   if (!isSafeBundleRelPath(relPath)) return null;
   const skillDir = await resolveExistingBundleDir(orgSlug, slug);
   if (skillDir === null) return null;
@@ -351,17 +441,23 @@ export async function readSkillBundleAsset(
     throw err;
   }
   if (stats.isSymbolicLink()) {
-    throw new Error(`${filePath}: skill bundle contains a symlink`);
+    throw new SkillBundleError(
+      filePath,
+      relPath,
+      'the skill bundle contains a symlink',
+    );
   }
   if (!stats.isFile()) return null;
   if (stats.size > MAX_SKILL_BUNDLE_FILE_BYTES) {
-    throw new Error(
-      `${filePath}: bundle file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+    throw new SkillBundleError(
+      filePath,
+      relPath,
+      `the file exceeds ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
     );
   }
   await verifyPathWithinBase(filePath, skillDir);
   const content = await readFile(filePath);
-  return { path: relPath, contentBase64: content.toString('base64') };
+  return { path: relPath, content };
 }
 
 /**
@@ -372,21 +468,29 @@ export async function readSkillBundleAsset(
 export function createOrgSkillReader(orgSlug: string): SkillBundleReader {
   return {
     listSlugs: () => listSkillSlugs(orgSlug),
-    readSkillMd: (slug) => readSkillMdText(orgSlug, slug),
+    readSkillDocument: (slug) => readSkillMdDocument(orgSlug, slug),
     describe: (slug) => resolveSkillMdPath(orgSlug, slug),
   };
+}
+
+/** What identifies the version a write left on disk: the hex SHA-256 of
+ * the text written and the file's modification time. */
+export interface SkillMdWriteFacts {
+  readonly hash: string;
+  readonly mtimeMs: number;
 }
 
 /**
  * Write a bundle's `SKILL.md`, keeping the superseded version in the domain's
  * history trail. The write itself is atomic, so a reader never observes a
- * half-written document.
+ * half-written document. Answers the facts a view needs to name the version
+ * it just persisted, without reading the document back.
  */
 export async function writeSkillMdText(
   orgSlug: string,
   slug: string,
   content: string,
-): Promise<void> {
+): Promise<SkillMdWriteFacts> {
   const filePath = resolveSkillMdPath(orgSlug, slug);
   const current = await readSkillMdText(orgSlug, slug);
   if (current !== null) {
@@ -398,6 +502,8 @@ export async function writeSkillMdText(
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
   await atomicWrite(filePath, content);
+  const written = await stat(filePath);
+  return { hash: sha256(content), mtimeMs: Math.floor(written.mtimeMs) };
 }
 
 /** One file of a bundle about to be written. */

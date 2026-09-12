@@ -25,7 +25,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { getFileUrl } from '../files/service.ts';
-import { queueApiReply, retryApiDelivery } from './api-sync.ts';
+import { queueApiReply, retryApiDeliveryAudited } from './api-sync.ts';
 import {
   assertAssignableMember,
   CONVERSATION_COLUMNS,
@@ -804,20 +804,13 @@ export async function retrySendMessage(
       );
     }
     if (message.channel === 'api') {
-      await retryApiDelivery(tx, args.organizationId, args.messageId);
-      await createAuditLog(tx, {
+      // The same audited re-drive the REST door runs on
+      // `POST /conversations/deliveries/{id}/retry`.
+      await retryApiDeliveryAudited(tx, {
         organizationId: args.organizationId,
-        actorId: args.actor.userId,
-        ...(args.actor.email !== undefined
-          ? { actorEmail: args.actor.email }
-          : {}),
-        actorType: 'user',
-        action: 'retry_send_message',
-        category: 'data',
-        resourceType: 'conversationMessage',
-        resourceId: args.messageId,
-        newState: { conversationId: message.conversationId, channel: 'api' },
-        status: 'success',
+        messageId: args.messageId,
+        conversationId: message.conversationId,
+        actor: args.actor,
       });
       return;
     }

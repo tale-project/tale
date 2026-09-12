@@ -112,7 +112,7 @@ Les exécutions ont deux modes. **Essai** ne touche jamais l’extérieur et c�
 
 ## Là où un humain décide
 
-Une exécution qui a besoin d’une validation ne tombe pas en échec et ne repart pas de zéro. Elle se met en pause au statut `waiting`, et dès que la validation est répondue, elle repart exactement au nœud où elle s’était arrêtée en emportant la réponse. Une exécution qui attend une saisie humaine se comporte pareil. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre ces portes et ce que chaque décision laisse derrière elle.
+Une exécution qui a besoin d’une validation ne tombe pas en échec et ne repart pas de zéro. Elle se met en pause au statut `waiting`, et dès que la validation est répondue, elle repart exactement au nœud où elle s’était arrêtée en emportant la réponse. Une exécution qui attend une saisie humaine se comporte pareil. `waiting` est aussi là où une exécution se gare pendant qu’un tour d’agent travaille encore ou qu’un nœud interroge jusqu’à ce que sa condition tienne — ceux-là n’ont besoin de personne, et l’exécution nomme dans quel genre d’attente elle est (`waitingFor` : `approval`, `ask`, `agent` ou `repeat`), si bien que « a besoin d’une personne » ne se lit jamais sur le seul statut. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre ces portes et ce que chaque décision laisse derrière elle.
 
 ## Choisir la bonne unité
 

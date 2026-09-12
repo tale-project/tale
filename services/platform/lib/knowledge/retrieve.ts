@@ -135,17 +135,20 @@ export interface RetrieveDeps {
    * never to choose a corpus. */
   readonly orgSlug: string;
   /**
-   * The admission re-check: which fused candidates the CALLER may be shown.
-   * A host verifies each documents-corpus hit against its live document
-   * here — lifecycle, completion, scope, folder — BEFORE the page is cut,
-   * so a candidate it refuses costs the page nothing; the check ran after
-   * the cut once, and a refused top candidate emptied a `limit: 1` page.
-   * Must keep the order it is given. Absent admits everything (a corpus
-   * whose rows are the truth).
+   * The admission re-check: which candidates the CALLER may be shown. A
+   * host verifies each documents-corpus hit against its live document here
+   * — lifecycle, completion, scope, folder — on the raw leg lists BEFORE
+   * they are fused, so a candidate it refuses never holds a rank: fusion
+   * once ran first, and a refused candidate's rank pushed every admitted
+   * one down the reciprocal-rank scale (a top hit at 0.85 was rank 12 of
+   * a pool the caller could not see). It also runs on a semantic-cache
+   * pool, which can outlive a replacement. Reads only `corpus` and
+   * `source.ref`; must keep the order it is given. Absent admits
+   * everything (a corpus whose rows are the truth).
    */
-  readonly admit?: (
-    hits: readonly FusedKnowledgeHit[],
-  ) => Promise<readonly FusedKnowledgeHit[]>;
+  readonly admit?: <Hit extends KnowledgeHit>(
+    hits: readonly Hit[],
+  ) => Promise<readonly Hit[]>;
 }
 
 /**
@@ -233,8 +236,7 @@ export async function retrieve(
     ...(query.access !== undefined && { access: query.access }),
   };
 
-  const legs: Record<string, number> = {};
-  const rankings: KnowledgeHit[][] = [];
+  const rankings: { leg: string; hits: readonly KnowledgeHit[] }[] = [];
   let bm25 = true;
 
   for (const reader of readers) {
@@ -252,46 +254,79 @@ export async function retrieve(
         `no full-text index on the ${reader.corpus} corpus — searching dense-only`,
       );
     } else if (keyword.length > 0) {
-      legs[`${reader.corpus}:keyword`] = keyword.length;
-      rankings.push([...keyword]);
+      rankings.push({ leg: `${reader.corpus}:keyword`, hits: keyword });
     }
 
     const floor = query.minSimilarity;
     const kept =
       floor === undefined ? dense : dense.filter((hit) => hit.score >= floor);
     if (kept.length > 0) {
-      legs[`${reader.corpus}:dense`] = kept.length;
-      rankings.push([...kept]);
+      rankings.push({ leg: `${reader.corpus}:dense`, hits: kept });
     }
   }
 
-  if (rankings.length === 0) {
+  // ADMISSION runs on the raw leg lists, before fusion: every distinct
+  // candidate of every leg is checked once (the check reads only the
+  // corpus and the source ref, so one leg's copy stands for both), and a
+  // refused candidate leaves every leg it was ranked in — so it never
+  // holds a rank that pushes admitted passages down the reciprocal-rank
+  // scale. Then the admitted lists are fused, deduplicated, and only then
+  // reranked and cut to `limit`, so what the caller cannot see never
+  // occupies a slot on the page it gets.
+  const union = new Map<string, KnowledgeHit>();
+  for (const ranking of rankings) {
+    for (const hit of ranking.hits) {
+      const key = keyOf(hit);
+      if (!union.has(key)) union.set(key, hit);
+    }
+  }
+  const admittedKeys = new Set(
+    (await admit([...union.values()])).map((hit) => keyOf(hit)),
+  );
+  const admittedRankings = rankings
+    .map((ranking) => ({
+      leg: ranking.leg,
+      hits: ranking.hits.filter((hit) => admittedKeys.has(keyOf(hit))),
+    }))
+    .filter((ranking) => ranking.hits.length > 0);
+  const legs: Record<string, number> = {};
+  for (const ranking of admittedRankings) {
+    legs[ranking.leg] = ranking.hits.length;
+  }
+
+  if (admittedRankings.length === 0) {
     return {
       hits: [],
       diagnostics: { bm25, reranked: false, cached: false, admitted: 0, legs },
     };
   }
 
-  // The whole candidate pool is fused, then ADMITTED, then deduplicated —
-  // and only then reranked and cut to `limit`, so what the caller cannot
-  // see never occupies a slot on the page it gets.
-  const fused = fuseByRank(rankings, (hit) => `${hit.corpus}:${hit.id}`, {
-    limit: pool,
-  });
+  const fused = fuseByRank(
+    admittedRankings.map((ranking) => ranking.hits),
+    keyOf,
+    { limit: pool, legs: admittedRankings.map((ranking) => ranking.leg) },
+  );
   // Built with a loop and `Object.assign` rather than map-and-spread: the
   // assign writes into a fresh target, so the fused entry's own item is left
-  // untouched.
+  // untouched. Beside the rank key travel the legs' own numbers, per leg:
+  // the dense cosine as `similarity` and the BM25 weight as `keywordScore`,
+  // so a caller can threshold on the one that has a scale.
   const candidates: FusedKnowledgeHit[] = [];
   for (const entry of fused) {
-    candidates.push(
-      Object.assign({ fusedScore: entry.score, legs: entry.legs }, entry.item, {
-        fusedScore: entry.score,
-        legs: entry.legs,
-      }),
+    const dense = entry.sources.find((source) => source.leg.endsWith(':dense'));
+    const keyword = entry.sources.find((source) =>
+      source.leg.endsWith(':keyword'),
     );
+    const fusedFields = {
+      fusedScore: entry.score,
+      legs: entry.legs,
+      matchedLegs: entry.sources.map((source) => source.leg),
+      similarity: dense === undefined ? null : dense.score,
+      keywordScore: keyword === undefined ? null : keyword.score,
+    };
+    candidates.push(Object.assign({ ...fusedFields }, entry.item, fusedFields));
   }
-  const kept = await admit(candidates);
-  let hits = dropRepeatedPassages(kept);
+  let hits = dropRepeatedPassages(candidates);
 
   // The cache keeps the admitted pool in fused order — spare candidates for
   // a later lookup, which admits again on its own live truth.
@@ -321,13 +356,24 @@ export async function retrieve(
 
   return {
     hits,
-    diagnostics: { bm25, reranked, cached: false, admitted: kept.length, legs },
+    diagnostics: {
+      bm25,
+      reranked,
+      cached: false,
+      admitted: candidates.length,
+      legs,
+    },
   };
 }
 
-function admitEverything(
-  hits: readonly FusedKnowledgeHit[],
-): Promise<readonly FusedKnowledgeHit[]> {
+/** The identity two legs agree on — the RRF fusion key. */
+function keyOf(hit: KnowledgeHit): string {
+  return `${hit.corpus}:${hit.id}`;
+}
+
+function admitEverything<Hit extends KnowledgeHit>(
+  hits: readonly Hit[],
+): Promise<readonly Hit[]> {
   return Promise.resolve(hits);
 }
 

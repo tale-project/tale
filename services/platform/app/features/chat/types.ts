@@ -91,6 +91,18 @@ export interface ChatMessageUsage {
   /** The tool loop spent its whole round budget and forced the final
    * answer — rendered as a notice on the message. */
   readonly stepLimitHit?: boolean;
+  /** Why the final round stopped (`length` = the output cap cut the reply
+   * short), when the provider or the platform said. */
+  readonly finishReason?:
+    | 'stop'
+    | 'length'
+    | 'tool-calls'
+    | 'content-filter'
+    | 'cancelled'
+    | 'other';
+  /** The counts are the platform's own estimate — the provider's frame was
+   * lost (a cancelled turn) or never sent. */
+  readonly estimated?: boolean;
 }
 
 /** One rendered message. `parts` is authored order and is rendered in it. */

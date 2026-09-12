@@ -5111,7 +5111,7 @@ settings:
         description: Operate what is deployed — start and poll durable runs,
           browse versions, bind and unbind triggers.
       capability:
-        title: Skills & knowledge
+        title: Capabilities & knowledge
         description: This organization's own surface — search what it can do,
           invoke one capability, retrieve knowledge.
     exampleTitle: Try it

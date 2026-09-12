@@ -27,7 +27,7 @@ There is no per-agent knowledge-write switch to turn on. A fact gets into the kn
 
 Topics are the dedup key: an edit replaces the live version rather than adding a second one — the knowledge base never serves two versions of the same fact. Adding a new entry under an existing topic is refused with a duplicate-topic error; edit the existing entry instead.
 
-Replaced versions are not lost. Open an entry to see its details — indexing status, last update, and the **Version history** with every superseded version and when it was replaced. Only the live version is indexed for retrieval; the history exists for audit and reference.
+Replaced versions are not lost. Open an entry to see its details — indexing status, last update, and the **Version history** with every superseded version and when it was replaced. Only the live version is indexed for retrieval; the history exists for audit and reference. Over the API the same history is `GET /api/v1/knowledge-entries/{id}/versions`, and `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` lists one topic's replaced versions, each with its `supersededAt` — see the [API reference](/develop/api-reference).
 
 ## Editing, indexing, deleting
 

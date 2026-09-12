@@ -17,7 +17,7 @@ Tale exposes one MCP endpoint per deployment at `/api/v1/mcp`, authenticated wit
 
 <Frame caption="Settings > API > MCP — the endpoint URL to point a client at, the organization slug a multi-org key sends, the tool inventory in its three groups, and a request to try the key with.">
 
-![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, an Organization slug row, three rows listing tool names by group — Authoring, Run & trigger management, Skills & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key and the organization-slug header.](/images/platform/settings-mcp-endpoint.webp)
+![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, an Organization slug row, three rows listing tool names by group — Authoring, Run & trigger management, Capabilities & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key and the organization-slug header.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

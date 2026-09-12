@@ -26,12 +26,14 @@ export function parseDavPath(pathname: string): ParsedPath | null {
   if (orgSlug === null || !isValidOrgSlug(orgSlug)) return null;
 
   if (raw.length === 1) {
-    // /dav/<orgSlug>/ — pseudo-root listing
+    // /dav/<orgSlug>/ — pseudo-root listing. Reads as the documents
+    // collection for every handler; `isRoot` is what tells it apart.
     return {
       orgSlug,
       namespace: 'documents',
       segments: [],
       isCollection: true,
+      isRoot: true,
     };
   }
 
@@ -57,6 +59,7 @@ export function parseDavPath(pathname: string): ParsedPath | null {
     namespace: rawNamespace,
     segments,
     isCollection,
+    isRoot: false,
   };
 }
 

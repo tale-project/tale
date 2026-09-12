@@ -183,6 +183,16 @@ const apiKeySuffixPlugin = {
 } satisfies BetterAuthPlugin;
 
 /**
+ * The header the api-key plugin reads a key from. The REST door sets it on
+ * a synthetic request it builds itself (rest/v1.ts) to turn a verified
+ * bearer key into the key holder's session — it is never meant to arrive
+ * from a client: `apiKeyHeaderGuard` (lib/http-hygiene.ts) refuses every
+ * inbound request that carries it, because the plugin would otherwise
+ * honour it on any endpoint the request reached.
+ */
+export const API_KEY_HEADER = 'x-api-key';
+
+/**
  * Per-API-key rate limit of Better Auth's apiKey plugin — OFF. The plugin's
  * window (`evaluateRateLimit` in `@better-auth/api-key`) counts requests and
  * resets only after `timeWindow` of SILENCE since the last counted request,
@@ -845,7 +855,7 @@ export function createAuth(config: AuthConfig) {
       }),
       apiKey({
         defaultPrefix: 'tale',
-        apiKeyHeaders: ['x-api-key'],
+        apiKeyHeaders: [API_KEY_HEADER],
         enableSessionForAPIKeys: true,
         rateLimit: { ...API_KEY_RATE_LIMIT },
       }),

@@ -3,9 +3,13 @@ import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import type { Sql } from 'postgres';
 
-import { loadTrustedProxies, type Auth } from './auth/auth.ts';
+import { API_KEY_HEADER, loadTrustedProxies, type Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
-import { withOAuthConformance } from './auth/oauth-conformance.ts';
+import {
+  oauthTokenPrecheck,
+  withDiscoveryConformance,
+  withOAuthConformance,
+} from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
@@ -76,13 +80,17 @@ import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
 import { conditionalGet } from './lib/conditional-get.ts';
 import {
+  apiKeyHeaderGuard,
   apiNotFound,
+  apiPathWithoutTrailingSlash,
   backendSecureHeaders,
   nulUrlGuard,
+  uriLengthGuard,
 } from './lib/http-hygiene.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { mountRestV1Routes } from './rest/v1.ts';
+import { probeStores } from './store-health.ts';
 import {
   backendMetricsResponse,
   httpDuration,
@@ -97,7 +105,10 @@ export interface AppDeps {
 }
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
-  const app = new Hono<AuthEnv>();
+  // One trailing slash under /api/v1/ routes like its absence
+  // (lib/http-hygiene.ts) — the path is normalised once, here, so every
+  // door and the 405/OPTIONS probe read the same value.
+  const app = new Hono<AuthEnv>({ getPath: apiPathWithoutTrailingSlash });
   // Idempotent (guarded by the module's own flag): `main.ts` already
   // initializes at boot for every role, and this covers hosts that build the
   // app directly — an app with a `/metrics` route that renders an empty
@@ -124,15 +135,47 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
       c.res.headers.set('x-request-id', id);
     }
   });
-  // The NUL-byte refusal and the transport-security headers every response
-  // carries (lib/http-hygiene.ts).
-  app.use(nulUrlGuard());
+  // The transport-security headers every response carries — registered
+  // ahead of the guards below so a pre-route refusal (a 401, a 414, a NUL
+  // 400) wears them too (lib/http-hygiene.ts).
   app.use(backendSecureHeaders(process.env.SITE_URL));
+  // The api-key plugin's header is the REST door's internal hand-off, never
+  // a client credential: carried by a client it would open every session
+  // gate below with the key holder's identity (lib/http-hygiene.ts).
+  app.use(apiKeyHeaderGuard([API_KEY_HEADER]));
+  // The URL budget the contract documents (414), then the NUL-byte refusal
+  // (400) — both before any door decodes the path into a lookup.
+  app.use(uriLengthGuard());
+  app.use(nulUrlGuard());
   // LIVENESS: the process is up. Docker's HEALTHCHECK reads this, so it must
   // stay 200 while a replica drains — a draining container is doing exactly
   // what it was asked to; killing it mid-drain cuts the generations the drain
   // is waiting for.
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
+  // STORES: whether the three stores this process depends on answer — the
+  // app database, the deployment-default knowledge database and the
+  // deployment-default object store — from the cached probe the metrics
+  // gauge reads (store-health.ts, one round every 30 s). The public status
+  // page projects its `database` and `object-store` components from this;
+  // `/ping` alone stays green while a wedged database fails every
+  // document read. 503 with the same body once any store is down, so a
+  // plain monitor gets the verdict from the status alone. Deliberately
+  // not `/ready`: a flapping external bucket must not cut a colour out of
+  // DNS. Not proxied — the platform tier reads it on the Docker network.
+  app.get('/health/stores', async (c) => {
+    const probed = await probeStores(deps.sql);
+    // A store the probe did not report is not known to be up.
+    const up = (name: string): boolean =>
+      probed.find((store) => store.name === name)?.up ?? false;
+    const stores = {
+      app_db: up('app_db'),
+      knowledge_db: up('knowledge_db'),
+      object_store: up('object_store'),
+    };
+    const ok = stores.app_db && stores.knowledge_db && stores.object_store;
+    c.header('Cache-Control', 'no-store');
+    return c.json({ ok, service: 'backend', stores }, ok ? 200 : 503);
+  });
   // READINESS: this replica accepts NEW work. 503 once the deploy has aimed
   // a drain at it, which is what lets `tale deploy` watch a colour stop
   // taking turns before it cuts that colour out of DNS. Deliberately
@@ -190,16 +233,24 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // discovery and the tokens name.
   const oidcRealm = () =>
     `${(deps.auth.options.baseURL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')}/api/auth`;
-  app.on(['GET', 'POST'], '/api/auth/*', async (c) =>
-    withOAuthConformance(
+  app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
+    // A token request without a grant_type is judged on a clone of the
+    // request BEFORE the handler consumes its body (RFC 6749 §5.2:
+    // `invalid_request`, where the library's schema reads the absence as
+    // an unsupported grant).
+    const early = await oauthTokenPrecheck(c.req.raw);
+    if (early !== null) return early;
+    return withOAuthConformance(
       c.req.raw,
       await deps.auth.handler(c.req.raw),
       oidcRealm(),
-    ),
-  );
+    );
+  });
   app.route('/api/app/identity', createIdentityRoutes(deps));
-  app.get('/.well-known/oauth-authorization-server/api/auth', (c) =>
-    oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),
+  app.get('/.well-known/oauth-authorization-server/api/auth', async (c) =>
+    withDiscoveryConformance(
+      await oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),
+    ),
   );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
   // Oracle for the platform web tier's own browser connection — it forwards

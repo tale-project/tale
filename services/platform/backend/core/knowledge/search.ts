@@ -46,13 +46,16 @@
  * organization's corpus with another's credential.
  */
 
-import type { KnowledgeEmbeddingConfig } from '@tale/shared/schemas/knowledge';
+import {
+  KNOWLEDGE_DEFAULT_MIN_SIMILARITY,
+  type KnowledgeEmbeddingConfig,
+} from '@tale/shared/schemas/knowledge';
 
 import { retrieve, type CorpusReader } from '../../../lib/knowledge/retrieve';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   corporaFor,
-  type FusedKnowledgeHit,
+  type KnowledgeHit,
   type KnowledgeQuery,
   type KnowledgeResult,
 } from '../../../lib/knowledge/types';
@@ -73,7 +76,19 @@ export interface KnowledgeOrg {
   readonly orgSlug: string;
 }
 
-export type SearchKnowledgeArgs = KnowledgeOrg & KnowledgeQuery;
+export type SearchKnowledgeArgs = KnowledgeOrg &
+  KnowledgeQuery & {
+    /**
+     * Floor the dense leg at the organization's own default when the caller
+     * names no `minSimilarity`: the `minSimilarity` its `embedding.json`
+     * states, else {@link KNOWLEDGE_DEFAULT_MIN_SIMILARITY}. The built-in
+     * assistant's search sets this — the floor belongs to the embedding
+     * model, so it is configured next to the model, per organization, not
+     * hard-wired in the chat tool. REST callers leave it unset and get no
+     * floor unless they send one.
+     */
+    readonly floorByDefault?: boolean;
+  };
 
 /**
  * Search an organization's knowledge.
@@ -88,16 +103,21 @@ export async function searchKnowledge(
 ): Promise<KnowledgeResult> {
   const config = await readOrgEmbeddingConfig(args.orgSlug);
   const { readers, embedder } = await bindOrg(ctx, args, config);
+  const minSimilarity =
+    args.minSimilarity ??
+    (args.floorByDefault === true
+      ? (config?.minSimilarity ?? KNOWLEDGE_DEFAULT_MIN_SIMILARITY)
+      : undefined);
   // The SQL row is a projection. Re-check the current document/file,
   // completion, lifecycle, scope, and folder before any private hit is
-  // shown — as the ADMISSION step of retrieval, on the whole fused pool and
-  // before the page is cut, so a refused candidate never costs the page a
-  // slot (it also decides again on a semantic-cache pool, which can outlive
-  // a replacement). Repeated passages are dropped after admission, inside
-  // retrieval too.
-  const admit = async (
-    hits: readonly FusedKnowledgeHit[],
-  ): Promise<readonly FusedKnowledgeHit[]> => {
+  // shown — as the ADMISSION step of retrieval, on the raw leg lists before
+  // they are fused, so a refused candidate never holds a rank and never
+  // costs the page a slot (it also decides again on a semantic-cache pool,
+  // which can outlive a replacement). Repeated passages are dropped after
+  // admission, inside retrieval too.
+  const admit = async <Hit extends KnowledgeHit>(
+    hits: readonly Hit[],
+  ): Promise<readonly Hit[]> => {
     const documentRefs = [
       ...new Set(
         hits
@@ -151,9 +171,7 @@ export async function searchKnowledge(
       // The caller surface derives this server-side (never from a sandbox or
       // user request); absent means org-wide — the admin-keyed surfaces.
       ...(args.access !== undefined && { access: args.access }),
-      ...(args.minSimilarity !== undefined && {
-        minSimilarity: args.minSimilarity,
-      }),
+      ...(minSimilarity !== undefined && { minSimilarity }),
     },
   );
 }

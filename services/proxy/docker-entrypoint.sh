@@ -147,6 +147,13 @@ fi
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|^[[:space:]]*#[[:space:]]*TLS_PLACEHOLDER[[:space:]]*\$|\\t${TLS_CONFIG}|" "$CADDYFILE"
+# The edge's own JSON refusals carry HSTS exactly when the platform's
+# responses do (server.ts pins browsers only for an https public origin).
+if echo "${SITE_URL}" | grep -qi '^https://'; then
+  sed -i "s|^[[:space:]]*#[[:space:]]*HSTS_PLACEHOLDER[[:space:]]*\$|\\theader Strict-Transport-Security \"max-age=15552000\"|" "$CADDYFILE"
+else
+  sed -i "/# HSTS_PLACEHOLDER/d" "$CADDYFILE"
+fi
 
 # Replace SITE_ORIGIN in the Caddyfile with the deployment's address list —
 # SITE_URL plus every ADDITIONAL_SITE_URLS entry, comma-separated, which is
@@ -203,8 +210,18 @@ BACKEND_BLOCK=$(cat <<EOF
 	# heredoc and an awk -v assignment, each of which eats a backslash.
 	@apiDotSegments expression \`{http.request.uri}.matches("(?i)^(/[^/?]+)?/api/") && {http.request.uri}.matches("(?i)(^|/)(%2e|[.]){1,2}(/|$|[?])")\`
 	handle @apiDotSegments {
-		header Content-Type application/json
+		import edge_json_refusal
 		respond \`{"error":"Not found","code":"NOT_FOUND"}\` 404
+	}
+	# The URL budget the API reference documents (32 KiB of path and
+	# query), answered here as the 414 the backend's own guard would
+	# answer — so a client never meets the header-budget cliff above for a
+	# URL it could still have shortened. Same optional leading segment as
+	# the rule above for a subpath deployment.
+	@apiUriTooLong expression \`{http.request.uri}.matches("(?i)^(/[^/?]+)?/api/") && {http.request.uri}.size() > 32768\`
+	handle @apiUriTooLong {
+		import edge_json_refusal
+		respond \`{"error":"The request URL exceeds 32 KiB (path and query)","code":"URI_TOO_LONG"}\` 414
 	}
 	handle /.well-known/oauth-authorization-server/api/auth {
 		reverse_proxy ${BACKEND_UPSTREAM}

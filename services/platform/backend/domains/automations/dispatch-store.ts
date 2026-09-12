@@ -74,6 +74,16 @@ function actorUserId(actor: string): string {
   return separator === -1 ? actor : actor.slice(separator + 1);
 }
 
+/** What a run this store starts records as its starter. An actor that
+ * already names its door (`api-key:<userId>`) is recorded as is; a bare
+ * user id — the builder session's and the chat capability's actor — is
+ * recorded as `user:<userId>`, the form the app door writes, so every run
+ * carries one of the documented prefixes and the erasure of a user finds
+ * the runs they started. */
+function runStarter(actor: string): string {
+  return actor.includes(':') ? actor : `user:${actor}`;
+}
+
 /** The 0.4 `authorizeActorRun`: membership resolved from the (org, user)
  * pair; `developer` additionally needs the developer-settings capability. */
 export async function authorizeActorRun(
@@ -255,12 +265,15 @@ export function pgAutomationStore(
       // it to a person once (the REST trigger door rotates to reveal).
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the kind was validated above; the store validates the rest
       const input = trigger as unknown as TriggerInput;
-      await setTrigger(sql, {
+      const outcome = await setTrigger(sql, {
         organizationId,
         name: automation,
         trigger: input,
         actor,
       });
+      return outcome.revoked === undefined
+        ? undefined
+        : { revoked: outcome.revoked };
     },
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);
@@ -288,7 +301,7 @@ export function pgAutomationStore(
             finished_at_ms
           ) VALUES (
             ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
-            ${actor}, ${tx.json(toJson(JSON.stringify(null)))},
+            ${runStarter(actor)}, ${tx.json(toJson(JSON.stringify(null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
             ${tx.json(toJson(boundRunTrace(result.trace)))},
@@ -338,7 +351,7 @@ export function pgAutomationStore(
         // caller sent, for the inputs schema to accept or refuse.
         input: input === undefined ? {} : input,
         mode,
-        startedBy: actor,
+        startedBy: runStarter(actor),
         ...(version !== undefined ? { version } : {}),
       };
       // The handle names its scope too: a project run is read back at the
@@ -458,6 +471,7 @@ export function pgAutomationStore(
       const views: TriggerView[] = [];
       for (const row of await listTriggers(sql, organizationId, name)) {
         const view: TriggerView = {
+          id: row.id,
           name: row.name,
           kind: row.kind,
           hasToken: row.hasToken,
@@ -467,6 +481,11 @@ export function pgAutomationStore(
         if (row.timezone !== null) view.timezone = row.timezone;
         if (row.event !== null) view.event = row.event;
         if (row.lastFiredAt !== null) view.lastFiredAt = row.lastFiredAt;
+        if (row.lastRunId !== null) view.lastRunId = row.lastRunId;
+        if (row.lastSkippedAt !== null) view.lastSkippedAt = row.lastSkippedAt;
+        if (row.lastSkipReason !== null) {
+          view.lastSkipReason = row.lastSkipReason;
+        }
         views.push(view);
       }
       return views;

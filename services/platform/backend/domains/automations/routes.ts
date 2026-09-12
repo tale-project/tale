@@ -66,14 +66,34 @@ const saveSchema = z.object({
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
 
-const triggerSchema = z.object({
-  kind: z.enum(['schedule', 'webhook', 'event']),
-  cron: z.string().max(200).optional(),
-  timezone: z.string().max(100).optional(),
-  event: z.string().max(200).optional(),
-  enabled: z.boolean().optional(),
-  rotateToken: z.boolean().optional(),
-});
+// One strict shape per kind, the REST door's twin: the editor sends only
+// the kind's own fields, and a key of another kind (or an unknown one) is
+// refused instead of stored — the store guards the same rule for callers
+// that reach it without a schema (`assertTriggerValid`).
+const triggerSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('schedule'),
+      cron: z.string().max(200).optional(),
+      timezone: z.string().max(100).optional(),
+      enabled: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('webhook'),
+      enabled: z.boolean().optional(),
+      rotateToken: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('event'),
+      event: z.string().max(200).optional(),
+      enabled: z.boolean().optional(),
+    })
+    .strict(),
+]);
 
 const projectsSchema = z.object({
   projectIds: z.array(z.string().min(1)).max(100),

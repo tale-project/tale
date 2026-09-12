@@ -5057,7 +5057,7 @@ settings:
           exécutions, parcourir les versions, poser et retirer les
           déclencheurs.
       capability:
-        title: Skills & connaissances
+        title: Capacités & connaissances
         description: La surface propre à l'organisation — chercher ce qu'elle
           sait faire, invoquer une capacité, récupérer des connaissances.
     exampleTitle: Essaie

@@ -11,7 +11,7 @@ You need the **Developer** role or higher (the API settings are hidden below it)
 
 <Step title="Mint an API key">
 
-To get a credential your scripts can hold, open **Settings > API > REST** and click **Create API key**. Name it for the system that will use it — keys are listed by name, and a year from now "zapier-bridge" beats "test". The key value shows once, on creation; store it in your secret manager, not in code.
+To get a credential your scripts can hold, open **Settings > API > REST** and click **Create API key**. Name it for the system that will use it — keys are listed by name, and a year from now "zapier-bridge" beats "test". The key value shows once, on creation; store it in your secret manager, not in code. Keys are minted, rotated and revoked here and nowhere else — nothing under `/api/v1` creates, lists or revokes one — so plan the rotation as a human step; the key can at least see its own expiry coming, as `key.expiresAt` on `GET /api/v1/me`.
 
 <Frame caption="The REST API settings — keys are created and revoked here.">
 
@@ -23,16 +23,17 @@ To get a credential your scripts can hold, open **Settings > API > REST** and cl
 
 <Step title="Make the first request">
 
-The shortest useful call lists the direct-chat models your key can use. The key travels as a bearer token; organization context follows your membership:
+The shortest useful call lists the direct-chat models your key can use. The key travels as a bearer token. A key whose holder belongs to one organization needs nothing else; belong to several — a sandbox org and a real one is the usual case — and every request, reads included, must name the organization in `X-Organization-Slug` (its slug is in the address bar of the app, and `GET /api/v1/me` lists every slug you may send):
 
 ```bash
 curl -sS --compressed https://your-host.example.com/api/v1/models \
-  -H "Authorization: Bearer $TALE_API_KEY"
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 ```
 
 <Check>
 
-A JSON object with a `models` array proves the key, authentication and route. The array can be empty when no direct-chat model is available. A `401` means the authorization header is malformed or the key was revoked.
+A JSON object with a `models` array proves the key, authentication and route. The array can be empty when no direct-chat model is available. A `401` means the authorization header is malformed or the key was revoked. A `400` with `"code": "ORG_SLUG_REQUIRED"` means you belong to several organizations and the request named none — add the `X-Organization-Slug` header; the body lists the slugs you may send under `data.organizations`.
 
 </Check>
 

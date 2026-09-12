@@ -19,6 +19,11 @@
  * instead of drifting an hour twice a year.
  */
 
+import {
+  describeImpossibleCronDate,
+  impossibleCronDate,
+} from '../../../lib/automations/cron-feasibility.ts';
+
 /** How far back a scan will look for a missed minute. A schedule is a
  * heartbeat, not a queue: after an outage the automation resumes on its next
  * occurrence rather than replaying an hour of them. */
@@ -53,7 +58,20 @@ function parseField(spec: string, min: number, max: number): CronField {
       from = min;
       to = max;
     } else if (rangeText.includes('-')) {
-      const [a, b] = rangeText.split('-');
+      // Both ends spelled out: `Number('')` is 0, so `-5` used to read as
+      // `0-5` and `5-` as `5-0` — a range with an end missing is refused
+      // as what it is, not silently widened to the field's floor.
+      const ends = rangeText.split('-');
+      const [a, b] = ends;
+      if (
+        ends.length !== 2 ||
+        a === '' ||
+        b === '' ||
+        a === undefined ||
+        b === undefined
+      ) {
+        throw new Error(`"${piece}" is not a range — write it as "from-to"`);
+      }
       from = Number(a);
       to = Number(b);
     } else {
@@ -93,13 +111,27 @@ export function parseCron(expression: string): CronSchedule {
     );
   }
   const [minute, hour, dayOfMonth, month, dayOfWeek] = fields;
-  return {
+  const schedule: CronSchedule = {
     minute: parseField(minute, 0, 59),
     hour: parseField(hour, 0, 23),
     dayOfMonth: parseField(dayOfMonth, 1, 31),
     month: parseField(month, 1, 12),
     dayOfWeek: parseField(dayOfWeek, 0, 7),
   };
+  // Every field in range is not yet a date that exists: `0 0 30 2 *` passed
+  // the range checks and matched no minute, ever — the bind answered 200
+  // and the schedule silently never fired. The rule is shared with the
+  // editor's preview so both refuse the same expressions.
+  const impossible = impossibleCronDate({
+    dayOfMonth: [...schedule.dayOfMonth.values],
+    dayOfMonthWildcard: schedule.dayOfMonth.wildcard,
+    month: [...schedule.month.values],
+    dayOfWeekWildcard: schedule.dayOfWeek.wildcard,
+  });
+  if (impossible !== null) {
+    throw new Error(describeImpossibleCronDate(impossible));
+  }
+  return schedule;
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -120,11 +152,16 @@ interface WallClock {
   dayOfWeek: number;
 }
 
-/** The wall-clock parts of an instant in one IANA zone. An unknown zone is a
- * configuration error the caller reports, so it throws rather than silently
- * falling back to UTC and firing at the wrong hour. */
-export function wallClockIn(at: number, timezone: string): WallClock {
-  const parts = new Intl.DateTimeFormat('en-US', {
+/** One formatter per zone, built on first use. A scan asks for the wall
+ * clock of up to sixty minutes per schedule per tick, and `Intl.DateTimeFormat`
+ * construction is the expensive half of that — the formatter is stateless,
+ * so the same one serves every instant in the zone. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(timezone: string): Intl.DateTimeFormat {
+  const cached = formatters.get(timezone);
+  if (cached !== undefined) return cached;
+  const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     hour12: false,
     year: 'numeric',
@@ -133,7 +170,16 @@ export function wallClockIn(at: number, timezone: string): WallClock {
     hour: 'numeric',
     minute: 'numeric',
     weekday: 'short',
-  }).formatToParts(new Date(at));
+  });
+  formatters.set(timezone, formatter);
+  return formatter;
+}
+
+/** The wall-clock parts of an instant in one IANA zone. An unknown zone is a
+ * configuration error the caller reports, so it throws rather than silently
+ * falling back to UTC and firing at the wrong hour. */
+export function wallClockIn(at: number, timezone: string): WallClock {
+  const parts = formatterFor(timezone).formatToParts(new Date(at));
   const read = (type: string): string =>
     parts.find((part) => part.type === type)?.value ?? '';
   // `hour12: false` renders midnight as "24" in some ICU versions; normalize.

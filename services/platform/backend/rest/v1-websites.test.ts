@@ -66,7 +66,13 @@ const website = {
 /** Tagged-template Sql double: the owned website for the loader, an id for
  * an insert, nothing else; records every query (tagged with the handle it
  * ran on) so a test can prove no write ran, or that one ran in `begin`. */
-function fakeSql(options: { existingByDomain?: boolean } = {}): {
+function fakeSql(
+  options: {
+    existingByDomain?: boolean;
+    /** How the row a domain lookup finds differs from `website`. */
+    existing?: Partial<typeof website>;
+  } = {},
+): {
   sql: Sql;
   queries: Captured[];
   txs: unknown[];
@@ -86,7 +92,7 @@ function fakeSql(options: { existingByDomain?: boolean } = {}): {
         text.includes('FROM app.websites') &&
         text.includes('domain')
       ) {
-        return Promise.resolve([website]);
+        return Promise.resolve([{ ...website, ...options.existing }]);
       }
       if (text.startsWith('INSERT INTO app.websites')) {
         return Promise.resolve([{ id: 'w-new' }]);
@@ -314,11 +320,15 @@ describe('website create', () => {
     });
   });
 
-  /** Re-posting a URL list onto a registered domain extends it — and says
-   * so: 200 with the EXISTING id, where a 201 claimed a fresh resource. */
-  it('answers 200 with the existing id when a list merges into a registered domain', async () => {
+  /** Re-posting a URL list onto a domain registered AS A LIST extends it —
+   * and says so: 200 with the EXISTING id, where a 201 claimed a fresh
+   * resource. */
+  it('answers 200 with the existing id when a list merges into a domain registered as a list', async () => {
     vi.mocked(addJobInTx).mockClear();
-    const { sql, queries } = fakeSql({ existingByDomain: true });
+    const { sql, queries } = fakeSql({
+      existingByDomain: true,
+      existing: { kind: 'list' },
+    });
     const res = await send(sql, '/websites', 'POST', {
       domain: 'docs.example',
       scanInterval: '1d',
@@ -327,7 +337,73 @@ describe('website create', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: 'w-1' });
     expect(queries.some((q) => q.text.startsWith('INSERT'))).toBe(false);
+    expect(queries.some((q) => q.text.startsWith('UPDATE'))).toBe(true);
     expect(vi.mocked(addJobInTx)).toHaveBeenCalledTimes(1);
+  });
+
+  /** C-01: a URL list posted onto a WHOLE-SITE registration used to answer
+   * the "your list was extended" 200 with the site's id — the row stayed
+   * `kind: site`, the URLs went nowhere, and a full re-scan was queued on
+   * every retry. It is the documented 409, before any patch or job. */
+  it('refuses a URL list onto a whole-site registration with 409 naming the row, writing nothing', async () => {
+    vi.mocked(addJobInTx).mockClear();
+    const { sql, queries } = fakeSql({ existingByDomain: true });
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'docs.example',
+      scanInterval: '1d',
+      urls: ['https://docs.example/one'],
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+      data: { websiteId: 'w-1', domain: 'docs.example' },
+    });
+    expect(queries.some((q) => /^(INSERT|UPDATE)/.test(q.text))).toBe(false);
+    expect(vi.mocked(addJobInTx)).not.toHaveBeenCalled();
+  });
+
+  /** C-02: `www.docs.example` used to register as a second, independent
+   * crawl of a site already registered as `docs.example` (and the other
+   * way round) — the crawler treats the pair as one site. The sibling is
+   * a duplicate, and the 409 names the spelling that is stored. */
+  it('refuses the www/apex sibling of a registered domain with 409 naming the stored spelling', async () => {
+    vi.mocked(addJobInTx).mockClear();
+    const { sql, queries } = fakeSql({ existingByDomain: true });
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'https://www.docs.example/',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+      data: { websiteId: 'w-1', domain: 'docs.example' },
+    });
+    // The lookup asks for both spellings at once.
+    const lookup = queries.find(
+      (q) => q.text.includes('FROM app.websites') && q.text.includes('ANY'),
+    );
+    expect(lookup?.values).toEqual(
+      expect.arrayContaining([
+        expect.arrayContaining(['www.docs.example', 'docs.example']),
+      ]),
+    );
+    expect(queries.some((q) => /^(INSERT|UPDATE)/.test(q.text))).toBe(false);
+    expect(vi.mocked(addJobInTx)).not.toHaveBeenCalled();
+  });
+
+  it('refuses a bare re-registration of a list domain with 409 too', async () => {
+    const { sql } = fakeSql({
+      existingByDomain: true,
+      existing: { kind: 'list' },
+    });
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'docs.example',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+    });
   });
 });
 
@@ -481,10 +557,21 @@ describe('website list bounds', () => {
     });
   });
 
-  it('refuses a fractional, negative or non-numeric offset instead of reading it as zero', async () => {
+  it('clamps a negative offset to zero, as the spec promises, and refuses a fractional or non-numeric one', async () => {
     const { sql } = fakeSql();
     vi.mocked(fetchWebsitePages).mockClear();
-    for (const offset of ['-1', '2.7', 'abc']) {
+    // C-03: `offset=-1` used to be a 400 while the spec said "clamped" and
+    // the sibling `limit` did clamp.
+    const clamped = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?offset=-5',
+    );
+    expect(clamped.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ offset: 0 }),
+    );
+    for (const offset of ['2.7', 'abc', '-1.5']) {
       const res = await mount(sql).request(
         `http://localhost/websites/w-1/pages?offset=${offset}`,
       );
@@ -499,7 +586,8 @@ describe('website list bounds', () => {
     );
     expect(limit.status).toBe(400);
     expect(await limit.json()).toMatchObject({ code: 'INVALID_LIMIT' });
-    expect(fetchWebsitePages).not.toHaveBeenCalled();
+    // Only the clamped request reached the corpus.
+    expect(fetchWebsitePages).toHaveBeenCalledTimes(1);
   });
 
   it('caps the search limit for POST /websites/{id}/search', async () => {

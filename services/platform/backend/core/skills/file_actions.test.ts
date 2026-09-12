@@ -1,9 +1,18 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { parseEntityTagList } from '@tale/shared/http/entity-tag';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -90,6 +99,27 @@ function errorCode(err: unknown): string | undefined {
     const data: unknown = err.data;
     if (typeof data === 'object' && data !== null && 'code' in data) {
       return String(data.code);
+    }
+  }
+  return undefined;
+}
+
+function errorMessage(err: unknown): string | undefined {
+  if (err instanceof AppError) {
+    const data: unknown = err.data;
+    if (typeof data === 'object' && data !== null && 'message' in data) {
+      return String(data.message);
+    }
+  }
+  return undefined;
+}
+
+/** The structured `data` a refusal explains itself with. */
+function errorData(err: unknown): unknown {
+  if (err instanceof AppError) {
+    const data: unknown = err.data;
+    if (typeof data === 'object' && data !== null && 'data' in data) {
+      return data.data;
     }
   }
   return undefined;
@@ -185,8 +215,11 @@ describe('listSkills', () => {
         message: expect.stringContaining('broken'),
       },
     ]);
-    // The absolute server path never crosses the wire.
+    // The absolute server path never crosses the wire — not in `path`, and
+    // not inside the sentence either.
     expect(listing.failures[0].path).not.toContain(configRoot);
+    expect(listing.failures[0].message).not.toContain(configRoot);
+    expect(listing.failures[0].message).toContain('skills/broken');
   });
 
   it('lists each organization separately, in both directions', async () => {
@@ -339,7 +372,7 @@ describe('saveSkill', () => {
         orgSlug: 'acme',
         slug: 'house-voice',
         ...admin,
-        createOnly: true,
+        precondition: { ifNoneMatch: { kind: 'any' } },
         description: 'Second.',
         body: 'Replacement.\n',
       });
@@ -363,11 +396,232 @@ describe('saveSkill', () => {
       orgSlug: 'acme',
       slug: 'fresh',
       ...alice,
-      createOnly: true,
+      precondition: { ifNoneMatch: { kind: 'any' } },
       description: 'New.',
       body: 'New.\n',
     });
     expect(created.slug).toBe('fresh');
+  });
+
+  it('names the version every view carries, and moves it with each save of the document', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const readSkill = await load('readSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
+
+    const first = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'One.\n',
+    });
+    expect(first.etag).toMatch(/^"[0-9a-f]{64}"$/);
+    expect(first.updatedAt).toBeGreaterThan(0);
+    const read = await readSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...bob,
+    });
+    expect(read.etag).toBe(first.etag);
+    expect(read.updatedAt).toBe(first.updatedAt);
+    const listed = await listSkills({ orgSlug: 'acme', ...bob });
+    expect(listed.skills[0]).toMatchObject({
+      slug: 'house-voice',
+      etag: first.etag,
+      updatedAt: first.updatedAt,
+    });
+
+    const second = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'Two.\n',
+    });
+    expect(second.etag).not.toBe(first.etag);
+    expect(second.updatedAt).toBeGreaterThanOrEqual(first.updatedAt);
+  });
+
+  it('honours If-Match under RFC 9110 strong comparison and names the current tag on a refusal', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const readSkill = await load('readSkillForViewer');
+    const stored = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'One.\n',
+    });
+    const tags = (header: string) => parseEntityTagList(header);
+    const attempt = (header: string) =>
+      saveSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...alice,
+        precondition: { ifMatch: tags(header) },
+        description: 'Second.',
+        body: 'Two.\n',
+      });
+
+    // A stale tag, a weak spelling of the right tag, and a malformed
+    // value all fail — and the file on disk is untouched.
+    for (const header of ['"stale"', `W/${stored.etag}`, 'not-a-tag']) {
+      try {
+        await attempt(header);
+        expect.unreachable(`If-Match ${header} must be refused`);
+      } catch (err) {
+        expect(errorCode(err)).toBe('SKILL_STALE');
+        expect(errorData(err)).toEqual({ etag: stored.etag });
+      }
+      const kept = await readSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...bob,
+      });
+      expect(kept.body).toBe('One.\n');
+      expect(kept.etag).toBe(stored.etag);
+    }
+
+    // The current tag — alone or in a list, with `*` too — lets the save
+    // through, and the answer names the new version.
+    const saved = await attempt(`"other", ${stored.etag}`);
+    expect(saved.body).toBe('Two.\n');
+    expect(saved.etag).not.toBe(stored.etag);
+    const anyRep = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      precondition: { ifMatch: { kind: 'any' } },
+      description: 'Third.',
+      body: 'Three.\n',
+    });
+    expect(anyRep.body).toBe('Three.\n');
+  });
+
+  it('refuses If-Match on a slug that holds nothing — nothing to match, nothing written', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const readSkill = await load('readSkillForViewer');
+    for (const ifMatch of [{ kind: 'any' }, parseEntityTagList('"x"')]) {
+      try {
+        await saveSkill({
+          orgSlug: 'acme',
+          slug: 'never-made',
+          ...alice,
+          precondition: { ifMatch },
+          description: 'New.',
+          body: 'New.\n',
+        });
+        expect.unreachable('If-Match on an absent slug must be refused');
+      } catch (err) {
+        expect(errorCode(err)).toBe('SKILL_STALE');
+        expect(errorData(err)).toEqual({ etag: null });
+      }
+    }
+    expect(
+      await readSkill({ orgSlug: 'acme', slug: 'never-made', ...alice }),
+    ).toBeNull();
+  });
+
+  it('evaluates If-Match before If-None-Match, and a listed If-None-Match tag against the current one weakly', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const stored = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'One.\n',
+    });
+    // Both fail; §13.2.2 says If-Match is answered first.
+    try {
+      await saveSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...alice,
+        precondition: {
+          ifMatch: parseEntityTagList('"stale"'),
+          ifNoneMatch: { kind: 'any' },
+        },
+        description: 'Second.',
+        body: 'Two.\n',
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_STALE');
+    }
+    // A weak spelling of the current tag in If-None-Match matches (weak
+    // comparison) and refuses the write as SKILL_EXISTS.
+    try {
+      await saveSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...alice,
+        precondition: { ifNoneMatch: parseEntityTagList(`W/${stored.etag}`) },
+        description: 'Second.',
+        body: 'Two.\n',
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_EXISTS');
+      expect(errorData(err)).toEqual({ etag: stored.etag });
+    }
+    // A tag that is not the current one matches nothing: the write goes on.
+    const saved = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      precondition: { ifNoneMatch: parseEntityTagList('"other"') },
+      description: 'Second.',
+      body: 'Two.\n',
+    });
+    expect(saved.body).toBe('Two.\n');
+  });
+
+  it('answers the permission gate before the precondition', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Alice’s.',
+      body: 'One.\n',
+      visibility: 'team',
+      teams: ['team_red'],
+    });
+    try {
+      await saveSkill({
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...bob,
+        precondition: { ifMatch: parseEntityTagList('"stale"') },
+        description: 'Bob’s.',
+        body: 'Two.\n',
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+  });
+
+  it('sets, keeps and drops the model-invocation flag', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const base = {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Flagged.',
+      body: 'Body.\n',
+    };
+    const set = await saveSkill({ ...base, disableModelInvocation: true });
+    expect(set.disableModelInvocation).toBe(true);
+    const kept = await saveSkill(base);
+    expect(kept.disableModelInvocation).toBe(true);
+    const dropped = await saveSkill({ ...base, disableModelInvocation: false });
+    expect(dropped.disableModelInvocation).toBeUndefined();
+    const onDisk = await readFile(
+      path.join(configRoot, 'acme', 'skills', 'house-voice', 'SKILL.md'),
+      'utf-8',
+    );
+    expect(onDisk).not.toContain('disable-model-invocation');
   });
 
   it('keeps icon and labels when the edit omits them, and clears them on null', async () => {
@@ -747,6 +1001,8 @@ describe('normalizedBundleFiles', () => {
       path: `skills/${meta.name}/SKILL.md`,
       meta,
       body,
+      etag: '"0000"',
+      updatedAt: 1_700_000_000_000,
     };
   }
   function writtenMeta(files: Array<{ path: string; content: Buffer }>) {
@@ -1152,10 +1408,9 @@ describe('bundle files and assets', () => {
       path: 'scripts/fill.py',
       ...bob,
     });
-    expect(asset).not.toBeNull();
-    expect(Buffer.from(asset.contentBase64, 'base64').toString('utf-8')).toBe(
-      'print(1)\n',
-    );
+    expect(asset.kind).toBe('asset');
+    expect(asset.path).toBe('scripts/fill.py');
+    expect(asset.content.toString('utf-8')).toBe('print(1)\n');
 
     for (const bad of [
       '../escape.md',
@@ -1171,7 +1426,50 @@ describe('bundle files and assets', () => {
           path: bad,
           ...bob,
         }),
-      ).toBeNull();
+      ).toEqual({ kind: 'no-file' });
+    }
+    expect(
+      await readSkillAsset({
+        orgSlug: 'acme',
+        slug: 'no-such-skill',
+        path: 'SKILL.md',
+        ...bob,
+      }),
+    ).toEqual({ kind: 'no-skill' });
+  });
+
+  it('answers a planted symlink as the bundle’s own refusal, naming the entry org-relative', async () => {
+    await seedSkill(
+      'acme',
+      'pdf-notes',
+      skillMd({ name: 'pdf-notes', description: 'Doc.', visibility: 'org' }),
+    );
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'pdf-notes');
+    await symlink('/etc/hostname', path.join(bundleDir, 'link.md'));
+    const readSkillAsset = await load('readSkillAssetForViewer');
+    const readSkill = await load('readSkillForViewer');
+
+    for (const read of [
+      () =>
+        readSkillAsset({
+          orgSlug: 'acme',
+          slug: 'pdf-notes',
+          path: 'link.md',
+          ...bob,
+        }),
+      // The file list walks the bundle and meets the link too.
+      () => readSkill({ orgSlug: 'acme', slug: 'pdf-notes', ...bob }),
+    ]) {
+      try {
+        await read();
+        expect.unreachable('a symlink in the bundle must be refused');
+      } catch (err) {
+        expect(errorCode(err)).toBe('SKILL_MALFORMED');
+        expect(errorMessage(err)).toBe(
+          'skills/pdf-notes/link.md could not be read: the skill bundle contains a symlink',
+        );
+        expect(errorMessage(err)).not.toContain(configRoot);
+      }
     }
   });
 
@@ -1195,6 +1493,6 @@ describe('bundle files and assets', () => {
         path: 'SKILL.md',
         ...bob,
       }),
-    ).toBeNull();
+    ).toEqual({ kind: 'no-skill' });
   });
 });

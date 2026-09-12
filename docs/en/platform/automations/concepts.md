@@ -112,7 +112,7 @@ Runs come in two modes. **Mock** never touches the outside world and is the fast
 
 ## Where a human decides
 
-A run that needs an approval does not fail and does not restart. It pauses in `waiting`, and when the approval is answered it re-enters at the node it stopped on, carrying the answer forward. A run waiting on human input behaves the same way. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates and what each decision leaves behind.
+A run that needs an approval does not fail and does not restart. It pauses in `waiting`, and when the approval is answered it re-enters at the node it stopped on, carrying the answer forward. A run waiting on human input behaves the same way. `waiting` is also where a run parks while an agent turn is still working or a node polls until its condition holds — those need nobody, and the run names which kind of wait it is in (`waitingFor`: `approval`, `ask`, `agent` or `repeat`), so "needs a person" is never read off the status alone. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates and what each decision leaves behind.
 
 ## Choosing the right unit
 

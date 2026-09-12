@@ -512,33 +512,42 @@ describe('read-side store location — blobs written before the org connected it
   });
 });
 
-describe('s3HeadObject — size and the stored content type', () => {
+describe('s3HeadObject — size, the stored content type and the validators', () => {
   function storeAnswering(res: Response): S3ObjectStore {
     const store = testStore();
     Object.assign(store.client, { fetch: vi.fn(() => Promise.resolve(res)) });
     return store;
   }
 
-  it('returns the size and the Content-Type the store holds', async () => {
+  it('returns the size, the Content-Type and the ETag / Last-Modified the store holds', async () => {
     const store = storeAnswering(
       new Response(null, {
         status: 200,
-        headers: { 'content-length': '10', 'content-type': 'application/pdf' },
+        headers: {
+          'content-length': '10',
+          'content-type': 'application/pdf',
+          etag: '"a63a5562abd49a61a2d7099b2e5af2bb"',
+          'last-modified': 'Sat, 12 Sep 2026 05:44:01 GMT',
+        },
       }),
     );
     expect(await s3HeadObject(store, 'acme/doc')).toEqual({
       size: 10,
       contentType: 'application/pdf',
+      etag: '"a63a5562abd49a61a2d7099b2e5af2bb"',
+      lastModified: 'Sat, 12 Sep 2026 05:44:01 GMT',
     });
   });
 
-  it('answers a null content type for a store that sends none', async () => {
+  it('answers null for a content type or validator the store does not send', async () => {
     const store = storeAnswering(
       new Response(null, { status: 200, headers: { 'content-length': '10' } }),
     );
     expect(await s3HeadObject(store, 'acme/doc')).toEqual({
       size: 10,
       contentType: null,
+      etag: null,
+      lastModified: null,
     });
   });
 
