@@ -682,7 +682,7 @@ describe('GET /documents/:id/content', () => {
       String(Buffer.byteLength('beta content')),
     );
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(res.headers.get('cache-control')).toBe('private, no-cache');
     expect(res.headers.get('accept-ranges')).toBe('none');
     expect(await res.text()).toBe('beta content');
   });
@@ -729,7 +729,7 @@ describe('GET /documents/:id/content', () => {
     expect(res.headers.get('content-disposition')).toContain(
       'filename="Hub Note.md"',
     );
-    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(res.headers.get('cache-control')).toBe('private, no-cache');
     expect(await res.text()).toBe('ab');
     vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
   });

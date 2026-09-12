@@ -118,6 +118,9 @@ describe('GET /me', () => {
         { id: 'org-1', slug: 'acme', name: 'Acme', role: 'admin' },
         { id: 'org-2', slug: 'beta', name: 'Beta', role: 'member' },
       ],
+      // A plain org admin is no instance admin: the deployment editor stays
+      // closed (the capability's own cases live in v1-core.test.ts).
+      capabilities: { deploymentEditor: false },
     });
   });
 });

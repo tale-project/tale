@@ -33,6 +33,7 @@ import {
   codedAppError,
   type CodedRefusalStatus,
 } from '../lib/app-error-response.ts';
+import { entityTagOf, ifNoneMatchMatches } from '../lib/conditional-get.ts';
 import {
   rateLimitedResponse,
   rateLimitExceededCause,
@@ -1215,10 +1216,14 @@ const OBJECT_STORE_RETRY_AFTER_SECONDS = '5';
  * `GET /api/v1/documents/{id}/content`: the blob streamed from the object
  * store in the response itself (no redirect a client would re-send its
  * bearer across), the document's title as the RFC 6266 download name,
- * `Range` honoured (206/416), HEAD answering the headers alone, and a
- * store that does not answer as the documented 503 with `Retry-After`.
- * The bytes are user-uploaded, so they never render as a document on this
- * origin: attachment + nosniff + `private, no-store`, as every blob lane.
+ * `Range` honoured (206/416), the validators the store issued compared by
+ * the store (`If-None-Match` / `If-Modified-Since` answer 304 with no
+ * bytes; `If-Range` guards a resumed download), HEAD answering the headers
+ * alone, and a store that does not answer as the documented 503 with
+ * `Retry-After`. The bytes are user-uploaded, so they never render as a
+ * document on this origin: attachment + nosniff, as every blob lane; the
+ * client's own cache may keep what the tag lets it revalidate
+ * (`private, no-cache`), no shared cache may.
  *
  * `absent` is the family's own opaque 404 (a project file is
  * `FILE_NOT_FOUND`, a Hub document `DOCUMENT_NOT_FOUND`) — for a blob the
@@ -1245,11 +1250,27 @@ export async function serveDocumentBytes(
     const text = (await options.inline()) ?? '';
     const bytes = new TextEncoder().encode(text);
     const mime = doc.mimeType ?? 'text/plain';
+    // The text is the representation, so its tag is computed here — the
+    // same validator a JSON read carries — and compared here.
+    const etag = entityTagOf(bytes);
+    const ifNoneMatch = c.req.header('if-none-match');
+    if (ifNoneMatch !== undefined && ifNoneMatchMatches(ifNoneMatch, etag)) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          etag,
+          'last-modified': new Date(doc.updatedAt).toUTCString(),
+          'accept-ranges': 'none',
+          'cache-control': 'private, no-cache',
+        },
+      });
+    }
     const headers = new Headers({
       'content-type': /;\s*charset=/i.test(mime)
         ? mime
         : `${mime}; charset=utf-8`,
       'content-length': String(bytes.byteLength),
+      etag,
       'last-modified': new Date(doc.updatedAt).toUTCString(),
       // Inline text is not sliceable: a `Range` is ignored and the whole
       // text answers 200, which is what `none` tells a resuming client.
@@ -1259,6 +1280,9 @@ export async function serveDocumentBytes(
     return new Response(head ? null : bytes, { status: 200, headers });
   }
   const range = c.req.header('range');
+  const ifNoneMatch = c.req.header('if-none-match');
+  const ifModifiedSince = c.req.header('if-modified-since');
+  const ifRange = c.req.header('if-range');
   let served: FileContent | null;
   try {
     served = await openFileContent(
@@ -1268,6 +1292,13 @@ export async function serveDocumentBytes(
       {
         head,
         ...(range === undefined ? {} : { range }),
+        // The validators this lane ships are the store's, so the store
+        // compares them: a match answers 304 and no bytes move.
+        conditions: {
+          ...(ifNoneMatch === undefined ? {} : { ifNoneMatch }),
+          ...(ifModifiedSince === undefined ? {} : { ifModifiedSince }),
+          ...(ifRange === undefined ? {} : { ifRange }),
+        },
         signal: c.req.raw.signal,
       },
     );
@@ -1293,22 +1324,31 @@ export async function serveDocumentBytes(
     return notFound(c, options.absent.message, options.absent.code);
   }
   const headers = new Headers();
-  for (const name of [
-    'content-type',
-    'content-length',
-    'content-range',
-    'etag',
-    'last-modified',
-    'accept-ranges',
-  ]) {
+  // A 304 carries the validators and nothing about a body it does not
+  // have (RFC 9110 §15.4.5); everything else describes the bytes.
+  const notModified = served.status === 304;
+  for (const name of notModified
+    ? ['etag', 'last-modified', 'accept-ranges']
+    : [
+        'content-type',
+        'content-length',
+        'content-range',
+        'etag',
+        'last-modified',
+        'accept-ranges',
+      ]) {
     const value = served.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
-  if (!headers.has('content-type')) {
+  if (!notModified && !headers.has('content-type')) {
     headers.set('content-type', 'application/octet-stream');
   }
   if (!headers.has('accept-ranges')) headers.set('accept-ranges', 'bytes');
-  stampDownloadHeaders(headers, doc.title);
+  if (notModified) {
+    headers.set('cache-control', 'private, no-cache');
+  } else {
+    stampDownloadHeaders(headers, doc.title);
+  }
   return new Response(served.body, { status: served.status, headers });
 }
 
@@ -1320,5 +1360,8 @@ function stampDownloadHeaders(headers: Headers, title: string | null): void {
     attachmentDisposition(title ?? 'download'),
   );
   headers.set('x-content-type-options', 'nosniff');
-  headers.set('cache-control', 'private, no-store');
+  // The client's own cache may keep the bytes it must revalidate — that is
+  // what the ETag is for; no shared cache may (`private`). `no-store` used
+  // to tell a mirror to discard the very body the tag would let it keep.
+  headers.set('cache-control', 'private, no-cache');
 }

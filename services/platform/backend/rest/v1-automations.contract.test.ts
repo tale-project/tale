@@ -1235,7 +1235,10 @@ describe('GET /runs/{runId} with ?fields=', () => {
 
   it('answers the whole run when no fields are named', async () => {
     vi.mocked(getRun).mockResolvedValue({ ...runRow, projectId: null });
-    expect(await (await read('/runs/run-1')).json()).toEqual(runRow);
+    // `askPending` is the read's own input to `waitingFor` and never
+    // reaches the wire; a run that is not parked carries no `waitingFor`.
+    const { askPending: _askPending, ...wire } = runRow;
+    expect(await (await read('/runs/run-1')).json()).toEqual(wire);
   });
 
   it('refuses a key the run does not have, naming it', async () => {
