@@ -14,8 +14,10 @@ Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter
 | Lesen und CRUD — jeder `/api/v1`-Endpoint, der unten nicht steht, einschließlich `POST /api/v1/mcp`                               | 120 Anfragen / Min. | 200   |
 | Arbeit starten — Projektläufe (`POST /api/v1/projects/{id}/automations/{name}/runs`), Nachrichten (`POST /api/v1/projects/{id}/threads/{threadId}/messages`) und Aufgaben (`POST /api/v1/projects/{id}/tasks/{taskId}/start`), außerdem Automatisierungsläufe und Threadnachrichten ohne Projekt | 20 Anfragen / Min. | 40 |
 | Der Projekt-Upload-Fluss — der Upload-Handoff und das Datei-Binden (`POST .../uploads` und `POST .../files`)                      | 240 Anfragen / Min. | 300   |
+| Eingehende Webhook-Zustellungen (`POST /api/automations/webhook/{token}` und die Projektform) — pro Absenderadresse, belastet, bevor das Token geprüft wird | 120 Anfragen / Min. | 240 |
+| Dieselben Zustellungen, pro verifiziertem Trigger                                                                                  | 20 Anfragen / Min.  | 40    |
 
-Der zweite Bucket ist mit Absicht klein: jede dieser Anfragen kostet einen ganzen durablen Lauf oder einen Modell-Turn, keinen Datenbank-Read. Der dritte ist mit Absicht geräumig: eine Datei kostet hier mindestens zwei Aufrufe — Handoff holen, Datei binden — das Budget deckt also die ganze Choreografie. Jede Anfrage zählt zusätzlich gegen das allgemeine Budget — es ist die Tür — ein Arbeit-startender oder Upload-POST zieht also aus zwei Spuren zugleich, und die engere bestimmt; plane gegen sie. Ein Token-Bucket füllt sich kontinuierlich — die Burst-Kapazität schluckt einen Stapel, danach gilt die Dauerrate.
+Der zweite Bucket ist mit Absicht klein: jede dieser Anfragen kostet einen ganzen durablen Lauf oder einen Modell-Turn, keinen Datenbank-Read — und der Webhook-Bucket pro Trigger ist es aus demselben Grund; die Webhook-Tür trägt keinen Schlüssel, also hängen ihre Budgets an der Adresse des Absenders und am Trigger, den das Token nennt (die [Webhooks-Seite](/de/develop/webhooks) hat das Vokabular dieser Tür). Der dritte ist mit Absicht geräumig: eine Datei kostet hier mindestens zwei Aufrufe — Handoff holen, Datei binden — das Budget deckt also die ganze Choreografie. Jede Anfrage zählt zusätzlich gegen das allgemeine Budget — es ist die Tür — ein Arbeit-startender oder Upload-POST zieht also aus zwei Spuren zugleich, und die engere bestimmt; plane gegen sie. Ein Token-Bucket füllt sich kontinuierlich — die Burst-Kapazität schluckt einen Stapel, danach gilt die Dauerrate.
 
 Manche Schreibzugriffe durchlaufen zusätzlich dieselben Budgets pro Benutzer oder Organisation wie ihre Zwillinge in der App — ein Aufgaben-Kommentar, eine Ordner-Änderung — und antworten jenseits davon mit derselben 429.
 
@@ -24,12 +26,12 @@ Manche Schreibzugriffe durchlaufen zusätzlich dieselben Budgets pro Benutzer od
 Eine Überschreitung antwortet mit dem gewöhnlichen Fehlerumschlag der API, plus einem `Retry-After`-Header, der die Wartezeit in ganzen Sekunden nennt (aufgerundet):
 
 ```json
-{ "error": "RATE_LIMITED", "data": { "retryAfterMs": 1500 } }
+{ "error": "RATE_LIMITED", "code": "RATE_LIMITED", "data": { "retryAfterMs": 1500 } }
 ```
 
-Der Antwort-Body nennt dieselbe Wartezeit in Millisekunden als `data.retryAfterMs`; die Kopfzeile `Retry-After` rundet sie auf ganze Sekunden auf. Aus `1500` Millisekunden wird zum Beispiel `Retry-After: 2`.
+`code` ist der Wert, auf den du verzweigst, wie überall im [Fehlermodell](/de/develop/api-reference); bei dieser einen Ablehnung wiederholt `error` ihn, statt einen Satz zu tragen, weil dieselbe 429 auch die In-App-Türen bedient, deren Clients `error` lesen. Der Body nennt die Wartezeit in Millisekunden als `data.retryAfterMs`; die Kopfzeile `Retry-After` rundet sie auf ganze Sekunden auf. Aus `1500` Millisekunden wird zum Beispiel `Retry-After: 2`.
 
-Warte mindestens `Retry-After`, bevor du es erneut versuchst. Restbudget-Zähler gibt es keine — darüber hinaus backe blind zurück: starte bei einer Sekunde, verdopple pro aufeinanderfolgendem 429, deckle bei sechzig, und füge Jitter hinzu, damit parallele Worker nicht im Gleichschritt wiederholen. Weil ein Lauf-Start mit **202** antwortet, bevor die Arbeit passiert, ist eine verlorene Antwort billig zu erkennen — liste die letzten Läufe der Automatisierung, bevor du erneut feuerst, statt Schreibzugriffe auf Verdacht zu wiederholen.
+Warte mindestens `Retry-After`, bevor du es erneut versuchst. Restbudget-Zähler gibt es keine — darüber hinaus backe blind zurück: starte bei einer Sekunde, verdopple pro aufeinanderfolgendem 429, deckle bei sechzig, und füge Jitter hinzu, damit parallele Worker nicht im Gleichschritt wiederholen. Weil ein Lauf-Start mit **202** antwortet, bevor die Arbeit passiert, ist eine verlorene Antwort der Normalfall, kein Randfall: benenne den Start mit `Idempotency-Key` und wiederhole ihn — die Wiederholung antwortet mit dem Lauf, den der erste Versuch gestartet hat, markiert mit `duplicate: true`, statt einen zweiten zu starten (die Regeln stehen in der [API-Referenz](/de/develop/api-reference)).
 
 ## Wo das hingehört
 

@@ -45,6 +45,7 @@ export async function checkProjectAgentRest(args: {
       connectors: z.array(z.string()),
       tools: z.array(z.string()),
       secrets: z.array(z.string()),
+      updatedAt: z.number(),
     }),
   });
   const createProject = async () => {
@@ -220,6 +221,49 @@ export async function checkProjectAgentRest(args: {
   assert.equal(saved.modelProvider, null);
   assert.equal(saved.instructions, null);
   assert.deepEqual(saved.secrets, []);
+  // The two silent data-loss modes of the full replace are closed: an
+  // unknown secret NAME is refused by name (the app dialog prunes it), and
+  // a stale `expectedUpdatedAt` refuses the save with the current stamp.
+  const unknownSecret = await expectStatus(
+    rest('PUT', itemPath, { ...config, secrets: ['NO_SUCH_SECRET_XYZ'] }),
+    400,
+  );
+  assert.deepEqual(
+    z
+      .object({
+        code: z.string(),
+        data: z.object({ secrets: z.array(z.string()) }),
+      })
+      .parse(await unknownSecret.json()),
+    {
+      code: 'PROJECT_AGENT_SECRET_UNKNOWN',
+      data: { secrets: ['NO_SUCH_SECRET_XYZ'] },
+    },
+  );
+  const stale = await expectStatus(
+    rest('PUT', itemPath, { ...config, expectedUpdatedAt: 1 }),
+    409,
+  );
+  assert.deepEqual(
+    z
+      .object({ code: z.string(), data: z.object({ updatedAt: z.number() }) })
+      .parse(await stale.json()),
+    { code: 'PROJECT_AGENT_STALE', data: { updatedAt: saved.updatedAt } },
+  );
+  const conditional = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('PUT', itemPath, {
+          ...config,
+          name: 'Conditionally saved',
+          expectedUpdatedAt: saved.updatedAt,
+        }),
+        200,
+      )
+    ).json(),
+  ).agent;
+  assert.equal(conditional.name, 'Conditionally saved');
+  assert.ok(conditional.updatedAt >= saved.updatedAt);
   const appEdited = await expectStatus(
     session('POST', `/api/app/projects/agents/${created.id}?orgId=${orgId}`, {
       ...config,

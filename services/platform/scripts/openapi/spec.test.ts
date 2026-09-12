@@ -9,6 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
 import { handleMcpRequest } from '../../backend/core/automations_builder/mcp_http.ts';
+import type {
+  SkillDocumentView,
+  SkillSummaryView,
+} from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
@@ -17,6 +21,7 @@ import { createCoreRoutes } from '../../backend/rest/v1-core.ts';
 import { createProjectRestRoutes } from '../../backend/rest/v1-projects.ts';
 import { createTaskRestRoutes } from '../../backend/rest/v1-tasks.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
+import { createRestWebsiteRoutes } from '../../backend/rest/v1-websites.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -58,15 +63,10 @@ function openapiPath(honoPath: string, prefix = '/api/v1'): string {
   return `${prefix}${honoPath.replace(/:([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?/g, '{$1}')}`;
 }
 
-/** Routes the router registers that the spec deliberately leaves out. */
-const UNDOCUMENTED_ROUTES = new Set([
-  // 405 stubs so a client hitting the MCP URL with the wrong verb learns it
-  // is POST-only (JSON envelope + Allow), never the door's 404.
-  'GET /api/v1/mcp',
-  'DELETE /api/v1/mcp',
-  'PUT /api/v1/mcp',
-  'PATCH /api/v1/mcp',
-]);
+/** Routes the router registers that the spec deliberately leaves out —
+ * none today: the MCP URL's other verbs are the door's own 405 (`Allow:
+ * POST`), not registrations of their own. */
+const UNDOCUMENTED_ROUTES = new Set<string>([]);
 
 describe('openapi spec ↔ /api/v1 router', () => {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- construction never touches either dependency
@@ -102,7 +102,10 @@ describe('openapi spec ↔ /api/v1 router', () => {
       ),
     ].map((match) => match[1]);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- route registration never queries the database
-    const webhooks = createWebhookRoutes({ sql: {} as Sql });
+    const webhooks = createWebhookRoutes({
+      sql: {} as Sql,
+      trustedProxies: () => Promise.resolve([]),
+    });
     const registeredWebhooks = mounts.flatMap((base) =>
       webhooks.routes
         .filter((route) => route.method !== 'ALL')
@@ -399,7 +402,8 @@ describe('handler responses validate against the spec', () => {
                     archivedAt: null,
                   },
                 ]
-              : text.includes('FROM app.automation_project_bindings')
+              : text.includes('FROM app.automation_project_bindings') ||
+                  text.includes('FROM app.automation_triggers')
                 ? []
                 : undefined,
           ),
@@ -421,6 +425,30 @@ describe('handler responses validate against the spec', () => {
       rows: [run],
       request: '/runs/run-1',
       spec: ['/api/v1/runs/{runId}', 'get', '200'],
+    },
+    {
+      name: 'GET /runs',
+      // The all-runs listing filters by the caller's visible projects, so
+      // the project query must answer project rows.
+      routes: () =>
+        createAutomationRestRoutes({
+          sql: fakeSql([run], (text) =>
+            text.includes('FROM app.projects')
+              ? [
+                  {
+                    id: 'p-1',
+                    organizationId: 'org-1',
+                    teamId: null,
+                    sharedWithTeamIds: [],
+                    archivedAt: null,
+                  },
+                ]
+              : undefined,
+          ),
+        }),
+      rows: [run],
+      request: '/runs?include=input,output&status=success',
+      spec: ['/api/v1/runs', 'get', '200'],
     },
   ];
 
@@ -540,7 +568,13 @@ describe('handler statuses and bodies match the documented operation', () => {
       validate(body),
       JSON.stringify({ errors: validate.errors, body }),
     ).toBe(true);
-    expect(body).toEqual({ status: 'streaming', messageId: 'm-9' });
+    expect(body).toEqual({
+      status: 'streaming',
+      messageId: 'm-9',
+      text: '',
+      reasoning: '',
+      cancelRequested: false,
+    });
   });
 
   it('POST /projects/{id}/files documents the 409 the intent refusal throws', async () => {
@@ -562,6 +596,76 @@ describe('handler statuses and bodies match the documented operation', () => {
     );
   });
 
+  it.each([
+    ['/projects', '/api/v1/projects', { projects: [project], isDone: true }],
+    [
+      '/projects?externalItemId=crm-4711',
+      '/api/v1/projects',
+      { projects: [project] },
+    ],
+    ['/projects?archived=only&limit=1', '/api/v1/projects', null],
+  ])(
+    'GET %s answers the published list-or-lookup envelope',
+    async (route, specPath, expected) => {
+      const sql = fakeSql([], (text) => {
+        if (text.includes('FROM "teamMember"')) return [];
+        if (text.includes('FROM app.projects')) return [project];
+        return [];
+      });
+      const res = await mount(createProjectRestRoutes({ sql })).request(
+        `http://localhost${route}`,
+      );
+      expect(res.status).toBe(200);
+      const body: unknown = await res.json();
+      const validate = responseValidator(specPath, 'get', '200');
+      expect(
+        validate(body),
+        JSON.stringify({ errors: validate.errors, body }),
+      ).toBe(true);
+      if (expected !== null) {
+        expect(body).toEqual({
+          ...expected,
+          projects: [
+            expect.objectContaining({
+              id: 'p-1',
+              name: 'Ledger',
+              createdAt: project.createdAt,
+              updatedAt: project.updatedAt,
+            }),
+          ],
+        });
+      }
+    },
+  );
+
+  it('PATCH /projects/{id} answers the project it documents; DELETE documents 204 and its 409s', async () => {
+    const sql = fakeSql([], (text) => {
+      if (text.includes('FROM "teamMember"')) return [];
+      if (text.includes('FROM app.projects')) return [project];
+      return [];
+    });
+    const res = await mount(createProjectRestRoutes({ sql })).request(
+      'http://localhost/projects/p-1',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body: unknown = await res.json();
+    const validate = responseValidator('/api/v1/projects/{id}', 'patch', '200');
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
+    const statuses = documentedStatuses('/api/v1/projects/{id}', 'delete');
+    expect(statuses).toContain('204');
+    expect(statuses).toContain('403');
+    expect(statuses).toContain('409');
+    expect(statuses).not.toContain('200');
+  });
+
   it('DELETE /projects/{id}/agents/{agentId} documents 204 and 404, not a {deleted} 200', () => {
     // The real Postgres lifecycle is pinned in rest/project-agents-check.ts.
     const statuses = documentedStatuses(
@@ -571,6 +675,42 @@ describe('handler statuses and bodies match the documented operation', () => {
     expect(statuses).toContain('204');
     expect(statuses).toContain('404');
     expect(statuses).not.toContain('200');
+  });
+
+  /** A 204 documented what the handler no longer answers: the website
+   * patch returns the row, like the contact, product and document patch. */
+  it('PATCH /websites/{id} answers the website it documents, not a 204', async () => {
+    const website = {
+      id: 'w-1',
+      organizationId: 'org-1',
+      domain: 'docs.example',
+      kind: 'site',
+      title: 'Docs',
+      description: null,
+      scanInterval: '1d',
+      lastScannedAt: null,
+      status: 'active',
+      pageCount: 3,
+      crawledPageCount: 3,
+      metadata: null,
+      createdAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_001,
+    };
+    const res = await mount(
+      createRestWebsiteRoutes({ sql: fakeSql([website]) }),
+    ).request('http://localhost/websites/w-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Docs', domain: 'docs.example' }),
+    });
+    expect(res.status).toBe(200);
+    const statuses = documentedStatuses('/api/v1/websites/{id}', 'patch');
+    expect(statuses).toContain('200');
+    expect(statuses).not.toContain('204');
+    const body: unknown = await res.json();
+    const validate = responseValidator('/api/v1/websites/{id}', 'patch', '200');
+    expect(validate(body), JSON.stringify(validate.errors)).toBe(true);
+    expect(body).toMatchObject({ id: 'w-1', domain: 'docs.example' });
   });
 
   it.each([
@@ -861,6 +1001,11 @@ describe('new project routes answer the published wire schemas', () => {
       path: '/api/v1/projects/{id}/runs/{runId}',
       factory: createAutomationRestRoutes,
     },
+    {
+      route: '/projects/p-1/runs',
+      path: '/api/v1/projects/{id}/runs',
+      factory: createAutomationRestRoutes,
+    },
   ];
   it.each(cases)('$route', async ({ route, path, factory }) => {
     const response = await mount(factory({ sql })).request(
@@ -875,7 +1020,15 @@ describe('new project routes answer the published wire schemas', () => {
     ).toBe(true);
     if (route.endsWith('/automations'))
       expect(body).toEqual({
-        automations: [{ ...automation, projectIds: ['p-1'] }],
+        automations: [
+          {
+            ...automation,
+            description: null,
+            inputs: null,
+            projectIds: ['p-1'],
+            trigger: null,
+          },
+        ],
       });
   });
 });
@@ -929,5 +1082,130 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
     const body: unknown = await response.json();
     expect(body).toMatchObject({ id: null, error: { code: -32700 } });
     expect(validate(body), JSON.stringify(validate.errors)).toBe(true);
+  });
+});
+
+/**
+ * The skill schemas are typed from the file layer's own views: a fixture
+ * that satisfies `SkillSummaryView` / `SkillDocumentView` must validate,
+ * and — the schemas being closed — a field the view does not carry must
+ * not. Used to be `additionalProperties: true` with `canEdit` missing, so
+ * a generated client learned nothing about the one field that says whether
+ * a save would overwrite a shipped bundle.
+ */
+describe('skill views validate against the published Skill schemas', () => {
+  const summary = {
+    slug: 'docx',
+    description: 'Word documents',
+    visibility: 'org',
+    owner: 'user-1',
+    icon: 'lucide:file-text',
+    labels: ['office'],
+    disableModelInvocation: false,
+    canEdit: true,
+  } satisfies SkillSummaryView;
+  const document = {
+    ...summary,
+    body: '# docx\n',
+    files: [{ path: 'SKILL.md', size: 1200 }],
+  } satisfies SkillDocumentView;
+
+  it('the listing row', () => {
+    const validate = responseValidator('/api/v1/skills', 'get', '200');
+    const listing = { skills: [summary], failures: [] };
+    expect(validate(listing), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('the document, and nothing beyond it', () => {
+    const validate = responseValidator('/api/v1/skills/{slug}', 'get', '200');
+    expect(validate(document), JSON.stringify(validate.errors)).toBe(true);
+    expect(validate({ ...document, canEdit: undefined })).toBe(false);
+    expect(validate({ ...document, stray: true })).toBe(false);
+  });
+});
+
+/**
+ * The door's contract is stamped on every operation by the post-pass in
+ * `spec.ts`; these guards keep the stamp complete — a family that declares
+ * its own 404 keeps its sentence but never loses the door's clause, a body
+ * operation never ships without its 413, and a read never declares one.
+ */
+describe('the door-wide contract on every /api/v1 operation', () => {
+  const operations = Object.entries(paths).flatMap(([path, ops]) =>
+    Object.entries(ops)
+      .filter(
+        ([method]) => HTTP_METHODS.has(method) && path.startsWith('/api/v1/'),
+      )
+      .map(([method, op]) => ({ method, path, op })),
+  );
+  const responsesOf = (op: Json): Record<string, Json> =>
+    (op.responses ?? {}) as Record<string, Json>;
+  const text = (value: unknown): string =>
+    typeof value === 'string' ? value : '';
+  const describes = (
+    responses: Record<string, Json>,
+    status: string,
+    code: string,
+  ): boolean => text(responses[status]?.description).includes(code);
+
+  it('declares 405, 500 and the two organization refusals on every operation', () => {
+    const missing = operations
+      .filter(({ op }) => {
+        const responses = responsesOf(op);
+        return (
+          !describes(responses, '405', 'METHOD_NOT_ALLOWED') ||
+          !describes(responses, '500', 'INTERNAL_ERROR') ||
+          !describes(responses, '403', 'ORG_FORBIDDEN') ||
+          !describes(responses, '404', 'ORG_SLUG_INVALID')
+        );
+      })
+      .map(({ method, path }) => `${method.toUpperCase()} ${path}`);
+    expect(missing).toEqual([]);
+  });
+
+  it('declares 413 on every operation with a body, and on no operation without one', () => {
+    const wrong = operations
+      .filter(({ op }) => {
+        const has413 = responsesOf(op)['413'] !== undefined;
+        return op.requestBody === undefined ? has413 : !has413;
+      })
+      .map(({ method, path }) => `${method.toUpperCase()} ${path}`);
+    expect(wrong).toEqual([]);
+  });
+
+  it('gives every operation a description, not only a summary', () => {
+    const bare = operations
+      .filter(
+        ({ op }) =>
+          typeof op.description !== 'string' || op.description.trim() === '',
+      )
+      .map(({ method, path }) => `${method.toUpperCase()} ${path}`);
+    expect(bare).toEqual([]);
+  });
+
+  it('declares every tag an operation uses', () => {
+    const declared = new Set(
+      ((spec.tags ?? []) as { name: string }[]).map((tag) => tag.name),
+    );
+    const used = new Set(
+      operations.flatMap(({ op }) => (op.tags ?? []) as string[]),
+    );
+    expect([...used].filter((tag) => !declared.has(tag))).toEqual([]);
+  });
+
+  it('types every timestamp as whole epoch milliseconds', () => {
+    const schemas = (spec.components as { schemas: Record<string, Json> })
+      .schemas;
+    const loose: string[] = [];
+    for (const [name, schema] of Object.entries(schemas)) {
+      const properties = (schema.properties ?? {}) as Record<string, Json>;
+      for (const [field, shape] of Object.entries(properties)) {
+        if (!/(At|Since|Ms)$/.test(field)) continue;
+        const description = text(shape.description);
+        if (!description.startsWith('Epoch')) continue;
+        if (shape.type !== 'integer') loose.push(`${name}.${field}`);
+      }
+    }
+    expect(loose).toEqual([]);
   });
 });

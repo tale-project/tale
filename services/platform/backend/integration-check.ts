@@ -37,6 +37,10 @@ import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  lookupHostAddresses,
+  setSafeFetchResolverForTests,
+} from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
@@ -1709,14 +1713,14 @@ async function checkProjects(
   await sql`DELETE FROM app.documents WHERE id = ${protectedDocId}`;
   record(
     'project cascade delete refuses a protected controlled record untouched',
-    cascadeRefused.status === 400 &&
+    cascadeRefused.status === 409 &&
       cascadeRefusal.success &&
       cascadeRefusal.data.error === 'PROJECT_HAS_PROTECTED_RECORDS' &&
       cascadeRefusal.data.data?.documents.join(',') === 'SOP-7.pdf' &&
       protectedAfter[0]?.projectId === projectId &&
       protectedAfter[0]?.lifecycleStatus === null &&
       projectAfterRefusal.status === 200,
-    `cascade → ${cascadeRefused.status} ${cascadeRefusal.success ? cascadeRefusal.data.error : 'BAD SHAPE'} (want 400 PROJECT_HAS_PROTECTED_RECORDS naming SOP-7.pdf), record projectId=${String(protectedAfter[0]?.projectId)} lifecycle=${String(protectedAfter[0]?.lifecycleStatus)} (want kept/null), project read → ${projectAfterRefusal.status} (want 200)`,
+    `cascade → ${cascadeRefused.status} ${cascadeRefusal.success ? cascadeRefusal.data.error : 'BAD SHAPE'} (want 409 PROJECT_HAS_PROTECTED_RECORDS naming SOP-7.pdf), record projectId=${String(protectedAfter[0]?.projectId)} lifecycle=${String(protectedAfter[0]?.lifecycleStatus)} (want kept/null), project read → ${projectAfterRefusal.status} (want 200)`,
   );
 
   const badDelete = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
@@ -3749,14 +3753,14 @@ async function checkDocuments(
   record(
     'folder tree + clash + point read',
     rootFolder.success &&
-      clash.status === 400 &&
+      clash.status === 409 &&
       child.success &&
       moved.ok &&
       folderGet.success &&
       folderGet.data.folder?.name === 'Contracts' &&
       crumb.success &&
       crumb.data.breadcrumb.map((f) => f.name).join('/') === 'Contracts/2026',
-    `clash → ${clash.status} (want 400), move → ${moved.status}, get=${folderGet.success ? (folderGet.data.folder?.name ?? 'null') : 'ERR'}, crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
+    `clash → ${clash.status} (want 409), move → ${moved.status}, get=${folderGet.success ? (folderGet.data.folder?.name ?? 'null') : 'ERR'}, crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
   );
 
   // --- Agent listing (the chat + sandbox document tool doors) --------------
@@ -5509,7 +5513,7 @@ async function checkDocumentWriteGuards(
     markB.status === 200 &&
       patchDraftContent.status === 400 &&
       draftContentCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
-      patchDraftTitle.status === 204 &&
+      patchDraftTitle.status === 200 &&
       eligibleIds.success &&
       eligibleIds.data.userIds.includes(editorId) &&
       !eligibleIds.data.userIds.includes(userId) &&
@@ -5518,7 +5522,7 @@ async function checkDocumentWriteGuards(
       patchFrozenContent.status === 400 &&
       frozenContentCode === 'DOCUMENT_RECORD_FROZEN' &&
       patchFrozenMime.status === 400,
-    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(editorId) ? 'editor' : 'NO-EDITOR'}${eligibleIds.data.userIds.includes(userId) ? '+SELF' : ''}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want editor only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
+    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 200), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(editorId) ? 'editor' : 'NO-EDITOR'}${eligibleIds.data.userIds.includes(userId) ? '+SELF' : ''}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want editor only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
   );
 
   // ---- (4) REST DELETE uses the session protection predicate --------------
@@ -6651,6 +6655,7 @@ async function checkSmallDomains(
 async function checkSkills(
   base: string,
   ctx: { cookie: string; orgId: string },
+  orgSlug: string,
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const call = (
@@ -6720,6 +6725,142 @@ async function checkSkills(
       deleted.data.deleted &&
       readAfter.status === 404,
     `saved=${saved.success} (visibility=${saved.success ? saved.data.skill.visibility : 'ERR'}), listed=${listed.success ? listed.data.skills.length : 'ERR'}, teamWithoutTeams → ${teamMissing.status} (want 400), delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
+  );
+
+  // The REST door over the same file layer (the 2026-09-11 external
+  // evaluation's skills findings): a create-only save refuses a taken slug
+  // with 412 and writes nothing; an omitted field is kept and `null`
+  // clears it; an unknown key is refused by name; the retired visibility
+  // is never advertised; a malformed slug reads as absent on GET/DELETE
+  // and is refused with the rule it breaks on PUT.
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-skills-rest' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const rest = (
+    method: 'GET' | 'PUT' | 'DELETE',
+    slug: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1/skills/${slug}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+        'x-organization-slug': orgSlug,
+        ...headers,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const coded = z.object({ code: z.string() }).loose();
+  const skillView = z
+    .object({
+      slug: z.string(),
+      body: z.string(),
+      canEdit: z.boolean(),
+      icon: z.string().optional(),
+      labels: z.array(z.string()).optional(),
+      files: z.array(z.object({ path: z.string(), size: z.number() })),
+    })
+    .loose();
+  const created = skillView.safeParse(
+    await (
+      await rest('PUT', 'itest-rest-skill', {
+        description: 'REST probe',
+        body: '# Probe',
+        icon: 'lucide:flask-conical',
+        labels: ['probe'],
+      })
+    ).json(),
+  );
+  const createOnly = await rest(
+    'PUT',
+    'itest-rest-skill',
+    { description: 'Overwritten', body: 'x' },
+    { 'if-none-match': '*' },
+  );
+  const createOnlyCode = coded.safeParse(await createOnly.json());
+  const kept = skillView.safeParse(
+    await (
+      await rest('PUT', 'itest-rest-skill', {
+        description: 'Still decorated',
+        body: '# Probe',
+      })
+    ).json(),
+  );
+  const cleared = skillView.safeParse(
+    await (
+      await rest('PUT', 'itest-rest-skill', {
+        description: 'Plain',
+        body: '# Probe',
+        icon: null,
+        labels: null,
+      })
+    ).json(),
+  );
+  const unknownKey = await rest('PUT', 'itest-rest-skill', {
+    description: 'a',
+    body: 'x',
+    slug: 'other',
+  });
+  const retired = await rest('PUT', 'itest-rest-skill', {
+    description: 'a',
+    body: 'x',
+    visibility: 'private',
+  });
+  const retiredBody = z
+    .object({ error: z.string(), code: z.string() })
+    .loose()
+    .safeParse(await retired.json());
+  const longSlug = 'a'.repeat(100);
+  const longRead = await rest('GET', longSlug);
+  const longReadCode = coded.safeParse(await longRead.json());
+  const longSave = await rest('PUT', longSlug, { description: 'a', body: 'x' });
+  const longSaveBody = z
+    .object({ error: z.string(), code: z.string() })
+    .loose()
+    .safeParse(await longSave.json());
+  const removed = await rest('DELETE', 'itest-rest-skill');
+  const restOk =
+    minted.success &&
+    created.success &&
+    created.data.body === '# Probe\n' &&
+    created.data.canEdit &&
+    created.data.files.some((file) => file.path === 'SKILL.md') &&
+    createOnly.status === 412 &&
+    createOnlyCode.success &&
+    createOnlyCode.data.code === 'SKILL_EXISTS' &&
+    kept.success &&
+    kept.data.icon === 'lucide:flask-conical' &&
+    kept.data.labels?.[0] === 'probe' &&
+    cleared.success &&
+    cleared.data.icon === undefined &&
+    cleared.data.labels === undefined &&
+    unknownKey.status === 400 &&
+    retired.status === 400 &&
+    retiredBody.success &&
+    retiredBody.data.code === 'INVALID_BODY' &&
+    !retiredBody.data.error.includes('private') &&
+    longRead.status === 404 &&
+    longReadCode.success &&
+    longReadCode.data.code === 'SKILL_NOT_FOUND' &&
+    longSave.status === 400 &&
+    longSaveBody.success &&
+    longSaveBody.data.code === 'INVALID_SKILL_SLUG' &&
+    longSaveBody.data.error.includes('at most 64') &&
+    !longSaveBody.data.error.includes(longSlug) &&
+    removed.status === 204;
+  record(
+    'skills REST door (create-only, merge + null clear, strict body, slug rules)',
+    restOk,
+    `key=${minted.success}, create=${created.success}, ifNoneMatch → ${createOnly.status}/${createOnlyCode.success ? createOnlyCode.data.code : 'ERR'} (want 412/SKILL_EXISTS), kept=${kept.success ? `${kept.data.icon ?? 'none'}/${kept.data.labels?.join('+') ?? 'none'}` : 'ERR'}, cleared=${cleared.success ? `${cleared.data.icon ?? 'none'}/${cleared.data.labels?.join('+') ?? 'none'}` : 'ERR'}, unknownKey → ${unknownKey.status}, private → ${retired.status}/${retiredBody.success ? retiredBody.data.code : 'ERR'} advertised=${retiredBody.success && retiredBody.data.error.includes('private')}, longSlug GET → ${longRead.status}/${longReadCode.success ? longReadCode.data.code : 'ERR'}, PUT → ${longSave.status}/${longSaveBody.success ? longSaveBody.data.code : 'ERR'}, delete → ${removed.status}`,
   );
 }
 
@@ -7243,6 +7384,53 @@ async function checkKnowledge(
       })
     ).json();
     const fetchRaw = JSON.stringify(fetchRes);
+
+    // Admission runs before the page is cut: with the ORIGINAL trashed (its
+    // chunks dark to the re-check but still in the corpus, the exact
+    // condition that used to empty a page of one), a twin document answers
+    // the `limit: 1` search.
+    const twin = await uploadTextDocument(
+      'quarterly-twin.txt',
+      `${payload} Twin copy for the admission check.`,
+    );
+    const twinIndexed = await waitFor(async () => {
+      const rows = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata
+        WHERE id = ${twin.fileId}
+      `;
+      return rows[0]?.status === 'completed';
+    }, 20_000);
+    await sql`
+      UPDATE app.documents SET lifecycle_status = 'trashed'
+      WHERE org_id = ${orgId} AND file_ref = ${handoff.data.s3Ref}
+    `;
+    const pageOfOne = z
+      .object({
+        hits: z.array(
+          z.looseObject({ source: z.looseObject({ ref: z.string() }) }),
+        ),
+        diagnostics: z.looseObject({ admitted: z.number() }),
+      })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/knowledge/search?orgId=${orgId}`, {
+            query: 'verdigris zeppelin ledger',
+            limit: 1,
+          })
+        ).json(),
+      );
+    await sql`
+      UPDATE app.documents SET lifecycle_status = NULL
+      WHERE org_id = ${orgId} AND file_ref = ${handoff.data.s3Ref}
+    `;
+    record(
+      'knowledge retrieval admits before it cuts the page (a trashed top match never empties limit: 1)',
+      twinIndexed &&
+        pageOfOne.success &&
+        pageOfOne.data.hits.length === 1 &&
+        pageOfOne.data.hits[0]?.source.ref === twin.storageRef,
+      `twinIndexed=${twinIndexed}, hits=${pageOfOne.success ? pageOfOne.data.hits.length : 'ERR'} (want 1), ref=${pageOfOne.success ? pageOfOne.data.hits[0]?.source.ref === twin.storageRef : 'ERR'} (want the twin), admitted=${pageOfOne.success ? pageOfOne.data.diagnostics.admitted : 'ERR'}`,
+    );
 
     record(
       'knowledge RAG loop (extract→embed→index→search→fetch)',
@@ -8032,22 +8220,37 @@ async function checkCorpusPurgeConsistency(
       `;
       return rows[0]?.teamId;
     };
+    // The REST patch answers the document as it now stands (200), so the
+    // team it echoes is checked beside the corpus stamp.
+    const patchedTeam = async (
+      response: Response | null,
+    ): Promise<string | null | undefined> => {
+      if (response === null || response.status !== 200) return undefined;
+      const parsed = z
+        .looseObject({ teamId: z.string().nullable().optional() })
+        .safeParse(await response.json());
+      return parsed.success ? (parsed.data.teamId ?? null) : undefined;
+    };
     const teamed =
       scoped === null ? null : await restPatch({ teamId: scopeTeamId });
+    const teamedEcho = await patchedTeam(teamed);
     const teamStamped =
       scoped === null ? undefined : await corpusTeamOf(scoped.ref);
     const unteamed = scoped === null ? null : await restPatch({ teamId: null });
+    const unteamedEcho = await patchedTeam(unteamed);
     const teamCleared =
       scoped === null ? undefined : await corpusTeamOf(scoped.ref);
     record(
       'corpus scope: REST team change re-stamps retrieval scope',
       scoped !== null &&
         scopeKey.success &&
-        teamed?.status === 204 &&
+        teamed?.status === 200 &&
+        teamedEcho === scopeTeamId &&
         teamStamped === scopeTeamId &&
-        unteamed?.status === 204 &&
+        unteamed?.status === 200 &&
+        unteamedEcho === null &&
         teamCleared === null,
-      `key=${scopeKey.success}, team → ${teamed?.status ?? 'skipped'} (want 204), stamped=${teamStamped === scopeTeamId ? 'team' : String(teamStamped)} (want team), clear → ${unteamed?.status ?? 'skipped'} (want 204), cleared=${String(teamCleared)} (want null)`,
+      `key=${scopeKey.success}, team → ${teamed?.status ?? 'skipped'} (want 200) echo=${teamedEcho === scopeTeamId ? 'team' : String(teamedEcho)} (want team), stamped=${teamStamped === scopeTeamId ? 'team' : String(teamStamped)} (want team), clear → ${unteamed?.status ?? 'skipped'} (want 200) echo=${String(unteamedEcho)} (want null), cleared=${String(teamCleared)} (want null)`,
     );
 
     // --- 2. Knowledge-entry edit releases the rotated-away ref -------------
@@ -10327,12 +10530,15 @@ async function checkAutomationRunLifecycle(
     `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}`,
     { method: 'POST', body: '{}' },
   );
+  // The token door answers every project-scope refusal as ONE 403 that
+  // names neither the automation nor the reason (a leaked URL is not a
+  // project-existence oracle); the session door keeps its 404.
   record(
     'automation run refuses a foreign/nonexistent projectId at every door',
     phantomStart.status === 404 &&
-      hookBadProject.status === 400 &&
+      hookBadProject.status === 403 &&
       hookNoProject.status === 202,
-    `/start=${phantomStart.status} (want 404), webhook-bad=${hookBadProject.status} (want 400), webhook-none=${hookNoProject.status} (want 202)`,
+    `/start=${phantomStart.status} (want 404), webhook-bad=${hookBadProject.status} (want 403), webhook-none=${hookNoProject.status} (want 202)`,
   );
 
   // ---- #4: concurrent claims of one run get DISTINCT epochs (atomic claim,
@@ -11302,6 +11508,75 @@ async function checkMcp(
     .object({ status: z.enum(['ok', 'unavailable']) })
     .safeParse(knowledge.value);
 
+  // Every advertised tool carries the four MCP annotations, and the
+  // name-scoped lists refuse an unknown automation like get_automation
+  // does — with a code AND a hint (2026-09-11 external evaluation, G-06,
+  // G-08, G-10).
+  const annotated = z
+    .object({
+      result: z.object({
+        tools: z.array(
+          z.object({
+            name: z.string(),
+            annotations: z.object({
+              readOnlyHint: z.boolean(),
+              destructiveHint: z.boolean(),
+              idempotentHint: z.boolean(),
+              openWorldHint: z.boolean(),
+            }),
+          }),
+        ),
+      }),
+    })
+    .safeParse(listed.body);
+  const annotationOf = (name: string) =>
+    annotated.success
+      ? annotated.data.result.tools.find((tool) => tool.name === name)
+          ?.annotations
+      : undefined;
+  const annotationsOk =
+    annotated.success &&
+    annotationOf('get_run')?.readOnlyHint === true &&
+    annotationOf('delete_trigger')?.destructiveHint === true &&
+    annotationOf('run_deployed')?.openWorldHint === true;
+  const refusalShapeWithHint = z
+    .object({ error: z.string(), code: z.string(), hint: z.string().min(1) })
+    .loose();
+  const missingVersions = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 91,
+        method: 'tools/call',
+        params: {
+          name: 'list_versions',
+          arguments: { name: 'itest-no-such-automation' },
+        },
+      })
+    ).body,
+  );
+  const missingVersionsShape = refusalShapeWithHint.safeParse(
+    missingVersions.value,
+  );
+  const missingRun = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 92,
+        method: 'tools/call',
+        params: { name: 'get_run', arguments: { runId: 'itest-no-such-run' } },
+      })
+    ).body,
+  );
+  const missingRunShape = refusalShapeWithHint.safeParse(missingRun.value);
+  const refusalsOk =
+    missingVersions.isError &&
+    missingVersionsShape.success &&
+    missingVersionsShape.data.code === 'AUTOMATION_NOT_FOUND' &&
+    missingRun.isError &&
+    missingRunShape.success &&
+    missingRunShape.data.code === 'RUN_NOT_FOUND';
+
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&
@@ -11334,8 +11609,10 @@ async function checkMcp(
       capHit &&
       knowledgeShape.success &&
       // Unavailable is the tool failing at its job; a passage list is not.
-      knowledge.isError === (knowledgeShape.data.status === 'unavailable'),
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+      knowledge.isError === (knowledgeShape.data.status === 'unavailable') &&
+      annotationsOk &&
+      refusalsOk,
+    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an
@@ -12012,8 +12289,13 @@ async function checkRestDoor(
   const doorRun = z
     .looseObject({ output: z.unknown() })
     .safeParse(await (await v1(`/runs/${doorRunId}`)).json());
+  // Listings answer summaries keyed `runId`, as a keyset page.
   const runsListed = z
-    .object({ runs: z.array(z.looseObject({ id: z.string() })) })
+    .object({
+      runs: z.array(z.looseObject({ runId: z.string() })),
+      isDone: z.boolean(),
+      continueCursor: z.string(),
+    })
     .loose()
     .safeParse(await (await v1('/automations/ops__door/runs')).json());
 
@@ -12124,6 +12406,75 @@ async function checkRestMachineJourney(
     .safeParse(
       await (await v1('/projects?externalItemId=door-journey-1')).json(),
     );
+  // The workspace is enumerable: the list carries the project (with its
+  // stamps), a lookup compares the key canonical — NFC and trimmed — and
+  // the lifecycle toggle hides an archived project from the default list.
+  const listedProjects = z
+    .object({
+      projects: z.array(
+        z.looseObject({
+          id: z.string(),
+          createdAt: z.number(),
+          updatedAt: z.number(),
+        }),
+      ),
+      isDone: z.boolean(),
+    })
+    .safeParse(await (await v1('/projects?limit=100')).json());
+  const twinKey = 'door-journey-é';
+  const twinCreated = z
+    .object({
+      project: z.looseObject({ id: z.string(), externalItemId: z.string() }),
+    })
+    .safeParse(
+      await (
+        await v1('/projects', {
+          body: { name: 'Door Twin', externalItemId: twinKey.normalize('NFD') },
+        })
+      ).json(),
+    );
+  const twinId = twinCreated.success ? twinCreated.data.project.id : '';
+  const twinRefused = await v1('/projects', {
+    body: {
+      name: 'Door Twin again',
+      externalItemId: `  ${twinKey.normalize('NFC')}  `,
+    },
+  });
+  const twinFound = z
+    .object({ projects: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(
+      await (
+        await v1(
+          `/projects?externalItemId=${encodeURIComponent(` ${twinKey.normalize('NFC')} `)}`,
+        )
+      ).json(),
+    );
+  const archived = z
+    .object({ project: z.looseObject({ archivedAt: z.number().optional() }) })
+    .safeParse(
+      await (
+        await v1(`/projects/${twinId}`, {
+          method: 'PATCH',
+          body: { archived: true },
+        })
+      ).json(),
+    );
+  const activeList = z
+    .object({ projects: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(await (await v1('/projects?limit=100')).json());
+  const archivedList = z
+    .object({ projects: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(await (await v1('/projects?archived=only&limit=100')).json());
+  const restored = z
+    .object({ project: z.looseObject({ archivedAt: z.number().optional() }) })
+    .safeParse(
+      await (
+        await v1(`/projects/${twinId}`, {
+          method: 'PATCH',
+          body: { archived: false },
+        })
+      ).json(),
+    );
 
   // Folder get-or-create: 201 then 200 with the SAME id.
   const folderFirst = await v1(`/projects/${projectId}/folders`, {
@@ -12211,11 +12562,30 @@ async function checkRestMachineJourney(
   const contentRes = await v1(
     `/projects/${projectId}/files/${documentId}/content`,
   );
-  let contentBytes = '';
-  const location = contentRes.headers.get('location');
-  if (contentRes.status === 302 && location !== null) {
-    contentBytes = await (await fetch(location)).text();
-  }
+  // The bytes come back directly, named by the document: a bearer-carrying
+  // client used to be redirected to a presigned URL on the same origin and
+  // got the store's two-authentications refusal written into its file.
+  const contentBytes = contentRes.status === 200 ? await contentRes.text() : '';
+  const contentDisposition = contentRes.headers.get('content-disposition');
+
+  // The workspace is not create-only: the bound file goes, its content
+  // lane answers 404 after it, and the folder cascades out too.
+  const fileDeleted = await v1(`/projects/${projectId}/files/${documentId}`, {
+    method: 'DELETE',
+  });
+  const contentAfterDelete = await v1(
+    `/projects/${projectId}/files/${documentId}/content`,
+  );
+  const fileDeletedAgain = await v1(
+    `/projects/${projectId}/files/${documentId}`,
+    { method: 'DELETE' },
+  );
+  const folderDeleted = await v1(`/projects/${projectId}/folders/${folderId}`, {
+    method: 'DELETE',
+  });
+  const foldersAfterDelete = z
+    .object({ folders: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(await (await v1(`/projects/${projectId}/folders`)).json());
 
   // Bind the door automation to the project (idempotent add).
   const bindFirst = await v1(`/projects/${projectId}/automations/ops__door`, {
@@ -12252,14 +12622,16 @@ async function checkRestMachineJourney(
     })
     .safeParse(await taskFirst.json());
   const taskId = taskFirstBody.success ? taskFirstBody.data.task.id : '';
+  // A padded repeat of the key is the same task: the ref is canonical
+  // (NFC, trimmed) at the lookup and the write.
   const taskAgainBody = z
     .object({ task: z.object({ id: z.string(), created: z.boolean() }) })
     .safeParse(
       await (
         await v1(`/projects/${projectId}/tasks`, {
           body: {
-            externalSystem: 'github',
-            externalId: 'journey-issue-7',
+            externalSystem: ' github ',
+            externalId: '  journey-issue-7\n',
             title: 'Prepare the ledger review (renamed)',
           },
         })
@@ -12305,7 +12677,8 @@ async function checkRestMachineJourney(
   const started = z
     .object({
       started: z.boolean(),
-      executionId: z.string().nullable().optional(),
+      runId: z.string().nullable(),
+      executionId: z.string().nullable(),
     })
     .loose()
     .safeParse(
@@ -12316,8 +12689,8 @@ async function checkRestMachineJourney(
       ).json(),
     );
   const runId =
-    started.success && typeof started.data.executionId === 'string'
-      ? started.data.executionId
+    started.success && typeof started.data.runId === 'string'
+      ? started.data.runId
       : '';
   const runRows = await sql<
     { taskId: string | null; projectId: string | null }[]
@@ -12325,6 +12698,31 @@ async function checkRestMachineJourney(
     SELECT input->'task'->>'id' AS "taskId", project_id AS "projectId"
     FROM app.automation_runs WHERE id = ${runId || '00000000-0000-0000-0000-000000000000'}
   `;
+
+  // The lifecycle end: a project an automation is installed in refuses its
+  // delete as a 409 naming the automation; the twin goes (204, then 404)
+  // and frees its key.
+  const deleteBound = await v1(`/projects/${projectId}`, { method: 'DELETE' });
+  const deleteBoundBody = z
+    .object({
+      code: z.string(),
+      data: z.object({ automations: z.array(z.string()) }),
+    })
+    .safeParse(await deleteBound.json());
+  const twinDeleted = await v1(`/projects/${twinId}`, { method: 'DELETE' });
+  const twinGone = await v1(`/projects/${twinId}`);
+  const twinKeyFree = await v1('/projects', {
+    body: { name: 'Door Twin reborn', externalItemId: twinKey },
+  });
+  const rebornId = z
+    .object({ project: z.object({ id: z.string() }) })
+    .safeParse(await twinKeyFree.json());
+  if (rebornId.success) {
+    await v1(`/projects/${rebornId.data.project.id}`, {
+      method: 'DELETE',
+      body: { mode: 'detach' },
+    });
+  }
 
   record(
     'REST machine journey (projects → files → tasks → start)',
@@ -12334,6 +12732,21 @@ async function checkRestMachineJourney(
       createdProject.success &&
       found.success &&
       found.data.projects[0]?.id === projectId &&
+      listedProjects.success &&
+      listedProjects.data.projects.some((p) => p.id === projectId) &&
+      twinCreated.success &&
+      twinCreated.data.project.externalItemId === twinKey.normalize('NFC') &&
+      twinRefused.status === 409 &&
+      twinFound.success &&
+      twinFound.data.projects[0]?.id === twinId &&
+      archived.success &&
+      typeof archived.data.project.archivedAt === 'number' &&
+      activeList.success &&
+      !activeList.data.projects.some((p) => p.id === twinId) &&
+      archivedList.success &&
+      archivedList.data.projects.some((p) => p.id === twinId) &&
+      restored.success &&
+      restored.data.project.archivedAt === undefined &&
       folderFirst.status === 201 &&
       folderFirstBody.success &&
       folderFirstBody.data.created &&
@@ -12350,8 +12763,15 @@ async function checkRestMachineJourney(
       rebind?.status === 409 &&
       filesListed.success &&
       filesListed.data.files.some((f) => f.id === documentId) &&
-      contentRes.status === 302 &&
+      contentRes.status === 200 &&
+      contentDisposition?.startsWith('attachment; filename=') === true &&
       contentBytes === LEDGER_BYTES &&
+      fileDeleted.status === 204 &&
+      contentAfterDelete.status === 404 &&
+      fileDeletedAgain.status === 404 &&
+      folderDeleted.status === 204 &&
+      foldersAfterDelete.success &&
+      !foldersAfterDelete.data.folders.some((f) => f.id === folderId) &&
       bindFirst.status === 201 &&
       bindFirstBody.success &&
       bindFirstBody.data.added &&
@@ -12374,9 +12794,17 @@ async function checkRestMachineJourney(
       ) &&
       started.success &&
       started.data.started &&
+      started.data.runId === started.data.executionId &&
       runRows[0]?.taskId === taskId &&
-      runRows[0]?.projectId === projectId,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId}, folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId}, upload put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'}, comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+      runRows[0]?.projectId === projectId &&
+      deleteBound.status === 409 &&
+      deleteBoundBody.success &&
+      deleteBoundBody.data.code === 'PROJECT_HAS_BOUND_AUTOMATIONS' &&
+      deleteBoundBody.data.data.automations.includes('ops/door') &&
+      twinDeleted.status === 204 &&
+      twinGone.status === 404 &&
+      twinKeyFree.status === 201,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined}, delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId}, upload put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES}, delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'}, comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
   );
 }
 
@@ -12443,6 +12871,109 @@ async function checkRestResources(
       ).json(),
     );
 
+  // ---- contacts + products: the editing vocabulary over the wire ---------
+  // One clearing rule (`null`, or a blank on PATCH), the RFC 7396 metadata
+  // merge, trimming + a lowercase email, the identity guard, and the typed
+  // product fields (ISO 4217 currency, absolute imageUrl, bounded metadata).
+  const crmContact = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1('/contacts', {
+        body: {
+          name: '  Crm Probe  ',
+          email: ' Crm.Probe@Door.TEST ',
+          phone: '+1 555',
+          metadata: { keep: 1, gone: true, nested: { a: 1 } },
+        },
+      })
+    ).json(),
+  );
+  const crmContactId = crmContact.success ? crmContact.data.id : '';
+  const crmPatched = z
+    .looseObject({
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+      phone: z.string().nullable(),
+      metadata: z
+        .object({
+          keep: z.number(),
+          added: z.string(),
+          nested: z.object({ a: z.number(), b: z.number() }).strict(),
+        })
+        .strict(),
+    })
+    .safeParse(
+      await (
+        await v1(`/contacts/${crmContactId}`, {
+          method: 'PATCH',
+          body: {
+            phone: '',
+            metadata: { gone: null, added: 'x', nested: { b: 2 } },
+          },
+        })
+      ).json(),
+    );
+  const crmIdentity = await v1(`/contacts/${crmContactId}`, {
+    method: 'PATCH',
+    body: { name: null, email: null },
+  });
+  const crmIdentityBody = z
+    .looseObject({ code: z.string() })
+    .safeParse(await crmIdentity.json());
+  const crmProduct = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1('/products', {
+        body: {
+          name: `Crm Widget ${Date.now()}`,
+          category: '  Gadgets ',
+          currency: 'usd',
+          imageUrl: 'https://cdn.door.test/w.png',
+        },
+      })
+    ).json(),
+  );
+  const crmProductId = crmProduct.success ? crmProduct.data.id : '';
+  const crmProductRead = z
+    .looseObject({
+      category: z.string().nullable(),
+      currency: z.string().nullable(),
+    })
+    .safeParse(await (await v1(`/products/${crmProductId}`)).json());
+  const crmBadCurrency = await v1('/products', {
+    body: { name: 'Crm Bad Currency', currency: 'ZZZ' },
+  });
+  const crmBadImage = await v1('/products', {
+    body: { name: 'Crm Bad Image', imageUrl: 'javascript:alert(1)' },
+  });
+  const crmDeep = await v1('/contacts', {
+    body: {
+      name: 'Crm Deep',
+      metadata: JSON.parse(`${'{"a":'.repeat(9)}{}${'}'.repeat(9)}`),
+    },
+  });
+  const crmOk =
+    crmContact.success &&
+    crmPatched.success &&
+    crmPatched.data.name === 'Crm Probe' &&
+    crmPatched.data.email === 'crm.probe@door.test' &&
+    crmPatched.data.phone === null &&
+    crmPatched.data.metadata.keep === 1 &&
+    crmPatched.data.metadata.added === 'x' &&
+    crmPatched.data.metadata.nested.a === 1 &&
+    crmPatched.data.metadata.nested.b === 2 &&
+    crmIdentity.status === 400 &&
+    crmIdentityBody.success &&
+    crmIdentityBody.data.code === 'CONTACT_IDENTITY_REQUIRED' &&
+    crmProduct.success &&
+    crmProductRead.success &&
+    crmProductRead.data.category === 'Gadgets' &&
+    crmProductRead.data.currency === 'USD' &&
+    crmBadCurrency.status === 400 &&
+    crmBadImage.status === 400 &&
+    crmDeep.status === 400;
+  const crmDetail = `contact=${crmContact.success} patched=${crmPatched.success ? `${crmPatched.data.name}/${crmPatched.data.email}/${crmPatched.data.phone}/${JSON.stringify(crmPatched.data.metadata)}` : 'ERR'} (want Crm Probe/crm.probe@door.test/null/merged) identity=${crmIdentity.status}/${crmIdentityBody.success ? crmIdentityBody.data.code : 'ERR'} (want 400/CONTACT_IDENTITY_REQUIRED) product=${crmProductRead.success ? `${crmProductRead.data.category}/${crmProductRead.data.currency}` : 'ERR'} (want Gadgets/USD) badCurrency=${crmBadCurrency.status} badImage=${crmBadImage.status} deep=${crmDeep.status} (want 400/400/400)`;
+  await v1(`/contacts/${crmContactId}`, { method: 'DELETE' });
+  await v1(`/products/${crmProductId}`, { method: 'DELETE' });
+
   // ---- documents: content lifecycle + retry honesty ----------------------
   const docCreated = z.object({ id: z.string() }).safeParse(
     await (
@@ -12456,6 +12987,18 @@ async function checkRestResources(
     method: 'PATCH',
     body: { content: 'beta content' },
   });
+  // The PATCH answers the document as it now stands; a stale
+  // `expectedUpdatedAt` (the contacts/products precondition) is refused.
+  const docPatchBody = z
+    .looseObject({ id: z.string(), updatedAt: z.number() })
+    .safeParse(await docPatch.json());
+  const docStale = await v1(`/documents/${docId}`, {
+    method: 'PATCH',
+    body: { title: 'Stale write', expectedUpdatedAt: 1 },
+  });
+  const docStaleBody = z
+    .looseObject({ code: z.string() })
+    .safeParse(await docStale.json());
   const docRead = z
     .looseObject({ title: z.string(), content: z.string().nullable() })
     .safeParse(await (await v1(`/documents/${docId}`)).json());
@@ -12501,6 +13044,25 @@ async function checkRestResources(
     .object({ page: z.array(z.looseObject({ id: z.string() })) })
     .loose()
     .safeParse(await (await v1('/knowledge-entries')).json());
+  // The entry's backing document is the entry's own storage: the document
+  // door refuses to delete or rewrite it — the entry is the way.
+  const entryDocId = z
+    .looseObject({ documentId: z.string() })
+    .safeParse(await (await v1(`/knowledge-entries/${newEntryId}`)).json());
+  const entryDocDelete = await v1(
+    `/documents/${entryDocId.success ? entryDocId.data.documentId : 'none'}`,
+    { method: 'DELETE' },
+  );
+  const entryDocDeleteBody = z
+    .looseObject({
+      code: z.string(),
+      data: z.looseObject({ entryId: z.string() }),
+    })
+    .safeParse(await entryDocDelete.json());
+  const entryDocMove = await v1(
+    `/documents/${entryDocId.success ? entryDocId.data.documentId : 'none'}`,
+    { method: 'PATCH', body: { metadata: { reviewed: true } } },
+  );
   const entryDeleted = await v1(`/knowledge-entries/${newEntryId}`, {
     method: 'DELETE',
   });
@@ -12714,8 +13276,20 @@ async function checkRestResources(
       bulk.data.success === 2 &&
       bulk.data.failed === 1 &&
       bulk.data.errors[0]?.errorCode === 'CONTACT_DUPLICATE_EMAIL' &&
+      crmOk &&
       docCreated.success &&
-      docPatch.status === 204 &&
+      docPatch.status === 200 &&
+      docPatchBody.success &&
+      docPatchBody.data.id === docId &&
+      docStale.status === 409 &&
+      docStaleBody.success &&
+      docStaleBody.data.code === 'DOCUMENT_STALE' &&
+      entryDocId.success &&
+      entryDocDelete.status === 409 &&
+      entryDocDeleteBody.success &&
+      entryDocDeleteBody.data.code === 'DOCUMENT_HAS_KNOWLEDGE_ENTRY' &&
+      entryDocDeleteBody.data.data.entryId === newEntryId &&
+      entryDocMove.status === 200 &&
       docRead.success &&
       docRead.data.content === 'beta content' &&
       docListed.success &&
@@ -12742,7 +13316,7 @@ async function checkRestResources(
       skillGone.status === 404 &&
       chatOk &&
       searchOk,
-    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), crm=[${crmDetail}], docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}(want 200)/stale=${docStale.status}(want 409)/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entryDoc=${entryDocDelete.status}(want 409 ${entryDocDeleteBody.success ? entryDocDeleteBody.data.code : 'ERR'})/move=${entryDocMove.status}(want 200), entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
 }
 
@@ -12791,13 +13365,19 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
         headers: { 'content-type': 'application/json', ...extraHeaders },
         body: JSON.stringify(body),
       }),
-    rest: (method: string, route: string, body?: unknown) =>
+    rest: (
+      method: string,
+      route: string,
+      body?: unknown,
+      extraHeaders?: Record<string, string>,
+    ) =>
       fetch(`${base}/api/v1${route}`, {
         method,
         headers: {
           ...headers,
           authorization: `Bearer ${key}`,
           'X-Organization-Slug': org.slug,
+          ...extraHeaders,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
@@ -13034,8 +13614,12 @@ async function checkRestPagination(
   await appSend(`/api/app/automations/ops/pager/deploy?orgId=${ctx.orgId}`, {
     version: 1,
   });
+  // Run listings are keyset pages of summaries: `limit=1` answers one row
+  // and a cursor, the cursor answers the OTHER row.
   const runsSchema = z.object({
-    runs: z.array(z.looseObject({ id: z.string() })),
+    runs: z.array(z.looseObject({ runId: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
   });
   const started = await Promise.all([
     v1('/automations/ops__pager/runs', {
@@ -13047,6 +13631,14 @@ async function checkRestPagination(
   ]);
   const runsOne = runsSchema.safeParse(
     await (await v1('/automations/ops__pager/runs?limit=1')).json(),
+  );
+  const runsCursor = runsOne.success ? runsOne.data.continueCursor : '';
+  const runsNext = runsSchema.safeParse(
+    await (
+      await v1(
+        `/automations/ops__pager/runs?limit=1&cursor=${encodeURIComponent(runsCursor)}`,
+      )
+    ).json(),
   );
   const runsAll = runsSchema.safeParse(
     await (await v1('/automations/ops__pager/runs')).json(),
@@ -13064,9 +13656,14 @@ async function checkRestPagination(
       started.every((res) => res.status === 202) &&
       runsOne.success &&
       runsOne.data.runs.length === 1 &&
+      !runsOne.data.isDone &&
+      runsCursor !== '' &&
+      runsNext.success &&
+      runsNext.data.runs.length === 1 &&
+      runsNext.data.runs[0]?.runId !== runsOne.data.runs[0]?.runId &&
       runsAll.success &&
       runsAll.data.runs.length >= 2,
-    `contacts: done=${contactsWalk.done} pages=${contactsWalk.pages} walked=${contactsWalk.seen.length} all=${contactsAll.length} covers=${covers(contactsWalk.seen, contactsAll)}; products: done=${productsWalk.done} pages=${productsWalk.pages} walked=${productsWalk.seen.length} all=${productsAll.length} covers=${covers(productsWalk.seen, productsAll)}; runs: started=${started.map((res) => res.status).join('/')} limit=1 → ${runsOne.success ? runsOne.data.runs.length : 'ERR'} (want 1), all → ${runsAll.success ? runsAll.data.runs.length : 'ERR'} (want ≥2)`,
+    `contacts: done=${contactsWalk.done} pages=${contactsWalk.pages} walked=${contactsWalk.seen.length} all=${contactsAll.length} covers=${covers(contactsWalk.seen, contactsAll)}; products: done=${productsWalk.done} pages=${productsWalk.pages} walked=${productsWalk.seen.length} all=${productsAll.length} covers=${covers(productsWalk.seen, productsAll)}; runs: started=${started.map((res) => res.status).join('/')} limit=1 → ${runsOne.success ? runsOne.data.runs.length : 'ERR'} (want 1) done=${runsOne.success ? runsOne.data.isDone : 'ERR'} (want false), cursor → ${runsNext.success ? runsNext.data.runs.length : 'ERR'} other row (want 1), all → ${runsAll.success ? runsAll.data.runs.length : 'ERR'} (want ≥2)`,
   );
 }
 
@@ -26936,6 +27533,15 @@ async function checkWebsitesCrawl(
       method: 'PATCH',
       body: { scanInterval: '1d' },
     });
+    // The patch answers the website as it now stands (a 204 used to).
+    const restPatchBody = z
+      .looseObject({ id: z.string(), scanInterval: z.string() })
+      .safeParse(await restPatch.json());
+    // A client echoing the stored domain is not renaming it.
+    const restPatchEcho = await v1(`/websites/${websiteId}`, {
+      method: 'PATCH',
+      body: { domain: DOMAIN },
+    });
     // The domain is immutable after create: a rename would orphan the
     // corpus registration (keyed by domain) and never scan again, so both
     // doors refuse it before touching the row.
@@ -26992,7 +27598,11 @@ async function checkWebsitesCrawl(
         listKind[0]?.kind === 'list' &&
         restList.success &&
         restList.data.page.length >= 2 &&
-        restPatch.status === 204 &&
+        restPatch.status === 200 &&
+        restPatchBody.success &&
+        restPatchBody.data.id === websiteId &&
+        restPatchBody.data.scanInterval === '1d' &&
+        restPatchEcho.status === 200 &&
         restPatchDomain.status === 400 &&
         appPatchDomain.status === 400 &&
         rowAfterPatch?.domain === DOMAIN &&
@@ -27007,7 +27617,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/200(${restPatchBody.success ? restPatchBody.data.scanInterval : 'ERR'}) echo=${restPatchEcho.status}/200 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -28245,6 +28855,49 @@ async function checkBrowserSessions(
       organizationId: orgId,
       domain: DOMAIN,
     });
+    // The operator's exits and the door's own rules (2026-09-11 external
+    // evaluation, G-05/G-22): a host no session can be warmed for and a
+    // lifetime past 180 days are refused; DELETE revokes a session at
+    // once and the second DELETE reads it as absent with its own code.
+    const badHost = await send('/import', {
+      domain: '*.example.com',
+      cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-C',
+    });
+    const badHostCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await badHost.json());
+    const longTtl = await send('/import', {
+      domain: DOMAIN,
+      cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-C',
+      ttlMs: 181 * 24 * 60 * 60 * 1000,
+    });
+    const longTtlCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await longTtl.json());
+    const revoke = (): Promise<Response> =>
+      fetch(`${base}/api/v1/browser-sessions/${idB}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+    const revoked = await revoke();
+    const revokedAgain = await revoke();
+    const revokedAgainCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await revokedAgain.json());
+    const revokeOk =
+      badHost.status === 400 &&
+      badHostCode.success &&
+      badHostCode.data.code === 'INVALID_SESSION' &&
+      longTtl.status === 400 &&
+      longTtlCode.success &&
+      longTtlCode.data.code === 'INVALID_BODY' &&
+      revoked.status === 204 &&
+      revokedAgain.status === 404 &&
+      revokedAgainCode.success &&
+      revokedAgainCode.data.code === 'BROWSER_SESSION_NOT_FOUND';
     record(
       'browser sessions: REST import gate, masked list, LRU claim, strikes, sweep',
       minted.success &&
@@ -28260,8 +28913,9 @@ async function checkBrowserSessions(
         statusA === 'cooling' &&
         statusB === 'expired' &&
         claimEmpty === null &&
-        recovered?.sessionId === idA,
-      `key=${minted.success} gate=${refused.status}/403 code=${refusedCode.success ? refusedCode.data.code : 'ERR'}/FORBIDDEN_DEPLOYMENT_EDITOR imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
+        recovered?.sessionId === idA &&
+        revokeOk,
+      `key=${minted.success} gate=${refused.status}/403 code=${refusedCode.success ? refusedCode.data.code : 'ERR'}/FORBIDDEN_DEPLOYMENT_EDITOR imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}, badHost → ${badHost.status}/${badHostCode.success ? badHostCode.data.code : 'ERR'}, longTtl → ${longTtl.status}/${longTtlCode.success ? longTtlCode.data.code : 'ERR'}, revoke → ${revoked.status} then ${revokedAgain.status}/${revokedAgainCode.success ? revokedAgainCode.data.code : 'ERR'}`,
     );
   } finally {
     if (savedAdmins === undefined) {
@@ -45285,6 +45939,21 @@ async function runLanes(
 }
 
 async function main(): Promise<void> {
+  // The lanes stub `fetch` for fixture hosts no resolver knows
+  // (`itest-crawl.example`, `itest.atlassian.net`); `safeFetch` resolves
+  // and pins every host before it dials, so a name DNS cannot answer reads
+  // as one documentation-range public address here. Real names keep their
+  // real answers, and the guard itself is proven by its unit suite.
+  setSafeFetchResolverForTests(async (hostname) => {
+    try {
+      return await lookupHostAddresses(hostname);
+    } catch (error) {
+      console.info(
+        `[itest] ${hostname} has no DNS answer; resolving it to a fixture address (${error instanceof Error ? error.message : String(error)})`,
+      );
+      return [{ address: '203.0.113.10', family: 4 }];
+    }
+  });
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error(
@@ -45528,7 +46197,10 @@ async function main(): Promise<void> {
         'checkRateLimitShapes',
         () => checkRateLimitShapes(sql, baseUrl, authCtx),
       ],
-      ['checkSkills', () => checkSkills(baseUrl, authCtx)],
+      [
+        'checkSkills',
+        () => checkSkills(baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
       [
         'checkProviderCredentials',
         () => checkProviderCredentials(sql, baseUrl, authCtx),
