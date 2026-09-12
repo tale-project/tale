@@ -72,9 +72,12 @@ import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { AGENT_TOOL_GRANT_NAMES } from '../../backend/domains/projects/agent-equipment.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import { EFFORT_LEVELS } from '../../lib/chat/effort.ts';
+import { TURN_FINISH_REASONS } from '../../lib/chat/types.ts';
 import { CHAT_ERROR_CODES } from '../../lib/shared/chat-errors.ts';
+import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
   API_EXTERNAL_ID_MAX_LENGTH,
+  API_DELIVERY_STATUSES,
   API_SOURCE_PATTERN,
   apiDeliveryFailureSchema,
   apiSnapshotSchema,
@@ -110,8 +113,101 @@ function withDoorRefusal(existing: Json | undefined, sentence: string): Json {
 
 const standardErrors = {
   '400': errorResponse('Invalid request (malformed body or parameters)'),
-  '401': errorResponse('Missing or invalid API key'),
+  '401': errorResponse('Missing or invalid API key (`UNAUTHORIZED`)'),
   '429': errorResponse('Rate limit exceeded (Retry-After names the wait)'),
+};
+
+/**
+ * The response headers the prose leans on, declared once so a client
+ * generated from the document can read them — `Retry-After` was named in
+ * 119 descriptions and declared in none, so the generated backoff had to
+ * guess. Stamped by the post-pass below; the download operation adds its
+ * own set.
+ */
+const responseHeaders: Record<string, Json> = {
+  XRequestId: {
+    description:
+      'The request id the platform logged this call under — quote it when reporting a problem. Echoes a sane `X-Request-Id` the caller sent.',
+    schema: { type: 'string' },
+  },
+  XTaleApiVersion: {
+    description:
+      'The version of this contract (`info.version`) the serving instance implements — semver for the wire',
+    schema: { type: 'string', example: API_CONTRACT_VERSION },
+  },
+  RetryAfter: {
+    description: 'How long to wait before retrying, in whole seconds',
+    schema: { type: 'integer', minimum: 1 },
+  },
+  Allow: {
+    description: 'The methods this path serves, comma-separated',
+    schema: { type: 'string', example: 'GET, POST, HEAD, OPTIONS' },
+  },
+  WWWAuthenticate: {
+    description:
+      'The challenge RFC 9110 §11.6.1 requires of a 401: `Bearer`, or `Bearer error="invalid_token"` when a key was presented and refused',
+    schema: { type: 'string' },
+  },
+  ContentDisposition: {
+    description:
+      'The stored file name as an RFC 6266 attachment (`filename` and `filename*`)',
+    schema: { type: 'string' },
+  },
+  ETag: {
+    description:
+      'A validator: over the answer’s bytes on a JSON read, the stored object’s tag on a download. Send it back as `If-None-Match` — as received; the weak and edge-suffixed forms match too — to be told 304 when nothing changed.',
+    schema: { type: 'string' },
+  },
+  CacheControl: {
+    description:
+      '`private, no-cache` on a validated read and on a download: keep the answer, revalidate it before reuse, and let no shared cache keep it. Every other answer says `no-store`.',
+    schema: { type: 'string' },
+  },
+  LastModified: {
+    description: 'When the stored object was last written (HTTP date)',
+    schema: { type: 'string' },
+  },
+  AcceptRanges: {
+    description: '`bytes` — `Range` requests are honoured',
+    schema: { type: 'string', example: 'bytes' },
+  },
+  ContentRange: {
+    description:
+      'The satisfied range on a 206 (`bytes <start>-<end>/<size>`); on a 416, `bytes */<size>` names the file’s size',
+    schema: { type: 'string' },
+  },
+  ContentLength: {
+    description: 'The byte length of the response body',
+    schema: { type: 'integer', minimum: 0 },
+  },
+};
+
+function headerRef(name: keyof typeof responseHeaders): Json {
+  return { $ref: `#/components/headers/${name}` };
+}
+
+/** Add declared headers to a response object, keeping any it already
+ * names. */
+function withHeaders(
+  response: Json,
+  headers: Record<string, keyof typeof responseHeaders>,
+): void {
+  const declared = (response.headers ?? {}) as Record<string, Json>;
+  for (const [wire, component] of Object.entries(headers)) {
+    declared[wire] ??= headerRef(component);
+  }
+  response.headers = declared;
+}
+
+/** The correlation id a caller may choose — stamped on every operation by
+ * the post-pass. */
+const requestIdHeaderParam = {
+  name: 'X-Request-Id',
+  in: 'header',
+  required: false,
+  description:
+    'Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.',
+  schema: { type: 'string', pattern: '^[A-Za-z0-9_=-]{1,255}$' },
 };
 
 function jsonBody(schema: Json, required = true) {
@@ -247,14 +343,38 @@ const runProperties: Record<string, Json> = {
   mode: { type: 'string', enum: ['mock', 'live'] },
   startedBy: {
     ...str,
-    description: '`api-key:<userId>` for runs started here',
+    description:
+      'What started the run — one of four forms: `api-key:<userId>` ' +
+      '(a start through this API or the MCP endpoint), ' +
+      '`user:<userId>` (a start from the product), ' +
+      '`trigger:<triggerId>` (a schedule, webhook or event — the id ' +
+      'the trigger read answers), or a bare user id on runs the ' +
+      'in-product builder recorded before it prefixed them. Split ' +
+      'on the first `:`; treat a value without one as a user id.',
   },
   input: {},
   output: {},
   checkpoints: {},
   trace: {},
   effects: {},
-  detail: nullable(str),
+  detail: {
+    ...nullable(str),
+    description:
+      'The failure or wait reason; null while the run has none. ' +
+      'While `waiting` it names the park: `approval:<approvalId>`, ' +
+      '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+      'field to branch on; when `failed`, the failure sentence.',
+  },
+  waitingFor: {
+    type: 'string',
+    enum: ['approval', 'ask', 'agent', 'repeat'],
+    description:
+      'Present only while `status` is `waiting`: what the run is ' +
+      'parked on. `approval` — a person’s decision on a gate; `ask` ' +
+      '— a question a person has to answer; `agent` — an agent turn ' +
+      'still running, no one to page; `repeat` — a node polling ' +
+      'until its `repeatUntil` condition holds, no one to page.',
+  },
   claimEpoch: int,
   chainSeq: int,
   startedAt: epochMs,
@@ -532,6 +652,15 @@ const skillSummaryProperties: Json = {
     description:
       'Whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite',
   },
+  etag: {
+    ...str,
+    description:
+      'The strong entity tag of the bundle’s SKILL.md — the quoted SHA-256 of its content, the `ETag` the GET carries and the value a conditional save sends back as `If-Match`. Moves with every save of the document; the bundle’s other files never move it',
+  },
+  updatedAt: {
+    ...epochMs,
+    description: 'When SKILL.md was last written',
+  },
 };
 
 const automationNameParam = pathParam(
@@ -617,7 +746,10 @@ export function buildSpec(): Json {
       description:
         'The key holder, the organization this request resolved to — its ' +
         '`slug` is the `X-Organization-Slug` value a multi-organization key ' +
-        'sends — and every organization the holder belongs to.',
+        'sends — every organization the holder belongs to, and ' +
+        '`capabilities`: the gates a deployment knob decides rather than ' +
+        'the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` ' +
+        'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate).',
       operationId: 'getMe',
       security: sec,
       parameters: [orgSlugHeaderParam],
@@ -666,7 +798,7 @@ export function buildSpec(): Json {
       operationId: 'synchronizeConversationSource',
       summary: 'Apply a complete native Inbox source snapshot',
       description:
-        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this integration and still be within its window (400 `ATTACHMENT_NOT_STAGED` otherwise) at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on either refusal. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
       requestBody: jsonBody(
         z.toJSONSchema(apiSnapshotSchema, {
           target: 'openapi-3.0',
@@ -680,6 +812,77 @@ export function buildSpec(): Json {
           properties: { conversationId: nullable(str), applied: bool },
         }),
         ...conversationErrors,
+        '400': errorResponse(
+          'Invalid body (`INVALID_BODY`), an attachment never staged or whose window lapsed (`ATTACHMENT_NOT_STAGED`), or one whose declared size the landed bytes contradict (`ATTACHMENT_SIZE_MISMATCH`)',
+        ),
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries'] = {
+    get: {
+      ...conversationOperation,
+      operationId: 'listConversationDeliveries',
+      summary: 'Peek at the delivery queue',
+      description:
+        'The queue of a source this key user mirrored, as it stands — no lease taken, nothing changed: every native reply queued for the source with its `status` (`queued` — the undo window, a backoff, a lapsed lease; `leased` while a claim’s lease runs; `failed` once dead-lettered; `delivered` once acknowledged), its attempt count and stamps, and never the claim token or the body — those only a claim earns. Oldest-due first (`retryAt`, then `messageId`), the order a claim drains it in; `status` narrows to one state. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`.',
+      parameters: [
+        conversationOrg,
+        {
+          ...queryParam('source', 'The source whose queue to read'),
+          required: true,
+          schema: { type: 'string', pattern: API_SOURCE_PATTERN.source },
+        },
+        {
+          ...queryParam('status', 'One state to narrow the queue to'),
+          schema: { type: 'string', enum: [...API_DELIVERY_STATUSES] },
+        },
+        ...paginationParams(200, 50),
+      ],
+      responses: {
+        '200': jsonResponse('The queue, oldest-due first', {
+          type: 'object',
+          required: ['deliveries', 'isDone', 'continueCursor'],
+          properties: {
+            deliveries: {
+              type: 'array',
+              items: ref('ConversationDelivery'),
+            },
+            isDone: bool,
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+          },
+        }),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries/{id}/retry'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'retryConversationDelivery',
+      summary: 'Re-drive a dead-lettered delivery',
+      description:
+        'Puts a delivery that dead-lettered — a permanent refusal, or ten transient failure reports — back in the queue, claimable at once with its attempt count reset: the same audited action as the Inbox’s Retry. No body. A delivery this key user does not own under the id is absent (404 `DELIVERY_NOT_FOUND`); one that is not dead-lettered — still queued or leased, already delivered — or whose conversation the source tore down or closed answers 409 `DELIVERY_RETRY_UNAVAILABLE`.',
+      parameters: [
+        conversationOrg,
+        pathParam('id', 'The native message ID the delivery carries'),
+      ],
+      responses: {
+        '200': jsonResponse('Re-queued', {
+          type: 'object',
+          required: ['ok'],
+          properties: { ok: bool },
+        }),
+        ...conversationErrors,
+        '404': errorResponse(
+          'No delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+        ),
+        '409': errorResponse(
+          'Not dead-lettered, or its conversation is gone (`DELIVERY_RETRY_UNAVAILABLE`)',
+        ),
       },
     },
   };
@@ -689,7 +892,7 @@ export function buildSpec(): Json {
       operationId: 'claimConversationDeliveries',
       summary: 'Poll queued native Inbox replies',
       description:
-        'Claims up to 100 due replies for a source owned by this API key user — a source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`, so a mistyped source never polls a healthy-looking empty queue. Claim closes undo and grants a five-minute visibility lease. Unacknowledged deliveries become eligible again after their lease/backoff in retryAt/availableAt/messageId order. Use stable messageId as the destination idempotency key and claimToken when reporting a failure. JSON is limited to 64 KiB.',
+        'Claims up to 100 due replies for a source owned by this API key user — a source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`, so a mistyped source never polls a healthy-looking empty queue. Claim closes undo and grants a five-minute visibility lease. Unacknowledged deliveries become eligible again after their lease/backoff, in `retryAt`, `availableAt`, `messageId` order — the stamps `GET /api/v1/conversations/deliveries` shows without claiming. Each item says where it stands: `attempts` (failure reports so far), `leaseExpiresAt` (when this claim’s lease ends), `lastErrorCode` (the last failure’s code, `null` before one) and `firstClaimedAt`. Use stable messageId as the destination idempotency key and claimToken when reporting a failure. JSON is limited to 64 KiB.',
       requestBody: jsonBody({
         type: 'object',
         required: ['source'],
@@ -713,6 +916,10 @@ export function buildSpec(): Json {
               'actorEmail',
               'body',
               'availableAt',
+              'attempts',
+              'leaseExpiresAt',
+              'lastErrorCode',
+              'firstClaimedAt',
               'attachments',
             ],
             properties: {
@@ -724,6 +931,26 @@ export function buildSpec(): Json {
               actorEmail: str,
               body: str,
               availableAt: epochMs,
+              attempts: {
+                ...int,
+                description:
+                  'Failure reports so far — the tenth transient one dead-letters the delivery',
+              },
+              leaseExpiresAt: {
+                ...epochMs,
+                description:
+                  'When this claim’s visibility lease ends and the delivery becomes claimable again',
+              },
+              lastErrorCode: nullable({
+                ...str,
+                description:
+                  'The code of the last failure report; `null` before one',
+              }),
+              firstClaimedAt: {
+                ...epochMs,
+                description:
+                  'The first claim of this delivery — this one, unless it is a redelivery',
+              },
               attachments: {
                 type: 'array',
                 items: {
@@ -750,7 +977,7 @@ export function buildSpec(): Json {
       operationId: 'failConversationDelivery',
       summary: 'Report a refused or interrupted delivery',
       description:
-        'Idempotent for the claimToken; stale claims cannot fail a new attempt or an acknowledged reply. A permanent refusal, or ten transient failure reports, exposes native Inbox Retry/Discard. Transient failures retry after 1, 2, 4 minutes up to one hour. Only static error codes are accepted. JSON is limited to 64 KiB.',
+        'Idempotent for the claimToken; stale claims cannot fail a new attempt or an acknowledged reply. A permanent refusal, or ten transient failure reports, dead-letters the delivery: it leaves the claim queue, shows `failed` in `GET /api/v1/conversations/deliveries`, exposes native Inbox Retry/Discard, and `POST /api/v1/conversations/deliveries/{id}/retry` re-drives it. Transient failures retry after 1, 2, 4 minutes up to one hour. Only static error codes are accepted. JSON is limited to 64 KiB.',
       parameters: [
         conversationOrg,
         pathParam('id', 'The claimed native message ID'),
@@ -885,7 +1112,8 @@ export function buildSpec(): Json {
       description:
         'Knowledge-hub documents the key holder can see, newest first — ' +
         'project files never appear here (the Projects family owns them). ' +
-        '`content` is not carried in the listing; read one document for it.',
+        '`content` is not carried in the listing; read one document for its ' +
+        'inline text, or `GET /api/v1/documents/{id}/content` for the bytes.',
       operationId: 'listDocuments',
       security: sec,
       parameters: [
@@ -922,7 +1150,9 @@ export function buildSpec(): Json {
       requestBody: jsonBody(ref('DocumentInput')),
       responses: {
         '201': createdId('Created — the new document’s id'),
-        '403': errorResponse('The key holder’s role cannot write documents'),
+        '403': errorResponse(
+          'The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`)',
+        ),
         '404': errorResponse(
           'The upload is absent, not owned by the key holder or already bound',
         ),
@@ -936,14 +1166,18 @@ export function buildSpec(): Json {
       tags: ['Documents'],
       summary: 'Get document',
       description:
-        'A document with its `content`. A project file, a foreign document ' +
-        'and a nonexistent id all answer the same opaque 404.',
+        'A document’s metadata, its `indexing` state and — for a ' +
+        'content-only document — its inline `content`; `content` is null ' +
+        'for a file-backed document, whose bytes are at ' +
+        '`GET /api/v1/documents/{id}/content`. A project file, a foreign ' +
+        'document and a nonexistent id all answer the same opaque 404 ' +
+        '(`DOCUMENT_NOT_FOUND`).',
       operationId: 'getDocument',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
       responses: {
         '200': jsonResponse('The document', ref('Document')),
-        '404': errorResponse('Document not found'),
+        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -956,10 +1190,15 @@ export function buildSpec(): Json {
         'legal hold refuses the change. Send `expectedUpdatedAt` — the ' +
         '`updatedAt` last read — to refuse a write over a concurrent edit. ' +
         'Answers 200 with the document as it now stands, so the next write ' +
-        'has its `updatedAt`. A document that backs an active knowledge ' +
-        'entry keeps its title, content, MIME type and extension through ' +
-        'the entry (update the entry instead); a folder, team or metadata ' +
-        'change goes through.',
+        'has its `updatedAt`. `metadata` MERGES per RFC 7396 — sent keys ' +
+        'are set, omitted keys stay, a key sent as `null` is removed, the ' +
+        'whole field sent as `null` clears it. A patch that changes ' +
+        'nothing — an empty body, or every field already at its value — ' +
+        'writes nothing and leaves `updatedAt` alone, so it never spends ' +
+        'another client’s `expectedUpdatedAt`. A document that backs an ' +
+        'active knowledge entry keeps its title, content, MIME type and ' +
+        'extension through the entry (update the entry instead); a ' +
+        'folder, team or metadata change goes through.',
       operationId: 'updateDocument',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
@@ -969,12 +1208,17 @@ export function buildSpec(): Json {
           'The document as it now stands — the shape `GET` answers, `updatedAt` included',
           ref('Document'),
         ),
-        '403': errorResponse('The key holder’s role cannot write documents'),
-        '404': errorResponse('Document not found'),
+        '403': errorResponse(
+          'The key holder’s role cannot write documents, or `teamId` names a team the key holder is not in (`TEAM_ACCESS_DENIED`)',
+        ),
+        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '409': errorResponse(
           'The record is protected (`DOCUMENT_RECORD_PROTECTED`); the document changed since it was read (`DOCUMENT_STALE` — reload and merge); or it backs an active knowledge entry and the change touches its title, content, MIME type or extension (`DOCUMENT_HAS_KNOWLEDGE_ENTRY`, `data.entryId` names the entry to update instead)',
         ),
         ...standardErrors,
+        '400': errorResponse(
+          'Invalid request (malformed body or parameters); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)',
+        ),
       },
     },
     delete: {
@@ -992,7 +1236,7 @@ export function buildSpec(): Json {
       responses: {
         '204': noContent('Deleted'),
         '403': errorResponse('The key holder’s role cannot write documents'),
-        '404': errorResponse('Document not found'),
+        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '409': errorResponse(
           'A protected record (`DOCUMENT_RECORD_PROTECTED`), a legal hold (`LEGAL_HOLD_ACTIVE`), or a document that backs an active knowledge entry (`DOCUMENT_HAS_KNOWLEDGE_ENTRY`, `data.entryId` names it — delete the entry instead)',
         ),
@@ -1033,7 +1277,75 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse('The key holder’s role cannot write documents'),
-        '404': errorResponse('Document not found'),
+        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/documents/{id}/content'] = {
+    get: {
+      tags: ['Documents'],
+      summary: 'Download a document',
+      description:
+        'The bytes of a Knowledge Hub document — what `GET /api/v1/documents/{id}` ' +
+        'cannot carry for a file-backed one: an uploaded file, and the ' +
+        'document every knowledge entry mints. Streamed in the response ' +
+        'itself (**200**, no redirect to follow), with the document’s title ' +
+        'in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), ' +
+        'the stored `Content-Type`, `Content-Length`, `ETag` and ' +
+        '`Last-Modified`; `Range` is honoured (206, or 416 for a range the ' +
+        'file cannot satisfy) and a HEAD request answers the headers alone. ' +
+        'A content-only document answers its inline text the same way — ' +
+        'typed as its `mimeType` (`text/plain` when it has none), UTF-8, ' +
+        '`Accept-Ranges: none` — so every Hub document reads back from this ' +
+        'one URL. A project file, a foreign document, a nonexistent id and a ' +
+        'file whose bytes the store no longer holds all answer the same ' +
+        'opaque 404 (`DOCUMENT_NOT_FOUND`). A store that does not answer is ' +
+        'a 503 with `Retry-After`.',
+      operationId: 'downloadDocument',
+      security: sec,
+      parameters: [pathParam('id', 'Document ID')],
+      responses: {
+        '200': {
+          description: 'The bytes, named by `Content-Disposition`',
+          headers: {
+            'Content-Disposition': headerRef('ContentDisposition'),
+            'Content-Length': headerRef('ContentLength'),
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+          },
+          content: { '*/*': { schema: { type: 'string', format: 'binary' } } },
+        },
+        '206': {
+          description:
+            'The bytes of a satisfied `Range` on a file-backed document; ' +
+            '`Content-Range` names the slice and the file’s size. Ranges are ' +
+            'clamped to the file; a `Range` the server cannot read is ' +
+            'ignored and the whole file answers 200',
+          headers: {
+            'Content-Range': headerRef('ContentRange'),
+            'Content-Disposition': headerRef('ContentDisposition'),
+            'Content-Length': headerRef('ContentLength'),
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+          },
+          content: { '*/*': { schema: { type: 'string', format: 'binary' } } },
+        },
+        '416': {
+          description:
+            'The range starts at or past the end of the file: an empty ' +
+            'body, no envelope, `Content-Range: bytes */<size>` naming the size',
+          headers: { 'Content-Range': headerRef('ContentRange') },
+        },
+        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
+        '503': errorResponse(
+          'The object store did not serve the file ' +
+            '(`OBJECT_STORE_UNAVAILABLE`, with `Retry-After`) or none is ' +
+            'configured (`OBJECT_STORE_UNCONFIGURED`)',
+        ),
         ...standardErrors,
       },
     },
@@ -1272,7 +1584,9 @@ export function buildSpec(): Json {
         'policy: loopback, link-local, private-network and cloud-metadata ' +
         'hosts answer 400 `INVALID_SESSION`. A session lives 14 days unless ' +
         '`ttlMs` says otherwise, and never longer than 180 days; ' +
-        '`DELETE /api/v1/browser-sessions/{id}` revokes it earlier.',
+        '`DELETE /api/v1/browser-sessions/{id}` revokes it earlier. ' +
+        '`GET /api/v1/me` says in advance whether this key passes the gate ' +
+        '(`capabilities.deploymentEditor`).',
       operationId: 'importBrowserSession',
       security: sec,
       requestBody: jsonBody(ref('BrowserSessionImport')),
@@ -1300,8 +1614,9 @@ export function buildSpec(): Json {
       summary: 'Revoke a browser session',
       description:
         'Removes one imported session — the jar is gone at once, whatever ' +
-        'its lifetime — behind the same gate as the import. An id the ' +
-        'organization does not hold answers 404.',
+        'its lifetime — behind the same gate as the import (`GET /api/v1/me` ' +
+        'answers it in advance as `capabilities.deploymentEditor`). An id ' +
+        'the organization does not hold answers 404.',
       operationId: 'deleteBrowserSession',
       security: sec,
       parameters: [pathParam('id', 'The session id the import answered')],
@@ -2220,10 +2535,40 @@ export function buildSpec(): Json {
       ],
       responses: {
         '200': {
-          description:
-            'The file bytes, named by `Content-Disposition`; 206 for a ' +
-            'satisfied `Range`',
+          description: 'The file bytes, named by `Content-Disposition`',
+          headers: {
+            'Content-Disposition': headerRef('ContentDisposition'),
+            'Content-Length': headerRef('ContentLength'),
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+          },
           content: { '*/*': { schema: { type: 'string', format: 'binary' } } },
+        },
+        '206': {
+          description:
+            'The bytes of a satisfied `Range`; `Content-Range` names the ' +
+            'slice and the file’s size. Ranges are clamped to the file ' +
+            '(`bytes=0-99999999` on a shorter file answers what exists); a ' +
+            '`Range` the server cannot read (`bytes=abc`, several ranges) ' +
+            'is ignored and the whole file answers 200',
+          headers: {
+            'Content-Range': headerRef('ContentRange'),
+            'Content-Disposition': headerRef('ContentDisposition'),
+            'Content-Length': headerRef('ContentLength'),
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Accept-Ranges': headerRef('AcceptRanges'),
+          },
+          content: { '*/*': { schema: { type: 'string', format: 'binary' } } },
+        },
+        '416': {
+          description:
+            'The range starts at or past the end of the file (`bytes=<size>-` ' +
+            '— what a resumed download sends once its copy is complete): an ' +
+            'empty body, no envelope, `Content-Range: bytes */<size>` naming ' +
+            'the size',
+          headers: { 'Content-Range': headerRef('ContentRange') },
         },
         '304': {
           description:
@@ -2231,9 +2576,9 @@ export function buildSpec(): Json {
             '`If-Modified-Since` the current `Last-Modified`), so no bytes ' +
             'are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along',
           headers: {
-            ETag: { schema: { type: 'string' } },
-            'Last-Modified': { schema: { type: 'string' } },
-            'Cache-Control': { schema: { type: 'string' } },
+            ETag: headerRef('ETag'),
+            'Last-Modified': headerRef('LastModified'),
+            'Cache-Control': headerRef('CacheControl'),
           },
         },
         '404': errorResponse('File not found (`FILE_NOT_FOUND`)'),
@@ -2702,20 +3047,40 @@ export function buildSpec(): Json {
       },
     },
   };
-  /** The header that makes a run start safe to retry. */
-  const runIdempotencyKeyParam = {
+  /** The header that makes a 202-then-poll operation safe to retry — one
+   * factory for every door that honours it (a run start, a chat send), the
+   * subject words differing. */
+  const idempotencyKeyParam = (subject: {
+    /** What the key names: `start`, `send`. */
+    names: string;
+    /** What besides the key the repeat must match: `automation and scope`. */
+    scope: string;
+    /** What the repeat answers: the run, the accepted send. */
+    answer: string;
+  }) => ({
     name: 'Idempotency-Key',
     in: 'header' as const,
     required: false,
     schema: { type: 'string' },
     description:
-      'A stable key of your choosing that names this start. A repeat with ' +
-      'the same key, automation and scope within 24 hours answers 202 with ' +
-      'the run the first attempt started and `duplicate: true`; a repeat ' +
-      'with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A ' +
-      'refused start is not remembered, so the same key runs once the ' +
+      `A stable key of your choosing that names this ${subject.names}. A ` +
+      `repeat with the same key, ${subject.scope} within 24 hours answers ` +
+      `202 with ${subject.answer} and \`duplicate: true\`; a repeat with a ` +
+      'different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused ' +
+      `${subject.names} is not remembered, so the same key runs once the ` +
       'refusal is fixed. A blank value is read as no key.',
-  };
+  });
+  const runIdempotencyKeyParam = idempotencyKeyParam({
+    names: 'start',
+    scope: 'automation and scope',
+    answer: 'the run the first attempt started',
+  });
+  const sendIdempotencyKeyParam = idempotencyKeyParam({
+    names: 'send',
+    scope: 'thread and scope',
+    answer:
+      'what the first attempt answered — the same `messageId` to poll for, nothing new queued',
+  });
 
   paths['/api/v1/automations'] = {
     get: {
@@ -3071,10 +3436,16 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'Bind what starts the automation',
       description:
-        'Requires the developer capability. For a webhook trigger the ' +
-        'plaintext token is returned ONCE in this response (and again only ' +
-        'with `rotateToken: true`); the platform stores a hash. Unknown ' +
-        'keys are refused (`INVALID_BODY`).',
+        'Requires the developer capability. One trigger per automation: the ' +
+        'PUT replaces whatever was bound, and binding another kind over a ' +
+        'live webhook revokes its URL — the response says so (`revoked`). ' +
+        'For a webhook trigger the plaintext token is returned ONCE in this ' +
+        'response (and again only with `rotateToken: true`); the platform ' +
+        'stores a hash. Each kind takes its own keys — `cron` and `timezone` ' +
+        'only with `schedule`, `event` only with `event`, `rotateToken` only ' +
+        'with `webhook`, `enabled` with any — and a key of another kind is ' +
+        'refused like an unknown key (`INVALID_BODY`, named under ' +
+        '`data.issues`).',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
@@ -3086,24 +3457,31 @@ export function buildSpec(): Json {
           kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
           cron: {
             type: 'string',
-            description: 'Schedule trigger: cron expression',
+            description:
+              'Only with `kind: schedule`: the five-field cron expression. ' +
+              'One that can never fire — a field out of range, a day no ' +
+              'named month has (`0 0 30 2 *`) — answers 400 ' +
+              '`AUTOMATION_TRIGGER_INVALID`.',
           },
           timezone: {
             type: 'string',
-            description: 'Schedule trigger: IANA timezone',
+            description:
+              'Only with `kind: schedule`: the IANA zone the cron is read ' +
+              'in (UTC when absent)',
           },
           event: {
             type: 'string',
             enum: [...EMITTED_EVENT_TYPES],
             description:
-              'Event trigger: the platform event that starts the automation — ' +
-              'one of the events the platform raises. Any other name answers ' +
-              '400 `AUTOMATION_TRIGGER_INVALID`, naming this list.',
+              'Only with `kind: event`: the platform event that starts the ' +
+              'automation — one of the events the platform raises. Any other ' +
+              'name answers 400 `AUTOMATION_TRIGGER_INVALID`, naming this list.',
           },
           enabled: { type: 'boolean', default: true },
           rotateToken: {
             type: 'boolean',
-            description: 'Webhook trigger: mint (and return) a fresh token',
+            description:
+              'Only with `kind: webhook`: mint (and return) a fresh token',
           },
         },
       }),
@@ -3117,13 +3495,23 @@ export function buildSpec(): Json {
               type: 'string',
               description: 'Webhook trigger only, shown once',
             },
+            revoked: {
+              type: 'string',
+              enum: ['webhook'],
+              description:
+                'Present when this bind replaced a live webhook trigger ' +
+                'with another kind: its URL stopped answering the moment ' +
+                'the bind committed, and no later bind brings that token ' +
+                'back. Absent on a first bind and on a re-bind of the same ' +
+                'kind (which keeps the token).',
+            },
           },
         }),
         '403': errorResponse('Needs the developer capability'),
         '404': errorResponse('Automation not found'),
         ...standardErrors,
         '400': errorResponse(
-          'Invalid body (`INVALID_BODY`), or a trigger that could never fire: a cron that matches nothing, a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)',
+          'Invalid body (`INVALID_BODY` — an unknown key, a key that belongs to another kind, each named under `data.issues`), or a trigger that could never fire: a cron that matches nothing (including a day no named month has, `0 0 30 2 *`), a time zone that is not an IANA zone, an event the platform does not raise (`AUTOMATION_TRIGGER_INVALID`)',
         ),
       },
     },
@@ -3308,7 +3696,7 @@ export function buildSpec(): Json {
         summary: scope.project
           ? 'Create a chat in a project'
           : 'Create a personal chat',
-        description: `A direct chat with the built-in assistant. ${scope.project ? 'The URL supplies its project context. Any member with project read access may create a chat while the project is active.' : 'The thread has no project context.'} This operation accepts only an optional title; agent selectors and projectId are refused. Project agents execute through project tasks. A thread created without a title is named by the assistant after its first message (read \`title\` back from the thread); \`PATCH\` renames it.`,
+        description: `A direct chat with the built-in assistant. ${scope.project ? 'The URL supplies its project context. Any member with project read access may create a chat while the project is active.' : 'The thread has no project context.'} This operation accepts only an optional title (trimmed, 1–120 characters — the bound \`PATCH\` renames within); agent selectors and projectId are refused. Project agents execute through project tasks. A thread created without a title is named by the assistant after its first message (read \`title\` back from the thread); \`PATCH\` renames it.`,
         operationId: scope.project ? 'createProjectThread' : 'createThread',
         security: sec,
         parameters: collectionParameters,
@@ -3317,7 +3705,13 @@ export function buildSpec(): Json {
             type: 'object',
             additionalProperties: false,
             properties: {
-              title: { type: 'string', minLength: 1, maxLength: 200 },
+              title: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 120,
+                description:
+                  'The thread’s name, trimmed (1–120 characters) — the same bound PATCH renames within',
+              },
             },
           },
           false,
@@ -3382,7 +3776,7 @@ export function buildSpec(): Json {
       delete: {
         tags: ['Threads'],
         summary: 'Delete a thread',
-        description: `${visibility} Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running answers 409 \`CHAT_TURN_IN_PROGRESS\` — cancel the turn first.`,
+        description: `${visibility} Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running — or whose accepted send is still queued — answers 409 \`CHAT_TURN_IN_PROGRESS\`; cancel the turn first.`,
         operationId: scope.project ? 'deleteProjectThread' : 'deleteThread',
         security: sec,
         parameters: itemParameters,
@@ -3391,7 +3785,7 @@ export function buildSpec(): Json {
           ...archivedProject,
           '404': notFound,
           '409': errorResponse(
-            'A turn is running on the thread (`CHAT_TURN_IN_PROGRESS`)',
+            'A turn is running on the thread, or an accepted send is still queued (`CHAT_TURN_IN_PROGRESS`)',
           ),
           ...standardErrors,
         },
@@ -3401,25 +3795,36 @@ export function buildSpec(): Json {
       get: {
         tags: ['Threads'],
         summary: 'Read a thread’s messages',
-        description: `${visibility} Messages are in sequence order; use the previous continueCursor as cursor for the next page. While a turn runs, its assistant row is already on the page with status \`pending\` and empty parts — the row GET ${scope.item}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final.`,
+        description: `${visibility} Messages are in sequence order — oldest first, or newest first with \`order=desc\`, so the reply a turn just produced is on the first page of a long thread; use the previous continueCursor as cursor for the next page (a cursor is bound to the direction it was minted in). While a turn runs, its assistant row is already on the page with status \`pending\` and empty parts — the row GET ${scope.item}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final. One message is also readable by id at GET ${scope.item}/messages/{messageId}.`,
         operationId: scope.project
           ? 'listProjectThreadMessages'
           : 'listMessages',
         security: sec,
-        parameters: [...itemParameters, ...paginationParams(100, 25)],
+        parameters: [
+          ...itemParameters,
+          ...paginationParams(100, 25),
+          {
+            ...queryParam(
+              'order',
+              'The walk’s direction: `asc` (the default) pages oldest first from sequence 0, `desc` pages newest first — the settled reply of the latest turn leads the first page. A `cursor` minted walking one direction is refused with 400 `INVALID_CURSOR` on the other',
+            ),
+            schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' },
+          },
+        ],
         responses: {
           '200': jsonResponse('Paginated messages', pageOf(ref('Message'))),
           '404': notFound,
           ...standardErrors,
         },
       },
+
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens, counted in \`usage.inputTokens\`), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
-        parameters: itemParameters,
+        parameters: [...itemParameters, sendIdempotencyKeyParam],
         requestBody: jsonBody({
           type: 'object',
           additionalProperties: false,
@@ -3456,7 +3861,7 @@ export function buildSpec(): Json {
               type: 'integer',
               minimum: 1,
               description:
-                'The largest reply this turn may produce, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A thinking model keeps its reasoning budget under the cap.',
+                'The largest reply this turn may produce, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: "length"` on the message.',
             },
             locale: {
               type: 'string',
@@ -3469,40 +3874,49 @@ export function buildSpec(): Json {
           },
         }),
         responses: {
-          '202': jsonResponse('Turn accepted', {
-            type: 'object',
-            required: [
-              'threadId',
-              'status',
-              'model',
-              'providerSlug',
-              'messageId',
-              'poll',
-            ],
-            properties: {
-              threadId: str,
-              status: { type: 'string', enum: ['accepted'] },
-              model: str,
-              providerSlug: {
-                ...str,
-                description:
-                  'The provider the turn runs on — named in the request, or resolved from the model list',
-              },
-              messageId: {
-                ...str,
-                description:
-                  'The assistant message the reply lands in — the row GET …/messages carries as `pending` until the turn settles. Keep it: a caller that loses this response finds its reply by this id.',
-              },
-              poll: {
-                type: 'string',
-                description: `Poll URL under ${scope.item}/generation`,
+          '202': jsonResponse(
+            'Turn accepted, or the send an earlier attempt under the same `Idempotency-Key` accepted',
+            {
+              type: 'object',
+              required: [
+                'threadId',
+                'status',
+                'model',
+                'providerSlug',
+                'messageId',
+                'poll',
+              ],
+              properties: {
+                duplicate: {
+                  type: 'boolean',
+                  enum: [true],
+                  description:
+                    'Present when the `Idempotency-Key` had already accepted this send: nothing new was queued — poll for the `messageId` it names',
+                },
+                threadId: str,
+                status: { type: 'string', enum: ['accepted'] },
+                model: str,
+                providerSlug: {
+                  ...str,
+                  description:
+                    'The provider the turn runs on — named in the request, or resolved from the model list',
+                },
+                messageId: {
+                  ...str,
+                  description:
+                    'The assistant message the reply lands in — the row GET …/messages carries as `pending` until the turn settles. Keep it: a caller that loses this response finds its reply by this id.',
+                },
+                poll: {
+                  type: 'string',
+                  description: `Poll URL under ${scope.item}/generation`,
+                },
               },
             },
-          }),
+          ),
           ...archivedProject,
           '404': notFound,
           '409': errorResponse(
-            'The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), or a turn is already running (`CHAT_TURN_IN_PROGRESS`)',
+            'The thread is archived (`CHAT_THREAD_ARCHIVED`) or not a direct chat (`CHAT_THREAD_NOT_DIRECT`), a turn is already running or still queued (`CHAT_TURN_IN_PROGRESS`) — nothing is queued and the running turn keeps its `messageId` — or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)',
           ),
           ...standardErrors,
           '400': errorResponse(
@@ -3511,16 +3925,42 @@ export function buildSpec(): Json {
         },
       },
     };
+    paths[`${scope.item}/messages/{messageId}`] = {
+      get: {
+        tags: ['Threads'],
+        summary: 'Read one message',
+        description: `${visibility} One message of the thread by id — the reply the 202 named (\`messageId\`), read without paging the transcript. The same shape as a row of GET ${scope.item}/messages: \`pending\` while its turn still runs, settled with \`finishReason\` and \`usage\` once the poll says idle. A message id the thread does not carry answers 404 \`MESSAGE_NOT_FOUND\`.`,
+        operationId: scope.project ? 'getProjectThreadMessage' : 'getMessage',
+        security: sec,
+        parameters: [...itemParameters, pathParam('messageId', 'Message ID')],
+        responses: {
+          '200': jsonResponse('The message', ref('Message')),
+          '404': errorResponse(
+            'Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no such message on the thread (`MESSAGE_NOT_FOUND`)',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
     paths[`${scope.item}/generation`] = {
       get: {
         tags: ['Threads'],
         summary: 'Poll the running turn',
-        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; there is no push channel on this surface. \`idle\`: no turn is running — the reply, if any, is in the messages. After a lost 202, poll here: \`queued\` or \`streaming\` means keep polling, \`idle\` means read the messages and find the reply by the \`messageId\` the 202 named (or the newest \`user\` row carrying your \`content\`).`,
+        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; send \`since\` (the characters of \`text\` you already hold) to receive only what arrived after them, with \`textOffset\` and \`textLength\` beside it; there is no push channel on this surface. \`idle\`: no turn is running — \`lastMessageId\` and \`lastStatus\` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until \`idle\`, then compare \`lastMessageId\` with the \`messageId\` the 202 named — equal means your turn settled (read that message at GET ${scope.item}/messages/{messageId}, or page the messages with \`order=desc\`), a different id means yours has not started yet.`,
         operationId: scope.project
           ? 'getProjectThreadGeneration'
           : 'getGeneration',
         security: sec,
-        parameters: itemParameters,
+        parameters: [
+          ...itemParameters,
+          {
+            ...queryParam(
+              'since',
+              'The number of characters of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts and `textLength` how long the whole reply is so far. A value past the current length — the text was reset when a tool round settled — answers from 0: when `textOffset` is below the `since` you sent, replace what you hold. Ignored unless the turn is streaming',
+            ),
+            schema: { type: 'integer', minimum: 0 },
+          },
+        ],
         responses: {
           '200': jsonResponse(
             'Idle when no turn is running; otherwise the live status',
@@ -3540,7 +3980,29 @@ export function buildSpec(): Json {
                 text: {
                   type: 'string',
                   description:
-                    'The reply text streamed so far (present while streaming)',
+                    'The reply text streamed so far — from `textOffset` on when `since` was sent (present while streaming)',
+                },
+                textOffset: {
+                  ...int,
+                  minimum: 0,
+                  description:
+                    'The character position `text` starts at: the `since` you sent, or 0 when the reply was reset since (present while streaming)',
+                },
+                textLength: {
+                  ...int,
+                  minimum: 0,
+                  description:
+                    'The length of the whole reply streamed so far — send it back as `since` on the next poll (present while streaming)',
+                },
+                lastMessageId: {
+                  type: 'string',
+                  description:
+                    'The newest assistant message on the thread (present while idle, once the thread has one) — compare with the `messageId` a 202 named to know whether that turn settled',
+                },
+                lastStatus: {
+                  type: 'string',
+                  enum: ['pending', 'complete', 'failed', 'cancelled'],
+                  description: 'How `lastMessageId` settled (present with it)',
                 },
                 reasoning: {
                   type: 'string',
@@ -3657,11 +4119,29 @@ export function buildSpec(): Json {
       summary: 'Get skill',
       operationId: 'getSkill',
       description:
-        'One skill bundle: the summary fields plus the body and the file list. A malformed slug answers 404 like an unknown one.',
+        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. A malformed slug answers 404 like an unknown one.',
       security: sec,
-      parameters: [skillSlugParam],
+      parameters: [
+        skillSlugParam,
+        {
+          name: 'If-None-Match',
+          in: 'header' as const,
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `etag` you hold (or a list, or `*`): when it names the current document — weak comparison, so a `W/` prefix counts — the answer is 304 with the tag and no body',
+        },
+      ],
       responses: {
-        '200': jsonResponse('The skill', ref('Skill')),
+        '200': {
+          ...jsonResponse('The skill', ref('Skill')),
+          headers: { ETag: headerRef('ETag') },
+        },
+        '304': {
+          description:
+            'Not modified: `If-None-Match` named the current document; `ETag` repeats the tag, no body',
+          headers: { ETag: headerRef('ETag') },
+        },
         '404': errorResponse(
           'No such skill, none this key may see, or a malformed slug (`SKILL_NOT_FOUND`)',
         ),
@@ -3673,26 +4153,44 @@ export function buildSpec(): Json {
       summary: 'Create or update skill',
       description:
         'Creates the bundle when the slug is free and updates it in place ' +
-        'otherwise: `description` and `body` are required, an omitted ' +
-        '`icon`, `labels`, `teams` or `visibility` keeps its stored value, ' +
-        'and `null` clears `icon` or `labels`. A body that does not end ' +
-        'with a newline gets one appended. Send `If-None-Match: *` to ' +
-        'create only — a slug that already has a bundle then answers 412 ' +
-        '`SKILL_EXISTS` and nothing is written. Every skill carries ' +
-        '`canEdit`: whether this key may edit the bundle; shipped skills are ' +
-        'organization bundles an administrator may overwrite, so check it ' +
-        'before a save that means to replace one.',
+        'otherwise: `description` and `body` are required; an omitted ' +
+        '`icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` ' +
+        'keeps its stored value, `null` clears `icon` or `labels`, and ' +
+        '`disableModelInvocation: false` drops the flag. A body that does ' +
+        'not end with a newline gets one appended. The save rewrites ' +
+        '`SKILL.md` only — every other file of the bundle stays, and ' +
+        'frontmatter keys the body does not carry (`license`, ' +
+        '`recommended-packages`, community keys) are preserved; replacing a ' +
+        'whole bundle is the app’s zip upload. Guard an update with ' +
+        '`If-Match`: the `etag` you last read (the GET’s `ETag`) — a ' +
+        'document that changed since, or is not there, answers 412 ' +
+        '`SKILL_STALE` with the current tag in `data.etag` and nothing is ' +
+        'written. Send `If-None-Match: *` to create only — a slug that ' +
+        'already has a bundle then answers 412 `SKILL_EXISTS` and nothing ' +
+        'is written. The body is validated before the preconditions are ' +
+        'evaluated. Every skill carries `canEdit`: whether this key may edit ' +
+        'the bundle; shipped skills are organization bundles an ' +
+        'administrator may overwrite, so check it before a save that means ' +
+        'to replace one.',
       operationId: 'saveSkill',
       security: sec,
       parameters: [
         skillSlugParam,
         {
+          name: 'If-Match',
+          in: 'header' as const,
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `etag` you last read — strong comparison, so a `W/` tag never matches — or `*`: the save proceeds only when the stored SKILL.md still carries that tag (`*`: when one is stored at all); otherwise 412 `SKILL_STALE`, `data.etag` naming the current tag (`null` when nothing is stored), nothing written. Evaluated before `If-None-Match`, inside the same lock as the write.',
+        },
+        {
           name: 'If-None-Match',
           in: 'header' as const,
           required: false,
-          schema: { type: 'string', enum: ['*'] },
+          schema: { type: 'string' },
           description:
-            'Send `*` to create only: a slug that already has a bundle answers 412 `SKILL_EXISTS` and nothing is written. Entity tags are not issued, so any other value matches nothing and the write goes ahead.',
+            'Send `*` to create only: a slug that already has a bundle answers 412 `SKILL_EXISTS` and nothing is written. A tag list refuses the same way when the stored document weakly matches one of its tags (its current `etag`, with or without `W/`); any other value matches nothing and the write goes ahead.',
         },
       ],
       requestBody: jsonBody({
@@ -3745,15 +4243,25 @@ export function buildSpec(): Json {
             nullable: true,
             description: '`null` clears them, omitted keeps them',
           },
+          disableModelInvocation: {
+            type: 'boolean',
+            description:
+              'True keeps the model from reaching for the skill on its own (it stays available by explicit name); omitted keeps the stored value, `false` drops the flag',
+          },
         },
       }),
       responses: {
-        '200': jsonResponse('The saved skill', ref('Skill')),
+        '200': jsonResponse(
+          'The saved skill — its `etag` names the version just written',
+          ref('Skill'),
+        ),
         '403': errorResponse('Not editable with this key (`SKILL_FORBIDDEN`)'),
         '412': errorResponse(
-          '`If-None-Match: *` was sent and the slug already has a bundle (`SKILL_EXISTS`); nothing was written',
+          'A precondition failed and nothing was written: `If-Match` named no tag matching the stored SKILL.md, or `*` with nothing stored (`SKILL_STALE` — `data.etag` carries the current tag, `null` when nothing is stored); or `If-None-Match: *` was sent and the slug already has a bundle, or a tag list named its current tag (`SKILL_EXISTS`)',
         ),
-        '422': errorResponse('The skill body is malformed (`SKILL_MALFORMED`)'),
+        '422': errorResponse(
+          'The skill body is malformed, or the bundle cannot be read — a planted symlink, a file over the staging cap (`SKILL_MALFORMED`)',
+        ),
         ...standardErrors,
         '400': errorResponse(
           'Invalid body (`INVALID_BODY` — an unknown key, a body over the byte budget, a visibility outside `team`/`org`), a malformed slug (`INVALID_SKILL_SLUG`, naming the rule it breaks), an invalid skill (`INVALID_SKILL`), or a team id the organization does not have (`SKILL_TEAM_UNKNOWN`)',
@@ -3765,15 +4273,83 @@ export function buildSpec(): Json {
       summary: 'Delete skill',
       operationId: 'deleteSkill',
       description:
-        'Delete the bundle the slug names — its owner, or an administrator; a malformed or unknown slug answers 404 `SKILL_NOT_FOUND`.',
+        'Delete the bundle the slug names — its owner, or an administrator; a malformed or unknown slug answers 404 `SKILL_NOT_FOUND` (no precondition is evaluated on an absent slug). `If-Match` guards it like the save: a tag that no longer matches the stored SKILL.md answers 412 `SKILL_STALE` and the bundle stays.',
       security: sec,
-      parameters: [skillSlugParam],
+      parameters: [
+        skillSlugParam,
+        {
+          name: 'If-Match',
+          in: 'header' as const,
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'The `etag` you last read, or `*`: the delete proceeds only when the stored SKILL.md still carries that tag; otherwise 412 `SKILL_STALE` with the current tag in `data.etag`',
+        },
+        {
+          name: 'If-None-Match',
+          in: 'header' as const,
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'A tag list (or `*`): the delete proceeds only when the stored document weakly matches none of them; otherwise 412 `SKILL_EXISTS`',
+        },
+      ],
       responses: {
         '204': noContent('Deleted'),
         '403': errorResponse('Not deletable with this key (`SKILL_FORBIDDEN`)'),
         '404': errorResponse(
           'No such skill, or a malformed slug (`SKILL_NOT_FOUND`)',
         ),
+        '412': errorResponse(
+          'A precondition failed and the bundle stays: `If-Match` named no tag matching the stored SKILL.md (`SKILL_STALE`, `data.etag` carries the current tag), or `If-None-Match` named it (`SKILL_EXISTS`)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/skills/{slug}/files/{path}'] = {
+    get: {
+      tags: ['Skills'],
+      summary: 'Download a bundle file',
+      operationId: 'downloadSkillFile',
+      description:
+        'The bytes of one file of the bundle — `SKILL.md` included — exactly ' +
+        'as the organization’s tree holds it: `application/octet-stream`, ' +
+        '`Content-Length`, the file’s own name in an RFC 6266 ' +
+        '`Content-Disposition`, private and uncacheable; a HEAD request ' +
+        'answers the headers alone. The skill’s `files[]` is the only ' +
+        'legitimate source of paths: a path it would never list — a ' +
+        'traversal, a dot-entry, `node_modules/…` — reads as a file the ' +
+        'bundle does not have (404 `SKILL_FILE_NOT_FOUND`), where an ' +
+        'unknown, invisible or malformed slug is 404 `SKILL_NOT_FOUND`. A ' +
+        'bundle the file layer refuses to read — a planted symlink, a file ' +
+        'over the 4 MiB staging cap — answers 422 `SKILL_MALFORMED`.',
+      security: sec,
+      parameters: [
+        skillSlugParam,
+        pathParam(
+          'path',
+          'The file’s bundle-relative path exactly as `files[].path` lists it — nested segments separated by `/`, raw or percent-encoded (`%2F`)',
+        ),
+      ],
+      responses: {
+        '200': {
+          description: 'The bytes, named by `Content-Disposition`',
+          headers: {
+            'Content-Disposition': headerRef('ContentDisposition'),
+            'Content-Length': headerRef('ContentLength'),
+          },
+          content: {
+            'application/octet-stream': {
+              schema: { type: 'string', format: 'binary' },
+            },
+          },
+        },
+        '404': errorResponse(
+          'No such skill, none this key may see, or a malformed slug (`SKILL_NOT_FOUND`); or a skill without a file at that path (`SKILL_FILE_NOT_FOUND`)',
+        ),
+        '422': errorResponse('The bundle cannot be read (`SKILL_MALFORMED`)'),
         ...standardErrors,
       },
     },
@@ -3803,12 +4379,20 @@ export function buildSpec(): Json {
       tags: ['Knowledge'],
       summary: 'List knowledge entries',
       description:
-        'Newest first; `cursor` is the previous page’s `continueCursor`.',
+        'Newest first; `cursor` is the previous page’s `continueCursor`. ' +
+        '`topic` narrows the page to one topic — with `status=superseded` ' +
+        'that is a fact’s replaced versions, each with its `supersededAt`; ' +
+        '`GET /api/v1/knowledge-entries/{id}/versions` answers the same ' +
+        'chain from any of its rows.',
       operationId: 'listKnowledgeEntries',
       security: sec,
       parameters: [
         ...paginationParams(100, 25),
         queryParam('status', '`active` (default) or `superseded`'),
+        queryParam(
+          'topic',
+          'Only this topic’s entries, matched the way duplicates are — trimmed, inner whitespace collapsed, case-insensitive; composable with `status`',
+        ),
       ],
       responses: {
         '200': jsonResponse('Paginated entries', pageOf(ref('KnowledgeEntry'))),
@@ -3821,19 +4405,32 @@ export function buildSpec(): Json {
       description:
         'Charged against the per-organization `knowledge:mutate` budget ' +
         'the in-app editor shares. Mints a file-backed Hub document ' +
-        '(`sourceProvider: knowledge`, answered as `documentId`) and queues ' +
-        'it for indexing, so the content is searchable once its `indexing` ' +
-        'completes — the one way to put text into the search corpus from ' +
-        'REST. A supersede re-indexes under the same `documentId`; a delete ' +
-        'trashes it. The document itself refuses a direct delete or content ' +
-        'edit (`DOCUMENT_HAS_KNOWLEDGE_ENTRY`).',
+        '(`sourceProvider: knowledge`) and queues it for indexing, so the ' +
+        'content is searchable once its `indexing` completes — the one way ' +
+        'to put text into the search corpus from REST. The 201 answers the ' +
+        'entry’s `id` AND that `documentId`: poll ' +
+        '`GET /api/v1/documents/{documentId}` for `indexing` directly. A ' +
+        'supersede re-indexes under the same `documentId`; a delete trashes ' +
+        'it. The document itself refuses a direct delete or content edit ' +
+        '(`DOCUMENT_HAS_KNOWLEDGE_ENTRY`); its bytes read back at ' +
+        '`GET /api/v1/documents/{documentId}/content`. Requires the ' +
+        'knowledge write grant (editor and up).',
       operationId: 'createKnowledgeEntry',
       security: sec,
       requestBody: jsonBody(knowledgeEntryBody),
       responses: {
-        '201': createdId('Created — the entry’s id'),
+        '201': jsonResponse(
+          'Created — the entry’s id and the Hub document it is stored in',
+          ref('KnowledgeEntryCreated'),
+        ),
+        '403': errorResponse(
+          'The key holder’s role cannot modify knowledge entries (`KNOWLEDGE_ENTRY_FORBIDDEN`)',
+        ),
         '409': errorResponse(
           'An active entry with this topic exists (`KNOWLEDGE_ENTRY_DUPLICATE`)',
+        ),
+        '503': errorResponse(
+          'The object store did not accept the entry’s content within 30 seconds (`KNOWLEDGE_ENTRY_STORE_TIMEOUT`) — nothing was written; retry',
         ),
         ...standardErrors,
       },
@@ -3846,7 +4443,7 @@ export function buildSpec(): Json {
       summary: 'Get a knowledge entry',
       operationId: 'getKnowledgeEntry',
       description:
-        'One knowledge entry — active or superseded — with its topic, content, version and the Hub document behind it.',
+        'One knowledge entry — active or superseded — with its topic, content, version (`supersededBy` and `supersededAt` on a replaced row) and the Hub document behind it.',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
       responses: {
@@ -3860,24 +4457,31 @@ export function buildSpec(): Json {
       summary: 'Supersede a knowledge entry',
       description:
         'Entries are immutable: an update writes a NEW row and answers its ' +
-        'id; the old row becomes `superseded`. Both `topic` and `content` ' +
-        'are required. Only the ACTIVE row of a topic takes an update — a ' +
-        'superseded row answers 409 naming the row that replaced it.',
+        'id (with the `documentId` it re-indexes under); the old row ' +
+        'becomes `superseded`, stamped with `supersededAt`. Both `topic` ' +
+        'and `content` are required. Only the ACTIVE row of a topic takes ' +
+        'an update — a superseded row answers 409 naming the row that ' +
+        'replaced it. Requires the knowledge write grant (editor and up).',
       operationId: 'updateKnowledgeEntry',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
       requestBody: jsonBody(knowledgeEntryBody),
       responses: {
-        '200': jsonResponse('The NEW row', {
-          type: 'object',
-          required: ['id'],
-          properties: { id: { type: 'string' } },
-        }),
+        '200': jsonResponse(
+          'The NEW row’s id and the document it re-indexes under',
+          ref('KnowledgeEntryCreated'),
+        ),
+        '403': errorResponse(
+          'The key holder’s role cannot modify knowledge entries (`KNOWLEDGE_ENTRY_FORBIDDEN`)',
+        ),
         '404': errorResponse('Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)'),
         '409': errorResponse(
           'Entry is not active — it was superseded (`KNOWLEDGE_ENTRY_SUPERSEDED`), ' +
             'or the new topic collides with another active entry ' +
             '(`KNOWLEDGE_ENTRY_DUPLICATE`)',
+        ),
+        '503': errorResponse(
+          'The object store did not accept the new version within 30 seconds (`KNOWLEDGE_ENTRY_STORE_TIMEOUT`) — nothing was written; retry',
         ),
         ...standardErrors,
       },
@@ -3898,9 +4502,38 @@ export function buildSpec(): Json {
       parameters: [pathParam('id', 'Entry ID')],
       responses: {
         '204': noContent('Deleted'),
+        '403': errorResponse(
+          'The key holder’s role cannot modify knowledge entries (`KNOWLEDGE_ENTRY_FORBIDDEN`)',
+        ),
         '404': errorResponse(
           'Entry not found, including one already deleted (`KNOWLEDGE_ENTRY_NOT_FOUND`)',
         ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/knowledge-entries/{id}/versions'] = {
+    get: {
+      tags: ['Knowledge'],
+      summary: 'List a knowledge entry’s versions',
+      description:
+        'The whole version chain of the entry’s topic, newest first — the ' +
+        'active row and every superseded one (`supersededBy`, ' +
+        '`supersededAt`), from any row of the chain. The chain is keyed by ' +
+        'the Hub document every version re-materializes onto, so a topic ' +
+        'rename keeps it together; a version pruned with ' +
+        '`DELETE /api/v1/knowledge-entries/{id}` is not listed. The same ' +
+        'history the app’s entry panel shows.',
+      operationId: 'listKnowledgeEntryVersions',
+      security: sec,
+      parameters: [pathParam('id', 'Entry ID')],
+      responses: {
+        '200': jsonResponse(
+          'The chain, newest first',
+          listOf('versions', ref('KnowledgeEntry')),
+        ),
+        '404': errorResponse('Entry not found (`KNOWLEDGE_ENTRY_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -3956,7 +4589,7 @@ export function buildSpec(): Json {
               minimum: 0,
               maximum: 1,
               description:
-                'Cosine floor for the dense (vector) leg only. No default: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search tool uses 0.45',
+                'Cosine floor for the dense (vector) leg only — applied before fusion, so a passage under it is never ranked. No default on this door: without it the nearest passages answer however weak; the keyword leg is never floored. The built-in assistant’s search applies the organization’s configured floor instead (`embedding.json` `minSimilarity`, 0.45 when unset). Threshold the answer on each hit’s `similarity`, never on `fusedScore`',
             },
           },
         }),
@@ -4222,6 +4855,15 @@ export function buildSpec(): Json {
           parameter.name === orgSlugHeaderParam.name,
       );
       if (!declared) op.parameters = [orgSlugHeaderParam, ...parameters];
+      if (
+        !(op.parameters ?? []).some(
+          (parameter) =>
+            parameter.in === 'header' &&
+            parameter.name === requestIdHeaderParam.name,
+        )
+      ) {
+        op.parameters = [...(op.parameters ?? []), requestIdHeaderParam];
+      }
       const responses = op.responses;
       responses['403'] = withDoorRefusal(
         responses['403'],
@@ -4251,31 +4893,54 @@ export function buildSpec(): Json {
       if (method === 'get' && ok?.content?.['application/json'] !== undefined) {
         ok.headers = {
           ...ok.headers,
-          ETag: {
-            description:
-              'A validator over the answer’s bytes; send it back as `If-None-Match` — as received, the weak and edge-suffixed forms match too — to be told 304 when nothing changed',
-            schema: { type: 'string' },
-          },
-          'Cache-Control': {
-            description:
-              '`private, no-cache`: keep the answer, revalidate it before reuse; no shared cache may keep it',
-            schema: { type: 'string' },
-          },
+          ETag: headerRef('ETag'),
+          'Cache-Control': headerRef('CacheControl'),
         };
         responses['304'] ??= {
           description:
             'Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent',
           headers: {
-            ETag: {
-              description: 'The tag the API computed for the current bytes',
-              schema: { type: 'string' },
-            },
-            'Cache-Control': {
-              description: '`private, no-cache`',
-              schema: { type: 'string' },
-            },
+            ETag: headerRef('ETag'),
+            'Cache-Control': headerRef('CacheControl'),
           },
         };
+      }
+      // The headers every answer on the door carries, and the ones a
+      // status implies: a 401's challenge, a 405's `Allow`, the wait a 429
+      // (or a 503 that names it) asks for.
+      for (const [status, response] of Object.entries(responses)) {
+        withHeaders(response, {
+          'X-Request-Id': 'XRequestId',
+          'X-Tale-Api-Version': 'XTaleApiVersion',
+        });
+        if (status === '401') {
+          withHeaders(response, { 'WWW-Authenticate': 'WWWAuthenticate' });
+        }
+        if (status === '405') withHeaders(response, { Allow: 'Allow' });
+        if (
+          status === '429' ||
+          (status === '503' &&
+            typeof response.description === 'string' &&
+            response.description.includes('Retry-After'))
+        ) {
+          withHeaders(response, { 'Retry-After': 'RetryAfter' });
+        }
+      }
+    }
+  }
+  // The two token-authenticated webhook doors live outside `/api/v1` but
+  // answer through the same app: the request id on every response, the
+  // wait on a 429.
+  for (const [path, operations] of Object.entries(paths)) {
+    if (!path.includes('/automations/webhook/')) continue;
+    for (const [method, operation] of Object.entries(operations)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      const op = operation as { responses: Record<string, Json> };
+      for (const [status, response] of Object.entries(op.responses)) {
+        withHeaders(response, { 'X-Request-Id': 'XRequestId' });
+        if (status === '429') {
+          withHeaders(response, { 'Retry-After': 'RetryAfter' });
+        }
       }
     }
   }
@@ -4284,7 +4949,7 @@ export function buildSpec(): Json {
     openapi: '3.0.3',
     info: {
       title: 'Tale Platform API',
-      version: '1.3.0',
+      version: API_CONTRACT_VERSION,
       contact: { name: 'Tale', url: 'https://tale.dev' },
       description: `
 REST access to a Tale deployment: knowledge resources, automations and their
@@ -4326,8 +4991,9 @@ If you belong to several organizations, send \`X-Organization-Slug\` on
 every request, reads included — without it the request answers 400
 \`ORG_SLUG_REQUIRED\`; a slug that names no organization answers 404
 \`ORG_SLUG_INVALID\`, one you are no member of 403 \`ORG_FORBIDDEN\`. The
-400 lists the slugs you may send under \`data.organizations\`, and so does
-\`GET /api/v1/me\` on any call that names one.
+400 lists the slugs you may send under \`data.organizations\`; \`GET
+/api/v1/me\` lists them too, as its top-level \`organizations\`. The slug
+is matched without regard to case.
 
 ## Requests
 
@@ -4336,25 +5002,49 @@ number beyond 2^53 − 1 is refused rather than rounded (send such an id as a
 string). Every body schema is strict — an unknown key answers 400
 \`INVALID_BODY\` naming it — and so is every query string: a parameter a
 route does not take, one given twice, or a named filter left blank answers
-400 \`INVALID_QUERY\`, and writes take no query parameters at all. A body is
-capped at 1 MiB unless the operation says otherwise (a document's inline
+400 \`INVALID_QUERY\`, and writes take no query parameters at all. An
+out-of-range number is handled by where it travels: a query parameter
+(\`limit\`) is clamped into its range, while a body field (a search
+\`limit\`, \`maxOutputTokens\`) is refused with 400 \`INVALID_BODY\` naming it.
+A body is capped at 1 MiB unless the operation says otherwise (a document's inline
 content 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8
 MiB, a staged conversation upload 30 MiB, a skill save 4 MiB); past the cap
 the answer is 413 \`BODY_TOO_LARGE\`, before a byte is read when the length
 is declared. Bodies are read as JSON whatever Content-Type says; there is no
-415. Every served path answers HEAD (for a GET) and OPTIONS (204 with
-\`Allow\`); a method a path does not take answers 405 \`METHOD_NOT_ALLOWED\`
-with \`Allow\`. A request URL above 32 KiB is refused at the edge with 431.
-Every response carries an \`X-Request-Id\` — send your own to correlate.
+415. Every served path answers HEAD (for a GET, with the \`Content-Length\`
+the GET would carry) and OPTIONS (204 with \`Allow\`, no key needed); a
+method a path does not take answers 405 \`METHOD_NOT_ALLOWED\` with
+\`Allow\`; one trailing slash on a path is tolerated. The surface is
+server-to-server: no response carries CORS headers, so a browser page
+cannot call it — keep the key behind your own backend. A request URL (path
+and query) above 32 KiB answers 414 \`URI_TOO_LONG\` in the envelope, before
+any route is looked up. Request headers as a whole are budgeted at 64 KiB
+at the edge: past it HTTP/1.1 answers a bare 431 without the envelope and
+an HTTP/2 connection is closed without a response — carry data in the body,
+never in a header. Every response from this surface carries an
+\`X-Request-Id\` (a refusal answered at the edge, such as a dot-segment
+404, carries a fresh id of its own) — send your own to correlate: up to 255
+characters of letters, digits, \`_\`, \`-\` and \`=\`; anything else is
+replaced by a fresh UUID. Every response also names the contract it
+implements in \`X-Tale-Api-Version\`.
 
 ## Errors
 
 Non-2xx responses carry a flat envelope: \`{"error": "<sentence>", "code":
 "<CODE>"}\`. Every refusal carries a stable \`code\` — the \`Error.code\` enum
 below, additive, so treat a value you do not know as a generic refusal of
-the status you got. A 429 repeats the code in \`error\`; a 500 and a
-body-size 413 add \`requestId\`; a refused body or query lists every problem
-under \`data.issues\`.
+the status you got. A 429 repeats the code in \`error\`; a 500, a
+body-size 413 and a URL-size 414 add \`requestId\`; a refused body or query
+lists every problem under \`data.issues\`, each naming the field (\`path\`)
+and the reason as a short phrase you can show a person — \`is required\`,
+\`must be a string\`, \`must not be blank\`, \`must be at most 200
+characters\`, \`must be one of "a", "b"\` — so branch on \`path\` and the
+\`code\`, never on the sentence. The door's own refusals are
+\`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
+\`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+\`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
+\`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
+\`HTTP_ERROR\` (a refusal a middleware raised) and \`INTERNAL_ERROR\`.
 
 ## Pagination
 
@@ -4370,7 +5060,10 @@ diagnostics}\`, website pages \`{pages, total, offset, hasMore}\`; project
 files answer \`{files, isDone, cursor?}\` and the project list \`{projects,
 isDone, cursor?}\` — pass \`cursor\` back unchanged until \`isDone\`. Every
 cursor is an opaque signed token: one this list never answered is refused
-with 400 \`INVALID_CURSOR\`, never read as the first page.
+with 400 \`INVALID_CURSOR\`, never read as the first page — and a blank
+\`cursor\` (the empty \`continueCursor\` the last page answers) is refused
+like any blank parameter (400 \`INVALID_QUERY\`), so a pager that sends
+the last page's cursor back stops instead of starting over.
 
 ## Rate limits
 
@@ -4384,21 +5077,37 @@ holder's budget; the inbound webhook door, which carries no key, is budgeted
 per sender address (120/min, burst 240) and per trigger (20/min, burst 40).
 A 429 carries \`Retry-After\` in whole seconds.
 
+## Versioning
+
+\`info.version\` is the contract's own semver: a minor bump for an additive
+change (a new operation, field, header or error code), a major one for a
+removal or a changed meaning. Every response carries the version the
+instance implements as \`X-Tale-Api-Version\`; each release's notes list
+the changes under **API contract changes**. The build (\`GET /api/health\`)
+and the \`/api/v1\` prefix are separate numbers: the prefix is the
+compatibility line, retired only with notice.
+
 ## Quick start
 
 \`\`\`bash
-# 1. List automations installed in an existing project
+# 0. Find a project (the id every project URL takes)
+curl -H "Authorization: Bearer <api-key>" \\
+  -H "X-Organization-Slug: <orgSlug>" \\
+  "https://your-instance.com/api/v1/projects"
+
+# 1. List the automations installed in it
 curl -H "Authorization: Bearer <api-key>" \\
   -H "X-Organization-Slug: <orgSlug>" \\
   "https://your-instance.com/api/v1/projects/<projectId>/automations"
 
-# 2. Start a deployed automation in that project
+# 2. Start one that is deployed (spell a "/" in its name as "__"); the 202
+#    answers {"runId": …}
 curl -X POST -H "Authorization: Bearer <api-key>" \\
   -H "X-Organization-Slug: <orgSlug>" \\
   -H "Content-Type: application/json" -d '{"input": {}}' \\
-  "https://your-instance.com/api/v1/projects/<projectId>/automations/billing__dunning/runs"
+  "https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs"
 
-# 3. Poll it
+# 3. Poll it with that runId
 curl -H "Authorization: Bearer <api-key>" \\
   -H "X-Organization-Slug: <orgSlug>" \\
   "https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>"
@@ -4476,6 +5185,7 @@ curl -H "Authorization: Bearer <api-key>" \\
     ],
     paths,
     components: {
+      headers: responseHeaders,
       securitySchemes: {
         bearerAuth: {
           type: 'http',
@@ -4486,7 +5196,7 @@ curl -H "Authorization: Bearer <api-key>" \\
       schemas: {
         Error: {
           type: 'object',
-          required: ['error'],
+          required: ['error', 'code'],
           properties: {
             error: { type: 'string', description: 'What went wrong' },
             code: {
@@ -4498,7 +5208,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             requestId: {
               type: 'string',
               description:
-                'The response’s `X-Request-Id`, repeated on a 500 and on a body-size 413 so a caller can quote it',
+                'The response’s `X-Request-Id`, repeated on a 500, on a body-size 413 and on a URL-size 414 so a caller can quote it',
             },
             data: {
               type: 'object',
@@ -4545,14 +5255,21 @@ curl -H "Authorization: Bearer <api-key>" \\
         // ── Documents ──
         Document: {
           type: 'object',
-          required: ['id', 'title', 'createdBy', 'createdAt', 'updatedAt'],
+          required: [
+            'id',
+            'title',
+            'contentHash',
+            'createdBy',
+            'createdAt',
+            'updatedAt',
+          ],
           properties: {
             id: str,
             title: str,
             content: nullable({
               ...str,
               description:
-                'Inline text; null for blob-backed documents and in listings',
+                'Inline text; null for a file-backed document — read its bytes at `GET /api/v1/documents/{id}/content` — and in listings',
             }),
             fileId: nullable({ ...str, description: 'The blob reference' }),
             mimeType: nullable(str),
@@ -4561,6 +5278,11 @@ curl -H "Authorization: Bearer <api-key>" \\
             teamId: nullable(str),
             folderId: nullable(str),
             metadata: nullable(obj),
+            contentHash: nullable({
+              ...str,
+              description:
+                'SHA-256 (hex) of the stored bytes when the platform computed one — a knowledge entry’s content, a synced file; null otherwise. A column of its own, never a key in `metadata`',
+            }),
             createdBy: str,
             createdAt: epochMs,
             updatedAt: epochMs,
@@ -4611,7 +5333,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             mimeType: { type: 'string', maxLength: 255 },
             extension: { type: 'string', maxLength: 32 },
             sourceProvider: { type: 'string', maxLength: 64 },
-            metadata: obj,
+            metadata: freeFormObject('Free-form.'),
             teamId: { type: 'string', maxLength: 128 },
             folderId: { type: 'string', maxLength: 64 },
           },
@@ -4620,7 +5342,7 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'object',
           additionalProperties: false,
           description:
-            'Every field optional; null clears a nullable field. Applies only to Knowledge Hub documents.',
+            'Every field optional; null clears a nullable field. Applies only to Knowledge Hub documents. A patch that changes nothing writes nothing and leaves `updatedAt` alone.',
           properties: {
             expectedUpdatedAt: {
               type: 'integer',
@@ -4628,9 +5350,14 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The `updatedAt` last read; the update applies only while the document still carries it, else 409 `DOCUMENT_STALE`',
             },
-            title: { type: 'string', minLength: 1, maxLength: 512 },
+            title: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 512,
+              description: 'Trimmed — a blank title is 400 `INVALID_BODY`',
+            },
             content: nullable({ type: 'string', maxLength: 5_000_000 }),
-            metadata: nullable(obj),
+            metadata: nullable(freeFormObject(MERGE_ON_PATCH)),
             mimeType: nullable({ type: 'string', maxLength: 255 }),
             extension: nullable({ type: 'string', maxLength: 32 }),
             sourceProvider: nullable({ type: 'string', maxLength: 64 }),
@@ -4775,6 +5502,64 @@ curl -H "Authorization: Bearer <api-key>" \\
           },
         },
 
+        // ── Conversations ──
+        ConversationDelivery: {
+          type: 'object',
+          description:
+            'One native Inbox reply in a source’s delivery queue, as the listing shows it — never the claim token or the body',
+          required: [
+            'messageId',
+            'conversationId',
+            'externalId',
+            'status',
+            'attempts',
+            'availableAt',
+            'retryAt',
+            'claimedAt',
+            'failedAt',
+            'lastErrorCode',
+            'acknowledgedAt',
+            'receiptId',
+          ],
+          additionalProperties: false,
+          properties: {
+            messageId: str,
+            conversationId: str,
+            externalId: str,
+            status: {
+              type: 'string',
+              enum: [...API_DELIVERY_STATUSES],
+              description:
+                '`queued` — waiting (the undo window, a backoff, a lapsed lease); `leased` — a claim’s five-minute lease runs; `failed` — dead-lettered, awaiting a retry or a discard; `delivered` — acknowledged',
+            },
+            attempts: { ...int, description: 'Failure reports so far' },
+            availableAt: {
+              ...epochMs,
+              description:
+                'When the undo window closed and the reply became claimable',
+            },
+            retryAt: {
+              ...epochMs,
+              description:
+                'When it next becomes claimable: the lease end while leased, the backoff end after a transient failure, in the past (or 0) when due now',
+            },
+            claimedAt: nullable({
+              ...epochMs,
+              description: 'The first claim; `null` until one',
+            }),
+            failedAt: nullable({
+              ...epochMs,
+              description: 'When it dead-lettered; `null` otherwise',
+            }),
+            lastErrorCode: nullable({
+              ...str,
+              description: 'The code of the last failure report',
+            }),
+            acknowledgedAt: nullable(epochMs),
+            receiptId: nullable(str),
+          },
+        },
+
         // ── Browser sessions ──
         BrowserSession: {
           type: 'object',
@@ -4783,6 +5568,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'domain',
             'label',
             'status',
+            'createdAt',
             'expiresAt',
             'lastUsedAt',
             'failureCount',
@@ -4791,6 +5577,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             id: str,
             domain: str,
             label: nullable(str),
+            createdAt: {
+              ...epochMs,
+              description: 'When the session was imported',
+            },
             status: {
               type: 'string',
               enum: ['healthy', 'cooling', 'expired'],
@@ -4912,7 +5702,8 @@ curl -H "Authorization: Bearer <api-key>" \\
         // ── The key holder ──
         Me: {
           type: 'object',
-          required: ['user', 'organization', 'organizations'],
+          required: ['user', 'organization', 'organizations', 'capabilities'],
+          additionalProperties: false,
           properties: {
             user: {
               type: 'object',
@@ -4944,6 +5735,20 @@ curl -H "Authorization: Bearer <api-key>" \\
                   slug: nullable(str),
                   name: str,
                   role: str,
+                },
+              },
+            },
+            capabilities: {
+              type: 'object',
+              description:
+                'What this key may do beyond what its role says — the gates a deployment knob decides, answered here so a client learns them before its first write rather than from a 403',
+              required: ['deploymentEditor'],
+              additionalProperties: false,
+              properties: {
+                deploymentEditor: {
+                  ...bool,
+                  description:
+                    'True when the key holder administers an organization and their e-mail is on the deployment editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — the gate behind the browser-session pool’s import and delete, which answer 403 otherwise',
                 },
               },
             },
@@ -5338,7 +6143,13 @@ curl -H "Authorization: Bearer <api-key>" \\
             version: int,
             message: nullable(str),
             testsPassed: nullable(bool),
-            createdBy: str,
+            createdBy: {
+              ...str,
+              description:
+                'Who saved the version: `api-key:<userId>` for a save through ' +
+                'the MCP endpoint, the bare user id for a save from the ' +
+                'product or its builder',
+            },
             createdAt: epochMs,
             deployed: {
               ...bool,
@@ -5348,8 +6159,30 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         Trigger: {
           type: 'object',
-          required: ['name', 'kind', 'hasToken', 'enabled'],
+          description:
+            'The binding, and its health: `lastFiredAt` and `lastRunId` name ' +
+            'the last run it started, `lastSkippedAt` and `lastSkipReason` ' +
+            'the last time it came due and started nothing. A binding is ' +
+            'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
+            '`lastSkippedAt` is the newer stamp is coming due and not running ' +
+            '— the reason says what to fix.',
+          required: [
+            'id',
+            'name',
+            'kind',
+            'hasToken',
+            'enabled',
+            'lastFiredAt',
+            'lastRunId',
+            'lastSkippedAt',
+            'lastSkipReason',
+          ],
           properties: {
+            id: {
+              ...str,
+              description:
+                'The binding’s id — what a run’s `startedBy` (`trigger:<id>`) names',
+            },
             name: str,
             kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
             cron: nullable(str),
@@ -5360,7 +6193,40 @@ curl -H "Authorization: Bearer <api-key>" \\
               description: 'A webhook secret exists (never returned here)',
             },
             enabled: bool,
-            lastFiredAt: nullable(epochMs),
+            lastFiredAt: {
+              ...nullable(epochMs),
+              description:
+                'The last time this binding started a run — `lastRunId` ' +
+                'names it; null until it has. For a schedule this is the ' +
+                'occurrence the run fired for (the minute the cron named); ' +
+                'for a webhook or an event, the moment the delivery or the ' +
+                'event was accepted. A rebind to another kind starts it afresh.',
+            },
+            lastRunId: {
+              ...nullable(str),
+              description:
+                'The run `lastFiredAt` started; null until one has, and again ' +
+                'once that run is deleted.',
+            },
+            lastSkippedAt: {
+              ...nullable(epochMs),
+              description:
+                'The last time the binding came due (a schedule occurrence, ' +
+                'an event, a webhook delivery) and started nothing — ' +
+                '`lastSkipReason` says why; null until it has.',
+            },
+            lastSkipReason: {
+              type: 'string',
+              nullable: true,
+              enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+              description:
+                '`not_deployed`: the automation had no deployed version to ' +
+                'run — deploy one. `unusable_cron`: the schedule’s expression ' +
+                'or time zone could not be read; the scheduler leaves the ' +
+                'binding alone until it is edited. `start_refused`: the ' +
+                'deployed version’s `inputs` schema refused the run’s input ' +
+                '(`{trigger, firedAt}` for a schedule).',
+            },
           },
         },
         RunSummary: {
@@ -5407,11 +6273,33 @@ curl -H "Authorization: Bearer <api-key>" \\
             startedBy: {
               ...str,
               description:
-                '`api-key:<userId>` for runs started here, `trigger:<id>` for a trigger’s',
+                'What started the run — one of four forms: `api-key:<userId>` ' +
+                '(a start through this API or the MCP endpoint), ' +
+                '`user:<userId>` (a start from the product), ' +
+                '`trigger:<triggerId>` (a schedule, webhook or event — the id ' +
+                'the trigger read answers), or a bare user id on runs the ' +
+                'in-product builder recorded before it prefixed them. Split ' +
+                'on the first `:`; treat a value without one as a user id.',
             },
             detail: {
               ...str,
-              description: 'The failure or wait reason, when the run has one',
+              description:
+                'The failure or wait reason, when the run has one. While ' +
+                '`waiting` it names the park: `approval:<approvalId>`, ' +
+                '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+                'field to branch on; when `failed`, the failure sentence.',
+            },
+            waitingFor: {
+              type: 'string',
+              enum: ['approval', 'ask', 'agent', 'repeat'],
+              description:
+                'Present only while `status` is `waiting`: what the run is ' +
+                'parked on. `approval` — a person’s decision on a gate; `ask` ' +
+                '— a question a person has to answer; `agent` — an agent turn ' +
+                'still running, no one to page; `repeat` — a node polling ' +
+                'until its `repeatUntil` condition holds, no one to page. ' +
+                '"Runs that need a human" is `waitingFor` in (`approval`, ' +
+                '`ask`), never `status=waiting` alone.',
             },
             startedAt: epochMs,
             finishedAt: {
@@ -5464,6 +6352,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             'chunkIndex',
             'score',
             'fusedScore',
+            'matchedLegs',
+            'similarity',
+            'keywordScore',
           ],
           properties: {
             id: {
@@ -5516,14 +6407,14 @@ curl -H "Authorization: Bearer <api-key>" \\
             score: {
               ...num,
               description:
-                'The producing leg’s own relevance score (BM25 or cosine); scales differ per leg',
+                'The surviving leg copy’s own relevance score — BM25 when the keyword leg found the passage, else its cosine; scales differ per leg, so read `keywordScore` and `similarity`, which name theirs',
             },
             fusedScore: {
               ...num,
               minimum: 0,
               maximum: 1,
               description:
-                'The rank-fusion order key the hits are sorted by — comparable only within one response (its normalization depends on how many legs answered); not a confidence, and not stable across searches',
+                'The rank-fusion order key the hits are sorted by: Σ 1/(60+rank) over the legs that ranked the passage, divided by the best possible for that many legs. A RANK — 1.0 for the best candidate of a one-leg search however weak that leg found it — comparable only within one response, never a confidence, and not stable across searches. Threshold on `similarity` instead',
             },
             legs: {
               ...int,
@@ -5532,9 +6423,36 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'How many retrieval legs of the corpus found the passage: 2 when the keyword and the vector leg agreed, 1 when only one did',
             },
+            matchedLegs: {
+              type: 'array',
+              items: {
+                type: 'string',
+                enum: [
+                  'documents:keyword',
+                  'documents:dense',
+                  'web:keyword',
+                  'web:dense',
+                ],
+              },
+              description:
+                'Which legs ranked the passage — the leg that produced `score` is the first one',
+            },
+            similarity: {
+              ...nullable(num),
+              minimum: 0,
+              maximum: 1,
+              description:
+                'The dense (vector) leg’s cosine similarity when it ranked the passage, on the embedding model’s own 0..1 scale — the one number to threshold on, and what `minSimilarity` floors; null when only the keyword leg found it',
+            },
+            keywordScore: {
+              ...nullable(num),
+              description:
+                'The keyword leg’s BM25 weight when it ranked the passage (unbounded, relative to the corpus); null when only the vector leg found it',
+            },
             rerankScore: {
               ...num,
-              description: 'Present when a reranker ran and scored the hit',
+              description:
+                'Reserved for a deployment that installs a reranker — none ships, so it is never present today',
             },
           },
         },
@@ -5546,7 +6464,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'array',
               items: ref('KnowledgeHit'),
               description:
-                'In fused order (`fusedScore` descending), one passage per repeated text. The page is cut AFTER every candidate was checked against its live document, so `limit` never costs a readable hit',
+                'In fused order (`fusedScore` descending), one passage per repeated text. Every candidate is checked against its live document BEFORE fusion, so a refused one never holds a rank, and the page is cut last — `limit` never costs a readable hit',
             },
             diagnostics: {
               type: 'object',
@@ -5557,19 +6475,27 @@ curl -H "Authorization: Bearer <api-key>" \\
                   description:
                     'False when the keyword index was unavailable and only the vector leg ran',
                 },
-                reranked: bool,
-                cached: bool,
+                reranked: {
+                  ...bool,
+                  description:
+                    'Reserved for a deployment that installs a reranker — none ships, so this is always false',
+                },
+                cached: {
+                  ...bool,
+                  description:
+                    'Reserved for a deployment that installs a semantic cache — none ships, so this is always false',
+                },
                 admitted: {
                   ...int,
                   minimum: 0,
                   description:
-                    'Fused candidates that passed the live-document check, before repeated passages were dropped and the page was cut',
+                    'Candidates that passed the live-document check and were fused, before repeated passages were dropped and the page was cut',
                 },
                 legs: {
                   type: 'object',
                   additionalProperties: true,
                   description:
-                    'How many hits each leg contributed before fusion — counts, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`, or `cache`)',
+                    'How many admitted candidates each leg contributed to fusion — counts after the live-document check, keyed by leg (`documents:keyword`, `documents:dense`, `web:keyword`, `web:dense`)',
                 },
               },
             },
@@ -5626,7 +6552,11 @@ curl -H "Authorization: Bearer <api-key>" \\
           ],
           properties: {
             id: { ...str, description: 'Send as `model`' },
-            label: str,
+            label: {
+              ...str,
+              description:
+                'A display name for a picker (`DeepSeek V4 Flash`, `GLM 5v Turbo`) — derived from the id where the catalog publishes none; never send it as `model`',
+            },
             providerSlug: {
               ...str,
               description:
@@ -5785,7 +6715,13 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: ['pending', 'complete', 'failed', 'cancelled'],
               description:
-                '`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`.',
+                '`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`.',
+            },
+            finishReason: {
+              type: 'string',
+              enum: [...TURN_FINISH_REASONS],
+              description:
+                'Why the turn stopped, on a settled assistant message, in one vocabulary over every provider: `stop` (a natural end), `length` (the `maxOutputTokens` cap or the model’s own ceiling cut the reply short — the text is truncated and the status still reads `complete`), `tool-calls` (the final round ended on tool calls), `content-filter` (the provider’s or the platform’s filter), `cancelled` (stopped through DELETE …/generation), `other` (a reason the provider named that has no bucket here). Absent when the provider reported none.',
             },
             model: str,
             providerSlug: str,
@@ -5804,7 +6740,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'object',
               additionalProperties: false,
               description:
-                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles, and absent on a turn that failed before the provider reported counts',
+                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles, and absent on a turn that failed before the provider reported counts. Counts are the provider’s own unless `estimated` is present.',
               properties: {
                 inputTokens: {
                   ...int,
@@ -5829,7 +6765,19 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...num,
                   minimum: 0,
                   description:
-                    'The turn’s cost in US cents (fractional) from the catalog price the organization ledger also books — the same figure as the ledger; absent when the catalog publishes no price for the model',
+                    'The turn’s cost in US cents (fractional) from the catalog price the organization ledger also books — the same figure as the ledger; absent when the catalog publishes no price for the model. Cached input is priced at the input rate, so on a cached turn the figure is an upper bound; estimated when the provider’s count was lost (`estimated`).',
+                },
+                estimated: {
+                  ...bool,
+                  enum: [true],
+                  description:
+                    'Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, typically) or never sent — so the cost is an estimate too',
+                },
+                stepLimitHit: {
+                  ...bool,
+                  enum: [true],
+                  description:
+                    'Present when the tool loop spent its whole round budget and the final round had tools withheld — the answer may have been forced',
                 },
               },
             },
@@ -5887,7 +6835,14 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         SkillSummary: {
           type: 'object',
-          required: ['slug', 'description', 'visibility', 'canEdit'],
+          required: [
+            'slug',
+            'description',
+            'visibility',
+            'canEdit',
+            'etag',
+            'updatedAt',
+          ],
           properties: skillSummaryProperties,
           additionalProperties: false,
         },
@@ -5900,6 +6855,8 @@ curl -H "Authorization: Bearer <api-key>" \\
             'description',
             'visibility',
             'canEdit',
+            'etag',
+            'updatedAt',
             'body',
             'files',
           ],
@@ -5949,14 +6906,31 @@ curl -H "Authorization: Bearer <api-key>" \\
             documentId: {
               ...str,
               description:
-                'The indexed Hub document the topic’s active version is stored in (`sourceProvider: knowledge`; `GET /api/v1/documents/{id}` reads it, `indexing` included). A direct delete or content edit of that document is refused — this entry is the way to change it',
+                'The indexed Hub document the topic’s versions are stored in (`sourceProvider: knowledge`): `GET /api/v1/documents/{id}` reads its metadata and `indexing` state, `GET /api/v1/documents/{id}/content` its bytes — the active version’s text. A direct delete or content edit of that document is refused — this entry is the way to change it',
             },
             supersededBy: {
               ...str,
               description: 'The row that replaced this one',
             },
+            supersededAt: {
+              ...epochMs,
+              description:
+                'When this row was replaced — present on a superseded row only',
+            },
             createdBy: str,
             createdAt: epochMs,
+          },
+        },
+        KnowledgeEntryCreated: {
+          type: 'object',
+          required: ['id', 'documentId'],
+          properties: {
+            id: { ...str, description: 'The entry row written' },
+            documentId: {
+              ...str,
+              description:
+                'The Hub document the entry is stored in — poll `GET /api/v1/documents/{documentId}` for `indexing`',
+            },
           },
         },
       },

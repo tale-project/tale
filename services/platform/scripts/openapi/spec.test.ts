@@ -14,6 +14,7 @@ import type {
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
+import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
 import { createRestBrowserSessionRoutes } from '../../backend/rest/v1-browser-sessions.ts';
@@ -23,6 +24,7 @@ import { createTaskRestRoutes } from '../../backend/rest/v1-tasks.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
 import { createRestWebsiteRoutes } from '../../backend/rest/v1-websites.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
+import { contractFingerprint } from './fingerprint.ts';
 import { buildSpec, type Json } from './spec.ts';
 
 /**
@@ -293,6 +295,7 @@ const browserSession = {
   domain: 'youtube.com',
   label: 'Session A',
   status: 'healthy',
+  createdAt: 1_699_000_000_000,
   expiresAt: 1_700_000_000_000,
   lastUsedAt: null,
   failureCount: 0,
@@ -581,6 +584,8 @@ describe('handler statuses and bodies match the documented operation', () => {
       status: 'streaming',
       messageId: 'm-9',
       text: '',
+      textOffset: 0,
+      textLength: 0,
       reasoning: '',
       cancelRequested: false,
     });
@@ -1112,6 +1117,8 @@ describe('skill views validate against the published Skill schemas', () => {
     labels: ['office'],
     disableModelInvocation: false,
     canEdit: true,
+    etag: '"3c2a8f0e1d5b7a9c3c2a8f0e1d5b7a9c3c2a8f0e1d5b7a9c3c2a8f0e1d5b7a9c"',
+    updatedAt: 1_700_000_000_000,
   } satisfies SkillSummaryView;
   const document = {
     ...summary,
@@ -1219,6 +1226,251 @@ describe('the door-wide contract on every /api/v1 operation', () => {
   });
 });
 
+describe('the response headers the prose leans on are declared', () => {
+  const apiOps = Object.entries(paths).flatMap(([path, ops]) =>
+    Object.entries(ops)
+      .filter(
+        ([method]) => HTTP_METHODS.has(method) && path.startsWith('/api/v1/'),
+      )
+      .map(([method, op]) => ({ path, method, op })),
+  );
+  const headersOf = (response: Json) =>
+    Object.keys((response.headers ?? {}) as Record<string, unknown>);
+
+  it('names X-Request-Id and X-Tale-Api-Version on every response of every operation', () => {
+    const missing = apiOps.flatMap(({ path, method, op }) =>
+      Object.entries(op.responses as Record<string, Json>)
+        .filter(([, response]) => {
+          const names = headersOf(response);
+          return (
+            !names.includes('X-Request-Id') ||
+            !names.includes('X-Tale-Api-Version')
+          );
+        })
+        .map(([status]) => `${method.toUpperCase()} ${path} ${status}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('names the header a status implies: a 401 challenge, a 405 Allow, a 429 wait', () => {
+    const missing = apiOps.flatMap(({ path, method, op }) =>
+      Object.entries(op.responses as Record<string, Json>)
+        .filter(([status, response]) => {
+          const names = headersOf(response);
+          if (status === '401') return !names.includes('WWW-Authenticate');
+          if (status === '405') return !names.includes('Allow');
+          if (status === '429') return !names.includes('Retry-After');
+          return false;
+        })
+        .map(([status]) => `${method.toUpperCase()} ${path} ${status}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('declares the download’s own headers on its 200, 206 and 416', () => {
+    const download = paths['/api/v1/projects/{id}/files/{documentId}/content']
+      ?.get as Json;
+    const responses = download.responses as Record<string, Json>;
+    for (const status of ['200', '206']) {
+      expect(headersOf(responses[status] ?? {})).toEqual(
+        expect.arrayContaining([
+          'Content-Disposition',
+          'Content-Length',
+          'ETag',
+          'Last-Modified',
+          'Accept-Ranges',
+        ]),
+      );
+    }
+    expect(headersOf(responses['206'] ?? {})).toContain('Content-Range');
+    expect(headersOf(responses['416'] ?? {})).toContain('Content-Range');
+    expect(responses['416']?.content).toBeUndefined();
+  });
+
+  it('resolves every header reference to a declared component', () => {
+    const components = (spec.components as Json).headers as Record<
+      string,
+      Json
+    >;
+    const dangling = apiOps.flatMap(({ path, method, op }) =>
+      Object.values(op.responses as Record<string, Json>).flatMap((response) =>
+        Object.values((response.headers ?? {}) as Record<string, Json>)
+          .map((header) => (typeof header.$ref === 'string' ? header.$ref : ''))
+          .filter(
+            (ref) =>
+              ref !== '' &&
+              components[ref.replace('#/components/headers/', '')] ===
+                undefined,
+          )
+          .map((ref) => `${method.toUpperCase()} ${path} ${ref}`),
+      ),
+    );
+    expect(dangling).toEqual([]);
+  });
+
+  it('takes the caller’s own X-Request-Id on every operation', () => {
+    const missing = apiOps
+      .filter(
+        ({ op }) =>
+          !((op.parameters ?? []) as Json[]).some(
+            (parameter) =>
+              parameter.in === 'header' && parameter.name === 'X-Request-Id',
+          ),
+      )
+      .map(({ path, method }) => `${method.toUpperCase()} ${path}`);
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('the error envelope', () => {
+  it('requires the code the prose tells a client to branch on', () => {
+    const error = ((spec.components as Json).schemas as Record<string, Json>)
+      .Error as Json;
+    expect(error.required).toEqual(['error', 'code']);
+  });
+});
+
+/**
+ * Codes the registry carries that no operation names yet — a client
+ * cannot learn from the document which call answers them. Each is debt:
+ * name it in the response description of the operation whose domain call
+ * throws it (or leave the registry, when no REST route can provoke it),
+ * and delete it here. A NEW code must be named where it is answered — the
+ * guard below refuses a registry entry that is neither named nor listed.
+ */
+const UNNAMED_CODES: ReadonlySet<string> = new Set<string>([
+  'AGENT_NOT_ALLOWED_IN_PROJECT',
+  'ASSIGNEE_NO_PROJECT_ACCESS',
+  'BLOB_ALREADY_REGISTERED',
+  'BLOB_REF_INVALID',
+  'CONTACT_EMAIL_REQUIRED',
+  'FILE_SIZE_INVALID',
+  'FOLDER_ACCESS_DENIED',
+  'FOLDER_NOT_ACCESSIBLE',
+  'FOLDER_PARENT_NOT_ACCESSIBLE',
+  'FOLDER_PARENT_NOT_FOUND',
+  'FOLDER_SCOPE_CONFLICT',
+  'FORBIDDEN',
+  'ORG_NOT_FOUND',
+  'ORG_SLUG_RETIRING',
+  'PRODUCT_FIELDS_INVALID',
+  'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_AGENT_NAME_INVALID',
+  'PROJECT_AGENT_NOT_FOUND',
+  'PROJECT_AGENT_SECRETS_FORBIDDEN',
+  'PROJECT_DESCRIPTION_INVALID',
+  'PROJECT_EXTERNAL_ITEM_ID_INVALID',
+  'PROJECT_FORBIDDEN',
+  'PROJECT_INSTRUCTIONS_TOO_LONG',
+  'PROJECT_NAME_INVALID',
+  'PROJECT_RECOMMENDED_NOT_SUBSET',
+  'PROJECT_SHARING_INVALID',
+  'RBAC_FORBIDDEN',
+  'TASK_ASSIGNEE_INVALID',
+  'TASK_COMMENT_FORBIDDEN',
+  'TASK_COMMENT_INVALID',
+  'TASK_COMMENT_NOT_FOUND',
+  'TASK_DESCRIPTION_INVALID',
+  'TASK_EXTERNAL_REF_INVALID',
+  'TASK_FORBIDDEN',
+  'TASK_HAS_LIVE_RUN',
+  'TASK_LABELS_INVALID',
+  'TASK_LABEL_IN_USE',
+  'TASK_LABEL_TAKEN',
+  'TASK_LABEL_UNKNOWN',
+  'TASK_TITLE_INVALID',
+  'WRITE_FAILED',
+]);
+
+describe('every error code has a home in the document', () => {
+  const codeMentions = (text: unknown): string[] =>
+    typeof text === 'string'
+      ? [...text.matchAll(/`([A-Z][A-Z0-9_]{3,})`/g)].map((m) => m[1] ?? '')
+      : [];
+  const namedByOperations = new Set<string>();
+  for (const ops of Object.values(paths)) {
+    for (const [method, op] of Object.entries(ops)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      for (const text of [op.summary, op.description]) {
+        for (const code of codeMentions(text)) namedByOperations.add(code);
+      }
+      for (const response of Object.values(
+        (op.responses ?? {}) as Record<string, Json>,
+      )) {
+        for (const code of codeMentions(response.description)) {
+          namedByOperations.add(code);
+        }
+      }
+      for (const parameter of (op.parameters ?? []) as Json[]) {
+        for (const code of codeMentions(parameter.description)) {
+          namedByOperations.add(code);
+        }
+      }
+      for (const code of codeMentions(
+        ((op.requestBody ?? {}) as Json).description,
+      )) {
+        namedByOperations.add(code);
+      }
+    }
+  }
+  const namedByPreamble = new Set(
+    codeMentions((spec.info as Json).description),
+  );
+
+  it('names every registered code in an operation or in the preamble, or lists it as debt', () => {
+    const homeless = REST_ERROR_CODES.filter(
+      (code) =>
+        !namedByOperations.has(code) &&
+        !namedByPreamble.has(code) &&
+        !UNNAMED_CODES.has(code),
+    );
+    expect(homeless).toEqual([]);
+  });
+
+  it('keeps the debt list honest — a code that gained a home leaves it', () => {
+    const paidDown = [...UNNAMED_CODES].filter(
+      (code) => namedByOperations.has(code) || namedByPreamble.has(code),
+    );
+    expect(paidDown).toEqual([]);
+  });
+
+  it('lists only registered codes as debt', () => {
+    const registered = new Set<string>(REST_ERROR_CODES);
+    expect([...UNNAMED_CODES].filter((code) => !registered.has(code))).toEqual(
+      [],
+    );
+  });
+});
+
+describe('the contract version moves with the contract', () => {
+  const recorded: { version: string; operations: string; schemas: string } =
+    JSON.parse(
+      readFileSync(
+        new URL('./contract-fingerprint.json', import.meta.url),
+        'utf8',
+      ),
+    );
+  const current = contractFingerprint(spec);
+  const version = String((spec.info as Json).version);
+
+  it('records the fingerprint of the published document (bun run generate:openapi)', () => {
+    // The generator writes the fingerprint beside public/openapi.json; a
+    // document rebuilt without it is out of date the same way.
+    expect(current).toEqual({
+      operations: recorded.operations,
+      schemas: recorded.schemas,
+    });
+  });
+
+  it('carries the version the fingerprint was recorded with', () => {
+    expect(version).toBe(recorded.version);
+  });
+
+  it('states the version as semver and names it in the API_CONTRACT_VERSION constant', () => {
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
 /**
  * Every JSON read is a validated read (`lib/conditional-get.ts`): the
  * generator stamps the `ETag`/`Cache-Control` headers and the 304 on each
@@ -1249,11 +1501,17 @@ describe('validated reads in the published document', () => {
   });
 
   it('declare no body validator on a GET that answers no JSON', () => {
+    // A download's 200 declares the STORE's validators (its ETag and
+    // Last-Modified ride the bytes) — that is the object's tag, not the
+    // JSON read's, so a binary answer is exempt here.
     const other = gets.filter(([, op]) => {
       const ok = (op.responses as Record<string, Json>)['200'] as
         | { content?: Record<string, Json> }
         | undefined;
-      return ok?.content?.['application/json'] === undefined;
+      return (
+        ok?.content?.['application/json'] === undefined &&
+        ok?.content?.['*/*'] === undefined
+      );
     });
     expect(other.length).toBeGreaterThan(0);
     for (const [path, op] of other) {
