@@ -273,6 +273,8 @@ async function fixture(
       stderr: '',
       exitCode: 0,
     });
+    if (args[0] === 'exec' && args[2] === 'stat') return ok('1001:1001\n');
+    if (args[0] === 'exec' && args[2] === 'chown') return ok();
     if (args[0] === 'exec' && args[2] === 'mkdir') {
       mkdirSync(mapped(args.at(-1)!), { mode: 0o700 });
       return ok();

@@ -150,6 +150,9 @@ async function create(legacy = false, identity = true) {
   let nativeOutput = () =>
     JSON.stringify({ ok: true, command: 'deploy provision', data: native });
   let nativeFailure = false;
+  let nativeFailureOutput = '';
+  let copied = false;
+  let owned = false;
   let cleanupFailure = false;
   let snapshotFailure = false;
   process.env.TALE_TEST_NATIVE_PASSWORD = 'synthetic-operator-password';
@@ -189,8 +192,15 @@ async function create(legacy = false, identity = true) {
       expect(options?.env).not.toHaveProperty('TALE_TEST_UNUSED_SECRET');
       expect(args.join(' ')).not.toContain('synthetic-operator-password');
       const ok = { success: true, exitCode: 0, stdout: '', stderr: '' };
+      if (args.includes('stat')) return { ...ok, stdout: '1001:1001\n' };
       if (args.includes('provision')) {
         events.push('provision');
+        // The backend-local phase runs as the owner of the data directory,
+        // never as the container's root default, on a copy it owns.
+        expect(args.indexOf('--user')).toBeGreaterThan(0);
+        expect(args[args.indexOf('--user') + 1]).toBe('1001:1001');
+        expect(args.indexOf('--user')).toBeLessThan(args.indexOf('deploy'));
+        expect(owned).toBe(true);
         expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
           password: 'synthetic-operator-password',
           slug: 'example-team',
@@ -200,18 +210,31 @@ async function create(legacy = false, identity = true) {
             ...ok,
             success: false,
             exitCode: 5,
+            stdout: nativeFailureOutput,
             stderr: 'synthetic-operator-password',
           };
         return { ...ok, stdout: nativeOutput() };
       }
       if (args.includes('rm')) {
         events.push('cleanup');
+        copied = false;
+        owned = false;
         if (cleanupFailure) throw new Error('synthetic-cleanup-secret');
       } else if (args[0] === 'cp') {
+        copied = true;
         nativeCopies.push({
           source: args[1],
           binary: readFileSync(join(args[1], 'cli/tale')),
         });
+      } else if (args.includes('chown')) {
+        expect(copied).toBe(true);
+        expect(args.slice(2)).toEqual([
+          'chown',
+          '-R',
+          '1001:1001',
+          args.at(-1)!,
+        ]);
+        owned = true;
       } else expect(args.includes('mkdir')).toBe(true);
       return ok;
     },
@@ -239,8 +262,9 @@ async function create(legacy = false, identity = true) {
     nativeOutput: (value: typeof nativeOutput) => {
       nativeOutput = value;
     },
-    nativeFailure: (value: boolean) => {
+    nativeFailure: (value: boolean, output = '') => {
       nativeFailure = value;
+      nativeFailureOutput = output;
     },
     cleanupFailure: (value: boolean) => {
       cleanupFailure = value;
@@ -703,6 +727,75 @@ describePosix('complete managed deployment lifecycle', () => {
       'different deployment bundle is pending',
     );
     expect(run.events).toEqual([]);
+  });
+
+  test('a failing backend-local phase repeats its own summary and never its stderr', async () => {
+    const run = await create(true);
+    run.nativeFailure(
+      true,
+      JSON.stringify({
+        ok: false,
+        command: 'tale',
+        error: {
+          summary: 'Native deployment state has an unsafe directory or owner.',
+          code: 4,
+        },
+      }),
+    );
+    let failure: unknown;
+    await run.apply().catch((error: unknown) => {
+      failure = error;
+    });
+    expect(String(failure)).toContain(
+      'did not complete provisioning. Its previous receipts are retained for recovery. It reported: Native deployment state has an unsafe directory or owner. (exit 4)',
+    );
+    expect(String(failure)).not.toContain('synthetic-operator-password');
+  });
+
+  test('a reviewed bundle supersedes the pending one and keeps its recovery snapshot', async () => {
+    const run = await create(true);
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    const intentPath = join(
+      run.fixture.options.stateDirectory,
+      '.tale/deployment-pending.json',
+    );
+    const pending = JSON.parse(readFileSync(intentPath, 'utf8'));
+    const original = await verifyDeploymentBundle(run.bundle);
+    const rewrite = async (supersedesPendingBundle: string) => {
+      rmSync(join(run.bundle, 'deployment.json'));
+      await writeDeploymentBundle(run.bundle, {
+        schemaVersion: 1,
+        kind: 'tale-deployment',
+        cli: original.cli,
+        spec: { ...original.spec, supersedesPendingBundle },
+        deploymentRef: 'd'.repeat(40),
+      });
+    };
+    // Naming any bundle but the pending one keeps the refusal, which names it.
+    await rewrite('e'.repeat(64));
+    run.events.length = 0;
+    await expect(run.apply()).rejects.toThrow(
+      `different deployment bundle is pending (${pending.bundleSha256})`,
+    );
+    expect(run.events).toEqual([]);
+    await rewrite(pending.bundleSha256);
+    run.nativeFailure(false);
+    const result = await run.apply();
+    expect(result).toMatchObject({
+      snapshotId: pending.snapshot.id,
+      supersededBundles: [pending.bundleSha256],
+      runtimeChanged: false,
+    });
+    expect(run.events).toEqual(['verify-snapshot', 'provision', 'cleanup']);
+    expect(existsSync(intentPath)).toBe(false);
+    expect(
+      JSON.parse(readFileSync(run.receiptPath, 'utf8')).supersededBundles,
+    ).toEqual([pending.bundleSha256]);
+    // A lingering declaration is a warning, not a refusal.
+    expect(await run.apply()).toMatchObject({
+      snapshotId: pending.snapshot.id,
+    });
   });
 
   test('preparation binds real source commits, retains only secret references and refuses output reuse', async () => {

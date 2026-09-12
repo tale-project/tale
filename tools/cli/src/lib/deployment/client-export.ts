@@ -13,6 +13,7 @@ import { gitSha, sha, slug } from '../config/releases/model';
 import { exec } from '../docker/exec';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
+import { backendCliFailure, backendDataOwner } from './backend-cli';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
 import {
   publishClientExport,
@@ -182,19 +183,28 @@ async function readBackendExport(
     }
     if (!result.success && !allowFailure)
       throw externalDepError(
-        'The backend-local credential export did not complete.',
+        backendCliFailure(
+          'The backend-local credential export did not complete.',
+          result,
+        ),
       );
     return result;
   };
+  // Same account as `deploy provision`: the export reads the private state
+  // that phase wrote, owned by the backend's own user.
+  const owner = await backendDataOwner(execute, backend);
   await execute(['exec', backend, 'mkdir', '-m', '700', temporary]);
   try {
     await execute(['cp', `${directory}/.`, `${backend}:${temporary}/`]);
+    await execute(['exec', backend, 'chown', '-R', owner, temporary]);
     const result = await execute(
       [
         'exec',
         '-i',
         '-w',
         '/',
+        '--user',
+        owner,
         backend,
         `${temporary}/cli/tale`,
         'deploy',
