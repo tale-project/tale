@@ -86,6 +86,54 @@ const RUN_INCLUDES = [
   'checkpoints',
 ] as const;
 
+/**
+ * The most a run page may inline through `?include=`, in serialized bytes.
+ * The ceiling is the API's, never the caller's data: a page of 200 rows
+ * with 4 MB inputs used to answer 800 MB inside one request budget. A page
+ * that would cross it ends early — `isDone: false` and a cursor at the
+ * last row that fit — so the walk stays complete; a single row above the
+ * ceiling still answers, as a page of one.
+ */
+const RUN_PAGE_INLINE_BUDGET_BYTES = 8 * 1024 * 1024;
+
+/** The most rows an inlining page reads: the byte budget bounds the wire,
+ * this bounds what the store hauls into the process before the cut — a
+ * `limit=200` with inlined inputs fetched every full row first. Clamped,
+ * as every out-of-range `limit` is. */
+const RUN_INCLUDE_PAGE_MAX = 25;
+
+/** The keys a run read answers; `?fields=` names the subset a poller
+ * wants — `status,finishedAt` turns a multi-megabyte run into a line. */
+const RUN_FIELDS = [
+  'id',
+  'organizationId',
+  'name',
+  'version',
+  'projectId',
+  'status',
+  'mode',
+  'startedBy',
+  'input',
+  'output',
+  'checkpoints',
+  'trace',
+  'effects',
+  'detail',
+  'claimEpoch',
+  'chainSeq',
+  'startedAt',
+  'finishedAt',
+] as const satisfies readonly (keyof RunRow)[];
+// Every key the full read answers must be selectable: a `RunRow` column
+// added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
+type RunFieldsMissing = Exclude<keyof RunRow, (typeof RUN_FIELDS)[number]>;
+const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
+  true;
+void RUN_FIELDS_COMPLETE;
+
+/** The query a run read takes: the fields to keep, or all of them. */
+const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
+
 /** The query every run listing takes: the page pair, a status set and the
  * full-row fields to inline. */
 const RUN_LIST_QUERY = {
@@ -401,7 +449,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (before instanceof Response) return before;
     const limit = readPageLimit(c, { fallback: 50, max: 200 });
     if (limit instanceof Response) return limit;
-    return { statuses, include: include ?? [], before, limit };
+    const inlined = include !== undefined && include.length > 0;
+    return {
+      statuses,
+      include: include ?? [],
+      before,
+      limit: inlined ? Math.min(limit, RUN_INCLUDE_PAGE_MAX) : limit,
+    };
   };
 
   /** A listing row: the summary, plus the full-row fields the caller
@@ -417,9 +471,32 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       : {}),
   });
 
+  /**
+   * The rows of a page that fit the inline budget, in order: every row
+   * when nothing is inlined (a summary is a few hundred bytes), else the
+   * longest prefix whose serialized rows stay under
+   * {@link RUN_PAGE_INLINE_BUDGET_BYTES} — never fewer than one.
+   */
+  const withinInlineBudget = <Entry extends { wire: unknown }>(
+    entries: readonly Entry[],
+    inlined: boolean,
+  ): Entry[] => {
+    if (!inlined) return [...entries];
+    const kept: Entry[] = [];
+    let bytes = 0;
+    for (const entry of entries) {
+      bytes += Buffer.byteLength(JSON.stringify(entry.wire));
+      if (bytes > RUN_PAGE_INLINE_BUDGET_BYTES && kept.length > 0) break;
+      kept.push(entry);
+    }
+    return kept;
+  };
+
   /** One page of runs in `scope`, newest first, as `{runs, isDone,
    * continueCursor}` — the cursor signed for `list`, so it redeems only on
-   * the listing that answered it. */
+   * the listing that answered it. An inlining page that would cross the
+   * byte budget ends at the last row that fit, and its cursor points
+   * there. */
   const answerRunPage = async (
     c: Context<RestEnv>,
     list: string,
@@ -432,13 +509,25 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       ...(query.before === null ? {} : { before: query.before }),
       limit: query.limit,
     });
+    const rows = page.runs.map((row) => ({
+      row,
+      wire: runListRow(row, query.include),
+    }));
+    const kept = withinInlineBudget(rows, query.include.length > 0);
+    const cut = kept.length < rows.length;
+    const last = kept.at(-1)?.row;
+    const next = cut
+      ? last === undefined
+        ? null
+        : { at: last.startedAt, id: last.id }
+      : page.next;
     return c.json({
-      runs: page.runs.map((row) => runListRow(row, query.include)),
-      isDone: page.isDone,
+      runs: kept.map((entry) => entry.wire),
+      isDone: page.isDone && !cut,
       continueCursor:
-        page.next === null
+        next === null
           ? ''
-          : mintCursor(c, list, formatKeysetCursor(page.next.at, page.next.id)),
+          : mintCursor(c, list, formatKeysetCursor(next.at, next.id)),
     });
   };
 
@@ -716,7 +805,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- runs ----------------------------------------------------------------
+  /** The run in full, or — with `?fields=` — only the keys named: a
+   * poller after `status` no longer moves the input, the trace and the
+   * checkpoints on every read (one run here weighed 4 MB to convey nine
+   * bytes of status). An unknown key answers 400 `INVALID_QUERY`. */
   const readRun = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_READ_QUERY);
+    if (query instanceof Response) return query;
+    const fields = readSetQuery(c, 'fields', query.fields, RUN_FIELDS);
+    if (fields instanceof Response) return fields;
     try {
       const projectId = c.req.param('id');
       if (projectId !== undefined) {
@@ -730,13 +827,21 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       );
       if (run === null || run.projectId !== (projectId ?? null))
         return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
-      return c.json(run);
+      if (fields === undefined) return c.json(run);
+      return c.json(
+        Object.fromEntries(
+          RUN_FIELDS.filter((key) => fields.includes(key)).map((key) => [
+            key,
+            run[key],
+          ]),
+        ),
+      );
     } catch (error) {
       return domainErrorResponse(c, error);
     }
   };
-  app.get('/runs/:runId', noQuery, readRun);
-  app.get('/projects/:id/runs/:runId', noQuery, readRun);
+  app.get('/runs/:runId', readRun);
+  app.get('/projects/:id/runs/:runId', readRun);
 
   /** Stop a run at its next node boundary. A run that is not there is a
    * 404 — `{cancelled: false}` is reserved for a run that exists and had

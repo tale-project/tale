@@ -24,6 +24,7 @@ import { chatShimHandlers } from '../chat/shim.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { checkTtsBudget } from '../tts/service.ts';
+import { hintVideoJobs, type VideoJobHintRow } from './hints.ts';
 
 /**
  * Video links — the 0.5 twin of `convex/video_links`: paste a video URL in
@@ -184,7 +185,7 @@ export async function updateJob(
   },
 ): Promise<UpdateJobResult> {
   const now = Date.now();
-  const rows = await db<{ id: string }[]>`
+  const rows = await db<VideoJobHintRow[]>`
     UPDATE app.video_link_jobs SET
       status = ${args.status !== undefined ? args.status : db.unsafe('status')},
       status_changed_at_ms = ${args.status !== undefined ? now : db.unsafe('status_changed_at_ms')},
@@ -206,9 +207,12 @@ export async function updateJob(
     WHERE id = ${args.jobId}
       AND (${args.expectedStatus ?? null}::text IS NULL
            OR status = ${args.expectedStatus ?? null})
-    RETURNING id
+    RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
   `;
-  if (rows.length > 0) return 'ok';
+  if (rows.length > 0) {
+    await hintVideoJobs(db, rows);
+    return 'ok';
+  }
   const exists = await db<{ id: string }[]>`
     SELECT id FROM app.video_link_jobs WHERE id = ${args.jobId} LIMIT 1
   `;
@@ -419,13 +423,15 @@ export async function heartbeatJobByStorageRef(
   sql: Sql,
   args: { storageId: string; progress?: string },
 ): Promise<void> {
-  await sql`
+  const rows = await sql<VideoJobHintRow[]>`
     UPDATE app.video_link_jobs SET
       status_changed_at_ms = ${Date.now()},
       progress = ${args.progress !== undefined ? args.progress : sql.unsafe('progress')}
     WHERE storage_ref = ${args.storageId}
       AND status = 'transcribing_handoff'
+    RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
   `;
+  await hintVideoJobs(sql, rows);
 }
 
 /**
@@ -447,7 +453,7 @@ export async function settleHandoffJobsByStorageRef(
 ): Promise<void> {
   const now = Date.now();
   if (args.transcriptionStatus === 'failed') {
-    await db`
+    const failed = await db<VideoJobHintRow[]>`
       UPDATE app.video_link_jobs SET
         status = 'failed',
         status_changed_at_ms = ${now},
@@ -455,16 +461,20 @@ export async function settleHandoffJobsByStorageRef(
         error_reason_code = 'whisperFailed',
         error_message = ${args.errorMessage ?? 'Whisper transcription failed'}
       WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
+      RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
     `;
+    await hintVideoJobs(db, failed);
     return;
   }
-  await db`
+  const settled = await db<VideoJobHintRow[]>`
     UPDATE app.video_link_jobs SET
       status = ${args.transcriptionStatus},
       status_changed_at_ms = ${now},
       progress = NULL
     WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
+    RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
   `;
+  await hintVideoJobs(db, settled);
 }
 
 // ---------------------------------------------------------------- watchdog
@@ -596,6 +606,7 @@ export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
       await sql`DELETE FROM app.file_metadata WHERE id = ${job.fileMetadataId}`;
     }
     await sql`DELETE FROM app.video_link_jobs WHERE id = ${row.id}`;
+    await hintVideoJobs(sql, [job]);
   }
 }
 
@@ -1008,6 +1019,7 @@ export async function ingestVideoUrl(
           UPDATE app.video_link_jobs SET pasted_token = ${args.pastedToken}
           WHERE id = ${hit.id}
         `;
+        await hintVideoJobs(sql, [hit]);
       }
       return hit.id;
     }
@@ -1043,6 +1055,13 @@ export async function ingestVideoUrl(
       `;
       const jobId = rows[0]?.id;
       if (!jobId) throw new Error('video job insert failed');
+      await hintVideoJobs(tx, [
+        {
+          id: jobId,
+          organizationId: args.organizationId,
+          uploadedBy: args.userId,
+        },
+      ]);
       await addJobInTx(tx, 'video.clone', {
         jobId,
         donorFileMetadataId: donor.metaId,
@@ -1086,6 +1105,13 @@ export async function ingestVideoUrl(
     `;
     const jobId = rows[0]?.id;
     if (!jobId) throw new Error('video job insert failed');
+    await hintVideoJobs(tx, [
+      {
+        id: jobId,
+        organizationId: args.organizationId,
+        uploadedBy: args.userId,
+      },
+    ]);
     await addJobInTx(tx, 'video.ingest', {
       jobId,
       ...(args.userLocale !== undefined ? { userLocale: args.userLocale } : {}),
@@ -1129,9 +1155,9 @@ export async function bindJobsForDeferredSend(
 ): Promise<string[]> {
   if (args.jobIds.length === 0) return [];
   const now = Date.now();
-  const claimed: string[] = [];
+  const claimed: VideoJobHintRow[] = [];
   for (const jobId of args.jobIds) {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql<VideoJobHintRow[]>`
       UPDATE app.video_link_jobs
       SET message_bound_at_ms = ${now},
           thread_id = coalesce(thread_id, ${args.threadId})
@@ -1140,11 +1166,12 @@ export async function bindJobsForDeferredSend(
         AND message_bound_at_ms IS NULL
         AND status <> 'skipped'
         AND lifecycle_status IS DISTINCT FROM 'trashed'
-      RETURNING id
+      RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
     `;
-    if (rows[0]) claimed.push(rows[0].id);
+    if (rows[0]) claimed.push(rows[0]);
   }
-  return claimed;
+  await hintVideoJobs(sql, claimed);
+  return claimed.map((row) => row.id);
 }
 
 /** Fire-time payloads for a deferred send's claimed jobs (the 0.4
@@ -1219,6 +1246,7 @@ export async function cancelDeferredJobs(
           UPDATE app.video_link_jobs SET message_bound_at_ms = NULL
           WHERE id = ${jobId}
         `;
+        await hintVideoJobs(sql, [job]);
       }
       continue;
     }
@@ -1228,6 +1256,7 @@ export async function cancelDeferredJobs(
           status_changed_at_ms = ${Date.now()}
       WHERE id = ${jobId}
     `;
+    await hintVideoJobs(sql, [job]);
     if (
       job.fileMetadataId !== null &&
       job.storageRef !== null &&
@@ -1596,6 +1625,7 @@ export async function bindCompletedJobsToMessage(
       FOR UPDATE
     `;
     const out: BoundAttachment[] = [];
+    const bound: VideoJobHintRow[] = [];
     for (const job of candidates) {
       if (job.uploadedBy !== args.userId) continue;
       if (job.messageBoundAt !== null) continue;
@@ -1624,6 +1654,7 @@ export async function bindCompletedJobsToMessage(
           message_bound_at_ms = ${Date.now()}
         WHERE id = ${job.id}
       `;
+      bound.push(job);
       out.push({
         fileId: job.storageRef,
         fileType: 'video/mp4',
@@ -1633,6 +1664,7 @@ export async function bindCompletedJobsToMessage(
         jobId: job.id,
       });
     }
+    await hintVideoJobs(tx, bound);
     return out;
   });
 }
@@ -1654,7 +1686,7 @@ export async function unbindJobsWithoutMessage(
 ): Promise<void> {
   const jobIds = [...new Set(args.jobIds)];
   if (jobIds.length === 0) return;
-  await sql`
+  const rows = await sql<VideoJobHintRow[]>`
     UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
     WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
       AND (${args.userId ?? null}::text IS NULL
@@ -1667,7 +1699,9 @@ export async function unbindJobsWithoutMessage(
             'type', 'attachment', 'fileId', j.storage_ref
           ))
       )
+    RETURNING j.id, j.org_id AS "organizationId", j.uploaded_by AS "uploadedBy"
   `;
+  await hintVideoJobs(sql, rows);
 }
 
 /**

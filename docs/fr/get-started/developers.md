@@ -26,7 +26,7 @@ Pour obtenir un identifiant que tes scripts peuvent porter, ouvre **Paramètres 
 La première requête liste les modèles que ta clé peut utiliser dans le chat direct. La clé passe comme jeton Bearer ; le contexte d’organisation suit tes appartenances :
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/models \
+curl -sS --compressed https://your-host.example.com/api/v1/models \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 

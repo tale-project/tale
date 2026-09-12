@@ -106,12 +106,31 @@ export interface AdaptedReadOptions {
   queryFn: () => Promise<unknown>;
   staleTime?: number;
   refetchInterval?: number;
+  /**
+   * The caller's view of a SHARED answer: reads whose args only narrow one
+   * fetched body (a status picked out of a counts map) key on the fetch and
+   * project here, so react-query issues one request for every narrowing —
+   * keyed on the narrowing, four status counts fetched the same body four
+   * times on every cold load.
+   */
+  select?: (data: unknown) => unknown;
 }
 
 export type ReadAdapter = (
   args: Record<string, unknown>,
   ctx: AdapterContext,
 ) => AdaptedReadOptions | null;
+
+/** The caller's view of what an adapted read fetched: the fetched body,
+ * through the row's `select` when it has one. Every consumer that hands a
+ * read's answer to a caller — the hook, the loaders, the imperative client
+ * — projects through this, so a shared body never reaches a caller raw. */
+export function projectAdaptedRead(
+  adapted: Pick<AdaptedReadOptions, 'select'>,
+  data: unknown,
+): unknown {
+  return adapted.select === undefined ? data : adapted.select(data);
+}
 
 /** `useActionQuery` keeps the CALLER's queryKey; the adapter only supplies
  * the fetch. `null` = cannot serve (no org in scope) → skipped. */

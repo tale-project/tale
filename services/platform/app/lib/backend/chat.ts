@@ -1,6 +1,7 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
@@ -381,13 +382,48 @@ export function deferredSendsQuery(organizationId: string, threadId: string) {
   });
 }
 
+/** The chip states nothing will move again. Anything else — queued, a
+ * fetch, an extraction, indexing, a whisper handoff, a retry — is live. */
+const SETTLED_VIDEO_JOB_STATUSES: ReadonlySet<string> = new Set([
+  'completed',
+  'failed',
+  'skipped',
+]);
+
+/**
+ * How often a chip read re-asks while a job is still processing. The
+ * `/events` hint stream is the signal — the backend hints the uploader on
+ * every job write — so this is only the fallback for a hint lost in a
+ * reconnect gap, and it stops once every job has settled: an idle chat
+ * page used to poll this route every two seconds, forever, to learn that
+ * an empty list was still empty.
+ */
+const LIVE_VIDEO_JOB_POLL_MS = 5_000;
+
+/** The `refetchInterval` of both chip reads: live while any job is, else
+ * off. An unanswered read (no data yet) is not polled either — the first
+ * fetch runs regardless, and its answer decides. */
+export function videoJobsPollInterval(
+  jobs: readonly { displayStatus: string }[] | undefined,
+): number | false {
+  return jobs !== undefined &&
+    jobs.some((job) => !SETTLED_VIDEO_JOB_STATUSES.has(job.displayStatus))
+    ? LIVE_VIDEO_JOB_POLL_MS
+    : false;
+}
+
 /** The thread's video-link jobs (the tray's live-status join). */
 export function videoJobsForThreadQuery(
   organizationId: string,
   threadId: string,
 ) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'video_link', 'thread', threadId),
+    queryKey: backendKey(
+      organizationId,
+      VIDEO_LINK_HINT_ENTITY,
+      'thread',
+      threadId,
+    ),
     queryFn: ({ signal }) =>
       backendFetch<{
         jobs: ReturnsOf<'video_links/queries:listForThread'>;
@@ -395,7 +431,7 @@ export function videoJobsForThreadQuery(
         signal,
         orgId: organizationId,
       }).then((body) => body.jobs),
-    refetchInterval: 2000,
+    refetchInterval: (query) => videoJobsPollInterval(query.state.data),
   });
 }
 
@@ -909,14 +945,14 @@ export function fileStatusesQuery(
 /** The caller's unbound video jobs (the chat index's chips). */
 export function videoJobsUnboundQuery(organizationId: string) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'video_link', 'unbound'),
+    queryKey: backendKey(organizationId, VIDEO_LINK_HINT_ENTITY, 'unbound'),
     queryFn: ({ signal }) =>
       backendFetch<{
         jobs: ReturnsOf<'video_links/queries:listForUserUnboundChat'>;
       }>('/video-links/unbound', { signal, orgId: organizationId }).then(
         (body) => body.jobs,
       ),
-    refetchInterval: 2000,
+    refetchInterval: (query) => videoJobsPollInterval(query.state.data),
   });
 }
 

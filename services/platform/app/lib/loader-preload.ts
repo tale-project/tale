@@ -2,6 +2,7 @@ import type { PolicyType } from '@tale/shared/schemas/governance';
 
 import {
   activeOrganizationId,
+  projectAdaptedRead,
   READ_ADAPTERS,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
@@ -36,10 +37,12 @@ export function ensureConvexQuery<Name extends QueryName>(
       organizationId !== undefined ? { organizationId } : {},
     );
     if (adapted === null) return Promise.resolve(undefined);
-    return context.queryClient.ensureQueryData({
-      queryKey: adapted.queryKey,
-      queryFn: adapted.queryFn,
-    });
+    return context.queryClient
+      .ensureQueryData({
+        queryKey: adapted.queryKey,
+        queryFn: adapted.queryFn,
+      })
+      .then((data) => projectAdaptedRead(adapted, data));
   }
   // A render-gating read with no row cannot degrade quietly: the route would
   // paint its denied/empty state as if that were the answer.

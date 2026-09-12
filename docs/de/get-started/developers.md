@@ -26,7 +26,7 @@ Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Ein
 Die erste Anfrage listet die Modelle auf, die dein Schlüssel im direkten Chat verwenden darf. Der Schlüssel steht als Bearer-Token in der Anfrage; der Organisationskontext folgt deiner Mitgliedschaft:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/models \
+curl -sS --compressed https://your-host.example.com/api/v1/models \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 

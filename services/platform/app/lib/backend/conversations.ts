@@ -89,19 +89,20 @@ export const conversationReadAdapters: Record<string, ReadAdapter> = {
       typeof args.connectorName === 'string' && args.connectorName !== ''
         ? args.connectorName
         : undefined;
+    // The route answers EVERY status in one body; the four tab badges
+    // narrow it. Keyed on the fetch (the connector) and narrowed in
+    // `select`, so the badges share one request and one cache entry —
+    // keyed on the status, a cold load fetched the same body four times.
     return {
-      queryKey: backendKey(
-        orgId,
-        'conversation',
-        'count',
-        status,
-        connector ?? '',
-      ),
+      queryKey: backendKey(orgId, 'conversation', 'count', connector ?? ''),
       queryFn: () =>
         backendFetch<{ byStatus: Record<string, number> }>(
           `/conversations/counts${connector === undefined ? '' : `?connector=${encodeURIComponent(connector)}`}`,
           { orgId },
-        ).then((body) => body.byStatus[status] ?? 0),
+        ).then((body) => body.byStatus),
+      select: (byStatus) =>
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the queryFn above stores the counts map
+        (byStatus as Record<string, number>)[status] ?? 0,
     };
   },
   'conversations/queries:getConversationWithMessages': (args, ctx) => {

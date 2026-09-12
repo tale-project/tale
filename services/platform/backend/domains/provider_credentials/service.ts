@@ -12,6 +12,7 @@ import type { z } from 'zod';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { formatZodError } from '../../../lib/shared/schemas/format-error.ts';
 import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
@@ -29,6 +30,7 @@ import {
 } from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
@@ -521,6 +523,7 @@ export async function createCredential(
     metadata: { providerSlug: args.providerSlug, authMethod: args.authMethod },
     status: 'success',
   });
+  await hintCredential(tx, scope.organizationId, id);
   return id;
 }
 
@@ -701,6 +704,7 @@ export async function updateCredential(
     resourceName: row.name,
     status: 'success',
   });
+  await hintCredential(tx, scope.organizationId, credentialId);
 }
 
 export async function deleteCredential(
@@ -733,5 +737,25 @@ export async function deleteCredential(
     resourceId: credentialId,
     resourceName: row.name,
     status: 'success',
+  });
+  await hintCredential(tx, scope.organizationId, credentialId);
+}
+
+/**
+ * A credential changed: tell every open tab of the organization — the
+ * credential list and the composer's model catalog key under this entity
+ * (`hint-entities.ts`), so a new provider reaches every composer within a
+ * hint round-trip instead of on its next mount. Org-wide on purpose: the
+ * catalog is what the organization can serve, not what one user did.
+ */
+async function hintCredential(
+  tx: TransactionSql,
+  organizationId: string,
+  credentialId: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
+    entityId: credentialId,
   });
 }

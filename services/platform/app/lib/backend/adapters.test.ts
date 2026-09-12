@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 
-import { retryAdaptedRead, runAdapted, toBackendError } from './adapters';
+import {
+  projectAdaptedRead,
+  retryAdaptedRead,
+  runAdapted,
+  toBackendError,
+} from './adapters';
 import { BackendApiError } from './api-client';
 
 describe('toBackendError', () => {
@@ -54,5 +59,16 @@ describe('retryAdaptedRead', () => {
     expect(retryAdaptedRead(0, new BackendApiError(503, 'later'))).toBe(true);
     expect(retryAdaptedRead(2, new Error('network'))).toBe(true);
     expect(retryAdaptedRead(3, new Error('network'))).toBe(false);
+  });
+});
+
+describe('projectAdaptedRead', () => {
+  it('hands the fetched body through as is when the row has no select', () => {
+    expect(projectAdaptedRead({}, { open: 3 })).toEqual({ open: 3 });
+  });
+
+  it("applies the row's select, so a shared body never reaches a caller raw", () => {
+    const select = (data: unknown) => (data as { open: number }).open;
+    expect(projectAdaptedRead({ select }, { open: 3 })).toBe(3);
   });
 });

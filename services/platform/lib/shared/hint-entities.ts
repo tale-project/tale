@@ -18,3 +18,23 @@
  * app keys every unread count and every notification page under it.
  */
 export const NOTIFICATION_HINT_ENTITY = 'notification';
+
+/**
+ * The chat composer's video-link chips. Every write to `app.video_link_jobs`
+ * — the pipeline's status patches, the deferred-send claims, cancel and
+ * retry, the watchdogs' flips and reaps — hints the uploader under this
+ * entity, and the app keys both chip reads (a thread's jobs, the caller's
+ * unbound rows) under it. Before the hint existed those reads had no
+ * signal at all and polled their route every two seconds on every open
+ * chat page, forever.
+ */
+export const VIDEO_LINK_HINT_ENTITY = 'video_link';
+
+/**
+ * An organization's AI-provider credentials — and everything derived from
+ * them: the composer's model catalog is the set of models a credential can
+ * serve, so it keys under this entity and a credential write reaches every
+ * open composer within a hint round-trip (it used to refetch on every
+ * mount instead, twice per chat page).
+ */
+export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';
