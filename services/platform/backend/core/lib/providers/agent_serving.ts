@@ -28,18 +28,19 @@
  * falling back to another provider.
  */
 
+import type {
+  ModelCatalogEntry,
+  ProviderDefinition,
+} from '@tale/shared/schemas/providers';
+import {
+  modelAllowlistPermits,
+  modelIdsEquivalent,
+} from '@tale/shared/utils/model-ref';
+
 import {
   buildHarnessTable,
   resolveExecution,
 } from '../../../../lib/shared/providers/resolve_execution';
-import type {
-  ModelCatalogEntry,
-  ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
-import {
-  modelAllowlistPermits,
-  modelIdsEquivalent,
-} from '../../../../lib/shared/utils/model-ref';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';

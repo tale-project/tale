@@ -63,6 +63,28 @@ private keys with real OpenSSH after temporary-file materialization: LF, CRLF
 and missing final newlines retain the same key identity, with private file
 permissions, cleanup and public-runtime credential isolation checked.
 
+The private inference journey is covered by `tools/cli/tests/inference.test.ts`
+for source/compiled commands and committed metadata preparation. Tests under
+`tools/cli/src/lib/inference/` cover actual local HTTP/SSE, the pinned Caddy
+router with synthetic replicas, real macOS plist parsing, artifact verification,
+memory observations and interrupted lifecycle recovery with modeled process
+adapters. The packaged ASGI middleware is executed with model-free Python work
+behind actual pinned Caddy: all role routes share one slot through disconnect,
+queued cancellations never enter, and 64 embedding results retain their order.
+The locale topology examples pass the production schema in
+`inference/documentation.test.ts`. `deployment/inference*.test.ts` covers companion custody and native
+provider/policy readback, with Docker and database effects explicitly modeled.
+Fresh project/operator-owner/managed-client recovery lives in the deployment
+`fresh-*.test.ts`, `projects.test.ts`, `native-client-fresh.test.ts` and
+`config-source.test.ts` suites. Email attestation and private credential export
+have their own `email-attestation.test.ts` and `client-export*.test.ts` guards.
+`tools/cli/tests/client-export.test.ts` checks the actual source and compiled
+command envelopes, private output, replay and refusal boundaries.
+Namespace observation checks exact Docker capability spelling, private route
+policy and pending/drift refusal without controller writes. None establishes real model performance,
+sustained mixed-load safety, OCR accuracy or a destination rollout. The rendered
+EN/DE/FR journey, readable commands and mobile navigation remain docs checks.
+
 - **The Playwright suite drives the same origin a round does.** Never run
   `bun run test:e2e` beside a round: it signs in, creates and deletes data, and
   leaves the stack in its end state.

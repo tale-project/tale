@@ -51,6 +51,7 @@
     "self-hosted/install/docker-compose-reference": "develop/compose-files",
     "self-hosted/install/customize-compose": "self-hosted/operate/upgrades",
     "self-hosted/contributing-docker": "develop/contributing-docker",
-    "self-hosted/install/linux-server": "self-hosted/install/quickstart"
+    "self-hosted/install/linux-server": "self-hosted/install/quickstart",
+    "self-hosted/configuration/private-inference": "self-hosted/configuration/providers"
   }
 }

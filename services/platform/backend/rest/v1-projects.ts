@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
+import {
+  PROJECT_AGENT_NAME_MAX,
+  projectAgentInputSchema,
+} from '@tale/shared/schemas/projects';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
-import {
-  PROJECT_AGENT_NAME_MAX,
-  projectAgentInputSchema,
-} from '../../lib/shared/schemas/projects.ts';
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {

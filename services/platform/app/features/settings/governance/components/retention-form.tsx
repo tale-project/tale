@@ -1,12 +1,12 @@
 'use client';
 
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useT } from '@/lib/i18n/client';
-import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
 import {
   type RetentionCategory,
   unitForCategory,

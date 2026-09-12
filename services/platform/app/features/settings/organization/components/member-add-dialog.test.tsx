@@ -34,7 +34,7 @@ vi.mock('../hooks/queries', () => ({
 
 vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
   const { DEFAULT_PASSWORD_POLICY } =
-    await import('@/lib/shared/schemas/governance');
+    await import('@tale/shared/schemas/governance');
   return {
     usePasswordPolicy: () => DEFAULT_PASSWORD_POLICY,
   };

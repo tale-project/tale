@@ -14,8 +14,9 @@
  * has no transcription endpoint at all.
  */
 
+import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
+
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';

@@ -33,6 +33,8 @@
  * the vision lane paid for once already).
  */
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+
 import {
   assessPromptBand,
   chooseChatModel,
@@ -40,7 +42,6 @@ import {
   type ChatAutoRefusal,
   type ModelBand,
 } from '../../../../lib/chat';
-import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { walkChatCatalog } from './chat_catalog';

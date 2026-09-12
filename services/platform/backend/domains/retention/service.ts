@@ -1,6 +1,6 @@
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
-import type { RetentionPolicyConfig } from '../../../lib/shared/schemas/governance.ts';
 import {
   retentionDefaultsConfigSchema,
   type RetentionCategory,

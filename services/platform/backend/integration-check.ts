@@ -57,6 +57,7 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
@@ -46204,6 +46205,10 @@ async function main(): Promise<void> {
       [
         'checkProviderCredentials',
         () => checkProviderCredentials(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkProviderCredentialConfiguration',
+        () => checkProviderCredentialConfiguration(sql, authCtx, record),
       ],
       [
         'checkKnowledge',

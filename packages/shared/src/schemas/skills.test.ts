@@ -9,7 +9,7 @@ import {
   MAX_SKILL_SLUG_LENGTH,
   skillBodyByteLength,
   skillEditFields,
-} from './skills';
+} from './skills.ts';
 
 /**
  * The one slug describer every door shares. The regression under test: a

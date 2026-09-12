@@ -19,7 +19,7 @@
 import {
   outcomeFileSpecs,
   type TaskSubjectContract,
-} from '@/lib/shared/schemas/task_contract';
+} from '@tale/shared/schemas/task-contract';
 
 /** Provenance stamped by the workflow document store on every filed artifact. */
 const RUN_SOURCE_PROVIDER = 'agent';

@@ -14,9 +14,10 @@
  * member on the chunk rows, so no free text ever leaves here.
  */
 
+import type { AudioFormat } from '@tale/shared/schemas/providers';
+import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
+
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import type { AudioFormat } from '../../../../lib/shared/schemas/providers';
-import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';

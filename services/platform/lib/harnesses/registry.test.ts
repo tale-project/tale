@@ -13,13 +13,13 @@
 // What the composed glue BUILDS is pinned elsewhere: golden-exec.test.ts
 // (byte-for-byte fixtures) and exec-builder.test.ts (hygiene invariants).
 
-import { describe, expect, it } from 'vitest';
-
-import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import {
   harnessDefinitionSchema,
   type HarnessDefinition,
-} from '../shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { describe, expect, it } from 'vitest';
+
+import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import {
   composeHarnessGlue,
   getHarnessGlue,

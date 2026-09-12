@@ -2,7 +2,7 @@
  * Governance policy → engine options.
  *
  * Takes a VALIDATED `PiiConfig` (the org's `pii_config` governance policy,
- * `lib/shared/schemas/pii.ts` — the frozen name contract) plus a loaded
+ * `@tale/shared/schemas/pii` — the frozen name contract) plus a loaded
  * registry, and yields the `ScrubberOptions` the engine runs on.
  *
  * Degradation posture — a stale admin config must never brick the
@@ -16,7 +16,8 @@
  *    (compile + static safety) and skips failures with a warning.
  */
 
-import type { PiiConfig } from '../../lib/shared/schemas/pii';
+import type { PiiConfig } from '@tale/shared/schemas/pii';
+
 import type { PatternToggle, ScrubberOptions } from './engine/options';
 import { PatternRegistry } from './engine/registry';
 import { createScrubber, type Scrubber } from './engine/scrubber';

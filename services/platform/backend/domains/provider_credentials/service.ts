@@ -1,15 +1,25 @@
-import type { Sql, TransactionSql } from 'postgres';
-
-import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
-import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import { formatZodError } from '../../../lib/shared/schemas/format-error.ts';
 import {
   brokerCredentialDataSchema,
   providerBaseUrlSchema,
   providerKeyEnvNameSchema,
+  providerCredentialMetadataSchema,
+  providerCredentialCreateSchema,
+  providerCredentialUpdateSchema,
   type BrokerCredentialData,
-} from '../../../lib/shared/schemas/providers.ts';
+} from '@tale/shared/schemas/providers';
+import type { Sql, TransactionSql } from 'postgres';
+import type { z } from 'zod';
+
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { formatZodError } from '../../../lib/shared/schemas/format-error.ts';
+import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+import {
+  assertExpectedHash,
+  ConfigurationError,
+} from '../../core/lib/config_store/precondition';
+import { sha256 } from '../../core/lib/file_io';
 import type { EncryptedSecret } from '../../core/lib/secret_box.ts';
 import { encryptSecret } from '../../core/lib/secret_box.ts';
 import { maskSecret } from '../../core/provider_credentials/masking.ts';
@@ -277,6 +287,15 @@ export interface CredentialListItem {
   status: string;
   createdAt: number;
   updatedAt: number;
+  hash: string;
+}
+
+/** Public metadata CAS only: no ciphertext, masked preview or secret hash. */
+function credentialHash(row: Omit<CredentialListItem, 'hash'>): string {
+  const metadata = providerCredentialMetadataSchema
+    .omit({ hash: true })
+    .parse(row);
+  return sha256(JSON.stringify(sortObjectKeysDeep(metadata)));
 }
 
 export async function listCredentials(
@@ -285,7 +304,7 @@ export async function listCredentials(
   providerSlug?: string,
 ): Promise<CredentialListItem[]> {
   assertCredentialAdmin(scope);
-  return sql<CredentialListItem[]>`
+  const rows = await sql<Omit<CredentialListItem, 'hash'>[]>`
     SELECT id, provider_slug AS "providerSlug", auth_method AS "authMethod",
            name, env_name AS "envName", endpoint_url AS "endpointUrl",
            masked_preview AS "maskedPreview",
@@ -298,6 +317,12 @@ export async function listCredentials(
         OR provider_slug = ${providerSlug ?? null})
     ORDER BY provider_slug ASC, created_at_ms ASC
   `;
+  return rows.map((row) => {
+    const metadata = providerCredentialMetadataSchema.parse(
+      Object.assign({}, row, { hash: credentialHash(row) }),
+    );
+    return Object.assign(metadata, { maskedPreview: row.maskedPreview });
+  });
 }
 
 /**
@@ -386,21 +411,15 @@ function assertProviderKeyEnvName(envName: string | undefined): string {
   return parsed.data;
 }
 
-export interface CreateCredentialArgs {
-  providerSlug: string;
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
-  name: string;
-  /** Plaintext secret (api-key/subscription-key) or broker-config JSON. */
-  secret?: string;
-  envName?: string;
-  endpointUrl?: string;
-  modelAllowlist?: string[];
-}
+export type CreateCredentialArgs = z.infer<
+  typeof providerCredentialCreateSchema
+>;
 
 export async function createCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   args: CreateCredentialArgs,
+  expectedHash?: null,
 ): Promise<string> {
   assertCredentialAdmin(scope);
   const name = args.name.trim();
@@ -432,12 +451,32 @@ export async function createCredential(
     assertCredentialEndpointUrl(args.endpointUrl);
   }
 
-  const siblings = await tx<{ id: string; name: string }[]>`
-    SELECT id, name FROM app.provider_credentials
+  const siblings = await tx<{ id: string; name: string; isDefault: boolean }[]>`
+    SELECT id, name, is_default AS "isDefault" FROM app.provider_credentials
     WHERE org_id = ${scope.organizationId}
       AND provider_slug = ${args.providerSlug}
   `;
+  if (expectedHash === null)
+    assertExpectedHash(
+      siblings.find((row) => row.name === name)?.id ?? null,
+      expectedHash,
+    );
   assertProviderCredentialNameFree(siblings, name);
+  const status = args.status ?? 'active';
+  const isDefault =
+    args.isDefault ?? (siblings.length === 0 && status === 'active');
+  if (isDefault && status === 'disabled')
+    throw new CredentialAdminError(
+      'CREDENTIAL_DISABLED_DEFAULT',
+      'A disabled credential cannot be the default.',
+      400,
+    );
+  if (isDefault && siblings.some((row) => row.isDefault))
+    throw new CredentialAdminError(
+      'CREDENTIAL_DEFAULT_CONFLICT',
+      'A default credential already exists. Review that credential before changing the default.',
+      409,
+    );
   const now = Date.now();
   let rows: { id: string }[];
   try {
@@ -452,11 +491,16 @@ export async function createCredential(
         ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
         ${envName ?? null}, ${args.endpointUrl ?? null},
         ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
-        ${siblings.length === 0}, 'active', ${scope.userId}, ${now}, ${now}
+        ${isDefault}, ${status}, ${scope.userId}, ${now}, ${now}
       )
       RETURNING id
     `;
   } catch (error) {
+    if (expectedHash === null && isNameUniqueViolation(error))
+      throw new ConfigurationError(
+        'CONFIG_VERSION_CONFLICT',
+        'The credential was created after it was reviewed. Read the current value and plan again.',
+      );
     if (isNameUniqueViolation(error)) throw nameTakenError(name);
     throw error;
   }
@@ -480,17 +524,9 @@ export async function createCredential(
   return id;
 }
 
-export interface UpdateCredentialPatch {
-  name?: string;
-  status?: 'active' | 'disabled';
-  isDefault?: boolean;
-  modelAllowlist?: string[] | null;
-  endpointUrl?: string | null;
-  /** Re-point an `env` credential at another TALE_PROVIDER_KEY_* variable. */
-  envName?: string;
-  /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
-  secret?: string;
-}
+export type UpdateCredentialPatch = z.infer<
+  typeof providerCredentialUpdateSchema
+>;
 
 /** Name / status / default / allowlist / endpoint / env-ref / secret-rotation
  * edits. An empty patch is refused rather than acknowledged: an ack with an
@@ -500,6 +536,7 @@ export async function updateCredential(
   scope: CredentialScope,
   credentialId: string,
   patch: UpdateCredentialPatch,
+  expectedHash?: string,
 ): Promise<void> {
   assertCredentialAdmin(scope);
   if (Object.values(patch).every((value) => value === undefined)) {
@@ -519,10 +556,20 @@ export async function updateCredential(
         | 'subscription-key'
         | 'subscription-broker';
       status: 'active' | 'disabled';
+      id: string;
+      envName: string | null;
+      endpointUrl: string | null;
+      maskedPreview: string | null;
+      modelAllowlist: string[] | null;
+      createdAt: number;
+      updatedAt: number;
     }[]
   >`
     SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name,
-           auth_method AS "authMethod", status
+           auth_method AS "authMethod", status, id, env_name AS "envName",
+           endpoint_url AS "endpointUrl", masked_preview AS "maskedPreview",
+           model_allowlist AS "modelAllowlist", created_at_ms::float8 AS "createdAt",
+           updated_at_ms::float8 AS "updatedAt"
     FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}
     LIMIT 1
@@ -535,6 +582,8 @@ export async function updateCredential(
       404,
     );
   }
+  if (expectedHash !== undefined)
+    assertExpectedHash(credentialHash(row), expectedHash);
   // The documented contract: a disabled credential cannot become (or stay
   // being promoted as) the default — serving reads the ACTIVE default only,
   // so a disabled default is a connector that serves nothing.
@@ -564,6 +613,19 @@ export async function updateCredential(
     );
   }
   if (patch.isDefault === true) {
+    if (expectedHash !== undefined) {
+      const defaults = await tx<{ id: string }[]>`
+        SELECT id FROM app.provider_credentials
+        WHERE org_id = ${scope.organizationId} AND provider_slug = ${row.providerSlug}
+          AND is_default AND id <> ${credentialId}
+      `;
+      if (defaults.length > 0)
+        throw new CredentialAdminError(
+          'CREDENTIAL_DEFAULT_CONFLICT',
+          'Another default credential exists. Review that credential before changing the default.',
+          409,
+        );
+    }
     await tx`
       UPDATE app.provider_credentials SET is_default = false,
         updated_at_ms = ${Date.now()}

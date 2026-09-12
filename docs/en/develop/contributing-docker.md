@@ -22,7 +22,7 @@ The stack is entirely TypeScript — no Python image. Each image has one Dockerf
 | `tale-sandbox-buildkitd`   | `services/sandbox-buildkitd/`   | Debian + BuildKit + redsocks |
 | `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | `maximhq/bifrost` wrapper    |
 
-Both database containers — `db` and `knowledge-db` — build from the same `tale-db` ParadeDB image; the difference is the database each one serves. The application backend (`backend-api`, `backend-worker`) runs the same `tale-platform` image under a different `TALE_ROLE`, so it has no image of its own. The blob store, `tale-object-store` (`minio/minio`), and the video-ingestion sidecar, `tale-bgutil-provider`, are pinned upstream images with no Dockerfile in the repo. The compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
+Both database containers — `db` and `knowledge-db` — build from the same `tale-db` ParadeDB image; the difference is the database each one serves. The application backend (`backend-api`, `backend-worker`) runs the same `tale-platform` image under a different `TALE_ROLE`, so it has no image of its own. The blob store, `tale-object-store` (`quay.io/minio/minio`), and the video-ingestion sidecar, `tale-bgutil-provider`, are pinned upstream images with no Dockerfile in the repo. The compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
 
 ## Building locally
 

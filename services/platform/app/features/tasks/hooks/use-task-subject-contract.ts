@@ -1,5 +1,13 @@
 'use client';
 
+import {
+  type AutomationSettings,
+  parseAutomationSettings,
+} from '@tale/shared/schemas/automation-settings';
+import {
+  parseTaskSubjectContract,
+  type TaskSubjectContract,
+} from '@tale/shared/schemas/task-contract';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
@@ -8,14 +16,6 @@ import {
   automationDisplayDescription,
   automationDisplayName,
 } from '@/lib/shared/schemas/automation_presentation';
-import {
-  type AutomationSettings,
-  parseAutomationSettings,
-} from '@/lib/shared/schemas/automation_settings';
-import {
-  parseTaskSubjectContract,
-  type TaskSubjectContract,
-} from '@/lib/shared/schemas/task_contract';
 
 /** The task fields ownership resolution reads (a subset of the task doc). */
 export interface TaskOwnershipFields {

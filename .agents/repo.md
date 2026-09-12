@@ -23,6 +23,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   verification, bundle preparation, rollout, native identity provisioning, configuration
   releases and deployment receipts. Ops selects destinations, full source commits and
   credential references, then calls the CLI; do not duplicate Tale deployment internals there.
+  Model-server installation, hardware, model artifacts, routing and readiness are internal Ops
+  responsibilities. Tale CLI manages native platform `configuration` resources through
+  the same validate/plan/apply/readback flow in standalone commands and deployments.
+  Shared native schemas live in `packages/shared/src/schemas/` and are imported
+  through `@tale/shared/schemas/*`; the platform owns I/O, permissions and effects.
   New client configuration releases use their full source commit as identity and need no
   generated catalogue commit. Retained historical releases remain byte-preserved. Keep client
   names, fixtures, business rules and deployment targets out of the shared implementation;
@@ -33,7 +38,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 ## Repo-specific boundaries
 
 - **Org configuration is files, not tables** — per-org config is JSON/YAML under
-  `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a DB row.
+  `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `@tale/shared/schemas/*`), never a DB row.
 - **Tenant isolation — nothing org-owned is shared across organizations** — any new org-owned data
   (a table or column, an org config domain, a cache, a DB pool, an egress/browser-session
   store, the RAG/crawler corpora `private_knowledge`/`public_web` + their embeddings) MUST be

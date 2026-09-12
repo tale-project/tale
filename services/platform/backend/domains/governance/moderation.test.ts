@@ -1,9 +1,8 @@
 // @vitest-environment node
 
+import { moderationProviderConfigSchema } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { moderationProviderConfigSchema } from '../../../lib/shared/schemas/governance.ts';
 
 const { safeFetchMock, readGovernanceSecret, readGovernancePolicyForOrg } =
   vi.hoisted(() => ({

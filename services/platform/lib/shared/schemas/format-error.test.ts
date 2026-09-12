@@ -1,8 +1,8 @@
+import { piiConfigSchema } from '@tale/shared/schemas/pii';
+import { skillFrontmatterSchema } from '@tale/shared/schemas/skills';
 import { describe, expect, it } from 'vitest';
 
 import { formatZodError, zodErrorMessage } from './format-error';
-import { piiConfigSchema } from './pii';
-import { skillFrontmatterSchema } from './skills';
 
 /** No raw zod/v4 issue-array JSON dump — the failure mode this module exists
  *  to prevent (`error.message` on a ZodError renders as `[{"expected":...`). */

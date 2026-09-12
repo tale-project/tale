@@ -16,7 +16,8 @@
  * without a row here.
  */
 
-import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
+import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
+
 import type { RETENTION_CATEGORIES } from '@/lib/shared/schemas/retention';
 import { type RetentionCategory } from '@/lib/shared/schemas/retention';
 

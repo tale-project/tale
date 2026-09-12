@@ -198,6 +198,46 @@ function publish(
   return receipt;
 }
 
+/** Publish an already verified SHA release without reacquiring Git sources.
+ * Native late-owner compilation uses the same stage layout and receipt. */
+export function stageBuiltRelease(options: {
+  output: string;
+  directory: string;
+  manifestPath: string;
+  descriptorBytes: Buffer;
+  release: LoadedRelease;
+  deploymentRef?: string;
+}): StageReceipt {
+  const { release } = options;
+  insist(
+    release.manifest.schemaVersion === 4,
+    'source stage requires a SHA release',
+  );
+  return publish(
+    options.output,
+    {
+      schemaVersion: 2,
+      releaseRef: gitSha.parse(release.manifest.releaseRef),
+      sourceCommit: release.manifest.sourceCommit,
+      sourceRepository: repository.parse(release.manifest.sourceRepository),
+      artifactSha256: release.manifest.artifact.sha256,
+      ...(options.deploymentRef === undefined
+        ? {}
+        : { deploymentRef: gitSha.parse(options.deploymentRef) }),
+      clientId: slug.parse(release.manifest.clientId),
+      automationName: release.manifest.automationName,
+      descriptorPath: 'client.json',
+      manifestPath: repoPath(options.directory, options.manifestPath),
+    },
+    selectedFiles(
+      release,
+      options.directory,
+      options.manifestPath,
+      options.descriptorBytes,
+    ),
+  );
+}
+
 /** SHA mode has no generated catalogue commit: build and independently rebuild
  * from committed blobs in owned temporary storage, then transfer only verified
  * descriptor/artifact bytes. Compatibility mode keeps its committed catalogue. */
@@ -285,22 +325,14 @@ export async function stageRelease(
         release.bytes.equals(built.bytes),
         'stage source rebuild changed artifact',
       );
-      return publish(
+      return stageBuiltRelease({
         output,
-        {
-          schemaVersion: 2,
-          releaseRef: catalogueCommit,
-          sourceCommit: catalogueCommit,
-          sourceRepository: context.client.sourceRepository,
-          artifactSha256: release.manifest.artifact.sha256,
-          ...(deploymentRef === undefined ? {} : { deploymentRef }),
-          clientId: context.client.clientId,
-          automationName: options.automationName,
-          descriptorPath: 'client.json',
-          manifestPath: repoPath(temporary, manifestPath),
-        },
-        selectedFiles(release, temporary, manifestPath, source.bytes),
-      );
+        directory: temporary,
+        manifestPath,
+        descriptorBytes: source.bytes,
+        release,
+        deploymentRef,
+      });
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

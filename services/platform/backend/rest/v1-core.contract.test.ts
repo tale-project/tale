@@ -4,14 +4,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import {
+  MAX_SKILL_BODY_BYTES,
+  MAX_SKILL_SLUG_LENGTH,
+} from '@tale/shared/schemas/skills';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  MAX_SKILL_BODY_BYTES,
-  MAX_SKILL_SLUG_LENGTH,
-} from '../../lib/shared/schemas/skills.ts';
 import { getDocumentById } from '../domains/documents/service.ts';
 import {
   KnowledgeError,

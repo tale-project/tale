@@ -15,7 +15,7 @@
 import type {
   ModelCatalogEntry,
   ProviderEmbeddingSupport,
-} from '../schemas/providers';
+} from '@tale/shared/schemas/providers';
 
 export interface EmbeddingRecommendation {
   readonly providerSlug: string;

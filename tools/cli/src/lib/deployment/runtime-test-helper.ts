@@ -60,7 +60,7 @@ export function runtimeFixture() {
       image: images[name]
         ? `${TALE_REGISTRY}/${images[name]}:\${VERSION:-latest}`
         : name === 'object-store'
-          ? 'minio/minio:RELEASE.2025-04-22T22-12-26Z'
+          ? 'quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z'
           : 'brainicism/bgutil-ytdlp-pot-provider:1.3.1',
       build: { context: '.', dockerfile: `services/${name}/Dockerfile` },
       env_file: [{ path: '.env', required: false }],
@@ -175,8 +175,12 @@ export class RuntimeDockerFixture {
         },
         State:
           service === 'backend-worker'
-            ? { Running: true }
-            : { Running: true, Health: { Status: 'healthy' } },
+            ? { Running: true, StartedAt: '2026-09-10T00:00:00.000000000Z' }
+            : {
+                Running: true,
+                StartedAt: '2026-09-10T00:00:00.000000000Z',
+                Health: { Status: 'healthy' },
+              },
         Mounts: ((spec.volumes as string[]) ?? []).map((mount) => {
           const [raw, destination, mode] = mount.split(':');
           const volume = Object.hasOwn(compose.volumes, raw);

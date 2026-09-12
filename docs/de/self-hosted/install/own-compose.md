@@ -68,7 +68,7 @@ Jedes `tale-*`-Image liegt in der GitHub Container Registry unter demselben Rele
 | `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
 | `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
 | `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
-| `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
+| `object-store` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
 Ein Image ist kein Compose-Service: Der Spawner erzeugt jeden Session-Container aus `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, und sein eingebauter Default ist der lokale Tag, den der Entwicklungs-Stack baut — ein Host, der ihn nie gebaut hat, nennt das Registry-Image in `SANDBOX_RUNTIME_IMAGE`, sonst scheitern `Run code`, Web-Rendering und Dokumentgenerierung an einem fehlenden Image. Zieh dieses Image selbst, bevor du das erste Mal hochfährst. Der Spawner wärmt es beim Boot vor und antwortet auf `:8003` erst, wenn der Pull durch ist — auf einem kalten Host steht die Sandbox also so lange auf `starting`, wie mehrere Gigabyte brauchen; `tale deploy` zieht es genau deshalb vor dem Stack.

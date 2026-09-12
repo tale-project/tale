@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   harnessDefinitionSchema,
   modelCatalogEntrySchema,
   type HarnessDefinition,
-} from '../schemas/providers';
+} from '@tale/shared/schemas/providers';
+import { describe, expect, it } from 'vitest';
+
 import {
   buildHarnessTable,
   resolveExecution,

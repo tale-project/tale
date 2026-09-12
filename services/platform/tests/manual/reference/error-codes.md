@@ -91,6 +91,21 @@ rendered as a toast, or any `error`-level console line not on the known-benign
 list in [`not-a-finding.md`](not-a-finding.md). There is no repro by definition;
 any sighting is a finding.
 
+## Agent run diagnostics
+
+These bounded diagnostics belong to the failed agent node or task run when a
+vision polyfill is required. A serving model proven to support native vision
+retains its direct image-reading path without consulting the polyfill policy.
+Diagnostics do not contain provider responses, endpoint values or credentials.
+Correct the configuration or restore the service, then explicitly retry the run.
+
+| Failure | Provocation and recovery |
+|---|---|
+| `VISION_MODEL_POLICY_INVALID` | Supply a malformed `vision_model` policy for a text-only or unknown serving target in an isolated test. Configure both `providerSlug` and `modelId`, or explicitly choose Auto. No polyfill is selected before this refusal. |
+| `VISION_MODEL_POLICY_UNAVAILABLE` | Make the policy read fail, corrupt its stored file, or remove access to the configured root/organization. Restore valid governance configuration; a real absent policy file in an available root still means Auto, but a cached earlier value cannot bypass this fresh read. |
+| `VISION_MODEL_UNAVAILABLE` | Pin a missing/non-vision model, remove its provider or active gateway credential, or exclude it from the credential allowlist. Restore the exact pin's serving prerequisites. A text-only turn cannot substitute another provider or proceed without the required polyfill. |
+| `VISION_MODEL_RESOLUTION_FAILED` | Make the explicitly pinned provider, credential or catalog resolver fail. Restore that service and retry; its private response is not copied into the diagnostic. |
+
 ## Unreachable from the UI, still enforced
 
 | Guard                                                            | Guarded by                                                                                         | Proven by                                                    |

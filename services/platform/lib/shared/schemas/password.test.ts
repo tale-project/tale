@@ -1,6 +1,6 @@
+import { DEFAULT_PASSWORD_POLICY } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_PASSWORD_POLICY } from './governance';
 import {
   createOptionalPasswordSchema,
   createPasswordSchema,

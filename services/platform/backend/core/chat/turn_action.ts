@@ -1,5 +1,12 @@
 'use node';
 
+import type {
+  ApiFormat,
+  ModelCatalogEntry,
+  ProviderDefinition,
+  WireDialect,
+} from '@tale/shared/schemas/providers';
+
 import { CHAT_ASSISTANT } from '../../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
@@ -44,12 +51,6 @@ import {
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
-import type {
-  ApiFormat,
-  ModelCatalogEntry,
-  ProviderDefinition,
-  WireDialect,
-} from '../../../lib/shared/schemas/providers';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import type { ActionCtx } from '../lib/ctx';

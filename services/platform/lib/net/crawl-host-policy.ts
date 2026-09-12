@@ -1,4 +1,5 @@
-import { isMetadataAddress, isPrivateIp } from '../shared/net/private-ip';
+import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
+
 import { BLOCKED_METADATA_HOSTS } from './host-policy';
 import { resolveHostAddresses } from './safe-fetch';
 

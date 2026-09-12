@@ -1,4 +1,9 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { configurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  providerCredentialCreateSchema,
+  providerCredentialUpdateSchema,
+} from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -6,6 +11,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import {
   CredentialAdminError,
   createCredential,
@@ -15,37 +21,21 @@ import {
   type CredentialScope,
 } from './service.ts';
 
-const createSchema = z.object({
-  providerSlug: z.string().min(1).max(100),
-  authMethod: z.enum([
-    'api-key',
-    'env',
-    'subscription-key',
-    'subscription-broker',
-  ]),
-  name: z.string().min(1).max(120),
-  secret: z.string().max(100_000).optional(),
-  envName: z.string().max(80).optional(),
-  endpointUrl: z.string().max(2048).optional(),
-  modelAllowlist: z.array(z.string().max(200)).max(200).optional(),
+const createSchema = providerCredentialCreateSchema.extend({
+  expectedHash: z.null().optional(),
 });
-
-const updateSchema = z.object({
-  name: z.string().min(1).max(120).optional(),
-  status: z.enum(['active', 'disabled']).optional(),
-  isDefault: z.boolean().optional(),
-  modelAllowlist: z.array(z.string().max(200)).max(200).nullable().optional(),
-  endpointUrl: z.string().max(2048).nullable().optional(),
-  /** Re-point an env credential at another TALE_PROVIDER_KEY_* variable. */
-  envName: z.string().max(80).optional(),
-  secret: z.string().max(100_000).optional(),
+const updateSchema = providerCredentialUpdateSchema.extend({
+  expectedHash: configurationHashSchema.optional(),
 });
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof CredentialAdminError) {
+  if (
+    error instanceof CredentialAdminError ||
+    error instanceof ConfigurationError
+  ) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
@@ -84,14 +74,15 @@ export function createProviderCredentialRoutes(deps: {
   });
 
   app.post('/', async (c) => {
-    const body = createSchema.safeParse(await c.req.json());
+    const body = createSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);
+      const { expectedHash, ...config } = body.data;
       const credentialId = await transactSerializable(deps.sql, (tx) =>
-        createCredential(tx, scope, body.data),
+        createCredential(tx, scope, config, expectedHash),
       );
       return c.json({ credentialId });
     } catch (error) {
@@ -100,14 +91,21 @@ export function createProviderCredentialRoutes(deps: {
   });
 
   app.post('/:credentialId', async (c) => {
-    const body = updateSchema.safeParse(await c.req.json());
+    const body = updateSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);
+      const { expectedHash, ...config } = body.data;
       await transactSerializable(deps.sql, (tx) =>
-        updateCredential(tx, scope, c.req.param('credentialId'), body.data),
+        updateCredential(
+          tx,
+          scope,
+          c.req.param('credentialId'),
+          config,
+          expectedHash,
+        ),
       );
       return c.json({ ok: true });
     } catch (error) {

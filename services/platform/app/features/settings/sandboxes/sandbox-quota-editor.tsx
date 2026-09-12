@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  sandboxQuotaTotal,
+  type SandboxQuotaConfig,
+} from '@tale/shared/schemas/governance';
 import { Badge } from '@tale/ui/badge';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo } from 'react';
@@ -21,10 +25,6 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
-import {
-  sandboxQuotaTotal,
-  type SandboxQuotaConfig,
-} from '@/lib/shared/schemas/governance';
 
 import {
   pickString,

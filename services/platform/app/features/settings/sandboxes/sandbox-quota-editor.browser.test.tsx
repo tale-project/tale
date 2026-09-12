@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,7 +10,6 @@ import {
   useActiveEditor,
 } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import type { SandboxQuotaConfig } from '@/lib/shared/schemas/governance';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { SandboxQuotaEditor } from './sandbox-quota-editor';

@@ -1,12 +1,12 @@
+import {
+  SKILL_VISIBILITIES,
+  skillEditFields,
+} from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import {
-  SKILL_VISIBILITIES,
-  skillEditFields,
-} from '../../../lib/shared/schemas/skills.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';

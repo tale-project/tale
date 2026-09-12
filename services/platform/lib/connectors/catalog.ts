@@ -30,11 +30,15 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import {
+  connectorSchema,
+  type Connector,
+} from '@tale/shared/schemas/connectors';
+
+import {
   resolveSystemConfigRoot,
   SYSTEM_CONFIG_ROOT_REMEDY,
 } from '../shared/config/system-root';
 import { parseYamlOrThrow } from '../shared/config/yaml';
-import { connectorSchema, type Connector } from '../shared/schemas/connectors';
 import { zodErrorMessage } from '../shared/schemas/format-error';
 
 /** One connector file may not exceed this — a connector is configuration. */

@@ -27,9 +27,8 @@
 import dns from 'node:dns';
 import type { LookupFunction } from 'node:net';
 
+import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
 import { Agent } from 'undici';
-
-import { isMetadataAddress, isPrivateIp } from '../shared/net/private-ip';
 
 export type SafeFetchErrorKind =
   | 'invalid_url'

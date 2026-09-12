@@ -1,8 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
-import { z } from 'zod';
-
+import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   DEFAULT_SANDBOX_QUOTA,
   dsarGovernanceConfigSchema,
@@ -10,7 +7,11 @@ import {
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
-} from '../../../lib/shared/schemas/governance.ts';
+} from '@tale/shared/schemas/governance';
+import { Hono, type Context } from 'hono';
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -23,7 +24,9 @@ import {
   type BudgetWarning,
 } from '../../core/governance/budget_enforcement.ts';
 import { buildPeriodKey } from '../../core/governance/helpers.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
+import { appErrorHandler } from '../../error-reporting';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -96,6 +99,14 @@ export function createGovernanceRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.onError((error, c) => {
+    if (error instanceof ConfigurationError)
+      return c.json(
+        { error: error.code, message: error.message },
+        error.status,
+      );
+    return appErrorHandler(error, c);
+  });
 
   app.get('/policies/:policyType', async (c) => {
     const policyType = c.req.param('policyType');
@@ -107,6 +118,22 @@ export function createGovernanceRoutes(deps: {
       !isAdmin(c.get('orgMember').role)
     ) {
       return c.json({ error: 'FORBIDDEN' }, 403);
+    }
+    if (c.req.query('includeHash') === '1') {
+      const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'), {
+        fresh: true,
+      });
+      if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+      const { readGovernancePolicySnapshot } =
+        await import('../../lib/governance-policy-write');
+      const snapshot = await readGovernancePolicySnapshot(orgSlug, policyType);
+      return c.json({
+        policy:
+          snapshot.config === null
+            ? null
+            : { key: policyType, config: snapshot.config },
+        hash: snapshot.hash,
+      });
     }
     const config = await readGovernancePolicyForOrg(
       deps.sql,
@@ -136,6 +163,15 @@ export function createGovernanceRoutes(deps: {
       return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const body: unknown = await c.req.json().catch(() => null);
+    const precondition = expectedConfigurationHashSchema
+      .optional()
+      .safeParse(
+        body !== null && typeof body === 'object' && 'expectedHash' in body
+          ? body.expectedHash
+          : undefined,
+      );
+    if (!precondition.success)
+      return c.json({ error: 'INVALID_CONFIG_PRECONDITION' }, 400);
     const parsed = POLICY_SCHEMAS[policyType].safeParse(
       body !== null && typeof body === 'object' && 'config' in body
         ? body.config
@@ -226,7 +262,16 @@ export function createGovernanceRoutes(deps: {
       // The file LAST, inside the transaction: a write failure rolls the
       // audit row back, and a transaction failure never leaves a policy in
       // force that the tamper-evident chain knows nothing about.
-      await writeGovernancePolicyFile(tx, orgSlug, policyType, parsed.data);
+      if (precondition.data === undefined)
+        await writeGovernancePolicyFile(tx, orgSlug, policyType, parsed.data);
+      else
+        await writeGovernancePolicyFile(
+          tx,
+          orgSlug,
+          policyType,
+          parsed.data,
+          precondition.data,
+        );
     });
     return c.json({ ok: true });
   });

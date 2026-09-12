@@ -1,6 +1,6 @@
+import type { ModelAccessConfig } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import type { ModelAccessConfig } from '../../../lib/shared/schemas/governance';
 import { _testInternals } from './model_access_enforcement';
 
 const { resolveAllowedAndBlockedModels, isModelPermitted } = _testInternals;

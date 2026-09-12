@@ -63,8 +63,10 @@ _GETENT=/usr/bin/getent
 # outer interfaces; accept absent hints only when routes prove that topology.
 # Python runs from the immutable image in isolated mode: workspace PATH and
 # PYTHONPATH are user-controlled by the time this root helper runs.
-select_inner_docker_pool() {
-  if ! _inner_network="$(/usr/local/bin/python3 -I - "$_IP" "$_GETENT" "${TALE_BUILDKIT_NETWORK_SUBNETS:-}" "${TALE_BUILDKITD_ENDPOINT:-}" "${TALE_DIND_INNER_POOL_OVERRIDE:-}" <<'PY'
+# Keep the quoted heredoc outside command substitution: older POSIX shells
+# otherwise parse Python quotes as shell syntax before any dispatch can run.
+_observe_inner_docker_pool() {
+  /usr/local/bin/python3 -I - "$_IP" "$_GETENT" "${TALE_BUILDKIT_NETWORK_SUBNETS:-}" "${TALE_BUILDKITD_ENDPOINT:-}" "${TALE_DIND_INNER_POOL_OVERRIDE:-}" <<'PY'
 import ipaddress
 import json
 import os
@@ -311,7 +313,10 @@ except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
     print(f"[entrypoint] FATAL: cannot select inner Docker network: {error}", file=sys.stderr)
     sys.exit(1)
 PY
-)"; then
+}
+
+select_inner_docker_pool() {
+  if ! _inner_network="$(_observe_inner_docker_pool)"; then
     exit 1
   fi
   TALE_DIND_INNER_POOL="${_inner_network%% *}"

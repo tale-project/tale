@@ -1,7 +1,7 @@
 import {
   DEFAULT_TWO_FACTOR_POLICY,
   type TwoFactorPolicyConfig,
-} from '../../../lib/shared/schemas/governance';
+} from '@tale/shared/schemas/governance';
 
 /**
  * Resolve the strictest two-factor policy across all of a user's orgs.

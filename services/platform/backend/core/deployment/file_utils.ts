@@ -11,15 +11,16 @@
  * not hot-reloaded.
  */
 
+import type { DeploymentConfig } from '@tale/shared/schemas/deployment';
+import {
+  RETIRED_DEPLOYMENT_SECTIONS,
+  deploymentConfigSchema,
+} from '@tale/shared/schemas/deployment';
+
 import {
   parseYamlOrThrow,
   stringifyYaml,
 } from '../../../lib/shared/config/yaml';
-import type { DeploymentConfig } from '../../../lib/shared/schemas/deployment';
-import {
-  RETIRED_DEPLOYMENT_SECTIONS,
-  deploymentConfigSchema,
-} from '../../../lib/shared/schemas/deployment';
 import { getConfigRoot, safeJoinWithinDir, sha256 } from '../lib/file_io';
 
 export { sha256 };

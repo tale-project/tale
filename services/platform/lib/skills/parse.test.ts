@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   MAX_SKILL_BODY_BYTES,
   MAX_SKILL_FRONTMATTER_BYTES,
   MAX_SKILL_MD_BYTES,
   type SkillFrontmatter,
-} from '../shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+import { describe, expect, it } from 'vitest';
+
 import { parseSkillMd, SkillParseError, serializeSkillMd } from './parse';
 
 const PATH = '/config/acme/skills/write-notes/SKILL.md';

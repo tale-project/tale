@@ -32,12 +32,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { parseYaml } from '../../../../lib/shared/config/yaml';
-import { zodErrorMessage } from '../../../../lib/shared/schemas/format-error';
 import {
   providerDefinitionSchema,
   type ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
+} from '@tale/shared/schemas/providers';
+
+import { parseYaml } from '../../../../lib/shared/config/yaml';
+import { zodErrorMessage } from '../../../../lib/shared/schemas/format-error';
 import { errnoCode, getConfigRoot, validateOrgSlug } from '../file_io';
 import { orgSlugFromId } from '../helpers/org_slug';
 import {

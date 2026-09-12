@@ -1,3 +1,11 @@
+import {
+  DEFAULT_PASSWORD_POLICY,
+  type PasswordPolicyConfig,
+  passwordPolicyConfigSchema,
+  type PolicyType,
+  uploadPolicyConfigSchema,
+  type UploadPolicyConfig,
+} from '@tale/shared/schemas/governance';
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
@@ -9,14 +17,6 @@ import {
   CHAT_UPLOAD_ALLOWED_TYPES,
   DOCUMENT_MAX_FILE_SIZE,
 } from '@/lib/shared/file-types';
-import {
-  DEFAULT_PASSWORD_POLICY,
-  type PasswordPolicyConfig,
-  passwordPolicyConfigSchema,
-  type PolicyType,
-  uploadPolicyConfigSchema,
-  type UploadPolicyConfig,
-} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 interface UploadPolicyLimits {

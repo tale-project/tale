@@ -18,8 +18,9 @@
  * with a `lookup` callback.
  */
 
+import { isPrivateIp, METADATA_ADDRESSES } from '@tale/shared/net/private-ip';
+
 import { AppError } from '../shared/errors/app-error';
-import { isPrivateIp, METADATA_ADDRESSES } from '../shared/net/private-ip';
 
 /**
  * Cloud metadata endpoints by name and by address: the addresses every

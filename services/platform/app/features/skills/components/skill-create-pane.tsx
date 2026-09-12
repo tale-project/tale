@@ -1,5 +1,6 @@
 'use client';
 
+import { isValidSkillSlug } from '@tale/shared/schemas/skills';
 import { Button } from '@tale/ui/button';
 import { Label } from '@tale/ui/label';
 import { Stack, Row } from '@tale/ui/layout';
@@ -9,7 +10,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { isValidSkillSlug } from '@/lib/shared/schemas/skills';
 
 import { useSaveSkill } from '../hooks/mutations';
 

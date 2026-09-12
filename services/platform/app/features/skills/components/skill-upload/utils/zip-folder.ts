@@ -1,10 +1,9 @@
-import JSZip from 'jszip';
-
 import {
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
-} from '@/lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+import JSZip from 'jszip';
 
 import type { ParseError } from './parse-skill-bundle';
 

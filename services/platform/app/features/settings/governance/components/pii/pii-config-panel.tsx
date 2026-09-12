@@ -28,6 +28,10 @@
  * — mounting the shared `<I18nProvider>` is the only consumer wiring.
  */
 
+import {
+  BUILT_IN_PII_PATTERN_NAMES,
+  type PiiCustomPattern,
+} from '@tale/shared/schemas/pii';
 import { Button } from '@tale/ui/button';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
@@ -43,10 +47,6 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
-import {
-  BUILT_IN_PII_PATTERN_NAMES,
-  type PiiCustomPattern,
-} from '@/lib/shared/schemas/pii';
 import { cn } from '@/lib/utils/cn';
 
 import { piiTypeIcon } from './pii-type-icons';

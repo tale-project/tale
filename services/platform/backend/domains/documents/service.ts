@@ -1,3 +1,4 @@
+import type { UploadPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -6,7 +7,6 @@ import {
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
-import type { UploadPolicyConfig } from '../../../lib/shared/schemas/governance.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';

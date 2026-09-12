@@ -26,7 +26,7 @@
 import type {
   ModelCatalogEntry,
   ProviderDefinition,
-} from '../schemas/providers';
+} from '@tale/shared/schemas/providers';
 
 /** The context window assumed for a deployment Tale cannot describe. */
 export const ALLOWLIST_CATALOG_CONTEXT_WINDOW = 128_000;

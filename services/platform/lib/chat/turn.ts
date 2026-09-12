@@ -26,6 +26,8 @@
  * pair or refuses; it never reaches in.
  */
 
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+
 import {
   classifyChatErrorCode,
   describeChatError,
@@ -38,7 +40,6 @@ import {
   type ExecutionResolution,
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
-import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import {
   assembleContext,
   type AssembledContext,

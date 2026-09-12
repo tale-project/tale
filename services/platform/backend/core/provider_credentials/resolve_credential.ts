@@ -24,6 +24,13 @@
  * only failure classes and actionable hints.
  */
 
+import { isPrivateIp } from '@tale/shared/net/private-ip';
+import {
+  BROKER_SECRET_ENV_REGEX,
+  brokerCredentialDataSchema,
+  SECRETS_ENV_REGEX,
+  type BrokerCredentialData,
+} from '@tale/shared/schemas/providers';
 import { z } from 'zod/v4';
 
 import {
@@ -32,13 +39,6 @@ import {
 } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { isPrivateIp } from '../../../lib/shared/net/private-ip';
-import {
-  BROKER_SECRET_ENV_REGEX,
-  brokerCredentialDataSchema,
-  SECRETS_ENV_REGEX,
-  type BrokerCredentialData,
-} from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';

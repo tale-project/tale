@@ -24,6 +24,11 @@
  * Layer A: pure, no `node:*`, no Convex.
  */
 
+import type {
+  ChatFilterCategory,
+  ChatFilterConfig,
+} from '@tale/shared/schemas/governance';
+
 import {
   blocked,
   flagged,
@@ -45,10 +50,6 @@ import {
 } from '../pii/core/regex-safety';
 import type { Scrubber } from '../pii/engine/scrubber';
 import type { TokenEntry, Tokenizer } from '../pii/engine/tokenizer';
-import type {
-  ChatFilterCategory,
-  ChatFilterConfig,
-} from '../shared/schemas/governance';
 
 /** The canonical chain order. Callers supply filters; the chain runs them in
  * THIS order regardless of how they were supplied. */

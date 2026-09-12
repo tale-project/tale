@@ -3,7 +3,7 @@ title: Anbieter
 description: Die Operator-Seite der KI-Anbieter — die Connector-Dateien, die mit der Plattform kommen, und die reservierten Umgebungsvariablen, mit denen das Deployment die API-Schlüssel hält statt der Datenbank.
 ---
 
-Ein KI-Anbieter in Tale besteht aus zwei Hälften, die an zwei verschiedenen Orten leben. Der **Connector** — Wire-Format, Endpunkt, Quelle des Modellkatalogs, akzeptierte Authentifizierungsmethoden — kommt mit der Plattform als Datei, die du liest, aber nicht änderst. Die **Zugangsdaten** sind Organisationsdaten und werden in der App unter **Einstellungen > KI-Anbieter** angelegt und rotiert. Diese Seite ist die Operator-Hälfte: was in den mitgelieferten Dateien steht, und der eine Hebel, der wirklich dem Deployment gehört — Anbieter-Schlüssel in Umgebungsvariablen zu halten.
+Ein KI-Anbieter in Tale hat einen Connector und organisationsgebundene Zugangsdaten. Der Connector beschreibt Endpunkt, Katalog und Authentifizierungsmethoden; Zugangsdaten halten Zugriffsregeln und einen Schlüssel oder eine Umgebungsreferenz. Diese Seite beschreibt mitgelieferte Connectors und den generischen Deployment-Weg für einen extern betriebenen Anbieter.
 
 ## Wo die Connectoren liegen
 
@@ -11,7 +11,7 @@ Connector-Definitionen sind YAML-Dateien unter `configs/platform/system/provider
 
 <Warning>
 
-Diese Dateien sind schreibgeschützte Eingaben, keine Deployment-Konfiguration. Wer eine davon in einem laufenden Container ändert, verliert die Änderung beim nächsten Upgrade, und eine Überschreibung auf Organisationsebene gibt es nicht. Fehlt ein Anbieter, den du brauchst, im mitgelieferten Satz, ist das eine Änderung an der Plattform und keine an der Konfiguration.
+Mitgelieferte Dateien sind schreibgeschützte Image-Eingaben und werden beim Upgrade ersetzt. Nutze für externe Anbieter die geprüfte Deployment-Deklaration `configuration` aus [CLI-Installation](/de/self-hosted/install/cli-install#plattform-konfigurieren). Sie erstellt mit dem nativen Schema einen organisationsgebundenen Connector unter `TALE_CONFIG_DIR/<org>/providers/`; Änderungen an Zugangsdaten und Richtlinien nutzen native APIs.
 
 </Warning>
 
@@ -78,14 +78,14 @@ Zugangsdaten vom Typ **Abo-Broker** müssen sich erst beim Broker ausweisen, bev
 
 ## Was Organisationsdaten sind statt Deployment-Konfiguration
 
-Zugangsdaten, ihre Namen, ihre erlaubten Modelle, welcher Eintrag der Standard ist und welche aktiv sind — all das sind Organisationsdaten. Angelegt werden sie in der App, sie gehören genau einer Organisation, und es gibt keine Datei auf Platte, die du bearbeitest, um welche anzulegen — auch nicht auf einer selbst gehosteten Instanz.
+Zugangsdaten, Namen, erlaubte Modelle, Standards und Aktivierungszustand bleiben Organisationsdaten. Im Normalfall verwaltet die App diese Daten. Ein verwaltetes Deployment kann nach Prüfung von Organisation und Betreiber exakte umgebungsgebundene Zugangsdaten über die native API anlegen; es schreibt keine Zugangsdaten direkt in Datenbankzeilen.
 
 <Tip>
 
-Diese Trennung ordnet eine Aufgabe am schnellsten ein. Alles zur Frage, _welcher Anbieter existiert und was er kann_, ist ein mitgelieferter Connector; alles zur Frage, _wer ihn mit welchem Schlüssel aufrufen darf_, sind Zugangsdaten in der App. Die einzige Überschneidung ist der Weg über Umgebungsvariablen, bei dem das Deployment das Secret hält und die Zugangsdaten nur dessen Namen.
+Trenne Connector-Fakten, Zugangsdaten und Server-Betrieb. Das verwaltete Deployment prüft den deklarierten Katalog und native Richtlinien; es installiert keinen Inferenzserver und belegt kein Laufzeitverhalten des Modells.
 
 </Tip>
 
 ## Wo das hingehört
 
-Die gesamte Oberfläche eines Operators besteht hier darin, Umgebungsvariablen bereitzustellen und zu wissen, welche Connectoren die Plattform mitbringt; alles andere rund um Anbieter passiert in der App. Die UI-Anleitung — Zugangsdaten anlegen, einen Standard wählen, erlaubte Modelle einschränken, Kataloge aktualisieren — ist [KI-Anbieter](/de/platform/admin/providers), was deine Leute am Ende sehen, steht im [Modellkatalog](/de/platform/models), und die Variablen selbst stehen neben dem Rest der Deployment-Konfiguration in der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference).
+Nutze verwaltete Deployments für geprüfte externe Anbieter-Einstellungen und die [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) für die Schlüsselübergabe. [KI-Anbieter](/de/platform/admin/providers) beschreibt Zugangsdaten, Standards und Katalogaktualisierung in der App; der [Modellkatalog](/de/platform/models) erklärt die Ansicht für Mitglieder.

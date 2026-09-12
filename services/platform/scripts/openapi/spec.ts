@@ -11,6 +11,24 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import {
+  PROJECT_AGENT_BINDINGS_MAX,
+  PROJECT_AGENT_MODEL_MAX,
+  projectAgentInputSchema,
+} from '@tale/shared/schemas/projects';
+import {
+  MAX_SKILL_BODY_BYTES,
+  MAX_SKILL_DESCRIPTION_LENGTH,
+  MAX_SKILL_ICON_LENGTH,
+  MAX_SKILL_LABEL_LENGTH,
+  MAX_SKILL_LABELS,
+  MAX_SKILL_SLUG_LENGTH,
+  MAX_SKILL_TEAM_ID_LENGTH,
+  MAX_SKILL_TEAMS,
+  SKILL_EDIT_VISIBILITIES,
+  SKILL_SLUG_REGEX,
+  SKILL_VISIBILITIES,
+} from '@tale/shared/schemas/skills';
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
@@ -63,24 +81,6 @@ import {
 } from '../../lib/shared/conversations/api-sync.ts';
 import { EMITTED_EVENT_TYPES } from '../../lib/shared/event-types.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
-import {
-  PROJECT_AGENT_BINDINGS_MAX,
-  PROJECT_AGENT_MODEL_MAX,
-  projectAgentInputSchema,
-} from '../../lib/shared/schemas/projects.ts';
-import {
-  MAX_SKILL_BODY_BYTES,
-  MAX_SKILL_DESCRIPTION_LENGTH,
-  MAX_SKILL_ICON_LENGTH,
-  MAX_SKILL_LABEL_LENGTH,
-  MAX_SKILL_LABELS,
-  MAX_SKILL_SLUG_LENGTH,
-  MAX_SKILL_TEAM_ID_LENGTH,
-  MAX_SKILL_TEAMS,
-  SKILL_EDIT_VISIBILITIES,
-  SKILL_SLUG_REGEX,
-  SKILL_VISIBILITIES,
-} from '../../lib/shared/schemas/skills.ts';
 import { FREE_FORM_JSON_BOUNDS } from '../../lib/shared/utils/json-bounds.ts';
 
 export type Json = Record<string, unknown>;

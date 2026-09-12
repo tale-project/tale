@@ -5,7 +5,7 @@ import {
   DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES,
   SESSION_IDLE_TIMEOUT_MAX_MINUTES,
   SESSION_IDLE_TIMEOUT_MIN_MINUTES,
-} from '../session-idle';
+} from '../utils/session-idle';
 import { piiConfigSchema } from './pii';
 
 // THE list of policy types. Every other reader derives from it — the app
@@ -428,7 +428,7 @@ export const featureFlagsConfigSchema = z.object({
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 
 // The PII policy schema lives with the other org-config schemas
-// (`lib/shared/schemas/pii.ts`) — pure Zod, importable from client and
+// (`@tale/shared/schemas/pii`) — pure Zod, importable from client and
 // server without dragging in the PII engine (`lib/pii`) or its
 // locale datasets. Re-exported here because `pii_config` is a governance
 // policy and existing consumers import it from this module.
@@ -553,8 +553,7 @@ const chatFilterPatternSchema = z.object({
     .max(500)
     .refine((v) => {
       try {
-        new RegExp(v);
-        return true;
+        return Boolean(new RegExp(v));
       } catch {
         return false;
       }
@@ -985,9 +984,8 @@ export const POLICY_SCHEMAS = {
  *  legacy `personalization` toggle). */
 export type FilePolicyType = keyof typeof POLICY_SCHEMAS;
 
-export const FILE_POLICY_TYPES = Object.keys(
-  POLICY_SCHEMAS,
-) as FilePolicyType[];
+export const FILE_POLICY_TYPES =
+  Object.keys(POLICY_SCHEMAS).filter(isFilePolicyType);
 
 export function isFilePolicyType(value: string): value is FilePolicyType {
   return Object.prototype.hasOwnProperty.call(POLICY_SCHEMAS, value);

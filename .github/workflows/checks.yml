@@ -144,7 +144,9 @@ jobs:
         env:
           YOUTUBE_LIVE_TEST: '1'
           VIDEO_INGEST_POT_PROVIDER_URL: http://127.0.0.1:4416
-        run: bunx turbo run test
+        # Each workspace runner has its own worker pool. Bound their overlap so
+        # full-corpus checks retain CPU time on the shared hosted runner.
+        run: bunx turbo run test --concurrency=2
 
   test-ui:
     name: UI
@@ -222,17 +224,18 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        # The azure apt mirror flakes hard (2026-08-19: shards burned on it
-        # twice — first hanging a job's whole 30-minute budget, then as an
-        # apt-lock pileup when a per-attempt timeout killed bunx but not its
-        # root apt child). Point apt at the canonical archive up front and
-        # cap the step; no inner timeout/retry — those cannot kill root's
-        # apt and only leave a held lock behind.
+        # Preserve the runner's mirror failover. Bound APT itself: killing
+        # bunx with a shell timeout can leave its root child holding the lock.
         timeout-minutes: 12
         run: |
-          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
-          # change must degrade to the default mirror, not fail the job under set -e.
-          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          # Native config also reaches Playwright's sudo-launched APT process.
+          sudo tee /etc/apt/apt.conf.d/99-tale-playwright >/dev/null <<'APT'
+          Acquire::ForceIPv4 "true";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::Retries "1";
+          APT
+          sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
           bunx playwright install --with-deps chromium
 
       - name: Run browser-mode component tests

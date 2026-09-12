@@ -1,11 +1,12 @@
 'use node';
 
-import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
-} from '../../../lib/shared/schemas/skills';
+} from '@tale/shared/schemas/skills';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   listOrgSkills,
   readOrgSkill,

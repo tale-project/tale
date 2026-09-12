@@ -35,6 +35,14 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import {
+  harnessDefinitionSchema,
+  modelCatalogFileSchema,
+  providerDefinitionSchema,
+  type HarnessDefinition,
+  type ModelCatalogEntry,
+  type ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 import { z } from 'zod/v4';
 
 import {
@@ -43,14 +51,6 @@ import {
 } from '../../../../lib/shared/config/system-root';
 import { parseYaml } from '../../../../lib/shared/config/yaml';
 import { formatZodError } from '../../../../lib/shared/schemas/format-error';
-import {
-  harnessDefinitionSchema,
-  modelCatalogFileSchema,
-  providerDefinitionSchema,
-  type HarnessDefinition,
-  type ModelCatalogEntry,
-  type ProviderDefinition,
-} from '../../../../lib/shared/schemas/providers';
 
 function isDirectory(candidate: string): boolean {
   try {

@@ -1,5 +1,9 @@
 'use client';
 
+import type {
+  SettingsField,
+  SettingsForm,
+} from '@tale/shared/schemas/automation-settings';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
@@ -7,10 +11,6 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
-import type {
-  SettingsField,
-  SettingsForm,
-} from '@/lib/shared/schemas/automation_settings';
 
 import type { SettingsFieldIssue } from '../hooks/use-settings-editor';
 

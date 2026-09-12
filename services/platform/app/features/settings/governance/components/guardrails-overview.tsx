@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  chatFilterConfigSchema,
+  moderationProviderConfigSchema,
+  piiConfigSchema,
+} from '@tale/shared/schemas/governance';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -27,11 +32,6 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  chatFilterConfigSchema,
-  moderationProviderConfigSchema,
-  piiConfigSchema,
-} from '@/lib/shared/schemas/governance';
 
 import { useGovernancePolicy } from '../hooks/queries';
 

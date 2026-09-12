@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  uploadPolicyConfigSchema,
+  type UploadPolicyConfig,
+} from '@tale/shared/schemas/governance';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -18,10 +22,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  uploadPolicyConfigSchema,
-  type UploadPolicyConfig,
-} from '@/lib/shared/schemas/governance';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

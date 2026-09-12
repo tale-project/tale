@@ -1,4 +1,4 @@
-import type { DefaultModelRule } from '../../../lib/shared/schemas/governance';
+import type { DefaultModelRule } from '@tale/shared/schemas/governance';
 
 /**
  * Find the most specific model rule that applies.

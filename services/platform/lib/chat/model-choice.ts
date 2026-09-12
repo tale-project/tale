@@ -33,8 +33,9 @@
  * unit-testable without a Convex world.
  */
 
-import type { ModelCatalogEntry } from '../shared/schemas/providers';
-import { modelIdsEquivalent } from '../shared/utils/model-ref';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import { modelIdsEquivalent } from '@tale/shared/utils/model-ref';
+
 import { MODEL_BANDS, type ModelBand } from './model-band';
 
 /**

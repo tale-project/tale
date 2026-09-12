@@ -1,6 +1,6 @@
+import type { BudgetRule } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import type { BudgetRule } from '../../../lib/shared/schemas/governance';
 import {
   collectApiKeyWarnings,
   collectBucketWarnings,

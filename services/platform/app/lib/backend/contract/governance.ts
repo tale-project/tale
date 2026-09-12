@@ -7,7 +7,7 @@
  * actually serve them.
  */
 
-import type { PolicyType } from '@/lib/shared/schemas/governance';
+import type { PolicyType } from '@tale/shared/schemas/governance';
 
 export interface GovernanceContract {
   'governance/dsar_policy:cancelPendingDsarPolicyChange': {

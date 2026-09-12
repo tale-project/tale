@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  defaultModelsConfigSchema,
+  modelAccessConfigSchema,
+  type DefaultModelsConfig,
+  type DefaultModelRule,
+  type ModelAccessConfig,
+} from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
@@ -32,13 +39,6 @@ import { ModelInfoPopover } from '@/app/features/shared/models/model-info-popove
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  defaultModelsConfigSchema,
-  modelAccessConfigSchema,
-  type DefaultModelsConfig,
-  type DefaultModelRule,
-  type ModelAccessConfig,
-} from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

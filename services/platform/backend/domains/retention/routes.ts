@@ -1,9 +1,9 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { retentionPolicyConfigSchema } from '@tale/shared/schemas/governance';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { retentionPolicyConfigSchema } from '../../../lib/shared/schemas/governance.ts';
 import {
   hashAppliedBounds,
   RETENTION_CATEGORIES,

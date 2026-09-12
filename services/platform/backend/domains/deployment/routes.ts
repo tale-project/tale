@@ -54,7 +54,7 @@ export function createDeploymentRoutes(deps: {
     const body = z
       .object({
         config: z.unknown(),
-        expectedHash: z.string().max(200).optional(),
+        expectedHash: z.string().max(200).nullable().optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);

@@ -2,10 +2,10 @@ import {
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
+import { parseTaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
-import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_COMMENT_RESOURCE_TYPE,

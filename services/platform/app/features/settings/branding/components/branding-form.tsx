@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  brandingFormSchema,
+  type BrandingFormData,
+} from '@tale/shared/schemas/branding';
 import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
@@ -25,10 +29,6 @@ import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  brandingFormSchema,
-  type BrandingFormData,
-} from '@/lib/shared/schemas/branding';
 import { adjustColorForTheme } from '@/lib/utils/color';
 import {
   deriveFaviconPngBase64,

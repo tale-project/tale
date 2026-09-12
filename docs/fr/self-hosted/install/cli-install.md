@@ -124,7 +124,7 @@ Les commandes de bundle géré ne sont pas disponibles sous Windows, y compris `
 
 Cet exemple synthétique cible une organisation et un projet existants. Remplace les ID publics et définis les variables nommées. `revision` accepte un SHA de commit complet ou une référence d’environnement. Les identifiants restent des références, résolues en privé sur la destination. `tlsMode: "external"` suppose qu’un point d’entrée existant gère le TLS public ; `letsencrypt` demande aussi `tlsEmail`.
 
-Pour les jobs Linux de GitHub Actions, utilise l’action composite Tale `.github/actions/setup-cli`. Fixe la référence de l’action et son entrée `revision` au même commit Tale complet. Elle compile avec Bun 1.4.2, fournit la sortie `executable` et ajoute le binaire au `PATH`.
+Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composite Tale `.github/actions/setup-cli`. Fixe l’action et `revision` au même commit Tale complet. Elle compile avec Bun 1.4.2, vérifie le binaire final, fournit `executable` et complète le `PATH`. Les builds macOS prennent en charge la préparation générale de configuration ; la pile Linux gérée exige toujours un binaire Linux correspondant.
 
 `origin` et chaque entrée native `redirectUris` acceptent aussi des références d’environnement. Un registre de déploiement peut ainsi posséder les adresses publiques. La préparation les résout en URL HTTPS littérales validées dans le bundle.
 
@@ -195,11 +195,145 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy verify-bundle` vérifie l’inventaire complet et les hashes sans contacter la destination. `deploy --bundle --dry-run` vérifie les artefacts de configuration et les préconditions de la destination sans appliquer de changement. Les déploiements gérés refusent les options réservées au workspace comme `--services`, `--host` ou `--override-all`. Ils déploient le stack en préservant son état, avec des contrôles de santé et de provenance. Le comportement blue-green du workspace décrit plus haut est un autre parcours.
 
-`deploy provision [--bundle <directory>]` est la phase locale au backend, normalement appelée par le déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local existant et l’organisation sélectionnée, puis ferme toujours la session avant d’annoncer le succès. Ses champs sont `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les champs Entra optionnels `tenantId`/`clientId`/`clientSecret` et les éventuels `nativeClients` avec `key`, `name`, `clientId` existant et `redirectUris` HTTPS. Le mode local ne crée jamais de compte ou d’organisation de remplacement. Le mode Entra actif exige ses trois champs d’identifiants et conserve la procédure de première installation. Un bundle lie aussi l’identité publique et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule du bundle et de la configuration. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont vérifiées avant la connexion.
+`deploy provision [--bundle <directory>]` est la phase locale au backend du déploiement du bundle. Elle lit au maximum 64 KiB de JSON privé sur stdin, vérifie le compte local et l’organisation sélectionnée, puis ferme la session avant d’annoncer le succès. Ses champs comprennent `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, les identifiants Entra optionnels et `nativeClients`. Par défaut, le compte existant reste requis. Un `identity.bootstrap: "fresh"` explicite autorise la création du premier compte local et de l’organisation. Un bundle lie ce choix et les configurations préparées avant toute modification native. `deploy provision` refuse les options de workspace et `--dry-run` ; utilise les vérifications en lecture seule. Les attentes optionnelles `--cli-ref` et `--deployment-ref` exigent `--bundle` et sont contrôlées avant connexion.
 
-Les clients natifs gérés doivent déjà exister. Leurs ID, politiques de sécurité et secrets restent inchangés ; seuls le nom affiché et les URL de callback peuvent converger. Sur les backends 0.5 pris en charge, une modification nécessaire utilise l’adaptateur d’authentification natif du serveur depuis deux modules fixes du conteneur, puis ferme les deux connexions. Une correspondance exacte ne charge aucun module backend. Ce chemin n’active ni la route publique OAuth de mise à jour désactivée, ni des chemins de modules arbitraires, imports backend distants, inscriptions ou rotations de secret.
+Pour un nouvel opérateur vérifié administrativement, déclare explicitement `identity.emailVerification: "operator-attested"`. Tu attestes ainsi la possession de l’adresse du compte authentifié ; ce n’est pas une preuve de livraison dans la boîte mail. Le backend utilise un jeton natif bref lié à ce compte et à cette adresse exacte, en conservant les hooks natifs. Il n’envoie aucun email, ne change pas l’adresse et ne crée pas d’autre session. Cette option exige `bootstrap: "fresh"`. Sans elle, la vérification native habituelle reste inchangée. Une dérive du statut vérifié d’un compte précédemment prêt bloque pour examen.
 
-Conserve le répertoire d’état, les snapshots et les reçus natifs. Le reçu final n’est écrit qu’après vérification du runtime sain, relecture de la configuration native et fermeture de session. Si une phase tardive échoue, les changements déjà terminés peuvent rester en place ; examine les preuves conservées avant de relancer. Les verrous locaux coordonnent un hôte, sans compare-and-swap entre hôtes ni protection contre les modifications d’un admin natif.
+Pour une nouvelle cible, remplace le `projectId` d’une configuration par `project: { "key": "NORTH", "name": "Configuration" }`. Une clé de projet natif compte 2–6 lettres majuscules, son nom au plus 80 caractères. `skillOwner: "operator"` transfère une capsule source vérifiée et la compile dans le backend pour l’utilisateur natif authentifié ; l’hôte vérifie indépendamment l’artefact obtenu. Les ID explicites existants et les versions déjà liées à leur propriétaire conservent leur comportement.
+
+Chaque client natif choisit un `clientId` existant ou `managed: true` explicite. Avant la création native, la CLI conserve une intention privée, puis renvoie seulement un chemin privé de transmission et le SHA des identifiants. Les répétitions gardent ID, politique de sécurité et secrets. Une acceptation incertaine sans objet natif correspondant bloque. Pour les clients existants, seuls le nom affiché et les URL de callback HTTPS peuvent converger. Sur les backends 0.5 pris en charge, les créations ou modifications nécessaires utilisent des adaptateurs d’authentification locaux fixes, dont les connexions sont ensuite fermées. Cela n’ouvre aucune route publique d’inscription ou de modification, aucun chemin de module arbitraire et aucune rotation de secret.
+
+Pour transmettre les identifiants d’un client géré à une application distincte, définis `NATIVE_CLIENT_KEY` avec sa clé déclarée et `PRIVATE_EXPORT_DIRECTORY` avec un nouveau répertoire privé. Son répertoire parent doit déjà appartenir à ton compte, avoir le mode `0700` et se trouver sous des répertoires de confiance. Exporte depuis le même déploiement prêt, sans interpréter les chemins du backend ni les noms de conteneurs :
+
+```bash
+tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
+  --client "$NATIVE_CLIENT_KEY" --output "$PRIVATE_EXPORT_DIRECTORY" \
+  --env-prefix TALE_OIDC --cli-ref "$TALE_CLI_COMMIT" \
+  --deployment-ref "$DEPLOYMENT_COMMIT"
+```
+
+Le répertoire de sortie a le mode `0700`. Ses fichiers réguliers `client.json`, `receipt.json` et, avec `--env-prefix`, `consumer-env.json` ont le mode `0600`. Le dernier contient quatre chaînes littérales : `TALE_OIDC_ISSUER`, `TALE_OIDC_CLIENT_ID`, `TALE_OIDC_CLIENT_SECRET` et `TALE_OIDC_ORG_SLUG`. L’issuer correspond à l’origine Tale suivie de `/api/auth`. Transfère ces octets par ton canal privé d’identifiants et fais lire le JSON par l’application ; ne charge pas le fichier comme script shell et ne le publie pas comme artefact CI. Stdout contient uniquement des métadonnées non sensibles, chemins, tailles et hashes. Une sortie identique n’est réutilisée qu’après vérification de l’état prêt actuel et de tous les artefacts. Une sortie partielle, périmée ou étrangère bloque sans écrasement.
+
+### Configurer la plateforme
+
+Utilise `tale config` pour gérer les paramètres existants de la plateforme via les API natives. Enregistre cette déclaration dans `configuration.json` pour définir la couleur d’accent et un délai d’inactivité de 45 minutes :
+
+```json
+{
+  "schemaVersion": 1,
+  "resources": [
+    {
+      "kind": "branding",
+      "config": {
+        "accentColor": "#336699"
+      }
+    },
+    {
+      "kind": "governance",
+      "key": "session_idle_timeout",
+      "config": {
+        "enabled": true,
+        "idleTimeoutMinutes": 45
+      }
+    }
+  ]
+}
+```
+
+Définis `TALE_URL` avec l’origine HTTPS de l’instance et `TALE_ORG_ID` avec l’ID natif de l’organisation. Fournis un cookie de session autorisé via `TALE_CONFIG_COOKIE` ; garde-le hors des arguments et des fichiers versionnés. Valide localement, enregistre et examine le plan, puis applique-le et compare l’état natif :
+
+```bash
+tale --json config validate --file configuration.json
+tale --json config plan --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output configuration-plan.json
+tale --json --yes config apply --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan configuration-plan.json --receipt configuration-receipt.json
+tale --json config read --file configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Les répertoires de sortie et de reçus doivent déjà exister. Une connexion HTTP sur loopback exige aussi `--origin` avec l’origine HTTPS publique. `read` indique `matches` pour chaque ressource déclarée. Le plan précise la portée, les hashes actuels et souhaités, ainsi que les effets natifs. L’application exige la déclaration et la cible exactes. Une modification native concurrente bloque l’écriture. Les ressources non déclarées restent en place. La CLI ne propose ni suppression ni écriture de fichier arbitraire.
+
+Ces types de ressources utilisent les schémas partagés et les permissions natives de la plateforme :
+
+| Type | Configuration | Portée |
+| --- | --- | --- |
+| `branding` | Champs natifs de personnalisation | Organisation |
+| `governance` | Politique stockée dans un fichier, avec `key` et `config` natif | Organisation |
+| `provider` | Définition d’un fournisseur et `expectedModels` facultatif | Organisation |
+| `provider-credential` | Métadonnées d’identifiants nommés issus de l’environnement | Organisation |
+| `knowledge-embedding` | Fournisseur, modèle, dimensions et endpoint | Organisation |
+| `deployment` | Paramètres de l’instance, dont le runtime du sandbox | Instance |
+
+Les politiques de conservation et DSAR exigent leurs workflows natifs dédiés. Interromps les envois, la synchronisation et les crawls avant de modifier la configuration d’embedding. La CLI vérifie le nombre de documents et de sites web dans toute l’organisation ; elle ne verrouille pas l’import et ne migre pas les vecteurs existants. Une organisation avec des documents ou des sites web enregistrés exige une migration native distincte de l’index. Les paramètres d’instance exigent aussi la liste native des éditeurs autorisés. L’application autonome signale `restartRequired` pour les paramètres de démarrage ; les enregistrer ne les active pas encore. Examine les effets du plan avant de l’appliquer.
+
+Les déploiements gérés utilisent le même moteur via `configuration`. Ajoute cet exemple à la déclaration de déploiement quand un opérateur externe sert déjà le fournisseur. Remplace l’endpoint et le catalogue synthétiques par des valeurs vérifiées, puis injecte `EXTERNAL_PROVIDER_SECRET` depuis ton gestionnaire de secrets :
+
+```json
+{
+  "environment": {
+    "TALE_PROVIDER_KEY_EXTERNAL": {
+      "env": "EXTERNAL_PROVIDER_SECRET"
+    }
+  },
+  "configuration": {
+    "schemaVersion": 1,
+    "resources": [
+      {
+        "kind": "provider",
+        "config": {
+          "name": "external-chat",
+          "displayName": "External chat",
+          "apiFormat": "openai",
+          "baseUrl": "https://models.example.invalid/v1",
+          "catalog": {
+            "source": "models-endpoint"
+          },
+          "embedding": "unknown",
+          "auth": [
+            {
+              "method": "env"
+            }
+          ]
+        },
+        "expectedModels": [
+          {
+            "id": "Example-chat",
+            "provider": "external-chat",
+            "tags": [
+              "chat"
+            ],
+            "supportsTools": true,
+            "supportsVision": false,
+            "contextWindow": 131072
+          }
+        ]
+      },
+      {
+        "kind": "provider-credential",
+        "config": {
+          "providerSlug": "external-chat",
+          "authMethod": "env",
+          "name": "Managed external provider",
+          "envName": "TALE_PROVIDER_KEY_EXTERNAL",
+          "modelAllowlist": [
+            "Example-chat"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+`envName` suit le préfixe natif `TALE_PROVIDER_KEY_` et la limite de 40 caractères. Chaque alias exige une référence `environment` obligatoire. Les endpoints privés exigent aussi une référence explicite `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` dont la valeur est `1` ; les restrictions natives d’hôtes restent actives. `expectedModels` vérifie le catalogue fraîchement résolu par Tale lors de la relecture. Ce contrôle ne prouve ni la capacité d’inférence, ni la latence, ni les résultats métier.
+
+Pour la sélection du modèle de vision, utilise `governance` avec `key: "vision_model"` et les champs natifs `providerSlug`/`modelId`. L’embedding utilise `knowledge-embedding` avec `providerSlug`, `model`, `dimensions` et `baseUrl`. Pour remplacer les identifiants par défaut, déclare aussi les anciens identifiants d’environnement avec `isDefault: false` ; la CLI applique ce changement explicite en premier. Les secrets ne figurent ni dans la déclaration ni dans le reçu.
+
+La configuration native suit la vérification d’identité et précède les versions de configuration. Le reçu `native.configuration` lie les hashes de déclaration et de bundle, l’organisation, les hashes des ressources et les révisions natives. Un reçu en attente précède la première écriture. Si une ressource échoue ensuite, les changements précédents peuvent rester en place. Relis l’état natif et le reçu avant de reprendre le même plan vérifié. Le compare-and-set natif protège chaque ressource des modifications concurrentes d’un admin ; aucune transaction ne couvre l’ensemble. Conserve l’état du déploiement, les snapshots et les reçus pour la restauration.
+
+Les déploiements gérés activent aussi une ressource `deployment` déclarée avant de signaler qu’ils sont prêts. La CLI conserve l’activation en attente, attend jusqu’à cinq minutes la fin des sessions du spawner sandbox vérifié, puis redémarre ce conteneur. Si des sessions restent actives, l’opération reste en attente. Le reçu `configurationActivation` enregistre la configuration montée et le démarrage observé du conteneur ; de nouveaux contrôles de santé doivent réussir. Une nouvelle tentative vérifie un redémarrage déjà accepté. Après une activation réussie, une nouvelle exécution sans changement ne redémarre pas le service.
 
 ### Exploitation
 

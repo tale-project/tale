@@ -1,5 +1,6 @@
 'use client';
 
+import type { StorableAuthMethodName } from '@tale/shared/schemas/connectors';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -16,7 +17,6 @@ import {
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import type { StorableAuthMethodName } from '@/lib/shared/schemas/connectors';
 
 import {
   connectorConfigExtras,

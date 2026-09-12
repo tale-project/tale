@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  featureFlagsConfigSchema,
+  MIN_MAX_CONTEXT_TOKENS,
+  type FeatureFlagsConfig,
+  type FeatureFlagRule,
+} from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { HStack, Stack, Row } from '@tale/ui/layout';
@@ -31,12 +37,6 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  featureFlagsConfigSchema,
-  MIN_MAX_CONTEXT_TOKENS,
-  type FeatureFlagsConfig,
-  type FeatureFlagRule,
-} from '@/lib/shared/schemas/governance';
 import { formatNumber } from '@/lib/utils/format/number';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 import { isRecord } from '@/lib/utils/type-utils';

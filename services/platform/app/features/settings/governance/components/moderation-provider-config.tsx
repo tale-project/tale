@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  moderationProviderConfigSchema,
+  type ModerationCategoryMapping,
+  type ModerationProviderConfig,
+  type ModerationResponseShape,
+} from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
@@ -19,12 +25,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  moderationProviderConfigSchema,
-  type ModerationCategoryMapping,
-  type ModerationProviderConfig,
-  type ModerationResponseShape,
-} from '@/lib/shared/schemas/governance';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';

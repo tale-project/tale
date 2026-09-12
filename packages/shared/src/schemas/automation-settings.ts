@@ -20,7 +20,7 @@
 
 import { z } from 'zod/v4';
 
-import type { TaskSubjectContract } from './task_contract';
+import type { TaskSubjectContract } from './task-contract';
 
 /** Fallback project folder for settings files when neither the settings block
  * nor the task contract names one. */
@@ -128,6 +128,7 @@ export const settingsFieldSchema = z
     }
     if (field.pattern !== undefined) {
       try {
+        // oxlint-disable-next-line eslint/no-new -- compile-only validation; malformed patterns must throw without executing them
         new RegExp(field.pattern);
       } catch {
         ctx.issues.push({
@@ -244,6 +245,7 @@ export const settingsUploadsFormSchema = z
   .strict()
   .check((ctx) => {
     try {
+      // oxlint-disable-next-line eslint/no-new -- compile-only validation; malformed patterns must throw without executing them
       new RegExp(ctx.value.match);
     } catch {
       ctx.issues.push({

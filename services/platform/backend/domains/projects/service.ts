@@ -1,12 +1,3 @@
-import type { Sql, TransactionSql } from 'postgres';
-
-import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
-import {
-  deriveProjectKey,
-  isValidProjectKey,
-  normalizeProjectKey,
-  PROJECT_KEY_MAX,
-} from '../../../lib/shared/project_key.ts';
 import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_INSTRUCTIONS_MAX,
@@ -16,7 +7,16 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
   PROJECT_SHARED_TEAMS_MAX,
-} from '../../../lib/shared/schemas/projects.ts';
+} from '@tale/shared/schemas/projects';
+import {
+  deriveProjectKey,
+  isValidProjectKey,
+  normalizeProjectKey,
+  PROJECT_KEY_MAX,
+} from '@tale/shared/utils/project-key';
+import type { Sql, TransactionSql } from 'postgres';
+
+import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import {

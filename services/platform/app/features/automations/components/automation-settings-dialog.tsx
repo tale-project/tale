@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  type AnySettingsForm,
+  type AutomationSettings,
+  isUploadsForm,
+} from '@tale/shared/schemas/automation-settings';
 import { Row, Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
@@ -8,11 +13,6 @@ import { useState } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  type AnySettingsForm,
-  type AutomationSettings,
-  isUploadsForm,
-} from '@/lib/shared/schemas/automation_settings';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';

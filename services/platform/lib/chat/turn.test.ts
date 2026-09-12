@@ -1,3 +1,8 @@
+import {
+  harnessDefinitionSchema,
+  modelCatalogEntrySchema,
+  type HarnessDefinition,
+} from '@tale/shared/schemas/providers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { decodeChatError } from '../shared/chat-errors';
@@ -5,11 +10,6 @@ import {
   buildHarnessTable,
   type CredentialAuth,
 } from '../shared/providers/resolve_execution';
-import {
-  harnessDefinitionSchema,
-  modelCatalogEntrySchema,
-  type HarnessDefinition,
-} from '../shared/schemas/providers';
 import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {

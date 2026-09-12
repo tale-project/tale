@@ -1,6 +1,6 @@
+import { isFilePolicyType } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
-import { isFilePolicyType } from '../../../lib/shared/schemas/governance.ts';
 import type { ChatFilterEventInput } from '../../core/governance/chat_filter_events.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -25,6 +25,9 @@ export function governanceShimHandlers(sql: Sql): ShimHandlers {
         sql,
         args.organizationId,
         args.policyType,
+        // An unreadable routing pin must never turn into automatic selection.
+        // Other policies retain their established best-effort default posture.
+        args.policyType === 'vision_model' ? { strict: true } : {},
       );
     },
     'governance/internal_actions:runModerationProvider': async (raw) => {

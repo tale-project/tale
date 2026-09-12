@@ -10,18 +10,18 @@
  * drift.
  */
 
-import { parse as parseYaml } from 'yaml';
-
 import {
   automationPackManifestSchema,
   type AutomationPackManifest,
-} from '../../../lib/automations/packs';
+  MAX_AUTOMATION_BUNDLE_TOTAL_BYTES,
+} from '@tale/shared/schemas/automation-pack';
+import { parse as parseYaml } from 'yaml';
+
 import { registerConnector } from '../../../lib/connectors/registry';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import { validate } from '../../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { MAX_AUTOMATION_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/automations';
 import { readOrgSkill } from '../../../lib/skills/listing';
 import {
   canEditSkill,

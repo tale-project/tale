@@ -1,6 +1,6 @@
+import type { DefaultModelRule } from '@tale/shared/schemas/governance';
 import { describe, expect, it } from 'vitest';
 
-import type { DefaultModelRule } from '../../../lib/shared/schemas/governance';
 import { findApplicableModelRule } from './resolve_default_model';
 
 /**

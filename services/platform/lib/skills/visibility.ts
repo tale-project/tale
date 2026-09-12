@@ -32,7 +32,7 @@
  * Pure: no filesystem, no Convex.
  */
 
-import type { SkillVisibility } from '../shared/schemas/skills';
+import type { SkillVisibility } from '@tale/shared/schemas/skills';
 
 /** The fields of a skill that decide who may see or change it. */
 export interface SkillAccessSubject {

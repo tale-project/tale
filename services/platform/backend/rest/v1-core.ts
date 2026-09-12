@@ -1,14 +1,14 @@
+import {
+  isValidSkillSlug,
+  SKILL_EDIT_VISIBILITIES,
+  skillEditFields,
+} from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
-import {
-  isValidSkillSlug,
-  SKILL_EDIT_VISIBILITIES,
-  skillEditFields,
-} from '../../lib/shared/schemas/skills.ts';
 import {
   blankStringsAsAbsent,
   blankStringsAsNull,

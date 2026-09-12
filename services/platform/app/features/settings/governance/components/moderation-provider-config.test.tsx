@@ -1,6 +1,6 @@
+import { moderationProviderConfigSchema } from '@tale/shared/schemas/governance';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { moderationProviderConfigSchema } from '@/lib/shared/schemas/governance';
 import { render, screen } from '@/tests/utils/render';
 
 // Entry point is exported as `ModerationProviderConfigView` (the guardrails

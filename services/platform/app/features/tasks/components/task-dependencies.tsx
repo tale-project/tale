@@ -1,5 +1,6 @@
 'use client';
 
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -13,7 +14,6 @@ import {
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
 import {

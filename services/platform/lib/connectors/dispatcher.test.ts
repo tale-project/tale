@@ -4,6 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  connectorSchema,
+  type Connector,
+} from '@tale/shared/schemas/connectors';
+import {
   afterEach,
   beforeAll,
   beforeEach,
@@ -19,7 +23,6 @@ import {
   createSandboxExecRunner,
   createSessionTransport,
 } from '../engine/runners/sandbox-exec';
-import { connectorSchema, type Connector } from '../shared/schemas/connectors';
 import {
   executeConnectorAction,
   installConnectorCatalog,

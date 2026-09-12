@@ -1,9 +1,12 @@
 import { isAbsolute, resolve } from 'node:path';
 
+import { PROJECT_NAME_MAX } from '@tale/shared/schemas/projects';
+import { isValidProjectKey } from '@tale/shared/utils/project-key';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
-import { gitSha, relativePath, slug } from '../config/releases/model';
+import { platformConfigurationSchema } from '../config/platform-model';
+import { gitSha, owner, relativePath, slug } from '../config/releases/model';
 
 const text = z
   .string()
@@ -54,10 +57,13 @@ const redirectUri = text.url().refine((input) => {
 const nativeClient = z.strictObject({
   key: slug,
   name: text,
-  clientId: value,
+  clientId: value.optional(),
+  managed: z.literal(true).optional(),
   redirectUris: z.array(redirectUri).min(1).max(16),
 });
 const identity = z.strictObject({
+  bootstrap: z.literal('fresh').optional(),
+  emailVerification: z.literal('operator-attested').optional(),
   email: value,
   password: environmentReference.optional(),
   slug,
@@ -67,6 +73,14 @@ const identity = z.strictObject({
   clientId: environmentReference.optional(),
   clientSecret: environmentReference.optional(),
   nativeClients: z.array(nativeClient).max(16).default([]),
+});
+
+export const managedProjectSchema = z.strictObject({
+  key: text.refine(
+    isValidProjectKey,
+    'expected a native uppercase project key',
+  ),
+  name: text.max(PROJECT_NAME_MAX).refine((input) => input.trim() === input),
 });
 
 const deploymentFields = z.strictObject({
@@ -83,6 +97,7 @@ const deploymentFields = z.strictObject({
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
   identity: identity.optional(),
+  configuration: platformConfigurationSchema.optional(),
   configs: z
     .array(
       z.strictObject({
@@ -91,11 +106,9 @@ const deploymentFields = z.strictObject({
         client: slug,
         descriptor: relativePath,
         automation: slug,
-        projectId: text,
-        skillOwner: z
-          .string()
-          .regex(/^[A-Za-z0-9_-]{8,128}(?![\s\S])/)
-          .optional(),
+        projectId: text.optional(),
+        project: managedProjectSchema.optional(),
+        skillOwner: z.union([z.literal('operator'), owner]).optional(),
         /** Preserve an adopted deployment's existing receipt for crash recovery. */
         receiptPath: relativePath
           .refine(
@@ -111,6 +124,12 @@ const deploymentFields = z.strictObject({
 
 export const deploymentSpecSchema = deploymentFields.superRefine(
   (spec, context) => {
+    if (spec.identity?.emailVerification && spec.identity.bootstrap !== 'fresh')
+      context.addIssue({
+        code: 'custom',
+        message: 'Operator email attestation requires explicit fresh bootstrap',
+        path: ['identity', 'emailVerification'],
+      });
     if (spec.tlsMode === 'letsencrypt' && !spec.tlsEmail)
       context.addIssue({
         code: 'custom',
@@ -123,6 +142,23 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         message: 'Configuration deployment requires an organization identity',
         path: ['identity'],
       });
+    if (spec.configuration && !spec.identity)
+      context.addIssue({
+        code: 'custom',
+        message: 'Platform configuration requires an organization identity',
+        path: ['identity'],
+      });
+    for (const resource of spec.configuration?.resources ?? []) {
+      if (resource.kind !== 'provider-credential') continue;
+      const reference = spec.environment[resource.config.envName];
+      if (!reference || reference.optional)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Provider credential needs an explicit required deployment environment reference',
+          path: ['environment', resource.config.envName],
+        });
+    }
     if (spec.identity?.ssoEnabled)
       for (const field of ['tenantId', 'clientId', 'clientSecret'] as const)
         if (!spec.identity[field])
@@ -140,6 +176,39 @@ export const deploymentSpecSchema = deploymentFields.superRefine(
         message: 'Duplicate configuration target',
         path: ['configs'],
       });
+    const projects = new Map<string, string>();
+    for (const [index, config] of spec.configs.entries()) {
+      if ((config.projectId === undefined) === (config.project === undefined))
+        context.addIssue({
+          code: 'custom',
+          message: 'Select exactly one native project target',
+          path: ['configs', index],
+        });
+      if (config.project) {
+        const previous = projects.get(config.project.key);
+        if (previous !== undefined && previous !== config.project.name)
+          context.addIssue({
+            code: 'custom',
+            message: 'Managed project key has conflicting names',
+            path: ['configs', index, 'project'],
+          });
+        projects.set(config.project.key, config.project.name);
+      }
+    }
+    const clients = spec.identity?.nativeClients ?? [];
+    if (new Set(clients.map((client) => client.key)).size !== clients.length)
+      context.addIssue({
+        code: 'custom',
+        message: 'Duplicate native client key',
+        path: ['identity', 'nativeClients'],
+      });
+    for (const [index, client] of clients.entries())
+      if ((client.clientId === undefined) === (client.managed === undefined))
+        context.addIssue({
+          code: 'custom',
+          message: 'Select exactly one native client identity',
+          path: ['identity', 'nativeClients', index],
+        });
   },
 );
 
