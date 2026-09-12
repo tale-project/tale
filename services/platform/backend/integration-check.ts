@@ -64,6 +64,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { BACKEND_SERVER_OPTIONS } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
@@ -47048,7 +47049,13 @@ async function main(): Promise<void> {
   );
 
   const app = createApp({ sql, auth });
-  const server = serve({ fetch: app.fetch, port });
+  // The production listener's options (header budget, bodiless-answer
+  // response class): the harness proves the same wire the deployment sends.
+  const server = serve({
+    fetch: app.fetch,
+    port,
+    serverOptions: BACKEND_SERVER_OPTIONS,
+  });
   let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);

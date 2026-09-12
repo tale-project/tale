@@ -596,10 +596,20 @@ export async function checkConversationApi(
       pageOne.deliveries.some((one) => one.messageId === row.messageId),
     ),
   );
+  // A cursor is signed for the list it pages — one source's cursor is not
+  // a position on another's, and the door refuses it as it refuses every
+  // cursor it did not mint (400 INVALID_CURSOR), never as a missing row.
   const foreignCursor = await machine(
     `/conversations/deliveries?${new URLSearchParams({ source: 'other-source', cursor: pageOne.continueCursor })}`,
   );
-  assert.equal(foreignCursor.status, 404);
+  assert.equal(foreignCursor.status, 400);
+  assert.equal(
+    z
+      .object({ code: z.string() })
+      .loose()
+      .parse(await foreignCursor.json()).code,
+    'INVALID_CURSOR',
+  );
   const refused = await claimApiDeliveries(sql, viewer, 'vatplus', 100);
   assert.equal(refused.length, 100);
   for (const row of refused) {

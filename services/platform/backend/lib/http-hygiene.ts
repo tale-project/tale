@@ -229,6 +229,23 @@ export class BodilessAwareResponse<
   }
 }
 
+/** How many header bytes the door reads before answering: Node's 16 KiB
+ * default counts the request target too, and its overflow answer is a
+ * bare 431 with the socket destroyed — which the proxy turned into a
+ * reset stream. The proxy budgets 64 KiB of headers and Go's HTTP/1.1
+ * reader lets a few KiB past that through, so this cap sits ABOVE the
+ * proxy's plus that slack: everything the edge forwards is answered by
+ * the door (a URL over 32 KiB with its own 414), never by a bare 431. */
+export const MAX_REQUEST_HEADER_BYTES = 80 * 1024;
+
+/** The `http.createServer` options every backend listener runs with — the
+ * production door (main.ts) and the integration harness alike, so what
+ * the harness proves on the wire is what the deployment sends. */
+export const BACKEND_SERVER_OPTIONS = {
+  maxHeaderSize: MAX_REQUEST_HEADER_BYTES,
+  ServerResponse: BodilessAwareResponse,
+} as const;
+
 /**
  * The transport-security headers every backend response carries — the
  * proxy delegates them to the app tier, which never sees `/api/*`. No CSP
