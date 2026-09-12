@@ -5,9 +5,10 @@ import { AppError } from '../../lib/shared/errors/app-error';
 /**
  * The statuses a coded refusal may map onto. Every entry is a 4xx: the whole
  * point of a code→status map is that a refusal the domain layer explains
- * never reads as a server outage.
+ * never reads as a server outage. 412 is the failed precondition a
+ * conditional write answers (`If-None-Match: *` on a slug that exists).
  */
-export type CodedRefusalStatus = 400 | 403 | 404 | 409 | 422;
+export type CodedRefusalStatus = 400 | 403 | 404 | 409 | 412 | 422;
 
 /** The `{ code, message }` an `AppError` carries, or `null` for anything else. */
 export function codedAppError(

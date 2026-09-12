@@ -307,14 +307,28 @@ export async function checkConversationApi(
     ),
     null,
   );
-  assert.deepEqual(
-    await claimApiDeliveries(
+  // A claim names a source this user mirrored: another service user's
+  // source is theirs (403), a source no snapshot ever named is absent
+  // (404) — never a healthy-looking empty queue.
+  await assert.rejects(
+    claimApiDeliveries(
       sql,
       { ...viewer, userId: 'different-service' },
       'vatplus',
       100,
     ),
-    [],
+    /another service user/,
+  );
+  const unknownSource = await machine('/conversations/deliveries/claim', {
+    source: `never-${suffix.slice(0, 8)}`,
+  });
+  assert.equal(unknownSource.status, 404);
+  assert.equal(
+    z
+      .object({ code: z.string() })
+      .loose()
+      .parse(await unknownSource.json()).code,
+    'CONVERSATION_SOURCE_NOT_FOUND',
   );
   await assert.rejects(
     synchronizeConversation(sql, { ...viewer, role: 'viewer' }, payload),
@@ -653,6 +667,43 @@ export async function checkConversationApi(
   rows =
     await sql`SELECT id, content, channel FROM app.conversation_messages WHERE conversation_id = ${conversationId}`;
   assert.equal(rows.length, 0);
+  // A teardown is not content: at the stored version with a different
+  // subject it is still a replay of the deletion (200, nothing applied),
+  // not the 409 a content snapshot at that version would get.
+  const deletionAgain = snapshotResult.parse(
+    await (
+      await machine('/conversations/sync', {
+        ...deletion,
+        subject: 'Different words, same teardown',
+      })
+    ).json(),
+  );
+  assert.equal(deletionAgain.applied, false);
+  // A source whose versions ran out can still close its mirror: a
+  // deleted snapshot applies at the stored version itself, so the
+  // documented maximum version is not a trap (G-04).
+  const maxedId = `thread-max-${suffix}`;
+  const maxed = {
+    ...payload,
+    externalId: maxedId,
+    version: Number.MAX_SAFE_INTEGER,
+    messages: [],
+  };
+  assert.equal((await machine('/conversations/sync', maxed)).status, 200);
+  const maxedDeletion = snapshotResult.parse(
+    await (
+      await machine('/conversations/sync', {
+        ...maxed,
+        status: 'closed',
+        deleted: true,
+      })
+    ).json(),
+  );
+  assert.equal(maxedDeletion.applied, true);
+  const maxedBinding = await sql<
+    { sourceDeleted: boolean }[]
+  >`SELECT source_deleted AS "sourceDeleted" FROM app.conversation_api_bindings WHERE conversation_id = ${maxedDeletion.conversationId}`;
+  assert.equal(maxedBinding[0]?.sourceDeleted, true);
   assert.equal(
     (
       await app(`/${conversationId}/reply`, {
@@ -665,6 +716,6 @@ export async function checkConversationApi(
   record(
     'conversation API source edits and tombstones',
     true,
-    'Source deletion reconciles acknowledged messages, stale snapshots cannot restore them, deleted source threads refuse replies',
+    'Source deletion reconciles acknowledged messages, stale snapshots cannot restore them, a teardown replays at its version and applies at the maximum version, deleted source threads refuse replies',
   );
 }

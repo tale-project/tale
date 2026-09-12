@@ -3,7 +3,10 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { apiDeliveryFailureSchema } from '../../lib/shared/conversations/api-sync.ts';
+import {
+  apiDeliveryFailureSchema,
+  apiExternalIdSchema,
+} from '../../lib/shared/conversations/api-sync.ts';
 import {
   acknowledgeApiDelivery,
   apiDeliveryAttachment,
@@ -21,35 +24,33 @@ import {
 import { readBodyBounded } from '../domains/files/bounded-body.ts';
 import {
   deleteOrgBlobRefs,
+  FileError,
   getOrgBlobBytes,
   putOrgBlobBytes,
 } from '../domains/files/service.ts';
 import { recordUploadIntent } from '../domains/files/upload-intents.ts';
 import {
-  assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
-  invalidBodyResponse,
-  invalidQueryFromSchema,
+  noQuery,
   notFound,
-  readJsonBody,
+  parseBody,
+  readQuery,
   type RestEnv,
 } from './shared.ts';
 
 /** Org-explicit, key-holder-owned external Inbox sources. No email side effects. */
+/** A snapshot carries a whole conversation — larger than the door's
+ * default body cap, bounded here instead. */
+const SYNC_BODY_BYTES = 8 * 1024 * 1024;
+
 export function createConversationRestRoutes(deps: {
   sql: Sql;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
-  // The strict-org posture the projects and tasks families share: a
-  // multi-org key names its organization on every conversation call (reads
-  // too), a single-org key's one organization is unambiguous and passes
-  // without the header — as the API reference promises. The family used
-  // to demand the header of every key, which no other route does and no
-  // route can tell a client the value of.
+  // The organization is the door's business (a multi-org key names it on
+  // every call); this family only gates on the role.
   app.use('/conversations/*', async (c, next) => {
-    const refusal = await assertExplicitOrg(deps.sql, c);
-    if (refusal) return refusal;
     if (!viewerCanWrite(c.get('role')))
       return c.json(
         {
@@ -69,20 +70,18 @@ export function createConversationRestRoutes(deps: {
   });
 
   app.get('/conversations/sync', async (c) => {
-    const query = z
-      .object({
-        source: apiSourceSchema,
-        externalId: z.string().min(1).max(256),
-      })
-      .safeParse(c.req.query());
-    if (!query.success) return invalidQueryFromSchema(c, query.error);
+    const query = readQuery(c, {
+      source: apiSourceSchema,
+      externalId: apiExternalIdSchema,
+    });
+    if (query instanceof Response) return query;
     try {
       return c.json({
         snapshot: await apiSnapshotState(
           deps.sql,
           viewer(c),
-          query.data.source,
-          query.data.externalId,
+          query.source,
+          query.externalId,
         ),
       });
     } catch (error) {
@@ -91,14 +90,14 @@ export function createConversationRestRoutes(deps: {
   });
   app.post(
     '/conversations/sync',
-    bodyLimit({ maxSize: 8 * 1024 * 1024 }),
+    bodyLimit({ maxSize: SYNC_BODY_BYTES }),
     async (c) => {
-      const body = apiSnapshotSchema.safeParse(await readJsonBody(c));
-      if (!body.success) return invalidBodyResponse(c, body.error);
+      const body = await parseBody(c, apiSnapshotSchema, {
+        maxBytes: SYNC_BODY_BYTES,
+      });
+      if (body instanceof Response) return body;
       try {
-        return c.json(
-          await synchronizeConversation(deps.sql, viewer(c), body.data),
-        );
+        return c.json(await synchronizeConversation(deps.sql, viewer(c), body));
       } catch (error) {
         return domainErrorResponse(c, error);
       }
@@ -108,20 +107,21 @@ export function createConversationRestRoutes(deps: {
     '/conversations/deliveries/claim',
     bodyLimit({ maxSize: 64 * 1024 }),
     async (c) => {
-      const body = z
-        .object({
+      const body = await parseBody(
+        c,
+        z.strictObject({
           source: apiSourceSchema,
           limit: z.number().int().min(1).max(100).default(100),
-        })
-        .safeParse(await readJsonBody(c));
-      if (!body.success) return invalidBodyResponse(c, body.error);
+        }),
+      );
+      if (body instanceof Response) return body;
       try {
         return c.json({
           deliveries: await claimApiDeliveries(
             deps.sql,
             viewer(c),
-            body.data.source,
-            body.data.limit,
+            body.source,
+            body.limit,
           ),
         });
       } catch (error) {
@@ -133,16 +133,11 @@ export function createConversationRestRoutes(deps: {
     '/conversations/deliveries/:id/fail',
     bodyLimit({ maxSize: 64 * 1024 }),
     async (c) => {
-      const body = apiDeliveryFailureSchema.safeParse(await readJsonBody(c));
-      if (!body.success) return invalidBodyResponse(c, body.error);
+      const body = await parseBody(c, apiDeliveryFailureSchema);
+      if (body instanceof Response) return body;
       try {
         return c.json(
-          await failApiDelivery(
-            deps.sql,
-            viewer(c),
-            c.req.param('id'),
-            body.data,
-          ),
+          await failApiDelivery(deps.sql, viewer(c), c.req.param('id'), body),
         );
       } catch (error) {
         return domainErrorResponse(c, error);
@@ -153,21 +148,22 @@ export function createConversationRestRoutes(deps: {
     '/conversations/deliveries/:id/ack',
     bodyLimit({ maxSize: 64 * 1024 }),
     async (c) => {
-      const body = z
-        .object({
-          receiptId: z.string().min(1).max(256),
-          sourceVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-        })
-        .safeParse(await readJsonBody(c));
-      if (!body.success) return invalidBodyResponse(c, body.error);
+      const body = await parseBody(
+        c,
+        z.strictObject({
+          receiptId: apiExternalIdSchema,
+          sourceVersion: z.number().int().min(0),
+        }),
+      );
+      if (body instanceof Response) return body;
       try {
         return c.json(
           await acknowledgeApiDelivery(
             deps.sql,
             viewer(c),
             c.req.param('id'),
-            body.data.receiptId,
-            body.data.sourceVersion,
+            body.receiptId,
+            body.sourceVersion,
           ),
         );
       } catch (error) {
@@ -175,40 +171,46 @@ export function createConversationRestRoutes(deps: {
       }
     },
   );
-  app.get('/conversations/deliveries/:id/attachments/:index', async (c) => {
-    const index = z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(9)
-      .safeParse(c.req.param('index'));
-    // A delivery carries at most ten attachments; a segment that names no
-    // whole number in that range names no attachment at all.
-    if (!index.success) {
-      return notFound(c, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
-    }
-    try {
-      const attachment = await apiDeliveryAttachment(
-        deps.sql,
-        viewer(c),
-        c.req.param('id'),
-        index.data,
-      );
-      const { bytes } = await getOrgBlobBytes(
-        deps.sql,
-        c.get('organizationId'),
-        attachment.storageId,
-      );
-      return new Response(new Uint8Array(bytes).buffer, {
-        headers: {
-          'Content-Type': attachment.contentType,
-          'Cache-Control': 'private, no-store',
-        },
-      });
-    } catch (error) {
-      return domainErrorResponse(c, error);
-    }
-  });
+  app.get(
+    '/conversations/deliveries/:id/attachments/:index',
+    noQuery,
+    async (c) => {
+      const index = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(9)
+        .safeParse(c.req.param('index'));
+      // A delivery carries at most ten attachments; a segment that names no
+      // whole number in that range names no attachment at all (the delivery
+      // itself is looked up first below, so a missing delivery is still
+      // told apart by its own code).
+      if (!index.success) {
+        return notFound(c, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
+      }
+      try {
+        const attachment = await apiDeliveryAttachment(
+          deps.sql,
+          viewer(c),
+          c.req.param('id'),
+          index.data,
+        );
+        const { bytes } = await getOrgBlobBytes(
+          deps.sql,
+          c.get('organizationId'),
+          attachment.storageId,
+        );
+        return new Response(new Uint8Array(bytes).buffer, {
+          headers: {
+            'Content-Type': attachment.contentType,
+            'Cache-Control': 'private, no-store',
+          },
+        });
+      } catch (error) {
+        return domainErrorResponse(c, error);
+      }
+    },
+  );
   app.post('/conversations/uploads', async (c) => {
     const limited = await chargeLane(deps.sql, c, 'rest:upload');
     if (limited) return limited;
@@ -236,6 +238,11 @@ export function createConversationRestRoutes(deps: {
       }
       return c.json({ storageId });
     } catch (error) {
+      // The bounded read refuses an oversized body with the files domain's
+      // own 413; on this door every 413 is the documented `BODY_TOO_LARGE`.
+      if (error instanceof FileError && error.status === 413) {
+        return c.json({ error: error.message, code: 'BODY_TOO_LARGE' }, 413);
+      }
       return domainErrorResponse(c, error);
     }
   });

@@ -1,5 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  CrawlTargetError,
+  parseCrawlTarget,
+} from '../../../lib/net/crawl-host-policy.ts';
 import { decideInstanceAdmin } from '../../core/deployment/auth_policy.ts';
 import { encryptString } from '../../core/lib/crypto/encrypt_string.ts';
 
@@ -29,6 +33,10 @@ export class BrowserSessionError extends Error {
 }
 
 export const DEFAULT_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+/** The longest an imported jar may live: a cookie jar is a credential, and
+ * one that never expires is a standing liability — 180 days is longer than
+ * any platform keeps a session alive anyway. */
+export const MAX_SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 const MAX_SESSION_FAILURES = 3;
 const COOLING_RECOVERY_MS = 30 * 60 * 1000;
 const EXPIRED_PRUNE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -113,26 +121,17 @@ export async function reportBrowserSessionResult(
 }
 
 /**
- * Import a warmed jar (the 0.4 instance-admin-gated action): the caller
- * must administer some org AND — for this write — be on the
+ * The gate on every write to the pool — the import and the delete: the
+ * caller must administer some org AND be on the
  * `TALE_DEPLOYMENT_CONFIG_ADMINS` editor allowlist (the reused pure
- * `decideInstanceAdmin`). The jar is encrypted before it touches the row.
+ * `decideInstanceAdmin`), the 0.4 instance-admin rule. Exported so the door
+ * can refuse BEFORE it reads a body: a caller who will be refused learns
+ * nothing about the schema first.
  */
-export async function importBrowserSession(
+export async function assertBrowserSessionImporter(
   sql: Sql,
-  args: {
-    callerUserId: string;
-    callerEmail?: string;
-    organizationId: string;
-    domain: string;
-    cookiesJar: string;
-    userAgent?: string;
-    visitorData?: string;
-    poToken?: string;
-    label?: string;
-    ttlMs?: number;
-  },
-): Promise<{ sessionId: string }> {
+  args: { callerUserId: string; callerEmail?: string },
+): Promise<void> {
   const members = await sql<{ organizationId: string; role: string }[]>`
     SELECT "organizationId", "role" FROM "member"
     WHERE "userId" = ${args.callerUserId}
@@ -152,14 +151,84 @@ export async function importBrowserSession(
       403,
     );
   }
+}
+
+/** A DNS name of at least two labels — what a cookie jar is scoped to. The
+ * URL parser admits hosts a session could never match (`..`, `*.example.com`),
+ * and a cookie jar for an IP literal is nonsense. */
+const SESSION_HOST_RE =
+  /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
+
+/**
+ * The hostname a jar is warmed for — the pool's lookup key, so it is
+ * normalized exactly like a crawl target (`https://Example.COM/path` and
+ * `example.com` are one host) and held to the same policy: loopback,
+ * link-local, private-network and metadata hosts are refused unless the
+ * operator admitted intranet targets (`TALE_ALLOW_PRIVATE_CRAWL_HOSTS`).
+ */
+function sessionDomain(input: string): string {
+  let host: string;
+  try {
+    host = parseCrawlTarget(input);
+  } catch (error) {
+    if (error instanceof CrawlTargetError) {
+      throw new BrowserSessionError(
+        'INVALID_SESSION',
+        `The domain is not a host a session can be warmed for: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+  if (!SESSION_HOST_RE.test(host)) {
+    throw new BrowserSessionError(
+      'INVALID_SESSION',
+      `The domain is not a host a session can be warmed for: "${host}" is not a DNS name`,
+    );
+  }
+  return host;
+}
+
+/**
+ * Import a warmed jar, behind {@link assertBrowserSessionImporter}. The jar
+ * is encrypted before it touches the row; the domain is normalized and
+ * policy-checked; the lifetime defaults to two weeks and never exceeds
+ * {@link MAX_SESSION_TTL_MS}.
+ */
+export async function importBrowserSession(
+  sql: Sql,
+  args: {
+    callerUserId: string;
+    callerEmail?: string;
+    organizationId: string;
+    domain: string;
+    cookiesJar: string;
+    userAgent?: string;
+    visitorData?: string;
+    poToken?: string;
+    label?: string;
+    ttlMs?: number;
+  },
+): Promise<{ sessionId: string }> {
+  await assertBrowserSessionImporter(sql, args);
 
   const jar = args.cookiesJar.trim();
-  const domain = args.domain.trim().toLowerCase();
   const organizationId = args.organizationId.trim();
-  if (!jar || !domain || !organizationId) {
+  if (!jar || !args.domain.trim() || !organizationId) {
     throw new BrowserSessionError(
       'INVALID_SESSION',
       'A domain, an organizationId, and a non-empty cookie jar are required.',
+    );
+  }
+  const domain = sessionDomain(args.domain);
+  if (
+    args.ttlMs !== undefined &&
+    (!Number.isInteger(args.ttlMs) ||
+      args.ttlMs <= 0 ||
+      args.ttlMs > MAX_SESSION_TTL_MS)
+  ) {
+    throw new BrowserSessionError(
+      'INVALID_SESSION',
+      `ttlMs must be a whole number of milliseconds between 1 and ${MAX_SESSION_TTL_MS} (180 days).`,
     );
   }
   const cookiesEncrypted = await encryptString(jar);
@@ -180,6 +249,23 @@ export async function importBrowserSession(
   const sessionId = rows[0]?.id;
   if (!sessionId) throw new Error('browser session insert failed');
   return { sessionId };
+}
+
+/**
+ * Revoke one imported session — the operator's exit for a jar that should
+ * not have been imported or whose account is compromised, behind the same
+ * gate as the import. True when a row of this organization went away.
+ */
+export async function deleteBrowserSession(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string },
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM app.browser_sessions
+    WHERE id = ${args.sessionId} AND org_id = ${args.organizationId}
+    RETURNING id
+  `;
+  return rows.length > 0;
 }
 
 /** Masked per-org listing for the operator UI — never the cookies. */

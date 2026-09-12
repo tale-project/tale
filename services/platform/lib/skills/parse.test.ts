@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+  MAX_SKILL_BODY_BYTES,
+  MAX_SKILL_FRONTMATTER_BYTES,
+  MAX_SKILL_MD_BYTES,
+  type SkillFrontmatter,
+} from '../shared/schemas/skills';
 import { parseSkillMd, SkillParseError, serializeSkillMd } from './parse';
 
 const PATH = '/config/acme/skills/write-notes/SKILL.md';
@@ -180,5 +186,50 @@ describe('serializeSkillMd', () => {
     );
 
     expect(serializeSkillMd(meta, body)).toContain('visibility: org');
+  });
+});
+
+/**
+ * The published body budget is a sufficient condition: a body within
+ * `MAX_SKILL_BODY_BYTES` composes a SKILL.md the parser accepts even when
+ * the frontmatter sits exactly at ITS cap — so a client sizing to the
+ * published number is never refused for size by the composed document.
+ */
+describe('the body budget', () => {
+  const bytes = (text: string) => new TextEncoder().encode(text).length;
+  const meta = (pad: string): SkillFrontmatter => ({
+    name: 'write-notes',
+    description: 'Write the note before the work.',
+    visibility: 'org',
+    extra: { pad },
+  });
+  /** The frontmatter as the parser measures it: between the fences. */
+  const innerFrontmatterBytes = (doc: string) =>
+    bytes(doc.slice('---\n'.length, doc.indexOf('\n---\n')));
+
+  /** A frontmatter padded to exactly the cap: measured once with a
+   * one-character pad (an empty one would be quoted, two bytes more), then
+   * grown by the difference. */
+  const paddedToCap = (body: string) => {
+    const base = innerFrontmatterBytes(serializeSkillMd(meta('x'), body));
+    return serializeSkillMd(
+      meta('x'.repeat(MAX_SKILL_FRONTMATTER_BYTES - base + 1)),
+      body,
+    );
+  };
+
+  it('fits the document cap with the frontmatter at its own cap', () => {
+    const body = 'b'.repeat(MAX_SKILL_BODY_BYTES);
+    const padded = paddedToCap(body);
+    expect(innerFrontmatterBytes(padded)).toBe(MAX_SKILL_FRONTMATTER_BYTES);
+    expect(bytes(padded)).toBeLessThanOrEqual(MAX_SKILL_MD_BYTES);
+    expect(parseSkillMd(padded, PATH).body).toBe(`${body}\n`);
+  });
+
+  it('is the largest such budget — one more byte at the cap does not fit', () => {
+    const padded = paddedToCap('b'.repeat(MAX_SKILL_BODY_BYTES + 1));
+    expect(innerFrontmatterBytes(padded)).toBe(MAX_SKILL_FRONTMATTER_BYTES);
+    expect(bytes(padded)).toBeGreaterThan(MAX_SKILL_MD_BYTES);
+    expect(() => parseSkillMd(padded, PATH)).toThrow(SkillParseError);
   });
 });

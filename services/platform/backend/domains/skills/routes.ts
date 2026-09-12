@@ -3,6 +3,10 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import {
+  SKILL_VISIBILITIES,
+  skillEditFields,
+} from '../../../lib/shared/schemas/skills.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -30,13 +34,13 @@ import { withSkillWriterLock } from './writer-lock.ts';
  * flow (`upload.ts`).
  */
 
+/** The edit fields at the file layer's own caps (`skillEditFields`), plus
+ * the full visibility set: the editor re-sends `private` verbatim when a
+ * member keeps a pre-existing private bundle, and the file layer is the
+ * one gate that refuses MINTING one (`SKILL_PRIVATE_RETIRED`). */
 const editSchema = z.object({
-  description: z.string().min(1).max(2000),
-  body: z.string().max(200_000),
-  visibility: z.enum(['org', 'team', 'private']).optional(),
-  teams: z.array(z.string().max(128)).max(20).optional(),
-  icon: z.string().max(100).optional(),
-  labels: z.array(z.string().max(100)).max(50).optional(),
+  ...skillEditFields,
+  visibility: z.enum(SKILL_VISIBILITIES).optional(),
 });
 
 export function createSkillRoutes(deps: {

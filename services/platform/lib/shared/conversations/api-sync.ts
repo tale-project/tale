@@ -1,7 +1,27 @@
 import { z } from 'zod';
 
-export const apiSourceSchema = z.string().regex(/^[a-z][a-z0-9_-]{0,59}$/);
-export const apiDeliveryFailureSchema = z.object({
+/**
+ * The wire shapes of the conversations mirror (`/api/v1/conversations/*`),
+ * shared by the door, the domain and the OpenAPI source. Every object is
+ * strict: a key the schema does not name is refused (400 `INVALID_BODY`
+ * naming it), never dropped — a typo in an integration's field name must
+ * not read as success.
+ */
+
+/** A source slug — the pattern the door enforces on the query string and
+ * on every body that names a source; the OpenAPI source renders it. */
+export const API_SOURCE_PATTERN = /^[a-z][a-z0-9_-]{0,59}$/;
+export const apiSourceSchema = z.string().regex(API_SOURCE_PATTERN);
+
+/** A source's own identifier for a conversation, message, contact or
+ * attachment: 1..256 characters, opaque. */
+export const API_EXTERNAL_ID_MAX_LENGTH = 256;
+export const apiExternalIdSchema = z
+  .string()
+  .min(1)
+  .max(API_EXTERNAL_ID_MAX_LENGTH);
+
+export const apiDeliveryFailureSchema = z.strictObject({
   claimToken: z.uuid(),
   code: z.enum([
     'platform_unauthorized',
@@ -17,8 +37,8 @@ export const apiDeliveryFailureSchema = z.object({
   ]),
   permanent: z.boolean(),
 });
-export const apiAttachmentSchema = z.object({
-  externalId: z.string().min(1).max(256).optional(),
+export const apiAttachmentSchema = z.strictObject({
+  externalId: apiExternalIdSchema.optional(),
   storageId: z.string().min(1).max(1024),
   fileName: z.string().min(1).max(300),
   contentType: z.string().min(1).max(255),
@@ -28,7 +48,7 @@ export const apiAttachmentSchema = z.object({
     .min(0)
     .max(30 * 1024 * 1024),
 });
-export const replyConstraintsSchema = z.object({
+export const replyConstraintsSchema = z.strictObject({
   minBodyChars: z.number().int().min(0).max(100).default(1),
   maxBodyChars: z.number().int().min(1).max(20_000).default(20_000),
   maxAttachments: z.number().int().min(0).max(10).default(10),
@@ -43,30 +63,35 @@ export const replyConstraintsSchema = z.object({
     .max(100)
     .optional(),
 });
+/** One message of a snapshot. `taleMessageId` marks a message that began
+ * life as a native Inbox reply (claimed through the deliveries lane): it
+ * names that reply's `messageId`, and the reply must have been acknowledged
+ * under this `externalId` first. A message without it is the source's own,
+ * whatever `isCustomer` says. */
+const apiSnapshotMessageSchema = z.strictObject({
+  externalId: apiExternalIdSchema,
+  taleMessageId: apiExternalIdSchema.optional(),
+  content: z.string().max(20_000),
+  format: z.enum(['plain', 'markdown']).default('plain'),
+  isCustomer: z.boolean(),
+  authorName: z.string().max(300),
+  // `.int()` already bounds the value to the safe-integer range; a second
+  // `.max()` reported the same problem twice.
+  createdAt: z.number().int().min(0),
+  attachments: z.array(apiAttachmentSchema).max(10).default([]),
+});
+
 export const apiSnapshotSchema = z
-  .object({
+  .strictObject({
     source: apiSourceSchema,
-    externalId: z.string().min(1).max(256),
-    externalContactId: z.string().min(1).max(256),
-    version: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    externalId: apiExternalIdSchema,
+    externalContactId: apiExternalIdSchema,
+    version: z.number().int().min(0),
     subject: z.string().min(1).max(1000),
     status: z.enum(['open', 'closed']),
     deleted: z.boolean().default(false),
     replyConstraints: replyConstraintsSchema.prefault({}),
-    messages: z
-      .array(
-        z.object({
-          externalId: z.string().min(1).max(256),
-          taleMessageId: z.string().min(1).max(256).optional(),
-          content: z.string().max(20_000),
-          format: z.enum(['plain', 'markdown']).default('plain'),
-          isCustomer: z.boolean(),
-          authorName: z.string().max(300),
-          createdAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-          attachments: z.array(apiAttachmentSchema).max(10).default([]),
-        }),
-      )
-      .max(200),
+    messages: z.array(apiSnapshotMessageSchema).max(200),
   })
   .superRefine((value, ctx) => {
     if (

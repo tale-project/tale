@@ -34,6 +34,8 @@ interface Binding {
   externalContactId: string;
   version: string;
   hash: string | null;
+  /** Whether the source already tore this conversation down. */
+  sourceDeleted: boolean;
 }
 
 /**
@@ -146,7 +148,8 @@ export async function synchronizeConversation(
     const bindings = await tx<Binding[]>`
       SELECT conversation_id AS "conversationId", owner_user_id AS "ownerUserId",
              external_contact_id AS "externalContactId",
-             snapshot_version::text AS version, snapshot_hash AS hash
+             snapshot_version::text AS version, snapshot_hash AS hash,
+             source_deleted AS "sourceDeleted"
       FROM app.conversation_api_bindings
       WHERE org_id = ${viewer.organizationId} AND source = ${input.source} AND external_id = ${input.externalId}
       FOR UPDATE
@@ -167,7 +170,18 @@ export async function synchronizeConversation(
       );
     if (binding && Number(binding.version) > input.version)
       return { conversationId: binding.conversationId, applied: false };
-    if (binding && Number(binding.version) === input.version) {
+    // A teardown is not content: `deleted: true` applies at any version
+    // from the stored one up (a source whose versions ran out — the
+    // documented maximum included — can still close its mirror), and
+    // replays as a no-op once the source is already torn down. Only a
+    // content snapshot at the stored version is held to the stored hash.
+    if (binding && input.deleted && binding.sourceDeleted)
+      return { conversationId: binding.conversationId, applied: false };
+    if (
+      binding &&
+      Number(binding.version) === input.version &&
+      !input.deleted
+    ) {
       if (binding.hash !== hash)
         throw new ConversationError(
           'CONVERSATION_SNAPSHOT_CONFLICT',
@@ -219,6 +233,7 @@ export async function synchronizeConversation(
         externalContactId: input.externalContactId,
         version: '-1',
         hash: null,
+        sourceDeleted: false,
       };
     }
     const conversationId = binding.conversationId;
@@ -432,6 +447,37 @@ export async function queueApiReply(
 const DELIVERY_LEASE_MS = 5 * 60 * 1000;
 const DELIVERY_FAILURE_LIMIT = 10;
 
+/**
+ * The source a claim names must be one this key user mirrored: a slug no
+ * snapshot ever named is the absent resource (404 — a typo'd source used to
+ * poll a healthy-looking empty queue forever), and one only other service
+ * users own is theirs (403), the same refusal the snapshot lane gives.
+ */
+async function assertOwnedSource(
+  tx: TransactionSql,
+  viewer: ConversationViewer,
+  source: string,
+): Promise<void> {
+  const rows = await tx<{ owned: boolean | null }[]>`
+    SELECT bool_or(owner_user_id = ${viewer.userId}) AS owned
+    FROM app.conversation_api_bindings
+    WHERE org_id = ${viewer.organizationId} AND source = ${source}
+  `;
+  const owned = rows[0]?.owned ?? null;
+  if (owned === null)
+    throw new ConversationError(
+      'CONVERSATION_SOURCE_NOT_FOUND',
+      `No conversation was ever synchronized from the source "${source}"`,
+      404,
+    );
+  if (!owned)
+    throw new ConversationError(
+      'INTEGRATION_NOT_OWNED',
+      'This integration belongs to another service user',
+      403,
+    );
+}
+
 /** A visibility lease closes undo and lets later replies progress on a crash. */
 export async function claimApiDeliveries(
   sql: Sql,
@@ -441,6 +487,7 @@ export async function claimApiDeliveries(
 ) {
   requireWriter(viewer);
   return transactSerializable(sql, async (tx) => {
+    await assertOwnedSource(tx, viewer, source);
     const now = Date.now();
     const rows = await tx<
       {
@@ -696,6 +743,16 @@ export async function apiDeliveryAttachment(
     WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
       AND d.claimed_at_ms IS NOT NULL
   `;
+  // Two absences, two codes — the same split ack and fail answer: no
+  // claimed delivery this user owns under the id, or a delivery without
+  // an attachment at that position.
+  const row = rows[0];
+  if (!row)
+    throw new ConversationError(
+      'DELIVERY_NOT_FOUND',
+      'Delivery not found',
+      404,
+    );
   const parsed = z
     .array(
       z.object({
@@ -705,7 +762,7 @@ export async function apiDeliveryAttachment(
         size: z.number().max(30 * 1024 * 1024),
       }),
     )
-    .safeParse(rows[0]?.metadata?.attachments ?? []);
+    .safeParse(row.metadata?.attachments ?? []);
   const attachment = parsed.success ? parsed.data[index] : undefined;
   if (!attachment)
     throw new ConversationError(
