@@ -206,7 +206,13 @@ async function readBackendExport(
         '--user',
         owner,
         backend,
-        `${temporary}/cli/tale`,
+        // Interpreted, under the backend container's own bun — like
+        // `deploy provision`. The native export imports the backend's own
+        // db/auth modules (withBackendAuth), which import node_modules a
+        // compiled executable cannot resolve from the backend's filesystem;
+        // the interpreted bundle beside the executable resolves them.
+        'bun',
+        `${temporary}/cli/tale.mjs`,
         'deploy',
         'export-client-native',
         '--bundle',
