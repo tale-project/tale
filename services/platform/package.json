@@ -30,9 +30,9 @@
     "pwa:icons": "bunx pwa-assets-generator --preset minimal-2023 public/assets/logo-black.svg"
   },
   "dependencies": {
-    "@better-auth/api-key": "1.6.30",
+    "@better-auth/api-key": "1.7.4",
     "@better-auth/oauth-provider": "1.6.30",
-    "@better-auth/passkey": "1.6.30",
+    "@better-auth/passkey": "1.7.4",
     "@casl/ability": "6.8.0",
     "@dnd-kit/core": "6.3.1",
     "@dnd-kit/sortable": "10.0.0",
@@ -76,7 +76,7 @@
     "ajv": "8.20.0",
     "aws4fetch": "^1.0.20",
     "bcryptjs": "3.0.3",
-    "better-auth": "1.6.30",
+    "better-auth": "1.7.4",
     "chokidar": "5.0.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
