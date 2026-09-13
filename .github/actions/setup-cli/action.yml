@@ -77,6 +77,13 @@ runs:
           macOS/ARM64/false) bun run --filter @tale/cli build:mac ;;
           *) echo '::error::Unsupported Tale CLI runner or linux-baseline selection'; exit 1 ;;
         esac
+        # Only after a supported runner is selected: ship the interpreted bundle
+        # beside the executable. The backend-local provision phase runs inside
+        # the target's backend container, where a compiled executable cannot
+        # resolve the backend's own node_modules (postgres, better-auth) that it
+        # dynamically imports; the container's own bun runs the bundle so those
+        # imports resolve. See copyDeploymentCli / apply.
+        bun run --filter @tale/cli build:backend-local
         if [[ "$RUNNER_OS" == macOS ]]; then
           # Seal Bun's final bytes so a standard SIP-enabled target can run it.
           codesign --remove-signature tools/cli/dist/tale

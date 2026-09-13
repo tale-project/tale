@@ -172,6 +172,9 @@ test.skipIf(process.platform === 'win32')(
       }
       expect(code, stdout + stderr).toBe(0);
       expect(calls).toContain(`bun run --filter @tale/cli ${build}`);
+      // Every supported runner also ships the interpreted bundle the
+      // backend-local provision phase runs under the target's own bun.
+      expect(calls).toContain('bun run --filter @tale/cli build:backend-local');
       expect(calls.filter((call) => call.startsWith('codesign'))).toEqual(
         os === 'macOS'
           ? [

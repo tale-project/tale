@@ -89,7 +89,7 @@ export async function readResource(
     }
     case 'provider-credential': {
       const rows = credentials.parse(
-        await client.request('/api/app/provider-credentials/'),
+        await client.request('/api/app/provider-credentials'),
       ).credentials;
       const matches = rows.filter(
         (row) =>
@@ -136,7 +136,7 @@ export async function checkResourceChange(
   if (resourceConverged(resource, current.config)) return;
   if (resource.kind === 'provider-credential' && resource.config.isDefault) {
     const rows = credentials.parse(
-      await client.request('/api/app/provider-credentials/'),
+      await client.request('/api/app/provider-credentials'),
     ).credentials;
     for (const row of rows) {
       if (
@@ -244,7 +244,7 @@ export async function writeResource(
           },
         );
       } else {
-        await client.request('/api/app/provider-credentials/', 'POST', {
+        await client.request('/api/app/provider-credentials', 'POST', {
           ...fields,
           providerSlug,
           authMethod,

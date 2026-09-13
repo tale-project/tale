@@ -92,7 +92,7 @@ async function fixture(
         };
       }
       let id: string;
-      if (url.pathname === '/api/app/provider-credentials/' && method === 'GET')
+      if (url.pathname === '/api/app/provider-credentials' && method === 'GET')
         return {
           credentials: [...entries]
             .filter(([key]) => key.startsWith('provider-credential/'))
@@ -106,14 +106,13 @@ async function fixture(
               }),
             ),
         };
-      if (url.pathname.startsWith('/api/app/provider-credentials/')) {
+      if (url.pathname === '/api/app/provider-credentials')
+        id = `provider-credential/${payload!.providerSlug}/${encodeURIComponent(String(payload!.name))}`;
+      else if (url.pathname.startsWith('/api/app/provider-credentials/')) {
         const credentialId = url.pathname.slice(
           '/api/app/provider-credentials/'.length,
         );
-        if (credentialId)
-          id = [...entries].find(([, entry]) => entry.id === credentialId)![0];
-        else
-          id = `provider-credential/${payload!.providerSlug}/${encodeURIComponent(String(payload!.name))}`;
+        id = [...entries].find(([, entry]) => entry.id === credentialId)![0];
       } else if (url.pathname.startsWith('/api/app/providers/definitions/'))
         id = `provider/${url.pathname.split('/').at(-1)}`;
       else if (url.pathname.startsWith('/api/app/governance/policies/'))
@@ -529,7 +528,7 @@ describe('one general native configuration lifecycle', () => {
     f.client.request = async (path, method, body) => {
       const result = await request(path, method, body);
       if (
-        path === '/api/app/provider-credentials/' &&
+        path === '/api/app/provider-credentials' &&
         (!method || method === 'GET')
       ) {
         const view = result as { credentials: Record<string, unknown>[] };
@@ -603,5 +602,38 @@ describe('one general native configuration lifecycle', () => {
     ).rejects.toThrow('explicit declaration');
     expect(f.writes.every((id) => id.startsWith('provider/'))).toBe(true);
     expect(JSON.parse(await readFile(f.receipt, 'utf8')).phase).toBe('pending');
+  });
+
+  test('addresses the provider-credentials collection without a trailing slash', async () => {
+    // The Hono backend serves the collection at `/api/app/provider-credentials`;
+    // a trailing slash is a 404. Only the per-credential address keeps a segment
+    // after the slash. Reading, creating and reading back a credential must use
+    // the slashless collection route.
+    const f = await fixture();
+    const paths: string[] = [];
+    const request = f.client.request;
+    f.client.request = async (path, method, body) => {
+      paths.push(path);
+      return request(path, method, body);
+    };
+    const plan = await planPlatformConfiguration(f.configuration, f.client);
+    await applyPlatformConfiguration(
+      f.configuration,
+      plan,
+      f.client,
+      f.receipt,
+    );
+    const collection = paths.filter((path) =>
+      path.startsWith('/api/app/provider-credentials'),
+    );
+    expect(collection).toContain('/api/app/provider-credentials');
+    expect(collection).not.toContain('/api/app/provider-credentials/');
+    expect(
+      collection.every(
+        (path) =>
+          path === '/api/app/provider-credentials' ||
+          /^\/api\/app\/provider-credentials\/[^/]+$/.test(path),
+      ),
+    ).toBe(true);
   });
 });
