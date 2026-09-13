@@ -202,13 +202,18 @@ BACKEND_BLOCK=$(cat <<EOF
 	# The path matchers below compare the CLEANED path, so a raw URI whose
 	# dot-segments collapse out of the API prefix (\`/api/v1/../etc/passwd\`)
 	# missed every backend lane and reached the platform's SPA fallback —
-	# an API-shaped request answered with the HTML shell, no key asked.
-	# Refused on the RAW request-URI before any lane; no honest client
-	# sends a dot-segment, encoded or not. The optional leading segment
-	# keeps the rule true under a subpath deployment (\`/tale/api/…\`).
-	# Character classes, not backslash escapes: the block crosses a shell
-	# heredoc and an awk -v assignment, each of which eats a backslash.
-	@apiDotSegments expression \`{http.request.uri}.matches("(?i)^(/[^/?]+)?/api/") && {http.request.uri}.matches("(?i)(^|/)(%2e|[.]){1,2}(/|$|[?])")\`
+	# an API-shaped request answered with the HTML shell, no key asked —
+	# and one whose dot-segments collapse INTO the prefix (\`/x/../api/v1/me\`)
+	# matched the lane and was SERVED, because the backend's URL parser
+	# folds the dots the same way (2026-09-13 round-e evaluation). Refused
+	# on the RAW request-URI before any lane, whichever way the dots fold:
+	# the raw URI names the prefix, or the cleaned path does. No honest
+	# client sends a dot-segment, encoded or not. The optional leading
+	# segment keeps the rule true under a subpath deployment
+	# (\`/tale/api/…\`). Character classes, not backslash escapes: the block
+	# crosses a shell heredoc and an awk -v assignment, each of which eats
+	# a backslash.
+	@apiDotSegments expression \`(path("/api/*") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/api/")) && {http.request.uri}.matches("(?i)(^|/)(%2e|[.]){1,2}(/|$|[?])")\`
 	handle @apiDotSegments {
 		import edge_json_refusal
 		respond \`{"error":"Not found","code":"NOT_FOUND"}\` 404
