@@ -38,10 +38,14 @@
 		# 32KB (32,000 bytes) that cliff sat exactly where the contract
 		# promised a refusal for a 32 KiB URL, so a 33 KB URL died as a
 		# network fault a client retries forever. The documented URL cap is
-		# answered explicitly instead — 414 in the JSON envelope, by the
-		# @apiUriTooLong rule the entrypoint injects and by the backend's
-		# own guard — and this budget sits well above it so the cliff is
-		# only reachable by a request no client could mean. The backend
+		# answered by the backend's own guard alone (lib/http-hygiene.ts):
+		# 414 in the full JSON envelope — `requestId`, `X-Tale-Api-Version`,
+		# `Cache-Control` — which an edge rule could not produce (this image
+		# knows no contract version, and its matcher counted code points,
+		# not bytes), so the twin the entrypoint once injected is gone. This
+		# budget sits well above the URL cap, so every URL a client could
+		# still have shortened reaches that guard and the cliff is only
+		# reachable by a request no client could mean. The backend
 		# listener's cap (main.ts) stays above this plus Go's slack, so a
 		# request the edge forwards is never a bare 431 upstream either.
 		max_header_size 64KiB
