@@ -65,7 +65,7 @@ Use **Disconnect Google Drive** in the import dialog header to revoke the grant;
 
 ## Scoping, folders, sources
 
-Each row carries a **Teams** cell — **Organization-wide** by default, or the teams you pick via **Assign team** in the row menu. A team-scoped document is invisible to members and agents outside the team; this is the knowledge base's access lever. Project files are outside this model entirely: a project's **Knowledge** tab holds files scoped to that one project, and they never appear in this library or in its team scoping — see [Manage files](/platform/projects/manage-files).
+Each row carries a **Teams** cell — **Organization-wide** by default, or the teams you pick via **Assign team** in the row menu. A team-scoped document is invisible to members and agents outside the team; this is the knowledge base's access lever. Project files are outside this model entirely: a project's **Knowledge** tab holds files scoped to that one project, and they never appear in this library or in its team scoping — teams decide who sees a hub document, project access decides who sees a project file, and a document lives in exactly one of the two places — see [Manage files](/platform/projects/manage-files).
 
 **New folder** keeps large libraries navigable, and connectors bring their own structure: documents synced from OneDrive, SharePoint, or Google Drive land under sync folders and show their origin in the **Source** column, which keeps citations traceable to the upstream system.
 

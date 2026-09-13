@@ -31,7 +31,7 @@ Indexierte Inhalte werden in Tales eingebaute Vektordatenbank eingebettet — ei
 
 ## Wie Agenten hineingreifen
 
-Ein Agent sucht sich keinen eigenen Ausschnitt der Bibliothek aus. Der Chat-Assistent durchsucht den ganzen Bestand mit `rag_search` und lädt Gefundenes mit `rag_fetch`, sobald eine Frage danach verlangt, ein Projekt-Agent liest ihn über die Plattform-Tools, mit denen du ihn ausrüstest, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Projekt-Agenten](/de/platform/projects/project-agents).
+Ein Agent sucht sich keinen eigenen Ausschnitt der Bibliothek aus — das tut der Server. Im Organisations-Chat durchsucht der Assistent die Wissensdatenbank mit `rag_search` und lädt Gefundenes mit `rag_fetch`, sobald eine Frage danach verlangt; in einem Projekt-Chat durchsucht er die Dateien dieses Projekts zusammen mit der Wissensdatenbank — und nie die eines anderen Projekts. Ein Projekt-Agent liest sie über die Plattform-Tools, mit denen du ihn ausrüstest, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Projekt-Agenten](/de/platform/projects/project-agents).
 
 ## Seiten in diesem Bereich
 

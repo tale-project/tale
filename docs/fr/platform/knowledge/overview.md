@@ -31,7 +31,7 @@ Le contenu indexé est intégré dans la base de données vectorielle intégrée
 
 ## Comment les agents y puisent
 
-Un agent ne se choisit pas sa propre tranche de la bibliothèque. L’assistant de chat interroge tout le fonds avec `rag_search` et charge ce qu’il a trouvé avec `rag_fetch` dès qu’une question l’exige, un agent de projet le lit par les outils de la plateforme dont tu l’équipes, et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. Chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Agents de projet](/fr/platform/projects/project-agents).
+Un agent ne se choisit pas sa propre tranche de la bibliothèque — c’est le serveur qui la découpe. Dans le chat de l’organisation, l’assistant interroge le hub avec `rag_search` et charge ce qu’il a trouvé avec `rag_fetch` dès qu’une question l’exige ; dans un chat de projet, il interroge les fichiers de ce projet avec le hub, et jamais ceux d’un autre projet. Un agent de projet le lit par les outils de la plateforme dont tu l’équipes, et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. Chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Agents de projet](/fr/platform/projects/project-agents).
 
 ## Pages dans cette section
 

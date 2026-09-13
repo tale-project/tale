@@ -59,9 +59,11 @@ The assistant carries exactly three tools, all read-only retrieval — this is t
 
 | Tool         | What it reaches                                                                                                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | The organisation's knowledge and its work: documents, knowledge entries, crawled website pages, products, contacts, websites, tasks and projects, and the inbox's conversations |
+| `rag_search` | The organisation's knowledge and its work — documents, knowledge entries, crawled website pages, products, contacts, websites, tasks and projects, and the inbox's conversations — scoped to where the chat lives (below) |
 | `rag_fetch`  | The full detail behind a ref — a document by its file id, a crawled page by its URL, or a task by the ref a search returned                                                     |
 | `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch`                                                |
+
+**Where the tools look is decided by where the chat lives, not by the assistant.** A document lives in exactly one place — the organisation's knowledge hub or one project, never both. Who sees a hub document is decided by its team tags: no tags means every member, tags mean the members of any listed team, and admins get no bypass. Who sees a project file is decided by project access alone — an org-wide project means every member, a team project its owning and shared teams, and owners and admins see every project; a project file never carries team tags. A chat started inside a project sees that project's files plus the hub as you see it, and its board is that project's; the organisation chat sees the hub only, and every board you can read. Every chat also sees its own attachments and the email attachments of conversations you may read. Trashed and expired files are invisible everywhere; an archived project keeps its files readable, labelled as archived. The boundary holds on the server: a project chat never reaches into another project, and a question about a project's files in the organisation chat is answered from the project's own chat — asking there lists the project's files beside the hub's, each marked with where it lives and whether it is indexed.
 
 Asking about the board is a search, not a different feature. "What's open on the launch project?" reaches the same `rag_search` — it reads the tasks and projects you can see, filtered to your own access, and the assistant answers from them instead of suggesting an external tracker. A task result carries its title, status and project; `rag_fetch` on its ref adds the full description, comments, subtasks and blockers.
 
@@ -80,7 +82,7 @@ Ask the assistant for a presentation, a translated document, or any other artifa
 The reply streams in as it is generated. Above it, the thought timeline records what the assistant did, in order:
 
 - A collapsible **"Thought for _n_ s"** line carries the model's reasoning — click to expand the prose.
-- Each tool call is a step row — _Searching the workspace for "…"_, _Listing tasks_, _Reading example.com_ — with a spinner while it runs and a warning with the reason when it fails. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
+- Each tool call is a step row — _Searching the workspace for "…"_, _Listing tasks_, _Reading example.com_, _Reading lead-verify.txt_ — with a spinner while it runs and a warning with the reason when it fails. A document step names the file even when the read fails, and the reason says what stands in the way: a file uploaded without indexing, one still being indexed, one whose indexing failed. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
 
 Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
 

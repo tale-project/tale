@@ -31,7 +31,7 @@ Indexed content is embedded into Tale's built-in vector database — a **Postgre
 
 ## How agents reach in
 
-An agent does not pick its own slice of the library. The chat assistant searches the whole pool with `rag_search` and loads what it found with `rag_fetch` whenever a question calls for it, a project agent reads it through the platform tools you equip it with, and team-scoped items stay invisible to agents and members outside the team. Every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Project agents](/platform/projects/project-agents).
+An agent does not pick its own slice of the library — the server does. In the organization chat the assistant searches the hub with `rag_search` and loads what it found with `rag_fetch` whenever a question calls for it; in a project chat it searches that project's files together with the hub, and never another project's. A project agent reads it through the platform tools you equip it with, and team-scoped items stay invisible to agents and members outside the team. Every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Project agents](/platform/projects/project-agents).
 
 ## Pages in this section
 
