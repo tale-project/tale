@@ -80,10 +80,16 @@ interface Executor {
   }): Promise<ToolResult>;
 }
 
-type ExecutorFactory = (
-  ctx: unknown,
-  who: { organizationId: string; userId: string },
-) => Executor;
+interface Who {
+  organizationId: string;
+  userId: string;
+  /** The thread's project (the scope boundary) — null for a personal
+   * thread. Required on purpose: an executor built without it is a
+   * project thread nobody can read, never a widening. */
+  projectId: string | null;
+}
+
+type ExecutorFactory = (ctx: unknown, who: Who) => Executor;
 
 async function getFactory(): Promise<ExecutorFactory> {
   const mod = await import('./assistant_tools');
@@ -115,8 +121,14 @@ const CONVERSATIONS_SEARCH_FN =
 const MAIL_ATTACHMENTS_FN =
   'file_metadata/internal_queries:listMailAttachmentsForChat';
 const DOCUMENTS_LIST_FN = 'documents/internal_queries:listForAgent';
+const FILTER_FN = 'documents/internal_queries:filterRetrievableRagFileIds';
+const ON_DEMAND_FN = 'file_metadata/internal_queries:readTextOnDemandForAgent';
 
-const WHO = { organizationId: 'org_1', userId: 'user_1' };
+/** A personal thread: the hub for documents, every readable project for
+ * the work legs. */
+const WHO: Who = { organizationId: 'org_1', userId: 'user_1', projectId: null };
+/** A project thread on `project_1`. */
+const IN_PROJECT: Who = { ...WHO, projectId: 'project_1' };
 
 type QueryMock = ReturnType<
   typeof vi.fn<(...a: unknown[]) => Promise<unknown>>
@@ -158,6 +170,9 @@ function createCtx(
     [TASK_BY_ID_FN]: () => null,
     [TASK_CONTEXT_FN]: () => null,
     [DOCUMENT_ROW_FN]: () => null,
+    // The on-demand lane's two reads: nothing admitted, nothing on record.
+    [FILTER_FN]: () => [],
+    [ON_DEMAND_FN]: () => null,
     [VIDEO_SOURCES_FN]: () => [],
     [KNOWLEDGE_SCOPE_FN]: () => ({
       teamIds: [`org_${WHO.organizationId}`],
@@ -189,8 +204,23 @@ function callsTo(mock: QueryMock, fn: string): Record<string, unknown>[] {
     .map(([, args]) => args as Record<string, unknown>);
 }
 
-async function makeExecutor(ctx: unknown): Promise<Executor> {
-  return (await getFactory())(ctx, WHO);
+async function makeExecutor(ctx: unknown, who: Who = WHO): Promise<Executor> {
+  return (await getFactory())(ctx, who);
+}
+
+/** The args object of the last call to a mocked read primitive. */
+function lastArgsOf(mock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+  return (mock.mock.lastCall?.[1] ?? {}) as Record<string, unknown>;
+}
+
+/** The args object of the first runQuery call to `fn`, if any. */
+function argsOfQuery(
+  runQuery: QueryMock,
+  fn: string,
+): Record<string, unknown> | undefined {
+  return runQuery.mock.calls.find(([ref]) => fnName(ref) === fn)?.[1] as
+    | Record<string, unknown>
+    | undefined;
 }
 
 describe('createChatToolExecutor — dispatch', () => {
@@ -811,9 +841,10 @@ describe('rag_fetch', () => {
     ).resolves.toMatchObject({ status: 'not_found' });
   });
 
-  it('answers an empty corpus AND an empty row with an honest not_found', async () => {
+  it('answers an indexed file with no text as an honest, named not_found', async () => {
     // The corpus knows the document but carries no text; the row has none
-    // either — the miss must say so, never fabricate.
+    // either — the miss says WHAT the file is (indexed, empty or image-only)
+    // and names it, never "may not be indexed yet".
     fetchDocumentByFileIdMock.mockResolvedValueOnce({
       fileId: 'file_3',
       filename: null,
@@ -821,7 +852,19 @@ describe('rag_fetch', () => {
       modifiedAt: null,
       text: '',
     });
-    const executor = await makeExecutor(createCtx().ctx);
+    const { ctx } = createCtx({
+      reads: {
+        [FILTER_FN]: () => ['file_3'],
+        [ON_DEMAND_FN]: () => ({
+          kind: 'unreadable',
+          filename: 'scan.pdf',
+          sizeBytes: 4096,
+          indexing: { status: 'completed' },
+          reason: 'binary',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
     await expect(
       executor.execute({
         id: 'call_1',
@@ -830,9 +873,85 @@ describe('rag_fetch', () => {
       }),
     ).resolves.toMatchObject({
       status: 'not_found',
-      // Honest, and never a settings-page dead-end.
-      message: expect.stringContaining('say so instead of guessing'),
+      filename: 'scan.pdf',
+      message: expect.stringContaining('indexed but holds no readable text'),
     });
+  });
+
+  it('reads a never-indexed text file on demand once the live check admits it', async () => {
+    // A REST-bound project file skips indexing by default; its bytes are
+    // still the file, and the model asked to read the file.
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: ['org_org_1'],
+          projectIds: ['project_1'],
+          includeHub: true,
+          userId: 'user_1',
+        }),
+        [DOCUMENT_ROW_FN]: () => ({
+          title: 'lead-verify.txt',
+          content: null,
+          projectId: 'project_1',
+        }),
+        [FILTER_FN]: () => ['s3:acme/lead-verify.txt'],
+        [ON_DEMAND_FN]: () => ({
+          kind: 'text',
+          filename: 'lead-verify.txt',
+          text: 'lead: verified',
+          indexing: { status: 'skipped' },
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/lead-verify.txt' },
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      kind: 'document',
+      filename: 'lead-verify.txt',
+      content: 'lead: verified',
+      totalChars: 14,
+    });
+    // Admission first, with the thread's pinned scope; the bytes after.
+    expect(argsOfQuery(runQuery, FILTER_FN)).toMatchObject({
+      fileIds: ['s3:acme/lead-verify.txt'],
+      userId: 'user_1',
+      access: expect.objectContaining({ projectIds: ['project_1'] }),
+    });
+  });
+
+  it('names a file it cannot read and states its true indexing state', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [FILTER_FN]: () => ['s3:acme/deck.pptx'],
+        [ON_DEMAND_FN]: () => ({
+          kind: 'unreadable',
+          filename: 'deck.pptx',
+          sizeBytes: 900_000,
+          indexing: { status: 'skipped' },
+          reason: 'binary',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/deck.pptx' },
+    });
+    expect(result).toMatchObject({
+      status: 'not_found',
+      filename: 'deck.pptx',
+    });
+    expect(result.message).toContain('uploaded without indexing');
+    expect(result.message).toContain('skipRagIndexing: false');
+    expect(result.message).not.toContain('may not be indexed yet');
   });
 
   it('pages long content through offset, and the second window returns the tail', async () => {
@@ -1675,7 +1794,9 @@ describe('rag_search archive context', () => {
   });
 
   // A document has no archive state of its own, so its project is the only
-  // source of the fact. It is still returned and still citable.
+  // source of the fact. It is still returned and still citable. Documents
+  // reach a chat through its own project only, so these run as the archived
+  // project's chat — the personal thread never sees a project file.
   it('marks a document filed under an archived project', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({
       hits: [
@@ -1698,7 +1819,10 @@ describe('rag_search archive context', () => {
     const { ctx } = createCtx({
       reads: { [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE },
     });
-    const executor = await makeExecutor(ctx);
+    const executor = await makeExecutor(ctx, {
+      ...WHO,
+      projectId: 'project_old',
+    });
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_search',
@@ -1709,6 +1833,11 @@ describe('rag_search archive context', () => {
     expect(doc?.ref).toBe('file_1');
     expect(doc?.data).toMatchObject({ projectArchived: true });
     expect(doc?.data).not.toHaveProperty('archived');
+    // An archived project's own chat still reaches its files, labelled.
+    expect(lastArgsOf(searchKnowledgeMock).access).toMatchObject({
+      projectIds: ['project_old'],
+      archivedProjectIds: ['project_old'],
+    });
   });
 
   it('adds no data key to a document in a live project', async () => {
@@ -1733,7 +1862,10 @@ describe('rag_search archive context', () => {
     const { ctx } = createCtx({
       reads: { [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE },
     });
-    const executor = await makeExecutor(ctx);
+    const executor = await makeExecutor(ctx, {
+      ...WHO,
+      projectId: 'project_live',
+    });
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_search',
@@ -1743,6 +1875,346 @@ describe('rag_search archive context', () => {
     const doc = rows.find((r) => r.kind === 'document');
     expect(doc).toBeDefined();
     expect(doc).not.toHaveProperty('data');
+  });
+});
+
+describe('the thread’s project is the scope boundary', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** The user can read two projects; the thread sits in project_1. */
+  const TWO_PROJECTS = () => ({
+    teamIds: ['org_org_1', 'team_a'],
+    projectIds: ['project_1', 'project_2'],
+    includeHub: true,
+    archivedProjectIds: [],
+  });
+  const LABELS = () => [
+    { id: 'project_1', name: 'Website relaunch', key: 'WR' },
+    { id: 'project_2', name: 'Field Sales' },
+  ];
+  const EMPTY_SEARCH = { hits: [], diagnostics: {} };
+
+  it('searches documents AND work inside the project only', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce(EMPTY_SEARCH);
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'launch checklist' },
+    });
+    expect(result.status).toBe('ok');
+    // The corpus SQL keeps its disjunction; the pinned set makes it read
+    // "this project OR (hub AND my teams)".
+    expect(lastArgsOf(searchKnowledgeMock).access).toMatchObject({
+      teamIds: ['org_org_1', 'team_a'],
+      projectIds: ['project_1'],
+      includeHub: true,
+    });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([
+      'project_1',
+    ]);
+    expect(argsOfQuery(runQuery, PROJECTS_SEARCH_FN)?.projectIds).toEqual([
+      'project_1',
+    ]);
+  });
+
+  it('lists the project’s files and the hub in one page, each row saying which', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS,
+        [PROJECT_LABELS_FN]: LABELS,
+        [DOCUMENTS_LIST_FN]: () => ({
+          documents: [
+            {
+              fileId: 's3:acme/lead',
+              title: 'lead-verify.txt',
+              extension: 'txt',
+              folderPath: null,
+              teamId: null,
+              createdAt: 1_700_000_000_000,
+              sizeBytes: 12,
+              projectId: 'project_1',
+              projectName: 'Website relaunch',
+              indexing: { status: 'skipped' },
+            },
+            {
+              fileId: 's3:acme/policy',
+              title: 'Refund policy.pdf',
+              extension: 'pdf',
+              folderPath: '/policies',
+              teamId: null,
+              createdAt: 1_690_000_000_000,
+              sizeBytes: 1024,
+              projectId: null,
+              projectName: null,
+              indexing: { status: 'completed' },
+            },
+          ],
+          totalCount: null,
+          hasMore: false,
+          cursor: null,
+          warning: null,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'document' },
+    });
+    expect(result.status).toBe('ok');
+    expect(argsOfQuery(runQuery, DOCUMENTS_LIST_FN)).toMatchObject({
+      projectId: 'project_1',
+      includeHub: true,
+    });
+    expect(result.sources).toEqual({
+      documents:
+        'listed (project "Website relaunch" files and the organization\'s hub files)',
+    });
+    const rows = result.results ?? [];
+    expect(rows[0]?.data).toMatchObject({
+      scope: 'project',
+      project: 'Website relaunch',
+      indexing: 'skipped',
+    });
+    expect(rows[1]?.data).toMatchObject({
+      scope: 'hub',
+      indexing: 'completed',
+    });
+    expect(rows[1]?.data).not.toHaveProperty('project');
+    // An unindexed row is listed, and the note says what that means.
+    expect(result.message).toContain('1 of these file is not indexed');
+    expect(result.message).toContain('rag_fetch still reads a text file');
+  });
+
+  it('refuses another project’s id whatever the kind or action, accepts its own', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const foreign = [
+      { action: 'list', kind: 'task', projectId: 'project_2' },
+      { action: 'list', kind: 'document', projectId: 'project_2' },
+      { action: 'list', kind: 'project', projectId: 'project_2' },
+      { action: 'search', query: 'launch', projectId: 'project_2' },
+    ];
+    for (const [index, input] of foreign.entries()) {
+      const result = await executor.execute({
+        id: `c${index}`,
+        name: 'rag_search',
+        input,
+      });
+      expect(result.status).toBe('invalid_args');
+      expect(result.message).toContain('"project_2" is another project');
+      expect(result.message).toContain('belongs to project "project_1"');
+      expect(result.message).toContain('omit "projectId"');
+    }
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASKS_SEARCH_FN),
+    ).toBe(false);
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+
+    const own = await executor.execute({
+      id: 'own',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', projectId: 'project_1' },
+    });
+    expect(own.status).toBe('ok');
+  });
+
+  it('lists the project’s board with no status and no projectId — the project is implied', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task' },
+    });
+    expect(result.status).toBe('ok');
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
+      projectIds: ['project_1'],
+      projectId: 'project_1',
+      list: true,
+    });
+  });
+
+  it('fetches nothing from another readable project — the same miss as a missing file', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS,
+        [DOCUMENT_ROW_FN]: () => ({
+          title: 'Sales plan',
+          content: 'private to project_2',
+          projectId: 'project_2',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'file_sales' },
+    });
+    expect(result.status).toBe('not_found');
+    expect(result).not.toHaveProperty('filename');
+    expect(JSON.stringify(result)).not.toContain('Sales plan');
+    expect(lastArgsOf(fetchDocumentByFileIdMock).access).toMatchObject({
+      projectIds: ['project_1'],
+    });
+  });
+
+  it('confines the work refs of rag_fetch to the project', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS,
+        [TASK_BY_ID_FN]: () => ({ _id: 'task_2', projectId: 'project_2' }),
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    const task = await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_2' },
+    });
+    expect(task.status).toBe('not_found');
+    const project = await executor.execute({
+      id: 'c2',
+      name: 'rag_fetch',
+      input: { ref: 'project:project_2' },
+    });
+    expect(project.status).toBe('not_found');
+  });
+
+  it('degrades to the hub when the user lost the project, and the label says so', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce(EMPTY_SEARCH);
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: ['org_org_1'],
+          projectIds: ['project_2'],
+          includeHub: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx, IN_PROJECT);
+    await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'launch' },
+    });
+    // Nothing widens to project_2: no project at all, for documents and work.
+    expect(lastArgsOf(searchKnowledgeMock).access).toMatchObject({
+      projectIds: [],
+      includeHub: true,
+    });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([]);
+
+    const listed = await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'document' },
+    });
+    expect(listed.sources).toEqual({
+      documents:
+        "listed (hub files — this chat's project is not readable by you)",
+    });
+    const call = argsOfQuery(runQuery, DOCUMENTS_LIST_FN);
+    expect(call).not.toHaveProperty('projectId');
+    expect(call).not.toHaveProperty('includeHub');
+  });
+});
+
+describe('the organization chat reaches the hub, never a project’s files', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const TWO_PROJECTS = () => ({
+    teamIds: ['org_org_1'],
+    projectIds: ['project_1', 'project_2'],
+    includeHub: true,
+  });
+
+  it('searches documents in the hub only while the work legs keep every readable project', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx);
+    await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'launch' },
+    });
+    expect(lastArgsOf(searchKnowledgeMock).access).toMatchObject({
+      projectIds: [],
+      includeHub: true,
+    });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([
+      'project_1',
+      'project_2',
+    ]);
+  });
+
+  it('refuses a projectId on a document list, pointing at the project’s own chat', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'document', projectId: 'project_1' },
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain("read from the project's own chat");
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === DOCUMENTS_LIST_FN),
+    ).toBe(false);
+  });
+
+  it('still narrows a task list to one readable project on request', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', projectId: 'project_2' },
+    });
+    expect(result.status).toBe('ok');
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
+      projectIds: ['project_1', 'project_2'],
+      projectId: 'project_2',
+    });
+  });
+
+  it('never serves a project file’s inline content to the organization chat', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: TWO_PROJECTS,
+        [DOCUMENT_ROW_FN]: () => ({
+          title: 'Rollout plan',
+          content: 'project body',
+          projectId: 'project_1',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'file_proj' },
+    });
+    expect(result.status).toBe('not_found');
+    expect(JSON.stringify(result)).not.toContain('Rollout plan');
   });
 });
 
@@ -2352,14 +2824,19 @@ describe('rag_search list action', () => {
     expect(result.continueCursor).toBe('document:20');
     expect(result).not.toHaveProperty('totalCount');
     expect(result.message).toContain('Scan limit reached');
-    expect((result.sources as Record<string, string>).documents).toContain(
-      'hub and team files',
+    // The organization chat lists the hub, and says where project files are.
+    expect((result.sources as Record<string, string>).documents).toBe(
+      "listed (hub files (project files are read from a project's own chat); more pages)",
     );
+    expect(rows[0]?.data).toMatchObject({ scope: 'hub' });
+    expect(rows[0]?.data).not.toHaveProperty('project');
 
     const call = runQuery.mock.calls.find(
       ([ref]) => fnName(ref) === DOCUMENTS_LIST_FN,
     )?.[1] as Record<string, unknown>;
     expect(call).toMatchObject({ organizationId: 'org_1', userId: 'user_1' });
+    expect(call).not.toHaveProperty('projectId');
+    expect(call).not.toHaveProperty('includeHub');
   });
 
   it('answers a denied subject with unavailable, not an empty page', async () => {

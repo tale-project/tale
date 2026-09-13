@@ -15,7 +15,7 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { statOrgBlob } from '../files/service.ts';
+import { FileError, statOrgBlob } from '../files/service.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   addMessageToConversation,
@@ -63,6 +63,30 @@ function assertAttachmentLanded(
       `Attachment bytes (${landed.size}) do not match the declared size (${declaredSize})`,
       400,
     );
+}
+
+/**
+ * The staged blob behind a body-referenced `storageId`, or null when there
+ * is none. The store guard refuses a reference outside the organization's
+ * namespace — a malformed `storageId` (one `POST …/uploads` never handed
+ * out) or another organization's — with `BLOB_REF_INVALID` (403); neither
+ * names a staged attachment of this integration, so both take the
+ * documented `ATTACHMENT_NOT_STAGED` lane instead of leaking a code and a
+ * status the contract never declared. Every other store failure passes.
+ */
+async function statStagedAttachment(
+  sql: Sql,
+  organizationId: string,
+  storageId: string,
+): Promise<{ size: number } | null> {
+  try {
+    return await statOrgBlob(sql, organizationId, storageId);
+  } catch (error) {
+    if (error instanceof FileError && error.code === 'BLOB_REF_INVALID') {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function requireWriter(viewer: ConversationViewer): void {
@@ -137,7 +161,7 @@ export async function synchronizeConversation(
   }
   for (const file of input.messages.flatMap((message) => message.attachments)) {
     if (known.get(file.storageId) === file.size) continue;
-    const landed = await statOrgBlob(
+    const landed = await statStagedAttachment(
       sql,
       viewer.organizationId,
       file.storageId,
@@ -374,7 +398,11 @@ export async function queueApiReply(
   const actorEmail = args.actor.email;
   for (const file of args.attachments) {
     apiAttachmentSchema.parse(file);
-    const landed = await statOrgBlob(sql, args.organizationId, file.storageId);
+    const landed = await statStagedAttachment(
+      sql,
+      args.organizationId,
+      file.storageId,
+    );
     assertAttachmentLanded(landed, file.size);
   }
   return transactSerializable(sql, async (tx) => {

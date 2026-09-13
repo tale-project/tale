@@ -127,6 +127,87 @@ interface StoredEntryBlob {
   contentHash: string;
 }
 
+/** The row an update targets and what it says. Read once BEFORE the blob
+ * upload — a write that repeats the row skips the upload entirely — and
+ * once more inside the transaction, which is where the rule holds. */
+interface UpdateTarget {
+  id: string;
+  status: string;
+  supersededBy: string | null;
+  topic: string;
+  topicKey: string;
+  content: string;
+  documentId: string | null;
+}
+
+/**
+ * The active row an update lands on, or the refusal the caller documents.
+ * The backing document must still be ACTIVE: a version written onto a
+ * trashed document would rotate its blob and index content nobody can
+ * retrieve (the filter excludes trashed documents). Such an entry is gone
+ * from the caller's point of view, so it answers as not found. A superseded
+ * row is manifestly there (it reads, it lists under `?status=superseded`)
+ * — it is its STATE that refuses a new version, which is the documented
+ * 409, not the 404 a missing row answers.
+ */
+async function loadUpdateTarget(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  entryId: string,
+): Promise<UpdateTarget> {
+  const currents = await db<UpdateTarget[]>`
+    SELECT ke.id, ke.status, ke.superseded_by AS "supersededBy",
+           ke.topic, ke.topic_key AS "topicKey", ke.content,
+           ke.document_id AS "documentId"
+    FROM app.knowledge_entries ke
+    LEFT JOIN app.documents d ON d.id = ke.document_id
+    WHERE ke.id = ${entryId} AND ke.org_id = ${organizationId}
+      AND ke.deleted_at_ms IS NULL
+      AND (d.id IS NULL OR d.lifecycle_status IS NULL
+           OR d.lifecycle_status = 'active')
+    LIMIT 1
+  `;
+  const current = currents[0];
+  if (!current) {
+    throw new KnowledgeEntryError(
+      'KNOWLEDGE_ENTRY_NOT_FOUND',
+      'Entry not found',
+      404,
+    );
+  }
+  if (current.status !== 'active') {
+    throw new KnowledgeEntryError(
+      'KNOWLEDGE_ENTRY_SUPERSEDED',
+      current.supersededBy === null
+        ? 'Entry is not active; update the active version of this topic'
+        : `Entry was superseded by ${current.supersededBy}; update that version instead`,
+      409,
+    );
+  }
+  return current;
+}
+
+/**
+ * Whether a write repeats the active row character for character: the
+ * trimmed `topic` and `content` the validator answered, against what the
+ * row stores (written trimmed by the same validator). Surrounding
+ * whitespace is therefore no difference; a case-only change of the topic
+ * is one — the row's spelling is what readers see, whatever the key says.
+ * Only a row that already has its document can stand in for a write (the
+ * write would otherwise be what materializes it).
+ */
+function repeatsActiveRow(
+  current: UpdateTarget,
+  topic: string,
+  content: string,
+): current is UpdateTarget & { documentId: string } {
+  return (
+    current.documentId !== null &&
+    current.topic === topic &&
+    current.content === content
+  );
+}
+
 /** How long the object store gets to accept an entry's markdown. Node's
  * `fetch` has no timeout of its own: a stalled connection held the request
  * (and the caller's spinner) indefinitely, with its rate-limit token spent. */
@@ -381,50 +462,35 @@ export async function updateKnowledgeEntry(
 ): Promise<KnowledgeEntryWritten> {
   assertCanWriteEntries(args.role);
   const { topic, topicKey, content } = validate(args.topic, args.content);
+  // The documents PATCH's rule, on the entry door: a write that repeats the
+  // active row — the same trimmed topic and content — is a retry after a
+  // timeout or a sync job replaying its state, not a new version. It
+  // answers the active row and writes nothing: no blob, no row, no
+  // re-index, so the version chain records what changed rather than how
+  // often a client wrote. The refusals (404 / 409) are judged here too, so
+  // an identical write onto a superseded or vanished row still answers
+  // them rather than a hollow 200.
+  const before = await loadUpdateTarget(sql, args.organizationId, args.entryId);
+  if (repeatsActiveRow(before, topic, content)) {
+    return { id: before.id, documentId: before.documentId };
+  }
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
-    // The backing document must still be ACTIVE: a version written onto a
-    // trashed document would rotate its blob and index content nobody can
-    // retrieve (the filter excludes trashed documents). Such an entry is
-    // gone from the caller's point of view, so it answers as not found.
-    const currents = await tx<
-      {
-        id: string;
-        status: string;
-        supersededBy: string | null;
-        topicKey: string;
-        documentId: string | null;
-      }[]
-    >`
-      SELECT ke.id, ke.status, ke.superseded_by AS "supersededBy",
-             ke.topic_key AS "topicKey", ke.document_id AS "documentId"
-      FROM app.knowledge_entries ke
-      LEFT JOIN app.documents d ON d.id = ke.document_id
-      WHERE ke.id = ${args.entryId} AND ke.org_id = ${args.organizationId}
-        AND ke.deleted_at_ms IS NULL
-        AND (d.id IS NULL OR d.lifecycle_status IS NULL
-             OR d.lifecycle_status = 'active')
-      LIMIT 1
-    `;
-    const current = currents[0];
-    if (!current) {
-      throw new KnowledgeEntryError(
-        'KNOWLEDGE_ENTRY_NOT_FOUND',
-        'Entry not found',
-        404,
-      );
-    }
-    // A superseded row is manifestly there (it reads, it lists under
-    // `?status=superseded`) — it is its STATE that refuses a new version,
-    // which is the documented 409, not the 404 a missing row answers.
-    if (current.status !== 'active') {
-      throw new KnowledgeEntryError(
-        'KNOWLEDGE_ENTRY_SUPERSEDED',
-        current.supersededBy === null
-          ? 'Entry is not active; update the active version of this topic'
-          : `Entry was superseded by ${current.supersededBy}; update that version instead`,
-        409,
-      );
+    const current = await loadUpdateTarget(
+      tx,
+      args.organizationId,
+      args.entryId,
+    );
+    // The pre-check above saved the upload; the transaction is where the
+    // rule holds. Should the row read identical here, the blob stored a
+    // moment ago references nothing — release it through the same durable
+    // seam a rotation uses for its outgoing ref — and answer the row.
+    if (repeatsActiveRow(current, topic, content)) {
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId: args.organizationId,
+        refs: [blob.storageRef],
+      });
+      return { id: current.id, documentId: current.documentId };
     }
     if (topicKey !== current.topicKey) {
       // A topic rename lands on ANOTHER chain — refuse a silent collision.

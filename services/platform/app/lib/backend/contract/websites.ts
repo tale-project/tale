@@ -52,6 +52,10 @@ export interface WebsitesContract {
         discovered_at: null | string;
         chunks_count: number;
         indexed: boolean;
+        fail_count: number;
+        last_error: null | string;
+        last_error_kind: null | string;
+        last_error_at: null | string;
       }>;
       total: number;
       offset: number;
@@ -113,6 +117,7 @@ export interface WebsitesContract {
       pageCount?: number;
       lastScannedAt?: number;
       crawledPageCount?: number;
+      failedPageCount?: number;
       organizationId: string;
       domain: string;
       scanInterval: string;
@@ -145,6 +150,7 @@ export interface WebsitesContract {
         pageCount?: number;
         lastScannedAt?: number;
         crawledPageCount?: number;
+        failedPageCount?: number;
         organizationId: string;
         domain: string;
         scanInterval: string;

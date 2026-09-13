@@ -121,13 +121,13 @@ export function createSkillRoutes(deps: {
       const slug = c.req.param('slug');
       // Serialized with the upload lane on the per-slug writer lock: a save
       // must never land between an upload's two swap renames.
-      const skill = await withSkillWriterLock(
+      const saved = await withSkillWriterLock(
         deps.sql,
         c.get('orgId'),
         slug,
         () => saveSkillForViewer({ ...who, slug, ...body.data }),
       );
-      return c.json({ skill });
+      return c.json({ skill: saved.skill });
     } catch (error) {
       return skillErrorResponse(c, error);
     }

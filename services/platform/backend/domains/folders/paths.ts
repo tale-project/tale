@@ -1,5 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { hasForbiddenNameChar } from '../../../lib/shared/utils/plain-name.ts';
+
 /**
  * Hub folder-path plumbing shared by the sync engines (OneDrive today,
  * Google Drive next) — the 0.4 `folders/get_or_create_path.ts`,
@@ -23,12 +25,18 @@ export class FolderNameError extends Error {
   }
 }
 
+/**
+ * A folder name is a name, never a path: bounded, not `.`/`..`, and free
+ * of the shared class (`/`, `\`, the control characters) the REST file
+ * name and the WebDAV segment refuse — a folder used to take a backslash
+ * or a tab a file beside it could not carry.
+ */
 export function validateFolderName(name: string): string {
   const trimmed = name.trim();
   if (
     trimmed.length === 0 ||
     trimmed.length > FOLDER_NAME_MAX ||
-    trimmed.includes('/') ||
+    hasForbiddenNameChar(trimmed) ||
     trimmed === '.' ||
     trimmed === '..'
   ) {

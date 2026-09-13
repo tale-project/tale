@@ -91,17 +91,36 @@ describe('admitUrlsStatement', () => {
       "status = CASE WHEN u.status = 'deleted' THEN 'discovered' ELSE u.status END",
     );
     expect(statement).toContain(
-      "fail_count = CASE WHEN u.status = 'deleted' THEN 0 ELSE u.fail_count END",
+      "fail_count = CASE WHEN u.status = 'deleted' OR EXCLUDED.listed THEN 0 ELSE u.fail_count END",
+    );
+    // The revived row starts clean: the failure record of its earlier life
+    // does not describe the page that is back.
+    expect(statement).toContain(
+      "last_error = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error END",
+    );
+    expect(statement).toContain(
+      "last_error_kind = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_kind END",
+    );
+    expect(statement).toContain(
+      "last_error_at = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_at END",
     );
     expect(statement).toContain("WHERE u.status = 'deleted'");
     expect(statement).toContain('RETURNING u.url');
   });
 
-  it('only ever widens the listed flag, and touches live rows for that alone', () => {
+  it('only ever widens the listed flag, and touches live rows for that alone — or to restart a listed row’s failure count', () => {
     const statement = admitUrlsStatement(1, true);
     expect(statement).toContain("($1, $2, 'discovered', NOW(), TRUE)");
     expect(statement).toContain('listed = u.listed OR EXCLUDED.listed');
-    expect(statement).toContain('OR (EXCLUDED.listed AND NOT u.listed)');
+    // A listed admission is the operator saying "index this": a live listed
+    // row that has been failing is touched too, its count reset — the last
+    // failure's record stays until the next attempt speaks.
+    expect(statement).toContain(
+      'OR (EXCLUDED.listed AND (NOT u.listed OR u.fail_count > 0))',
+    );
+    expect(statement).not.toContain(
+      "last_error = CASE WHEN u.status = 'deleted' OR EXCLUDED.listed",
+    );
   });
 });
 
@@ -231,6 +250,9 @@ describe('reviveListedUrls', () => {
     expect(revived).toBe(2);
     const call = db.calls[0];
     expect(call?.text).toContain("SET status = 'discovered', fail_count = 0");
+    expect(call?.text).toContain(
+      'last_error = NULL, last_error_kind = NULL, last_error_at = NULL',
+    );
     expect(call?.text).toContain(
       "WHERE domain = $1 AND listed AND status = 'deleted'",
     );

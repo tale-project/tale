@@ -47,7 +47,11 @@ export const URL_INSERT_BATCH = 500;
  * that is the only signal a restored page ever sends — nothing else moves a
  * row out of `deleted`, which is how a deploy gap or a misconfigured origin
  * used to drop a page from the index for good. A live row is left alone
- * except `listed`, which only ever widens. `RETURNING url` names the rows the
+ * except `listed`, which only ever widens — and a LISTED admission (the
+ * operator saving the list) also clears the failure count of a live listed
+ * row: re-listing a page is the operator saying "index this", and the count
+ * starts over from that word (the last failure's record stays until the next
+ * attempt rewrites or clears it). `RETURNING url` names the rows the
  * statement inserted or changed, so a caller can count what it newly tracks.
  *
  * `count` is how many URL placeholders follow the domain (`$2..$count+1`).
@@ -62,10 +66,14 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
      VALUES ${rows}
      ON CONFLICT (domain, url) DO UPDATE SET
        status = CASE WHEN u.status = 'deleted' THEN 'discovered' ELSE u.status END,
-       fail_count = CASE WHEN u.status = 'deleted' THEN 0 ELSE u.fail_count END,
+       fail_count = CASE WHEN u.status = 'deleted' OR EXCLUDED.listed THEN 0 ELSE u.fail_count END,
+       last_error = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error END,
+       last_error_kind = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_kind END,
+       last_error_at = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_at END,
        discovered_at = CASE WHEN u.status = 'deleted' THEN NOW() ELSE u.discovered_at END,
        listed = u.listed OR EXCLUDED.listed
-     WHERE u.status = 'deleted' OR (EXCLUDED.listed AND NOT u.listed)
+     WHERE u.status = 'deleted'
+        OR (EXCLUDED.listed AND (NOT u.listed OR u.fail_count > 0))
      RETURNING u.url`;
 }
 
@@ -109,7 +117,8 @@ export async function reviveListedUrls(
 ): Promise<number> {
   const rows = await sql.unsafe<{ url: string }[]>(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET status = 'discovered', fail_count = 0, discovered_at = NOW()
+        SET status = 'discovered', fail_count = 0, discovered_at = NOW(),
+            last_error = NULL, last_error_kind = NULL, last_error_at = NULL
       WHERE domain = $1 AND listed AND status = 'deleted'
       RETURNING url`,
     [domain],
@@ -308,6 +317,7 @@ export async function fetchWebsiteInfoFromCorpus(
       error: string | null;
       page_count: string;
       crawled_count: string;
+      failed_count: string;
     }>
   >(
     `SELECT w.domain, w.kind, w.title, w.description, w.status, w.last_scanned_at,
@@ -316,7 +326,10 @@ export async function fetchWebsiteInfoFromCorpus(
               WHERE u.domain = w.domain AND u.status <> 'deleted')::text AS page_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted'
-                AND u.last_crawled_at IS NOT NULL)::text AS crawled_count
+                AND u.last_crawled_at IS NOT NULL)::text AS crawled_count,
+            (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+              WHERE u.domain = w.domain AND u.status <> 'deleted'
+                AND u.fail_count > 0)::text AS failed_count
        FROM ${PUBLIC_WEB_SCHEMA}.websites w
        JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
          ON m.domain = w.domain AND m.org_slug = $2
@@ -332,6 +345,7 @@ export async function fetchWebsiteInfoFromCorpus(
     description: row.description,
     page_count: Number(row.page_count),
     crawled_count: Number(row.crawled_count),
+    failed_count: Number(row.failed_count),
     status: toWebsiteStatus(row.status),
     last_scanned_at: row.last_scanned_at
       ? row.last_scanned_at.toISOString()
@@ -362,10 +376,15 @@ export async function listWebsitePages(
       last_crawled_at: Date | null;
       discovered_at: Date | null;
       chunks_count: string;
+      fail_count: number | null;
+      last_error: string | null;
+      last_error_kind: string | null;
+      last_error_at: Date | null;
     }>
   >(
     `SELECT u.url, u.title, u.word_count, u.status, u.content_hash,
             u.last_crawled_at, u.discovered_at,
+            u.fail_count, u.last_error, u.last_error_kind, u.last_error_at,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.chunks c
               WHERE c.domain = u.domain AND c.url = u.url)::text AS chunks_count
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
@@ -388,6 +407,10 @@ export async function listWebsitePages(
       discovered_at: row.discovered_at ? row.discovered_at.toISOString() : null,
       chunks_count: Number(row.chunks_count),
       indexed: Number(row.chunks_count) > 0,
+      fail_count: row.fail_count ?? 0,
+      last_error: row.last_error,
+      last_error_kind: row.last_error_kind,
+      last_error_at: row.last_error_at ? row.last_error_at.toISOString() : null,
     })),
   };
 }

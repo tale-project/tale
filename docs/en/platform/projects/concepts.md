@@ -13,11 +13,11 @@ A project is the unit Tale reaches for when a body of work needs the same files,
 
 ## What a project owns
 
-**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see. Moving a shared chat to another project — or out of its project — ends the share, so a new audience never inherits it silently: switch **Share with project** back on if the new project's members should read it.
+**Chats** started inside the project carry its context automatically — its standing instructions, and a tool scope of this project's files plus the organization's knowledge hub, never another project's. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see. Moving a shared chat to another project — or out of its project — ends the share, so a new audience never inherits it silently: switch **Share with project** back on if the new project's members should read it.
 
 **Instructions** are context that applies to every chat in the project — the framing, constraints, and vocabulary of the work — so nobody re-pastes them per chat.
 
-**Files** on the **Knowledge** tab are reference material every chat in the project can draw on, held in a folder tree you upload into once rather than re-attaching per chat. They stay scoped to this project — they never surface in the org-wide library or in `@` pickers outside it — see [Manage files](/platform/projects/manage-files).
+**Files** on the **Knowledge** tab are reference material every chat in the project can draw on, held in a folder tree you upload into once rather than re-attaching per chat. They stay scoped to this project — they never surface in the org-wide library or in `@` pickers outside it, and the organization chat outside a project does not reach them at all; who may see them follows from project access, not from team tags — see [Manage files](/platform/projects/manage-files).
 
 **Tasks** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), with comment threads on every task for the decisions around it.
 

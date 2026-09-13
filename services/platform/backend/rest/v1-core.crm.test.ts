@@ -218,6 +218,19 @@ describe('contact bodies', () => {
     expect(bulk.status).toBe(400);
     expect(await bulk.json()).toMatchObject({ code: 'INVALID_BODY' });
   });
+
+  it('refuses an empty bulk batch by name instead of answering 201 for nothing', async () => {
+    vi.mocked(bulkCreateContacts).mockClear();
+    const bulk = await send('/contacts/bulk', 'POST', { contacts: [] });
+    expect(bulk.status).toBe(400);
+    expect(await bulk.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [{ path: 'contacts', message: 'must have at least 1 item' }],
+      },
+    });
+    expect(bulkCreateContacts).not.toHaveBeenCalled();
+  });
 });
 
 describe('product bodies', () => {

@@ -12,6 +12,7 @@ import {
 } from '../core/tasks/helpers.ts';
 import {
   AutomationError,
+  automationExists,
   bindingProjectIds,
   deployedVersion,
 } from '../domains/automations/store.ts';
@@ -170,11 +171,21 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       labels: labels.map((row) => row.name),
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
+      // The archived marker, present exactly when the task is archived —
+      // the state the comment and start doors refuse with `TASK_ARCHIVED`.
+      // A task is archived from the board; this door has no verb for it, so
+      // a mirror reads the state here instead of learning it from a 403.
+      archivedAt: task.archivedAt ?? undefined,
     };
   };
 
-  /** The owning automation must be deployed and applicable to this project.
-   * An undeployed run-only slug keeps the existing not-started response. */
+  /** The owning automation must exist, be deployed and be applicable to
+   * this project — three refusals, each under its own code: a name nobody
+   * saved is 404 `AUTOMATION_NOT_FOUND`, a saved one with nothing deployed
+   * is 409 `AUTOMATION_NOT_DEPLOYED` (the status that code carries on every
+   * other door; this one used to fold both into a 404 whose sentence said
+   * "not deployed"), one bound elsewhere is 403. An undeployed run-only
+   * slug keeps the existing not-started response. */
   const assertIntakeAutomations = async (
     tx: TransactionSql,
     auth: ProjectAuthContext,
@@ -184,15 +195,23 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const names = new Set([input.automationSlug, input.runWorkflowSlug]);
     for (const name of names) {
       if (name === undefined) continue;
-      if (
-        name === input.automationSlug &&
-        (await deployedVersion(tx, auth.organizationId, name)) === undefined
-      ) {
-        throw new AutomationError(
-          'AUTOMATION_NOT_FOUND',
-          'The owning automation is not deployed.',
-          404,
-        );
+      if (name === input.automationSlug) {
+        if (!(await automationExists(tx, auth.organizationId, name))) {
+          throw new AutomationError(
+            'AUTOMATION_NOT_FOUND',
+            'Automation not found',
+            404,
+          );
+        }
+        if (
+          (await deployedVersion(tx, auth.organizationId, name)) === undefined
+        ) {
+          throw new AutomationError(
+            'AUTOMATION_NOT_DEPLOYED',
+            `"${name}" has no deployed version — deploy it before assigning tasks to it.`,
+            409,
+          );
+        }
       }
       const bindings = await bindingProjectIds(tx, auth.organizationId, name);
       if (bindings.length > 0 && !bindings.includes(projectId)) {

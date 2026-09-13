@@ -388,6 +388,45 @@ describe('organization run scope', () => {
     });
   });
 
+  it('carries the trigger’s health stamps on the listing row, as the store reads them', async () => {
+    vi.mocked(listAutomations).mockResolvedValue([
+      {
+        name: 'parked',
+        latestVersion: 1,
+        deployedVersion: null,
+        description: null,
+        inputs: null,
+        presentation: null,
+        projectIds: [],
+        trigger: {
+          kind: 'schedule',
+          enabled: true,
+          lastFiredAt: null,
+          lastSkippedAt: 1_700_000_000_000,
+          lastSkipReason: 'not_deployed',
+        },
+      },
+    ]);
+    const response = await mount().app.request('/api/v1/automations');
+    // One listing call finds the binding that is enabled and not firing —
+    // a caller used to read each automation's triggers one at a time.
+    expect(await response.json()).toEqual({
+      automations: [
+        expect.objectContaining({
+          name: 'parked',
+          deployedVersion: null,
+          trigger: {
+            kind: 'schedule',
+            enabled: true,
+            lastFiredAt: null,
+            lastSkippedAt: 1_700_000_000_000,
+            lastSkipReason: 'not_deployed',
+          },
+        }),
+      ],
+    });
+  });
+
   it('limits the global list to organization runs', async () => {
     const response = await mount().app.request(
       '/api/v1/automations/billing__dunning/runs',

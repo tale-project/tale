@@ -38,12 +38,17 @@ vi.mock('./service.ts', () => ({ runChatTurn: vi.fn() }));
 vi.mock('./store.ts', () => ({
   appendMessageRow: vi.fn(async () => ({ id: 'm-u', sequence: 0 })),
   appendAssistantErrorMessage: vi.fn(async () => undefined),
+  appendAssistantCancelledMessage: vi.fn(async () => undefined),
   assertThreadWriteScope: boundary.assertThreadWriteScope,
 }));
 
 import { apiTurnPayloadSchema, runApiTurn } from './rest-turn.ts';
 import { runChatTurn } from './service.ts';
-import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
+import {
+  appendAssistantCancelledMessage,
+  appendAssistantErrorMessage,
+  appendMessageRow,
+} from './store.ts';
 import { ChatThreadError } from './threads.ts';
 
 /** Every statement the job ran on the pool, as text — the queued-marker
@@ -107,6 +112,7 @@ beforeEach(() => {
   vi.mocked(addJobInTx).mockClear();
   vi.mocked(appendMessageRow).mockClear();
   vi.mocked(appendAssistantErrorMessage).mockClear();
+  vi.mocked(appendAssistantCancelledMessage).mockClear();
   statements.length = 0;
 });
 
@@ -127,6 +133,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
       reasoningEffort: 'high',
       maxOutputTokens: 512,
       locale: 'de',
+      localeFixed: true,
     });
     expect(parsed).toMatchObject({
       providerStrict: true,
@@ -134,6 +141,7 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
       reasoningEffort: 'high',
       maxOutputTokens: 512,
       locale: 'de',
+      localeFixed: true,
     });
     expect(() =>
       apiTurnPayloadSchema.parse({ ...payload, reasoningEffort: 'ultra' }),
@@ -157,6 +165,19 @@ describe('runApiTurn — what the 202 promised reaches the turn', () => {
       }),
     );
     expect(statements.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
+
+  it('carries the fixed reply language into the turn, and nothing when the send named no locale', async () => {
+    vi.mocked(runChatTurn).mockResolvedValue({ status: 'completed' } as never);
+    await runApiTurn(sql, { ...payload, locale: 'de', localeFixed: true });
+    expect(runChatTurn).toHaveBeenLastCalledWith(
+      sql,
+      expect.objectContaining({ locale: 'de', localeFixed: true }),
+    );
+    await runApiTurn(sql, payload);
+    const open = vi.mocked(runChatTurn).mock.calls.at(-1)?.[1];
+    expect(open).toMatchObject({ locale: 'en' });
+    expect(open).not.toHaveProperty('localeFixed');
   });
 
   it('settles a refusal under the promised id and clears the marker on an early return', async () => {
@@ -391,6 +412,81 @@ describe('runApiTurn — the thread is busy when the job runs', () => {
     // The clear is scoped to the marker this job's 202 set.
     const clear = busyStatements.find((s) => s.startsWith(QUEUED_CLEAR));
     expect(clear).toContain('stream_id = ?');
+  });
+});
+
+/**
+ * A stop that arrived while the send was still queued: the door had no
+ * generation row to flag, so it stamped the reply id this job was to write.
+ * The job used to run the full turn regardless — a 202 `cancelling` that
+ * stopped nothing. Now the prompt lands beside a cancelled reply under the
+ * promised id, the model is never called, and the marker still ends.
+ */
+describe('runApiTurn — a stop that arrived while the send was queued', () => {
+  function stampedSql(cancelledMessageId: string | null) {
+    const seen: string[] = [];
+    const tag = (strings: unknown, ..._values: unknown[]) => {
+      if (!Array.isArray(strings)) return Promise.resolve([]);
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      seen.push(text);
+      return Promise.resolve(
+        text.startsWith('SELECT cancelled_message_id AS "messageId"')
+          ? [{ messageId: cancelledMessageId }]
+          : [],
+      );
+    };
+    const pool = Object.assign(tag, {
+      begin: async (
+        _options: string,
+        callback: (tx: unknown) => Promise<unknown>,
+      ) => callback(pool),
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stamp read and transaction wrapper only
+    return { sql: pool as unknown as Sql, seen };
+  }
+
+  it('settles the promised reply as cancelled without a model call, and clears the marker', async () => {
+    const { sql: stamped, seen } = stampedSql('m-promised');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await runApiTurn(stamped, {
+      ...payload,
+      providerSlug: 'provider-a',
+      assistantMessageId: 'm-promised',
+    });
+    warn.mockRestore();
+
+    expect(runChatTurn).not.toHaveBeenCalled();
+    expect(appendAssistantErrorMessage).not.toHaveBeenCalled();
+    // The prompt is the caller's only copy: it lands, then the cancel.
+    expect(appendMessageRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ role: 'user', text: 'Reply with PONG.' }),
+    );
+    expect(appendAssistantCancelledMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        id: 'm-promised',
+        organizationId: 'org-1',
+        threadId: 't-1',
+        model: 'acme/nope',
+        providerSlug: 'provider-a',
+      },
+    );
+    expect(
+      vi.mocked(appendMessageRow).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(appendAssistantCancelledMessage).mock.invocationCallOrder[0] ??
+        0,
+    );
+    expect(seen.some((text) => text.startsWith(QUEUED_CLEAR))).toBe(true);
+  });
+
+  it('runs the turn when the stamp names an earlier reply', async () => {
+    vi.mocked(runChatTurn).mockResolvedValue({ status: 'completed' } as never);
+    const { sql: stamped } = stampedSql('m-earlier');
+    await runApiTurn(stamped, { ...payload, assistantMessageId: 'm-promised' });
+    expect(runChatTurn).toHaveBeenCalledTimes(1);
+    expect(appendAssistantCancelledMessage).not.toHaveBeenCalled();
   });
 });
 

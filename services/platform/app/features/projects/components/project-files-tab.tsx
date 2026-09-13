@@ -791,16 +791,27 @@ export function ProjectFilesTab({
   );
 
   const handleRetryIndexing = useCallback(
-    async (documentId: string) => {
+    async (documentId: string, firstIndex = false) => {
       if (retryingIds.has(documentId)) return;
       setRetryingIds((prev) => new Set(prev).add(documentId));
       try {
         await retryRagIndexing({ documentId });
-        toast({ title: t('files.indexingRetryQueued'), variant: 'success' });
+        toast({
+          title: t(
+            firstIndex
+              ? 'files.indexingStartQueued'
+              : 'files.indexingRetryQueued',
+          ),
+          variant: 'success',
+        });
       } catch (error) {
         console.error('retryRagIndexing failed', error);
         toast({
-          title: t('files.indexingRetryFailed'),
+          title: t(
+            firstIndex
+              ? 'files.indexingStartFailed'
+              : 'files.indexingRetryFailed',
+          ),
           variant: 'destructive',
         });
       } finally {
@@ -817,22 +828,34 @@ export function ProjectFilesTab({
   if (!project) return null;
   const canEdit = project.canEdit;
 
-  const statusLabel = (status: string | null) => {
+  // A file with no indexing state at all — bound over the API with
+  // `skipRagIndexing` (the default there), or never queued — is listed and
+  // readable, but a chat search never finds it. Saying nothing read as
+  // "fine"; the row says "Not indexed" instead, like the hub's list does.
+  const notIndexed = (status: string | null | undefined) =>
+    status == null || status === 'skipped';
+  const statusLabel = (status: string | null | undefined) => {
     if (status === 'queued') return t('files.ragStatusQueued');
     if (status === 'running') return t('files.ragStatusRunning');
     if (status === 'completed') return t('files.ragStatusCompleted');
     if (status === 'failed') return t('files.ragStatusFailed');
+    if (notIndexed(status)) return t('files.ragStatusNotIndexed');
     return '';
   };
-  const statusHint = (status: string | null) => {
+  const statusHint = (status: string | null | undefined) => {
     if (status === 'queued') return t('files.ragStatusQueuedHint');
     if (status === 'running') return t('files.ragStatusRunningHint');
+    if (notIndexed(status)) return t('files.ragStatusNotIndexedHint');
     return undefined;
   };
 
   const renderFileRow = (doc: ProjectDocumentRow, depth: number) => {
     const isRetrying = retryingIds.has(doc._id);
     const failed = doc.ragStatus === 'failed';
+    // A never-indexed file gets the same control as a failed one, worded
+    // as the first run it is: the server opts the file back in and queues
+    // the job — the path the assistant names when it cannot read the file.
+    const indexable = failed || notIndexed(doc.ragStatus);
     const displayTitle = doc.title ?? doc.extension ?? t('files.unknownTitle');
     // A file can only be opened/downloaded once its bytes have been stored,
     // so gate the preview affordance on the storage id per row.
@@ -912,13 +935,15 @@ export function ProjectFilesTab({
               }
             />
           ) : null}
-          {failed && canEdit ? (
+          {indexable && canEdit ? (
             <IconButton
               icon={RotateCcw}
               variant="ghost"
               size="sm"
-              aria-label={t('files.indexingRetry')}
-              onClick={() => void handleRetryIndexing(doc._id)}
+              aria-label={t(
+                failed ? 'files.indexingRetry' : 'files.indexingStart',
+              )}
+              onClick={() => void handleRetryIndexing(doc._id, !failed)}
               disabled={isRetrying}
             />
           ) : null}

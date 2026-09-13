@@ -5,7 +5,7 @@ description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Ch
 
 Der **Wissen**-Tab eines Projekts ist der geteilte Dateibereich, den jeder Chat im Projekt erreichen kann. Lade eine Datei einmal hoch, und jeder Chat im Projekt — und jeder Agent, der darin läuft — kann sie ohne erneutes Hochladen lesen. Diese Seite deckt den Ordnerbaum, den Upload-Mechanismus, das Anheften und die Grenzen ab.
 
-Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](/de/platform/knowledge/documents). Seine Dateien sind auf ein Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch über WebDAV auf; das Projekt zu löschen löscht die Dateien. Für org-weites Referenzmaterial nutz [Dokumente](/de/platform/knowledge/documents) und bind sie an Agents.
+Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](/de/platform/knowledge/documents). Seine Dateien sind auf ein Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch über WebDAV auf; das Projekt zu löschen löscht die Dateien. Für org-weites Referenzmaterial nutz [Dokumente](/de/platform/knowledge/documents) und bind sie an Agents. Die beiden Orte haben zwei Zugriffshebel: Wer ein Dokument der Wissensdatenbank sieht, entscheiden seine Team-Tags; wer eine Projektdatei sieht, entscheidet allein der Projektzugriff — ein org-weites Projekt heißt jedes Mitglied, ein Team-Projekt seine besitzenden und geteilten Teams, und Inhaber und Admins sehen jedes Projekt. Eine Projektdatei trägt nie Team-Tags, und ein Dokument lebt an genau einem der beiden Orte.
 
 <Frame caption="Der Wissen-Tab — der Dateibaum des Projekts; jede Datei bleibt auf dieses Projekt begrenzt und ist für die Suche indexiert.">
 
@@ -19,7 +19,7 @@ Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner a
 
 ## Ein durchgespielter Upload
 
-Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexed** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema nennt, und der Assistent ruft sie ab — und lädt den vollen Text, wenn ein Schnipsel nicht reicht.
+Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexiert** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema nennt, und der Assistent ruft sie ab — und lädt den vollen Text, wenn ein Schnipsel nicht reicht. Eine Datei, die über die [REST-API](/de/develop/api-reference#ein-externes-system-in-ein-projekt-spiegeln) gekommen ist, steht ebenfalls in der Liste, zeigt aber **Nicht indexiert**: Eine Suche findet sie erst, wenn du in ihrer Zeile auf **Jetzt indexieren** klickst — eine reine Textdatei liest der Assistent trotzdem auf Zuruf, wenn du sie beim Namen nennst.
 
 ## Ersetzen und Löschen
 
@@ -35,7 +35,7 @@ Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limi
 
 ## Auftauchen in Chats
 
-Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Das Retrieval-Tool des Assistenten sieht Projekt-Dateien neben dem Wissen der Organisation. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
+Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Die Tools des Assistenten sehen die Dateien dieses Projekts neben der Wissensdatenbank der Organisation, so wie du sie siehst — und nichts aus anderen Projekten: Die Grenze setzt der Server für jeden Chat im Projekt, nicht das, was der Assistent zu durchsuchen beschließt. Fragst du nach den Dokumenten des Projekts, listet er sie neben denen der Wissensdatenbank, jede mit dem Vermerk, wo sie lebt und ob sie indexiert ist; eine nicht indexierte Datei bleibt auf Zuruf lesbar, wenn sie reiner Text ist. Der Organisations-Chat außerhalb jedes Projekts erreicht nur die Wissensdatenbank — die Dateien eines Projekts liest du aus dem Chat des Projekts selbst. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
 
 Einen `@`-Picker gibt es im Composer dieser Version nicht — eine Nachricht nennt das Thema, das Retrieval findet die Datei, und der Assistent lädt den vollen Text mit seinem Fetch-Tool, wenn er mehr als einen Schnipsel braucht. Ein Projekt-Agent, der eine Board-Aufgabe bearbeitet, bekommt seine Dateien auf einem anderen Weg: Die Anhänge der Aufgabe werden schreibgeschützt unter `/agent/inputs/<task>/attachments/` in seine Sandbox gespiegelt, ein Coding-Harness öffnet also die echten Bytes statt eines Retrieval-Schnipsels — [Harnesses](/de/platform/agents/harnesses) beschreibt diesen Weg.
 

@@ -8,6 +8,11 @@ import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import { pinDimensions } from '../../core/knowledge/dimensions.ts';
 import {
+  isOnDemandReadableName,
+  ON_DEMAND_TEXT_MAX_BYTES,
+  type OnDemandFileRead,
+} from '../../core/knowledge/document_text.ts';
+import {
   classifyEmbeddingFailure,
   EmbeddingNotConfigured,
   embedderForOrg,
@@ -39,14 +44,22 @@ import {
   isImageFile,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
+import { extractTextFromTextBytes } from '../../core/lib/knowledge/extraction/text.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
-import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import {
+  parseBlobRef,
+  s3KeyBelongsToOrg,
+} from '../../core/lib/storage/blob_ref.ts';
+import {
+  s3GetObjectBytes,
+  s3GetObjectBytesIfExists,
+} from '../../core/lib/storage/object_store.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
 import {
   documentFolderPathFrom,
   folderTreePaths,
@@ -80,6 +93,8 @@ import {
 const ADAPTER_FIND_ONE = '_reference/childComponent/betterAuth/adapter/findOne';
 const FILTER_RETRIEVABLE =
   'documents/internal_queries:filterRetrievableRagFileIds';
+const READ_TEXT_ON_DEMAND =
+  'file_metadata/internal_queries:readTextOnDemandForAgent';
 
 /**
  * Which of these conversations the caller may read.
@@ -413,6 +428,13 @@ export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
         ...(caller !== undefined ? { caller } : {}),
       });
     },
+    // The on-demand text lane behind `rag_fetch` (`core/knowledge/
+    // document_text.ts`): called only for a ref the filter above admitted.
+    [READ_TEXT_ON_DEMAND]: async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the shared reader passes exactly this shape
+      const args = raw as { organizationId: string; storageId: string };
+      return readFileTextOnDemand(sql, args);
+    },
   };
 }
 
@@ -441,6 +463,82 @@ async function requireOrgSlug(
     throw new KnowledgeError('ORG_NOT_FOUND', 'Organization not found', 404);
   }
   return slug;
+}
+
+/**
+ * A file's text straight from its stored bytes — the lane `rag_fetch` falls
+ * back to when the corpus holds nothing for a ref the caller may read (a
+ * REST-bound project file skips indexing by default; a chat upload may still
+ * be queued). Only the plain-text extractor's own extensions are served, and
+ * only under {@link ON_DEMAND_TEXT_MAX_BYTES}: anything else needs the
+ * indexer's extractors and pages through its chunks, so the answer for it is
+ * the file's TRUE indexing state, which the caller turns into the miss.
+ *
+ * Admission is the CALLER's job (the shared reader checks the ref through
+ * `filterRetrievableRagFileIds` first); this reads the org's own row only,
+ * and refuses a blob key outside the org's namespace the way every serve
+ * lane does. Null when no live file row holds the ref.
+ */
+export async function readFileTextOnDemand(
+  sql: Sql,
+  args: { organizationId: string; storageId: string },
+): Promise<OnDemandFileRead | null> {
+  const rows = await sql<
+    {
+      fileName: string;
+      size: number;
+      lifecycleStatus: string | null;
+      skipRagIndexing: boolean | null;
+      ragStatus: string | null;
+      ragError: string | null;
+      ragErrorCode: string | null;
+    }[]
+  >`
+    SELECT file_name AS "fileName", size::float8 AS size,
+           lifecycle_status AS "lifecycleStatus",
+           skip_rag_indexing AS "skipRagIndexing", rag_status AS "ragStatus",
+           rag_error AS "ragError", rag_error_code AS "ragErrorCode"
+    FROM app.file_metadata
+    WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageId}
+      AND (lifecycle_status IS NULL OR lifecycle_status <> 'trashed')
+    ORDER BY created_at_ms ASC
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  const state = indexingStateFrom(row);
+  const indexing = {
+    status: state.status,
+    ...(state.error !== undefined ? { error: state.error } : {}),
+  };
+  const unreadable = (
+    reason: 'binary' | 'too_large' | 'no_text',
+  ): OnDemandFileRead => ({
+    kind: 'unreadable',
+    filename: row.fileName,
+    sizeBytes: row.size,
+    indexing,
+    reason,
+  });
+  if (!isOnDemandReadableName(row.fileName)) return unreadable('binary');
+  // The bind step HEADs the landed object, so `size` is the store's own
+  // figure — checked before a byte is fetched, and again on what arrived.
+  if (row.size > ON_DEMAND_TEXT_MAX_BYTES) return unreadable('too_large');
+
+  const orgSlug = await requireOrgSlug(sql, args.organizationId);
+  const parsed = parseBlobRef(args.storageId);
+  if (parsed.backend !== 's3' || !s3KeyBelongsToOrg(parsed.key, orgSlug)) {
+    return unreadable('no_text');
+  }
+  const store = await locateOrgObjectStore(orgSlug, parsed.key);
+  const bytes = await s3GetObjectBytesIfExists(store, parsed.key);
+  if (bytes === null || bytes.byteLength === 0) return unreadable('no_text');
+  if (bytes.byteLength > ON_DEMAND_TEXT_MAX_BYTES) {
+    return unreadable('too_large');
+  }
+  const [text] = await extractTextFromTextBytes(bytes, row.fileName);
+  if (text.trim() === '') return unreadable('no_text');
+  return { kind: 'text', filename: row.fileName, text, indexing };
 }
 
 /** The stable code and the sentence each class of provider failure becomes

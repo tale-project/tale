@@ -671,9 +671,13 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { projectId: string };
       const rows = await sql<
-        Pick<ProjectRow, 'id' | 'name' | 'instructions' | 'knowledgeMode'>[]
+        Pick<
+          ProjectRow,
+          'id' | 'name' | 'key' | 'instructions' | 'knowledgeMode'
+        >[]
       >`
-        SELECT id, name, instructions, knowledge_mode AS "knowledgeMode"
+        SELECT id, name, key, instructions,
+               knowledge_mode AS "knowledgeMode"
         FROM app.projects WHERE id = ${args.projectId} LIMIT 1
       `;
       const row = rows[0];
@@ -681,6 +685,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return {
         _id: row.id,
         name: row.name,
+        key: row.key ?? undefined,
         instructions: row.instructions ?? undefined,
         knowledgeMode: row.knowledgeMode ?? undefined,
       };
@@ -724,6 +729,10 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         limit?: number;
         cursor?: number;
         projectId?: string;
+        /** A project chat's view: the project's files AND the hub rows the
+         * caller's teams may see, in one page. Only meaningful with a
+         * readable `projectId`. */
+        includeHub?: boolean;
         fileName?: string;
         extension?: string;
       };
@@ -734,12 +743,17 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       );
       // An unreadable/absent project falls through to hub rules (the 0.4
       // fail-safe) — never a boundary loosening.
+      const projectReadable =
+        args.projectId !== undefined &&
+        scope.projectIds.includes(args.projectId);
       return listDocumentsForAgent(sql, {
         organizationId: args.organizationId,
         teamIds: scope.teamIds,
-        ...(args.projectId !== undefined &&
-        scope.projectIds.includes(args.projectId)
+        ...(projectReadable && args.projectId !== undefined
           ? { projectId: args.projectId }
+          : {}),
+        ...(projectReadable && args.includeHub === true
+          ? { includeHub: true }
           : {}),
         ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
         ...(args.extension !== undefined ? { extension: args.extension } : {}),

@@ -5,7 +5,7 @@ description: The project's Knowledge tab holds the files every chat in the proje
 
 A project's **Knowledge** tab is the shared file area every chat inside the project can reach. Upload a file once and every chat in the project — and every agent that runs inside it — can read it without re-uploading. This page covers the folder tree, the upload mechanic, pinning, and the limits.
 
-The Knowledge tab is not the org-wide knowledge base in the [Documents](/platform/knowledge/documents) sense. Its files are scoped to one project and never appear in the org-wide library or over WebDAV; deleting the project deletes the files. For org-wide reference material, use [Documents](/platform/knowledge/documents) and bind it to agents.
+The Knowledge tab is not the org-wide knowledge base in the [Documents](/platform/knowledge/documents) sense. Its files are scoped to one project and never appear in the org-wide library or over WebDAV; deleting the project deletes the files. For org-wide reference material, use [Documents](/platform/knowledge/documents) and bind it to agents. The two places have two access levers: who sees a hub document is decided by its team tags, who sees a project file is decided by project access alone — an org-wide project means every member, a team project its owning and shared teams, and owners and admins see every project. A project file never carries team tags, and a document lives in exactly one of the two places.
 
 <Frame caption="The Knowledge tab — the project's file tree, every file scoped to this project and indexed for retrieval.">
 
@@ -19,7 +19,7 @@ Project files live in a folder tree. **New folder** creates a folder at the root
 
 ## A worked upload
 
-Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that names the topic and the assistant retrieves it, loading the full text when a snippet is not enough.
+Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that names the topic and the assistant retrieves it, loading the full text when a snippet is not enough. A file that arrived through the [REST API](/develop/api-reference#mirror-an-external-system-into-a-project) is listed too but reads **Not indexed**: a search never finds it until you click **Index now** on its row, though the assistant still reads a plain-text file on request when you name it.
 
 ## Replacing and deleting
 
@@ -35,7 +35,7 @@ Per-file and per-project limits are set by the org under [Policies and limits](/
 
 ## Surfacing in chats
 
-A chat started inside a project automatically has access to every file in the project's Knowledge tab. The assistant's retrieval tool sees project files alongside the organization's knowledge. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
+A chat started inside a project automatically has access to every file in the project's Knowledge tab. The assistant's tools see this project's files alongside the organization's knowledge hub as you see it — and nothing from other projects: the boundary is set by the server for every chat in the project, not by what the assistant decides to search. Asking for the project's documents lists them beside the hub's, each marked with where it lives and whether it is indexed; a file that is not indexed is still readable on request when it is plain text. The organization chat outside any project reaches the hub only — a project's files are read from the project's own chat. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
 
 There is no `@` picker in the composer in this version — a message names the topic, retrieval finds the file, and the assistant loads the full text with its fetch tool when it needs more than a snippet. A project agent working a board task gets its files another way: the task's attachments are mirrored read-only into its sandbox under `/agent/inputs/<task>/attachments/`, so a coding harness opens the real bytes rather than a retrieval snippet — [Harnesses](/platform/agents/harnesses) covers that path.
 

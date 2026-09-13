@@ -13,7 +13,11 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { findHubFolderByPath } from '../folders/paths.ts';
-import { listFilesByFolder, MAX_RECURSIVE_FILES } from './agent-list.ts';
+import {
+  listDocumentsForAgent,
+  listFilesByFolder,
+  MAX_RECURSIVE_FILES,
+} from './agent-list.ts';
 
 vi.mock('../folders/paths.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../folders/paths.ts')>()),
@@ -58,6 +62,163 @@ function fakeSql(script: {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+interface ListRow {
+  fileId: string;
+  title: string | null;
+  extension: string | null;
+  folderPath: string | null;
+  teamId: string | null;
+  createdAt: number;
+  sizeBytes: number | null;
+  projectId: string | null;
+  projectName: string | null;
+  skipRagIndexing: boolean | null;
+  ragStatus: string | null;
+  ragError: string | null;
+  ragErrorCode: string | null;
+  hasFileRow: boolean;
+}
+
+function listRow(over: Partial<ListRow> = {}): ListRow {
+  return {
+    fileId: 's3:acme/a',
+    title: 'brief.pdf',
+    extension: 'pdf',
+    folderPath: null,
+    teamId: null,
+    createdAt: 1_700_000_000_000,
+    sizeBytes: 10,
+    projectId: null,
+    projectName: null,
+    skipRagIndexing: false,
+    ragStatus: 'completed',
+    ragError: null,
+    ragErrorCode: null,
+    hasFileRow: true,
+    ...over,
+  };
+}
+
+/** The listing's one statement, recorded: the lane flags are the booleans
+ * the statement binds around the project set, so a test reads which lanes
+ * ran off the values. */
+function listingSql(rows: ListRow[]): { sql: Sql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    return Promise.resolve(rows);
+  };
+  return { sql: sql as unknown as Sql, statements };
+}
+
+/** The `(projectLane, projectIds, hubLane)` triple the statement binds —
+ * the only array bracketed by two booleans in its parameter list. */
+function laneFlags(values: unknown[]): {
+  projectLane: unknown;
+  projectIds: unknown;
+  hubLane: unknown;
+} {
+  const at = values.findIndex(
+    (value, i) =>
+      Array.isArray(value) &&
+      typeof values[i - 1] === 'boolean' &&
+      typeof values[i + 1] === 'boolean',
+  );
+  if (at === -1) throw new Error('lane flags not bound');
+  return {
+    projectLane: values[at - 1],
+    projectIds: values[at],
+    hubLane: values[at + 1],
+  };
+}
+
+describe('listDocumentsForAgent', () => {
+  const ORG = { organizationId: 'org_1', teamIds: ['org_org_1', 'team_a'] };
+
+  it('lists the hub lane alone without a project, project lane alone with one', async () => {
+    const hub = listingSql([]);
+    await listDocumentsForAgent(hub.sql, ORG);
+    expect(laneFlags(hub.statements[0]?.values ?? [])).toEqual({
+      projectLane: false,
+      projectIds: [],
+      hubLane: true,
+    });
+
+    const project = listingSql([]);
+    await listDocumentsForAgent(project.sql, { ...ORG, projectId: 'proj_1' });
+    // The project lane runs and the hub lane does NOT — the sandbox
+    // document_find contract, unchanged.
+    expect(laneFlags(project.statements[0]?.values ?? [])).toEqual({
+      projectLane: true,
+      projectIds: ['proj_1'],
+      hubLane: false,
+    });
+  });
+
+  it('lists both lanes in one page for a project chat (includeHub)', async () => {
+    const { sql, statements } = listingSql([
+      listRow({
+        fileId: 's3:acme/lead',
+        title: 'lead-verify.txt',
+        extension: 'txt',
+        projectId: 'proj_1',
+        projectName: 'Website relaunch',
+        skipRagIndexing: true,
+        ragStatus: null,
+      }),
+      listRow({ fileId: 's3:acme/policy', title: 'Refund policy.pdf' }),
+      listRow({
+        fileId: 's3:acme/untracked',
+        title: 'legacy.pdf',
+        hasFileRow: false,
+      }),
+    ]);
+    const page = await listDocumentsForAgent(sql, {
+      ...ORG,
+      projectId: 'proj_1',
+      includeHub: true,
+    });
+    // Both lanes run; project rows sort first (the ORDER BY leads with
+    // `project_id IS NULL`).
+    expect(laneFlags(statements[0]?.values ?? [])).toEqual({
+      projectLane: true,
+      projectIds: ['proj_1'],
+      hubLane: true,
+    });
+    expect(statements[0]?.text).toContain(
+      'ORDER BY (d.project_id IS NULL), d.created_at_ms DESC',
+    );
+    expect(page.documents).toEqual([
+      expect.objectContaining({
+        fileId: 's3:acme/lead',
+        projectId: 'proj_1',
+        projectName: 'Website relaunch',
+        // The REST bind's default: opted out, no status column — `skipped`.
+        indexing: { status: 'skipped' },
+      }),
+      expect.objectContaining({
+        fileId: 's3:acme/policy',
+        projectId: null,
+        projectName: null,
+        indexing: { status: 'completed' },
+      }),
+      // A blob no file row tracks has no indexing fact to report.
+      expect.objectContaining({ fileId: 's3:acme/untracked', indexing: null }),
+    ]);
+  });
+
+  it('ignores includeHub without a project lane (the hub is already the lane)', async () => {
+    const { sql, statements } = listingSql([]);
+    await listDocumentsForAgent(sql, { ...ORG, includeHub: true });
+    expect(laneFlags(statements[0]?.values ?? [])).toEqual({
+      projectLane: false,
+      projectIds: [],
+      hubLane: true,
+    });
+  });
 });
 
 describe('listFilesByFolder', () => {

@@ -12,6 +12,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
+import { hasForbiddenNameChar } from '../../lib/shared/utils/plain-name.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {
   assertUploadSizeAllowedForOrg,
@@ -25,6 +26,10 @@ import {
   loadDocumentOrThrow,
   validateDocumentUploadForOrg,
 } from '../domains/documents/service.ts';
+import {
+  type DocumentIndexingState,
+  indexingStateFrom,
+} from '../domains/file_metadata/indexing-state.ts';
 import {
   createRestUploadHandoff,
   FileError,
@@ -139,8 +144,11 @@ const projectAgentUpdateBody = projectAgentBody
 const projectCreateBody = z
   .object({
     name: z.string().trim().min(1).max(PROJECT_NAME_MAX),
-    // Blank means "derive from the name", like an omitted key.
-    key: z.string().trim().max(PROJECT_KEY_MAX).optional(),
+    // Present with a value, or omitted (then derived from the name): a
+    // whitespace-only key used to read as an omitted one while `name` and
+    // `externalItemId` beside it refused blank — the reference promises
+    // the 400 for all three.
+    key: nonBlank(PROJECT_KEY_MAX).optional(),
     description: z.string().max(PROJECT_DESCRIPTION_MAX).optional(),
     externalItemId: externalKeySchema(PROJECT_EXTERNAL_ITEM_ID_MAX).optional(),
   })
@@ -178,7 +186,10 @@ const projectDeleteBody = z
 const folderBody = z
   .object({
     name: z.string().trim().min(1).max(FOLDER_NAME_MAX),
-    parentId: z.string().max(64).optional(),
+    // Present with a value, or omitted for a root folder — a blank id used
+    // to walk to the opaque 404 instead of the blank-field 400 every other
+    // optional text field answers.
+    parentId: nonBlank(64).optional(),
   })
   .strict();
 const PROJECT_ARCHIVED_FILTERS = ['exclude', 'include', 'only'] as const;
@@ -186,11 +197,10 @@ const PROJECT_ARCHIVED_FILTERS = ['exclude', 'include', 'only'] as const;
 /**
  * A file name is a name, never a path: no separators, no `.`/`..`, no
  * control characters (a NUL cannot be stored at all, the rest cannot be
- * signed into a download disposition). The same rule the session lanes
- * apply — checked at the mint too, so a bad name fails before the bytes
- * are uploaded, not after.
+ * signed into a download disposition) — the character class the folder
+ * domain and the WebDAV segment share. Checked at the mint too, so a bad
+ * name fails before the bytes are uploaded, not after.
  */
-const FILE_NAME_FORBIDDEN = /[/\\\u0000-\u001f\u007f]/;
 function isPlainFileName(value: string): boolean {
   const trimmed = value.trim();
   return (
@@ -198,7 +208,7 @@ function isPlainFileName(value: string): boolean {
     trimmed !== '.' &&
     trimmed !== '..' &&
     !trimmed.includes('..') &&
-    !FILE_NAME_FORBIDDEN.test(trimmed)
+    !hasForbiddenNameChar(trimmed)
   );
 }
 const fileNameSchema = z.string().min(1).max(1024).refine(isPlainFileName, {
@@ -310,7 +320,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.get('organizationId'),
         query.externalItemId,
       );
-      if (project === null) return c.json({ projects: [] });
+      // A lookup is one whole page and says so in the list's own words, so
+      // a pager written for the list reads a lookup without a special case.
+      const lookup = (projects: ReturnType<typeof projectPayload>[]) =>
+        c.json({ projects, isDone: true, continueCursor: '' });
+      if (project === null) return lookup([]);
       try {
         assertReadable(project, auth);
       } catch (error) {
@@ -318,9 +332,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           '[projects-rest] lookup match invisible to the key holder:',
           error instanceof Error ? error.message : String(error),
         );
-        return c.json({ projects: [] });
+        return lookup([]);
       }
-      return c.json({ projects: [projectPayload(project)] });
+      return lookup([projectPayload(project)]);
     }
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
@@ -333,18 +347,22 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
     const last = page.projects[page.projects.length - 1];
     const isDone = !(page.hasMore && last);
+    const continueCursor =
+      isDone || !last
+        ? ''
+        : mintCursor(
+            c,
+            'projects',
+            formatKeysetCursor(last.createdAt, last.id),
+          );
     return c.json({
       projects: page.projects.map(projectPayload),
       isDone,
-      ...(isDone || !last
-        ? {}
-        : {
-            cursor: mintCursor(
-              c,
-              'projects',
-              formatKeysetCursor(last.createdAt, last.id),
-            ),
-          }),
+      continueCursor,
+      // The same token under its pre-1.5.0 name: a pager written as
+      // `next = resp.cursor` keeps working for at least two more minor
+      // versions; absent once the listing is complete, as it always was.
+      ...(continueCursor === '' ? {} : { cursor: continueCursor }),
     });
   });
 
@@ -374,7 +392,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           );
         } catch (error) {
           const constraint = uniqueViolationOf(error);
-          if (constraint === 'projects_org_external_item') {
+          // The byte-exact index (0008) and the canonical-expression twin
+          // (0098) guard the same key; a race reports whichever the
+          // database checked first.
+          if (
+            constraint === 'projects_org_external_item' ||
+            constraint === 'projects_org_external_item_canonical'
+          ) {
             throw new RestRefusal(
               `A project with externalItemId "${body.externalItemId ?? ''}" already exists in this organization`,
               409,
@@ -866,7 +890,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (project instanceof Response) return project;
       // ONE transaction: the intent is consumed atomically with the
       // register + document create — any refusal rolls the consume back.
-      const documentId = await deps.sql.begin(async (tx) => {
+      const bound = await deps.sql.begin(async (tx) => {
         await lockRestProjectForWrite(tx, auth, project.id);
         // The intent is looked up by its handle inside the caller's own
         // scope (a foreign one stays opaque), then judged: consumed and
@@ -986,15 +1010,24 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             WHERE id = ${registered.fileId}
           `;
         }
-        return created;
+        // What the gate already established about the landed bytes — the
+        // authoritative size and the resolved type — travels back with the
+        // id, so a mirror needs no listing call to record what it bound.
+        return {
+          documentId: created,
+          size: stat.size,
+          mimeType: validated.contentType,
+        };
       });
       return c.json(
         {
           file: {
-            id: documentId,
+            id: bound.documentId,
             fileName: body.fileName,
             folderId: body.folderId,
             projectId: project.id,
+            size: bound.size,
+            mimeType: bound.mimeType,
           },
         },
         201,
@@ -1031,6 +1064,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         return notFound(c, 'Folder not found', 'FOLDER_NOT_FOUND');
       }
     }
+    // Each row carries what its `app.file_metadata` row knows about the
+    // blob — the landed `size` and where the file stands in the search
+    // corpus (`indexing`, the vocabulary `Document.indexing` speaks, so a
+    // REST-bound file reads `skipped` until someone opts it in) — the same
+    // join the document version listing makes, oldest metadata row first.
+    // A document with no tracked blob answers `size: null` and no
+    // `indexing`, as a content-only Hub document does.
     const rows = await deps.sql<
       {
         id: string;
@@ -1038,37 +1078,80 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         folderId: string | null;
         mimeType: string | null;
         createdAt: number;
+        size: number | null;
+        tracked: boolean;
+        skipRagIndexing: boolean | null;
+        ragStatus: string | null;
+        ragIndexedAt: number | null;
+        ragError: string | null;
+        ragErrorCode: string | null;
       }[]
     >`
-      SELECT id, title AS "fileName", folder_id AS "folderId",
-             mime_type AS "mimeType", created_at_ms::float8 AS "createdAt"
-      FROM app.documents
-      WHERE org_id = ${c.get('organizationId')}
-        AND project_id = ${project.id}
-        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      SELECT d.id, d.title AS "fileName", d.folder_id AS "folderId",
+             d.mime_type AS "mimeType", d.created_at_ms::float8 AS "createdAt",
+             m.size::float8 AS size, (m.id IS NOT NULL) AS tracked,
+             m.skip_rag_indexing AS "skipRagIndexing",
+             m.rag_status AS "ragStatus",
+             m.rag_indexed_at_ms::float8 AS "ragIndexedAt",
+             m.rag_error AS "ragError", m.rag_error_code AS "ragErrorCode"
+      FROM app.documents d
+      LEFT JOIN LATERAL (
+        SELECT id, size, skip_rag_indexing, rag_status, rag_indexed_at_ms,
+               rag_error, rag_error_code
+        FROM app.file_metadata
+        WHERE org_id = d.org_id AND storage_ref = d.file_ref
+        ORDER BY created_at_ms ASC
+        LIMIT 1
+      ) m ON true
+      WHERE d.org_id = ${c.get('organizationId')}
+        AND d.project_id = ${project.id}
+        AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
         AND (${folderId ?? null}::text IS NULL
-          OR folder_id = ${folderId ?? null})
+          OR d.folder_id = ${folderId ?? null})
         AND (${cursorCreatedAt}::bigint IS NULL
-          OR created_at_ms < ${cursorCreatedAt}
-          OR (created_at_ms = ${cursorCreatedAt} AND id < ${cursorId}))
-      ORDER BY created_at_ms DESC, id DESC
+          OR d.created_at_ms < ${cursorCreatedAt}
+          OR (d.created_at_ms = ${cursorCreatedAt} AND d.id < ${cursorId}))
+      ORDER BY d.created_at_ms DESC, d.id DESC
       LIMIT ${limit + 1}
     `;
-    const page = rows.slice(0, limit);
-    const last = page[page.length - 1];
+    const slice = rows.slice(0, limit);
+    const page = slice.map((row) => {
+      const file: {
+        id: string;
+        fileName: string | null;
+        folderId: string | null;
+        mimeType: string | null;
+        createdAt: number;
+        size: number | null;
+        indexing?: DocumentIndexingState;
+      } = {
+        id: row.id,
+        fileName: row.fileName,
+        folderId: row.folderId,
+        mimeType: row.mimeType,
+        createdAt: row.createdAt,
+        size: row.size,
+      };
+      if (row.tracked) file.indexing = indexingStateFrom(row);
+      return file;
+    });
+    const last = slice[slice.length - 1];
     const isDone = !(rows.length > limit && last);
+    const continueCursor =
+      isDone || !last
+        ? ''
+        : mintCursor(
+            c,
+            `files:${project.id}`,
+            formatKeysetCursor(last.createdAt, last.id),
+          );
     return c.json({
       files: page,
       isDone,
-      ...(isDone || !last
-        ? {}
-        : {
-            cursor: mintCursor(
-              c,
-              `files:${project.id}`,
-              formatKeysetCursor(last.createdAt, last.id),
-            ),
-          }),
+      continueCursor,
+      // The pre-1.5.0 spelling of the same token, kept beside it for at
+      // least two more minor versions; absent once the listing is complete.
+      ...(continueCursor === '' ? {} : { cursor: continueCursor }),
     });
   });
 

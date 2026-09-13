@@ -52,32 +52,42 @@ auth = {
 threads_url = f"{base}/api/v1/threads"
 
 # 1. Un thread à toi
-thread = requests.post(threads_url, headers=auth, json={}).json()
+thread = requests.post(threads_url, headers=auth, json={}, timeout=30).json()
+thread_url = f"{threads_url}/{thread['id']}"
 
-# 2. Envoyer un message — nomme un modèle configuré dans ton organisation
-requests.post(
-    f"{threads_url}/{thread['id']}/messages",
+# 2. Envoyer un message — nomme un modèle configuré dans ton organisation. Le 202
+#    nomme la réponse avant que le modèle ait dit un mot : garde son id.
+sent = requests.post(
+    f"{thread_url}/messages",
     headers=auth,
     json={"content": "En une phrase : c'est quoi, Tale ?", "model": "<ton-modele>"},
-).raise_for_status()
+    timeout=30,
+)
+sent.raise_for_status()
+reply_id = sent.json()["messageId"]
 
-# 3. Interroger jusqu'à idle, puis lire le dernier message
+# 3. Interroger jusqu'à idle. Un tour n'a pas d'échéance fixe : borne la boucle
+#    toi-même et arrête un tour que tu as abandonné.
+deadline = time.monotonic() + 600
 while True:
-    status = requests.get(
-        f"{threads_url}/{thread['id']}/generation", headers=auth
-    ).json()["status"]
-    if status == "idle":
+    poll = requests.get(f"{thread_url}/generation", headers=auth, timeout=30).json()
+    if poll["status"] == "idle":
         break
-    time.sleep(1)
+    if time.monotonic() > deadline:
+        requests.delete(f"{thread_url}/generation", headers=auth, timeout=30)
+        raise SystemExit("le tour ne s'est pas réglé à temps")
+    time.sleep(2)
+if poll.get("lastMessageId") != reply_id:
+    raise SystemExit("le tour n'a jamais tourné — vérifie le projet du thread et ton accès")
 
-messages = requests.get(
-    f"{threads_url}/{thread['id']}/messages", headers=auth
-).json()["page"]
-reply = messages[-1]
+# 4. Lire la réponse par son id et vérifier comment elle s'est réglée avant de s'y fier
+reply = requests.get(f"{thread_url}/messages/{reply_id}", headers=auth, timeout=30).json()
+if reply["status"] != "complete":
+    raise SystemExit(f"tour {reply['status']} : {reply.get('error', '')} {reply.get('errorCode', '')}")
 print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
-`{"status": "idle"}` signifie qu’aucun tour ne tourne. Lis les messages pour trouver la réponse ou une erreur du modèle. L’envoi répond **202** avant la fin du travail. Si tu perds l’accès ou déplaces le thread avant l’ouverture du tour en attente, le worker le refuse. La [référence API](/fr/develop/api-reference) précise les règles de projet.
+L’envoi répond **202** avant la fin du travail et nomme la réponse : `messageId` est le message d’assistant dans lequel la réponse atterrit, et l’interrogation répond `idle` avec `lastMessageId` une fois ce tour réglé. Lis le message par son id et vérifie `status` avant d’afficher quoi que ce soit : `complete` porte le texte, `failed` porte `error` et `errorCode` (un modèle que le plan du fournisseur ne couvre pas, un solde épuisé — un modèle listé peut encore échouer), et `cancelled` ce qui avait été streamé avant un arrêt. Un tour n’a pas d’échéance fixe : la boucle se borne elle-même et annule un tour qu’elle a abandonné avec `DELETE .../generation`. Si tu perds l’accès ou déplaces le thread avant l’ouverture du tour en attente, le worker le refuse et l’interrogation se règle en `idle` sans ton id ; la [référence API](/fr/develop/api-reference) précise les règles de projet.
 
 ## Étape 4 — Démarrer une exécution d'automatisation
 

@@ -1,7 +1,6 @@
 import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
-import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
 import {
   isValidOrgSlug,
   MAX_ORG_SLUG_LENGTH,
@@ -15,6 +14,7 @@ import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { reportRequestError, requestIdOf } from '../error-reporting.ts';
+import { noStoreByDefault } from '../lib/http-hygiene.ts';
 import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
@@ -155,13 +155,10 @@ export function createRestV1Routes(deps: {
   // Every answer on this door is per-caller and per-moment — a key holder's
   // own rows, a signed handoff, a turn's state — so nothing between the
   // caller and the door may cache it. Routes that set their own directive
-  // (the attachment lane's `private, no-store`) keep it.
-  app.use(async (c, next) => {
-    await next();
-    if (!c.res.headers.has('cache-control')) {
-      c.res.headers.set('cache-control', 'no-store');
-    }
-  });
+  // (the attachment lane's `private, no-store`) keep it. Stamped here, on
+  // the door itself, so the door proves it wherever it is mounted; the
+  // validated-read middleware outside it replaces exactly this default.
+  app.use(noStoreByDefault());
 
   // ---- the door: API key → key holder's budget → org resolution → role ---
   app.use(async (c, next) => {
@@ -390,31 +387,11 @@ export function mountRestV1Routes<E extends Env>(
 ): void {
   const door = createRestV1Routes(deps);
   const servedOn = methodsServedOn(door);
-  // What every /api/v1 answer carries, the catch-all's included: the
-  // contract version a client can pin to, `no-store` where no route
-  // chose a directive, and — for a HEAD — the `Content-Length` a GET would
-  // have carried. Hono answers HEAD by running the GET handler and
-  // dropping the body afterwards, so the adapter never learns the length;
-  // a JSON body is buffered here and measured, which is what a client
-  // that sizes a page before fetching it is asking for.
-  app.use('/api/v1/*', async (c, next) => {
-    await next();
-    c.res.headers.set('x-tale-api-version', API_CONTRACT_VERSION);
-    if (!c.res.headers.has('cache-control')) {
-      c.res.headers.set('cache-control', 'no-store');
-    }
-    if (
-      c.req.method === 'HEAD' &&
-      c.res.body !== null &&
-      !c.res.headers.has('content-length') &&
-      (c.res.headers.get('content-type') ?? '').includes('application/json')
-    ) {
-      const bytes = await c.res.arrayBuffer();
-      const measured = new Response(bytes, c.res);
-      measured.headers.set('content-length', String(bytes.byteLength));
-      c.res = measured;
-    }
-  });
+  // What every /api/v1 answer carries — the contract version, `no-store`
+  // by default, the HEAD length — is stamped by `restDoorHeaders()`
+  // (lib/http-hygiene.ts), which `createApp` mounts on `/api/v1/*` ahead
+  // of the pre-route guards, so their refusals carry it too; the catch-all
+  // below sits inside that mount like every family.
   app.route('/api/v1', door);
   app.all('/api/v1/*', (c) => {
     const path = c.req.path.slice('/api/v1'.length) || '/';

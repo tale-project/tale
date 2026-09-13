@@ -87,6 +87,7 @@ import {
   isDueForScan,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../websites/scan_scheduling';
+import type { PageFailureKind } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import { pinDimensions } from './dimensions';
@@ -147,7 +148,13 @@ const BFS_FETCH_BUDGET = 30;
  * action into the runtime's ~10-minute hard kill. */
 const DISCOVERY_BUDGET_MS = 180_000;
 
-/** A URL that failed this many scans in a row stops being fetched. */
+/** A DISCOVERED URL that failed this many scans in a row stops being
+ * fetched. A LISTED one never does — the operator asked for it by name, so
+ * it is probed once per scan for as long as it is listed (the scan interval
+ * is the backoff, `last_crawled_at < scanStartedAt` the bound), and its
+ * `fail_count` keeps counting so the page list can say for how long it has
+ * been failing. Before this a listed page that failed five scans was dead
+ * for good, and re-listing it changed nothing. */
 const MAX_FETCH_FAILURES = 5;
 
 /** A paragraph seen on at least this many pages of a domain is boilerplate
@@ -302,7 +309,10 @@ export async function scanWebsiteImpl(
             console.warn(
               `[crawl] ${page.url}: render failed: ${outcome.reason}`,
             );
-            await recordPageFailure(sql, args.domain, page.url);
+            await recordPageFailure(sql, args.domain, page.url, {
+              kind: 'render_failed',
+              message: outcome.reason,
+            });
             continue;
           }
           const stored = await storePageText(
@@ -678,7 +688,8 @@ interface DuePage {
 }
 
 const DUE_PAGE_PREDICATE = `
-      domain = $1 AND status <> 'deleted' AND fail_count < ${MAX_FETCH_FAILURES}
+      domain = $1 AND status <> 'deleted'
+      AND (listed OR fail_count < ${MAX_FETCH_FAILURES})
       AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
 
 /** The next URLs this scan has not visited yet (never-crawled first). The
@@ -743,12 +754,15 @@ async function fetchAndStorePage(
       httpsOnly: true,
     });
   } catch (error) {
-    const message =
-      error instanceof SafeFetchError || error instanceof Error
-        ? error.message
-        : String(error);
-    console.warn(`[crawl] ${page.url}: fetch failed: ${message}`);
-    await recordPageFailure(sql, domain, page.url);
+    const message = error instanceof Error ? error.message : String(error);
+    // The refusal is the row's record, kind included: a redirect into a
+    // private address the guard refused before dialing, a DNS miss and a
+    // timeout used to leave the same silent `discovered` row — from the
+    // API nobody could tell a blocked redirect from a dialed one.
+    const kind: PageFailureKind =
+      error instanceof SafeFetchError ? error.kind : 'network_error';
+    console.warn(`[crawl] ${page.url}: fetch failed (${kind}): ${message}`);
+    await recordPageFailure(sql, domain, page.url, { kind, message });
     return 'failed';
   }
 
@@ -776,7 +790,12 @@ async function fetchAndStorePage(
     return 'unchanged';
   }
   if (response.status < 200 || response.status >= 300) {
-    await recordPageFailure(sql, domain, page.url);
+    await recordPageFailure(sql, domain, page.url, {
+      kind: 'http_error',
+      message: `The page answered HTTP ${response.status}${
+        response.statusText === '' ? '' : ` ${response.statusText}`
+      }`,
+    });
     return 'failed';
   }
   const contentType = response.headers.get('content-type') ?? '';
@@ -812,12 +831,19 @@ async function fetchAndStorePage(
       });
       text = extracted;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.warn(
-        `[crawl] ${page.url}: extraction failed for ${name}:`,
-        error instanceof Error ? error.message : error,
+        `[crawl] ${page.url}: extraction failed for ${name}: ${message}`,
       );
-      await markPageVisited(sql, domain, page.url);
-      return 'unchanged';
+      // A failure like any other — it used to be recorded as a plain visit
+      // (`fail_count` reset, nothing stored, no trace), so a document no
+      // extractor could read was re-fetched every scan for ever and never
+      // said so.
+      await recordPageFailure(sql, domain, page.url, {
+        kind: 'extraction_failed',
+        message: `Text extraction failed for ${name}: ${message}`,
+      });
+      return 'failed';
     }
     title = name;
   }
@@ -845,7 +871,8 @@ async function storePageText(
     await tx.unsafe(
       `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
           SET content = $3, title = $4, content_hash = $5, word_count = $6,
-              status = 'active', last_crawled_at = NOW(), fail_count = 0
+              status = 'active', last_crawled_at = NOW(), fail_count = 0,
+              last_error = NULL, last_error_kind = NULL, last_error_at = NULL
         WHERE domain = $1 AND url = $2`,
       [domain, page.url, text, title, contentHash, wordCount],
     );
@@ -916,7 +943,9 @@ async function admitRenderedLinks(
   }
 }
 
-/** Remember that the scan looked at a URL without storing content for it. */
+/** Remember that the scan looked at a URL without storing content for it
+ * (a binary this lane cannot turn into text) — a successful attempt, so the
+ * failure record goes too. */
 async function markPageVisited(
   sql: Sql,
   domain: string,
@@ -924,22 +953,43 @@ async function markPageVisited(
 ): Promise<void> {
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET last_crawled_at = NOW(), fail_count = 0
+        SET last_crawled_at = NOW(), fail_count = 0,
+            last_error = NULL, last_error_kind = NULL, last_error_at = NULL
       WHERE domain = $1 AND url = $2`,
     [domain, url],
   );
 }
 
+/** What a failed attempt leaves on the row: its kind (the vocabulary the
+ * page list and the OpenAPI enum share) and the message. */
+interface PageFailure {
+  readonly kind: PageFailureKind;
+  readonly message: string;
+}
+
+/** A runaway error text (a provider's whole HTML page) must not become the
+ * row; the first lines say what went wrong. */
+const PAGE_ERROR_MAX_CHARS = 500;
+
+/**
+ * Charge a failed attempt to the row — the counter the fetch cap reads, and
+ * the reason a reader of the page list gets: a row that shows `discovered`
+ * with no words now says whether a guard refused a redirect, the origin
+ * answered 500, or the render timed out, instead of looking like a page
+ * nobody has fetched yet.
+ */
 async function recordPageFailure(
   sql: Sql,
   domain: string,
   url: string,
+  failure: PageFailure,
 ): Promise<void> {
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET fail_count = fail_count + 1, last_crawled_at = NOW()
+        SET fail_count = fail_count + 1, last_crawled_at = NOW(),
+            last_error = $3, last_error_kind = $4, last_error_at = NOW()
       WHERE domain = $1 AND url = $2`,
-    [domain, url],
+    [domain, url, failure.message.slice(0, PAGE_ERROR_MAX_CHARS), failure.kind],
   );
 }
 

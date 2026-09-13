@@ -12,7 +12,20 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { chatShimHandlers } from './shim.ts';
+
+vi.mock('../documents/agent-list.ts', () => ({
+  listDocumentsForAgent: vi.fn(() =>
+    Promise.resolve({
+      documents: [],
+      totalCount: null,
+      hasMore: false,
+      cursor: null,
+      warning: null,
+    }),
+  ),
+}));
 
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(
@@ -56,6 +69,40 @@ async function resolve(userId: string): Promise<Record<string, unknown>> {
     unknown
   >;
 }
+
+describe('the chat document listing door', () => {
+  const LIST = 'documents/internal_queries:listForAgent';
+
+  async function list(args: Record<string, unknown>): Promise<void> {
+    const handler = chatShimHandlers({} as unknown as Sql)[LIST];
+    if (handler === undefined) throw new Error('list door missing');
+    await handler({ organizationId: 'org-1', userId: 'u-1', ...args });
+  }
+
+  it('passes the pinned project AND the hub union for a readable project', async () => {
+    await list({ projectId: 'proj-1', includeHub: true, limit: 20 });
+    expect(listDocumentsForAgent).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org-1',
+        teamIds: ['org_org-1', 'team-a'],
+        projectId: 'proj-1',
+        includeHub: true,
+        limit: 20,
+      }),
+    );
+  });
+
+  it('falls through to the hub lane for a project the caller cannot read', async () => {
+    // The 0.4 fail-safe, kept: an unreadable project never loosens the
+    // boundary — the page is the hub alone, and `includeHub` rides only with
+    // a project lane it may join.
+    await list({ projectId: 'proj-secret', includeHub: true });
+    const call = vi.mocked(listDocumentsForAgent).mock.lastCall?.[1];
+    expect(call).not.toHaveProperty('projectId');
+    expect(call).not.toHaveProperty('includeHub');
+  });
+});
 
 describe('the chat turn knowledge scope', () => {
   it('admits conversation-scoped rows for a live member and names them', async () => {

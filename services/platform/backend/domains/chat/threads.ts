@@ -647,27 +647,69 @@ export async function stampCancelRequest(
   `;
 }
 
+/** The stop for a send that is still QUEUED — accepted, no worker has
+ * opened its turn, so there is no generation row to flag: the stamp names
+ * the reply the 202 promised (the marker's `stream_id`), and the turn job
+ * reads it before it opens anything. Conditional on the marker, so the
+ * write is the verdict — a send whose worker opened or finished the turn
+ * between the caller's poll and this call is not "cancelled" after the
+ * fact. The row with the promised id, or null when nothing is queued. */
+export async function stampQueuedCancelRequest(
+  sql: Sql,
+  threadId: string,
+): Promise<{ messageId: string | null } | null> {
+  const rows = await sql<{ messageId: string | null }[]>`
+    UPDATE app.thread_metadata SET
+      cancelled_at_ms = ${Date.now()}, cancelled_message_id = stream_id
+    WHERE thread_id = ${threadId} AND generation_queued_since_ms IS NOT NULL
+    RETURNING stream_id AS "messageId"
+  `;
+  return rows[0] ?? null;
+}
+
+/** The reply a stop was stamped for, or null — what the REST turn job
+ * compares with the id it was to write before it opens a turn, so a stop
+ * that arrived while the send was queued settles it without a model call.
+ * The turn-open write resets the stamp, so an earlier turn's stop never
+ * matches a later send. */
+export async function cancelledMessageIdFor(
+  sql: Sql,
+  threadId: string,
+): Promise<string | null> {
+  const rows = await sql<{ messageId: string | null }[]>`
+    SELECT cancelled_message_id AS "messageId" FROM app.thread_metadata
+    WHERE thread_id = ${threadId} LIMIT 1
+  `;
+  return rows[0]?.messageId ?? null;
+}
+
 /** Archive or unarchive. A metadata edit (recency preserved — the list
  * order is message activity, so archiving never reorders it; the moment is
- * stamped on `archived_at_ms` for an incremental sync to see); audited. */
+ * stamped on `archived_at_ms` for an incremental sync to see); audited.
+ * Answers the state as written — the stamp included, so a caller echoes
+ * the moment the row holds rather than a clock of its own — or null when
+ * the caller owns no such thread. */
 export async function setThreadArchived(
   sql: Sql,
   auth: { organizationId: string; userId: string; email?: string },
   threadId: string,
   archived: boolean,
-): Promise<boolean> {
+): Promise<{ archived: boolean; archivedAt: number | null } | null> {
   const thread = await loadOwnedThread(
     sql,
     auth.organizationId,
     auth.userId,
     threadId,
   );
-  if (!thread) return false;
-  if (thread.archived === archived) return true;
+  if (!thread) return null;
+  if (thread.archived === archived) {
+    return { archived, archivedAt: thread.archivedAt };
+  }
+  const archivedAt = archived ? Date.now() : null;
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.thread_metadata SET archived = ${archived},
-        archived_at_ms = ${archived ? Date.now() : null}
+        archived_at_ms = ${archivedAt}
       WHERE thread_id = ${thread.id}
     `;
     await createAuditLog(tx, {
@@ -683,7 +725,7 @@ export async function setThreadArchived(
       status: 'success',
     });
   });
-  return true;
+  return { archived, archivedAt };
 }
 
 /** The owner's opt-in to make the conversation readable by everyone with

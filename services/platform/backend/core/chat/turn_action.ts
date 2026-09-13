@@ -68,7 +68,10 @@ import { getServableCatalog } from '../lib/providers/servable_catalog';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { createChatToolExecutor } from './assistant_tools';
+import {
+  createChatToolExecutor,
+  type ChatToolContext,
+} from './assistant_tools';
 import {
   buildTurnGuardrails,
   mandatoryInstructionsFor,
@@ -870,6 +873,10 @@ export interface ExecuteTurnArgs {
    * REST door refuses one above it); absent samples the model's default. */
   readonly maxOutputTokens?: number;
   readonly locale: string;
+  /** REST: the caller named `locale` on the send, so the reply is written in
+   * it whatever language the prompt uses. The app lane never sets it — its
+   * `locale` is the UI's, and the prompt's own language wins there. */
+  readonly localeFixed?: boolean;
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
   readonly resend?: boolean;
@@ -1141,6 +1148,29 @@ export function settled<T>(
   );
 }
 
+/**
+ * Who the turn's tools run for — the executor's context, built from the
+ * thread facts the turn already resolved. Kept as its own seam so the one
+ * invariant that decides the tools' reach is stated (and tested) in one
+ * place: the project comes from the THREAD (its row, or the REST door's
+ * pinned URL project), never from the access-gated prompt block — a thread
+ * whose user lost project access keeps the project as its boundary and
+ * degrades to the organization hub, rather than widening to every project.
+ */
+export function chatToolContextForTurn(args: {
+  organizationId: string;
+  userId: string;
+  threadIds: readonly string[];
+  projectId: string | null;
+}): ChatToolContext {
+  return {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    threadIds: args.threadIds,
+    projectId: args.projectId,
+  };
+}
+
 export function unwrap<T>(result: PromiseSettledResult<T>): T {
   if (result.status === 'rejected') throw result.reason;
   return result.value;
@@ -1269,10 +1299,14 @@ export async function executeTurn(
   // bind against the visible root, so both the retroactive bind target and
   // the knowledge-tool scope speak in lineage terms, not one thread id.
   const lineage = unwrap(await pendingLineage);
+  // The thread's project, from its row (or the REST door's pinned URL
+  // project) — the scope boundary of the turn's tools whether or not the
+  // user may still read it; the prompt block below is the part access gates.
+  const threadProjectId = unwrap(await pendingProjectId);
   const projectContext = await resolveProjectContext(ctx, {
     organizationId: args.organizationId,
     userId: args.userId,
-    projectId: unwrap(await pendingProjectId),
+    projectId: threadProjectId,
   });
 
   // Attachments are refused before anything touches them: a foreign blob
@@ -1432,11 +1466,15 @@ export async function executeTurn(
     }),
     // The chat assistant's fixed three-tool loadout. A test that wants a
     // tool-free turn overrides `tools` with undefined.
-    tools: createChatToolExecutor(ctx, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      threadIds: lineage.threadIds,
-    }),
+    tools: createChatToolExecutor(
+      ctx,
+      chatToolContextForTurn({
+        organizationId: args.organizationId,
+        userId: args.userId,
+        threadIds: lineage.threadIds,
+        projectId: threadProjectId,
+      }),
+    ),
     ...overrides.deps,
   };
 
@@ -1457,6 +1495,7 @@ export async function executeTurn(
     toolDocs: CHAT_TOOL_DOCS,
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
+    ...(args.localeFixed === true ? { localeFixed: true } : {}),
     model: resolved.entry,
     ...(args.reasoningEffort !== undefined
       ? { reasoningEffort: args.reasoningEffort }

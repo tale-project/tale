@@ -24,6 +24,7 @@ import {
   renameThread,
   setThreadArchived,
   stampCancelRequest,
+  stampQueuedCancelRequest,
   trashThread,
 } from '../domains/chat/threads.ts';
 import { resolveModelGovernanceForUser } from '../domains/governance/service.ts';
@@ -69,6 +70,13 @@ const MAX_MODEL_ID = 200;
 /** A BCP 47 language tag as the reply-language directive reads it: a
  * language subtag and optional further subtags (`de`, `en-GB`, `zh-Hant`). */
 const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+/** The characters of one streamed field a poller already holds (`since`
+ * for the text, `reasoningSince` for the reasoning): a whole number, bounded
+ * here so nothing else reaches the slice. */
+const HELD_CHARACTERS = z
+  .string()
+  .regex(/^\d{1,9}$/, 'must be a whole number of characters')
+  .optional();
 
 /** The token usage a finished turn recorded, whitelisted to the counters
  * the turn writes, the catalog cost estimate it stamps beside them, and the
@@ -418,10 +426,30 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       ${deps.sql.unsafe(REST_THREAD_JOINS)}
       WHERE t.id = ${threadId} AND t.org_id = ${c.get('organizationId')}
         AND t.user_id = ${c.get('userId')} AND tm.status = 'active'
+        AND tm.hidden IS NOT true
         AND tm.project_id IS NOT DISTINCT FROM ${projectId}
       LIMIT 1
     `;
     return rows[0] ?? null;
+  };
+
+  /** The newest assistant row — the one the last turn settled into — as
+   * the idle poll names it. A poller compares its id with the 202's
+   * `messageId`: equal means that turn is over, another means it has not
+   * started. The stop that finds nothing running answers the same pair. */
+  const newestAssistant = async (
+    threadId: string,
+  ): Promise<{ lastMessageId: string; lastStatus: string } | undefined> => {
+    const rows = await deps.sql<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.messages
+      WHERE thread_id = ${threadId} AND role = 'assistant'
+      ORDER BY "order" DESC, step_order DESC
+      LIMIT 1
+    `;
+    const last = rows[0];
+    return last === undefined
+      ? undefined
+      : { lastMessageId: last.id, lastStatus: last.status };
   };
 
   // Both resources share the same chat behavior; the path fixes the scope
@@ -577,6 +605,13 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
+      // The archive state as the domain wrote it: the toggle answers the
+      // stamp it recorded, so the echo and the next GET agree to the
+      // millisecond (the door used to stamp a clock of its own).
+      let archive = {
+        archived: thread.archived,
+        archivedAt: thread.archivedAt,
+      };
       try {
         if (body.title !== undefined) {
           await renameThread(
@@ -588,28 +623,24 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           );
         }
         if (body.archived !== undefined) {
-          await setThreadArchived(
+          const toggled = await setThreadArchived(
             deps.sql,
             restAuth(c),
             thread.id,
             body.archived,
           );
+          if (toggled === null)
+            return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
+          archive = toggled;
         }
       } catch (error) {
         return domainErrorResponse(c, error);
       }
-      const archived = body.archived ?? thread.archived;
       return c.json(
         threadView({
           ...thread,
           ...(body.title !== undefined ? { title: body.title } : {}),
-          archived,
-          archivedAt:
-            body.archived === undefined
-              ? thread.archivedAt
-              : archived
-                ? (thread.archivedAt ?? Date.now())
-                : null,
+          ...archive,
         }),
       );
     });
@@ -718,13 +749,13 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
      * so a poller knows which turn ended without walking the transcript. */
     app.get(`${scope.item}/generation`, async (c) => {
       const query = readQuery(c, {
-        since: z
-          .string()
-          .regex(/^\d{1,9}$/, 'must be a whole number of characters')
-          .optional(),
+        since: HELD_CHARACTERS,
+        reasoningSince: HELD_CHARACTERS,
       });
       if (query instanceof Response) return query;
       const since = query.since === undefined ? 0 : Number(query.since);
+      const reasoningSince =
+        query.reasoningSince === undefined ? 0 : Number(query.reasoningSince);
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
         return notFound(c, 'Thread not found', 'THREAD_NOT_FOUND');
@@ -753,29 +784,23 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               : {}),
           });
         }
-        // The newest assistant row: the one the last turn settled into.
-        // A poller compares its id with the 202's messageId — equal means
-        // that turn is over, another means it has not started.
-        const newest = await deps.sql<{ id: string; status: string }[]>`
-        SELECT id, status FROM app.messages
-        WHERE thread_id = ${thread.id} AND role = 'assistant'
-        ORDER BY "order" DESC, step_order DESC
-        LIMIT 1
-      `;
-        const last = newest[0];
         return c.json({
           status: 'idle',
-          ...(last !== undefined
-            ? { lastMessageId: last.id, lastStatus: last.status }
-            : {}),
+          ...(await newestAssistant(thread.id)),
         });
       }
       // The delta: what arrived after the characters the caller holds. A
       // `since` past the current length means the tail was reset (a tool
       // round settled its text onto the parts) — answer from 0, and the
-      // offset tells the caller to replace what it holds.
+      // offset tells the caller to replace what it holds. The reasoning
+      // stream is sliced by the same rule under `reasoningSince`: it is
+      // reset together with the text, and re-sending it whole on every
+      // poll made a long thinking turn quadratic on the wire.
       const fullText = generation.text ?? '';
       const textOffset = since <= fullText.length ? since : 0;
+      const fullReasoning = generation.reasoning ?? '';
+      const reasoningOffset =
+        reasoningSince <= fullReasoning.length ? reasoningSince : 0;
       return c.json({
         status: generation.messageId === null ? 'queued' : 'streaming',
         ...(generation.messageId !== null
@@ -784,7 +809,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         text: fullText.slice(textOffset),
         textOffset,
         textLength: fullText.length,
-        reasoning: generation.reasoning ?? '',
+        reasoning: fullReasoning.slice(reasoningOffset),
+        reasoningOffset,
+        reasoningLength: fullReasoning.length,
         cancelRequested: generation.cancelRequested === true,
         ...(typeof generation.updatedAt === 'number'
           ? { updatedAt: generation.updatedAt }
@@ -794,7 +821,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
     /** Cancel the running turn — the app's own stop: the turn reads the
      * flag at its next progress write and settles what it has. 202: the
-     * stop is asked for, not yet done; poll until idle. */
+     * stop is asked for, not yet done; poll until idle. A send still
+     * queued (accepted, no worker yet) is stopped the same way: its job
+     * settles the promised reply as `cancelled` without calling the model. */
     app.delete(`${scope.item}/generation`, async (c) => {
       const thread = await loadRestThread(c, threadIdFor(c), projectIdFor(c));
       if (thread === null)
@@ -806,7 +835,31 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     `;
       const generation = rows[0];
       if (generation === undefined) {
-        return notFound(c, 'No turn is running.', 'CHAT_TURN_NOT_RUNNING');
+        // No turn to flag. The queued send has only the 202's marker: the
+        // stop is stamped for the reply it promised — while the marker
+        // still stands, so a turn that opened meanwhile is not "cancelled"
+        // after the fact — and the job reads the stamp before it opens.
+        const queued = await stampQueuedCancelRequest(deps.sql, thread.id);
+        if (queued !== null) {
+          return c.json(
+            {
+              status: 'cancelling',
+              ...(queued.messageId !== null
+                ? { messageId: queued.messageId }
+                : {}),
+            },
+            202,
+          );
+        }
+        // Nothing runs and nothing waits. The 404 carries what the idle
+        // poll would: a stop that lost the race against a fast model reads
+        // the settled reply's id here instead of making a second call.
+        return notFound(
+          c,
+          'No turn is running.',
+          'CHAT_TURN_NOT_RUNNING',
+          await newestAssistant(thread.id),
+        );
       }
       await stampCancelRequest(deps.sql, thread.id, generation.messageId);
       return c.json(
@@ -1026,7 +1079,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             ...(body.maxOutputTokens !== undefined
               ? { maxOutputTokens: body.maxOutputTokens }
               : {}),
-            ...(body.locale !== undefined ? { locale: body.locale } : {}),
+            // A named locale PINS the reply language — the directive the
+            // app lane uses lets the prompt's language win, which read as
+            // the field doing nothing.
+            ...(body.locale !== undefined
+              ? { locale: body.locale, localeFixed: true }
+              : {}),
           });
           if (scopeKey !== undefined) {
             await rememberAcceptedSend(tx, {

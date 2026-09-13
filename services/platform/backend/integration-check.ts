@@ -64,7 +64,10 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { BACKEND_SERVER_OPTIONS } from './lib/http-hygiene.ts';
+import {
+  BACKEND_SERVER_OPTIONS,
+  installClientErrorEnvelope,
+} from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
@@ -4100,6 +4103,157 @@ async function checkDocuments(
     `bind → ${projectDocId || 'ERR'}, hubHidden=${hubBeforeDetach.success ? !hubBeforeDetach.data.documents.some((d) => d.id === projectDocId) : 'ERR'}, inProject=${projDocs.success ? projDocs.data.documents.some((d) => d.id === projectDocId) : 'ERR'}, detach → ${detach.status}, hubListed=${hubAfterDetach.success ? hubAfterDetach.data.documents.some((d) => d.id === projectDocId) : 'ERR'}`,
   );
 
+  // --- A project chat's document scope: union listing + on-demand read ----
+  // A project file bound WITHOUT indexing (the REST door's default —
+  // `skipRagIndexing: true` persists the opt-out and leaves `rag_status`
+  // NULL) must (1) list through the chat door beside the hub files, project
+  // rows first, carrying `scope`/`project`/`indexing: skipped`; (2) stay out
+  // of the project-only lane the sandbox `document_find` uses when `includeHub`
+  // is absent; and (3) read on demand through the ONE document-text reader
+  // both `rag_fetch` doors use — the bytes are the file, whatever the index
+  // says — with the admission decided by the live-truth filter on the chat
+  // map's handlers.
+  const leadVerifyBody = 'lead: verified\nsource: itest';
+  const leadVerifyStaged = z
+    .object({ url: z.string().url(), s3Ref: z.string() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+  let leadVerifyRef = '';
+  if (leadVerifyStaged.success) {
+    await fetch(leadVerifyStaged.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: leadVerifyBody,
+    });
+    const bound = z
+      .object({ success: z.boolean(), documentId: z.string() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+            {
+              storageRef: leadVerifyStaged.data.s3Ref,
+              fileName: 'lead-verify.txt',
+              contentType: 'text/plain',
+              projectId,
+              skipRagIndexing: true,
+            },
+          )
+        ).json(),
+      );
+    if (bound.success) leadVerifyRef = leadVerifyStaged.data.s3Ref;
+  }
+  const scopedPage = z.object({
+    documents: z.array(
+      z.object({
+        fileId: z.string(),
+        title: z.string(),
+        projectId: z.string().nullable(),
+        projectName: z.string().nullable(),
+        indexing: z.object({ status: z.string() }).nullable(),
+      }),
+    ),
+    hasMore: z.boolean(),
+  });
+  const unionList = scopedPage.safeParse(
+    await chatDoor?.({
+      organizationId: orgId,
+      userId,
+      projectId,
+      includeHub: true,
+      limit: 100,
+    }),
+  );
+  const projectOnlyList = scopedPage.safeParse(
+    await chatDoor?.({ organizationId: orgId, userId, projectId, limit: 100 }),
+  );
+  const unionRows = unionList.success ? unionList.data.documents : [];
+  const leadRow = unionRows.find((d) => d.fileId === leadVerifyRef);
+  const notesRow = unionRows.find((d) => d.title === 'notes.txt');
+  const firstHubIndex = unionRows.findIndex((d) => d.projectId === null);
+  const lastProjectIndex = unionRows.reduce(
+    (last, d, i) => (d.projectId !== null ? i : last),
+    -1,
+  );
+  const { createCtxShim: createChatCtxShim } =
+    await import('./lib/ctx-shim.ts');
+  const { readDocumentText } =
+    await import('./core/knowledge/document_text.ts');
+  const chatCtx = createChatCtxShim(chatShimHandlers(sql));
+  const { resolveOrgSlug: resolveLeadOrgSlug } =
+    await import('./lib/org-config.ts');
+  const leadOrgSlug = (await resolveLeadOrgSlug(sql, orgId)) ?? '';
+  const scopeDoor =
+    chatShimHandlers(sql)['documents/internal_queries:resolveKnowledgeAccess'];
+  const baseScope = z
+    .object({
+      teamIds: z.array(z.string()),
+      projectIds: z.array(z.string()),
+      includeHub: z.boolean(),
+      includeConversationScoped: z.boolean().optional(),
+      userId: z.string().optional(),
+    })
+    .safeParse(await scopeDoor?.({ organizationId: orgId, userId }));
+  // The executor's pin, by hand: this project only, the hub as the user sees it.
+  const pinnedScope = baseScope.success
+    ? { ...baseScope.data, projectIds: [projectId] }
+    : { teamIds: [], projectIds: [projectId], includeHub: true, userId };
+  const onDemand =
+    leadVerifyRef === ''
+      ? null
+      : await readDocumentText(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shim answers every name the reader dispatches
+          chatCtx as unknown as Parameters<typeof readDocumentText>[0],
+          {
+            organizationId: orgId,
+            orgSlug: leadOrgSlug,
+            fileId: leadVerifyRef,
+            access: pinnedScope,
+          },
+        );
+  // The same ref from the organization chat (no project in scope) is the
+  // same miss as a missing file — unnamed.
+  const fromPersonal =
+    leadVerifyRef === ''
+      ? null
+      : await readDocumentText(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- as above
+          chatCtx as unknown as Parameters<typeof readDocumentText>[0],
+          {
+            organizationId: orgId,
+            orgSlug: leadOrgSlug,
+            fileId: leadVerifyRef,
+            access: { ...pinnedScope, projectIds: [] },
+          },
+        );
+  record(
+    'project chat document scope (union listing, indexing, on-demand read)',
+    leadVerifyRef !== '' &&
+      unionList.success &&
+      leadRow?.projectId === projectId &&
+      leadRow.projectName === 'Docs Project' &&
+      leadRow.indexing?.status === 'skipped' &&
+      notesRow !== undefined &&
+      notesRow.projectId === null &&
+      (firstHubIndex === -1 || lastProjectIndex < firstHubIndex) &&
+      projectOnlyList.success &&
+      projectOnlyList.data.documents.some((d) => d.fileId === leadVerifyRef) &&
+      !projectOnlyList.data.documents.some((d) => d.projectId === null) &&
+      onDemand?.status === 'ok' &&
+      onDemand.source === 'file' &&
+      onDemand.text === leadVerifyBody &&
+      onDemand.filename === 'lead-verify.txt' &&
+      fromPersonal?.status === 'not_found' &&
+      !('filename' in fromPersonal),
+    `bound=${leadVerifyRef !== ''}, union=${unionList.success ? unionRows.length : 'ERR'} (lead scope=${leadRow?.projectName ?? 'MISS'}/${leadRow?.indexing?.status ?? 'none'}, notes hub=${notesRow !== undefined && notesRow.projectId === null}, projectFirst=${firstHubIndex === -1 || lastProjectIndex < firstHubIndex}), projectOnly=${projectOnlyList.success ? `${projectOnlyList.data.documents.length} rows, hubLeak=${projectOnlyList.data.documents.some((d) => d.projectId === null)}` : 'ERR'}, onDemand=${onDemand?.status ?? 'skipped'}${onDemand?.status === 'ok' ? `/${onDemand.source}` : ''}, personal=${fromPersonal?.status ?? 'skipped'}${fromPersonal !== null && fromPersonal.status === 'not_found' && 'filename' in fromPersonal ? ' (NAMED!)' : ''}`,
+  );
+
   // Keyset page walk: disjoint pages, all four docs, terminal isDone.
   const pageSchema = z.object({
     page: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -6922,16 +7076,15 @@ async function checkSkills(
       files: z.array(z.object({ path: z.string(), size: z.number() })),
     })
     .loose();
-  const created = skillView.safeParse(
-    await (
-      await rest('PUT', 'itest-rest-skill', {
-        description: 'REST probe',
-        body: '# Probe',
-        icon: 'lucide:flask-conical',
-        labels: ['probe'],
-      })
-    ).json(),
-  );
+  // 201: the slug is free, so this save creates the bundle; the update
+  // below answers 200 — the status is the create-or-update signal.
+  const createdRes = await rest('PUT', 'itest-rest-skill', {
+    description: 'REST probe',
+    body: '# Probe',
+    icon: 'lucide:flask-conical',
+    labels: ['probe'],
+  });
+  const created = skillView.safeParse(await createdRes.json());
   const createOnly = await rest(
     'PUT',
     'itest-rest-skill',
@@ -6939,14 +7092,11 @@ async function checkSkills(
     { 'if-none-match': '*' },
   );
   const createOnlyCode = coded.safeParse(await createOnly.json());
-  const kept = skillView.safeParse(
-    await (
-      await rest('PUT', 'itest-rest-skill', {
-        description: 'Still decorated',
-        body: '# Probe',
-      })
-    ).json(),
-  );
+  const keptRes = await rest('PUT', 'itest-rest-skill', {
+    description: 'Still decorated',
+    body: '# Probe',
+  });
+  const kept = skillView.safeParse(await keptRes.json());
   const cleared = skillView.safeParse(
     await (
       await rest('PUT', 'itest-rest-skill', {
@@ -7010,6 +7160,9 @@ async function checkSkills(
     readView.data.etag === readEtag &&
     notModified.status === 304 &&
     notModified.headers.get('etag') === readEtag &&
+    // The 304 is the validated-read middleware's verdict, so it says what
+    // the 200 says about the same bytes — never the door's `no-store`.
+    notModified.headers.get('cache-control') === 'private, no-cache' &&
     staleWrite.status === 412 &&
     staleBody.success &&
     staleBody.data.code === 'SKILL_STALE' &&
@@ -7033,7 +7186,7 @@ async function checkSkills(
   record(
     'skills REST door (ETag/304, If-Match 412 stale + 200 guarded, bundle file bytes)',
     occOk,
-    `read → ${readBack.status} etag=${readEtag.slice(0, 12)}… view=${readView.success}, ifNoneMatch → ${notModified.status} (want 304), staleIfMatch → ${staleWrite.status}/${staleBody.success ? staleBody.data.code : 'ERR'} (want 412/SKILL_STALE) untouched=${afterStale.success && afterStale.data.etag === readEtag}, guarded → ${guardedWrite.status} newTag=${guardedView.success && guardedView.data.etag !== readEtag}, file → ${fileBytes.status} ${fileBytes.headers.get('content-type')} disposition=${fileBytes.headers.get('content-disposition')}, missing → ${missingFile.status}/${missingFileCode.success ? missingFileCode.data.code : 'ERR'}`,
+    `read → ${readBack.status} etag=${readEtag.slice(0, 12)}… view=${readView.success}, ifNoneMatch → ${notModified.status}/${notModified.headers.get('cache-control')} (want 304/private, no-cache), staleIfMatch → ${staleWrite.status}/${staleBody.success ? staleBody.data.code : 'ERR'} (want 412/SKILL_STALE) untouched=${afterStale.success && afterStale.data.etag === readEtag}, guarded → ${guardedWrite.status} newTag=${guardedView.success && guardedView.data.etag !== readEtag}, file → ${fileBytes.status} ${fileBytes.headers.get('content-type')} disposition=${fileBytes.headers.get('content-disposition')}, missing → ${missingFile.status}/${missingFileCode.success ? missingFileCode.data.code : 'ERR'}`,
   );
   const unknownKey = await rest('PUT', 'itest-rest-skill', {
     description: 'a',
@@ -7060,6 +7213,7 @@ async function checkSkills(
   const removed = await rest('DELETE', 'itest-rest-skill');
   const restOk =
     minted.success &&
+    createdRes.status === 201 &&
     created.success &&
     created.data.body === '# Probe\n' &&
     created.data.canEdit &&
@@ -7067,6 +7221,7 @@ async function checkSkills(
     createOnly.status === 412 &&
     createOnlyCode.success &&
     createOnlyCode.data.code === 'SKILL_EXISTS' &&
+    keptRes.status === 200 &&
     kept.success &&
     kept.data.icon === 'lucide:flask-conical' &&
     kept.data.labels?.[0] === 'probe' &&
@@ -7090,7 +7245,7 @@ async function checkSkills(
   record(
     'skills REST door (create-only, merge + null clear, strict body, slug rules)',
     restOk,
-    `key=${minted.success}, create=${created.success}, ifNoneMatch → ${createOnly.status}/${createOnlyCode.success ? createOnlyCode.data.code : 'ERR'} (want 412/SKILL_EXISTS), kept=${kept.success ? `${kept.data.icon ?? 'none'}/${kept.data.labels?.join('+') ?? 'none'}` : 'ERR'}, cleared=${cleared.success ? `${cleared.data.icon ?? 'none'}/${cleared.data.labels?.join('+') ?? 'none'}` : 'ERR'}, unknownKey → ${unknownKey.status}, private → ${retired.status}/${retiredBody.success ? retiredBody.data.code : 'ERR'} advertised=${retiredBody.success && retiredBody.data.error.includes('private')}, longSlug GET → ${longRead.status}/${longReadCode.success ? longReadCode.data.code : 'ERR'}, PUT → ${longSave.status}/${longSaveBody.success ? longSaveBody.data.code : 'ERR'}, delete → ${removed.status}`,
+    `key=${minted.success}, create → ${createdRes.status} (want 201) ${created.success}, update → ${keptRes.status} (want 200), ifNoneMatch → ${createOnly.status}/${createOnlyCode.success ? createOnlyCode.data.code : 'ERR'} (want 412/SKILL_EXISTS), kept=${kept.success ? `${kept.data.icon ?? 'none'}/${kept.data.labels?.join('+') ?? 'none'}` : 'ERR'}, cleared=${cleared.success ? `${cleared.data.icon ?? 'none'}/${cleared.data.labels?.join('+') ?? 'none'}` : 'ERR'}, unknownKey → ${unknownKey.status}, private → ${retired.status}/${retiredBody.success ? retiredBody.data.code : 'ERR'} advertised=${retiredBody.success && retiredBody.data.error.includes('private')}, longSlug GET → ${longRead.status}/${longReadCode.success ? longReadCode.data.code : 'ERR'}, PUT → ${longSave.status}/${longSaveBody.success ? longSaveBody.data.code : 'ERR'}, delete → ${removed.status}`,
   );
 }
 
@@ -12520,14 +12675,49 @@ async function checkRestDoor(
 
   // Trigger lifecycle: webhook PUT mints the token exactly once; the read
   // answers only hasToken; DELETE unbinds.
-  const triggerPut = z.looseObject({ token: z.string().optional() }).safeParse(
-    await (
-      await v1('/automations/ops__door/triggers', {
-        method: 'PUT',
-        body: { kind: 'webhook' },
-      })
-    ).json(),
-  );
+  const triggerPut = z
+    .looseObject({ token: z.string().optional(), deployed: z.boolean() })
+    .safeParse(
+      await (
+        await v1('/automations/ops__door/triggers', {
+          method: 'PUT',
+          body: { kind: 'webhook' },
+        })
+      ).json(),
+    );
+  // The listing row carries the binding's health beside its kind and
+  // switch — a fresh webhook binding has fired nothing and skipped nothing.
+  const doorListedTrigger = z
+    .object({
+      automations: z.array(
+        z.looseObject({
+          name: z.string(),
+          trigger: z
+            .object({
+              kind: z.string(),
+              enabled: z.boolean(),
+              lastFiredAt: z.number().nullable(),
+              lastSkippedAt: z.number().nullable(),
+              lastSkipReason: z.string().nullable(),
+            })
+            .nullable(),
+        }),
+      ),
+    })
+    .loose()
+    .safeParse(await (await v1('/automations')).json());
+  const doorTriggerRow = doorListedTrigger.success
+    ? doorListedTrigger.data.automations.find((a) => a.name === 'ops/door')
+        ?.trigger
+    : undefined;
+  const doorTriggerHealthOk =
+    doorTriggerRow !== undefined &&
+    doorTriggerRow !== null &&
+    doorTriggerRow.kind === 'webhook' &&
+    doorTriggerRow.enabled &&
+    doorTriggerRow.lastFiredAt === null &&
+    doorTriggerRow.lastSkippedAt === null &&
+    doorTriggerRow.lastSkipReason === null;
   const triggerRead = z
     .object({
       triggers: z.array(z.looseObject({ hasToken: z.boolean().optional() })),
@@ -12586,6 +12776,8 @@ async function checkRestDoor(
       doorListed.data.automations.some((a) => a.name === 'ops/door') &&
       triggerPut.success &&
       typeof triggerPut.data.token === 'string' &&
+      triggerPut.data.deployed &&
+      doorTriggerHealthOk &&
       triggerRead.success &&
       triggerRead.data.triggers[0]?.hasToken === true &&
       triggerDeleted.status === 204 &&
@@ -12597,7 +12789,7 @@ async function checkRestDoor(
       runsListed.data.runs.length >= 1 &&
       badKey.status === 401 &&
       noKey.status === 401,
-    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, autom read=${doorRead.success ? (doorRead.data.deployedVersion ?? 'nodeploy') : 'ERR'}, trigger mint/read/del=${triggerPut.success && typeof triggerPut.data.token === 'string'}/${triggerRead.success ? triggerRead.data.triggers[0]?.hasToken : 'ERR'}/${triggerDeleted.status}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
+    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, autom read=${doorRead.success ? (doorRead.data.deployedVersion ?? 'nodeploy') : 'ERR'}, trigger mint/read/del=${triggerPut.success && typeof triggerPut.data.token === 'string'}/${triggerRead.success ? triggerRead.data.triggers[0]?.hasToken : 'ERR'}/${triggerDeleted.status} deployed=${triggerPut.success ? triggerPut.data.deployed : 'ERR'} (want true) listing health=${doorTriggerHealthOk} (${JSON.stringify(doorTriggerRow ?? null)}, want webhook/on/null/null/null), door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
   );
 }
 
@@ -12692,6 +12884,7 @@ async function checkRestMachineJourney(
         }),
       ),
       isDone: z.boolean(),
+      continueCursor: z.string(),
     })
     .safeParse(await (await v1('/projects?limit=100')).json());
   const twinKey = 'door-journey-é';
@@ -12971,8 +13164,16 @@ async function checkRestMachineJourney(
         },
       })
     : null;
+  // The 201 carries what the gate established about the landed bytes — the
+  // HEAD's size and the type resolved from the name — beside the id.
   const bindBody = z
-    .object({ file: z.looseObject({ id: z.string() }) })
+    .object({
+      file: z.looseObject({
+        id: z.string(),
+        size: z.number(),
+        mimeType: z.string(),
+      }),
+    })
     .safeParse(bind === null ? {} : await bind.json());
   const documentId = bindBody.success ? bindBody.data.file.id : '';
   // The intent is single-use: a second bind of the same handshake refuses.
@@ -12987,13 +13188,90 @@ async function checkRestMachineJourney(
       })
     : null;
 
+  // Each listed row carries the blob's size and its indexing state: a
+  // REST-bound file opts out by default and reads `skipped`.
   const filesListed = z
-    .object({ files: z.array(z.looseObject({ id: z.string() })) })
+    .object({
+      files: z.array(
+        z.looseObject({
+          id: z.string(),
+          size: z.number().nullable(),
+          indexing: z.looseObject({ status: z.string() }).optional(),
+        }),
+      ),
+    })
     .safeParse(
       await (
         await v1(`/projects/${projectId}/files?folderId=${folderId}`)
       ).json(),
     );
+  const ledgerListed = filesListed.success
+    ? filesListed.data.files.find((f) => f.id === documentId)
+    : undefined;
+  const fileFactsOk =
+    bindBody.success &&
+    bindBody.data.file.size === LEDGER_BYTES.length &&
+    bindBody.data.file.mimeType === 'text/csv' &&
+    ledgerListed?.size === LEDGER_BYTES.length &&
+    ledgerListed.indexing?.status === 'skipped';
+  // One pager for every list: the projects listing and the file listing
+  // answer `continueCursor` (empty once complete) beside `cursor`, the same
+  // token under its pre-1.5.0 name, present only while more pages remain —
+  // a `limit=1` walk over the projects reaches the end through
+  // `continueCursor` alone, the twins agreeing on every page.
+  const twinPage = z.looseObject({
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+    cursor: z.string().optional(),
+  });
+  const walkProjects = async (): Promise<{
+    done: boolean;
+    pages: number;
+    twins: boolean;
+  }> => {
+    let cursor = '';
+    let pages = 0;
+    let twins = true;
+    while (pages < 200) {
+      const body = twinPage.safeParse(
+        await (
+          await v1(
+            `/projects?archived=include&limit=1${cursor === '' ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+          )
+        ).json(),
+      );
+      if (!body.success) return { done: false, pages, twins };
+      pages += 1;
+      if (body.data.isDone) {
+        return {
+          done:
+            body.data.continueCursor === '' && body.data.cursor === undefined,
+          pages,
+          twins,
+        };
+      }
+      twins = twins && body.data.cursor === body.data.continueCursor;
+      cursor = body.data.continueCursor;
+    }
+    return { done: false, pages, twins };
+  };
+  const projectsWalk = await walkProjects();
+  const filesPage = twinPage.safeParse(
+    await (
+      await v1(`/projects/${projectId}/files?folderId=${folderId}&limit=1`)
+    ).json(),
+  );
+  record(
+    'REST pagination twins: projects + files answer continueCursor beside the deprecated cursor',
+    projectsWalk.done &&
+      projectsWalk.pages >= 2 &&
+      projectsWalk.twins &&
+      filesPage.success &&
+      filesPage.data.isDone &&
+      filesPage.data.continueCursor === '' &&
+      filesPage.data.cursor === undefined,
+    `projects: done=${projectsWalk.done} pages=${projectsWalk.pages} (want ≥2) twins=${projectsWalk.twins}; files: ${filesPage.success ? `isDone=${filesPage.data.isDone} continueCursor=${JSON.stringify(filesPage.data.continueCursor)} cursor=${String(filesPage.data.cursor)} (want true/""/undefined)` : 'ERR'}`,
+  );
   const contentRes = await v1(
     `/projects/${projectId}/files/${documentId}/content`,
   );
@@ -13119,11 +13397,135 @@ async function checkRestMachineJourney(
         status: z.string(),
         labels: z.array(z.string()),
         externalSystem: z.string().optional(),
+        archivedAt: z.number().optional(),
       }),
     })
     .safeParse(
       await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
     );
+
+  // The owning automation's two absences are two refusals (round d,
+  // S3-4c): a name nobody saved is 404 AUTOMATION_NOT_FOUND; a saved one
+  // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, naming it — and
+  // neither creates the task. `journey/parked` is saved through the session
+  // surface (REST has no save) and never deployed.
+  const appSend = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  const parkedSaved = await appSend(
+    `/api/app/automations/journey/parked/save?orgId=${ctx.orgId}`,
+    {
+      document: {
+        version: 1,
+        name: 'journey/parked',
+        nodes: [
+          {
+            id: 'shape',
+            type: 'transform',
+            input: { n: '{{ input.n }}' },
+            code: 'return { doubled: input.n * 2 }',
+          },
+        ],
+        output: '{{ nodes.shape.output.doubled }}',
+      },
+    },
+  );
+  const ownerIntake = {
+    externalSystem: 'github',
+    externalId: 'journey-issue-8',
+    title: 'Owned by an automation',
+  };
+  const ghostOwner = await v1(`/projects/${projectId}/tasks`, {
+    body: { ...ownerIntake, automationSlug: 'journey/ghost' },
+  });
+  const ghostOwnerBody = z
+    .object({ code: z.string() })
+    .safeParse(await ghostOwner.json());
+  const parkedOwner = await v1(`/projects/${projectId}/tasks`, {
+    body: { ...ownerIntake, automationSlug: 'journey/parked' },
+  });
+  const parkedOwnerBody = z
+    .object({ error: z.string(), code: z.string() })
+    .safeParse(await parkedOwner.json());
+  const orphanRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.tasks
+    WHERE project_id = ${projectId} AND external_id = 'journey-issue-8'
+  `;
+  // Binding a trigger on the undeployed automation is accepted and says so
+  // (`deployed: false`); the listing row then shows the skip the scheduler
+  // stamps for it — written by hand here, the scan is another lane's proof.
+  const parkedTrigger = z
+    .looseObject({ name: z.string(), deployed: z.boolean() })
+    .safeParse(
+      await (
+        await v1('/automations/journey__parked/triggers', {
+          method: 'PUT',
+          body: { kind: 'schedule', cron: '*/5 * * * *', enabled: false },
+        })
+      ).json(),
+    );
+  await sql`
+    UPDATE app.automation_triggers
+    SET last_skipped_at_ms = 1700000000000, last_skip_reason = 'not_deployed'
+    WHERE org_id = ${ctx.orgId} AND name = 'journey/parked'
+  `;
+  const parkedListed = z
+    .object({
+      automations: z.array(
+        z.looseObject({
+          name: z.string(),
+          deployedVersion: z.number().nullable(),
+          trigger: z
+            .object({
+              kind: z.string(),
+              enabled: z.boolean(),
+              lastFiredAt: z.number().nullable(),
+              lastSkippedAt: z.number().nullable(),
+              lastSkipReason: z.string().nullable(),
+            })
+            .nullable(),
+        }),
+      ),
+    })
+    .loose()
+    .safeParse(await (await v1('/automations')).json());
+  const parkedRow = parkedListed.success
+    ? parkedListed.data.automations.find((a) => a.name === 'journey/parked')
+    : undefined;
+  const parkedRemoved = await v1('/automations/journey__parked', {
+    method: 'DELETE',
+  });
+  record(
+    'REST task owner refusals + trigger health on the listing (round d)',
+    parkedSaved.ok &&
+      ghostOwner.status === 404 &&
+      ghostOwnerBody.success &&
+      ghostOwnerBody.data.code === 'AUTOMATION_NOT_FOUND' &&
+      parkedOwner.status === 409 &&
+      parkedOwnerBody.success &&
+      parkedOwnerBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
+      parkedOwnerBody.data.error.includes('journey/parked') &&
+      orphanRows[0]?.count === '0' &&
+      parkedTrigger.success &&
+      !parkedTrigger.data.deployed &&
+      parkedRow !== undefined &&
+      parkedRow.deployedVersion === null &&
+      parkedRow.trigger !== null &&
+      parkedRow.trigger.kind === 'schedule' &&
+      !parkedRow.trigger.enabled &&
+      parkedRow.trigger.lastFiredAt === null &&
+      parkedRow.trigger.lastSkippedAt === 1_700_000_000_000 &&
+      parkedRow.trigger.lastSkipReason === 'not_deployed' &&
+      parkedRemoved.status === 204,
+    `save=${parkedSaved.status} ghost=${ghostOwner.status}/${ghostOwnerBody.success ? ghostOwnerBody.data.code : 'ERR'} (want 404 AUTOMATION_NOT_FOUND) parked=${parkedOwner.status}/${parkedOwnerBody.success ? parkedOwnerBody.data.code : 'ERR'} (want 409 AUTOMATION_NOT_DEPLOYED) orphans=${orphanRows[0]?.count} (want 0) put.deployed=${parkedTrigger.success ? parkedTrigger.data.deployed : 'ERR'} (want false) row=${JSON.stringify(parkedRow?.trigger ?? null)} (want schedule/off/null/1700000000000/not_deployed) delete=${parkedRemoved.status}/204`,
+  );
 
   const labelIndex = await sql<{ name: string }[]>`
     SELECT indexname AS name FROM pg_indexes
@@ -13252,6 +13654,7 @@ async function checkRestMachineJourney(
       rebind?.status === 409 &&
       filesListed.success &&
       filesListed.data.files.some((f) => f.id === documentId) &&
+      fileFactsOk &&
       contentRes.status === 200 &&
       contentDisposition?.startsWith('attachment; filename=') === true &&
       contentBytes === LEDGER_BYTES &&
@@ -13277,6 +13680,7 @@ async function checkRestMachineJourney(
       taskRead.data.task.status === 'backlog' &&
       taskRead.data.task.labels.includes('Ops') &&
       taskRead.data.task.externalSystem === 'github' &&
+      taskRead.data.task.archivedAt === undefined &&
       commentPosted.success &&
       commentsRead.success &&
       commentsRead.data.comments.some((row) =>
@@ -13294,7 +13698,249 @@ async function checkRestMachineJourney(
       twinDeleted.status === 204 &&
       twinGone.status === 404 &&
       twinKeyFree.status === 201,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+  );
+}
+
+/**
+ * The 0098 repair, replayed on the shipped file. 0093 canonicalised the
+ * caller-owned keys but skipped a row whose canonical form a twin already
+ * held, and the canonical lookup could never find such a row (round d,
+ * S2-3). With the canonical indexes dropped, raw twins are planted — an NFD
+ * project OLDER than its NFC holder, so age alone would pick the wrong
+ * keeper, and a task pair the same way — then the file is applied and must:
+ * keep the holder, detach the twin (key NULL; the project stamped, the
+ * task's URL kept), put the indexes back, and change nothing on a second
+ * application. The lookup finds the holder under the NFD spelling, the
+ * detached project reads with no key and re-keys through PATCH, and a raw
+ * NFD re-key is refused by the canonical index (23505).
+ */
+async function checkExternalKeyTwinRepair(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ name: 'itest-twins' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const migration = await readFile(
+    new URL(
+      './db/migrations/0098_external_keys_canonical_twins.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const pgCode = (error: unknown): string =>
+    error !== null &&
+    typeof error === 'object' &&
+    typeof Reflect.get(error, 'code') === 'string'
+      ? String(Reflect.get(error, 'code'))
+      : 'error';
+  // The same key in its two spellings: `é` precomposed (NFC, what the
+  // doors store) and `e` + U+0301 (NFD, what a macOS filesystem hands over).
+  const nfc = `repair-${String.fromCharCode(0xe9)}`;
+  const nfd = `repair-e${String.fromCharCode(0x301)}`;
+  const projectShape = z.object({ project: z.looseObject({ id: z.string() }) });
+  const holder = projectShape.safeParse(
+    await (
+      await v1('/projects', {
+        body: { name: 'Twin holder', externalItemId: nfc },
+      })
+    ).json(),
+  );
+  const holderId = holder.success ? holder.data.project.id : '';
+  const host = projectShape.safeParse(
+    await (await v1('/projects', { body: { name: 'Twin task host' } })).json(),
+  );
+  const hostId = host.success ? host.data.project.id : '';
+  const taskShape = z.object({ task: z.object({ id: z.string() }) });
+  const holderTask = taskShape.safeParse(
+    await (
+      await v1(`/projects/${hostId}/tasks`, {
+        body: {
+          externalSystem: 'github',
+          externalId: nfc,
+          title: 'Holder task',
+          externalUrl: 'https://example.test/holder',
+        },
+      })
+    ).json(),
+  );
+  const holderTaskId = holderTask.success ? holderTask.data.task.id : '';
+  const twinTask = taskShape.safeParse(
+    await (
+      await v1(`/projects/${hostId}/tasks`, {
+        body: {
+          externalSystem: 'github',
+          externalId: 'repair-twin-seed',
+          title: 'Twin task',
+          externalUrl: 'https://example.test/twin',
+        },
+      })
+    ).json(),
+  );
+  const twinTaskId = twinTask.success ? twinTask.data.task.id : '';
+  const twinProjectId = randomUUID();
+
+  await sql`DROP INDEX IF EXISTS app.projects_org_external_item_canonical`;
+  await sql`DROP INDEX IF EXISTS app.tasks_project_external_canonical`;
+  // Raw twins, behind the doors' canonicalisation: the byte-exact indexes
+  // admit them, as they admitted the rows 0093 left behind.
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, external_item_id, created_by,
+      created_at_ms, updated_at_ms)
+    VALUES (${twinProjectId}, ${ctx.orgId}, 'Twin (NFD, older)', ${nfd},
+      'itest', 1, 1)
+  `;
+  await sql`
+    UPDATE app.tasks SET external_id = ${nfd}, created_at_ms = 1
+    WHERE id = ${twinTaskId}
+  `;
+  const planted = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.projects
+    WHERE org_id = ${ctx.orgId} AND normalize(external_item_id, NFC) = ${nfc}
+  `;
+  const lookupShape = z.object({
+    projects: z.array(z.looseObject({ id: z.string() })),
+  });
+  // Before the repair the twin is unreachable: the lookup canonicalises
+  // the NFD input and finds the holder under either spelling, never the twin.
+  const beforeLookup = lookupShape.safeParse(
+    await (
+      await v1(`/projects?externalItemId=${encodeURIComponent(nfd)}`)
+    ).json(),
+  );
+
+  await sql.unsafe(migration);
+  const projectsAfter = await sql<
+    { id: string; key: string | null; updatedAt: number }[]
+  >`
+    SELECT id, external_item_id AS key, updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id IN (${holderId}, ${twinProjectId})
+    ORDER BY id
+  `;
+  const tasksAfter = await sql<
+    {
+      id: string;
+      system: string | null;
+      externalId: string | null;
+      url: string | null;
+    }[]
+  >`
+    SELECT id, external_system AS system, external_id AS "externalId",
+           external_url AS url
+    FROM app.tasks WHERE id IN (${holderTaskId}, ${twinTaskId})
+    ORDER BY id
+  `;
+  const indexes = await sql<{ name: string }[]>`
+    SELECT indexname AS name FROM pg_indexes
+    WHERE schemaname = 'app'
+      AND indexname IN ('projects_org_external_item_canonical',
+                        'tasks_project_external_canonical')
+  `;
+  const firstPass = JSON.stringify([projectsAfter, tasksAfter]);
+  await sql.unsafe(migration);
+  const secondPass = JSON.stringify([
+    await sql`
+      SELECT id, external_item_id AS key, updated_at_ms::float8 AS "updatedAt"
+      FROM app.projects WHERE id IN (${holderId}, ${twinProjectId})
+      ORDER BY id
+    `,
+    await sql`
+      SELECT id, external_system AS system, external_id AS "externalId",
+             external_url AS url
+      FROM app.tasks WHERE id IN (${holderTaskId}, ${twinTaskId})
+      ORDER BY id
+    `,
+  ]);
+  const holderRow = projectsAfter.find((row) => row.id === holderId);
+  const twinRow = projectsAfter.find((row) => row.id === twinProjectId);
+  const holderTaskRow = tasksAfter.find((row) => row.id === holderTaskId);
+  const twinTaskRow = tasksAfter.find((row) => row.id === twinTaskId);
+  const afterLookup = lookupShape.safeParse(
+    await (
+      await v1(`/projects?externalItemId=${encodeURIComponent(nfd)}`)
+    ).json(),
+  );
+  const twinRead = z
+    .object({
+      project: z.looseObject({ externalItemId: z.string().optional() }),
+    })
+    .safeParse(await (await v1(`/projects/${twinProjectId}`)).json());
+  // A raw NFD re-key after the repair is what the canonical index refuses.
+  const rawProjectTwin = await sql`
+    UPDATE app.projects SET external_item_id = ${nfd} WHERE id = ${twinProjectId}
+  `.then(() => 'accepted', pgCode);
+  const rawTaskTwin = await sql`
+    UPDATE app.tasks SET external_system = 'github', external_id = ${nfd}
+    WHERE id = ${twinTaskId}
+  `.then(() => 'accepted', pgCode);
+  // The documented recovery: the released row re-keys through the door.
+  const rekeyed = await v1(`/projects/${twinProjectId}`, {
+    method: 'PATCH',
+    body: { externalItemId: 'repair-rekeyed' },
+  });
+  // Tidy up: the two key-only projects detach (no content, no cascade
+  // budget spent); the host takes its tasks with it.
+  for (const id of [holderId, twinProjectId]) {
+    await v1(`/projects/${id}`, {
+      method: 'DELETE',
+      body: { mode: 'detach' },
+    });
+  }
+  await v1(`/projects/${hostId}`, { method: 'DELETE' });
+
+  record(
+    'REST external-key twin repair (0098)',
+    holder.success &&
+      holderTask.success &&
+      twinTask.success &&
+      planted[0]?.count === '2' &&
+      beforeLookup.success &&
+      beforeLookup.data.projects.length === 1 &&
+      beforeLookup.data.projects[0]?.id === holderId &&
+      holderRow?.key === nfc &&
+      twinRow?.key === null &&
+      twinRow.updatedAt > 1 &&
+      holderTaskRow?.system === 'github' &&
+      holderTaskRow.externalId === nfc &&
+      twinTaskRow?.system === null &&
+      twinTaskRow.externalId === null &&
+      twinTaskRow.url === 'https://example.test/twin' &&
+      indexes.length === 2 &&
+      firstPass === secondPass &&
+      afterLookup.success &&
+      afterLookup.data.projects.length === 1 &&
+      afterLookup.data.projects[0]?.id === holderId &&
+      twinRead.success &&
+      twinRead.data.project.externalItemId === undefined &&
+      rawProjectTwin === '23505' &&
+      rawTaskTwin === '23505' &&
+      rekeyed.status === 200,
+    `planted=${planted[0]?.count}/2 before lookup=${beforeLookup.success ? beforeLookup.data.projects.map((p) => p.id === holderId).join(',') : 'ERR'} (want holder only), after: holder key=${holderRow?.key === nfc} twin key=${String(twinRow?.key)} stamped=${twinRow !== undefined && twinRow.updatedAt > 1} task holder=${holderTaskRow?.externalId === nfc} task twin=${String(twinTaskRow?.system)}/${String(twinTaskRow?.externalId)} url kept=${twinTaskRow?.url === 'https://example.test/twin'} indexes=${indexes.length}/2 idempotent=${firstPass === secondPass} lookup finds holder=${afterLookup.success && afterLookup.data.projects[0]?.id === holderId} twin reads keyless=${twinRead.success && twinRead.data.project.externalItemId === undefined} raw NFD re-key → ${rawProjectTwin}/${rawTaskTwin} (want 23505/23505) PATCH re-key=${rekeyed.status}/200`,
   );
 }
 
@@ -13302,7 +13948,8 @@ async function checkRestMachineJourney(
  * The REST resource families beyond the door basics: contacts bulk import
  * (per-item duplicate accounting), the Knowledge-Hub document CRUD +
  * retry-indexing honesty, the knowledge-entry version chain over the wire
- * (PATCH answers the NEW id), the skills file layer, the REST chat lane
+ * (PATCH answers the NEW id; a PATCH that repeats the active row answers
+ * the SAME id and writes no version), the skills file layer, the REST chat lane
  * (202-accept → detached turn → poll → reply), and user-visible Hub knowledge
  * search on a live embedding endpoint.
  */
@@ -13574,6 +14221,57 @@ async function checkRestResources(
       ).json(),
     );
   const newEntryId = entryPatched.success ? entryPatched.data.id : '';
+  // Round d, S3-12d: the same body again — a retry after a timeout, a sync
+  // job replaying its state — is not a version. It answers the active row's
+  // own id, and the chain below still has exactly two rows.
+  const entryRepeat = z
+    .object({ id: z.string(), documentId: z.string() })
+    .safeParse(
+      await (
+        await v1(`/knowledge-entries/${newEntryId}`, {
+          method: 'PATCH',
+          body: { topic: 'REST Door Topic', content: 'version two' },
+        })
+      ).json(),
+    );
+  // Round d, D5: the REST retry runs through the app's own guards. The
+  // entry's backing document is file-backed, so its file row can be put
+  // into the two states the door now names — a fresh job in flight, a type
+  // no extractor reads — deterministically, without racing the worker.
+  const entryDocumentId = entryPatched.success
+    ? entryPatched.data.documentId
+    : 'none';
+  await sql`
+    UPDATE app.file_metadata
+    SET rag_status = 'queued', rag_queued_at_ms = ${Date.now()}
+    WHERE document_id = ${entryDocumentId}
+  `;
+  const retryInProgress = z
+    .object({ status: z.string(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await v1(`/documents/${entryDocumentId}/retry-indexing`, { body: {} })
+      ).json(),
+    );
+  await sql`
+    UPDATE app.file_metadata
+    SET rag_status = 'unsupported', rag_error = 'itest: no extractor'
+    WHERE document_id = ${entryDocumentId}
+  `;
+  const retryUnsupported = z
+    .object({ status: z.string(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await v1(`/documents/${entryDocumentId}/retry-indexing`, { body: {} })
+      ).json(),
+    );
+  // Back to a settled row: the chain checks below read the document's
+  // bytes and hash, never its indexing state.
+  await sql`
+    UPDATE app.file_metadata
+    SET rag_status = 'completed', rag_error = NULL
+    WHERE document_id = ${entryDocumentId}
+  `;
   const oldEntry = z
     .looseObject({ status: z.string(), supersededAt: z.number().optional() })
     .safeParse(await (await v1(`/knowledge-entries/${entryId}`)).json());
@@ -13643,17 +14341,16 @@ async function checkRestResources(
   });
 
   // ---- skills: the file layer over the wire ------------------------------
-  const skillSaved = z.looseObject({ slug: z.string().optional() }).safeParse(
-    await (
-      await v1('/skills/rest-door-skill', {
-        method: 'PUT',
-        body: {
-          description: 'Door-check skill',
-          body: '# Door skill\n\nUse the door.',
-        },
-      })
-    ).json(),
-  );
+  const skillSavedRes = await v1('/skills/rest-door-skill', {
+    method: 'PUT',
+    body: {
+      description: 'Door-check skill',
+      body: '# Door skill\n\nUse the door.',
+    },
+  });
+  const skillSaved = z
+    .looseObject({ slug: z.string().optional() })
+    .safeParse(await skillSavedRes.json());
   const skillRead = await v1('/skills/rest-door-skill');
   const skillReadBody = z.looseObject({}).safeParse(await skillRead.json());
   const skillsListed = z
@@ -13823,6 +14520,39 @@ async function checkRestResources(
       .status;
     const sinceBad = (await v1(`/threads/${threadId}/generation?since=x`))
       .status;
+    // The reasoning stream has a `since` of its own (a no-op while idle); a
+    // value that is not a count is refused the same way.
+    const reasoningSinceIdle = (
+      await v1(`/threads/${threadId}/generation?reasoningSince=3`)
+    ).status;
+    const reasoningSinceBad = (
+      await v1(`/threads/${threadId}/generation?reasoningSince=x`)
+    ).status;
+    // A stop with nothing running carries the idle poll's pair in `data`:
+    // a stop that lost the race against a fast model learns here that the
+    // reply already settled, without a second call.
+    const settledFirst = await waitFor(async () => {
+      const poll = z
+        .object({ status: z.string() })
+        .safeParse(await (await v1(`/threads/${threadId}/generation`)).json());
+      return poll.success && poll.data.status === 'idle';
+    }, 30_000);
+    const stopIdle = await v1(`/threads/${threadId}/generation`, {
+      method: 'DELETE',
+    });
+    const stopIdleBody = z
+      .object({
+        code: z.string(),
+        data: z.object({ lastMessageId: z.string(), lastStatus: z.string() }),
+      })
+      .safeParse(await stopIdle.json());
+    const stopIdleOk =
+      settledFirst &&
+      stopIdle.status === 404 &&
+      stopIdleBody.success &&
+      stopIdleBody.data.code === 'CHAT_TURN_NOT_RUNNING' &&
+      stopIdleBody.data.data.lastMessageId === acceptedId &&
+      stopIdleBody.data.data.lastStatus === 'complete';
     // The reply by id, in the list's shape, settled with why the model
     // stopped (the fake endpoint says `stop`); a stranger's id is a 404.
     const byId = z
@@ -13862,9 +14592,10 @@ async function checkRestResources(
       content: 'Second send while queued.',
       model: 'rest-chat',
     };
+    const queuedStreamId = randomUUID();
     await sql`
       UPDATE app.thread_metadata
-      SET generation_queued_since_ms = ${Date.now()}, stream_id = ${randomUUID()}
+      SET generation_queued_since_ms = ${Date.now()}, stream_id = ${queuedStreamId}
       WHERE thread_id = ${threadId}
     `;
     const busySend = await v1(`/threads/${threadId}/messages`, {
@@ -13883,6 +14614,26 @@ async function checkRestResources(
         headers: { 'Idempotency-Key': 'rest-chat-refused' },
       })
     ).status;
+    // A stop while the send is still queued: no generation row to flag, so
+    // the stop is stamped for the reply the marker names — on the real
+    // schema the conditional write lands, answers 202 with that id, and
+    // the sidecar carries the stamp the turn job reads before it opens.
+    const stopQueued = await v1(`/threads/${threadId}/generation`, {
+      method: 'DELETE',
+    });
+    const stopQueuedBody = z
+      .object({ status: z.string(), messageId: z.string().optional() })
+      .safeParse(await stopQueued.json());
+    const stamped = await sql<{ cancelledMessageId: string | null }[]>`
+      SELECT cancelled_message_id AS "cancelledMessageId"
+      FROM app.thread_metadata WHERE thread_id = ${threadId}
+    `;
+    const stopQueuedOk =
+      stopQueued.status === 202 &&
+      stopQueuedBody.success &&
+      stopQueuedBody.data.status === 'cancelling' &&
+      stopQueuedBody.data.messageId === queuedStreamId &&
+      stamped[0]?.cancelledMessageId === queuedStreamId;
     await sql`
       UPDATE app.thread_metadata
       SET generation_queued_since_ms = NULL, stream_id = NULL
@@ -13977,6 +14728,10 @@ async function checkRestResources(
       replied &&
       sinceIdle === 200 &&
       sinceBad === 400 &&
+      reasoningSinceIdle === 200 &&
+      reasoningSinceBad === 400 &&
+      stopIdleOk &&
+      stopQueuedOk &&
       byIdOk &&
       strangerStatus === 404 &&
       newestOk &&
@@ -13987,7 +14742,7 @@ async function checkRestResources(
       assistantRows === 3 &&
       threadListed.success &&
       threadListed.data.page.some((t) => t.id === threadId);
-    chatDetail = `thread=${threadCreated.success}, accepted=${accepted.success ? accepted.data.status : 'ERR'}, idle=${idle} (want lastMessageId=202's, lastStatus=complete), reply=${replied}, since=${sinceIdle}/${sinceBad} (want 200/400), byId=${byIdOk} (want complete/stop/usage), stranger=${strangerStatus} (want 404), newestFirst=${newestOk}, busySend=${busyOk} (want 409 CHAT_TURN_IN_PROGRESS), keyed=${keyedOk} (want refused 409 → 202 → 202 duplicate → 409 IDEMPOTENCY_KEY_REUSED), pair=${pairOk} (want one turn), assistantRows=${assistantRows} (want 3), listed=${threadListed.success && threadListed.data.page.some((t) => t.id === threadId)}`;
+    chatDetail = `thread=${threadCreated.success}, accepted=${accepted.success ? accepted.data.status : 'ERR'}, idle=${idle} (want lastMessageId=202's, lastStatus=complete), reply=${replied}, since=${sinceIdle}/${sinceBad} (want 200/400), reasoningSince=${reasoningSinceIdle}/${reasoningSinceBad} (want 200/400), stopIdle=${stopIdleOk} (want 404 + data naming the 202's reply/complete), stopQueued=${stopQueuedOk} (want 202 cancelling + the marker's id stamped), byId=${byIdOk} (want complete/stop/usage), stranger=${strangerStatus} (want 404), newestFirst=${newestOk}, busySend=${busyOk} (want 409 CHAT_TURN_IN_PROGRESS), keyed=${keyedOk} (want refused 409 → 202 → 202 duplicate → 409 IDEMPOTENCY_KEY_REUSED), pair=${pairOk} (want one turn), assistantRows=${assistantRows} (want 3), listed=${threadListed.success && threadListed.data.page.some((t) => t.id === threadId)}`;
 
     // ---- knowledge search: re-point the embedder, visible Hub query -----
     await writeFile(
@@ -14052,12 +14807,23 @@ async function checkRestResources(
       docListed.data.page.some((d) => d.id === docId) &&
       retry.success &&
       retry.data.status === 'skipped' &&
+      retryInProgress.success &&
+      retryInProgress.data.status === 'skipped' &&
+      retryInProgress.data.reason === 'in-progress' &&
+      retryUnsupported.success &&
+      retryUnsupported.data.status === 'skipped' &&
+      retryUnsupported.data.reason === 'unsupported' &&
       docDeleted.status === 204 &&
       docGone.status === 404 &&
       entryCreated.success &&
       entryDup.status === 409 &&
       entryPatched.success &&
       newEntryId !== entryId &&
+      entryRepeat.success &&
+      entryRepeat.data.id === newEntryId &&
+      entryRepeat.data.documentId === entryPatched.data.documentId &&
+      entryVersions.success &&
+      entryVersions.data.versions.length === 2 &&
       oldEntry.success &&
       oldEntry.data.status === 'superseded' &&
       typeof oldEntry.data.supersededAt === 'number' &&
@@ -14078,6 +14844,7 @@ async function checkRestResources(
       entryList.data.page.some((e) => e.id === newEntryId) &&
       !entryList.data.page.some((e) => e.id === entryId) &&
       entryDeleted.status === 204 &&
+      skillSavedRes.status === 201 &&
       skillSaved.success &&
       skillRead.status === 200 &&
       skillReadBody.success &&
@@ -14086,7 +14853,7 @@ async function checkRestResources(
       skillGone.status === 404 &&
       chatOk &&
       searchOk,
-    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), crm=[${crmDetail}], docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}(want 200)/stale=${docStale.status}(want 409)/${docRead.success ? docRead.data.content : 'ERR'}/merged=${docMetaMerged.success ? JSON.stringify(docMetaMerged.data.metadata) : 'ERR'}(want owner+reviewed)/noop=${docNoop.success && docMetaMerged.success ? docNoop.data.updatedAt === docMetaMerged.data.updatedAt : 'ERR'}(want true)/inline=${docInline.status}:${docInlineText.slice(0, 20)}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entryDoc=${entryDocDelete.status}(want 409 ${entryDocDeleteBody.success ? entryDocDeleteBody.data.code : 'ERR'})/move=${entryDocMove.status}(want 200)/bytes=${entryDocContent.status}:${entryDocText.slice(0, 20)}(want version two)/hash=${entryDocMeta.success ? `${entryDocMeta.data.contentHash?.slice(0, 8)}/${JSON.stringify(entryDocMeta.data.metadata)}` : 'ERR'}, entry chain=${entryCreated.success}(documentId=${entryCreated.success ? entryCreated.data.documentId !== '' : 'ERR'})/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? `${oldEntry.data.status}@${oldEntry.data.supersededAt}` : 'ERR'}/versions=${entryVersions.success ? entryVersions.data.versions.map((row) => row.status).join('>') : 'ERR'}(want active>superseded)/byTopic=${entryByTopic.success ? entryByTopic.data.page.length : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), crm=[${crmDetail}], docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}(want 200)/stale=${docStale.status}(want 409)/${docRead.success ? docRead.data.content : 'ERR'}/merged=${docMetaMerged.success ? JSON.stringify(docMetaMerged.data.metadata) : 'ERR'}(want owner+reviewed)/noop=${docNoop.success && docMetaMerged.success ? docNoop.data.updatedAt === docMetaMerged.data.updatedAt : 'ERR'}(want true)/inline=${docInline.status}:${docInlineText.slice(0, 20)}/retry=${retry.success ? retry.data.status : 'ERR'}/retryGuards=${retryInProgress.success ? `${retryInProgress.data.status}:${retryInProgress.data.reason}` : 'ERR'}+${retryUnsupported.success ? `${retryUnsupported.data.status}:${retryUnsupported.data.reason}` : 'ERR'}(want skipped:in-progress+skipped:unsupported)/del=${docDeleted.status}→${docGone.status}, entryDoc=${entryDocDelete.status}(want 409 ${entryDocDeleteBody.success ? entryDocDeleteBody.data.code : 'ERR'})/move=${entryDocMove.status}(want 200)/bytes=${entryDocContent.status}:${entryDocText.slice(0, 20)}(want version two)/hash=${entryDocMeta.success ? `${entryDocMeta.data.contentHash?.slice(0, 8)}/${JSON.stringify(entryDocMeta.data.metadata)}` : 'ERR'}, entry chain=${entryCreated.success}(documentId=${entryCreated.success ? entryCreated.data.documentId !== '' : 'ERR'})/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/repeat=${entryRepeat.success ? `${entryRepeat.data.id === newEntryId}` : 'ERR'}(want true: same id)/rows=${entryVersions.success ? entryVersions.data.versions.length : 'ERR'}(want 2)/old=${oldEntry.success ? `${oldEntry.data.status}@${oldEntry.data.supersededAt}` : 'ERR'}/versions=${entryVersions.success ? entryVersions.data.versions.map((row) => row.status).join('>') : 'ERR'}(want active>superseded)/byTopic=${entryByTopic.success ? entryByTopic.data.page.length : 'ERR'}/del=${entryDeleted.status}, skill=${skillSavedRes.status}(want 201)/${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
 }
 
@@ -27810,7 +28577,10 @@ async function checkGoogleDriveSync(
  * chunks/search reads) → drift (content change re-indexes in place, a
  * 404 prunes the page + its chunks) → the failure ledger (attempt
  * backoff, pause after repeated connection failures + admin bell, resume
- * clears + re-kicks) → the REST /websites family end to end.
+ * clears + re-kicks) → the REST /websites family end to end → a listed
+ * page that redirects into a private address (round d): the hop is refused
+ * before it is dialed — a loopback listener sees nothing — and the refusal
+ * is on the row, then the listed row's revival past the fetch cap.
  */
 async function checkWebsitesCrawl(
   sql: Sql,
@@ -27833,7 +28603,12 @@ async function checkWebsitesCrawl(
   ]);
   const site = new Map<
     string,
-    { body: string; type: string; status?: number }
+    {
+      body: string;
+      type: string;
+      status?: number;
+      headers?: Record<string, string>;
+    }
   >();
   site.set('/robots.txt', {
     body: `User-agent: *\nSitemap: https://${DOMAIN}/sitemap.xml\n`,
@@ -27876,6 +28651,7 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+          ...page.headers,
         },
       });
     }
@@ -28396,6 +29172,163 @@ async function checkWebsitesCrawl(
       `pruned=${listPruned[0]?.status ?? 'MISSING'}/deleted, revived=${listRevived[0]?.status ?? 'MISSING'}/active listed=${listRevived[0]?.listed} fail=${listRevived[0]?.failCount ?? '?'}/0 chunks=${listRevived[0]?.chunks ?? '0'}>=1`,
     );
 
+    // 4c. Round d, S3-10: a listed page that redirects into a private
+    //     address. The fetch guard refuses the hop BEFORE it is dialed — the
+    //     loopback listener below must see nothing — and the refusal is now
+    //     on the row: kind, message, moment, one failed attempt, a
+    //     `discovered` page with no words, and the website's
+    //     failedPageCount beside its attempted count. Before this the page
+    //     read exactly like one nobody had fetched yet.
+    const { createServer } = await import('node:http');
+    let loopbackHits = 0;
+    const loopback = createServer((_req, res) => {
+      loopbackHits += 1;
+      res.end('leaked');
+    });
+    await new Promise<void>((resolve) => {
+      loopback.listen(0, '127.0.0.1', resolve);
+    });
+    const loopbackAddress = loopback.address();
+    const loopbackPort =
+      loopbackAddress !== null && typeof loopbackAddress === 'object'
+        ? loopbackAddress.port
+        : 0;
+    const redirectPath = '/redirects-inside.txt';
+    const redirectUrl = `https://${LIST_DOMAIN}${redirectPath}`;
+    const listWebsiteId = listCreated.success ? listCreated.data.id : '';
+    const failurePage = z.looseObject({
+      url: z.string(),
+      status: z.string(),
+      indexed: z.boolean(),
+      wordCount: z.number(),
+      failCount: z.number(),
+      lastError: z.string().nullable(),
+      lastErrorKind: z.string().nullable(),
+      lastErrorAt: z.number().nullable(),
+    });
+    const redirectRowQuery = () => pool<
+      {
+        status: string;
+        failCount: number;
+        lastError: string | null;
+        kind: string | null;
+        chunks: string;
+      }[]
+    >`
+      SELECT u.status, u.fail_count AS "failCount", u.last_error AS "lastError",
+             u.last_error_kind AS kind,
+             (SELECT count(*)::text FROM public_web.chunks c
+               WHERE c.domain = u.domain AND c.url = u.url) AS chunks
+      FROM public_web.website_urls u
+      WHERE u.domain = ${LIST_DOMAIN} AND u.url = ${redirectUrl}
+    `;
+    try {
+      site.set(redirectPath, {
+        body: '',
+        type: 'text/plain',
+        status: 302,
+        headers: { location: `http://127.0.0.1:${loopbackPort}/` },
+      });
+      const listExtended = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl],
+        },
+      });
+      await drainCrawlJobs();
+      // The scan pushes the row itself; one more push keeps the count read
+      // below independent of the fan-out's timing.
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const failedPages = z
+        .object({ pages: z.array(failurePage) })
+        .loose()
+        .safeParse(await (await v1(`/websites/${listWebsiteId}/pages`)).json());
+      const redirectPage = failedPages.success
+        ? failedPages.data.pages.find((page) => page.url === redirectUrl)
+        : undefined;
+      const healthyPage = failedPages.success
+        ? failedPages.data.pages.find((page) => page.url === listUrl)
+        : undefined;
+      const listRow = await websites.getWebsite(sql, listWebsiteId);
+      record(
+        'websites page failure: a refused redirect is never dialed, and the row says so',
+        listExtended.status === 200 &&
+          loopbackHits === 0 &&
+          redirectPage !== undefined &&
+          redirectPage.status === 'discovered' &&
+          !redirectPage.indexed &&
+          redirectPage.wordCount === 0 &&
+          redirectPage.failCount === 1 &&
+          redirectPage.lastErrorKind === 'insecure_public_http' &&
+          (redirectPage.lastError ?? '').length > 0 &&
+          typeof redirectPage.lastErrorAt === 'number' &&
+          healthyPage !== undefined &&
+          healthyPage.status === 'active' &&
+          healthyPage.failCount === 0 &&
+          healthyPage.lastErrorKind === null &&
+          listRow?.failedPageCount === 1 &&
+          listRow.crawledPageCount === 2,
+        `extend=${listExtended.status}/200 loopbackHits=${loopbackHits}/0, page=${redirectPage ? `${redirectPage.status}/${redirectPage.indexed}/${redirectPage.wordCount}w fail=${redirectPage.failCount} kind=${redirectPage.lastErrorKind} at=${typeof redirectPage.lastErrorAt}` : 'MISSING'} (want discovered/false/0w fail=1 kind=insecure_public_http at=number), healthy=${healthyPage ? `${healthyPage.status}/fail=${healthyPage.failCount}/kind=${healthyPage.lastErrorKind}` : 'MISSING'} (want active/0/null), row failed=${listRow?.failedPageCount}/1 attempted=${listRow?.crawledPageCount}/2`,
+      );
+
+      // 4d. Round d, D3: a LISTED row is never dead. Push the row past the
+      //     fetch cap by hand (dead under the old rule) with the origin still
+      //     broken and re-save the list: the re-list resets the count and the
+      //     kicked scan probes the page again — count 1, not 6 (6 would be
+      //     the cap exemption alone, 5 the old silence). Then fix the origin
+      //     and scan: the page comes back active, the failure record gone,
+      //     and the website counts no failed page.
+      await pool`
+        UPDATE public_web.website_urls SET fail_count = 5
+        WHERE domain = ${LIST_DOMAIN} AND url = ${redirectUrl}
+      `;
+      const reListed = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl],
+        },
+      });
+      await drainCrawlJobs();
+      const afterReList = await redirectRowQuery();
+      await pool`
+        UPDATE public_web.website_urls SET fail_count = 5
+        WHERE domain = ${LIST_DOMAIN} AND url = ${redirectUrl}
+      `;
+      site.set(redirectPath, {
+        body: 'Listed page two, back on a public origin with enough words to index after its redirect days.',
+        type: 'text/plain',
+      });
+      await websites.runWebsitesScan(sql, {
+        domain: LIST_DOMAIN,
+        orgSlug,
+        organizationId: orgId,
+      });
+      await drainCrawlJobs();
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const revived = await redirectRowQuery();
+      const listRowAfter = await websites.getWebsite(sql, listWebsiteId);
+      record(
+        'websites revival: a listed page past the fetch cap is probed again (re-list resets, every scan probes)',
+        reListed.status === 200 &&
+          afterReList[0]?.failCount === 1 &&
+          afterReList[0].kind === 'insecure_public_http' &&
+          revived[0]?.status === 'active' &&
+          revived[0].failCount === 0 &&
+          revived[0].lastError === null &&
+          revived[0].kind === null &&
+          Number(revived[0].chunks) >= 1 &&
+          listRowAfter?.failedPageCount === 0 &&
+          loopbackHits === 0,
+        `relist=${reListed.status}/200 afterRelist=fail ${afterReList[0]?.failCount ?? '?'}/1 kind=${afterReList[0]?.kind ?? '?'}, revived=${revived[0]?.status ?? 'MISSING'}/active fail=${revived[0]?.failCount ?? '?'}/0 error=${revived[0]?.lastError ?? 'null'}/null kind=${revived[0]?.kind ?? 'null'}/null chunks=${revived[0]?.chunks ?? '0'}>=1, row failed=${listRowAfter?.failedPageCount}/0, loopbackHits=${loopbackHits}/0`,
+      );
+    } finally {
+      await new Promise<void>((resolve) => {
+        loopback.close(() => resolve());
+      });
+    }
+
     const restList = z
       .object({ page: z.array(z.object({ id: z.string() })) })
       .safeParse(await (await v1('/websites?limit=50')).json());
@@ -28431,6 +29364,51 @@ async function checkWebsitesCrawl(
     const restPages = z
       .object({ total: z.number() })
       .safeParse(await (await v1(`/websites/${websiteId}/pages`)).json());
+    // The one offset list answers the keyset pair too: a `limit=2` window
+    // over the three crawled pages is not done and hands a `continueCursor`
+    // standing for offset 2, which walks to the last window; `cursor`
+    // beside `offset` is refused rather than one silently winning.
+    const pagesWindow = z.object({
+      pages: z.array(z.looseObject({ url: z.string() })),
+      total: z.number(),
+      offset: z.number(),
+      hasMore: z.boolean(),
+      isDone: z.boolean(),
+      continueCursor: z.string(),
+    });
+    const firstWindow = pagesWindow.safeParse(
+      await (await v1(`/websites/${websiteId}/pages?limit=2`)).json(),
+    );
+    const nextWindow =
+      firstWindow.success && firstWindow.data.continueCursor !== ''
+        ? pagesWindow.safeParse(
+            await (
+              await v1(
+                `/websites/${websiteId}/pages?limit=2&cursor=${encodeURIComponent(firstWindow.data.continueCursor)}`,
+              )
+            ).json(),
+          )
+        : null;
+    const bothNamed = await v1(
+      `/websites/${websiteId}/pages?offset=1&cursor=x`,
+    );
+    record(
+      'REST website pages walk by continueCursor beside the offset window',
+      firstWindow.success &&
+        firstWindow.data.total >= 3 &&
+        firstWindow.data.pages.length === 2 &&
+        firstWindow.data.hasMore &&
+        !firstWindow.data.isDone &&
+        nextWindow !== null &&
+        nextWindow.success &&
+        nextWindow.data.offset === 2 &&
+        nextWindow.data.pages.length === firstWindow.data.total - 2 &&
+        !nextWindow.data.hasMore &&
+        nextWindow.data.isDone &&
+        nextWindow.data.continueCursor === '' &&
+        bothNamed.status === 400,
+      `first: ${firstWindow.success ? `total=${firstWindow.data.total} (want ≥3) rows=${firstWindow.data.pages.length}/2 hasMore=${firstWindow.data.hasMore} isDone=${firstWindow.data.isDone}` : 'ERR'}; next: ${nextWindow === null ? 'NOT WALKED' : nextWindow.success ? `offset=${nextWindow.data.offset}/2 rows=${nextWindow.data.pages.length} isDone=${nextWindow.data.isDone} continueCursor=${JSON.stringify(nextWindow.data.continueCursor)}` : 'ERR'}; cursor+offset=${bothNamed.status}/400`,
+    );
     const restSync = z
       .object({ status: z.string() })
       .safeParse(
@@ -47056,6 +48034,7 @@ async function main(): Promise<void> {
     port,
     serverOptions: BACKEND_SERVER_OPTIONS,
   });
+  installClientErrorEnvelope(server);
   let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);
@@ -47315,6 +48294,10 @@ async function main(): Promise<void> {
       [
         'checkRestMachineJourney',
         () => checkRestMachineJourney(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkExternalKeyTwinRepair',
+        () => checkExternalKeyTwinRepair(sql, baseUrl, authCtx),
       ],
       [
         'checkRestResources',

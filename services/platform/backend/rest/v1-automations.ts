@@ -166,8 +166,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * into the parameter used to resolve as an undocumented alias. */
   const decodeName = (c: Context<RestEnv>): string | Response => {
     const raw = c.req.param('name') ?? '';
-    if (raw.includes('/')) {
-      return notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
+    // A slash in the segment — raw, or as the `%2F` a client wrote when it
+    // built the URL from the `name` the API handed back — is the one wrong
+    // spelling worth a hint: the 404 stays, its sentence says how the name
+    // travels. Existence is still not revealed either way.
+    if (raw.includes('/') || /%2f/i.test(raw)) {
+      return notFound(
+        c,
+        'Automation not found — a name’s "/" travels as "__" in the URL ("billing/dunning" is /automations/billing__dunning)',
+        'AUTOMATION_NOT_FOUND',
+      );
     }
     const name = paramToAutomationSlug(raw);
     return isValidAutomationName(name)
@@ -316,7 +324,11 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** Bind what starts the automation. `token` is present exactly once per
-   * minted webhook secret — the row keeps only its hash. */
+   * minted webhook secret — the row keeps only its hash. `deployed` says
+   * whether the automation has a version to run: a trigger bound to one
+   * that has none is accepted (binding before deploying is a legitimate
+   * order) and then skips every occurrence as `not_deployed` until a
+   * version is deployed — the 200 used to say nothing about it. */
   app.put('/automations/:name/triggers', async (c) => {
     const body = await parseBody(c, triggerBody);
     if (body instanceof Response) return body;
@@ -325,13 +337,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
+      const organizationId = c.get('organizationId');
       const result = await setTrigger(deps.sql, {
-        organizationId: c.get('organizationId'),
+        organizationId,
         name,
         trigger: body,
         actor: c.get('userId'),
       });
-      return c.json({ name, ...result });
+      const deployed =
+        (await deployedVersion(deps.sql, organizationId, name)) !== undefined;
+      return c.json({ name, ...result, deployed });
     } catch (error) {
       return domainErrorResponse(c, error);
     }

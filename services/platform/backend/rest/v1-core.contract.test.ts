@@ -24,6 +24,7 @@ import {
   KnowledgeError,
   searchKnowledgeForOrg,
 } from '../domains/knowledge/service.ts';
+import { conditionalGet } from '../lib/conditional-get.ts';
 import type { RestEnv } from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
 
@@ -43,7 +44,9 @@ import { createCoreRoutes } from './v1-core.ts';
  *   a refusal no wait can lift; the spec now promises 409 for account
  *   refusals and 503 for other provider failures.
  * - `POST /documents/{id}/retry-indexing` answered `skipped` for three
- *   different reasons without saying which.
+ *   different reasons without saying which — and, until round d, carried
+ *   its own copy of the app's retry without the unsupported and in-flight
+ *   guards, answering `rag-opt-out` where an explicit retry is the opt-in.
  * - A hub document that left the active lifecycle (expired by a project
  *   cascade, waiting for the retention sweep) still read as a live document.
  * - `PUT /skills/{slug}` shared a skill with team ids nobody could check.
@@ -105,6 +108,8 @@ interface FixtureOptions {
   project?: Record<string, unknown> | null;
   file?: Record<string, unknown> | null;
   role?: string;
+  /** The rate-limit UPSERT answers no row — the budget is spent. */
+  rateLimited?: boolean;
 }
 
 function fakeSql(options: FixtureOptions = {}): {
@@ -161,7 +166,7 @@ function fakeSql(options: FixtureOptions = {}): {
       return Promise.resolve([{ teamId: 'team-1' }]);
     }
     if (text.includes('INSERT INTO app.rate_limits')) {
-      return Promise.resolve([{ value: '1' }]);
+      return Promise.resolve(options.rateLimited ? [] : [{ value: '1' }]);
     }
     return Promise.resolve([]);
   };
@@ -188,6 +193,10 @@ function mount(options: FixtureOptions = {}) {
     c.set('clientIp', '203.0.113.9');
     return next();
   });
+  // The validated-read middleware sits outside the door in `createApp`
+  // (`/api/v1/*`, replacing the door's `no-store` default): the skills
+  // 304 is its verdict, not the route's, so the mount wires it the same way.
+  app.use(conditionalGet({ replaceDoorDefault: 'no-store' }));
   app.route('/', createCoreRoutes({ sql: fake.sql }));
   return { app, queries: fake.queries };
 }
@@ -361,17 +370,20 @@ describe('POST /documents/{id}/retry-indexing', () => {
     });
   });
 
-  it('names the persisted opt-out skip', async () => {
+  it('opts a bind-time opt-out back in and queues — the explicit retry is the opt-in', async () => {
     vi.mocked(getDocumentById).mockResolvedValueOnce(
       hubDocument('s3:acme/private'),
     );
-    const { app } = mount({ file: { skipRagIndexing: true } });
+    const { app, queries } = mount({ file: { skipRagIndexing: true } });
     const res = await retry(app);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      status: 'skipped',
-      reason: 'rag-opt-out',
-    });
+    expect(await res.json()).toEqual({ status: 'indexing' });
+    // The opt-out is cleared BEFORE the queue mark, in the same transaction.
+    const updates = queries.filter((q) =>
+      q.startsWith('UPDATE app.file_metadata'),
+    );
+    expect(updates[0]).toContain('SET skip_rag_indexing = false');
+    expect(updates[1]).toContain("rag_status = 'queued'");
   });
 
   it('queues indexing for a tracked blob without an opt-out', async () => {
@@ -379,6 +391,73 @@ describe('POST /documents/{id}/retry-indexing', () => {
       hubDocument('s3:acme/private'),
     );
     const { app } = mount({ file: { skipRagIndexing: false } });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'indexing' });
+  });
+
+  /** The guards the app's Index now always had, now on this door too: a
+   * file no extractor reads is terminal, and a fresh job is not doubled. */
+  it('names the unsupported skip instead of re-queueing a terminal rejection', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app, queries } = mount({
+      file: { ragStatus: 'unsupported', ragError: 'No extractor for .xyz' },
+    });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'skipped',
+      reason: 'unsupported',
+    });
+    expect(queries.some((q) => q.startsWith('UPDATE app.file_metadata'))).toBe(
+      false,
+    );
+  });
+
+  it('names the in-progress skip while a fresh job is queued or running', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app, queries } = mount({
+      file: { ragStatus: 'queued', ragQueuedAt: Date.now() - 60_000 },
+    });
+    const res = await retry(app);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'skipped',
+      reason: 'in-progress',
+    });
+    expect(queries.some((q) => q.startsWith('UPDATE app.file_metadata'))).toBe(
+      false,
+    );
+  });
+
+  it('answers the door-wide 429 with Retry-After when the per-user retry budget is spent', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app, queries } = mount({
+      file: { skipRagIndexing: false },
+      rateLimited: true,
+    });
+    const res = await retry(app);
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).not.toBeNull();
+    expect(await res.json()).toMatchObject({ code: 'RATE_LIMITED' });
+    expect(queries.some((q) => q.startsWith('UPDATE app.file_metadata'))).toBe(
+      false,
+    );
+  });
+
+  it('re-queues past the stale threshold — a job dead for 35 minutes is not in progress', async () => {
+    vi.mocked(getDocumentById).mockResolvedValueOnce(
+      hubDocument('s3:acme/private'),
+    );
+    const { app } = mount({
+      file: { ragStatus: 'running', ragQueuedAt: Date.now() - 36 * 60_000 },
+    });
     const res = await retry(app);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'indexing' });
@@ -711,7 +790,8 @@ describe('the skills door over the file layer', () => {
       description: 'First',
       body: '# First',
     });
-    expect(created.status).toBe(200);
+    // 201: the slug was free, so this save created the bundle.
+    expect(created.status).toBe(201);
     expect(await created.json()).toMatchObject({
       slug: 'probe',
       description: 'First',
@@ -791,7 +871,7 @@ describe('the skills door over the file layer', () => {
       description: 'a',
       body: 'b'.repeat(MAX_SKILL_BODY_BYTES),
     });
-    expect(atCap.status).toBe(200);
+    expect(atCap.status).toBe(201);
   });
 
   it('refuses an unknown key and never advertises the retired visibility', async () => {
@@ -935,10 +1015,18 @@ describe('the skills door — entity tags and conditional writes', () => {
         body: { description: 'First', body: '# First' },
       })
     ).json();
+    // The 200 is a validated read: `private, no-cache`, never the door's
+    // `no-store`; the 304 — decided by the same middleware — says the same
+    // about the same bytes. The route's own matcher used to answer
+    // `no-store` on the 304 and miss the edge's `-gzip` suffixed tag.
+    const full = await request(app, 'GET', 'probe');
+    expect(full.status).toBe(200);
+    expect(full.headers.get('cache-control')).toBe('private, no-cache');
     for (const header of [
       saved.etag,
       `W/${saved.etag}`,
       `"other", ${saved.etag}`,
+      `${saved.etag.slice(0, -1)}-gzip"`,
       '*',
     ]) {
       const res = await request(app, 'GET', 'probe', {
@@ -946,6 +1034,9 @@ describe('the skills door — entity tags and conditional writes', () => {
       });
       expect(res.status, header).toBe(304);
       expect(res.headers.get('etag')).toBe(saved.etag);
+      expect(res.headers.get('cache-control'), header).toBe(
+        'private, no-cache',
+      );
       expect(await res.text()).toBe('');
     }
     // A tag it does not hold — or a malformed value — is the full answer.

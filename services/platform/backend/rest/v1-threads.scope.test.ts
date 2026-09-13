@@ -353,6 +353,10 @@ describe('REST thread paths enforce project scope', () => {
     }
   });
 
+  // `expectedProjectId` is what the worker hands the turn: the store's scope
+  // check AND the tool executor's boundary (`chatToolContextForTurn`) — a
+  // mirror thread's rag_search/rag_fetch reach that project's files plus the
+  // hub, exactly like the same thread opened in the app.
   it('pins the accepted project and returns its generation URL for member sends', async () => {
     const { app, sql } = mount();
     const response = await send(
@@ -383,6 +387,8 @@ describe('REST thread paths enforce project scope', () => {
     expect(await poll.json()).toEqual({ status: 'idle' });
   });
 
+  // A null pin is the personal thread: the hub alone for documents, every
+  // readable project for the work legs.
   it('pins an unfiled send to null project scope', async () => {
     const { app } = mount();
     const response = await send(app, '/threads/t-personal/messages', message);

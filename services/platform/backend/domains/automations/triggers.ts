@@ -18,6 +18,7 @@ import {
   getClientIp,
   nodePeerAddress,
 } from '../../core/lib/utils/client_ip.ts';
+import { noStoreByDefault } from '../../lib/http-hygiene.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
@@ -513,6 +514,13 @@ export function createWebhookRoutes(deps: {
   trustedProxies: () => Promise<string[]>;
 }): Hono {
   const app = new Hono();
+  // Every answer on this door — the 202, the 404 a bad token gets, the 413,
+  // the 429 — is per-delivery and per-moment, so nothing between a sender's
+  // relay and the door may cache it: `no-store` by default, the same stamp
+  // the REST door carries (lib/http-hygiene.ts). The door is mounted
+  // outside `/api/v1`, so the REST stamper never saw it and a caching
+  // intermediary could keep a token's 404 past the point it became valid.
+  app.use(noStoreByDefault());
 
   // Every refusal on this door is the flat JSON envelope the API reference
   // promises of every non-2xx — the 404 and 413 used to be plain text, the

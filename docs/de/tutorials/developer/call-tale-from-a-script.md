@@ -52,32 +52,42 @@ auth = {
 threads_url = f"{base}/api/v1/threads"
 
 # 1. Ein eigener Thread
-thread = requests.post(threads_url, headers=auth, json={}).json()
+thread = requests.post(threads_url, headers=auth, json={}, timeout=30).json()
+thread_url = f"{threads_url}/{thread['id']}"
 
-# 2. Nachricht senden — nenn ein Modell, das deine Organisation konfiguriert hat
-requests.post(
-    f"{threads_url}/{thread['id']}/messages",
+# 2. Nachricht senden — nenn ein Modell, das deine Organisation konfiguriert hat.
+#    Die 202 nennt die Antwort, bevor das Modell ein Wort gesagt hat: behalte ihre ID.
+sent = requests.post(
+    f"{thread_url}/messages",
     headers=auth,
     json={"content": "In einem Satz: Was ist Tale?", "model": "<dein-modell>"},
-).raise_for_status()
+    timeout=30,
+)
+sent.raise_for_status()
+reply_id = sent.json()["messageId"]
 
-# 3. Bis idle pollen, dann die letzte Nachricht lesen
+# 3. Bis idle pollen. Ein Turn hat keine feste Frist, also begrenze die Schleife
+#    selbst und stoppe einen Turn, den du aufgegeben hast.
+deadline = time.monotonic() + 600
 while True:
-    status = requests.get(
-        f"{threads_url}/{thread['id']}/generation", headers=auth
-    ).json()["status"]
-    if status == "idle":
+    poll = requests.get(f"{thread_url}/generation", headers=auth, timeout=30).json()
+    if poll["status"] == "idle":
         break
-    time.sleep(1)
+    if time.monotonic() > deadline:
+        requests.delete(f"{thread_url}/generation", headers=auth, timeout=30)
+        raise SystemExit("der Turn ist nicht rechtzeitig abgeschlossen")
+    time.sleep(2)
+if poll.get("lastMessageId") != reply_id:
+    raise SystemExit("der Turn ist nie gelaufen — prüfe das Projekt des Threads und deinen Zugriff")
 
-messages = requests.get(
-    f"{threads_url}/{thread['id']}/messages", headers=auth
-).json()["page"]
-reply = messages[-1]
+# 4. Die Antwort über ihre ID lesen und prüfen, wie sie abgeschlossen wurde, bevor du ihr traust
+reply = requests.get(f"{thread_url}/messages/{reply_id}", headers=auth, timeout=30).json()
+if reply["status"] != "complete":
+    raise SystemExit(f"Turn {reply['status']}: {reply.get('error', '')} {reply.get('errorCode', '')}")
 print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
-`{"status": "idle"}` bedeutet, dass kein Turn läuft. Lies die Nachrichten für die Antwort oder einen Modellfehler. Der Sendeaufruf antwortet schon vor dem Ende mit **202**. Entfällt dein Zugriff oder verschiebst du den Thread vor dem Öffnen des wartenden Turns, verweigert der Worker ihn. Die [API-Referenz](/de/develop/api-reference) erklärt die Projektgrenzen.
+Das Senden antwortet mit **202**, bevor die Arbeit fertig ist, und nennt die Antwort: `messageId` ist die Assistenten-Nachricht, in der die Antwort landet, und der Poll antwortet `idle` mit `lastMessageId`, sobald dieser Turn abgeschlossen ist. Lies die Nachricht über ihre ID und prüfe `status`, bevor du irgendetwas ausgibst: `complete` trägt den Text, `failed` trägt `error` und `errorCode` (ein Modell, das der Tarif des Anbieters nicht abdeckt, ein aufgebrauchtes Guthaben — auch ein gelistetes Modell kann scheitern), und `cancelled` das, was vor einem Stopp gestreamt war. Ein Turn hat keine feste Frist, die Schleife begrenzt sich also selbst und bricht einen Turn, den sie aufgegeben hat, mit `DELETE .../generation` ab. Entfällt dein Zugriff oder verschiebst du den Thread, bevor der wartende Turn öffnet, verweigert der Worker ihn, und der Poll landet bei `idle` ohne deine ID; die [API-Referenz](/de/develop/api-reference) erklärt die Projektgrenzen.
 
 ## Schritt 4 — Einen Automatisierungslauf starten
 

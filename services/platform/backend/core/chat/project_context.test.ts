@@ -95,6 +95,18 @@ describe('resolveProjectContext', () => {
     expect(result).toBeUndefined();
   });
 
+  it('carries the project key for the prompt’s boundary sentence', async () => {
+    const { ctx } = createCtx({
+      project: { _id: 'project_1', name: 'Growth', key: 'GRW' },
+    });
+    const result = await resolveProjectContext(ctx, {
+      ...WHO,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test id
+      projectId: 'project_1' as never,
+    });
+    expect(result).toEqual({ name: 'Growth', key: 'GRW' });
+  });
+
   it('omits instructions when the project has none', async () => {
     const { ctx } = createCtx({
       project: { _id: 'project_1', name: 'Growth' },

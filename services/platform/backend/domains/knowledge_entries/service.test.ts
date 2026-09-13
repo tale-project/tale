@@ -63,16 +63,23 @@ interface Statement {
   values: unknown[];
 }
 
+interface ScriptedRow {
+  id: string;
+  topicKey: string;
+  documentId: string | null;
+  status?: string;
+  supersededBy?: string | null;
+  topic?: string;
+  content?: string;
+}
+
 interface Script {
   /** The entry `updateKnowledgeEntry` loads (with its document); active
    * unless the script says otherwise. */
-  current?: {
-    id: string;
-    topicKey: string;
-    documentId: string | null;
-    status?: string;
-    supersededBy?: string | null;
-  };
+  current?: ScriptedRow;
+  /** What the SECOND load — the one inside the transaction, after the blob
+   * upload — answers, when it should differ from the first. */
+  currentInTx?: ScriptedRow;
   /** The blob ref the file row carried before a rotation. */
   previousRef?: string;
 }
@@ -81,6 +88,7 @@ interface Script {
  * the shape each `RETURNING` expects, and recording every statement. */
 function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
+  let loads = 0;
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     statements.push({ text, values });
@@ -107,10 +115,13 @@ function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
       );
     }
     if (text.includes('LEFT JOIN app.documents')) {
+      loads += 1;
+      const row =
+        loads > 1 && script.currentInTx !== undefined
+          ? script.currentInTx
+          : script.current;
       return Promise.resolve(
-        script.current
-          ? [{ status: 'active', supersededBy: null, ...script.current }]
-          : [],
+        row ? [{ status: 'active', supersededBy: null, ...row }] : [],
       );
     }
     if (text.includes('UPDATE app.knowledge_entries SET deleted_at_ms')) {
@@ -233,6 +244,133 @@ describe('materializing an entry', () => {
       expect.anything(),
       'knowledge.release_refs',
       { organizationId: ORG, refs: ['s3:acme/old-blob'] },
+    );
+  });
+});
+
+/**
+ * The documents PATCH's rule on the entry door: a write that repeats the
+ * active row is a retry or a replay, not a version. What is pinned: nothing
+ * is uploaded or written for an identical write; whitespace around the
+ * fields is no difference (the validator trims both sides); a case-only
+ * topic change and a content change are versions; and a row that reads
+ * identical only inside the transaction releases the blob uploaded for it.
+ */
+describe('a write that repeats the active row', () => {
+  const active = {
+    id: 'entry-old',
+    topicKey: 'store hours',
+    documentId: 'doc-1',
+    topic: 'Store hours',
+    content: 'Open 9-6',
+  };
+
+  it('answers the active row and writes nothing — no blob, no row, no re-index', async () => {
+    const { sql, statements } = fakeSql({ current: active });
+    const written = await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'entry-old',
+      topic: 'Store hours',
+      content: 'Open 9-6',
+    });
+    expect(written).toEqual({ id: 'entry-old', documentId: 'doc-1' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(
+      statements.filter((s) => /^\s*(INSERT|UPDATE)/.test(s.text)),
+    ).toEqual([]);
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('treats surrounding whitespace as no difference', async () => {
+    const { sql, statements } = fakeSql({ current: active });
+    const written = await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'entry-old',
+      topic: '  Store hours ',
+      content: '\nOpen 9-6\n\n',
+    });
+    expect(written).toEqual({ id: 'entry-old', documentId: 'doc-1' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(statements.some((s) => s.text.includes('INSERT INTO'))).toBe(false);
+  });
+
+  it('writes a version for a case-only topic change', async () => {
+    const { sql, statements } = fakeSql({ current: active });
+    const written = await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'entry-old',
+      topic: 'STORE HOURS',
+      content: 'Open 9-6',
+    });
+    expect(written).toEqual({ id: 'entry-new', documentId: 'doc-1' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.knowledge_entries'),
+      ),
+    ).toBe(true);
+  });
+
+  it('writes a version for a content change', async () => {
+    const { sql, statements } = fakeSql({ current: active });
+    const written = await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'entry-old',
+      topic: 'Store hours',
+      content: 'Open 9-7',
+    });
+    expect(written).toEqual({ id: 'entry-new', documentId: 'doc-1' });
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.knowledge_entries'),
+      ),
+    ).toBe(true);
+    expect(markRagQueued).toHaveBeenCalledWith(expect.anything(), 'file-1');
+  });
+
+  it('still refuses an identical write onto a superseded row with the documented 409', async () => {
+    const { sql } = fakeSql({
+      current: { ...active, status: 'superseded', supersededBy: 'entry-new' },
+    });
+    await expect(
+      updateKnowledgeEntry(sql, {
+        ...WRITER,
+        entryId: 'entry-old',
+        topic: 'Store hours',
+        content: 'Open 9-6',
+      }),
+    ).rejects.toMatchObject({
+      code: 'KNOWLEDGE_ENTRY_SUPERSEDED',
+      status: 409,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('releases the blob it uploaded when the row reads identical inside the transaction', async () => {
+    const { sql, statements } = fakeSql({
+      current: { ...active, content: 'Open 9-5' },
+      currentInTx: active,
+    });
+    const written = await updateKnowledgeEntry(sql, {
+      ...WRITER,
+      entryId: 'entry-old',
+      topic: 'Store hours',
+      content: 'Open 9-6',
+    });
+    expect(written).toEqual({ id: 'entry-old', documentId: 'doc-1' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(
+      statements.some((s) =>
+        s.text.includes('INSERT INTO app.knowledge_entries'),
+      ),
+    ).toBe(false);
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.release_refs',
+      { organizationId: ORG, refs: ['s3:acme/entry-blob'] },
     );
   });
 });

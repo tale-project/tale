@@ -213,16 +213,6 @@ BACKEND_BLOCK=$(cat <<EOF
 		import edge_json_refusal
 		respond \`{"error":"Not found","code":"NOT_FOUND"}\` 404
 	}
-	# The URL budget the API reference documents (32 KiB of path and
-	# query), answered here as the 414 the backend's own guard would
-	# answer — so a client never meets the header-budget cliff above for a
-	# URL it could still have shortened. Same optional leading segment as
-	# the rule above for a subpath deployment.
-	@apiUriTooLong expression \`{http.request.uri}.matches("(?i)^(/[^/?]+)?/api/") && {http.request.uri}.size() > 32768\`
-	handle @apiUriTooLong {
-		import edge_json_refusal
-		respond \`{"error":"The request URL exceeds 32 KiB (path and query)","code":"URI_TOO_LONG"}\` 414
-	}
 	handle /.well-known/oauth-authorization-server/api/auth {
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}

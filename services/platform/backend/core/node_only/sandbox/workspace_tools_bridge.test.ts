@@ -503,15 +503,104 @@ describe('dispatchWorkspaceToolImpl', () => {
 
   it('rag_fetch answers a denied or missing document as the same not_found', async () => {
     // The scoped corpus read returns null for denied AND missing alike; the
-    // Convex-row fallback finds nothing either.
+    // row fallback finds nothing, and the live-truth filter admits nothing —
+    // so the on-demand lane is never even asked, and no name leaks.
     fetchDocumentMock.mockResolvedValueOnce(null);
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) => {
+        const name = fnName(ref);
+        if (name === 'documents/internal_queries:filterRetrievableRagFileIds') {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(null);
+      },
+    );
     const { dispatch } = await getActions();
-    const result = await dispatch(createCtx({}).ctx, {
+    const result = await dispatch(createCtx({ readQuery }).ctx, {
       ...BASE,
       tool: 'rag_fetch',
       callArgs: { ref: 'file-denied' },
     });
     expect(result.status).toBe('not_found');
+    expect(result).not.toHaveProperty('filename');
+    expect(
+      readQuery.mock.calls.some(
+        ([ref]) =>
+          fnName(ref) ===
+          'file_metadata/internal_queries:readTextOnDemandForAgent',
+      ),
+    ).toBe(false);
+  });
+
+  it('rag_fetch reads a never-indexed text file on demand, through the shared reader', async () => {
+    fetchDocumentMock.mockResolvedValueOnce(null);
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) => {
+        const name = fnName(ref);
+        if (name === 'documents/internal_queries:filterRetrievableRagFileIds') {
+          return Promise.resolve(['file-skipped']);
+        }
+        if (
+          name === 'file_metadata/internal_queries:readTextOnDemandForAgent'
+        ) {
+          return Promise.resolve({
+            kind: 'text',
+            filename: 'lead-verify.txt',
+            text: 'lead: verified',
+            indexing: { status: 'skipped' },
+          });
+        }
+        if (name === 'file_metadata/internal_queries:lookupVideoLinkSources') {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(null);
+      },
+    );
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({ readQuery }).ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'file-skipped' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output.content).toBe('lead: verified');
+    expect(output.filename).toBe('lead-verify.txt');
+  });
+
+  it('rag_fetch names an unreadable file and its true indexing state', async () => {
+    fetchDocumentMock.mockResolvedValueOnce(null);
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) => {
+        const name = fnName(ref);
+        if (name === 'documents/internal_queries:filterRetrievableRagFileIds') {
+          return Promise.resolve(['file-deck']);
+        }
+        if (
+          name === 'file_metadata/internal_queries:readTextOnDemandForAgent'
+        ) {
+          return Promise.resolve({
+            kind: 'unreadable',
+            filename: 'deck.pptx',
+            sizeBytes: 900_000,
+            indexing: { status: 'queued' },
+            reason: 'binary',
+          });
+        }
+        return Promise.resolve(null);
+      },
+    );
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({ readQuery }).ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'file-deck' },
+    });
+    expect(result).toMatchObject({
+      status: 'not_found',
+      filename: 'deck.pptx',
+      message: expect.stringContaining('queued for indexing'),
+    });
   });
 
   it('rag_fetch serves hub-authored inline content under the same scope rule', async () => {

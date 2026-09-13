@@ -257,6 +257,19 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   approval** (`chat.generation.waitingApproval`); after resolution the badge
   flips (`chat.parts.approvalApproved` / `chat.parts.approvalRejected`) and
   the write is verifiable in the target list.
+- [ ] `CHAT-F36` · **Project-thread scope** — **Mode B + Docker stack**: in a
+  project holding one indexed file and one text file bound over the REST API
+  without indexing (its row on the project's **Files** tab reads **Not
+  indexed** `projects.files.ragStatusNotIndexed` and offers **Index now**
+  `projects.files.indexingStart`), open a chat inside the project and ask to
+  list the project's documents, then to read the unindexed text file; then
+  ask the same in the organization chat → In the project chat the listing
+  step (`chat.thinking.listing.documents`) returns the project's files beside
+  the hub's, each marked with its scope and indexing, and the read step names
+  the file (`chat.thinking.readingDocument`) and the reply quotes its text; no
+  other project is listed or searched. In the organization chat the listing
+  returns hub files only and the assistant points at the project's own chat
+  instead of walking the project list.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

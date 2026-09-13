@@ -98,9 +98,20 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
     });
   }
   if (step.tool === 'rag_fetch') {
-    return t('thinking.readingDocument', {
-      name: step.resultName ?? step.detail ?? step.tool,
-    });
+    // A document read is named by the filename the result carried — a miss
+    // carries it too, whenever the reader may know it. Without one, the only
+    // handle left is the blob ref the model passed, and an `s3:` key is not
+    // a name a person should ever read on the timeline.
+    const name = step.resultName ?? step.detail;
+    if (name === undefined || isBlobRef(name)) {
+      return t('thinking.readingDocumentUnnamed');
+    }
+    return t('thinking.readingDocument', { name });
   }
   return t('parts.toolCall', { tool: step.tool });
+}
+
+/** A stored-blob reference (`s3:<key>`) — an address, never a title. */
+function isBlobRef(value: string): boolean {
+  return value.startsWith('s3:');
 }

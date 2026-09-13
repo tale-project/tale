@@ -89,6 +89,52 @@ export interface FetchDocumentByFileIdArgs {
   readonly access?: KnowledgeAccessScope;
 }
 
+/**
+ * The wire shape of the live-truth admission check
+ * (`documents/internal_queries:filterRetrievableRagFileIds`) for a caller's
+ * scope: the identity travels top-level, the sets travel under `access`, and
+ * an absent scope stays absent (an org-wide caller). ONE builder, because the
+ * corpus fetch and the on-demand document reader (`document_text.ts`) ask the
+ * same question and must ask it the same way.
+ */
+export function retrievableFilterArgs(
+  organizationId: string,
+  fileIds: readonly string[],
+  access: KnowledgeAccessScope | undefined,
+): {
+  organizationId: string;
+  fileIds: string[];
+  userId?: string;
+  access?: {
+    teamIds: string[];
+    projectIds: string[];
+    includeHub: boolean;
+    includeConversationScoped?: boolean;
+    threadIds?: string[];
+  };
+} {
+  return {
+    organizationId,
+    fileIds: [...fileIds],
+    ...(access?.userId !== undefined ? { userId: access.userId } : {}),
+    ...(access !== undefined
+      ? {
+          access: {
+            teamIds: [...access.teamIds],
+            projectIds: [...access.projectIds],
+            includeHub: access.includeHub,
+            ...(access.includeConversationScoped !== undefined
+              ? { includeConversationScoped: access.includeConversationScoped }
+              : {}),
+            ...(access.threadIds !== undefined
+              ? { threadIds: [...access.threadIds] }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 /** True for the error shapes that mean "this corpus was never created". */
 function corpusMissing(err: unknown): boolean {
   return (
@@ -169,31 +215,7 @@ export async function fetchDocumentByFileId(
     }
     const retrievable = await ctx.runQuery(
       internal.documents.internal_queries.filterRetrievableRagFileIds,
-      {
-        organizationId: args.organizationId,
-        fileIds: [args.fileId],
-        ...(args.access?.userId !== undefined
-          ? { userId: args.access.userId }
-          : {}),
-        ...(args.access !== undefined
-          ? {
-              access: {
-                teamIds: [...args.access.teamIds],
-                projectIds: [...args.access.projectIds],
-                includeHub: args.access.includeHub,
-                ...(args.access.includeConversationScoped !== undefined
-                  ? {
-                      includeConversationScoped:
-                        args.access.includeConversationScoped,
-                    }
-                  : {}),
-                ...(args.access.threadIds !== undefined
-                  ? { threadIds: [...args.access.threadIds] }
-                  : {}),
-              },
-            }
-          : {}),
-      },
+      retrievableFilterArgs(args.organizationId, [args.fileId], args.access),
     );
     if (!retrievable.includes(args.fileId)) return null;
 

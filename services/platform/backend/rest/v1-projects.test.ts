@@ -381,6 +381,9 @@ describe('POST /projects', () => {
       'must not be blank',
     ],
     ['key', { name: 'Ledger', key: 'TOOLONG' }, undefined],
+    // A blank key used to read as an omitted one (derived from the name)
+    // while the reference promised the 400 `name` and `externalItemId` get.
+    ['key', { name: 'Ledger', key: '   ' }, 'must not be blank'],
   ])(
     'refuses %s at the door with 400 INVALID_BODY, before the core',
     async (field, body, message) => {
@@ -451,6 +454,9 @@ describe('GET /projects — lookup and list', () => {
           updatedAt: project.updatedAt,
         },
       ],
+      // A lookup is one whole page and says so in the list's own words.
+      isDone: true,
+      continueCursor: '',
     });
     expect(vi.mocked(getProjectByExternalItemId)).toHaveBeenCalledWith(
       expect.anything(),
@@ -495,6 +501,7 @@ describe('GET /projects — lookup and list', () => {
         },
       ],
       isDone: true,
+      continueCursor: '',
     });
     expect(vi.mocked(listProjectsPage)).toHaveBeenCalledWith(
       expect.anything(),
@@ -518,7 +525,13 @@ describe('GET /projects — lookup and list', () => {
       'projects',
       formatKeysetCursor(listed.createdAt, listed.id),
     );
-    expect(await first.json()).toMatchObject({ isDone: false, cursor });
+    // `continueCursor` is the one pager's name for the token; `cursor` is
+    // the same token under its pre-1.5.0 name, kept while more remain.
+    expect(await first.json()).toMatchObject({
+      isDone: false,
+      continueCursor: cursor,
+      cursor,
+    });
     expect(vi.mocked(listProjectsPage).mock.calls[0]?.[2]).toEqual({
       archived: 'only',
       limit: 1,
@@ -538,6 +551,122 @@ describe('GET /projects — lookup and list', () => {
     );
     expect(forged.status).toBe(400);
     expect(await forged.json()).toMatchObject({ code: 'INVALID_CURSOR' });
+  });
+});
+
+/**
+ * The file listing speaks the one pager: `continueCursor` (empty once the
+ * listing is complete) beside `cursor`, the same token under its pre-1.5.0
+ * name, present only while more pages remain — a pager written for the
+ * other lists and one written for this one both reach the last page.
+ */
+describe('GET /projects/{id}/files pagination', () => {
+  /** What the listing SQL answers: the document beside its blob's metadata
+   * row (`d-2`, bound with the default opt-out) — or beside none (`d-1`, a
+   * blob the platform does not track). */
+  const rows = [
+    {
+      id: 'd-2',
+      fileName: 'b.pdf',
+      folderId: null,
+      mimeType: 'application/pdf',
+      createdAt: 1_700_000_000_002,
+      size: 2048,
+      tracked: true,
+      skipRagIndexing: true,
+      ragStatus: null,
+      ragIndexedAt: null,
+      ragError: null,
+      ragErrorCode: null,
+    },
+    {
+      id: 'd-1',
+      fileName: 'a.pdf',
+      folderId: null,
+      mimeType: 'application/pdf',
+      createdAt: 1_700_000_000_001,
+      size: null,
+      tracked: false,
+      skipRagIndexing: null,
+      ragStatus: null,
+      ragIndexedAt: null,
+      ragError: null,
+      ragErrorCode: null,
+    },
+  ];
+  /** The rows as the door answers them: `size` always, `indexing` (the
+   * `Document.indexing` vocabulary) only where a metadata row exists. */
+  const files = [
+    {
+      id: 'd-2',
+      fileName: 'b.pdf',
+      folderId: null,
+      mimeType: 'application/pdf',
+      createdAt: 1_700_000_000_002,
+      size: 2048,
+      indexing: { status: 'skipped' },
+    },
+    {
+      id: 'd-1',
+      fileName: 'a.pdf',
+      folderId: null,
+      mimeType: 'application/pdf',
+      createdAt: 1_700_000_000_001,
+      size: null,
+    },
+  ];
+  /** The listing query answers `rows`; everything else falls through to
+   * the base double. */
+  const listingSql = () => {
+    const { sql: base, queries } = fakeSql();
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.documents d LEFT JOIN LATERAL')) {
+        queries.push({ text, values });
+        return Promise.resolve(rows);
+      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the base double is a tagged template
+      return (base as unknown as (...a: unknown[]) => Promise<unknown[]>)(
+        strings,
+        ...values,
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { sql: Object.assign(tag, base) as unknown as Sql, queries };
+  };
+
+  it('answers continueCursor beside the deprecated cursor twin while more remain, and neither token once done', async () => {
+    const { sql, queries } = listingSql();
+    const first = await mount(sql).request(
+      'http://localhost/projects/p-1/files?limit=1',
+    );
+    expect(first.status).toBe(200);
+    const token = mintCursorFor(
+      'org-1',
+      'files:p-1',
+      formatKeysetCursor(1_700_000_000_002, 'd-2'),
+    );
+    expect(await first.json()).toEqual({
+      files: [files[0]],
+      isDone: false,
+      continueCursor: token,
+      cursor: token,
+    });
+    const next = await mount(sql).request(
+      `http://localhost/projects/p-1/files?limit=5&cursor=${encodeURIComponent(token)}`,
+    );
+    expect(next.status).toBe(200);
+    expect(await next.json()).toEqual({
+      files,
+      isDone: true,
+      continueCursor: '',
+    });
+    const listing = queries.filter((q) =>
+      q.text.includes('FROM app.documents d LEFT JOIN LATERAL'),
+    );
+    expect(listing.at(-1)?.values).toEqual(
+      expect.arrayContaining([1_700_000_000_002, 'd-2']),
+    );
   });
 });
 
@@ -1112,7 +1241,18 @@ describe('POST /projects/{id}/files upload policy', () => {
     const { sql, queries } = fakeSql();
     const res = await bind(sql, { contentType: 'application/octet-stream' });
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ file: { id: 'd-1' } });
+    // The 201 carries what the gate established about the landed bytes —
+    // the HEAD's size and the type resolved from the name — beside the id.
+    expect(await res.json()).toEqual({
+      file: {
+        id: 'd-1',
+        fileName: 'ledger.csv',
+        folderId: 'fold-1',
+        projectId: 'p-1',
+        size: 1234,
+        mimeType: 'text/csv',
+      },
+    });
     expect(vi.mocked(registerUpload)).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -1642,6 +1782,50 @@ describe('GET /projects/{id}/folders — the tree, one level at a time', () => {
  * in-app twin passes — the spec and the rate-limits page promised it while
  * the route charged only the general lane.
  */
+/**
+ * The folder door's rules before the domain: `parentId` is present with a
+ * value or omitted (a blank id used to walk to the opaque 404 instead of
+ * the blank-field 400 every other optional text field answers), and a name
+ * carrying a separator or a control character is the domain's
+ * `FOLDER_NAME_INVALID` — the character class a file name beside the
+ * folder always refused. A NUL never reaches the schema: the door's body
+ * guard refuses it as `INVALID_BODY` first.
+ */
+describe('POST /projects/{id}/folders — the name and parent rules', () => {
+  const post = (sql: Sql, body: unknown) =>
+    mount(sql).request('http://localhost/projects/p-1/folders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('refuses a blank parentId by name, never as a missing folder', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await post(sql, { name: 'Invoices', parentId: '  ' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: 'parentId', message: 'must not be blank' }] },
+    });
+    expect(queries.some((q) => q.text.includes('app.folders'))).toBe(false);
+  });
+
+  it.each([
+    ['a backslash', 'quarter\\one'],
+    ['a tab', 'quarter\tone'],
+    ['an escape', 'quarter\u001bone'],
+  ])(
+    'refuses a name carrying %s with FOLDER_NAME_INVALID, before any folder query',
+    async (_what, name) => {
+      const { sql, queries } = fakeSql();
+      const res = await post(sql, { name });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ code: 'FOLDER_NAME_INVALID' });
+      expect(queries.some((q) => q.text.includes('app.folders'))).toBe(false);
+    },
+  );
+});
+
 describe('POST /projects/{id}/folders folder:mutate budget', () => {
   it('answers the standard 429 with Retry-After when the org budget is spent', async () => {
     const { sql, queries } = fakeSql({ spent: true });

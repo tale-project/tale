@@ -2,6 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { safePathSegment } from '../../core/lib/safe_path_segment.ts';
 import {
+  indexingStateFrom,
+  type DocumentIndexingState,
+} from '../file_metadata/indexing-state.ts';
+import {
   findHubFolderByPath,
   MAX_FOLDER_DEPTH,
   normalizeFolderPath,
@@ -12,7 +16,9 @@ import {
  * `listDocumentsForAgent` contract): the chat/user door resolves the caller's
  * knowledge scope and validates `projectId` before calling; the binding door
  * passes its pre-resolved scope verbatim. Hub visibility rules live here and
- * nowhere else.
+ * nowhere else. A project chat lists its project's files AND the hub in one
+ * page (`includeHub`), project rows first; each row says which lane it came
+ * from and where its blob stands in the search corpus.
  *
  * `folderPath` is the folder tree's breadcrumb when the document sits in a
  * folder (fresh across renames — the denormalized `documents.folder_path` a
@@ -34,6 +40,12 @@ export interface AgentDocumentListArgs {
    *  org-wide run of a multi-bound automation (its bound projects). Non-empty
    *  → those projects' docs; takes precedence over `projectId`. */
   projectIds?: string[];
+  /** With a project lane: ALSO list the hub lane in the same page (project
+   *  rows first, then the hub rows the caller's teams may see) — a project
+   *  chat's view, where the project's files sit beside the organization's
+   *  shared knowledge. Without a project lane it changes nothing: the hub
+   *  lane is what a project-less listing already is. */
+  includeHub?: boolean;
   /** Substring match on the title, case-insensitive. */
   fileName?: string;
   /** Exact match; stored lowercased without the dot (e.g. `pdf`). */
@@ -50,6 +62,15 @@ export interface AgentDocumentItem {
   teamId: string | null;
   createdAt: number;
   sizeBytes: number | null;
+  /** The project the file lives in — null for a hub row. Carried so a page
+   *  that mixes the two lanes says which is which. */
+  projectId: string | null;
+  projectName: string | null;
+  /** Where the blob stands in the search corpus (`indexingStateFrom`), or
+   *  null for a blob no file row tracks. A row that is not `completed` is
+   *  listed but not searchable — the agent must not infer "unreadable" from
+   *  an empty search, and a text-like file is still readable on demand. */
+  indexing: DocumentIndexingState | null;
 }
 
 export interface AgentDocumentPage {
@@ -75,6 +96,9 @@ export async function listDocumentsForAgent(
         ? [args.projectId]
         : [];
   const projectLane = projectIds.length > 0;
+  // The hub lane runs alone for a project-less listing, and beside the
+  // project lane when the caller asks for the union (a project chat).
+  const hubLane = !projectLane || args.includeHub === true;
   const like = `%${args.fileName?.trim() ?? ''}%`;
   const rows = await sql<
     {
@@ -85,6 +109,13 @@ export async function listDocumentsForAgent(
       teamId: string | null;
       createdAt: number;
       sizeBytes: number | null;
+      projectId: string | null;
+      projectName: string | null;
+      skipRagIndexing: boolean | null;
+      ragStatus: string | null;
+      ragError: string | null;
+      ragErrorCode: string | null;
+      hasFileRow: boolean;
     }[]
   >`
     WITH RECURSIVE folder_paths AS (
@@ -101,9 +132,23 @@ export async function listDocumentsForAgent(
     SELECT d.file_ref AS "fileId", d.title, d.extension,
            coalesce(fp.path, d.folder_path) AS "folderPath",
            d.team_id AS "teamId", d.created_at_ms::float8 AS "createdAt",
-           (d.metadata ->> 'size')::float8 AS "sizeBytes"
+           (d.metadata ->> 'size')::float8 AS "sizeBytes",
+           d.project_id AS "projectId", p.name AS "projectName",
+           fm.skip_rag_indexing AS "skipRagIndexing",
+           fm.rag_status AS "ragStatus", fm.rag_error AS "ragError",
+           fm.rag_error_code AS "ragErrorCode",
+           (fm.storage_ref IS NOT NULL) AS "hasFileRow"
     FROM app.documents d
     LEFT JOIN folder_paths fp ON fp.id = d.folder_id
+    LEFT JOIN app.projects p ON p.id = d.project_id
+    LEFT JOIN LATERAL (
+      SELECT storage_ref, skip_rag_indexing, rag_status, rag_error,
+             rag_error_code
+      FROM app.file_metadata
+      WHERE org_id = d.org_id AND storage_ref = d.file_ref
+      ORDER BY created_at_ms ASC
+      LIMIT 1
+    ) fm ON TRUE
     WHERE d.org_id = ${args.organizationId}
       AND d.file_ref IS NOT NULL
       AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
@@ -112,13 +157,13 @@ export async function listDocumentsForAgent(
         OR d.extension = ${args.extension ?? ''})
       AND (
         (${projectLane} AND d.project_id = ANY(${projectIds}))
-        OR (${!projectLane} AND d.project_id IS NULL AND (
+        OR (${hubLane} AND d.project_id IS NULL AND (
           (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
           OR d.team_id = ANY(${args.teamIds})
           OR d.team_tags && ${args.teamIds}
         ))
       )
-    ORDER BY d.created_at_ms DESC, d.id
+    ORDER BY (d.project_id IS NULL), d.created_at_ms DESC, d.id
     LIMIT ${limit + 1} OFFSET ${offset}
   `;
   const hasMore = rows.length > limit;
@@ -132,6 +177,9 @@ export async function listDocumentsForAgent(
       teamId: row.teamId,
       createdAt: row.createdAt,
       sizeBytes: row.sizeBytes,
+      projectId: row.projectId,
+      projectName: row.projectName,
+      indexing: row.hasFileRow ? indexingStateFrom(row) : null,
     })),
     totalCount: null,
     hasMore,

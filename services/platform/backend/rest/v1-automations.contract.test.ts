@@ -616,7 +616,12 @@ describe('triggers of an automation nobody saved', () => {
       json('PUT', '{"kind": "webhook"}'),
     );
     expect(put.status).toBe(200);
-    expect(await put.json()).toEqual({ name: SAVED, token: 'tok' });
+    // `deployed` rides along: version 1 of the saved automation is live.
+    expect(await put.json()).toEqual({
+      name: SAVED,
+      token: 'tok',
+      deployed: true,
+    });
     vi.mocked(deleteTrigger).mockResolvedValue(false);
     const del = await mount().app.request(
       `http://localhost/api/v1/automations/${SAVED}/triggers`,
@@ -637,7 +642,29 @@ describe('triggers of an automation nobody saved', () => {
       json('PUT', '{"kind": "schedule", "cron": "0 9 * * 1"}'),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: SAVED, revoked: 'webhook' });
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      revoked: 'webhook',
+      deployed: true,
+    });
+  });
+
+  /**
+   * Binding before deploying is a legitimate order and stays accepted; the
+   * 200 now says the binding starts nothing yet (`deployed: false`) — it
+   * used to say nothing, and the trigger skipped every occurrence in
+   * silence (2026-09-12 evaluation, S3-9b).
+   */
+  it('PUT says whether the automation has a version to run', async () => {
+    vi.mocked(deployedVersion).mockResolvedValue(undefined);
+    vi.mocked(setTrigger).mockResolvedValue({});
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', '{"kind": "event", "event": "task.created"}'),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: SAVED, deployed: false });
+    expect(setTrigger).toHaveBeenCalledTimes(1);
   });
 
   it('GET answers the binding with its fire ledger as the store reports it', async () => {
@@ -836,6 +863,25 @@ describe('reads of an automation nobody saved', () => {
     expect(res.status).toBe(404);
     expect(automationExists).not.toHaveBeenCalled();
     expect(versionRow).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The one wrong spelling worth a hint: a client that built the URL from
+   * the `name` the API handed back (`billing/dunning`) sends a slash, raw
+   * or as `%2F`. The 404 stays — existence is not revealed — but its
+   * sentence says how a name travels (2026-09-12 evaluation, R4).
+   */
+  it('hints at the `__` spelling when the segment carries a slash', async () => {
+    const res = await mount().app.request(
+      'http://localhost/api/v1/automations/invoice%2Fsync/versions',
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error:
+        'Automation not found — a name’s "/" travels as "__" in the URL ("billing/dunning" is /automations/billing__dunning)',
+      code: 'AUTOMATION_NOT_FOUND',
+    });
+    expect(automationExists).not.toHaveBeenCalled();
   });
 
   it('no longer resolves a raw slash to the first segment', async () => {

@@ -72,6 +72,41 @@ describe('stepActivityLabel — rag_search', () => {
   });
 });
 
+describe('stepActivityLabel — rag_fetch on a document', () => {
+  const t = fakeT();
+
+  it('names the file from the result, on a miss as much as on a hit', () => {
+    // A not_found carries `filename` whenever the reader may know it, and the
+    // timeline reads it the same way it reads a successful fetch's — so a
+    // failed read of lead-verify.txt says "lead-verify.txt", not its ref.
+    expect(
+      stepActivityLabel(t, {
+        tool: 'rag_fetch',
+        detail: 's3:tale/acme/lead-verify.txt',
+        resultName: 'lead-verify.txt',
+      }),
+    ).toBe('thinking.readingDocument {"name":"lead-verify.txt"}');
+  });
+
+  it('never shows a raw blob ref when no name is known', () => {
+    expect(
+      stepActivityLabel(t, {
+        tool: 'rag_fetch',
+        detail: 's3:tale/acme/uploads/0f3a9c',
+      }),
+    ).toBe('thinking.readingDocumentUnnamed');
+    expect(stepActivityLabel(t, { tool: 'rag_fetch' })).toBe(
+      'thinking.readingDocumentUnnamed',
+    );
+  });
+
+  it('keeps a human-readable legacy ref as the name', () => {
+    expect(
+      stepActivityLabel(t, { tool: 'rag_fetch', detail: 'Pricing.pdf' }),
+    ).toBe('thinking.readingDocument {"name":"Pricing.pdf"}');
+  });
+});
+
 describe('ragSearchListingKind', () => {
   it('never reads a query-bearing call as a list', () => {
     expect(ragSearchListingKind({ query: 'open tasks' })).toBeUndefined();

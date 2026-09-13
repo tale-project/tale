@@ -1,10 +1,7 @@
 'use node';
 
 import { wrapUntrusted } from '../../../../lib/chat/untrusted-content';
-import {
-  knowledgeScopeAllows,
-  type KnowledgeAccessScope,
-} from '../../../../lib/knowledge/types';
+import type { KnowledgeAccessScope } from '../../../../lib/knowledge/types';
 import { formatZodError } from '../../../../lib/shared/schemas/format-error';
 import {
   MAX_OPTIONS_PER_QUESTION,
@@ -12,9 +9,9 @@ import {
   questionSetSchema,
   type QuestionSet,
 } from '../../../../lib/shared/schemas/questions';
+import { readDocumentText } from '../../knowledge/document_text';
 import {
   FETCH_WINDOW_CHARS,
-  fetchDocumentByFileId,
   fetchWebPageByUrl,
   windowText,
 } from '../../knowledge/fetch';
@@ -760,10 +757,13 @@ async function runKnowledgeTool(
   // A document file id. The dispatch's scope gates the fetch exactly like the
   // search: a ref in hand (quoted, guessed, remembered from before a scope
   // change) is not a capability, and a denied document reads as the same
-  // not_found as a missing one.
-  let fromCorpus;
+  // not_found as a missing one. The shared reader (the chat executor reads
+  // through the same one) serves the corpus text, the row's inline content,
+  // or a text file's bytes on demand — and names the file's true indexing
+  // state when none can be served.
+  let read;
   try {
-    fromCorpus = await fetchDocumentByFileId(ctx, {
+    read = await readDocumentText(ctx, {
       organizationId: args.organizationId,
       orgSlug,
       fileId: ref,
@@ -772,41 +772,14 @@ async function runKnowledgeTool(
   } catch (error) {
     return knowledgeUnavailable(error);
   }
-  let filename = fromCorpus?.filename ?? null;
-  let text =
-    fromCorpus !== null && fromCorpus.text.length > 0 ? fromCorpus.text : null;
-  if (text === null) {
-    // The corpus may not carry it (ingest offline, or a hub-authored
-    // document whose text lives inline on the Convex row). The row carries
-    // its own scope stamp — the same visibility rule applies before its
-    // inline content is served.
-    const row = await ctx.runQuery(
-      internal.documents.internal_queries.findDocumentByFileId,
-      { organizationId: args.organizationId, fileId: ref },
-    );
-    if (
-      row &&
-      knowledgeScopeAllows(access.scope, {
-        teamIds: row.teamTags ?? null,
-        teamId: row.teamId ?? null,
-        projectId: row.projectId ?? null,
-      }) &&
-      typeof row.content === 'string' &&
-      row.content.length > 0
-    ) {
-      text = row.content;
-      filename ??= row.title ?? null;
-    }
-  }
-  if (text === null) {
+  if (read.status === 'not_found') {
     return {
       status: 'not_found',
-      message:
-        'No readable content for that file id. The document may not be ' +
-        "indexed yet, or it is outside this run's scope — rag_search shows " +
-        'what is reachable.',
+      message: read.message,
+      ...(read.filename !== undefined ? { filename: read.filename } : {}),
     };
   }
+  const { text, filename } = read;
 
   // A document that arrived through a video link is third-party content; it
   // reads wrapped, like every other untrusted source.

@@ -42,19 +42,16 @@ import {
   wrapUntrusted,
 } from '../../../lib/chat/untrusted-content';
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
-import {
-  knowledgeScopeAllows,
-  type KnowledgeAccessScope,
-} from '../../../lib/knowledge/types';
+import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
 import {
   SafeFetchError,
   isPrivateIp,
   safeFetch,
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
+import { readDocumentText } from '../knowledge/document_text';
 import {
   FETCH_WINDOW_CHARS,
-  fetchDocumentByFileId,
   fetchWebPageByUrl,
   windowText,
 } from '../knowledge/fetch';
@@ -80,6 +77,16 @@ export interface ChatToolContext {
    * test's bare executor) reads as "no thread uploads retrievable".
    */
   readonly threadIds?: readonly string[];
+  /**
+   * The project the thread belongs to — from the THREAD ROW, decided by the
+   * server, access or not — or null for a personal thread. This is the scope
+   * boundary of the whole loadout: a project chat's documents are that
+   * project's files plus the organization hub, its work legs are that
+   * project's board; a personal chat's documents are the hub alone, its
+   * work legs every project the user can read. The model's own `projectId`
+   * argument can narrow inside this boundary, never move it.
+   */
+  readonly projectId: string | null;
 }
 
 /** A page bigger than this is cut BEFORE extraction — a tool result must
@@ -480,6 +487,9 @@ type ToolStatus = 'ok' | 'not_found' | 'invalid_args' | 'unavailable' | 'error';
 interface ToolFailure {
   readonly status: Exclude<ToolStatus, 'ok'>;
   readonly message: string;
+  /** The document's name when a miss may say it — so the timeline step
+   * names the file instead of the raw ref the model passed. */
+  readonly filename?: string;
 }
 
 function invalidArgs(message: string): ToolFailure {
@@ -518,27 +528,90 @@ export function createChatToolExecutor(
     return orgSlugPromise;
   };
 
-  /** The turn user's document visibility (their teams + accessible projects
+  /** The turn user's FULL visibility (their teams + every readable project
    * + the org hub) — the same rules the library listings enforce, so a chat
    * search can never surface a document the Documents page would hide.
    * Resolved once per turn: membership is already re-checked per dispatch by
    * `readAllowed`, and a mid-turn team change taking one turn to bite is the
-   * same window every listing query has. */
-  let accessPromise: Promise<KnowledgeAccessScope> | null = null;
+   * same window every listing query has. Never handed to a leg directly:
+   * the two scopes below are derived from it. */
+  let basePromise: Promise<KnowledgeAccessScope> | null = null;
+  const baseAccess = (): Promise<KnowledgeAccessScope> => {
+    basePromise ??= ctx.runQuery(
+      internal.documents.internal_queries.resolveKnowledgeAccess,
+      { organizationId: who.organizationId, userId: who.userId },
+    );
+    return basePromise;
+  };
+
+  /** The thread's project, and whether the turn user may still read it.
+   * Null for a personal thread. A project the user lost access to stays the
+   * boundary (nothing else is reached instead) — the scopes below then hold
+   * no project at all, and the listing label says why. */
+  const pinnedProject = async (): Promise<{
+    id: string;
+    readable: boolean;
+  } | null> => {
+    if (who.projectId === null) return null;
+    const base = await baseAccess();
+    return {
+      id: who.projectId,
+      readable: base.projectIds.includes(who.projectId),
+    };
+  };
+
+  /** `base` with its project set replaced by `projectIds` — the archive
+   * labels follow the set, so a project outside it is never labelled. */
+  const withProjects = (
+    base: KnowledgeAccessScope,
+    projectIds: readonly string[],
+  ): KnowledgeAccessScope => ({
+    ...base,
+    projectIds: [...projectIds],
+    ...(base.archivedProjectIds !== undefined
+      ? {
+          archivedProjectIds: base.archivedProjectIds.filter((id) =>
+            projectIds.includes(id),
+          ),
+        }
+      : {}),
+  });
+
+  /** DOCUMENT scope — what the search, list and fetch legs may reach: the
+   * organization hub as the user's teams see it, plus THIS thread's project
+   * when the thread has one and the user may read it. A personal thread
+   * reaches no project files at all (they are read from the project's own
+   * chat), a project thread reaches no other project's. The turn's own
+   * lineage widens it to ITS chat uploads — and only its own; the ids were
+   * ownership-checked at the send boundary. */
+  let knowledgePromise: Promise<KnowledgeAccessScope> | null = null;
   const knowledgeAccess = (): Promise<KnowledgeAccessScope> => {
-    accessPromise ??= ctx
-      .runQuery(internal.documents.internal_queries.resolveKnowledgeAccess, {
-        organizationId: who.organizationId,
-        userId: who.userId,
-      })
-      // The turn's own lineage widens the scope to ITS chat uploads — and
-      // only its own; the ids were ownership-checked at the send boundary.
-      .then((base) =>
-        who.threadIds !== undefined && who.threadIds.length > 0
-          ? { ...base, threadIds: [...who.threadIds] }
-          : base,
-      );
-    return accessPromise;
+    knowledgePromise ??= Promise.all([baseAccess(), pinnedProject()]).then(
+      ([base, project]) => {
+        const pinned = withProjects(
+          base,
+          project !== null && project.readable ? [project.id] : [],
+        );
+        return who.threadIds !== undefined && who.threadIds.length > 0
+          ? { ...pinned, threadIds: [...who.threadIds] }
+          : pinned;
+      },
+    );
+    return knowledgePromise;
+  };
+
+  /** WORK scope — the projects whose tasks and boards the work legs read: a
+   * project thread's own project (the same confinement a project agent's
+   * task tools have), every readable project in a personal thread. */
+  let workPromise: Promise<KnowledgeAccessScope> | null = null;
+  const workAccess = (): Promise<KnowledgeAccessScope> => {
+    workPromise ??= Promise.all([baseAccess(), pinnedProject()]).then(
+      ([base, project]) =>
+        project === null
+          ? base
+          : withProjects(base, project.readable ? [project.id] : []),
+    );
+    return workPromise;
   };
 
   /** Role-matrix read check for one subject; a denial is a result, not a
@@ -676,6 +749,25 @@ export function createChatToolExecutor(
         'rag_search needs "action": "search" (with a "query") or "list" ' +
           `(with a "kind"). Examples: ${EXAMPLE_SEARCH_CALL} · ` +
           `${EXAMPLE_LIST_CALL}. Retry once.`,
+      );
+      await recordDispatch('rag_search', result.status, result.message);
+      return result;
+    }
+
+    // The boundary a project thread's tools cannot cross: another project's
+    // id is refused whatever the kind or the action — the chat's own project
+    // is implied, so the fix is to drop the argument, never to find an id.
+    if (
+      projectId !== undefined &&
+      who.projectId !== null &&
+      projectId !== who.projectId
+    ) {
+      const result = invalidArgs(
+        `"projectId" ${JSON.stringify(projectId)} is another project. This ` +
+          `chat belongs to project ${JSON.stringify(who.projectId)} and its ` +
+          "tools reach only that project's files and tasks plus the " +
+          'organization\'s shared knowledge — omit "projectId" (this ' +
+          "chat's project is implied) and retry.",
       );
       await recordDispatch('rag_search', result.status, result.message);
       return result;
@@ -1048,7 +1140,7 @@ export function createChatToolExecutor(
     // work is not.
     if (runLeg('task', 'project')) {
       if (tasksAllowed || projectsAllowed) {
-        const access = await knowledgeAccess();
+        const access = await workAccess();
         const projectIds = [...access.projectIds];
         const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
 
@@ -1324,18 +1416,18 @@ export function createChatToolExecutor(
         );
       }
       const status = isWorkStatus(call.statusRaw) ? call.statusRaw : undefined;
-      if (status === undefined && call.projectId === undefined) {
+      // A project thread's board IS the slice: its project is implied, so a
+      // bare task list is that project's board, never the whole workspace.
+      const projectId = call.projectId ?? who.projectId ?? undefined;
+      if (status === undefined && projectId === undefined) {
         return invalidArgs(
           'Listing every task in the workspace is refused — slice the ' +
             `board: pass "status" (e.g. ${EXAMPLE_LIST_CALL}) or ` +
             '"projectId" (an id from a project row\'s data).',
         );
       }
-      const access = await knowledgeAccess();
-      if (
-        call.projectId !== undefined &&
-        !access.projectIds.includes(call.projectId)
-      ) {
+      const access = await workAccess();
+      if (projectId !== undefined && !access.projectIds.includes(projectId)) {
         return invalidArgs(
           'No readable project with that "projectId" in this organization. ' +
             'Use the "data"."projectId" a previous task or project row ' +
@@ -1354,9 +1446,7 @@ export function createChatToolExecutor(
             list: true,
             excludeArchived: true,
             ...(status !== undefined ? { status } : {}),
-            ...(call.projectId !== undefined
-              ? { projectId: call.projectId }
-              : {}),
+            ...(projectId !== undefined ? { projectId } : {}),
             paginationOpts: { numItems: limit, cursor },
           },
         );
@@ -1397,7 +1487,7 @@ export function createChatToolExecutor(
     }
 
     if (kind === 'project') {
-      const access = await knowledgeAccess();
+      const access = await workAccess();
       const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
       const projects = await ctx.runQuery(
         internal.tasks.search_for_chat.searchProjectsForChat,
@@ -1654,9 +1744,11 @@ export function createChatToolExecutor(
       });
     }
 
-    // kind === 'document' — the hub listing, not the RAG chunk index: the
-    // same reader the sandbox lane's document_find uses, scoped to the turn
-    // user's teams (and one readable project when named).
+    // kind === 'document' — the document listing, not the RAG chunk index:
+    // the same reader the sandbox lane's document_find uses. The scope is the
+    // thread's, decided server-side: a project chat lists its project's files
+    // and the organization's hub files in one page (project rows first); the
+    // organization chat lists the hub alone.
     const offset = cursor !== null ? Number.parseInt(cursor, 10) : 0;
     if (
       cursor !== null &&
@@ -1667,15 +1759,15 @@ export function createChatToolExecutor(
           '"continueCursor" the previous page returned, or omit it.',
       );
     }
-    if (call.projectId !== undefined) {
-      const access = await knowledgeAccess();
-      if (!access.projectIds.includes(call.projectId)) {
-        return invalidArgs(
-          'No readable project with that "projectId" in this organization. ' +
-            'Use the "data"."projectId" a previous task or project row ' +
-            'carried.',
-        );
-      }
+    const project = await pinnedProject();
+    if (project === null && call.projectId !== undefined) {
+      // A project's files are read from the project's own chat — the
+      // organization chat never reaches into a project, whoever asks.
+      return invalidArgs(
+        "Project files are read from the project's own chat, not from the " +
+          'organization chat. Omit "projectId" to list the organization\'s ' +
+          "hub files, or ask the user to continue in the project's chat.",
+      );
     }
     const found = await ctx.runQuery(
       internal.documents.internal_queries.listForAgent,
@@ -1684,10 +1776,13 @@ export function createChatToolExecutor(
         userId: who.userId,
         limit,
         ...(offset > 0 ? { cursor: offset } : {}),
-        ...(call.projectId !== undefined ? { projectId: call.projectId } : {}),
+        ...(project !== null && project.readable
+          ? { projectId: project.id, includeHub: true }
+          : {}),
       },
     );
     const hasMore = found.hasMore;
+    let unindexed = 0;
     const results = found.documents.map(
       (doc: {
         title: string;
@@ -1695,34 +1790,68 @@ export function createChatToolExecutor(
         extension: string | null;
         folderPath: string | null;
         createdAt: number;
-      }): SearchResultEntry => ({
-        kind: 'document',
-        title: doc.title,
-        ref: doc.fileId,
-        data: {
-          ...(doc.extension !== null ? { extension: doc.extension } : {}),
-          ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
-          createdAt: modelTimestamp(doc.createdAt),
-        },
-      }),
+        projectId?: string | null;
+        projectName?: string | null;
+        indexing?: { status: string; error?: string } | null;
+      }): SearchResultEntry => {
+        const indexing = doc.indexing ?? null;
+        if (indexing !== null && indexing.status !== 'completed') {
+          unindexed += 1;
+        }
+        return {
+          kind: 'document',
+          title: doc.title,
+          ref: doc.fileId,
+          data: {
+            // Which lane the row came from, so a mixed page reads plainly.
+            scope: doc.projectId != null ? 'project' : 'hub',
+            ...(doc.projectId != null && doc.projectName != null
+              ? { project: doc.projectName }
+              : {}),
+            ...(doc.extension !== null ? { extension: doc.extension } : {}),
+            ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
+            // Where the file stands in the search corpus: anything but
+            // "completed" is listed here but never found by a search.
+            ...(indexing !== null ? { indexing: indexing.status } : {}),
+            ...(indexing?.error !== undefined
+              ? { indexingError: clip(indexing.error, 200) }
+              : {}),
+            createdAt: modelTimestamp(doc.createdAt),
+          },
+        };
+      },
     );
-    // Hub and team files are the whole catalog only for project-less asks —
-    // project files stay behind their "projectId", and the source line says
-    // so rather than presenting the hub as everything.
-    const scopeLabel =
-      call.projectId !== undefined
-        ? 'project files'
-        : 'hub and team files — project files need "projectId"';
+    // The source line names the scope the page came from — the project and
+    // the hub together, the hub alone, or the hub because the project is no
+    // longer readable — rather than presenting any of them as everything.
+    let scopeLabel: string;
+    if (project === null) {
+      scopeLabel =
+        "hub files (project files are read from a project's own chat)";
+    } else if (!project.readable) {
+      scopeLabel = "hub files — this chat's project is not readable by you";
+    } else {
+      const labels = await projectLabelsById(ctx, who.organizationId, [
+        project.id,
+      ]);
+      const name = labels.get(project.id)?.name ?? project.id;
+      scopeLabel = `project "${name}" files and the organization's hub files`;
+    }
     const warningNote = found.warning !== null ? found.warning : undefined;
+    const indexingNote =
+      unindexed > 0
+        ? `${unindexed} of these ${unindexed === 1 ? 'file is' : 'files are'} ` +
+          'not indexed ("indexing" is not "completed"): a search never finds ' +
+          'them, but rag_fetch still reads a text file on request.'
+        : undefined;
     const pagingNote = standardNote({
       count: results.length,
       hasMore,
       pageable: true,
     });
-    const note =
-      warningNote !== undefined && pagingNote !== undefined
-        ? `${pagingNote} ${warningNote}`
-        : (pagingNote ?? warningNote);
+    const note = [pagingNote, warningNote, indexingNote]
+      .filter((part): part is string => part !== undefined)
+      .join(' ');
     return envelope({
       results,
       hasMore,
@@ -1732,7 +1861,7 @@ export function createChatToolExecutor(
       source: hasMore
         ? `listed (${scopeLabel}; more pages)`
         : `listed (${scopeLabel})`,
-      ...(note !== undefined ? { note } : {}),
+      ...(note !== '' ? { note } : {}),
     });
   };
 
@@ -1807,11 +1936,13 @@ export function createChatToolExecutor(
       }
       // A ref is not a capability: re-derive project visibility now, because a
       // ref can be replayed on a later turn after access changed — exactly the
-      // rule the document branch below applies.
-      const workAccess = await knowledgeAccess();
+      // rule the document branch below applies. In a project thread the work
+      // scope is that project alone, so another project's task reads as the
+      // same not_found.
+      const work = await workAccess();
       if (
         scoped.projectId != null &&
-        !workAccess.projectIds.includes(String(scoped.projectId))
+        !work.projectIds.includes(String(scoped.projectId))
       ) {
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
@@ -1874,9 +2005,9 @@ export function createChatToolExecutor(
           'No project with that ref is readable in this organization. Re-run ' +
           'rag_search and use a ref from its results.',
       };
-      const access = await knowledgeAccess();
+      const access = await workAccess();
       // A ref is not a capability here either: the project must still be in
-      // the caller's readable set on THIS turn.
+      // the caller's work scope on THIS turn.
       if (!access.projectIds.includes(projectId)) {
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
@@ -1977,64 +2108,37 @@ export function createChatToolExecutor(
       await recordDispatch('rag_fetch', result.status, result.message);
       return result;
     }
-    // The turn user's visibility gates the FETCH exactly like the search: a
-    // ref in hand (quoted, guessed, remembered from before a scope change) is
-    // not a capability, and a denied document reads as the same not_found as
-    // a missing one.
+    // The turn user's document scope gates the FETCH exactly like the
+    // search: a ref in hand (quoted, guessed, remembered from before a scope
+    // change) is not a capability, and a denied document reads as the same
+    // not_found as a missing one. The shared reader serves the corpus text,
+    // the row's inline content, or a text file's bytes on demand — and
+    // names the file's true indexing state when none can be served.
     const access = await knowledgeAccess();
-    const fromCorpus = await fetchDocumentByFileId(ctx, {
+    const read = await readDocumentText(ctx, {
       organizationId: who.organizationId,
       orgSlug: slug,
       fileId: ref,
       access,
     });
-    let filename = fromCorpus?.filename ?? null;
-    let text =
-      fromCorpus !== null && fromCorpus.text.length > 0
-        ? fromCorpus.text
-        : null;
-    if (text === null) {
-      // The corpus may not carry it (ingest offline, or a hub-authored
-      // document whose text lives inline on the Convex row). The row carries
-      // its own scope stamp — the same visibility rule applies before its
-      // inline content is served.
-      const row = await ctx.runQuery(
-        internal.documents.internal_queries.findDocumentByFileId,
-        { organizationId: who.organizationId, fileId: ref },
-      );
-      if (
-        row &&
-        // `teamTags` is the row's FULL team list (multi-team sharing);
-        // visibility is "member of ANY of them", with the legacy single
-        // `teamId` as the fallback — the same rule listing applies.
-        knowledgeScopeAllows(access, {
-          teamIds: row.teamTags ?? null,
-          teamId: row.teamId ?? null,
-          projectId: row.projectId ?? null,
-        }) &&
-        typeof row.content === 'string' &&
-        row.content.length > 0
-      ) {
-        text = row.content;
-        filename ??= row.title ?? null;
-      }
-    }
-    if (text === null) {
+    if (read.status === 'not_found') {
       const result: ToolFailure = {
         status: 'not_found',
-        message:
-          'No readable content for that file id. The document may not be ' +
-          'indexed yet — say so instead of guessing at its contents.',
+        message: read.message,
+        ...(read.filename !== undefined
+          ? { filename: sanitizeUntrustedField(read.filename) }
+          : {}),
       };
       await recordDispatch('rag_fetch', result.status, result.message);
       return result;
     }
+    const { text, filename } = read;
 
     // Anything that arrived by email is attacker-controlled — its contents,
     // and the subject and correspondent #3014 bakes into the chunk — so it
     // reads wrapped, exactly like a video-link document. The corpus already
     // knows which refs those are.
-    const fromMail = fromCorpus?.conversationId != null;
+    const fromMail = read.conversationId != null;
 
     // A document that arrived through a video link is third-party content;
     // it reads wrapped, like every other untrusted source.

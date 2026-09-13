@@ -90,6 +90,8 @@ function mount(
     ambiguous?: boolean;
     spent?: boolean;
     deployed?: boolean;
+    /** Whether any version of the named automation was ever saved. */
+    exists?: boolean;
     boundProjectIds?: string[];
   } = {},
 ) {
@@ -145,6 +147,9 @@ function mount(
               },
             ],
       );
+    }
+    if (text.includes('FROM app.automations WHERE')) {
+      return Promise.resolve(options.exists === false ? [] : [{ present: 1 }]);
     }
     if (text.includes('FROM app.automation_deployments')) {
       return Promise.resolve(
@@ -447,12 +452,39 @@ describe('project-scoped task intake', () => {
     },
   );
 
-  it('refuses an undeployed explicit owner before creating an orphan assignment', async () => {
+  /**
+   * The owner's two absences are two refusals: a name nobody saved is a
+   * 404 `AUTOMATION_NOT_FOUND`; a saved automation with nothing deployed is
+   * a 409 `AUTOMATION_NOT_DEPLOYED`, naming it — one code, one status, as on
+   * the run doors. The door used to answer both as a 404 whose sentence
+   * said "not deployed" (2026-09-12 evaluation, S3-4c).
+   */
+  it('refuses an owner nobody saved with 404 AUTOMATION_NOT_FOUND before creating an orphan assignment', async () => {
+    const { request } = mount({ exists: false, boundProjectIds: [] });
+    const res = await request(collection, 'POST', {
+      ...input,
+      automationSlug: 'ghost',
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Automation not found',
+      code: 'AUTOMATION_NOT_FOUND',
+    });
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('refuses a saved but undeployed owner with 409 AUTOMATION_NOT_DEPLOYED, naming it', async () => {
     const { request } = mount({ deployed: false, boundProjectIds: [] });
-    expect(
-      (await request(collection, 'POST', { ...input, automationSlug: 'ghost' }))
-        .status,
-    ).toBe(404);
+    const res = await request(collection, 'POST', {
+      ...input,
+      automationSlug: 'parked',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error:
+        '"parked" has no deployed version — deploy it before assigning tasks to it.',
+      code: 'AUTOMATION_NOT_DEPLOYED',
+    });
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
@@ -499,9 +531,12 @@ describe('project-scoped task reads and operations', () => {
     const { request } = mount({ role: 'member' });
     const res = await request(item);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const body: { task: Record<string, unknown> } = await res.json();
+    expect(body).toMatchObject({
       task: { id: 't-1', projectId: 'p-1', title: task.title },
     });
+    // The archived marker is present exactly when the task is archived.
+    expect(body.task).not.toHaveProperty('archivedAt');
   });
 
   it.each(operations)(
@@ -850,7 +885,12 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
 
   it('keeps an archived task readable but refuses its comment and start with 403 TASK_ARCHIVED', async () => {
     const { request } = mount({ taskArchived: true });
-    expect((await request(item)).status).toBe(200);
+    const read = await request(item);
+    expect(read.status).toBe(200);
+    // The state the two refusals name is readable here: a task is archived
+    // from the board (this door has no verb for it), so a mirror learns it
+    // from the payload rather than from the 403.
+    expect(await read.json()).toMatchObject({ task: { archivedAt: 1 } });
     expect((await request(`${item}/comments`)).status).toBe(200);
     const comment = await request(`${item}/comments`, 'POST', {
       body: 'Filed.',

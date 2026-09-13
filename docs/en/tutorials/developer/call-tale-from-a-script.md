@@ -52,32 +52,42 @@ auth = {
 threads_url = f"{base}/api/v1/threads"
 
 # 1. A thread of your own
-thread = requests.post(threads_url, headers=auth, json={}).json()
+thread = requests.post(threads_url, headers=auth, json={}, timeout=30).json()
+thread_url = f"{threads_url}/{thread['id']}"
 
-# 2. Send a message — name a model your org has configured
-requests.post(
-    f"{threads_url}/{thread['id']}/messages",
+# 2. Send a message — name a model your org has configured. The 202 names
+#    the reply before the model has said a word: keep its id.
+sent = requests.post(
+    f"{thread_url}/messages",
     headers=auth,
     json={"content": "In one sentence: what is Tale?", "model": "<your-model>"},
-).raise_for_status()
+    timeout=30,
+)
+sent.raise_for_status()
+reply_id = sent.json()["messageId"]
 
-# 3. Poll until idle, then read the last message
+# 3. Poll until idle. A turn has no fixed deadline, so bound the loop
+#    yourself and stop a turn you gave up on.
+deadline = time.monotonic() + 600
 while True:
-    status = requests.get(
-        f"{threads_url}/{thread['id']}/generation", headers=auth
-    ).json()["status"]
-    if status == "idle":
+    poll = requests.get(f"{thread_url}/generation", headers=auth, timeout=30).json()
+    if poll["status"] == "idle":
         break
-    time.sleep(1)
+    if time.monotonic() > deadline:
+        requests.delete(f"{thread_url}/generation", headers=auth, timeout=30)
+        raise SystemExit("the turn did not settle in time")
+    time.sleep(2)
+if poll.get("lastMessageId") != reply_id:
+    raise SystemExit("the turn never ran — check the thread's scope and your access")
 
-messages = requests.get(
-    f"{threads_url}/{thread['id']}/messages", headers=auth
-).json()["page"]
-reply = messages[-1]
+# 4. Read the reply by its id and check how it settled before trusting it
+reply = requests.get(f"{thread_url}/messages/{reply_id}", headers=auth, timeout=30).json()
+if reply["status"] != "complete":
+    raise SystemExit(f"turn {reply['status']}: {reply.get('error', '')} {reply.get('errorCode', '')}")
 print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
-`{"status": "idle"}` means no turn is running. Read the messages for the reply or a model error. The send call answers **202** before the work finishes. If you lose access or move the thread before the queued turn opens, the worker refuses it; see the [API reference](/develop/api-reference) for the scope rules.
+The send answers **202** before the work finishes and names the reply: `messageId` is the assistant message the answer lands in, and the poll answers `idle` with `lastMessageId` once that turn has settled. Read the message by its id and check `status` before you print anything: `complete` carries the text, `failed` carries `error` and `errorCode` (a model the provider's plan does not cover, an exhausted balance — a listed model can still fail), and `cancelled` whatever had streamed before a stop. A turn has no fixed deadline, so the loop bounds itself and cancels a turn it gave up on with `DELETE .../generation`. If you lose access or move the thread before the queued turn opens, the worker refuses it and the poll settles `idle` without your id; see the [API reference](/develop/api-reference) for the scope rules.
 
 ## Step 4 — Start an automation run
 

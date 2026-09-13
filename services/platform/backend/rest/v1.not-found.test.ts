@@ -5,7 +5,10 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../auth/auth.ts';
-import { apiPathWithoutTrailingSlash } from '../lib/http-hygiene.ts';
+import {
+  apiPathWithoutTrailingSlash,
+  restDoorHeaders,
+} from '../lib/http-hygiene.ts';
 import { mountRestV1Routes } from './v1.ts';
 
 /**
@@ -63,6 +66,9 @@ function fakeAuth(): Auth {
 /** The app's wiring: the door mounted at /api/v1 with its catch-all. */
 function root() {
   const app = new Hono();
+  // The app's own wiring: the door's contract headers are stamped by the
+  // root, on `/api/v1/*`, ahead of the door (lib/http-hygiene.ts).
+  app.use('/api/v1/*', restDoorHeaders());
   mountRestV1Routes(app, { sql: fakeSql(), auth: fakeAuth() });
   app.get('/elsewhere', (c) => c.text('outside the door'));
   return app;
@@ -238,6 +244,7 @@ describe('/api/v1 door — a trailing slash', () => {
   /** The app's root wiring: the path normaliser installed as `getPath`. */
   function normalisingRoot() {
     const app = new Hono({ getPath: apiPathWithoutTrailingSlash });
+    app.use('/api/v1/*', restDoorHeaders());
     mountRestV1Routes(app, { sql: fakeSql(), auth: fakeAuth() });
     return app;
   }

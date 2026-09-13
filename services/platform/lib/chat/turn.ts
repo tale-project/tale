@@ -353,14 +353,18 @@ export interface TurnRequest {
   /** The conversation so far, oldest first, excluding `userText`. */
   readonly history: readonly ChatMessage[];
   readonly locale: string;
+  /** The caller fixed the reply language (see `ContextInput.localeFixed`):
+   * the reply is written in `locale` whatever language the user writes in. */
+  readonly localeFixed?: boolean;
   readonly agent?: ResolvedAgent;
   /** A sub-agent turn skips the org's mandatory instructions — the turn that
    * spawned it already applied them. */
   readonly isSubAgentTurn?: boolean;
   readonly mandatoryInstructions?: string;
   readonly toolDocs?: readonly ToolDoc[];
-  /** The project a project-bound thread belongs to — named in the prompt, not
-   * used to narrow retrieval. Absent for an unbound thread. */
+  /** The project a project-bound thread belongs to — named in the prompt as
+   * the scope its tools work inside (the executor enforces that boundary
+   * server-side). Absent for an unbound thread. */
   readonly project?: ProjectContext;
   /** The explicitly chosen model. Never inferred. */
   readonly model: ModelCatalogEntry;
@@ -546,6 +550,7 @@ function assembleTurnContext(
     isSubAgentTurn: request.isSubAgentTurn,
     agent: request.agent,
     locale: request.locale,
+    ...(request.localeFixed === true ? { localeFixed: true } : {}),
     toolDocs: request.toolDocs,
     ...(request.project !== undefined ? { project: request.project } : {}),
     now,

@@ -204,6 +204,36 @@ describe('assembleContext', () => {
       'Antworte in einfacher Sprache.',
     );
   });
+
+  /**
+   * The directive let the prompt's language win, so a REST send's `locale`
+   * (documented as the language the assistant answers in) read as doing
+   * nothing on an English prompt. A caller that FIXED the locale gets a
+   * directive that pins it; the app lane, which never sets the flag, keeps
+   * the directive it always had.
+   */
+  it('pins the reply language when the caller fixed the locale, and lets the prompt win otherwise', () => {
+    const fixed = assembleContext(input({ locale: 'de', localeFixed: true }));
+    expect(fixed.system).toContain(
+      'Answer in de whatever language the user writes in — the caller fixed the reply language.',
+    );
+    expect(fixed.system).not.toContain("Respond in the user's language");
+
+    const open = assembleContext(input({ locale: 'de' }));
+    expect(open.system).toContain(
+      "Respond in the user's language (de). If the user writes in another language, answer in the language they used.",
+    );
+    expect(open.system).not.toContain('the caller fixed the reply language');
+    // Either way the directive sits in the volatile suffix, after the
+    // cache breakpoint — never in the cached prefix.
+    for (const result of [fixed, open]) {
+      const ids = result.blocks.map((block) => block.id);
+      expect(ids.indexOf('runtime-directives')).toBeGreaterThan(
+        ids.indexOf('cache-breakpoint'),
+      );
+      expect(result.stablePrefix).not.toContain('language');
+    }
+  });
 });
 
 describe('assembleContext — overflow', () => {
@@ -392,15 +422,31 @@ describe('assembleContext — project context', () => {
     expect(text).not.toMatch(/instructions for this project/i);
   });
 
-  // Named, not fenced: the prompt says which project the conversation is in
-  // and still permits everything else the user can read. A block that told the
-  // model to restrict itself would make a project chat worse at every question
-  // reaching outside the project.
-  it('does not fence retrieval to the project', () => {
+  // The boundary sentence: a project chat's tools reach the project's files
+  // and the organization's shared knowledge, and no other project. The
+  // executor enforces exactly that server-side; the prompt says it so the
+  // model neither walks the project list for "the project's files" nor
+  // apologises for the boundary. The key is the handle people use.
+  it('states the scope boundary, with the project key when it has one', () => {
+    const result = assembleContext(
+      input({ project: { name: 'Growth', key: 'GRW' } }),
+    );
+    const block = result.blocks.find((b) => b.id === 'project-context');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toContain(
+      'This conversation belongs to project "Growth" (GRW). Your tools ' +
+        "reach this project's files and the organization's shared " +
+        'knowledge; other projects are out of scope in this chat.',
+    );
+    expect(text).not.toMatch(/anything else the user can read/i);
+  });
+
+  it('names the project without a key when the row has none', () => {
     const result = assembleContext(input({ project: { name: 'Growth' } }));
     const block = result.blocks.find((b) => b.id === 'project-context');
     const text = block && 'text' in block ? block.text : '';
-    expect(text).toMatch(/you may still use anything else the user can read/i);
+    expect(text).toContain('This conversation belongs to project "Growth". ');
+    expect(text).not.toContain('()');
   });
 
   it('treats a blank project name as no project', () => {
