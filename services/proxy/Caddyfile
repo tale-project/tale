@@ -288,21 +288,67 @@
 		header_up X-Forwarded-Proto {scheme}
 	}
 
-	# Encode responses, but skip WebSocket endpoints
+	# Encode responses, but skip WebSocket endpoints — and HEAD. The encoder
+	# judges a HEAD by the upstream's Content-Length: past its 512-byte
+	# floor it opened a gzip/zstd stream for a body that never comes and
+	# stamped that stream's 20-byte empty frame as the length, where the
+	# API reference promises the length the GET would carry (2026-09-13
+	# round-e evaluation). Left alone, a HEAD passes the upstream's own
+	# uncompressed length through.
 	@notWebSocket {
 		not path /api/*/sync
 		not path /ws_api/*
+		not method HEAD
 	}
 	encode @notWebSocket gzip zstd
 
-	# Loading page when platform is unavailable
-	# During deployments, there's a brief window when the old platform loses
-	# its DB connection and the new one isn't ready yet.
-	# Shows a friendly loading page instead of a raw 502/503 error.
+	# What a 502/503/504 answers depends on who asked. During a deployment
+	# there is a brief window when the old platform loses its DB connection
+	# and the new one is not ready yet: a browser navigation gets the
+	# friendly loading page instead of a raw error, as before. A machine
+	# door gets the JSON envelope the API reference promises — a client that
+	# parses JSON cannot branch on an HTML page, and 4 KiB of markup with a
+	# meta-refresh read as "the API is broken" to every integrator who met
+	# it mid-roll. The first `handle` that matches wins, so the order below
+	# IS the rule.
 	handle_errors 502 503 504 {
-		root * /var/www
-		rewrite * /maintenance.html
-		file_server
+		# A 502 the CLIENT caused, judged first and on every path: over
+		# HTTP/2 a body that ends before its declared Content-Length makes
+		# Go's server fail the request body with "request declared a
+		# Content-Length of N but only wrote M bytes", the round trip to the
+		# backend fails, and a truncated upload became the maintenance page
+		# — for a declared length under the cap too, so the platform never
+		# saw it. That is a malformed request (400), not an outage. Matched
+		# on that sentence alone (never the wider "unexpected EOF", which an
+		# upstream abort says too) and never echoed: the message names
+		# internal addresses. Over HTTP/1.1 the missing bytes are simply
+		# waited for (the backend's 15-minute 408), so there is no twin.
+		@shortBody expression `{http.error.status_code} == 502 && {http.error.message}.matches("request declared a Content-Length of")`
+		handle @shortBody {
+			import edge_json_refusal
+			respond `{"error":"The request body ended before the declared Content-Length was reached — send exactly the bytes the header declares (a length past the route's cap is refused by the platform's 413 instead)","code":"BODY_LENGTH_MISMATCH","requestId":"{http.request.uuid}"}` 400
+		}
+		# The machine doors: every lane the entrypoint injects plus the
+		# platform's keyless JSON doors (/api/health, /status.json,
+		# /openapi.json). Judged on the PATH alone — no Accept sniffing — so
+		# the answer is deterministic for the caller and for the access log,
+		# and on the raw request-URI, which Caddy restores before the error
+		# routes run: the optional leading segment keeps the rule true under
+		# a subpath deployment. `respond` without a status keeps the error's
+		# own (502, 503 or 504); the wait is a hint, not a promise — the
+		# platform is usually back within seconds of a roll.
+		@machineDoor expression `{http.request.uri}.matches("(?i)^(/[^/?]+)?/(api|scim|http_api)(/|$)") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/(events|status[.]json|openapi[.]json)([?]|$)") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/[.]well-known/")`
+		handle @machineDoor {
+			import edge_json_refusal
+			header Retry-After 5
+			respond `{"error":"The platform is not answering right now — a deployment may be rolling; retry with backoff","code":"UPSTREAM_UNAVAILABLE","requestId":"{http.request.uuid}"}`
+		}
+		# Everyone else — a navigation, an asset, the SPA — gets the page.
+		handle {
+			root * /var/www
+			rewrite * /maintenance.html
+			file_server
+		}
 	}
 
 	header {

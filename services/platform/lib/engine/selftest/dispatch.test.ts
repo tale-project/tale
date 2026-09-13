@@ -234,6 +234,7 @@ describe('dispatch — the shared method table', () => {
       ...base,
       startRun: async () => ({ runId: 'run_slow', version: 1 }),
       getRun: async (runId) => ({
+        id: runId,
         runId,
         name: 'order-report',
         version: 1,
@@ -758,7 +759,12 @@ describe('automation names are "/"-separated slug paths', () => {
       },
       { store },
     );
-    expect(saved).toEqual({ name: 'billing/dunning-reminder', version: 1 });
+    // The example document carries tests, so the save records their run.
+    expect(saved).toEqual({
+      name: 'billing/dunning-reminder',
+      version: 1,
+      testsPassed: true,
+    });
 
     const read = (await dispatch(
       'get_automation',

@@ -92,6 +92,16 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toContain('web_fetch');
   });
 
+  it('rag_search says an unknown name or document is a reason to search, not to ask', () => {
+    // "What is X?" on a term the model could not know answered that it had
+    // no such information and asked where it would live — the guide's
+    // no-fabrication rule read literally, with nothing saying that such a
+    // term IS a need for the organization's material.
+    const text = wireDescription('rag_search');
+    expect(text).toMatch(/search before answering/i);
+    expect(text).toMatch(/never ask where it would live/i);
+  });
+
   it('rag_search is honest about which rows carry a ref', () => {
     // Task rows carry one now — that ref IS the depth path, since chat has no
     // task tool. Projects deliberately do not: their row already holds

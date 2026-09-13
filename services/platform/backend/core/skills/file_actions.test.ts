@@ -3,10 +3,12 @@
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
   symlink,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -458,6 +460,92 @@ describe('saveSkill', () => {
     });
     expect(second.etag).not.toBe(first.etag);
     expect(second.updatedAt).toBeGreaterThanOrEqual(first.updatedAt);
+  });
+
+  it('writes nothing for a save that would store the document already there — same tag, same updatedAt, no history entry', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const readSkill = await load('readSkillForViewer');
+    const args = {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'One.\n',
+    };
+    const { skill: first } = await saveSkill(args);
+    const skillMdPath = path.join(
+      configRoot,
+      'acme',
+      'skills',
+      'house-voice',
+      'SKILL.md',
+    );
+    const historyDir = path.join(
+      configRoot,
+      'acme',
+      'skills',
+      '.history',
+      'house-voice',
+    );
+    const historyEntries = (): Promise<string[]> =>
+      readdir(historyDir).catch((err: unknown) => {
+        if ((err as { code?: string }).code === 'ENOENT') return [];
+        throw err;
+      });
+    // Age the document so an untouched mtime is provable: a rewrite inside
+    // the same millisecond would hide behind the floored timestamp.
+    const aged = new Date('2020-01-01T00:00:00Z');
+    await utimes(skillMdPath, aged, aged);
+    const read = await readSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...bob,
+    });
+    expect(read.updatedAt).toBe(aged.getTime());
+
+    // The identical save (the 2026-09-13 round-e evaluation, E6-03): the
+    // stored tag, the stored updatedAt, the file and its history untouched.
+    const again = await saveSkill(args);
+    expect(again.created).toBe(false);
+    expect(again.skill.etag).toBe(first.etag);
+    expect(again.skill.updatedAt).toBe(aged.getTime());
+    expect(Math.floor((await stat(skillMdPath)).mtimeMs)).toBe(aged.getTime());
+    expect(await historyEntries()).toEqual([]);
+
+    // A save that changes the document moves both and snapshots the old one…
+    const { skill: changed } = await saveSkill({ ...args, body: 'Two.\n' });
+    expect(changed.etag).not.toBe(first.etag);
+    expect(changed.updatedAt).toBeGreaterThan(aged.getTime());
+    expect((await historyEntries()).length).toBe(1);
+    // …and an identical save after it is a no-op again.
+    const settled = await saveSkill({ ...args, body: 'Two.\n' });
+    expect(settled.skill.etag).toBe(changed.etag);
+    expect(settled.skill.updatedAt).toBe(changed.updatedAt);
+    expect((await historyEntries()).length).toBe(1);
+  });
+
+  it('evaluates the preconditions before the no-op: a stale If-Match on an identical body is still refused', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const args = {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'One.\n',
+    };
+    const { skill: stored } = await saveSkill(args);
+    try {
+      await saveSkill({
+        ...args,
+        precondition: { ifMatch: parseEntityTagList('"stale"') },
+      });
+      expect.unreachable(
+        'a stale If-Match must be refused even when the body changes nothing',
+      );
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_STALE');
+      expect(errorData(err)).toEqual({ etag: stored.etag });
+    }
   });
 
   it('honours If-Match under RFC 9110 strong comparison and names the current tag on a refusal', async () => {

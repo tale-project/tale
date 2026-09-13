@@ -763,6 +763,68 @@ describe('GET /documents/:id/content', () => {
     expect(await res.text()).toBe('');
   });
 
+  /** The date validator of the inline branch. The regression under test
+   * (round e, E5-02): the lane issued `Last-Modified` from the document's
+   * `updatedAt` and never read it back, so `If-Modified-Since` answered
+   * the whole text every time while `If-None-Match` on the same URL, and
+   * the same date on a file-backed document, answered 304. */
+  it('answers 304, bodiless, to an If-Modified-Since at or past the Last-Modified it issued', async () => {
+    const first = await mount(fakeSql([]).sql).request(route);
+    const lastModified = first.headers.get('last-modified');
+    expect(lastModified).toBe('Tue, 14 Nov 2023 22:13:20 GMT');
+    for (const since of [lastModified ?? '', 'Sun, 13 Sep 2026 10:46:39 GMT']) {
+      const res = await mount(fakeSql([]).sql).request(route, {
+        headers: { 'if-modified-since': since },
+      });
+      expect(res.status).toBe(304);
+      expect(await res.text()).toBe('');
+      expect(res.headers.get('etag')).toBe(first.headers.get('etag'));
+      expect(res.headers.get('last-modified')).toBe(lastModified);
+      expect(res.headers.get('cache-control')).toBe('private, no-cache');
+      expect(res.headers.get('accept-ranges')).toBe('none');
+      expect(res.headers.get('content-type')).toBeNull();
+      expect(res.headers.get('content-length')).toBeNull();
+    }
+    const head = await mount(fakeSql([]).sql).request(route, {
+      method: 'HEAD',
+      headers: { 'if-modified-since': lastModified ?? '' },
+    });
+    expect(head.status).toBe(304);
+  });
+
+  it('answers the text to an If-Modified-Since before the Last-Modified, or one that does not parse', async () => {
+    for (const since of ['Tue, 14 Nov 2023 22:13:19 GMT', 'yesterday']) {
+      const res = await mount(fakeSql([]).sql).request(route, {
+        headers: { 'if-modified-since': since },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('beta content');
+    }
+  });
+
+  it('lets If-None-Match decide when both validators are sent', async () => {
+    // RFC 9110 §13.1.3: a stale tag beside a current date is a changed
+    // representation — the date is ignored and the bytes answer; a
+    // current tag beside a stale date is unchanged.
+    const stale = await mount(fakeSql([]).sql).request(route, {
+      headers: {
+        'if-none-match': '"stale"',
+        'if-modified-since': 'Tue, 14 Nov 2023 22:13:20 GMT',
+      },
+    });
+    expect(stale.status).toBe(200);
+    expect(await stale.text()).toBe('beta content');
+    const first = await mount(fakeSql([]).sql).request(route);
+    const current = await mount(fakeSql([]).sql).request(route, {
+      headers: {
+        'if-none-match': first.headers.get('etag') ?? '',
+        'if-modified-since': 'Tue, 14 Nov 2023 22:13:19 GMT',
+      },
+    });
+    expect(current.status).toBe(304);
+    expect(await current.text()).toBe('');
+  });
+
   it('streams a file-backed document from the store, Range honoured', async () => {
     const { getDocumentById } = await import('../domains/documents/service.ts');
     vi.mocked(getDocumentById).mockResolvedValue({

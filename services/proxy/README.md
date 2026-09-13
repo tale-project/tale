@@ -21,7 +21,7 @@ Routes (defined in `Caddyfile`):
 - `docs:3002` — the docs site (optional; only the dev/docs compose chain ships it, so passive health-checking only)
 - `/metrics/*` (token-gated) → `platform:3000` (`/metrics/platform`, `/metrics/sla-rules`); `/metrics/backend` joins once `BACKEND_UPSTREAM` is set, and 404s before that
 
-`maintenance.html` is served on backend 5xx.
+A backend 502/503/504 answers `maintenance.html` to a browser navigation. A machine door — `/api/*`, `/scim/*`, `/http_api/*`, `/events`, `/status.json`, `/openapi.json`, `/.well-known/*` — gets the JSON envelope instead (`UPSTREAM_UNAVAILABLE`, the error's own status, `Retry-After: 5`, an `X-Request-Id` of its own and no `X-Tale-Api-Version`), and a 502 caused by an HTTP/2 body that ended before its declared `Content-Length` answers 400 `BODY_LENGTH_MISMATCH` on every path — the request was malformed, not the platform. Both rules live in the `handle_errors` block of the `Caddyfile`.
 
 ### The 0.5 backend surface
 
@@ -55,4 +55,4 @@ bun run trust-certs  --filter=@tale/proxy   # caddy trust (local self-signed)
 
 - `Caddyfile` — route definitions and TLS template
 - `docker-entrypoint.sh` — substitutes `TLS_MODE` / `BASE_PATH` placeholders before launching Caddy
-- `maintenance.html` — fallback served on backend 5xx
+- `maintenance.html` — the page a browser gets on a backend 502/503/504 (a machine door gets the JSON envelope instead — see above)

@@ -66,17 +66,45 @@ export function restDoorHeaders<E extends Env>(): MiddlewareHandler<E> {
     await next();
     c.res.headers.set('x-tale-api-version', API_CONTRACT_VERSION);
     defaultToNoStore(c.res.headers);
-    if (
-      c.req.method === 'HEAD' &&
-      c.res.body !== null &&
-      !c.res.headers.has('content-length') &&
-      (c.res.headers.get('content-type') ?? '').includes('application/json')
-    ) {
-      const bytes = await c.res.arrayBuffer();
-      const measured = new Response(bytes, c.res);
-      measured.headers.set('content-length', String(bytes.byteLength));
-      c.res = measured;
-    }
+    await measureHeadLength(c);
+  };
+}
+
+/**
+ * For a HEAD, the `Content-Length` the GET would have carried: a JSON or
+ * text document is buffered and measured — the answer a client that sizes
+ * a page before fetching it, or a monitor that reads the length, is asking
+ * for. A route that names its own length (a download) keeps it, and a
+ * binary stream is never buffered. One rule for the REST door and the web
+ * tier's own doors, so the two cannot drift.
+ */
+async function measureHeadLength(c: Context): Promise<void> {
+  if (
+    c.req.method !== 'HEAD' ||
+    c.res.body === null ||
+    c.res.headers.has('content-length')
+  ) {
+    return;
+  }
+  const type = c.res.headers.get('content-type') ?? '';
+  if (!type.includes('application/json') && !type.startsWith('text/')) return;
+  const bytes = await c.res.arrayBuffer();
+  const measured = new Response(bytes, c.res);
+  measured.headers.set('content-length', String(bytes.byteLength));
+  c.res = measured;
+}
+
+/**
+ * The HEAD length alone, for a door outside the REST door — `/api/health`,
+ * `/status`, `/status.json`, `/openapi.json` — which the docs promise
+ * answers HEAD with the GET's headers: all four answered
+ * `content-length: 0`, the adapter's stamp for the body Hono drops
+ * (2026-09-13 round-e evaluation, E1-03). Mount it AHEAD of the route.
+ */
+export function headContentLength<E extends Env>(): MiddlewareHandler<E> {
+  return async (c, next) => {
+    await next();
+    await measureHeadLength(c);
   };
 }
 
@@ -85,6 +113,9 @@ export function restDoorHeaders<E extends Env>(): MiddlewareHandler<E> {
  * Postgres refuses it in every text column (`22021`) — a `GET /documents/
  * a%00b` used to reach the driver and answer a text/plain 500. Refused as
  * the client mistake it is, before any door decodes it into a lookup.
+ * Uncacheable by its own hand: outside `/api/v1` nothing else stamps the
+ * store half of the caching contract, and the app door's refusal answered
+ * with no directive at all (2026-09-13 round-e evaluation).
  */
 export function nulUrlGuard<E extends Env>(): MiddlewareHandler<E> {
   return async (c, next) => {
@@ -95,6 +126,7 @@ export function nulUrlGuard<E extends Env>(): MiddlewareHandler<E> {
           code: 'INVALID_URL',
         },
         400,
+        { 'cache-control': 'no-store' },
       );
     }
     return next();
@@ -111,7 +143,10 @@ export function nulUrlGuard<E extends Env>(): MiddlewareHandler<E> {
  * the event stream, and none of the door's own rules (the organization
  * header, the role gates, the key holder's budget) applied. No client is
  * meant to send it, so its presence is refused outright — before the auth
- * mount, the app door or any other route sees the request.
+ * mount, the app door or any other route sees the request. The refusal is
+ * `no-store` on every path: on the sign-in and app doors no door-level
+ * stamper follows, and a 401 an intermediary kept would be served to the
+ * next caller of the same URL (2026-09-13 round-e evaluation).
  */
 export function apiKeyHeaderGuard<E extends Env>(
   headerNames: readonly string[],
@@ -128,6 +163,7 @@ export function apiKeyHeaderGuard<E extends Env>(
           code: 'UNAUTHORIZED',
         },
         401,
+        { 'cache-control': 'no-store' },
       );
     }
     return next();

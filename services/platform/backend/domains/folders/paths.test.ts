@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { documentFolderPathFrom, normalizeFolderPath } from './paths.ts';
+import {
+  documentFolderPathFrom,
+  FolderNameError,
+  normalizeFolderPath,
+  validateFolderName,
+} from './paths.ts';
 
 /**
  * The canonical folder-path spelling every path-comparing surface agrees on
@@ -55,5 +60,46 @@ describe('documentFolderPathFrom', () => {
     expect(
       documentFolderPathFrom({ folderId: null, folderPath: null }, tree),
     ).toBe(null);
+  });
+});
+
+/**
+ * The folder name rule: canonical (NFC, trimmed — the rule the REST file
+ * name and every caller-owned key follow, so two normalizations of `café`
+ * are one folder), bounded, not a path, and refused with the reason a
+ * person can act on — "Invalid folder name" named none (2026-09-13
+ * evaluation, E2-04 / E2-07).
+ */
+describe('validateFolderName', () => {
+  it('answers the name trimmed and NFC-normalized', () => {
+    expect(validateFolderName('  cafe\u0301  ')).toBe('caf\u00e9');
+    expect(validateFolderName('2026-Q1 invoices')).toBe('2026-Q1 invoices');
+  });
+
+  it.each([
+    ['blank', '   ', 'must not be blank'],
+    ['too long', 'x'.repeat(129), 'must be at most 128 characters'],
+    ['a slash', 'a/b', 'must not contain a path separator ("/" or "\\")'],
+    ['a backslash', 'a\\b', 'must not contain a path separator ("/" or "\\")'],
+    ['a tab', 'a\tb', 'must not contain a control character'],
+    ['DEL', 'a\u007fb', 'must not contain a control character'],
+    ['a dot', '.', 'must not be "." or ".."'],
+    ['two dots', ' .. ', 'must not be "." or ".."'],
+  ])('refuses %s, naming the rule', (_what, name, rule) => {
+    let thrown: unknown;
+    try {
+      validateFolderName(name);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(FolderNameError);
+    if (!(thrown instanceof FolderNameError)) return;
+    expect(thrown.rule).toBe(rule);
+    expect(thrown.message).toBe(`Folder name ${rule}`);
+  });
+
+  it('judges the length after canonicalization', () => {
+    // 128 decomposed pairs are 256 code units as sent and 128 once composed.
+    expect(validateFolderName('e\u0301'.repeat(128))).toHaveLength(128);
   });
 });

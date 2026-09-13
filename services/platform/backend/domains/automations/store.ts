@@ -150,6 +150,9 @@ export interface SaveVersionArgs {
    * share the slug (the wizard's contract, the 0.4 `create: true`). */
   create?: boolean;
   message?: string;
+  /** The save's own tests verdict, when the saver ran them (the builder,
+   * an MCP save of a document with tests); stamps `tests_checked_at_ms`
+   * beside it. Absent = no verdict yet. */
   testsPassed?: boolean;
   taskContract?: unknown;
   settings?: unknown;
@@ -197,19 +200,22 @@ export async function saveVersion(
         409,
       );
     }
+    const now = Date.now();
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
-        task_contract, settings, presentation, created_by, created_at_ms
+        tests_checked_at_ms, task_contract, settings, presentation,
+        created_by, created_at_ms
       )
       SELECT ${args.organizationId}, ${name},
              coalesce(max(version), 0) + 1,
              ${tx.json(toJson(args.document))}, ${args.message ?? null},
              ${args.testsPassed ?? null},
+             ${args.testsPassed === undefined ? null : now},
              ${args.taskContract === undefined ? null : tx.json(toJson(args.taskContract))},
              ${args.settings === undefined ? null : tx.json(toJson(args.settings))},
              ${args.presentation === undefined ? null : tx.json(toJson(args.presentation))},
-             ${args.actor}, ${Date.now()}
+             ${args.actor}, ${now}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
       RETURNING version
@@ -276,6 +282,8 @@ export interface VersionRow {
   document: unknown;
   message: string | null;
   testsPassed: boolean | null;
+  /** When `testsPassed` was last judged — null while no verdict exists. */
+  testsCheckedAt: number | null;
   taskContract: unknown;
   settings: unknown;
   presentation: unknown;
@@ -293,6 +301,7 @@ export async function versionRow(
   // in-tx callers always resolve a concrete version first.
   const rows = await sql<VersionRow[]>`
     SELECT name, version, document, message, tests_passed AS "testsPassed",
+           tests_checked_at_ms::float8 AS "testsCheckedAt",
            task_contract AS "taskContract", settings, presentation,
            created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
     FROM app.automations
@@ -333,6 +342,52 @@ export async function deployedVersion(
   return rows[0]?.version;
 }
 
+/**
+ * Record the tests verdict a gate just reached for one saved version — the
+ * LATEST verdict wins, `false` included, and `tests_checked_at_ms` says
+ * when. The deploy gate used to answer its failing report and persist
+ * nothing, so the row read `testsPassed: null` forever and a release
+ * pipeline could not tell "no tests" from "the tests fail" (2026-09-13
+ * evaluation, E4-04). The raw write: callers emit the definition hint
+ * (`recordTestVerdict` does, for a standalone verdict).
+ */
+export async function setTestsVerdict(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    name: string;
+    version: number;
+    testsPassed: boolean;
+    at?: number;
+  },
+): Promise<void> {
+  await sql`
+    UPDATE app.automations
+    SET tests_passed = ${args.testsPassed},
+        tests_checked_at_ms = ${args.at ?? Date.now()}
+    WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      AND version = ${args.version}
+  `;
+}
+
+/** {@link setTestsVerdict} as its own write — the deploy gate refusing a
+ * version — with the definition hint every write to an automation emits,
+ * so the builder's version list reads the verdict without a reload. */
+export async function recordTestVerdict(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    name: string;
+    version: number;
+    testsPassed: boolean;
+  },
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    await setTestsVerdict(tx, args);
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  });
+}
+
 export async function deploy(
   sql: Sql,
   args: {
@@ -340,11 +395,12 @@ export async function deploy(
     name: string;
     version: number;
     actor: string;
-    /** The deploy gate's verdict when it ran the version's tests just now:
-     * `true` stamps a version saved without a verdict (`tests_passed` NULL),
-     * so `GET /automations/{name}` reads `testsPassed: true` after a
-     * gate-passing deploy instead of `null` forever. A stored verdict is
-     * never overwritten — it was the save's own run. */
+    /** The deploy gate's verdict when it ran the version's tests just now.
+     * A fresh verdict WINS over the stored one: `true` stamps a version
+     * saved without one (`tests_passed` NULL) and lifts a `false` an
+     * earlier gate recorded, so `GET /automations/{name}` reads the last
+     * run's word; without a fresh verdict a version saved with failing
+     * tests stays refused. */
     testsPassed?: boolean;
   },
 ): Promise<{ name: string; version: number }> {
@@ -361,7 +417,10 @@ export async function deploy(
       404,
     );
   }
-  if (row.testsPassed === false) {
+  const failing =
+    args.testsPassed === false ||
+    (args.testsPassed === undefined && row.testsPassed === false);
+  if (failing) {
     throw new AutomationError(
       'AUTOMATION_DEPLOY_REJECTED',
       `deploy gate: ${args.name}@${args.version} was saved with failing tests — fix them and save a new version`,
@@ -380,12 +439,13 @@ export async function deploy(
         version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
         deployed_at_ms = EXCLUDED.deployed_at_ms
     `;
-    if (args.testsPassed === true && row.testsPassed === null) {
-      await tx`
-        UPDATE app.automations SET tests_passed = true
-        WHERE org_id = ${args.organizationId} AND name = ${args.name}
-          AND version = ${args.version} AND tests_passed IS NULL
-      `;
+    if (args.testsPassed !== undefined) {
+      await setTestsVerdict(tx, {
+        organizationId: args.organizationId,
+        name: args.name,
+        version: args.version,
+        testsPassed: args.testsPassed,
+      });
     }
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
@@ -598,6 +658,7 @@ export async function listVersions(
     version: number;
     message: string | null;
     testsPassed: boolean | null;
+    testsCheckedAt: number | null;
     createdBy: string;
     createdAt: number;
   }>
@@ -607,11 +668,13 @@ export async function listVersions(
       version: number;
       message: string | null;
       testsPassed: boolean | null;
+      testsCheckedAt: number | null;
       createdBy: string;
       createdAt: number;
     }[]
   >`
     SELECT version, message, tests_passed AS "testsPassed",
+           tests_checked_at_ms::float8 AS "testsCheckedAt",
            created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
@@ -1200,6 +1263,9 @@ export function toRunSummary(
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
   return {
+    // One value under both names: the listing rows said `runId` and the
+    // single read `id`, so a client mapping rows by `id` read undefined.
+    id: row.id,
     runId: row.id,
     name: row.name,
     version: row.version,

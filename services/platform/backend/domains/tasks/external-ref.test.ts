@@ -10,7 +10,10 @@ import {
   taskWorkflowStartLockKey,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
-import { requestTaskReview } from './reviews.ts';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  requestTaskReview,
+} from './reviews.ts';
 import type { TaskRow } from './service.ts';
 
 vi.mock('../automations/store.ts', () => ({
@@ -86,6 +89,7 @@ const task = {
 beforeEach(() => {
   vi.mocked(beginRunInTx).mockReset();
   vi.mocked(requestTaskReview).mockReset();
+  vi.mocked(closePendingTaskReviewOnStatusLeave).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -238,6 +242,7 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
     lastAgentRunAt: null,
     claimedAt: null,
     completedAt: null,
+    externalClosedAt: null,
     createdBy: 'u-1',
     createdByType: 'user',
     createdAt: 1,
@@ -266,6 +271,148 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
       [],
     );
     expect(requestTaskReview).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The external lifecycle is a two-way door for the mirror (2026-09-13
+ * evaluation, E2-02): a `closed` by anyone but the workflow engine parks
+ * the task at `in_review` AND stamps the park as the mirror's; an `open`
+ * lifts exactly such a park (and a `done`) back to the inbox and clears the
+ * stamp; a park nobody stamped — a person's, an agent's — is left alone.
+ * `closed` used to park and `open` to lift `done` alone, so a mirror could
+ * never undo a close it made.
+ */
+describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
+  const parked = (overrides: Partial<TaskRow>): TaskRow => ({
+    id: 't-park',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    title: 'Mirrored',
+    description: null,
+    attachments: null,
+    outputs: null,
+    number: 9,
+    status: 'in_review',
+    priority: null,
+    labelIds: [],
+    assigneeType: null,
+    assigneeId: null,
+    reviewerUserId: null,
+    parentTaskId: null,
+    commentCount: 0,
+    rank: 'a0',
+    externalSystem: 'crm',
+    externalId: 'case-1',
+    externalUrl: null,
+    threadId: null,
+    discussionThreadId: null,
+    sourceDiscussionThreadId: null,
+    startDate: null,
+    startNotifiedAt: null,
+    dueDate: null,
+    slaLevel: null,
+    slaLevelAt: null,
+    statusChangedAt: 1,
+    totalCostCents: null,
+    agentRunCount: 0,
+    lastAgentRunAt: null,
+    claimedAt: null,
+    completedAt: null,
+    externalClosedAt: null,
+    createdBy: 'u-1',
+    createdByType: 'user',
+    createdAt: 1,
+    updatedAt: 1,
+    archivedAt: null,
+    ...overrides,
+  });
+  const intake = {
+    organizationId: 'org-1',
+    actorId: 'u-2',
+    projectId: 'p-1',
+    externalSystem: 'crm',
+    externalId: 'case-1',
+    title: 'Mirrored',
+    dedupeScope: 'project' as const,
+  };
+  interface Update {
+    text: string;
+    values: unknown[];
+  }
+  /** The task UPDATE the reconcile writes, with a column reader — the
+   * statement spells `column = ?` per assignment, in order. */
+  const captured = (
+    row: TaskRow,
+  ): { tx: TransactionSql; updates: Update[] } => {
+    const updates: Update[] = [];
+    const { tx } = fakeDb((text, values) => {
+      if (text.startsWith('UPDATE app.tasks SET'))
+        updates.push({ text, values });
+      return text.includes('FROM app.tasks WHERE org_id = ?') ? [row] : [];
+    });
+    return { tx, updates };
+  };
+  const column = (update: Update | undefined, name: string): unknown => {
+    if (update === undefined) return undefined;
+    const columns = [...update.text.matchAll(/(\w+) = \?/g)].map((m) => m[1]);
+    return update.values[columns.indexOf(name)];
+  };
+
+  it('stamps a park it makes, at in_review, and requests the review', async () => {
+    const { tx, updates } = captured(parked({ status: 'todo' }));
+    const before = Date.now();
+    await upsertTaskByExternalRef(tx, { ...intake, externalState: 'closed' });
+    expect(column(updates[0], 'status')).toBe('in_review');
+    expect(column(updates[0], 'completed_at_ms')).toBeNull();
+    expect(column(updates[0], 'external_closed_at_ms')).toBeGreaterThanOrEqual(
+      before,
+    );
+    expect(requestTaskReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('reopens a park it stamped back to the inbox and clears the stamp', async () => {
+    const { tx, updates } = captured(
+      parked({ status: 'in_review', externalClosedAt: 1_789_000_000_000 }),
+    );
+    await upsertTaskByExternalRef(tx, { ...intake, externalState: 'open' });
+    expect(column(updates[0], 'status')).toBe('backlog');
+    expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+    expect(closePendingTaskReviewOnStatusLeave).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ toStatus: 'backlog' }),
+    );
+    expect(requestTaskReview).not.toHaveBeenCalled();
+  });
+
+  it('leaves a park nobody stamped where it is', async () => {
+    const { tx, updates } = captured(
+      parked({ status: 'in_review', externalClosedAt: null }),
+    );
+    await upsertTaskByExternalRef(tx, { ...intake, externalState: 'open' });
+    expect(column(updates[0], 'status')).toBe('in_review');
+    expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+  });
+
+  it('still reopens a done task, stamped or not', async () => {
+    for (const externalClosedAt of [null, 1_789_000_000_000]) {
+      const { tx, updates } = captured(
+        parked({ status: 'done', completedAt: 5, externalClosedAt }),
+      );
+      await upsertTaskByExternalRef(tx, { ...intake, externalState: 'open' });
+      expect(column(updates[0], 'status')).toBe('backlog');
+      expect(column(updates[0], 'completed_at_ms')).toBeNull();
+      expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+    }
+  });
+
+  it('does not touch a cancelled task in either direction', async () => {
+    for (const externalState of ['open', 'closed'] as const) {
+      const { tx, updates } = captured(parked({ status: 'cancelled' }));
+      await upsertTaskByExternalRef(tx, { ...intake, externalState });
+      expect(column(updates[0], 'status')).toBe('cancelled');
+      expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+    }
   });
 });
 

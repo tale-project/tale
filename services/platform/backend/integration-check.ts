@@ -7188,6 +7188,41 @@ async function checkSkills(
     occOk,
     `read → ${readBack.status} etag=${readEtag.slice(0, 12)}… view=${readView.success}, ifNoneMatch → ${notModified.status}/${notModified.headers.get('cache-control')} (want 304/private, no-cache), staleIfMatch → ${staleWrite.status}/${staleBody.success ? staleBody.data.code : 'ERR'} (want 412/SKILL_STALE) untouched=${afterStale.success && afterStale.data.etag === readEtag}, guarded → ${guardedWrite.status} newTag=${guardedView.success && guardedView.data.etag !== readEtag}, file → ${fileBytes.status} ${fileBytes.headers.get('content-type')} disposition=${fileBytes.headers.get('content-disposition')}, missing → ${missingFile.status}/${missingFileCode.success ? missingFileCode.data.code : 'ERR'}`,
   );
+  // A byte-identical save is a no-op (the 2026-09-13 round-e evaluation,
+  // E6-03): 200 with the stored tag AND the stored updatedAt, nothing
+  // rewritten — it used to rewrite SKILL.md, so updatedAt moved while the
+  // tag held; the preconditions still run first, so a stale If-Match on
+  // the same body is 412.
+  const identical = await rest('PUT', 'itest-rest-skill', {
+    description: 'Guarded',
+    body: '# Guarded',
+  });
+  const identicalView = skillView.safeParse(await identical.json());
+  const identicalStale = await rest(
+    'PUT',
+    'itest-rest-skill',
+    { description: 'Guarded', body: '# Guarded' },
+    { 'if-match': '"stale"' },
+  );
+  const identicalStaleCode = coded.safeParse(await identicalStale.json());
+  const sameTag =
+    identicalView.success &&
+    guardedView.success &&
+    identicalView.data.etag === guardedView.data.etag;
+  const sameUpdatedAt =
+    identicalView.success &&
+    guardedView.success &&
+    identicalView.data.updatedAt === guardedView.data.updatedAt;
+  record(
+    'skills REST door: identical save is a no-op (round e, E6-03)',
+    identical.status === 200 &&
+      sameTag &&
+      sameUpdatedAt &&
+      identicalStale.status === 412 &&
+      identicalStaleCode.success &&
+      identicalStaleCode.data.code === 'SKILL_STALE',
+    `identical → ${identical.status} (want 200) sameTag=${sameTag} sameUpdatedAt=${sameUpdatedAt}, staleIfMatchOnIdentical → ${identicalStale.status}/${identicalStaleCode.success ? identicalStaleCode.data.code : 'ERR'} (want 412/SKILL_STALE)`,
+  );
   const unknownKey = await rest('PUT', 'itest-rest-skill', {
     description: 'a',
     body: 'x',
@@ -11725,6 +11760,97 @@ async function checkMcp(
   const deployedShape = z
     .object({ deployed: z.object({ version: z.number() }) })
     .safeParse(deployed.value);
+  // The verdict reaches the version row (round e, E4-04): the save of a
+  // document with tests records the save's own run (DOC_EXAMPLE's passes),
+  // the deploy gate re-stamps it, and a gate REFUSAL persists `false` with
+  // its time where the row used to keep NULL — so a pipeline can tell "no
+  // tests" from "the tests fail" on `GET /api/v1/automations/{name}/versions`.
+  const verdictOf = async (name: string) =>
+    (
+      await sql<
+        { testsPassed: boolean | null; testsCheckedAt: number | null }[]
+      >`
+        SELECT tests_passed AS "testsPassed",
+               tests_checked_at_ms::float8 AS "testsCheckedAt"
+        FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+        ORDER BY version DESC LIMIT 1
+      `
+    )[0];
+  const exampleVerdict = await verdictOf('mcp-example');
+  const failingDoc = {
+    ...DOC_EXAMPLE.automation,
+    name: 'mcp-failing',
+    tests: [
+      {
+        name: 'deliberately failing',
+        input: { min_total: 5, orders: [] },
+        expect: { output: 'WRONG' },
+      },
+    ],
+  };
+  const failingSaved = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 14,
+        method: 'tools/call',
+        params: {
+          name: 'save_automation',
+          arguments: { automation: failingDoc, message: 'failing tests' },
+        },
+      })
+    ).body,
+  );
+  const failingSavedShape = z
+    .object({ version: z.number(), testsPassed: z.literal(false) })
+    .safeParse(failingSaved.value);
+  const savedVerdict = await verdictOf('mcp-failing');
+  // Clear the save's verdict so the gate's own persistence is what is proven.
+  await sql`
+    UPDATE app.automations SET tests_passed = NULL, tests_checked_at_ms = NULL
+    WHERE org_id = ${orgId} AND name = 'mcp-failing'
+  `;
+  const gateRefused = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 15,
+        method: 'tools/call',
+        params: {
+          name: 'deploy_automation',
+          arguments: {
+            name: 'mcp-failing',
+            version: failingSavedShape.success
+              ? failingSavedShape.data.version
+              : 1,
+          },
+        },
+      })
+    ).body,
+  );
+  const gateRefusedShape = z
+    .object({ code: z.literal('AUTOMATION_TESTS_FAILING') })
+    .safeParse(gateRefused.value);
+  const gateVerdict = await verdictOf('mcp-failing');
+  const failingDeployment = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automation_deployments
+    WHERE org_id = ${orgId} AND name = 'mcp-failing'
+  `;
+  record(
+    'MCP deploy gate persists its tests verdict (round e, E4-04)',
+    exampleVerdict?.testsPassed === true &&
+      typeof exampleVerdict.testsCheckedAt === 'number' &&
+      !failingSaved.isError &&
+      failingSavedShape.success &&
+      savedVerdict?.testsPassed === false &&
+      typeof savedVerdict.testsCheckedAt === 'number' &&
+      gateRefused.isError &&
+      gateRefusedShape.success &&
+      gateVerdict?.testsPassed === false &&
+      typeof gateVerdict.testsCheckedAt === 'number' &&
+      failingDeployment[0]?.n === 0,
+    `example=${JSON.stringify(exampleVerdict ?? null)} (want true+stamp), save=${failingSavedShape.success ? 'testsPassed:false' : JSON.stringify(failingSaved.value).slice(0, 120)} row=${JSON.stringify(savedVerdict ?? null)} (want false+stamp), gate=${gateRefusedShape.success ? 'AUTOMATION_TESTS_FAILING' : JSON.stringify(gateRefused.value).slice(0, 120)} row=${JSON.stringify(gateVerdict ?? null)} (want false+stamp), deployments=${failingDeployment[0]?.n} (want 0)`,
+  );
   // count 0 → the llm node's `when` is false → the elseOf transform runs, so
   // a LIVE run settles without any model call.
   const started = toolValue(
@@ -12747,10 +12873,12 @@ async function checkRestDoor(
   const doorRun = z
     .looseObject({ output: z.unknown() })
     .safeParse(await (await v1(`/runs/${doorRunId}`)).json());
-  // Listings answer summaries keyed `runId`, as a keyset page.
+  // Listings answer summaries naming the run `id` and `runId` alike (round
+  // e, E2-08 — the rows said `runId`, the single read `id`), as a keyset
+  // page.
   const runsListed = z
     .object({
-      runs: z.array(z.looseObject({ runId: z.string() })),
+      runs: z.array(z.looseObject({ id: z.string(), runId: z.string() })),
       isDone: z.boolean(),
       continueCursor: z.string(),
     })
@@ -13320,6 +13448,48 @@ async function checkRestMachineJourney(
     contentHead.headers.get('last-modified') !== null &&
     contentHead.headers.get('accept-ranges') === 'bytes';
 
+  // The bound file (the bind's default `skipRagIndexing: true` → `skipped`)
+  // is opted in from REST by its own door (round e, E5-01): the retry
+  // answers `indexing`, the metadata row's opt-out is cleared and its
+  // status leaves the opt-out, while the Hub door keeps its opaque 404 for
+  // a project file.
+  const retryIndexing = z
+    .object({ status: z.string(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/files/${documentId}/retry-indexing`, {
+          method: 'POST',
+        })
+      ).json(),
+    );
+  const retryRow = (
+    await sql<{ skipRagIndexing: boolean | null; ragStatus: string | null }[]>`
+      SELECT m.skip_rag_indexing AS "skipRagIndexing",
+             m.rag_status AS "ragStatus"
+      FROM app.documents d
+      JOIN app.file_metadata m
+        ON m.org_id = d.org_id AND m.storage_ref = d.file_ref
+      WHERE d.id = ${documentId}
+      ORDER BY m.created_at_ms ASC
+      LIMIT 1
+    `
+  )[0];
+  const hubRetry = await v1(`/documents/${documentId}/retry-indexing`, {
+    method: 'POST',
+  });
+  const hubRetryBody = z
+    .object({ code: z.string() })
+    .safeParse(await hubRetry.json());
+  const retryLaneOk =
+    retryIndexing.success &&
+    retryIndexing.data.status === 'indexing' &&
+    retryRow?.skipRagIndexing === false &&
+    retryRow.ragStatus !== null &&
+    retryRow.ragStatus !== 'skipped' &&
+    hubRetry.status === 404 &&
+    hubRetryBody.success &&
+    hubRetryBody.data.code === 'DOCUMENT_NOT_FOUND';
+
   // The workspace is not create-only: the bound file goes, its content
   // lane answers 404 after it, and the folder cascades out too.
   const fileDeleted = await v1(`/projects/${projectId}/files/${documentId}`, {
@@ -13404,6 +13574,39 @@ async function checkRestMachineJourney(
       await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
     );
 
+  // The external lifecycle is a two-way door for the mirror (round e,
+  // E2-02): `closed` parks the task at in_review and stamps the park as the
+  // mirror's; `open` lifts exactly that park back to backlog and clears the
+  // stamp — `open` used to lift `done` alone, so a mirror could never undo
+  // a close it made.
+  const mirrorRef = {
+    externalSystem: 'github',
+    externalId: 'journey-issue-7',
+    title: 'Prepare the ledger review (renamed)',
+  };
+  const stampOf = async () =>
+    (
+      await sql<{ status: string; externalClosedAt: number | null }[]>`
+        SELECT status, external_closed_at_ms::float8 AS "externalClosedAt"
+        FROM app.tasks WHERE id = ${taskId}
+      `
+    )[0];
+  const mirrorClosed = await v1(`/projects/${projectId}/tasks`, {
+    body: { ...mirrorRef, externalState: 'closed' },
+  });
+  const afterClose = await stampOf();
+  const mirrorReopened = await v1(`/projects/${projectId}/tasks`, {
+    body: { ...mirrorRef, externalState: 'open' },
+  });
+  const afterReopen = await stampOf();
+  const mirrorLaneOk =
+    mirrorClosed.status === 200 &&
+    afterClose?.status === 'in_review' &&
+    typeof afterClose.externalClosedAt === 'number' &&
+    mirrorReopened.status === 200 &&
+    afterReopen?.status === 'backlog' &&
+    afterReopen.externalClosedAt === null;
+
   // The owning automation's two absences are two refusals (round d,
   // S3-4c): a name nobody saved is 404 AUTOMATION_NOT_FOUND; a saved one
   // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, naming it — and
@@ -13454,6 +13657,22 @@ async function checkRestMachineJourney(
   const parkedOwnerBody = z
     .object({ error: z.string(), code: z.string() })
     .safeParse(await parkedOwner.json());
+  // The start door answers the same two absences (round e, E2-03): a
+  // workflow nobody saved is 404, a saved-but-undeployed one 409, both
+  // before the execute budget is charged — it used to answer a 200
+  // `not_started` for either, the very split the intake had gained.
+  const ghostStart = await v1(`/projects/${projectId}/tasks/${taskId}/start`, {
+    body: { workflowSlug: 'journey/ghost' },
+  });
+  const ghostStartBody = z
+    .object({ code: z.string() })
+    .safeParse(await ghostStart.json());
+  const parkedStart = await v1(`/projects/${projectId}/tasks/${taskId}/start`, {
+    body: { workflowSlug: 'journey/parked' },
+  });
+  const parkedStartBody = z
+    .object({ error: z.string(), code: z.string() })
+    .safeParse(await parkedStart.json());
   const orphanRows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.tasks
     WHERE project_id = ${projectId} AND external_id = 'journey-issue-8'
@@ -13512,6 +13731,13 @@ async function checkRestMachineJourney(
       parkedOwnerBody.success &&
       parkedOwnerBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
       parkedOwnerBody.data.error.includes('journey/parked') &&
+      ghostStart.status === 404 &&
+      ghostStartBody.success &&
+      ghostStartBody.data.code === 'AUTOMATION_NOT_FOUND' &&
+      parkedStart.status === 409 &&
+      parkedStartBody.success &&
+      parkedStartBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
+      parkedStartBody.data.error.includes('journey/parked') &&
       orphanRows[0]?.count === '0' &&
       parkedTrigger.success &&
       !parkedTrigger.data.deployed &&
@@ -13524,7 +13750,7 @@ async function checkRestMachineJourney(
       parkedRow.trigger.lastSkippedAt === 1_700_000_000_000 &&
       parkedRow.trigger.lastSkipReason === 'not_deployed' &&
       parkedRemoved.status === 204,
-    `save=${parkedSaved.status} ghost=${ghostOwner.status}/${ghostOwnerBody.success ? ghostOwnerBody.data.code : 'ERR'} (want 404 AUTOMATION_NOT_FOUND) parked=${parkedOwner.status}/${parkedOwnerBody.success ? parkedOwnerBody.data.code : 'ERR'} (want 409 AUTOMATION_NOT_DEPLOYED) orphans=${orphanRows[0]?.count} (want 0) put.deployed=${parkedTrigger.success ? parkedTrigger.data.deployed : 'ERR'} (want false) row=${JSON.stringify(parkedRow?.trigger ?? null)} (want schedule/off/null/1700000000000/not_deployed) delete=${parkedRemoved.status}/204`,
+    `save=${parkedSaved.status} ghost=${ghostOwner.status}/${ghostOwnerBody.success ? ghostOwnerBody.data.code : 'ERR'} (want 404 AUTOMATION_NOT_FOUND) parked=${parkedOwner.status}/${parkedOwnerBody.success ? parkedOwnerBody.data.code : 'ERR'} (want 409 AUTOMATION_NOT_DEPLOYED) start ghost=${ghostStart.status}/${ghostStartBody.success ? ghostStartBody.data.code : 'ERR'} (want 404 AUTOMATION_NOT_FOUND) start parked=${parkedStart.status}/${parkedStartBody.success ? parkedStartBody.data.code : 'ERR'} (want 409 AUTOMATION_NOT_DEPLOYED) orphans=${orphanRows[0]?.count} (want 0) put.deployed=${parkedTrigger.success ? parkedTrigger.data.deployed : 'ERR'} (want false) row=${JSON.stringify(parkedRow?.trigger ?? null)} (want schedule/off/null/1700000000000/not_deployed) delete=${parkedRemoved.status}/204`,
   );
 
   const labelIndex = await sql<{ name: string }[]>`
@@ -13659,6 +13885,7 @@ async function checkRestMachineJourney(
       contentDisposition?.startsWith('attachment; filename=') === true &&
       contentBytes === LEDGER_BYTES &&
       rangeLaneOk &&
+      retryLaneOk &&
       fileDeleted.status === 204 &&
       contentAfterDelete.status === 404 &&
       fileDeletedAgain.status === 404 &&
@@ -13681,6 +13908,7 @@ async function checkRestMachineJourney(
       taskRead.data.task.labels.includes('Ops') &&
       taskRead.data.task.externalSystem === 'github' &&
       taskRead.data.task.archivedAt === undefined &&
+      mirrorLaneOk &&
       commentPosted.success &&
       commentsRead.success &&
       commentsRead.data.comments.some((row) =>
@@ -13698,7 +13926,7 @@ async function checkRestMachineJourney(
       twinDeleted.status === 204 &&
       twinGone.status === 404 &&
       twinKeyFree.status === 201,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), retry=${retryLaneOk}(${retryIndexing.success ? retryIndexing.data.status : 'ERR'} row=${JSON.stringify(retryRow ?? null)} want indexing + skip=false + a status; hub=${hubRetry.status}/${hubRetryBody.success ? hubRetryBody.data.code : 'ERR'} want 404 DOCUMENT_NOT_FOUND), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), mirror close/open=${mirrorLaneOk}(${mirrorClosed.status}/${afterClose?.status}/${typeof afterClose?.externalClosedAt} → ${mirrorReopened.status}/${afterReopen?.status}/${String(afterReopen?.externalClosedAt)} want 200/in_review/number → 200/backlog/null), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
   );
 }
 
@@ -14171,6 +14399,19 @@ async function checkRestResources(
   // A content-only document reads back from the bytes lane too.
   const docInline = await v1(`/documents/${docId}/content`);
   const docInlineText = await docInline.text();
+  // The inline branch judges `If-Modified-Since` itself (round e, E5-02):
+  // the exact `Last-Modified` it issued answers a bodiless 304 and an
+  // earlier date the text — `If-None-Match` had done so all along.
+  const docInlineSince = await v1(`/documents/${docId}/content`, {
+    headers: {
+      'if-modified-since': docInline.headers.get('last-modified') ?? '',
+    },
+  });
+  const docInlineSinceText = await docInlineSince.text();
+  const docInlineStale = await v1(`/documents/${docId}/content`, {
+    headers: { 'if-modified-since': 'Thu, 01 Jan 2015 00:00:00 GMT' },
+  });
+  const docInlineStaleText = await docInlineStale.text();
   const docStale = await v1(`/documents/${docId}`, {
     method: 'PATCH',
     body: { title: 'Stale write', expectedUpdatedAt: 1 },
@@ -14795,6 +15036,10 @@ async function checkRestResources(
       docInline.status === 200 &&
       docInlineText === 'beta content' &&
       (docInline.headers.get('content-type') ?? '').startsWith('text/plain') &&
+      docInlineSince.status === 304 &&
+      docInlineSinceText === '' &&
+      docInlineStale.status === 200 &&
+      docInlineStaleText === 'beta content' &&
       entryDocId.success &&
       entryDocDelete.status === 409 &&
       entryDocDeleteBody.success &&
@@ -14853,7 +15098,7 @@ async function checkRestResources(
       skillGone.status === 404 &&
       chatOk &&
       searchOk,
-    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), crm=[${crmDetail}], docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}(want 200)/stale=${docStale.status}(want 409)/${docRead.success ? docRead.data.content : 'ERR'}/merged=${docMetaMerged.success ? JSON.stringify(docMetaMerged.data.metadata) : 'ERR'}(want owner+reviewed)/noop=${docNoop.success && docMetaMerged.success ? docNoop.data.updatedAt === docMetaMerged.data.updatedAt : 'ERR'}(want true)/inline=${docInline.status}:${docInlineText.slice(0, 20)}/retry=${retry.success ? retry.data.status : 'ERR'}/retryGuards=${retryInProgress.success ? `${retryInProgress.data.status}:${retryInProgress.data.reason}` : 'ERR'}+${retryUnsupported.success ? `${retryUnsupported.data.status}:${retryUnsupported.data.reason}` : 'ERR'}(want skipped:in-progress+skipped:unsupported)/del=${docDeleted.status}→${docGone.status}, entryDoc=${entryDocDelete.status}(want 409 ${entryDocDeleteBody.success ? entryDocDeleteBody.data.code : 'ERR'})/move=${entryDocMove.status}(want 200)/bytes=${entryDocContent.status}:${entryDocText.slice(0, 20)}(want version two)/hash=${entryDocMeta.success ? `${entryDocMeta.data.contentHash?.slice(0, 8)}/${JSON.stringify(entryDocMeta.data.metadata)}` : 'ERR'}, entry chain=${entryCreated.success}(documentId=${entryCreated.success ? entryCreated.data.documentId !== '' : 'ERR'})/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/repeat=${entryRepeat.success ? `${entryRepeat.data.id === newEntryId}` : 'ERR'}(want true: same id)/rows=${entryVersions.success ? entryVersions.data.versions.length : 'ERR'}(want 2)/old=${oldEntry.success ? `${oldEntry.data.status}@${oldEntry.data.supersededAt}` : 'ERR'}/versions=${entryVersions.success ? entryVersions.data.versions.map((row) => row.status).join('>') : 'ERR'}(want active>superseded)/byTopic=${entryByTopic.success ? entryByTopic.data.page.length : 'ERR'}/del=${entryDeleted.status}, skill=${skillSavedRes.status}(want 201)/${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 CONTACT_DUPLICATE_EMAIL), crm=[${crmDetail}], docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}(want 200)/stale=${docStale.status}(want 409)/${docRead.success ? docRead.data.content : 'ERR'}/merged=${docMetaMerged.success ? JSON.stringify(docMetaMerged.data.metadata) : 'ERR'}(want owner+reviewed)/noop=${docNoop.success && docMetaMerged.success ? docNoop.data.updatedAt === docMetaMerged.data.updatedAt : 'ERR'}(want true)/inline=${docInline.status}:${docInlineText.slice(0, 20)}/since=${docInlineSince.status}(want 304)+stale=${docInlineStale.status}(want 200)/retry=${retry.success ? retry.data.status : 'ERR'}/retryGuards=${retryInProgress.success ? `${retryInProgress.data.status}:${retryInProgress.data.reason}` : 'ERR'}+${retryUnsupported.success ? `${retryUnsupported.data.status}:${retryUnsupported.data.reason}` : 'ERR'}(want skipped:in-progress+skipped:unsupported)/del=${docDeleted.status}→${docGone.status}, entryDoc=${entryDocDelete.status}(want 409 ${entryDocDeleteBody.success ? entryDocDeleteBody.data.code : 'ERR'})/move=${entryDocMove.status}(want 200)/bytes=${entryDocContent.status}:${entryDocText.slice(0, 20)}(want version two)/hash=${entryDocMeta.success ? `${entryDocMeta.data.contentHash?.slice(0, 8)}/${JSON.stringify(entryDocMeta.data.metadata)}` : 'ERR'}, entry chain=${entryCreated.success}(documentId=${entryCreated.success ? entryCreated.data.documentId !== '' : 'ERR'})/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/repeat=${entryRepeat.success ? `${entryRepeat.data.id === newEntryId}` : 'ERR'}(want true: same id)/rows=${entryVersions.success ? entryVersions.data.versions.length : 'ERR'}(want 2)/old=${oldEntry.success ? `${oldEntry.data.status}@${oldEntry.data.supersededAt}` : 'ERR'}/versions=${entryVersions.success ? entryVersions.data.versions.map((row) => row.status).join('>') : 'ERR'}(want active>superseded)/byTopic=${entryByTopic.success ? entryByTopic.data.page.length : 'ERR'}/del=${entryDeleted.status}, skill=${skillSavedRes.status}(want 201)/${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
 }
 
@@ -29421,6 +29666,17 @@ async function checkWebsitesCrawl(
         })
       ).json(),
     );
+    // A body `limit` is refused out of range, never clamped (round e,
+    // E5-04) — the rule the two knowledge-search doors already followed.
+    const restSearchOverflow = await v1(`/websites/${websiteId}/search`, {
+      body: { query: 'alpha', limit: 9999 },
+    });
+    const restSearchOverflowBody = z
+      .object({
+        code: z.string(),
+        data: z.object({ issues: z.array(z.object({ path: z.string() })) }),
+      })
+      .safeParse(await restSearchOverflow.json());
     const listId = listCreated.success ? listCreated.data.id : '';
     const restDeleteList = await v1(`/websites/${listId}`, {
       method: 'DELETE',
@@ -29469,11 +29725,15 @@ async function checkWebsitesCrawl(
         restSync.success &&
         restSync.data.status === 'syncing' &&
         restSearch.success &&
+        restSearchOverflow.status === 400 &&
+        restSearchOverflowBody.success &&
+        restSearchOverflowBody.data.code === 'INVALID_BODY' &&
+        restSearchOverflowBody.data.data.issues[0]?.path === 'limit' &&
         restDeleteList.status === 204 &&
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) merge=${listMerged.status}/200(sameId=${listMergedBody.success && listCreated.success && listMergedBody.data.id === listCreated.data.id}) sibling=${listSibling.status}/409(${listSiblingBody.success ? `${listSiblingBody.data.code}/${listSiblingBody.data.data.domain}` : 'BAD SHAPE'}) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/200(${restPatchBody.success ? restPatchBody.data.scanInterval : 'ERR'}) echo=${restPatchEcho.status}/200 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) merge=${listMerged.status}/200(sameId=${listMergedBody.success && listCreated.success && listMergedBody.data.id === listCreated.data.id}) sibling=${listSibling.status}/409(${listSiblingBody.success ? `${listSiblingBody.data.code}/${listSiblingBody.data.data.domain}` : 'BAD SHAPE'}) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/200(${restPatchBody.success ? restPatchBody.data.scanInterval : 'ERR'}) echo=${restPatchEcho.status}/200 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success} overflow=${restSearchOverflow.status}/${restSearchOverflowBody.success ? `${restSearchOverflowBody.data.code}:${restSearchOverflowBody.data.data.issues[0]?.path}` : 'BAD SHAPE'} (want 400 INVALID_BODY:limit), delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;

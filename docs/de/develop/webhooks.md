@@ -28,7 +28,7 @@ Das vollständige Antwortvokabular:
 - **202** `{ "runId": "...", "duplicate": true }` — eine erneute Zustellung einer bereits angenommenen; `runId` ist der Lauf, den die erste gestartet hat, einen zweiten gibt es nicht.
 - **400** — ein Abfrageparameter `projectId` (`INVALID_QUERY`) oder eine Eingabe, die nicht zum `inputs`-Schema der Automatisierung passt (`AUTOMATION_INPUT_INVALID`, jedes Problem unter `data.issues`); es startet kein Lauf.
 - **403** `AUTOMATION_PROJECT_FORBIDDEN` — die Automatisierung kann im Projekt der URL nicht laufen: es existiert nicht, es ist archiviert, oder die Automatisierung ist dort nicht installiert. Die Antwort sagt nie, was davon zutrifft, und nennt die Automatisierung nicht — eine geleakte URL ist kein Orakel für die Projekt-IDs der Organisation.
-- **404** — unbekanntes, deaktiviertes oder vertipptes Token. Die Antwort unterscheidet die Fälle nie — wer rät, lernt nichts.
+- **404** — unbekanntes, deaktiviertes oder vertipptes Token. Die Antwort unterscheidet die Fälle nie — wer rät, lernt nichts. Die Tür nimmt nur `POST`: `GET`, `HEAD` und `OPTIONS` antworten mit derselben **404** — nie mit einer 405 und nie mit einer `Allow`-Kopfzeile —, das Verb ist also ebenfalls kein Orakel.
 - **409** — `AUTOMATION_NOT_DEPLOYED` (deploye eine Version, deren Tests bestehen, und derselbe Aufruf läuft), `AUTOMATION_PROJECT_SCOPE_REQUIRED` (eine gebundene Automatisierung an der globalen URL — nimm ihre Projekt-URL) oder `AUTOMATION_DELIVERY_SCOPE_MISMATCH` (diese Zustellungs-ID wurde zuerst über einen anderen URL-Bereich angenommen).
 - **413** — der Body übersteigt 256 KiB (262.144 Bytes).
 - **429** — das Budget des Absenders oder des Triggers ist aufgebraucht; `Retry-After` nennt die Wartezeit. Die Budgets stehen unten.

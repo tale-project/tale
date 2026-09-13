@@ -11,9 +11,10 @@
  * TASK-lane concept (`lib/agents/`).
  *
  * The instructions are authored in English only. The runtime-directives block
- * of the context contract already orders the model to answer in the user's
- * language, so localizing the guide would duplicate that rule, and — unlike
- * the retired JSON — there is no per-locale override to drift.
+ * of the context contract already sets the reply language — the user's own,
+ * or the one a REST caller fixed with `locale` — so localizing the guide
+ * would duplicate that rule, and — unlike the retired JSON — there is no
+ * per-locale override to drift.
  *
  * Layer A: pure data.
  */

@@ -11,7 +11,10 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
+import {
+  canonicalExternalKey,
+  externalKeySchema,
+} from '../../lib/shared/utils/external-key.ts';
 import { hasForbiddenNameChar } from '../../lib/shared/utils/plain-name.ts';
 import { ADMIN_ROLES } from '../core/projects/access.ts';
 import {
@@ -24,6 +27,7 @@ import {
   type DocumentRow,
   effectiveUploadMaxBytes,
   loadDocumentOrThrow,
+  queueRagIndexingRetry,
   validateDocumentUploadForOrg,
 } from '../domains/documents/service.ts';
 import {
@@ -202,19 +206,28 @@ const PROJECT_ARCHIVED_FILTERS = ['exclude', 'include', 'only'] as const;
  * name fails before the bytes are uploaded, not after.
  */
 function isPlainFileName(value: string): boolean {
-  const trimmed = value.trim();
   return (
-    trimmed !== '' &&
-    trimmed !== '.' &&
-    trimmed !== '..' &&
-    !trimmed.includes('..') &&
-    !hasForbiddenNameChar(trimmed)
+    value !== '' &&
+    value !== '.' &&
+    value !== '..' &&
+    !value.includes('..') &&
+    !hasForbiddenNameChar(value)
   );
 }
-const fileNameSchema = z.string().min(1).max(1024).refine(isPlainFileName, {
-  message:
-    'must be a file name — no path separators, no "..", no control characters',
-});
+/** The name in its ONE canonical form — NFC, trimmed (`canonicalExternalKey`,
+ * the rule the folder name and every caller-owned key follow) — checked and
+ * stored that way: a name used to be stored as sent, so `café.pdf` in two
+ * normalizations were two files of one folder and a leading space
+ * survived into the download disposition. */
+const fileNameSchema = z
+  .string()
+  .transform(canonicalExternalKey)
+  .pipe(
+    z.string().min(1, 'must not be blank').max(1024).refine(isPlainFileName, {
+      message:
+        'must be a file name — no path separators, no "..", no control characters',
+    }),
+  );
 
 /** The unique index a Postgres 23505 names, or null for any other error:
  * two concurrent creates can both pass the SELECT-then-INSERT checks and
@@ -763,8 +776,6 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   // ---- uploads (mint) --------------------------------------------------------
   app.post('/projects/:id/uploads', async (c) => {
-    const limited = await chargeLane(deps.sql, c, 'rest:upload');
-    if (limited) return limited;
     const body = await parseBody(
       c,
       z
@@ -782,6 +793,10 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       { optional: true },
     );
     if (body instanceof Response) return body;
+    // The body first, the budget second: a malformed body is refused for
+    // free, where the charge used to land before the parse.
+    const limited = await chargeLane(deps.sql, c, 'rest:upload');
+    if (limited) return limited;
     try {
       // Gate BEFORE presigning: refusing after would hand the caller a
       // signed PUT no intent row tracks.
@@ -868,8 +883,6 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   // ---- files (bind + list + content) ------------------------------------------
   app.post('/projects/:id/files', async (c) => {
-    const limited = await chargeLane(deps.sql, c, 'rest:upload');
-    if (limited) return limited;
     const body = await parseBody(
       c,
       z
@@ -884,6 +897,10 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         .strict(),
     );
     if (body instanceof Response) return body;
+    // The body first, the budget second: a malformed body is refused for
+    // free, where the charge used to land before the parse.
+    const limited = await chargeLane(deps.sql, c, 'rest:upload');
+    if (limited) return limited;
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
@@ -1155,6 +1172,36 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
+  /** One live file of `project`, or the family's opaque 404
+   * (`FILE_NOT_FOUND`): a document of another organization or project, a
+   * content-only one (no blob), a row that left the active lifecycle, and
+   * an absent id all answer alike — the load every per-file lane (delete,
+   * content, retry-indexing) runs after its own project gate. */
+  const loadProjectFile = async (
+    c: Context<RestEnv>,
+    project: ProjectRow,
+    documentId: string,
+  ): Promise<DocumentRow | Response> => {
+    let doc: DocumentRow;
+    try {
+      doc = await loadDocumentOrThrow(deps.sql, documentId);
+    } catch (error) {
+      if (error instanceof DocumentError && error.status === 404) {
+        return notFound(c, 'File not found', 'FILE_NOT_FOUND');
+      }
+      throw error;
+    }
+    if (
+      doc.organizationId !== c.get('organizationId') ||
+      doc.projectId !== project.id ||
+      doc.fileRef === null ||
+      (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
+    ) {
+      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
+    }
+    return doc;
+  };
+
   /** Delete a project file — permanently: the document row, its corpus
    * rows and its blob, through the same purge every hard-delete lane
    * funnels through (controlled-record protection, legal holds, the audit
@@ -1165,27 +1212,38 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      let doc: DocumentRow;
-      try {
-        doc = await loadDocumentOrThrow(deps.sql, c.req.param('documentId'));
-      } catch (error) {
-        if (error instanceof DocumentError && error.status === 404) {
-          return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-        }
-        throw error;
-      }
-      if (
-        doc.organizationId !== c.get('organizationId') ||
-        doc.projectId !== project.id ||
-        doc.fileRef === null ||
-        (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
-      ) {
-        return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-      }
+      const doc = await loadProjectFile(c, project, c.req.param('documentId'));
+      if (doc instanceof Response) return doc;
       await deleteDocumentHard(deps.sql, auth, doc.id);
       return c.body(null, 204);
     } catch (error) {
       return documentDeleteRefusal(c, error);
+    }
+  });
+
+  /** Re-queue a project file's blob for indexing — the REST twin of the
+   * project Knowledge tab's "Index now", through the SAME core the Hub
+   * document door runs (`queueRagIndexingRetry`: the documents write role,
+   * the per-user `file:rag-retry` budget as the door-wide 429, the
+   * `unsupported` and `in-progress` skips) and the same `{status, reason}`
+   * answer. A file bound with the default `skipRagIndexing: true` is
+   * opted back in by this request — the explicit ask is the opt-in — and
+   * answers `indexing`. The Hub door answers 404 for a project file, so
+   * until this door existed a REST-bound file had no path into the
+   * corpus short of deleting and re-binding it (round e, E5-01). Editors
+   * of an active project, the delete lane's gate; the same opaque 404. */
+  app.post('/projects/:id/files/:documentId/retry-indexing', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const doc = await loadProjectFile(c, project, c.req.param('documentId'));
+      if (doc instanceof Response) return doc;
+      const outcome = await queueRagIndexingRetry(deps.sql, auth, doc);
+      if (outcome.kind === 'queued') return c.json({ status: 'indexing' });
+      return c.json({ status: 'skipped', reason: outcome.kind });
+    } catch (error) {
+      return domainErrorResponse(c, error);
     }
   });
 
@@ -1243,23 +1301,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const auth = await restProjectAuth(deps.sql, c);
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
-    let doc: DocumentRow;
-    try {
-      doc = await loadDocumentOrThrow(deps.sql, c.req.param('documentId'));
-    } catch (error) {
-      if (error instanceof DocumentError && error.status === 404) {
-        return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-      }
-      throw error;
-    }
-    if (
-      doc.organizationId !== c.get('organizationId') ||
-      doc.projectId !== project.id ||
-      doc.fileRef === null ||
-      (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
-    ) {
-      return notFound(c, 'File not found', 'FILE_NOT_FOUND');
-    }
+    const doc = await loadProjectFile(c, project, c.req.param('documentId'));
+    if (doc instanceof Response) return doc;
     return serveDocumentBytes(c, deps.sql, doc, {
       absent: { message: 'File not found', code: 'FILE_NOT_FOUND' },
     });

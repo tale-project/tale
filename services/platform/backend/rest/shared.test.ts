@@ -17,6 +17,7 @@ import {
   pageLimit,
   parseKeysetCursor,
   queryFilter,
+  readIdempotencyKey,
   readIntegerCursor,
   readJsonBody,
   readKeysetCursor,
@@ -380,6 +381,69 @@ describe('readQuery / readPageLimit', () => {
       });
     }
   });
+});
+
+/**
+ * `Idempotency-Key` is read by one helper on every door that honours it:
+ * trimmed, blank read as absent, and — the regression under test
+ * (2026-09-13 evaluation, E4-01) — a value outside the declared printable
+ * ASCII pattern refused rather than compared byte for byte, where `é` in
+ * two normalizations started two durable runs of one retry.
+ */
+describe('readIdempotencyKey', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.post('/start', (c) => {
+      const key = readIdempotencyKey(c);
+      if (key instanceof Response) return key;
+      return c.json({ key: key ?? null });
+    });
+    return app;
+  }
+  const start = (key?: string) =>
+    probe().request('/start', {
+      method: 'POST',
+      ...(key === undefined ? {} : { headers: { 'Idempotency-Key': key } }),
+    });
+
+  it('reads the trimmed key, and an absent or blank header as no key', async () => {
+    expect(await (await start(' order-42 ')).json()).toEqual({
+      key: 'order-42',
+    });
+    expect(await (await start()).json()).toEqual({ key: null });
+    expect(await (await start('   ')).json()).toEqual({ key: null });
+  });
+
+  it('keeps the whole printable range, spaces and punctuation included', async () => {
+    const key = ' !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~';
+    expect(await (await start(key)).json()).toEqual({ key: key.trim() });
+  });
+
+  it.each([
+    ['a non-ASCII letter', 'ordér'],
+    ['a tab inside the value', 'order\t42'],
+    ['DEL', 'order'],
+  ])(
+    'refuses %s with 400 INVALID_HEADER, naming the header',
+    async (_what, key) => {
+      const res = await start(key);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error:
+          'invalid header: "Idempotency-Key" must be printable ASCII — letters, digits, punctuation and spaces',
+        code: 'INVALID_HEADER',
+        data: {
+          issues: [
+            {
+              path: 'Idempotency-Key',
+              message:
+                'must be printable ASCII — letters, digits, punctuation and spaces',
+            },
+          ],
+        },
+      });
+    },
+  );
 });
 
 /**

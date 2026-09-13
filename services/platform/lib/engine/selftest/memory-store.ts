@@ -201,6 +201,7 @@ export function memoryStore(): MemoryStore {
       const startedAt = Date.now();
       const result = await execute(entry.automation, { input, mode });
       record({
+        id: runId,
         runId,
         name,
         version: chosen,
@@ -229,6 +230,7 @@ export function memoryStore(): MemoryStore {
           break;
         }
         summaries.push({
+          id: run.runId,
           runId: run.runId,
           name: run.name,
           version: run.version,
@@ -265,8 +267,10 @@ export function memoryStore(): MemoryStore {
     async recordRun(name, version, result, mode) {
       runSeq += 1;
       const now = Date.now();
+      const runId = `run_${runSeq}`;
       record({
-        runId: `run_${runSeq}`,
+        id: runId,
+        runId,
         name,
         version,
         status: result.status === 'success' ? 'success' : 'failed',

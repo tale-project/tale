@@ -14,3 +14,15 @@ const FORBIDDEN_NAME_CHARS = /[/\\\u0000-\u001f\u007f]/;
 export function hasForbiddenNameChar(name: string): boolean {
   return FORBIDDEN_NAME_CHARS.test(name);
 }
+
+/** Which half of the class `name` trips, for a refusal that names it —
+ * `separator` for `/` or `\`, `control` for a C0 control or DEL — or
+ * `undefined` for a name the class lets through. One regex, so the
+ * sentence can never disagree with the check. */
+export function forbiddenNameCharKind(
+  name: string,
+): 'separator' | 'control' | undefined {
+  const match = FORBIDDEN_NAME_CHARS.exec(name);
+  if (match === null) return undefined;
+  return match[0] === '/' || match[0] === '\\' ? 'separator' : 'control';
+}

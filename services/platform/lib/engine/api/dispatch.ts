@@ -79,6 +79,10 @@ export interface TriggerSpec {
  * engine addresses a run by whatever handle the host minted, without learning
  * what a host's identifier is made of. */
 export interface RunSummary {
+  /** The run id — `runId` repeats it: a listing row named the run `runId`
+   * where the single read names it `id`, so a client had two names for
+   * one value. */
+  id: string;
   runId: string;
   name: string;
   version: number;
@@ -113,7 +117,11 @@ export interface RunDetail extends RunSummary {
 export interface VersionSummary {
   version: number;
   message?: string;
+  /** The last run of the version's tests — the save's or the deploy
+   * gate's, the latest winning; absent while no run was recorded. */
   testsPassed?: boolean;
+  /** When `testsPassed` was judged, epoch ms; absent with it. */
+  testsCheckedAt?: number;
   createdBy: string;
   createdAt: number;
 }
@@ -156,9 +164,14 @@ export interface SetTriggerOutcome {
  * in this environment rather than throwing.
  */
 export interface DispatchStore extends StoreAdapter {
+  /** Append a version. `options.testsPassed` is the save's own verdict
+   * when the document carries tests and dispatch ran them — a host that
+   * keeps a per-version verdict records it, so a version saved with
+   * failing tests reads so from the moment it exists. */
   save(
     automation: Automation,
     message?: string,
+    options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
   /** Promote a saved version. `options.testsPassed` is set when the deploy
    * gate just ran the version's tests and they passed — a host that keeps a
@@ -168,6 +181,15 @@ export interface DispatchStore extends StoreAdapter {
     version: number,
     options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
+  /** Record the deploy gate's verdict on a saved version WITHOUT deploying
+   * it — the refusal's `false`, so the version reads as failing rather than
+   * as never tested; the latest verdict wins. A host without a per-version
+   * verdict leaves it out. */
+  recordTestVerdict?(
+    name: string,
+    version: number,
+    testsPassed: boolean,
+  ): Promise<void>;
   /** Record a trigger binding. A host that revokes something by doing so (a
    * live webhook URL replaced by another kind) says so in the outcome; a
    * host with nothing to add answers nothing. */
@@ -616,8 +638,23 @@ export async function dispatch(
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
       const automation = p.automation as Automation;
+      // The document's own tests are the save's verdict: a version saved
+      // with failing tests reads `testsPassed: false` from the moment it
+      // exists — the contract's promise — where the row used to read null
+      // until a deploy gate, which persisted nothing either. A document
+      // without tests records no verdict.
+      let testsPassed: boolean | undefined;
+      if (automation.tests && automation.tests.length > 0) {
+        const report = await runAutomationTests(automation, { store });
+        testsPassed = 'failed' in report && report.failed === 0;
+      }
       try {
-        return await store.save(automation, asString(p.message));
+        const saved = await store.save(
+          automation,
+          asString(p.message),
+          testsPassed === undefined ? undefined : { testsPassed },
+        );
+        return testsPassed === undefined ? saved : { ...saved, testsPassed };
       } catch (e) {
         // The host's own refusals — a name it reserves for its fixed routes,
         // a name another owner holds — are refusals, not protocol errors:
@@ -686,6 +723,11 @@ export async function dispatch(
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
+          // The refusal is persisted as the version's verdict: the row
+          // used to keep `null` after the gate said no, so a client could
+          // not tell a version without tests apart from one whose tests
+          // fail.
+          await store.recordTestVerdict?.(name, version, false);
           return {
             error: 'deploy gate: the automation has failing tests',
             code: 'AUTOMATION_TESTS_FAILING',

@@ -28,7 +28,7 @@ Le vocabulaire complet des réponses :
 - **202** `{ "runId": "...", "duplicate": true }` — une nouvelle livraison d’une livraison déjà acceptée ; `runId` est l’exécution que la première a lancée, et il n’en existe pas de seconde.
 - **400** — un paramètre de requête `projectId` (`INVALID_QUERY`), ou une entrée incompatible avec le schéma `inputs` de l’automatisation (`AUTOMATION_INPUT_INVALID`, chaque problème sous `data.issues`) ; aucune exécution ne démarre.
 - **403** `AUTOMATION_PROJECT_FORBIDDEN` — l’automatisation ne peut pas s’exécuter dans le projet de l’URL : il n’existe pas, il est archivé, ou l’automatisation n’y est pas installée. La réponse ne dit jamais lequel et ne nomme pas l’automatisation — une URL fuitée n’est pas un oracle des identifiants de projet de l’organisation.
-- **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien.
+- **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien. La porte ne prend que `POST` : `GET`, `HEAD` et `OPTIONS` répondent le même **404** — jamais un 405, jamais d’en-tête `Allow` — le verbe n’est donc pas un oracle non plus.
 - **409** — `AUTOMATION_NOT_DEPLOYED` (déploie une version dont les tests passent et le même appel s’exécute), `AUTOMATION_PROJECT_SCOPE_REQUIRED` (une automatisation liée appelée sur l’URL globale — utilise son URL de projet) ou `AUTOMATION_DELIVERY_SCOPE_MISMATCH` (cet identifiant de livraison a d’abord été accepté par un autre périmètre d’URL).
 - **413** — le corps dépasse 256 Kio (262 144 octets).
 - **429** — le budget de l’expéditeur ou du déclencheur est épuisé ; `Retry-After` nomme l’attente. Les budgets sont plus bas.

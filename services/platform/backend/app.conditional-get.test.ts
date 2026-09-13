@@ -190,6 +190,66 @@ describe('validated reads through the real app', () => {
     },
   );
 
+  /**
+   * The same guards outside `/api/v1`, where no door-level stamper follows
+   * them: each refusal is `no-store` by its own hand (2026-09-13 round-e
+   * evaluation, S4 — the app door's 401 carried no directive at all),
+   * while the contract version stays a promise of the doors the OpenAPI
+   * document describes, which the app door is not.
+   */
+  it.each([
+    [
+      'a key in x-api-key on the app door',
+      'http://localhost/api/app/video-links/unbound?orgId=org-1',
+      { headers: { cookie: 'tale.session=good', 'x-api-key': 'tale_leaked' } },
+      401,
+      'UNAUTHORIZED',
+    ],
+    [
+      'a NUL in an app-door URL',
+      'http://localhost/api/app/video-links/a%00b',
+      { headers: { cookie: 'tale.session=good' } },
+      400,
+      'INVALID_URL',
+    ],
+  ])(
+    'answers %s uncacheable, without the REST door’s version header',
+    async (_name, url, init, status, code) => {
+      const res = await app().request(url, init);
+      expect(res.status).toBe(status);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('x-tale-api-version')).toBeNull();
+      const body: { code: string } = await res.json();
+      expect(body.code).toBe(code);
+    },
+  );
+
+  /**
+   * The two inbound webhook doors sit in the OpenAPI document, whose every
+   * operation promises `X-Tale-Api-Version`; they used to answer without
+   * it (2026-09-13 round-e evaluation, E4-06). A token past the door's
+   * length cap is refused before the sender's budget is charged, so the
+   * double needs no trusted-proxy list — the header is the stamper's, not
+   * the handler's.
+   */
+  it('stamps the contract version on both webhook doors', async () => {
+    const token = 'x'.repeat(1000);
+    for (const path of [
+      `/api/automations/webhook/${token}`,
+      `/api/projects/p-1/automations/webhook/${token}`,
+    ]) {
+      const res = await app().request(`http://localhost${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      expect(res.status).toBe(404);
+      expect(res.headers.get('x-tale-api-version')).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toMatchObject({ code: 'NOT_FOUND' });
+    }
+  });
+
   it('validates the app surface the same way', async () => {
     // The app surface is a signed-in session; a key in `x-api-key` is
     // refused before any door (it used to act as the key holder's session

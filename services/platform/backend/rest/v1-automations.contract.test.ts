@@ -75,6 +75,7 @@ const row = (version: number) => ({
   document: {},
   message: null,
   testsPassed: null,
+  testsCheckedAt: null,
   taskContract: null,
   settings: null,
   presentation: null,
@@ -116,6 +117,7 @@ const runRow = {
 
 /** What a listing answers for `runRow`: identity, scope, status, timing. */
 const runSummary = {
+  id: 'run-1',
   runId: 'run-1',
   name: SAVED,
   version: 1,
@@ -416,6 +418,37 @@ describe('Idempotency-Key on a run start', () => {
     expect(beginRun).toHaveBeenCalled();
     expect(beginRunIdempotent).not.toHaveBeenCalled();
   });
+
+  /** The declared pattern is printable ASCII; a key outside it used to be
+   * accepted and compared byte for byte, so `é` composed and `é` decomposed
+   * named two starts of one retry (2026-09-13 evaluation, E4-01). */
+  it.each([
+    ['a non-ASCII letter', 'ordér-42'],
+    ['a tab', 'order\t42'],
+    ['DEL', 'order42'],
+  ])(
+    'refuses a key carrying %s with 400 INVALID_HEADER, starting nothing',
+    async (_what, key) => {
+      const res = await start({ 'Idempotency-Key': key });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error:
+          'invalid header: "Idempotency-Key" must be printable ASCII — letters, digits, punctuation and spaces',
+        code: 'INVALID_HEADER',
+        data: {
+          issues: [
+            {
+              path: 'Idempotency-Key',
+              message:
+                'must be printable ASCII — letters, digits, punctuation and spaces',
+            },
+          ],
+        },
+      });
+      expect(beginRun).not.toHaveBeenCalled();
+      expect(beginRunIdempotent).not.toHaveBeenCalled();
+    },
+  );
 
   it('claims the key inside the project authorization transaction', async () => {
     const res = await mount().app.request(
@@ -973,6 +1006,7 @@ describe('GET /automations/{name}/versions', () => {
         version: 2,
         message: 'second',
         testsPassed: null,
+        testsCheckedAt: null,
         createdBy: 'user-1',
         createdAt: 2,
       },
@@ -980,6 +1014,7 @@ describe('GET /automations/{name}/versions', () => {
         version: 1,
         message: null,
         testsPassed: true,
+        testsCheckedAt: 1_700_000_000_500,
         createdBy: 'user-1',
         createdAt: 1,
       },
@@ -996,6 +1031,7 @@ describe('GET /automations/{name}/versions', () => {
           version: 2,
           message: 'second',
           testsPassed: null,
+          testsCheckedAt: null,
           createdBy: 'user-1',
           createdAt: 2,
           deployed: false,
@@ -1004,6 +1040,7 @@ describe('GET /automations/{name}/versions', () => {
           version: 1,
           message: null,
           testsPassed: true,
+          testsCheckedAt: 1_700_000_000_500,
           createdBy: 'user-1',
           createdAt: 1,
           deployed: true,

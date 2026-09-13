@@ -117,3 +117,33 @@ default means deleting the override and fixing what surfaces:
   pages behind `?cursor=` + `?limit=` on each, with the family flipped to `keyset` in
   `services/platform/scripts/openapi/spec.ts` so the envelope-family guard in
   `scripts/openapi/spec.test.ts` holds the new shape.
+- **No single-file read on `/api/v1/projects/{id}/files`** — a project file's metadata
+  (`fileName`, `folderId`, `size`, `indexing`) is readable only as a row of the folder listing
+  (`GET /projects/{id}/files?folderId=`), so a poller waiting for one file's `indexing` after
+  `POST …/files/{documentId}/retry-indexing` walks the listing (2026-09, round e; the
+  `OBJECT_STORE_UNAVAILABLE` register row used to name a `GET …/files/{documentId}` that never
+  existed). Paying it down means a `GET /api/v1/projects/{id}/files/{documentId}` answering the
+  `ProjectFile` row through the shared `loadProjectFile` load in
+  `services/platform/backend/rest/v1-projects.ts`, with its spec operation, an `ETag` + 304 like
+  every JSON read, and a `FILE_NOT_FOUND` register row.
+- **An identical zip upload rewrites the bundle** — `POST /api/app/skills/upload` (the app's
+  bundle upload) stages and swaps every file and snapshots the superseded `SKILL.md` into the
+  history trail even when the zip is byte-identical to the stored bundle, so `updatedAt` moves and
+  a history entry appears where `PUT /api/v1/skills/{slug}` with an identical body writes nothing
+  (2026-09, round e). Paying it down means comparing the normalized files (`normalizedBundleFiles`)
+  against the stored bundle in `services/platform/backend/domains/skills/upload.ts` ahead of
+  `writeSkillBundleFiles` and answering the stored view when nothing differs.
+- **A cut tool call's arguments are not on the transcript** — when the reply cap cuts a model
+  round mid-call, the stored `tool-call` part keeps `input: {}` while the raw text the model did
+  emit lives only on the executor's `rawInput` (`services/platform/lib/chat/turn.ts`), so the
+  timeline cannot show what was asked; the call itself no longer runs and its result reads
+  `invalid_args` (2026-09, round e). Paying it down means carrying `rawInput` on the stored part
+  (`MessagePart` in `services/platform/scripts/openapi/spec.ts` + the app renderer) as an
+  additive field.
+- **Legacy NFD folder names beside NFC lookups** — folder names are now stored trimmed + NFC and
+  every lookup canonicalises (`services/platform/backend/domains/folders/paths.ts`), but rows
+  written before 2026-09 (round e) keep their bytes and the sibling index compares `lower(name)`
+  only, so a sync engine's hub-path lookup can create an NFC twin beside a legacy NFD folder. No
+  backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
+  forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
+  or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.

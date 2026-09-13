@@ -283,60 +283,55 @@ describe('detectMediaMime', () => {
   });
 });
 
+/**
+ * The allowlist keys on the file name's extension alone (2026-09-13
+ * evaluation, E2-01): a declared or resolved MIME type used to rescue a
+ * name without an extension — `text/plain` minted `CON` and
+ * `attachment-4711` only for the bind to refuse them — and `program.exe`
+ * beside it.
+ */
 describe('isAllowedDocumentUpload', () => {
   it.each([
-    ['application/pdf', 'report.pdf'],
-    ['application/msword', 'file.doc'],
-    [
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'file.docx',
-    ],
-    ['application/vnd.oasis.opendocument.text', 'file.odt'],
-    [
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'slides.pptx',
-    ],
-    [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'data.xlsx',
-    ],
-    ['text/csv', 'data.csv'],
-    ['text/plain', 'notes.txt'],
-    ['text/markdown', 'notes.md'],
-    ['application/json', 'history-2025-Q1-filed.json'],
-    ['application/x-yaml', 'client-policy.yaml'],
-    ['', 'fx-rates.yml'],
-    ['text/x-python', 'transform.py'],
-    ['', 'ledger-2025.ac2'],
-    ['image/jpeg', 'photo.jpg'],
-    ['image/png', 'screenshot.png'],
-    ['image/gif', 'animation.gif'],
-    ['image/webp', 'image.webp'],
-  ])('allows %s (%s)', (mime, fileName) => {
-    expect(isAllowedDocumentUpload(mime, fileName)).toBe(true);
+    'report.pdf',
+    'file.doc',
+    'file.docx',
+    'file.odt',
+    'slides.pptx',
+    'data.xlsx',
+    'data.csv',
+    'notes.txt',
+    'notes.md',
+    'history-2025-Q1-filed.json',
+    'client-policy.yaml',
+    'fx-rates.yml',
+    'transform.py',
+    'ledger-2025.ac2',
+    'photo.jpg',
+    'screenshot.png',
+    'animation.gif',
+    'image.webp',
+    'REPORT.PDF',
+  ])('allows %s', (fileName) => {
+    expect(isAllowedDocumentUpload(fileName)).toBe(true);
   });
 
   it.each([
-    ['audio/mpeg', 'song.mp3'],
-    ['video/mp4', 'video.mp4'],
-    ['application/x-msdownload', 'program.exe'],
-    ['application/zip', 'archive.zip'],
-    ['application/octet-stream', 'unknown.bin'],
-    ['', 'file.mp3'],
-  ])('rejects %s (%s)', (mime, fileName) => {
-    expect(isAllowedDocumentUpload(mime, fileName)).toBe(false);
+    'song.mp3',
+    'video.mp4',
+    'program.exe',
+    'archive.zip',
+    'unknown.bin',
+    'malware.exe',
+  ])('rejects %s', (fileName) => {
+    expect(isAllowedDocumentUpload(fileName)).toBe(false);
   });
 
-  it('allows by extension when MIME is generic', () => {
-    expect(isAllowedDocumentUpload('application/octet-stream', 'doc.pdf')).toBe(
-      true,
-    );
-    expect(isAllowedDocumentUpload('', 'photo.jpg')).toBe(true);
-  });
-
-  it('rejects unknown extensions even with empty MIME', () => {
-    expect(isAllowedDocumentUpload('', 'malware.exe')).toBe(false);
-    expect(isAllowedDocumentUpload('', 'song.mp3')).toBe(false);
+  it('requires an extension — a bare name is refused whatever its type would resolve to', () => {
+    expect(isAllowedDocumentUpload('CON')).toBe(false);
+    expect(isAllowedDocumentUpload('attachment-4711')).toBe(false);
+    expect(isAllowedDocumentUpload('notes.')).toBe(false);
+    expect(isAllowedDocumentUpload('.gitignore')).toBe(false);
+    expect(isAllowedDocumentUpload('')).toBe(false);
   });
 });
 

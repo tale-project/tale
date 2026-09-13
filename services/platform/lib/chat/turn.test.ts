@@ -13,6 +13,9 @@ import {
 import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
+  CAP_CUT_CALL_OUTPUT,
+  estimateCostCents,
+  fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
   runTurn,
@@ -1859,27 +1862,318 @@ describe('runTurn — image attachments', () => {
  * The REST send's `locale` reached the prompt as the app's own directive,
  * which lets the prompt's language win — the field read as doing nothing on
  * an English prompt. `localeFixed` rides the request into the context
- * contract, where the directive pins the reply language; a request without
- * the flag (the app lane) keeps the directive it always had.
+ * contract, where the directive names the reply language; and because a
+ * reasoning model on a short prompt still slipped past one sentence at the
+ * end of the system prompt, the same instruction rides the newest user
+ * message on the wire — never the store. A request without the flag (the
+ * app lane) keeps the directive it always had, and no notice.
  */
 describe('runTurn — the reply language', () => {
-  it('pins the reply language when the caller fixed it, and lets the prompt win otherwise', async () => {
+  const typed = 'how do I return a printer?';
+
+  it('names the reply language on the system prompt and the newest message when the caller fixed it, and lets the prompt win otherwise', async () => {
     const seen: ModelCallRequest[] = [];
     const capturing: ModelCall = async function* stream(call) {
       seen.push(call);
       yield { text: 'Klar.' };
     };
-    await runTurn(
-      request({ locale: 'de', localeFixed: true }),
-      deps({ model: capturing }).deps,
-    );
-    await runTurn(request({ locale: 'de' }), deps({ model: capturing }).deps);
+    const fixed = deps({ model: capturing });
+    await runTurn(request({ locale: 'de', localeFixed: true }), fixed.deps);
+    const open = deps({ model: capturing });
+    await runTurn(request({ locale: 'de' }), open.deps);
+
+    // The system prompt names the language in words, the tag beside it.
     expect(seen[0]?.system).toContain(
-      'Answer in de whatever language the user writes in — the caller fixed the reply language.',
+      "Reply language: German (de). Write the whole reply in German, whatever language the user writes in — the caller fixed the reply language; do not switch to the user's language.",
     );
+    // The newest user message ends with the notice on the wire …
+    const notice = fixedLocaleNotice('de');
+    expect(notice).toContain('German (de)');
+    const newest = seen[0]?.messages.at(-1);
+    expect(newest?.role).toBe('user');
+    expect(newest?.parts).toEqual([{ type: 'text', text: typed + notice }]);
+    // … and never in the store: the row keeps what the person typed.
+    expect(fixed.store.appended[0]).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: typed }],
+    });
+    expect(JSON.stringify(fixed.store.finalized)).not.toContain(
+      'the caller fixed the reply language',
+    );
+
+    // The app lane keeps its directive and gets no notice.
     expect(seen[1]?.system).toContain("Respond in the user's language (de).");
     expect(seen[1]?.system).not.toContain(
       'the caller fixed the reply language',
     );
+    expect(seen[1]?.messages.at(-1)?.parts).toEqual([
+      { type: 'text', text: typed },
+    ]);
+  });
+
+  it('keeps the notice on the message through every tool round', async () => {
+    const requests: ModelCallRequest[] = [];
+    const calling: ModelCall = async function* stream(call) {
+      requests.push(call);
+      if (requests.length === 1) {
+        yield {
+          text: '',
+          toolCalls: [
+            { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+          ],
+        };
+        return;
+      }
+      yield { text: 'Dreißig Tage.' };
+    };
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute: () => Promise.resolve({ status: 'ok', results: [] }),
+    };
+    await runTurn(
+      request({ locale: 'de', localeFixed: true }),
+      deps({ model: calling, tools: executor }).deps,
+    );
+
+    expect(requests).toHaveLength(2);
+    const notice = fixedLocaleNotice('de');
+    for (const req of requests) {
+      const userTexts = req.messages
+        .filter((message) => message.role === 'user')
+        .flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === 'text' ? [part.text] : [],
+          ),
+        );
+      expect(userTexts).toContain(typed + notice);
+    }
+  });
+});
+
+/**
+ * `maxOutputTokens` documented a per-TURN cap, and the pipeline resolved it
+ * once and handed the same ceiling to every model round — a tool-calling
+ * turn could spend it several times over (134 tokens on a cap of 120 in the
+ * evaluation), and a round the cap cut mid-call still ran the truncated
+ * call and let the next round settle `stop`. The cap is now a budget the
+ * rounds share: a later round gets what the earlier ones left, a round that
+ * would start with nothing left is not run, a cut round marks the whole turn
+ * `length` however the final round ended, and the calls of a cut round are
+ * not executed — their arguments are what the cap truncated.
+ */
+describe('runTurn — the per-turn output cap', () => {
+  function capturingExecutor(): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          {
+            name: 'rag_search',
+            description: 'Search the knowledge.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve({ status: 'ok', results: [] });
+        },
+      },
+    };
+  }
+
+  /** Round 1 spends `outputTokens` and ends on a tool call with the given
+   *  finish reason; round 2 answers and stops. */
+  function twoRoundModel(round1: {
+    outputTokens: number;
+    finishReason: 'stop' | 'length';
+  }): { model: ModelCall; requests: ModelCallRequest[] } {
+    const requests: ModelCallRequest[] = [];
+    return {
+      requests,
+      model: async function* stream(call) {
+        requests.push(call);
+        if (requests.length === 1) {
+          yield { text: 'Let me check. ' };
+          yield {
+            text: '',
+            usage: {
+              inputTokens: 100,
+              outputTokens: round1.outputTokens,
+              totalTokens: 100 + round1.outputTokens,
+            },
+            toolCalls: [
+              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+            ],
+            finishReason: round1.finishReason,
+          };
+          return;
+        }
+        yield { text: 'Found it: 30 days.' };
+        yield {
+          text: '',
+          usage: { inputTokens: 150, outputTokens: 8, totalTokens: 158 },
+          finishReason: 'stop',
+        };
+      },
+    };
+  }
+
+  it('hands a later round what the earlier rounds left of the cap', async () => {
+    const { model, requests } = twoRoundModel({
+      outputTokens: 100,
+      finishReason: 'stop',
+    });
+    const { executor, executed } = capturingExecutor();
+    const outcome = await runTurn(
+      request({ maxOutputTokens: 120 }),
+      deps({ model, tools: executor }).deps,
+    );
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.sampling.maxTokens).toBe(120);
+    expect(requests[1]?.sampling.maxTokens).toBe(20);
+    expect(executed).toHaveLength(1);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+      usage: { outputTokens: 108, finishReason: 'stop' },
+    });
+  });
+
+  it('does not run a round that would start with nothing left, and settles the turn as cut', async () => {
+    // Round 1 reports the whole cap spent and a clean stop of its own: the
+    // budget alone ends the turn — no second model call, `length` stamped.
+    const { model, requests } = twoRoundModel({
+      outputTokens: 120,
+      finishReason: 'stop',
+    });
+    const { executor, executed } = capturingExecutor();
+    const d = deps({ model, tools: executor });
+    const outcome = await runTurn(request({ maxOutputTokens: 120 }), d.deps);
+
+    expect(requests).toHaveLength(1);
+    expect(executed).toHaveLength(1);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: { outputTokens: 120, finishReason: 'length' },
+    });
+    // The settled record is the round's text, its call and its result — no
+    // second text part, since the final round never ran.
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts.map((part) => part.type)).toEqual([
+      'text',
+      'tool-call',
+      'tool-result',
+    ]);
+    expect(d.store.finalized[0]).toMatchObject({
+      usage: expect.objectContaining({ finishReason: 'length' }),
+    });
+    expect(d.store.finalized[0]).not.toHaveProperty('cancelled');
+  });
+
+  it('marks the whole turn length when an earlier round was cut, and does not run the cut round’s calls', async () => {
+    // No caller cap: the model's own ceiling cut round 1 mid-call. Round 2
+    // ends cleanly — the reply is still a cut reply, and the truncated call
+    // settled without running.
+    const { model, requests } = twoRoundModel({
+      outputTokens: 64,
+      finishReason: 'length',
+    });
+    const { executor, executed } = capturingExecutor();
+    const d = deps({ model, tools: executor });
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(requests).toHaveLength(2);
+    expect(executed).toHaveLength(0);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+      usage: { finishReason: 'length' },
+    });
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts).toEqual([
+      { type: 'text', text: 'Let me check. ' },
+      {
+        type: 'tool-call',
+        callId: 'call_1',
+        capabilityId: 'rag_search',
+        input: { query: 'returns' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_1',
+        capabilityId: 'rag_search',
+        output: CAP_CUT_CALL_OUTPUT,
+        structured: true,
+      },
+      { type: 'text', text: 'Found it: 30 days.' },
+    ]);
+    // The model read the refusal on the wire, paired with its call.
+    const fedBack = requests[1]?.messages.at(-1);
+    expect(fedBack?.role).toBe('assistant');
+    expect(fedBack?.parts).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-result',
+        callId: 'call_1',
+        output: CAP_CUT_CALL_OUTPUT,
+      }),
+    );
+  });
+
+  it('leaves the sampling alone across rounds when the caller set no cap', async () => {
+    const { model, requests } = twoRoundModel({
+      outputTokens: 100,
+      finishReason: 'stop',
+    });
+    const { executor } = capturingExecutor();
+    const outcome = await runTurn(
+      request(),
+      deps({ model, tools: executor }).deps,
+    );
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.sampling).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+    });
+    expect(requests[1]?.sampling).toEqual(requests[0]?.sampling);
+    expect(outcome).toMatchObject({ usage: { finishReason: 'stop' } });
+  });
+});
+
+/**
+ * `costEstimateCents` reached the wire as the raw double the rates produced
+ * (`0.042601999999999994` in the evaluation), and the ledger booked the same
+ * noise — both call this one formula. It rounds to a millionth of a cent,
+ * so the message stamp and the ledger keep agreeing at a fixed scale.
+ */
+describe('estimateCostCents — the one cost formula', () => {
+  const pricing = (
+    inputCentsPerMillion: number,
+    outputCentsPerMillion: number,
+  ) =>
+    modelCatalogEntrySchema.parse({
+      ...MODEL,
+      pricing: { inputCentsPerMillion, outputCentsPerMillion },
+    }).pricing;
+
+  it('rounds to a millionth of a cent', () => {
+    // Raw: (14200 / 1e6) * 3 + (10 / 1e6) * 15 = 0.042749999999999996.
+    expect(estimateCostCents(14200, 10, pricing(3, 15))).toBe(0.04275);
+    expect(estimateCostCents(1000, 200, pricing(300, 1500))).toBe(0.6);
+    // Rounded, not floored: a sub-micro-cent turn keeps its nearest step.
+    expect(estimateCostCents(26, 0, pricing(0.1, 0))).toBe(0.000003);
+    // No price: an honest zero, never a guessed rate.
+    expect(estimateCostCents(1000, 1000, undefined)).toBe(0);
   });
 });

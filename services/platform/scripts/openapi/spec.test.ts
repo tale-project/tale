@@ -1488,6 +1488,158 @@ describe('the pagination families', () => {
   });
 });
 
+/**
+ * Every request body on the door is strict — an unknown key answers 400
+ * `INVALID_BODY` naming it, the reference's "Every body schema is strict"
+ * — so the document says so too: every object schema an
+ * `application/json` request body declares, inline or through a `$ref`,
+ * an `allOf`/`oneOf`/`anyOf` member or an array's items, carries
+ * `additionalProperties: false`. The bulk contacts body shipped without
+ * it (2026-09-13 round-e evaluation, E1-05a), so a generated client typed
+ * it open while the wire refused a stray key. Two kinds of door are open
+ * on purpose: the MCP door (JSON-RPC, whose `params` are each tool's own
+ * schema) and the two webhook doors (any JSON value is the payload).
+ */
+describe('every JSON request body is strict', () => {
+  const OPEN_BY_DESIGN: ReadonlySet<string> = new Set([
+    'POST /api/v1/mcp',
+    'POST /api/automations/webhook/{token}',
+    'POST /api/projects/{id}/automations/webhook/{token}',
+  ]);
+  const schemas = (spec.components as { schemas: Record<string, Json> })
+    .schemas;
+  const resolve = (schema: Json): Json =>
+    typeof schema.$ref === 'string'
+      ? (schemas[schema.$ref.replace('#/components/schemas/', '')] ?? {})
+      : schema;
+  const objectShaped = (shape: Json): boolean =>
+    shape.type === 'object' || shape.properties !== undefined;
+  /** The object schemas under `at` that leave an unknown key unrefused. */
+  const open = (schema: Json, at: string, found: string[]): void => {
+    const shape = resolve(schema);
+    for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+      ((shape[key] ?? []) as Json[]).forEach((member, index) => {
+        open(member, `${at}.${key}[${index}]`, found);
+      });
+    }
+    if (shape.type === 'array' && shape.items !== undefined) {
+      open(shape.items as Json, `${at}[]`, found);
+    }
+    if (objectShaped(shape) && shape.additionalProperties !== false) {
+      found.push(at);
+    }
+  };
+  const bodies = Object.entries(paths).flatMap(([path, ops]) =>
+    Object.entries(ops)
+      .filter(([method]) => HTTP_METHODS.has(method))
+      .flatMap(([method, op]) => {
+        const content = ((op.requestBody as Json | undefined)?.content ??
+          {}) as Record<string, Json>;
+        const schema = content['application/json']?.schema as Json | undefined;
+        return schema === undefined
+          ? []
+          : [{ name: `${method.toUpperCase()} ${path}`, schema }];
+      }),
+  );
+
+  it('sees the bodies', () => {
+    expect(bodies.length).toBeGreaterThan(40);
+  });
+
+  it('declares additionalProperties: false on every object a request body carries, the open doors excepted', () => {
+    const found: string[] = [];
+    for (const { name, schema } of bodies) {
+      if (!OPEN_BY_DESIGN.has(name)) open(schema, name, found);
+    }
+    expect(found).toEqual([]);
+  });
+
+  it('keeps the open list honest — every door on it exists and leaves its body open', () => {
+    for (const name of OPEN_BY_DESIGN) {
+      const body = bodies.find((candidate) => candidate.name === name);
+      expect(body, name).toBeDefined();
+      const found: string[] = [];
+      open(body?.schema ?? {}, name, found);
+      // Open: an object that admits unknown keys somewhere in the body,
+      // or a body that is no object at all (any JSON value).
+      const freeForm = !objectShaped(resolve(body?.schema ?? {}));
+      expect(found.length > 0 || freeForm, name).toBe(true);
+    }
+  });
+});
+
+/**
+ * A window a client may size is bounded in the document, not only in the
+ * prose: every `limit` query parameter declares `minimum`, `maximum` and
+ * `default`, every `offset` its `minimum` and `default` — the website
+ * pages list declared bare integers with "1..500 (default 100)" in its
+ * description alone (2026-09-13 round-e evaluation, E1-05e), the one list
+ * a generated client could not bound.
+ */
+describe('every limit and offset query parameter is bounded', () => {
+  const windows = Object.entries(paths).flatMap(([path, ops]) =>
+    Object.entries(ops)
+      .filter(([method]) => HTTP_METHODS.has(method))
+      .flatMap(([method, op]) =>
+        (
+          (op.parameters ?? []) as {
+            name: string;
+            in: string;
+            schema?: Json;
+          }[]
+        )
+          .filter(
+            (parameter) =>
+              parameter.in === 'query' &&
+              (parameter.name === 'limit' || parameter.name === 'offset'),
+          )
+          .map((parameter) => ({
+            name: `${method.toUpperCase()} ${path}`,
+            parameter: parameter.name,
+            schema: parameter.schema ?? {},
+          })),
+      ),
+  );
+  const whole = (value: unknown): boolean => Number.isInteger(value);
+
+  it('sees every limit', () => {
+    expect(
+      windows.filter(({ parameter }) => parameter === 'limit').length,
+    ).toBeGreaterThanOrEqual(16);
+  });
+
+  it('declares minimum, maximum and default on every limit', () => {
+    const bare = windows
+      .filter(
+        ({ parameter, schema }) =>
+          parameter === 'limit' &&
+          !(
+            schema.type === 'integer' &&
+            whole(schema.minimum) &&
+            whole(schema.maximum) &&
+            whole(schema.default)
+          ),
+      )
+      .map(({ name }) => name);
+    expect(bare).toEqual([]);
+  });
+
+  it('declares minimum and default on every offset', () => {
+    const bare = windows
+      .filter(
+        ({ parameter, schema }) =>
+          parameter === 'offset' &&
+          !(
+            schema.type === 'integer' &&
+            whole(schema.minimum) &&
+            whole(schema.default)
+          ),
+      )
+      .map(({ name }) => name);
+    expect(bare).toEqual([]);
+  });
+});
+
 describe('the response headers the prose leans on are declared', () => {
   const apiOps = Object.entries(paths).flatMap(([path, ops]) =>
     Object.entries(ops)

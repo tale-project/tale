@@ -83,6 +83,7 @@ describe('toRunSummary', () => {
       row({ detail: 'agent:review', askPending: true }),
     );
     expect(summary).toEqual({
+      id: 'run-1',
       runId: 'run-1',
       name: 'ops/greet',
       version: 3,

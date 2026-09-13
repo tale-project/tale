@@ -107,6 +107,28 @@ describe('saveVersion', () => {
     });
   });
 
+  /** A verdict given at save time is stamped with its time; a save without
+   * one records neither (2026-09-13 evaluation, E4-04). */
+  it('stamps tests_checked_at_ms beside a given verdict, and neither without one', async () => {
+    const judged = fakeStore([]);
+    const before = Date.now();
+    await saveVersion(judged.sql, args({ testsPassed: false }));
+    const insert = judged.statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.automations'),
+    );
+    expect(insert?.text).toContain('tests_checked_at_ms');
+    const verdictAt = insert?.values.indexOf(false) ?? -1;
+    expect(verdictAt).toBeGreaterThanOrEqual(0);
+    expect(insert?.values[verdictAt + 1]).toBeGreaterThanOrEqual(before);
+
+    const unjudged = fakeStore([]);
+    await saveVersion(unjudged.sql, args());
+    const bare = unjudged.statements.find((statement) =>
+      statement.text.includes('INSERT INTO app.automations'),
+    );
+    expect(bare?.values.filter((value) => value === null).length).toBe(6);
+  });
+
   it('binds the install project to version 1 only', async () => {
     const first = fakeStore([]);
     await saveVersion(first.sql, args({ projectId: 'p1' }));

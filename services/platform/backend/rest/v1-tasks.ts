@@ -179,13 +179,40 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     };
   };
 
+  /** The automation a task door names must exist and be deployed — the two
+   * refusals every other door answers, each under its own code: a name
+   * nobody saved is 404 `AUTOMATION_NOT_FOUND`, a saved one with nothing
+   * deployed is 409 `AUTOMATION_NOT_DEPLOYED`, the sentence naming it and
+   * what to do next (`deployHint`). One check behind the intake's owner and
+   * the start door: the start door used to fold both absences into a 200
+   * `not_started` after the intake had already split them (2026-09-13
+   * evaluation, E2-03). */
+  const assertDeployedAutomation = async (
+    sql: Sql | TransactionSql,
+    organizationId: string,
+    name: string,
+    deployHint: string,
+  ): Promise<void> => {
+    if (!(await automationExists(sql, organizationId, name))) {
+      throw new AutomationError(
+        'AUTOMATION_NOT_FOUND',
+        'Automation not found',
+        404,
+      );
+    }
+    if ((await deployedVersion(sql, organizationId, name)) === undefined) {
+      throw new AutomationError(
+        'AUTOMATION_NOT_DEPLOYED',
+        `"${name}" has no deployed version — ${deployHint}.`,
+        409,
+      );
+    }
+  };
+
   /** The owning automation must exist, be deployed and be applicable to
-   * this project — three refusals, each under its own code: a name nobody
-   * saved is 404 `AUTOMATION_NOT_FOUND`, a saved one with nothing deployed
-   * is 409 `AUTOMATION_NOT_DEPLOYED` (the status that code carries on every
-   * other door; this one used to fold both into a 404 whose sentence said
-   * "not deployed"), one bound elsewhere is 403. An undeployed run-only
-   * slug keeps the existing not-started response. */
+   * this project — three refusals, each under its own code: the two of
+   * `assertDeployedAutomation`, and 403 for one bound elsewhere. An
+   * undeployed run-only slug keeps the existing not-started response. */
   const assertIntakeAutomations = async (
     tx: TransactionSql,
     auth: ProjectAuthContext,
@@ -196,22 +223,12 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     for (const name of names) {
       if (name === undefined) continue;
       if (name === input.automationSlug) {
-        if (!(await automationExists(tx, auth.organizationId, name))) {
-          throw new AutomationError(
-            'AUTOMATION_NOT_FOUND',
-            'Automation not found',
-            404,
-          );
-        }
-        if (
-          (await deployedVersion(tx, auth.organizationId, name)) === undefined
-        ) {
-          throw new AutomationError(
-            'AUTOMATION_NOT_DEPLOYED',
-            `"${name}" has no deployed version — deploy it before assigning tasks to it.`,
-            409,
-          );
-        }
+        await assertDeployedAutomation(
+          tx,
+          auth.organizationId,
+          name,
+          'deploy it before assigning tasks to it',
+        );
       }
       const bindings = await bindingProjectIds(tx, auth.organizationId, name);
       if (bindings.length > 0 && !bindings.includes(projectId)) {
@@ -431,6 +448,17 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const projectId = c.req.param('id');
       const taskId = c.req.param('taskId');
       await loadVisibleTask(deps.sql, auth, projectId, taskId, { write: true });
+      // The workflow's two absences are the intake's two refusals (404 /
+      // 409), judged before the execute budget is charged — a slug the
+      // contract refuses spends nothing. `not_started` below is left for
+      // the residual: a deployment withdrawn between this check and the
+      // start's own read.
+      await assertDeployedAutomation(
+        deps.sql,
+        auth.organizationId,
+        body.workflowSlug,
+        'deploy it before starting it on a task',
+      );
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
       const started = await startTaskWorkflow(

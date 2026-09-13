@@ -742,6 +742,51 @@ describe('project-scoped task reads and operations', () => {
     ).toBe(true);
   });
 
+  /**
+   * The start door answers the workflow's two absences the way the intake
+   * answers an owner's (2026-09-13 evaluation, E2-03): 404 for a name
+   * nobody saved, 409 for one saved but not deployed — before the execute
+   * budget is charged and before any start is attempted. `not_started`
+   * stays for the residual case below: a deployment withdrawn between the
+   * check and the start's own read.
+   */
+  it('refuses a workflow nobody saved with 404 AUTOMATION_NOT_FOUND before charging or starting', async () => {
+    const { request, queries } = mount({ exists: false });
+    const res = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'ghost',
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Automation not found',
+      code: 'AUTOMATION_NOT_FOUND',
+    });
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    expect(
+      queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a saved but undeployed workflow with 409 AUTOMATION_NOT_DEPLOYED, naming it', async () => {
+    const { request, queries } = mount({ deployed: false });
+    const res = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'parked',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error:
+        '"parked" has no deployed version — deploy it before starting it on a task.',
+      code: 'AUTOMATION_NOT_DEPLOYED',
+    });
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    expect(
+      queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(false);
+  });
+
   it.each([
     {
       result: null,

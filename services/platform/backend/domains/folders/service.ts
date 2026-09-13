@@ -32,16 +32,22 @@ export { MAX_FOLDER_DEPTH };
 export class FolderError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  /** The structured half of a refusal — the `data` a REST envelope hands
+   * on (`domainErrorResponse`): a refused name's `issues`, naming the
+   * field and the rule, the shape a refused body field gets. */
+  readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'FolderError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -63,12 +69,18 @@ const FOLDER_COLUMNS = `
   created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
 `;
 
+/** The name rule as a `FolderError`: the sentence names the rule broken
+ * and `data.issues` names the field, the way a refused body field reads —
+ * "Invalid folder name" was the one refusal in the family that said
+ * nothing about what to fix (2026-09-13 evaluation, E2-07). */
 function validateFolderName(name: string): string {
   try {
     return validateHubFolderName(name);
   } catch (error) {
     if (error instanceof FolderNameError) {
-      throw new FolderError('FOLDER_NAME_INVALID', 'Invalid folder name');
+      throw new FolderError('FOLDER_NAME_INVALID', error.message, 400, {
+        issues: [{ path: 'name', message: error.rule }],
+      });
     }
     throw error;
   }

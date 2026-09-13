@@ -34,7 +34,11 @@ import {
   type CodedRefusalStatus,
 } from '../lib/app-error-response.ts';
 import { describeByteCap } from '../lib/byte-cap.ts';
-import { entityTagOf, ifNoneMatchMatches } from '../lib/conditional-get.ts';
+import {
+  entityTagOf,
+  ifNoneMatchMatches,
+  modifiedSince,
+} from '../lib/conditional-get.ts';
 import {
   rateLimitedResponse,
   rateLimitExceededCause,
@@ -960,6 +964,42 @@ export const noQuery: MiddlewareHandler<RestEnv> = (c, next) => {
   return query instanceof Response ? Promise.resolve(query) : next();
 };
 
+/** What an `Idempotency-Key` may carry — printable ASCII, 0x20–0x7E, the
+ * pattern the OpenAPI parameter declares. */
+const IDEMPOTENCY_KEY_PATTERN = /^[ -~]+$/;
+const IDEMPOTENCY_KEY_RULE =
+  'must be printable ASCII — letters, digits, punctuation and spaces';
+
+/**
+ * The `Idempotency-Key` header as every door that honours it reads it —
+ * the run start, the chat send: trimmed; a blank value is no key (the
+ * webhook door reads its delivery-id headers the same way); a value
+ * outside printable ASCII is refused with 400 `INVALID_HEADER`, named
+ * under `data.issues` like a refused body field — never replaced, never
+ * let through. The ledgers compare keys byte for byte, so a key outside
+ * the declared pattern (`é` composed beside `é` decomposed) named two
+ * starts of one retry and the retry duplicated durable work, while a
+ * client generated from the contract refused the key the door took. No
+ * length cap: the ledgers hash the key.
+ */
+export function readIdempotencyKey(
+  c: Context<RestEnv>,
+): string | undefined | Response {
+  const key = c.req.header('idempotency-key')?.trim();
+  if (key === undefined || key === '') return undefined;
+  if (IDEMPOTENCY_KEY_PATTERN.test(key)) return key;
+  return c.json(
+    {
+      error: `invalid header: "Idempotency-Key" ${IDEMPOTENCY_KEY_RULE}`,
+      code: 'INVALID_HEADER',
+      data: {
+        issues: [{ path: 'Idempotency-Key', message: IDEMPOTENCY_KEY_RULE }],
+      },
+    },
+    400,
+  );
+}
+
 const CURSOR_MESSAGE =
   'The "cursor" query parameter is not a cursor this list answered — pass the cursor the previous page answered, unchanged, or omit it for the first page';
 /** The `data.issues` entry an `INVALID_CURSOR` carries — the field-naming
@@ -1272,15 +1312,26 @@ export async function serveDocumentBytes(
     const bytes = new TextEncoder().encode(text);
     const mime = doc.mimeType ?? 'text/plain';
     // The text is the representation, so its tag is computed here — the
-    // same validator a JSON read carries — and compared here.
+    // same validator a JSON read carries — and compared here, as is the
+    // `Last-Modified` this lane issues (the document's own `updatedAt`):
+    // `If-None-Match` decides when sent, `If-Modified-Since` otherwise
+    // (RFC 9110 §13.1.3). The date used to be issued and never read, so a
+    // mirror polling on it re-downloaded every inline document every time.
     const etag = entityTagOf(bytes);
+    const lastModified = new Date(doc.updatedAt).toUTCString();
     const ifNoneMatch = c.req.header('if-none-match');
-    if (ifNoneMatch !== undefined && ifNoneMatchMatches(ifNoneMatch, etag)) {
+    const ifModifiedSince = c.req.header('if-modified-since');
+    const unchanged =
+      ifNoneMatch !== undefined
+        ? ifNoneMatchMatches(ifNoneMatch, etag)
+        : ifModifiedSince !== undefined &&
+          !modifiedSince(ifModifiedSince, doc.updatedAt);
+    if (unchanged) {
       return new Response(null, {
         status: 304,
         headers: {
           etag,
-          'last-modified': new Date(doc.updatedAt).toUTCString(),
+          'last-modified': lastModified,
           'accept-ranges': 'none',
           'cache-control': 'private, no-cache',
         },
@@ -1292,7 +1343,7 @@ export async function serveDocumentBytes(
         : `${mime}; charset=utf-8`,
       'content-length': String(bytes.byteLength),
       etag,
-      'last-modified': new Date(doc.updatedAt).toUTCString(),
+      'last-modified': lastModified,
       // Inline text is not sliceable: a `Range` is ignored and the whole
       // text answers 200, which is what `none` tells a resuming client.
       'accept-ranges': 'none',

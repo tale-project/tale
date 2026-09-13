@@ -39,6 +39,7 @@ import {
   listRuns,
   listTriggers,
   listVersions,
+  recordTestVerdict,
   resolveRunProject,
   saveVersion,
   setTrigger,
@@ -224,7 +225,7 @@ export function pgAutomationStore(
     },
     deployedVersion: async (name) =>
       (await deployedVersion(sql, organizationId, name)) ?? null,
-    save: async (automation, message) => {
+    save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
       // Ownership travels with the scope: a builder session started from a
       // project surface pins its first save to that project (0.4 parity).
@@ -234,11 +235,16 @@ export function pgAutomationStore(
         document: automation,
         actor,
         ...(message !== undefined && message !== '' ? { message } : {}),
+        ...(options?.testsPassed !== undefined
+          ? { testsPassed: options.testsPassed }
+          : {}),
         ...(scope.projectId !== undefined
           ? { projectId: scope.projectId }
           : {}),
       });
     },
+    recordTestVerdict: (name, version, testsPassed) =>
+      recordTestVerdict(sql, { organizationId, name, version, testsPassed }),
     deploy: (name, version, options) =>
       deployVersion(sql, {
         organizationId,
@@ -463,6 +469,9 @@ export function pgAutomationStore(
         };
         if (row.message !== null) version.message = row.message;
         if (row.testsPassed !== null) version.testsPassed = row.testsPassed;
+        if (row.testsCheckedAt !== null) {
+          version.testsCheckedAt = row.testsCheckedAt;
+        }
         versions.push(version);
       }
       return versions;
@@ -494,6 +503,7 @@ export function pgAutomationStore(
     save(
       automation: Automation,
       message?: string,
+      options?: { testsPassed?: boolean },
     ): Promise<{ name: string; version: number }>;
   };
 }

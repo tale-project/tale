@@ -28,7 +28,7 @@ The full response vocabulary:
 - **202** `{ "runId": "...", "duplicate": true }` — a redelivery of a delivery already accepted; `runId` is the run the first one started, and no second run exists.
 - **400** — a `projectId` query parameter (`INVALID_QUERY`), or input that does not match the automation's `inputs` schema (`AUTOMATION_INPUT_INVALID`, every problem under `data.issues`); no run starts.
 - **403** `AUTOMATION_PROJECT_FORBIDDEN` — the automation cannot run in the URL project: it does not exist, it is archived, or the automation is not installed there. The response never says which and never names the automation, so a leaked URL is not an oracle for the organization's project ids.
-- **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing.
+- **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing. The door takes `POST` only: `GET`, `HEAD` and `OPTIONS` answer the same **404** — never a 405 and never an `Allow` header — so the verb is not an oracle either.
 - **409** — `AUTOMATION_NOT_DEPLOYED` (deploy a version whose tests pass and the same call runs), `AUTOMATION_PROJECT_SCOPE_REQUIRED` (a bound automation called through the global URL — use its project URL), or `AUTOMATION_DELIVERY_SCOPE_MISMATCH` (this delivery id was first accepted through another URL scope).
 - **413** — the body exceeds 256 KiB (262,144 bytes).
 - **429** — the sender's or the trigger's budget is spent; `Retry-After` names the wait. The budgets are below.

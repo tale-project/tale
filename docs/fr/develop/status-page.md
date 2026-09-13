@@ -19,7 +19,7 @@ curl -sS https://your-host.example.com/status.json
 
 Interroge-la depuis ton moniteur au rythme où tu interroges tout le reste ; elle ne coûte aucun budget API, n’exige aucune clé, et le verdict reste en cache cinq secondes, si bien qu’une interrogation serrée ne tourne pas à la tempête de sondes. La page HTML à `/status` est le même verdict pour une personne. `GET /api/health` est la sonde de liveness moins chère que le contrôle de santé du conteneur utilise — `{"status":"ok","version":"<build>"}`, sans connexion — et celle à choisir quand tu veux seulement savoir si le processus répond.
 
-Le JSON répond `Access-Control-Allow-Origin: *`, un tableau de bord dans le navigateur peut donc l’interroger directement, sans proxy ; `OPTIONS` sur l’une ou l’autre porte répond **204** avec `Allow: GET, HEAD, OPTIONS`, et `HEAD` renvoie les en-têtes seuls. La page HTML ne porte aucun en-tête CORS — une personne l’ouvre directement.
+Le JSON répond `Access-Control-Allow-Origin: *`, un tableau de bord dans le navigateur peut donc l’interroger directement, sans proxy ; `OPTIONS` sur l’une ou l’autre porte répond **204** avec `Allow: GET, HEAD, OPTIONS`, et `HEAD` renvoie les en-têtes seuls — `Content-Length` compris, la longueur que le `GET` porterait, sur ces deux portes comme sur `/api/health` et `/openapi.json`. La page HTML ne porte aucun en-tête CORS — une personne l’ouvre directement.
 
 ## Le JSON
 

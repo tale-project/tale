@@ -142,7 +142,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   save_automation: 'Save an automation document as a new immutable version.',
   get_automation: 'Read one saved version (the latest when unversioned).',
   list_automations:
-    "The organization's automations with their latest versions.",
+    "The organization's automations with their latest and deployed versions and the projects each is installed in (projectIds).",
   deploy_automation: 'Promote one saved version to be the live version.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
   run_deployed:

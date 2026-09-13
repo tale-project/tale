@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasForbiddenNameChar } from './plain-name.ts';
+import { forbiddenNameCharKind, hasForbiddenNameChar } from './plain-name.ts';
 
 /**
  * One character class behind every name in the organization tree — the
@@ -36,4 +36,24 @@ describe('hasForbiddenNameChar', () => {
       expect(hasForbiddenNameChar(name)).toBe(false);
     },
   );
+});
+
+/** The refusal that names the class it tripped reads the same regex, so
+ * the sentence and the check cannot disagree. */
+describe('forbiddenNameCharKind', () => {
+  it.each([
+    ['a slash', 'a/b', 'separator'],
+    ['a backslash', 'a\\b', 'separator'],
+    ['a tab', 'a\tb', 'control'],
+    ['a NUL', 'a\u0000b', 'control'],
+    ['DEL', 'a\u007fb', 'control'],
+    ['a separator before a control', 'a/b\tc', 'separator'],
+  ])('names %s as %s', (_what, name, kind) => {
+    expect(forbiddenNameCharKind(name)).toBe(kind);
+  });
+
+  it('answers nothing for a plain name', () => {
+    expect(forbiddenNameCharKind('2026-Q1 invoices')).toBeUndefined();
+    expect(forbiddenNameCharKind('café.pdf')).toBeUndefined();
+  });
 });

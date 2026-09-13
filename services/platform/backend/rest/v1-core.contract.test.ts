@@ -3,9 +3,12 @@
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
+  stat,
   symlink,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -1046,6 +1049,53 @@ describe('the skills door — entity tags and conditional writes', () => {
       });
       expect(res.status, header).toBe(200);
     }
+  });
+
+  it('answers 200 with the stored tag and updatedAt to a byte-identical save, SKILL.md and its history untouched — and still 412 to a stale If-Match on it', async () => {
+    const { app } = mount();
+    const body = { description: 'First', body: '# First' };
+    const created = await request(app, 'PUT', 'probe', { body });
+    expect(created.status).toBe(201);
+    const saved: { etag: string; updatedAt: number } = await created.json();
+    const skillMd = path.join(
+      configRoot,
+      'acme',
+      'skills',
+      'probe',
+      'SKILL.md',
+    );
+    // Age the document so an untouched mtime is provable (a rewrite within
+    // the same millisecond would hide behind the floored timestamp).
+    const aged = new Date('2020-01-01T00:00:00Z');
+    await utimes(skillMd, aged, aged);
+
+    // The identical save (2026-09-13 round-e evaluation, E6-03) used to
+    // rewrite SKILL.md: the tag held while updatedAt moved with the sleep.
+    const again = await request(app, 'PUT', 'probe', { body });
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({
+      etag: saved.etag,
+      updatedAt: aged.getTime(),
+    });
+    expect(Math.floor((await stat(skillMd)).mtimeMs)).toBe(aged.getTime());
+    await expect(
+      readdir(path.join(configRoot, 'acme', 'skills', '.history', 'probe')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    const read = await request(app, 'GET', 'probe');
+    expect(read.headers.get('etag')).toBe(saved.etag);
+    expect(await read.json()).toMatchObject({ updatedAt: aged.getTime() });
+
+    // The preconditions run first: a stale If-Match on the same body is
+    // refused like any other, nothing consulted about the content.
+    const stale = await request(app, 'PUT', 'probe', {
+      body,
+      headers: { 'if-match': '"stale"' },
+    });
+    expect(stale.status).toBe(412);
+    expect(await stale.json()).toMatchObject({
+      code: 'SKILL_STALE',
+      data: { etag: saved.etag },
+    });
   });
 
   it('refuses a stale, weak or malformed If-Match with 412 SKILL_STALE naming the current tag, the file untouched', async () => {

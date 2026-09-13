@@ -8,7 +8,11 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDocumentFromUpload } from '../domains/documents/service.ts';
+import {
+  createDocumentFromUpload,
+  DocumentError,
+  type RagRetryOutcome,
+} from '../domains/documents/service.ts';
 import {
   createRestUploadHandoff,
   FileError,
@@ -29,6 +33,7 @@ import {
 } from '../domains/projects/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
+import { RateLimitExceededError } from '../lib/rate-limit.ts';
 import { formatKeysetCursor, mintCursorFor, type RestEnv } from './shared.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 
@@ -64,6 +69,9 @@ vi.mock('../domains/documents/service.ts', async (importOriginal) => ({
   deleteDocumentHard: vi.fn(() => Promise.resolve()),
   deleteFolderCascade: vi.fn(() => Promise.resolve()),
   createDocumentFromUpload: vi.fn(() => Promise.resolve('d-1')),
+  queueRagIndexingRetry: vi.fn(() =>
+    Promise.resolve({ kind: 'queued' as const }),
+  ),
 }));
 // The lifecycle cores run for real elsewhere; here only what the door hands
 // them — and how it answers the cores' refusals — is under test.
@@ -163,9 +171,13 @@ function fakeSql(
     usedBytes?: () => number;
     projectError?: Error;
     documentError?: Error;
-    document?: Record<string, unknown>;
+    /** How the document the load finds differs from `document`; null for
+     * no row at all. */
+    document?: Record<string, unknown> | null;
     /** The folder the folder service's load finds; absent for none. */
     folder?: Record<string, unknown>;
+    /** The same-name sibling the get-or-create's lookup finds; absent for none. */
+    sibling?: { id: string; name: string };
     project?: () => Record<string, unknown>;
     /** The upload intent the bind finds; null for none. */
     intent?: Record<string, unknown> | null;
@@ -185,6 +197,7 @@ function fakeSql(
     }
     if (text.includes('FROM app.documents WHERE id')) {
       if (opts.documentError) return Promise.reject(opts.documentError);
+      if (opts.document === null) return Promise.resolve([]);
       return Promise.resolve([{ ...document, ...opts.document }]);
     }
     // The folder service's own load (columns unsafe-spliced); the files
@@ -206,6 +219,9 @@ function fakeSql(
               },
             ],
       );
+    }
+    if (text.startsWith('SELECT id, name FROM app.folders')) {
+      return Promise.resolve(opts.sibling === undefined ? [] : [opts.sibling]);
     }
     if (text.includes('FROM app.rest_upload_intents')) {
       if (opts.intent === null) return Promise.resolve([]);
@@ -970,6 +986,29 @@ describe('POST /projects/{id}/uploads', () => {
     );
   });
 
+  /** A body the schema refuses spends nothing: the upload budget used to
+   * be charged before the parse, so a malformed mint or bind paid for
+   * its own 400 (round e, missed #8). */
+  it('refuses a malformed body before charging the upload budget, on the mint and the bind', async () => {
+    const { sql, queries } = fakeSql();
+    const malformed = await mount(sql).request(
+      'http://localhost/projects/p-1/uploads',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"fileName": ',
+      },
+    );
+    expect(malformed.status).toBe(400);
+    const unknownKey = await mint(sql, { fileNam: 'ledger.csv' });
+    expect(unknownKey.status).toBe(400);
+    const bound = await bind(sql, { folderId: '' });
+    expect(bound.status).toBe(400);
+    expect(
+      queries.some((q) => q.text.includes('INSERT INTO app.rate_limits')),
+    ).toBe(false);
+  });
+
   it.each(['../secret.csv', 'dir/ledger.csv', 'a b.csv', '..'])(
     'refuses the file name %j at the mint with INVALID_BODY',
     async (fileName) => {
@@ -1430,6 +1469,68 @@ describe('POST /projects/{id}/files upload policy', () => {
       expect(minted.status).toBe(200);
       expect(vi.mocked(createRestUploadHandoff)).toHaveBeenCalledTimes(1);
     });
+
+    /**
+     * The allowlist keys on the extension the name carries, so a name
+     * without one is refused at the mint whatever type is declared
+     * (2026-09-13 evaluation, E2-01): `CON` and `attachment-4711` with
+     * `text/plain` used to mint, the bytes travelled, and only the bind —
+     * resolving the type from the name — refused them; the same MIME let
+     * `program.exe` in.
+     */
+    it.each([
+      ['CON', 'text/plain'],
+      ['attachment-4711', 'text/plain'],
+      ['program.exe', 'text/plain'],
+      ['notes.', 'text/plain'],
+    ])(
+      'refuses %s at the mint and the bind, whatever the declared type (%s)',
+      async (fileName, contentType) => {
+        vi.mocked(createRestUploadHandoff).mockClear();
+        vi.mocked(registerUpload).mockClear();
+        const { sql } = fakeSql();
+        const refused = await mint(sql, { fileName, contentType });
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toMatchObject({
+          code: 'UNSUPPORTED_FILE_TYPE',
+        });
+        expect(vi.mocked(createRestUploadHandoff)).not.toHaveBeenCalled();
+        const bound = await bind(sql, { fileName, contentType });
+        expect(bound.status).toBe(400);
+        expect(await bound.json()).toMatchObject({
+          code: 'UNSUPPORTED_FILE_TYPE',
+        });
+        expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  /**
+   * The name is stored in its one canonical form — NFC, trimmed — the rule
+   * the folder name and every caller-owned key follow (2026-09-13
+   * evaluation, E2-04): a leading space used to survive into the stored
+   * title and the download disposition, and `café.csv` decomposed sat
+   * beside `café.csv` composed as two files of one folder.
+   */
+  it('stores the file name trimmed and NFC-normalized, and answers it so', async () => {
+    const { sql } = fakeSql();
+    const res = await bind(sql, { fileName: ' cafe\u0301-ledger.csv ' });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      file: { fileName: 'café-ledger.csv' },
+    });
+    expect(vi.mocked(createDocumentFromUpload)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fileName: 'café-ledger.csv' }),
+    );
+    expect(vi.mocked(registerUpload)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fileName: 'café-ledger.csv' }),
+      expect.anything(),
+    );
   });
 });
 
@@ -1811,19 +1912,46 @@ describe('POST /projects/{id}/folders — the name and parent rules', () => {
   });
 
   it.each([
-    ['a backslash', 'quarter\\one'],
-    ['a tab', 'quarter\tone'],
-    ['an escape', 'quarter\u001bone'],
+    [
+      'a backslash',
+      'quarter\\one',
+      'must not contain a path separator ("/" or "\\")',
+    ],
+    ['a tab', 'quarter\tone', 'must not contain a control character'],
+    ['an escape', 'quarter\u001bone', 'must not contain a control character'],
+    ['a slash', 'a/b', 'must not contain a path separator ("/" or "\\")'],
+    ['only dots', '..', 'must not be "." or ".."'],
   ])(
-    'refuses a name carrying %s with FOLDER_NAME_INVALID, before any folder query',
-    async (_what, name) => {
+    'refuses a name carrying %s with FOLDER_NAME_INVALID naming the rule, before any folder query',
+    async (_what, name, rule) => {
       const { sql, queries } = fakeSql();
       const res = await post(sql, { name });
       expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({ code: 'FOLDER_NAME_INVALID' });
+      // The sentence says what to fix and `data.issues` names the field —
+      // "Invalid folder name" was the one refusal in the family that said
+      // neither (2026-09-13 evaluation, E2-07).
+      expect(await res.json()).toEqual({
+        error: `Folder name ${rule}`,
+        code: 'FOLDER_NAME_INVALID',
+        data: { issues: [{ path: 'name', message: rule }] },
+      });
       expect(queries.some((q) => q.text.includes('app.folders'))).toBe(false);
     },
   );
+
+  it('hands the domain the name trimmed and NFC-normalized', async () => {
+    const { sql, queries } = fakeSql({
+      sibling: { id: 'fold-cafe', name: 'Café' },
+    });
+    const res = await post(sql, { name: ' cafe\u0301 ' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      folder: { id: 'fold-cafe', name: 'Café' },
+      created: false,
+    });
+    const lookup = queries.find((q) => q.text.includes('lower(name) = $?'));
+    expect(lookup?.values).toContain('café');
+  });
 });
 
 describe('POST /projects/{id}/folders folder:mutate budget', () => {
@@ -1910,6 +2038,111 @@ describe('DELETE /projects/{id}/files/{documentId}', () => {
     );
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ code: 'PURGE_INCOMPLETE' });
+  });
+});
+
+/**
+ * The REST twin of the project Knowledge tab's "Index now" (round e,
+ * E5-01): a file bound with the default `skipRagIndexing: true` had no
+ * path into the corpus from REST — the Hub door answers its opaque 404 for
+ * a project file — short of deleting and re-binding it. The door runs the
+ * core the Hub door runs (`queueRagIndexingRetry`: the write role, the
+ * budget, the skips, the opt-out lifted) and answers its `{status,
+ * reason}`; the gate and the opaque 404 are the delete sibling's.
+ */
+describe('POST /projects/{id}/files/{documentId}/retry-indexing', () => {
+  const retry = (sql: Sql, role?: string) =>
+    mount(sql, role).request(
+      'http://localhost/projects/p-1/files/d-1/retry-indexing',
+      { method: 'POST' },
+    );
+  const core = async () => {
+    const { queueRagIndexingRetry } =
+      await import('../domains/documents/service.ts');
+    return vi.mocked(queueRagIndexingRetry);
+  };
+
+  beforeEach(async () => {
+    (await core()).mockClear();
+  });
+
+  it('hands the live file of this project to the shared core and answers indexing', async () => {
+    const { sql } = fakeSql();
+    const res = await retry(sql);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'indexing' });
+    expect(await core()).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
+      expect.objectContaining({ id: 'd-1', fileRef: 'acme/blob-1' }),
+    );
+  });
+
+  const skips: { outcome: RagRetryOutcome; reason: string }[] = [
+    { outcome: { kind: 'untracked-blob' }, reason: 'untracked-blob' },
+    {
+      outcome: { kind: 'unsupported', error: 'No extractor for .xyz' },
+      reason: 'unsupported',
+    },
+    { outcome: { kind: 'in-progress' }, reason: 'in-progress' },
+  ];
+  it.each(skips)(
+    'answers the core’s $reason skip as {status: skipped, reason}',
+    async ({ outcome, reason }) => {
+      (await core()).mockResolvedValueOnce(outcome);
+      const { sql } = fakeSql();
+      const res = await retry(sql);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ status: 'skipped', reason });
+    },
+  );
+
+  it.each([
+    { projectId: 'other-project' },
+    { organizationId: 'other-org' },
+    { fileRef: null },
+    { lifecycleStatus: 'trashed' },
+    null,
+  ])(
+    'answers the opaque 404 for a document outside the live project file set, the core never asked: %j',
+    async (shape) => {
+      const { sql } = fakeSql({ document: shape });
+      const res = await retry(sql);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ code: 'FILE_NOT_FOUND' });
+      expect(await core()).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a member and an archived project like the delete sibling, the core never asked', async () => {
+    const member = await retry(fakeSql().sql, 'member');
+    expect(member.status).toBe(403);
+    expect(await member.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    const archived = await retry(
+      fakeSql({ project: () => ({ archivedAt: 1_700_000_000_500 }) }).sql,
+    );
+    expect(archived.status).toBe(403);
+    expect(await archived.json()).toMatchObject({ code: 'PROJECT_ARCHIVED' });
+    expect(await core()).not.toHaveBeenCalled();
+  });
+
+  it('answers the core’s own refusals in the shared envelope: the write role and the retry budget', async () => {
+    (await core()).mockRejectedValueOnce(
+      new DocumentError('RBAC_FORBIDDEN', 'Insufficient role', 403),
+    );
+    const forbidden = await retry(fakeSql().sql);
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    (await core()).mockRejectedValueOnce(
+      new RateLimitExceededError('Rate limit exceeded', 3_542),
+    );
+    const limited = await retry(fakeSql().sql);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get('retry-after')).toBe('4');
+    expect(await limited.json()).toMatchObject({
+      code: 'RATE_LIMITED',
+      data: { retryAfterMs: 3_542 },
+    });
   });
 });
 

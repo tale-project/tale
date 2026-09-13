@@ -7,6 +7,7 @@ import {
   conditionalGet,
   entityTagOf,
   ifNoneMatchMatches,
+  modifiedSince,
   VALIDATED_READ_CACHE_CONTROL,
 } from './conditional-get.ts';
 
@@ -239,5 +240,47 @@ describe('ifNoneMatchMatches', () => {
     expect(ifNoneMatchMatches('', '"a"')).toBe(false);
     expect(ifNoneMatchMatches(',', '""')).toBe(false);
     expect(ifNoneMatchMatches('*', '"anything"')).toBe(true);
+  });
+});
+
+/**
+ * The date half of a validated read, for a lane that issues its own
+ * `Last-Modified`. The regression under test: a content-only document's
+ * download issued the date and never read it back, so a mirror polling on
+ * `If-Modified-Since` re-downloaded every inline document on every poll
+ * while the same header on a file-backed document answered 304.
+ */
+describe('modifiedSince', () => {
+  const lastModifiedMs = Date.parse('Tue, 14 Nov 2023 22:13:20 GMT');
+
+  it('reads the exact issued date, and any later one, as not modified', () => {
+    expect(modifiedSince('Tue, 14 Nov 2023 22:13:20 GMT', lastModifiedMs)).toBe(
+      false,
+    );
+    expect(modifiedSince('Tue, 14 Nov 2023 22:13:21 GMT', lastModifiedMs)).toBe(
+      false,
+    );
+    expect(modifiedSince('Sun, 13 Sep 2026 10:46:39 GMT', lastModifiedMs)).toBe(
+      false,
+    );
+  });
+
+  it('reads an earlier date as modified', () => {
+    expect(modifiedSince('Tue, 14 Nov 2023 22:13:19 GMT', lastModifiedMs)).toBe(
+      true,
+    );
+  });
+
+  it('compares at the whole-second precision the HTTP-date carries', () => {
+    // The stored instant is 123 ms past the issued date: the client can
+    // only ever echo the truncated second, and that must still match.
+    expect(
+      modifiedSince('Tue, 14 Nov 2023 22:13:20 GMT', lastModifiedMs + 123),
+    ).toBe(false);
+  });
+
+  it('ignores a date that does not parse', () => {
+    expect(modifiedSince('yesterday', lastModifiedMs)).toBe(true);
+    expect(modifiedSince('', lastModifiedMs)).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import {
   apiKeyHeaderGuard,
   apiNotFound,
   backendSecureHeaders,
+  headContentLength,
   nulUrlGuard,
   noStoreByDefault,
   apiPathWithoutTrailingSlash,
@@ -50,6 +51,8 @@ describe('nulUrlGuard', () => {
     const res = await app().request(`http://localhost${path}`);
     expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
+    // Uncacheable by its own hand: outside `/api/v1` no stamper follows.
+    expect(res.headers.get('cache-control')).toBe('no-store');
     expect(await res.json()).toMatchObject({ code: 'INVALID_URL' });
   });
 
@@ -73,13 +76,16 @@ describe('apiKeyHeaderGuard', () => {
   );
   guarded.post('/api/auth/api-key/create', (c) => c.json({ key: 'minted' }));
 
-  it('refuses a request that carries the plugin header, before any door', async () => {
+  it('refuses a request that carries the plugin header, before any door, uncacheable', async () => {
     const res = await guarded.request('/api/auth/api-key/create', {
       method: 'POST',
       headers: { 'x-api-key': 'tale_leaked' },
     });
     expect(res.status).toBe(401);
     expect(res.headers.get('www-authenticate')).toBe('Bearer');
+    // On the sign-in and app doors no stamper follows the guard, and a 401
+    // an intermediary kept would be served to the next caller.
+    expect(res.headers.get('cache-control')).toBe('no-store');
     expect(await res.json()).toEqual({
       error:
         'The "x-api-key" header is not accepted — send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
@@ -299,6 +305,74 @@ describe('restDoorHeaders', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('x-tale-api-version')).toBeNull();
     expect(res.headers.get('cache-control')).toBeNull();
+  });
+});
+
+/**
+ * The HEAD length for a door outside the REST door — the four web-tier
+ * doors (`/api/health`, `/status`, `/status.json`, `/openapi.json`)
+ * answered `content-length: 0` (2026-09-13 round-e evaluation, E1-03).
+ * One rule with `restDoorHeaders`: a JSON or text document is measured, a
+ * length the route named is kept, a binary stream is left alone.
+ */
+describe('headContentLength', () => {
+  function wired() {
+    const hono = new Hono();
+    for (const door of ['/health', '/page', '/sized', '/blob']) {
+      hono.use(door, headContentLength());
+    }
+    hono.get('/health', (c) => c.json({ status: 'ok', version: '0.5.24' }));
+    hono.get('/page', (c) => c.html('<!doctype html><p>operational</p>'));
+    hono.get('/sized', (c) =>
+      c.body('twelve bytes', 200, {
+        'content-type': 'text/plain',
+        'content-length': '12',
+      }),
+    );
+    hono.get(
+      '/blob',
+      () =>
+        new Response(new Uint8Array(8), {
+          headers: { 'content-type': 'application/octet-stream' },
+        }),
+    );
+    hono.get('/elsewhere', (c) => c.json({ outside: true }));
+    return hono;
+  }
+
+  it.each([
+    ['/health', 'application/json'],
+    ['/page', 'text/html'],
+  ])('measures the GET’s %s answer for HEAD', async (path, type) => {
+    const got = await wired().request(`http://localhost${path}`);
+    const body = await got.text();
+    expect(got.headers.get('content-type')).toContain(type);
+    const head = await wired().request(`http://localhost${path}`, {
+      method: 'HEAD',
+    });
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-length')).toBe(
+      String(Buffer.byteLength(body)),
+    );
+    expect(await head.text()).toBe('');
+  });
+
+  it('keeps a length the route named, and leaves a binary stream, a GET and the rest of the app alone', async () => {
+    const sized = await wired().request('http://localhost/sized', {
+      method: 'HEAD',
+    });
+    expect(sized.headers.get('content-length')).toBe('12');
+    const blob = await wired().request('http://localhost/blob', {
+      method: 'HEAD',
+    });
+    expect(blob.headers.get('content-length')).toBeNull();
+    const get = await wired().request('http://localhost/health');
+    expect(get.headers.get('content-length')).toBeNull();
+    expect(await get.json()).toEqual({ status: 'ok', version: '0.5.24' });
+    const outside = await wired().request('http://localhost/elsewhere', {
+      method: 'HEAD',
+    });
+    expect(outside.headers.get('content-length')).toBeNull();
   });
 });
 
