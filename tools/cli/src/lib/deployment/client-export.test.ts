@@ -61,6 +61,11 @@ async function fixture(
   const bundle = join(f.directory, 'deployment');
   mkdirSync(join(bundle, 'cli'), { recursive: true });
   writeFileSync(join(bundle, 'cli/tale'), 'frozen executable', { mode: 0o755 });
+  // Beside the executable: the interpreted bundle the native export runs under
+  // the backend's own bun, so its dynamic backend imports resolve.
+  writeFileSync(join(bundle, 'cli/tale.mjs'), '// interpreted bundle\n', {
+    mode: 0o644,
+  });
   f.options.bundleDirectory = join(bundle, 'runtime');
   await prepareRuntime(
     {
@@ -304,6 +309,11 @@ async function fixture(
       return ok();
     }
     if (args[0] === 'exec' && args.includes('export-client-native')) {
+      // Runs interpreted, under the backend's own bun (like deploy provision):
+      // `bun <temp>/cli/tale.mjs deploy export-client-native …`.
+      const deployAt = args.indexOf('deploy');
+      expect(args[deployAt - 2]).toBe('bun');
+      expect(args[deployAt - 1]?.endsWith('/cli/tale.mjs')).toBe(true);
       const selected = clientExportTargetSchema.parse(
         JSON.parse(execOptions?.stdin ?? ''),
       );
