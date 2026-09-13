@@ -19,6 +19,7 @@ import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
   domainErrorResponse,
   formatKeysetCursor,
+  invalidQueryResponse,
   mintCursor,
   noQuery,
   notFound,
@@ -26,6 +27,7 @@ import {
   pageLimit,
   parseBody,
   queryFilter,
+  readIntegerCursor,
   readKeysetCursor,
   readPageLimit,
   readQuery,
@@ -93,7 +95,13 @@ function nullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-/** One crawled page (`CrawlerPage`) in the door's vocabulary. */
+/** One crawled page (`CrawlerPage`) in the door's vocabulary. The status
+ * is the declared pair: `active` once a fetch stored the page, `discovered`
+ * until then (the listing never carries a `deleted` row, and there is no
+ * third value to fall back to). The failure fields are the row's own
+ * record of its last failed attempt — kind, message, moment — and the
+ * count of failed attempts in a row, so a `discovered` page with no words
+ * says whether a guard refused a redirect or the origin answered 500. */
 function websitePageView(row: unknown): Record<string, unknown> {
   const page = isRecordObj(row) ? row : {};
   const chunksCount = Number(page.chunks_count ?? 0);
@@ -101,12 +109,16 @@ function websitePageView(row: unknown): Record<string, unknown> {
     url: nullableString(page.url) ?? '',
     title: nullableString(page.title),
     wordCount: Number(page.word_count ?? 0),
-    status: nullableString(page.status) ?? 'unknown',
+    status: page.status === 'active' ? 'active' : 'discovered',
     contentHash: nullableString(page.content_hash),
     lastCrawledAt: epochMs(page.last_crawled_at),
     discoveredAt: epochMs(page.discovered_at),
     chunksCount,
     indexed: page.indexed === true || chunksCount > 0,
+    failCount: Number(page.fail_count ?? 0),
+    lastError: nullableString(page.last_error),
+    lastErrorKind: nullableString(page.last_error_kind),
+    lastErrorAt: epochMs(page.last_error_at),
   };
 }
 
@@ -211,24 +223,52 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     // as 0 with nothing telling the caller. A NEGATIVE offset is clamped
     // to 0, as the sibling `limit` (and the spec) already promised — an
     // under-run of `page * size - overlap` is not a malformed request.
+    //
+    // The window is named ONE way: `offset` (the original), or `cursor` —
+    // the signed `continueCursor` the previous window answered, the next
+    // offset in the pager every other list takes — so the loop written
+    // for the keyset lists walks this one too. Both at once contradict
+    // each other and are refused rather than one silently winning.
     const query = readQuery(c, {
       limit: PAGE_QUERY.limit,
+      cursor: PAGE_QUERY.cursor,
       offset: z
         .string()
         .regex(/^-?\d{1,15}$/, 'must be a whole number of rows to skip')
         .optional(),
     });
     if (query instanceof Response) return query;
+    if (query.cursor !== undefined && query.offset !== undefined) {
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        'invalid query: "cursor" and "offset" both name the window — send one of them',
+        [{ path: 'cursor', message: 'is not taken beside offset' }],
+      );
+    }
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return websiteNotFound(c);
-    const offset = Math.max(0, Number(query.offset ?? 0));
+    const list = `website-pages:${website.id}`;
+    const position = readIntegerCursor(c, list);
+    if (position instanceof Response) return position;
+    const offset = position ?? Math.max(0, Number(query.offset ?? 0));
     const limit = readPageLimit(c, { fallback: 100, max: 500 });
     if (limit instanceof Response) return limit;
     const result = await fetchWebsitePages(deps.sql, website, {
       offset,
       limit,
     });
-    return c.json({ ...result, pages: result.pages.map(websitePageView) });
+    // `total`/`offset`/`hasMore` stay; `isDone` + `continueCursor` (the
+    // next offset, signed under this website) are the keyset pair beside
+    // them, empty once the window reached the end.
+    return c.json({
+      ...result,
+      pages: result.pages.map(websitePageView),
+      isDone: !result.hasMore,
+      continueCursor: result.hasMore
+        ? mintCursor(c, list, String(result.offset + result.pages.length))
+        : '',
+    });
   });
 
   /** Partial update. Answers 200 with the website as it now stands (the

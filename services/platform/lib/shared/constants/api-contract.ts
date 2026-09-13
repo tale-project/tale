@@ -11,5 +11,12 @@
  * `cursor`/`limit` refused, key-less `OPTIONS`, `414` for an over-long URL,
  * declared response headers, `X-Tale-Api-Version`), on top of the nine
  * operations #3329 added under the unchanged 1.3.0.
+ *
+ * 1.5.0 — 2026-09-13: the 09-12 evaluation's fourth pass — every keyset and
+ * offset list answers `isDone` + `continueCursor`, `x-tale-pagination` on
+ * every list schema, `reasoningSince` on the generation poll, a queued send
+ * can be stopped, `201` on a skill create, the door-wide `408`
+ * `REQUEST_TIMEOUT`, page failure facts on websites, trigger health on the
+ * automation summary, `size` on project files, `archivedAt` on tasks.
  */
-export const API_CONTRACT_VERSION = '1.4.0';
+export const API_CONTRACT_VERSION = '1.5.0';

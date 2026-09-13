@@ -1456,6 +1456,7 @@ chat:
     reading: Liest {hostname}
     searchingKnowledgeBase: Durchsucht den Workspace nach "{query}"
     readingDocument: Liest {name}
+    readingDocumentUnnamed: Liest ein Dokument
     readingTask: Liest Aufgabe {name}
     listing:
       generic: Listet den Workspace auf
@@ -7050,6 +7051,8 @@ websites:
     noSearchResultsDescription: Versuch einen anderen Begriff, oder leere die Suche, um alle Seiten zu sehen.
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
+    lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
+    failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
   filter:
     status:
       idle: Inaktiv
@@ -7143,6 +7146,8 @@ projects:
     ragStatusRunningHint: Macht diese Datei im Chat durchsuchbar…
     ragStatusCompleted: Indexiert
     ragStatusFailed: Fehlgeschlagen
+    ragStatusNotIndexed: Nicht indexiert
+    ragStatusNotIndexedHint: Erst nach dem Indexieren im Chat durchsuchbar.
     detachAction: Aus Projekt entfernen
     detachConfirm: Diese Datei aus dem Projekt entfernen? Sie wird nach „Wissen“
       verschoben und ist dann für alle in der Organisation sichtbar.
@@ -7155,6 +7160,9 @@ projects:
     indexingRetry: Indexierung erneut versuchen
     indexingRetryQueued: Indexierung wird erneut ausgeführt
     indexingRetryFailed: Indexierung konnte nicht wiederholt werden
+    indexingStart: Jetzt indexieren
+    indexingStartQueued: Indexierung eingereiht
+    indexingStartFailed: Indexierung konnte nicht gestartet werden
     treeLabel: Projektdateien
     addToFolder: Datei zu „{folder}“ hinzufügen
     addFolderButton: Ordner hinzufügen

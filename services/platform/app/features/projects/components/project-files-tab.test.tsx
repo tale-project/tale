@@ -252,6 +252,31 @@ describe('ProjectFilesTab', () => {
     });
   });
 
+  it('labels a file with no indexing state as Not indexed', () => {
+    // A REST-bound file (skipRagIndexing defaults to true there) carries no
+    // rag_status at all; it used to render an empty label that read as fine.
+    documentsFixture = [
+      makeDoc({ _id: 'doc-rest', title: 'lead-verify.txt', ragStatus: null }),
+      makeDoc({ _id: 'doc-indexed', title: 'Report.pdf' }),
+    ];
+    renderTab();
+
+    const restRow = screen.getByRole('treeitem', { name: 'lead-verify.txt' });
+    expect(within(restRow).getByText('Not indexed')).toBeInTheDocument();
+    expect(within(restRow).getByText('Not indexed')).toHaveAttribute(
+      'title',
+      'Not searchable in chat until it is indexed.',
+    );
+    const indexedRow = screen.getByRole('treeitem', { name: 'Report.pdf' });
+    expect(within(indexedRow).getByText('Indexed')).toBeInTheDocument();
+    // The not-indexed row offers the first run; the indexed one offers no
+    // retry at all.
+    expect(
+      screen.getByRole('button', { name: 'Index now' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry indexing' })).toBeNull();
+  });
+
   it('shows no preview affordance for a row without a stored file', async () => {
     documentsFixture = [makeDoc({ fileId: undefined, title: 'Pending.pdf' })];
     renderTab();

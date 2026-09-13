@@ -48,6 +48,9 @@ export interface ChatTurnRequest {
    * can still find its reply. */
   readonly placeholderId?: string;
   readonly locale?: string;
+  /** REST: `locale` was named on the send, so it pins the reply language
+   * (see `ExecuteTurnArgs.localeFixed`). */
+  readonly localeFixed?: boolean;
   readonly resend?: boolean;
   /** Auto — the server resolves a concrete (provider, model) pair for THIS
    * message before anything binds. Exactly one of modelId / this. */
@@ -90,6 +93,7 @@ export async function runChatTurn(
       ? { maxOutputTokens: request.maxOutputTokens }
       : {}),
     locale: request.locale ?? 'en',
+    ...(request.localeFixed === true ? { localeFixed: true } : {}),
     ...(request.resend === true ? { resend: true } : {}),
   };
   return executeTurn(

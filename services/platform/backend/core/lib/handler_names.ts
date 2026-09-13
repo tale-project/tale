@@ -191,6 +191,7 @@ interface HandlerNames {
       getByStorageId: FunctionRef;
       listMailAttachmentsForChat: FunctionRef;
       lookupVideoLinkSources: FunctionRef;
+      readTextOnDemandForAgent: FunctionRef;
     };
     transcribe_audio: FunctionRef & {
       transcribeAudio: FunctionRef;

@@ -26,6 +26,10 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
+  indexingStateFrom,
+  type DocumentIndexingState,
+} from '../file_metadata/indexing-state.ts';
+import {
   getFileMetadata,
   registerUploadedBytes,
   statOrgBlob,
@@ -1112,28 +1116,17 @@ export async function listHubDocumentsPage(
   };
 }
 
-/** What the REST surface says about a file-backed document's place in the
+/**
+ * What the REST surface says about a file-backed document's place in the
  * search corpus — read from the file row that owns the indexing state (the
  * projection the app's document list renders), so a client can poll after
- * a create or a `retry-indexing` instead of sleeping blind. */
-export interface DocumentIndexingState {
-  status:
-    | 'pending'
-    | 'queued'
-    | 'running'
-    | 'completed'
-    | 'failed'
-    | 'unsupported'
-    | 'skipped';
-  indexedAt?: number;
-  error?: string;
-  errorCode?: string;
-}
-
-/**
+ * a create or a `retry-indexing` instead of sleeping blind.
+ *
  * The indexing state of every blob in `refs`, keyed by blob reference — one
  * query for a page. A ref with no file row (an untracked blob) has no entry;
- * a persisted opt-out reads as `skipped`, a file never queued as `pending`.
+ * the reading itself is `indexingStateFrom` (a persisted opt-out reads as
+ * `skipped`, a file never queued as `pending`), shared with the agent
+ * listing and the chat fetch so the three surfaces cannot disagree.
  */
 export async function readDocumentIndexing(
   sql: Sql,
@@ -1162,25 +1155,7 @@ export async function readDocumentIndexing(
   `;
   for (const row of rows) {
     if (states.has(row.storageRef)) continue;
-    const status = ((): DocumentIndexingState['status'] => {
-      if (row.skipRagIndexing === true) return 'skipped';
-      switch (row.ragStatus) {
-        case 'queued':
-        case 'running':
-        case 'completed':
-        case 'failed':
-        case 'unsupported':
-          return row.ragStatus;
-        default:
-          return 'pending';
-      }
-    })();
-    states.set(row.storageRef, {
-      status,
-      ...(row.ragIndexedAt !== null ? { indexedAt: row.ragIndexedAt } : {}),
-      ...(row.ragError !== null ? { error: row.ragError } : {}),
-      ...(row.ragErrorCode !== null ? { errorCode: row.ragErrorCode } : {}),
-    });
+    states.set(row.storageRef, indexingStateFrom(row));
   }
   return states;
 }
@@ -1527,37 +1502,46 @@ export async function searchDocumentsView(
 const RAG_IN_FLIGHT_STALE_MS = 35 * 60 * 1000;
 
 /**
- * The user-facing "Retry"/"Reindex" affordance. Returns the established
- * `{ success, error? }` wire shape (never throws for guard failures):
- * unsupported formats and fresh in-flight jobs are refusals with a message.
+ * What an explicit re-index request decided. ONE vocabulary for the two
+ * doors that ask — the app's "Retry"/"Reindex"/"Index now" affordance
+ * (answered as `{success, error}`) and the REST `retry-indexing` operation
+ * (answered as `{status, reason}`) — so the guards behind them cannot drift
+ * apart again: the REST door used to carry its own copy with no in-flight
+ * guard, no unsupported guard and no rate limit (round d, missed item 3).
  */
-export async function retryRagIndexingForDocument(
+export type RagRetryOutcome =
+  | { kind: 'queued' }
+  /** A content-only document: inline text never enters the corpus. */
+  | { kind: 'content-only' }
+  /** A blob none of this organization's file rows tracks. */
+  | { kind: 'untracked-blob' }
+  /** Terminal: no extractor exists, a retry reproduces the rejection. */
+  | { kind: 'unsupported'; error: string }
+  /** A fresh queued/running row already has a live job. */
+  | { kind: 'in-progress' };
+
+/**
+ * Decide — and, when nothing stands in the way, queue — an explicit
+ * re-index of `doc`, which the caller has loaded and judged visible (the
+ * app's point-read gate, the REST door's opaque 404). The guards, in
+ * order: the documents write role (a 403, the same matrix gate as the
+ * session affordance), the per-user `file:rag-retry` budget (throws
+ * `RateLimitExceededError`: the app answers its sentence, the REST door
+ * the door-wide 429), then the outcomes above. A file that opted out of
+ * indexing at its bind (a REST-bound project file — `skipRagIndexing`
+ * defaults to true there) is opted back IN by the request: a person asking
+ * for the index is exactly the explicit opt-in the bind's `false` would
+ * have been, and without it the queued job would drop the file on its own
+ * guard and the row would read "queued" for ever.
+ */
+export async function queueRagIndexingRetry(
   sql: Sql,
   auth: ProjectAuthContext,
-  documentId: string,
-): Promise<{ success: boolean; error?: string }> {
-  // A write-shaped door (it re-queues billable indexing work and rewrites
-  // the file row's RAG bookkeeping); the UI shows Retry only to writers.
+  doc: DocumentRow,
+): Promise<RagRetryOutcome> {
   assertDocumentsWriteRole(auth);
-  try {
-    await checkUserRateLimit(sql, 'file:rag-retry', auth.userId);
-  } catch (error) {
-    if (error instanceof RateLimitExceededError) {
-      return { success: false, error: error.message };
-    }
-    throw error;
-  }
-  let doc: DocumentRow;
-  try {
-    doc = await loadDocumentOrThrow(sql, documentId);
-    await assertDocumentVisible(sql, auth, doc);
-  } catch (error) {
-    console.warn('[documents] rag retry access refused', error);
-    return { success: false, error: 'Document not found' };
-  }
-  if (doc.fileRef === null) {
-    return { success: false, error: 'Document has no file' };
-  }
+  await checkUserRateLimit(sql, 'file:rag-retry', auth.userId);
+  if (doc.fileRef === null) return { kind: 'content-only' };
   const metas = await sql<
     {
       id: string;
@@ -1565,24 +1549,24 @@ export async function retryRagIndexingForDocument(
       ragError: string | null;
       ragQueuedAt: number | null;
       createdAt: number;
+      skipRagIndexing: boolean | null;
     }[]
   >`
     SELECT id, rag_status AS "ragStatus", rag_error AS "ragError",
            rag_queued_at_ms::float8 AS "ragQueuedAt",
-           created_at_ms::float8 AS "createdAt"
+           created_at_ms::float8 AS "createdAt",
+           skip_rag_indexing AS "skipRagIndexing"
     FROM app.file_metadata
     WHERE org_id = ${auth.organizationId} AND storage_ref = ${doc.fileRef}
     LIMIT 1
   `;
   const meta = metas[0];
-  if (!meta) {
-    return { success: false, error: 'Document has no file' };
-  }
+  if (!meta) return { kind: 'untracked-blob' };
   // Terminal, non-retryable: no extractor exists — a retry reproduces the
   // same rejection (public endpoint; the UI hiding the button is no gate).
   if (meta.ragStatus === 'unsupported') {
     return {
-      success: false,
+      kind: 'unsupported',
       error:
         meta.ragError ??
         "This file type has no text extractor and can't be indexed for RAG search.",
@@ -1593,13 +1577,19 @@ export async function retryRagIndexingForDocument(
   if (meta.ragStatus === 'running' || meta.ragStatus === 'queued') {
     const clock = meta.ragQueuedAt ?? meta.createdAt;
     if (Date.now() - clock < RAG_IN_FLIGHT_STALE_MS) {
-      return {
-        success: false,
-        error: 'Indexing is already in progress for this file.',
-      };
+      return { kind: 'in-progress' };
     }
   }
   await sql.begin(async (tx) => {
+    // The explicit opt-in, BEFORE the queue mark: `markRagQueued` leaves an
+    // opted-out row untouched, and the indexer drops it — clearing the flag
+    // is what turns "Index now" on a REST-bound file into a real run.
+    if (meta.skipRagIndexing === true) {
+      await tx`
+        UPDATE app.file_metadata SET skip_rag_indexing = false
+        WHERE id = ${meta.id}
+      `;
+    }
     await markRagQueued(tx, meta.id);
     await addJobInTx(
       tx,
@@ -1612,10 +1602,54 @@ export async function retryRagIndexingForDocument(
     await emitHintInTx(tx, {
       orgId: auth.organizationId,
       entity: 'document',
-      entityId: documentId,
+      entityId: doc.id,
     });
   });
-  return { success: true };
+  return { kind: 'queued' };
+}
+
+/**
+ * The user-facing "Retry"/"Reindex"/"Index now" affordance. Returns the
+ * established `{ success, error? }` wire shape (never throws for guard
+ * failures): the point-read gate, the rate limit and every
+ * `queueRagIndexingRetry` outcome become a sentence.
+ */
+export async function retryRagIndexingForDocument(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  documentId: string,
+): Promise<{ success: boolean; error?: string }> {
+  // A write-shaped door (it re-queues billable indexing work and rewrites
+  // the file row's RAG bookkeeping); the UI shows Retry only to writers.
+  assertDocumentsWriteRole(auth);
+  let doc: DocumentRow;
+  try {
+    doc = await loadDocumentOrThrow(sql, documentId);
+    await assertDocumentVisible(sql, auth, doc);
+  } catch (error) {
+    console.warn('[documents] rag retry access refused', error);
+    return { success: false, error: 'Document not found' };
+  }
+  let outcome: RagRetryOutcome;
+  try {
+    outcome = await queueRagIndexingRetry(sql, auth, doc);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return { success: false, error: error.message };
+    }
+    throw error;
+  }
+  if (outcome.kind === 'queued') return { success: true };
+  if (outcome.kind === 'unsupported') {
+    return { success: false, error: outcome.error };
+  }
+  return {
+    success: false,
+    error:
+      outcome.kind === 'in-progress'
+        ? 'Indexing is already in progress for this file.'
+        : 'Document has no file',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1683,11 +1717,15 @@ function assertUploadFormatSupported(
   fileName: string,
 ): void {
   if (!isAllowedDocumentUpload(contentType, fileName)) {
+    // Sorted: the Set's insertion order put `ac2` (a real format — Banana
+    // accounting) last, after `py`, where a reader took it for a typo.
     throw new DocumentError(
       'UNSUPPORTED_FILE_TYPE',
       `Unsupported file type. Supported extensions: ${[
         ...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
-      ].join(', ')}.`,
+      ]
+        .sort()
+        .join(', ')}.`,
     );
   }
 }

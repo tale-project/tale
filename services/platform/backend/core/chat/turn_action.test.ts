@@ -3,7 +3,42 @@
 import { describe, expect, it } from 'vitest';
 
 import { createStallGuard, type StallGuard } from './stream_stall';
-import { readEvent, streamSse, type StreamDecodeState } from './turn_action';
+import {
+  chatToolContextForTurn,
+  readEvent,
+  streamSse,
+  type StreamDecodeState,
+} from './turn_action';
+
+/**
+ * The tools' scope boundary comes from the THREAD, never from the
+ * access-gated prompt block: a project thread hands the executor its project
+ * id whether or not the user may still read it (the executor then degrades
+ * to the organization hub rather than widening to every project), and a
+ * personal thread hands it null. The full turn cannot be driven here — model
+ * resolution walks the provider catalog on disk — so the invariant is pinned
+ * at the seam the turn builds the executor through.
+ */
+describe('chatToolContextForTurn — the executor’s scope boundary', () => {
+  const who = {
+    organizationId: 'org_1',
+    userId: 'user_1',
+    threadIds: ['thread_root', 'thread_sibling'],
+  };
+
+  it('pins a project thread to its project id, access or not', () => {
+    expect(chatToolContextForTurn({ ...who, projectId: 'project_1' })).toEqual({
+      ...who,
+      projectId: 'project_1',
+    });
+  });
+
+  it('pins a personal thread to null, never to undefined', () => {
+    const context = chatToolContextForTurn({ ...who, projectId: null });
+    expect(context.projectId).toBeNull();
+    expect(Object.keys(context)).toContain('projectId');
+  });
+});
 
 /**
  * The provider stream's one clock is a silence clock: a reply that keeps

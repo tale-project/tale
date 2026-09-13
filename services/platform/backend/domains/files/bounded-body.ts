@@ -1,3 +1,4 @@
+import { describeByteCap } from '../../lib/byte-cap.ts';
 import { FileError, MAX_UPLOAD_BYTES } from './service.ts';
 
 /**
@@ -22,13 +23,15 @@ export function declaredContentLength(headers: Headers): number | null {
   return Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
+/** The cap is named the way the reference documents it (`30 MiB`, never
+ * `30 MB`): the same unit the REST door's 413 speaks. */
 function tooLarge(maxBytes: number, declared: number | null): FileError {
-  const mb = Math.round(maxBytes / (1024 * 1024));
+  const cap = describeByteCap(maxBytes);
   return new FileError(
     'FILE_SIZE_INVALID',
     declared === null
-      ? `The file exceeds the ${mb} MB limit`
-      : `The file is ${declared} bytes; the limit is ${mb} MB`,
+      ? `The file exceeds the ${cap} limit`
+      : `The file is ${declared} bytes; the limit is ${cap}`,
     413,
   );
 }

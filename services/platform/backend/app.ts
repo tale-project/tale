@@ -85,6 +85,7 @@ import {
   apiPathWithoutTrailingSlash,
   backendSecureHeaders,
   nulUrlGuard,
+  restDoorHeaders,
   uriLengthGuard,
 } from './lib/http-hygiene.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
@@ -135,6 +136,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
       c.res.headers.set('x-request-id', id);
     }
   });
+  // The REST door's contract headers — `X-Tale-Api-Version`, `no-store`
+  // by default, the HEAD length — on every `/api/v1` answer, the guards'
+  // own refusals included: mounted here, ahead of them, rather than inside
+  // the door behind them (lib/http-hygiene.ts).
+  app.use('/api/v1/*', restDoorHeaders());
   // The transport-security headers every response carries — registered
   // ahead of the guards below so a pre-route refusal (a 401, a 414, a NUL
   // 400) wears them too (lib/http-hygiene.ts).

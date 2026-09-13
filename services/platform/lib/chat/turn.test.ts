@@ -1854,3 +1854,32 @@ describe('runTurn — image attachments', () => {
     expect(seen[1]?.vision).toBe(false);
   });
 });
+
+/**
+ * The REST send's `locale` reached the prompt as the app's own directive,
+ * which lets the prompt's language win — the field read as doing nothing on
+ * an English prompt. `localeFixed` rides the request into the context
+ * contract, where the directive pins the reply language; a request without
+ * the flag (the app lane) keeps the directive it always had.
+ */
+describe('runTurn — the reply language', () => {
+  it('pins the reply language when the caller fixed it, and lets the prompt win otherwise', async () => {
+    const seen: ModelCallRequest[] = [];
+    const capturing: ModelCall = async function* stream(call) {
+      seen.push(call);
+      yield { text: 'Klar.' };
+    };
+    await runTurn(
+      request({ locale: 'de', localeFixed: true }),
+      deps({ model: capturing }).deps,
+    );
+    await runTurn(request({ locale: 'de' }), deps({ model: capturing }).deps);
+    expect(seen[0]?.system).toContain(
+      'Answer in de whatever language the user writes in — the caller fixed the reply language.',
+    );
+    expect(seen[1]?.system).toContain("Respond in the user's language (de).");
+    expect(seen[1]?.system).not.toContain(
+      'the caller fixed the reply language',
+    );
+  });
+});

@@ -1,10 +1,6 @@
 import path from 'node:path';
 
-import {
-  ifNoneMatchHolds,
-  parseEntityTag,
-  parseEntityTagList,
-} from '@tale/shared/http/entity-tag';
+import { parseEntityTagList } from '@tale/shared/http/entity-tag';
 import {
   isValidSkillSlug,
   SKILL_EDIT_VISIBILITIES,
@@ -58,22 +54,20 @@ import {
   assertDocumentsWriteRole,
   createHubDocument,
   deleteDocumentHard,
-  type DocumentIndexingState,
   type DocumentRow,
   getDocumentById,
   listHubDocumentsPage,
+  queueRagIndexingRetry,
   readDocumentIndexing,
   readDocumentRestExtras,
   updateDocument,
 } from '../domains/documents/service.ts';
+import type { DocumentIndexingState } from '../domains/file_metadata/indexing-state.ts';
 import {
   KnowledgeError,
   searchKnowledgeForOrg,
 } from '../domains/knowledge/service.ts';
-import {
-  markRagQueued,
-  syncRagDocumentScope,
-} from '../domains/knowledge/service.ts';
+import { syncRagDocumentScope } from '../domains/knowledge/service.ts';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
@@ -97,7 +91,6 @@ import {
 import { PRODUCT_STATUSES } from '../domains/products/service.ts';
 import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
-import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
@@ -175,7 +168,12 @@ const expectedUpdatedAtField = {
 const contactCreateBody = blankStringsAsAbsent(contactCreateSchema);
 const contactBulkBody = z
   .object({
-    contacts: z.array(blankStringsAsAbsent(contactBulkItemSchema)).max(500),
+    // At least one row: an empty batch used to answer 201 with nothing
+    // created — a success no caller meant.
+    contacts: z
+      .array(blankStringsAsAbsent(contactBulkItemSchema))
+      .min(1)
+      .max(500),
   })
   .strict();
 const contactPatchBody = blankStringsAsNull(
@@ -799,47 +797,24 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** Re-queue a Hub document's blob through the SAME guards the app's
+   * "Index now" uses (`queueRagIndexingRetry`): the write role, the
+   * per-user `file:rag-retry` budget (the door-wide 429), the unsupported
+   * and in-flight guards. The door used to carry its own copy without the
+   * last three, and answered `rag-opt-out` for a file that opted out at its
+   * bind — an explicit retry is the opt-in now, so such a file queues. */
   app.post('/documents/:id/retry-indexing', async (c) => {
     try {
       // Write-shaped: it rewrites RAG bookkeeping and enqueues billable
-      // indexing — the same matrix gate as the session Retry affordance.
+      // indexing — the same matrix gate as the session Retry affordance,
+      // judged before the load so a reader gets the 403, not a probe.
       assertDocumentsWriteRole({ role: c.get('role') });
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
-      if (doc.fileRef === null) {
-        // A content-only document has no blob to index through this lane.
-        return c.json({ status: 'skipped', reason: 'content-only' });
-      }
-      const files = await deps.sql<
-        { id: string; skipRagIndexing: boolean | null }[]
-      >`
-        SELECT id, skip_rag_indexing AS "skipRagIndexing"
-        FROM app.file_metadata
-        WHERE org_id = ${c.get('organizationId')}
-          AND storage_ref = ${doc.fileRef}
-        LIMIT 1
-      `;
-      const file = files[0];
-      if (file === undefined) {
-        return c.json({ status: 'skipped', reason: 'untracked-blob' });
-      }
-      // A persisted RAG opt-out never indexes — answer honestly instead of
-      // claiming 'indexing'; clearing the opt-out stays a deliberate UI act.
-      if (file.skipRagIndexing === true) {
-        return c.json({ status: 'skipped', reason: 'rag-opt-out' });
-      }
-      await deps.sql.begin(async (tx) => {
-        await markRagQueued(tx, file.id);
-        await addJobInTx(
-          tx,
-          'rag.index_file',
-          { fileId: file.id },
-          {
-            priority: PRIORITY_INTERACTIVE,
-          },
-        );
-      });
-      return c.json({ status: 'indexing' });
+      const auth = await restProjectAuth(deps.sql, c);
+      const outcome = await queueRagIndexingRetry(deps.sql, auth, doc);
+      if (outcome.kind === 'queued') return c.json({ status: 'indexing' });
+      return c.json({ status: 'skipped', reason: outcome.kind });
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -1203,19 +1178,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       if (!skill) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
       // The document's tag rides as `ETag` (RFC 9110 §8.8.3) so a client can
-      // send it back as `If-Match` on its save; a tag the client already
-      // holds answers 304 with the tag and no body (§13.1.2 — weak
-      // comparison, so a `W/` prefix counts).
-      const ifNoneMatch = c.req.header('if-none-match');
-      if (
-        ifNoneMatch !== undefined &&
-        !ifNoneMatchHolds(
-          parseEntityTagList(ifNoneMatch),
-          parseEntityTag(skill.etag),
-        )
-      ) {
-        return c.body(null, 304, { etag: skill.etag });
-      }
+      // send it back as `If-Match` on its save. The 304 is NOT decided
+      // here: the validated-read middleware outside the door
+      // (lib/conditional-get.ts) keeps a route's own tag, compares
+      // `If-None-Match` weakly — the edge's `-gzip`/`-zstd` suffix
+      // included, which the strict matcher this route once ran never
+      // matched — and answers the 304 with the `private, no-cache` the 200
+      // carries. The route's own 304 said `no-store` about the very bytes
+      // its 200 had told the client to keep.
       return c.json(skill, 200, { etag: skill.etag });
     } catch (error) {
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
@@ -1311,7 +1281,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         slug,
         () => saveSkillForViewer({ ...who, slug, precondition, ...body }),
       );
-      return c.json(saved);
+      // 201 for the bundle this save created, 200 for one it updated: the
+      // status is the create-or-update signal (the Tasks convention), so a
+      // sync that mirrors bundles from elsewhere learns which it did
+      // without a racy read first — it used to answer 200 either way.
+      return c.json(saved.skill, saved.created ? 201 : 200);
     } catch (error) {
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }

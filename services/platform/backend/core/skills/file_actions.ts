@@ -342,6 +342,14 @@ export interface SkillEditInput {
   disableModelInvocation?: boolean;
 }
 
+/** What a save answers: the document as it now reads, and whether the
+ * save CREATED the bundle (no document under the slug when the writer
+ * lock was held) or updated one — the REST door's 201 / 200. */
+export interface SkillSaveResult {
+  skill: SkillDocumentView;
+  created: boolean;
+}
+
 export async function saveSkillForViewer(
   args: {
     orgSlug: string;
@@ -349,7 +357,7 @@ export async function saveSkillForViewer(
     viewer: SkillViewer;
     precondition?: SkillWritePrecondition;
   } & SkillEditInput,
-): Promise<SkillDocumentView> {
+): Promise<SkillSaveResult> {
   {
     assertValidSlug(args.slug);
     const viewer = assertUserViewer(args.viewer);
@@ -432,22 +440,25 @@ export async function saveSkillForViewer(
       listSkillBundleFileEntries(args.orgSlug, args.slug),
     );
     return {
-      ...toSummary(
-        {
-          slug: args.slug,
-          path: relativeSkillPath(args.slug),
-          meta: verified.meta,
-          body: verified.body,
-          etag: skillEntityTag(written.hash),
-          updatedAt: written.mtimeMs,
-        },
-        viewer,
-      ),
-      body: verified.body,
-      files: (entries ?? []).map((entry) => ({
-        path: entry.path,
-        size: entry.size,
-      })),
+      skill: {
+        ...toSummary(
+          {
+            slug: args.slug,
+            path: relativeSkillPath(args.slug),
+            meta: verified.meta,
+            body: verified.body,
+            etag: skillEntityTag(written.hash),
+            updatedAt: written.mtimeMs,
+          },
+          viewer,
+        ),
+        body: verified.body,
+        files: (entries ?? []).map((entry) => ({
+          path: entry.path,
+          size: entry.size,
+        })),
+      },
+      created: existing === null,
     };
   }
 }

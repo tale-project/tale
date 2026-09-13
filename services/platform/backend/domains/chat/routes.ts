@@ -569,7 +569,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    const ok = await setThreadArchived(
+    const toggled = await setThreadArchived(
       deps.sql,
       {
         organizationId,
@@ -579,6 +579,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.req.param('threadId'),
       body.data.archived,
     );
+    const ok = toggled !== null;
     if (ok) await hintThread(c, c.req.param('threadId'));
     return c.json({ ok });
   });

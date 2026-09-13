@@ -2,6 +2,8 @@
  * Type definitions for website operations
  */
 
+import { SAFE_FETCH_ERROR_KINDS } from '../../../lib/net/safe-fetch-kinds';
+
 export type WebsiteStatus =
   | 'idle'
   | 'scanning'
@@ -64,16 +66,43 @@ export function scanIntervalToSeconds(interval: string): number {
 // CRAWLER SERVICE TYPES
 // =============================================================================
 
+/**
+ * Why the crawler could not store a page: the fetch client's refusal kinds
+ * (a redirect into a private address, a DNS miss, a timeout, a body over the
+ * cap, …) plus the crawl's own three — a non-2xx answer, a render the
+ * sandboxed browser gave up on, a linked document no extractor could read.
+ * Declared once: the crawler writes it, the page list answers it, the
+ * OpenAPI enum publishes it.
+ */
+export const PAGE_FAILURE_KINDS = [
+  ...SAFE_FETCH_ERROR_KINDS,
+  'http_error',
+  'render_failed',
+  'extraction_failed',
+] as const;
+
+export type PageFailureKind = (typeof PAGE_FAILURE_KINDS)[number];
+
 export interface CrawlerPage {
   url: string;
   title: string | null;
   word_count: number;
+  /** `discovered` until a fetch stores the page, `active` from then on;
+   * `deleted` rows never reach a listing. */
   status: string;
   content_hash: string | null;
   last_crawled_at: string | null;
   discovered_at: string | null;
   chunks_count: number;
   indexed: boolean;
+  /** Consecutive failed attempts since the last stored fetch (or the
+   * operator's re-listing); 0 on a row whose last attempt stored it. */
+  fail_count: number;
+  /** The last failure, cleared the moment a fetch stores the page again —
+   * set, they describe why the row's LAST attempt stored nothing. */
+  last_error: string | null;
+  last_error_kind: string | null;
+  last_error_at: string | null;
 }
 
 export interface CrawlerWebsiteInfo {
@@ -82,7 +111,10 @@ export interface CrawlerWebsiteInfo {
   title: string | null;
   description: string | null;
   page_count: number;
+  /** Pages the crawler ATTEMPTED — stored or not (`last_crawled_at` set). */
   crawled_count: number;
+  /** Pages whose last attempt failed (`fail_count > 0`). */
+  failed_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;
   /** Why the last scan failed — set with status 'error', cleared on the next

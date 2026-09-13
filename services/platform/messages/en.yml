@@ -1414,6 +1414,7 @@ chat:
     reading: Reading {hostname}
     searchingKnowledgeBase: Searching the workspace for "{query}"
     readingDocument: Reading {name}
+    readingDocumentUnnamed: Reading a document
     readingTask: Reading task {name}
     listing:
       generic: Listing the workspace
@@ -4804,6 +4805,8 @@ projects:
     ragStatusRunningHint: Making this file searchable in chat…
     ragStatusCompleted: Indexed
     ragStatusFailed: Failed
+    ragStatusNotIndexed: Not indexed
+    ragStatusNotIndexedHint: Not searchable in chat until it is indexed.
     detachAction: Remove from project
     detachConfirm: Remove this file from the project? It moves to Knowledge and
       becomes visible to everyone in the organization.
@@ -4816,6 +4819,9 @@ projects:
     indexingRetry: Retry indexing
     indexingRetryQueued: Indexing retry queued
     indexingRetryFailed: Couldn't retry indexing
+    indexingStart: Index now
+    indexingStartQueued: Indexing queued
+    indexingStartFailed: Couldn't start indexing
     treeLabel: Project files
     addToFolder: Add file to "{folder}"
     addFolderButton: Add folder
@@ -7108,6 +7114,8 @@ websites:
     noSearchResultsDescription: Try another term, or clear the search to browse all pages.
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
+    lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
+    failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
   filter:
     status:
       idle: Idle

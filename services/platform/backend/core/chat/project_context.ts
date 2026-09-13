@@ -43,6 +43,7 @@ export async function resolveProjectContext(
   if (project === null) return undefined;
   return {
     name: project.name,
+    ...(project.key !== undefined ? { key: project.key } : {}),
     ...(project.instructions !== undefined
       ? { instructions: project.instructions }
       : {}),

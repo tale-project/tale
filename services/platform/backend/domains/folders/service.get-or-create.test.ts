@@ -116,13 +116,24 @@ describe('getOrCreateProjectFolder', () => {
     expect(result).toEqual({ folderId: 'f-2', name: 'Inbox', created: false });
   });
 
-  it('refuses a name that is a path with FOLDER_NAME_INVALID, before any query', async () => {
-    const { tx, statements } = fakeTx(() => []);
-    await expect(
-      getOrCreateProjectFolder(tx, auth, { projectId: 'p-1', name: 'a/b' }),
-    ).rejects.toMatchObject({ code: 'FOLDER_NAME_INVALID', status: 400 });
-    expect(statements).toEqual([]);
-  });
+  // The name rule is the shared character class (`plain-name.ts`): a
+  // backslash and the control characters used to pass here while the file
+  // name beside the folder refused them.
+  it.each([
+    ['a path', 'a/b'],
+    ['a backslash', 'a\\b'],
+    ['a NUL', 'a\u0000b'],
+    ['a tab', 'a\tb'],
+  ])(
+    'refuses a name carrying %s with FOLDER_NAME_INVALID, before any query',
+    async (_what, name) => {
+      const { tx, statements } = fakeTx(() => []);
+      await expect(
+        getOrCreateProjectFolder(tx, auth, { projectId: 'p-1', name }),
+      ).rejects.toMatchObject({ code: 'FOLDER_NAME_INVALID', status: 400 });
+      expect(statements).toEqual([]);
+    },
+  );
 });
 
 describe('renameFolder', () => {

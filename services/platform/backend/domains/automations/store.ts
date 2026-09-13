@@ -404,9 +404,20 @@ export interface AutomationListing {
   inputs: unknown;
   presentation: unknown;
   projectIds: string[];
-  /** What starts the automation, if anything is bound: the kind and
-   * whether it is switched on. Null for an automation with no trigger. */
-  trigger: { kind: string; enabled: boolean } | null;
+  /** What starts the automation, if anything is bound: the kind, whether
+   * it is switched on, and the fire ledger's health stamps (0096) — the
+   * same three `listTriggers` reads, so ONE listing call finds every
+   * binding that is enabled and not firing (a trigger bound before its
+   * automation was deployed skips every occurrence as `not_deployed`; a
+   * caller used to learn that only by reading each automation's triggers
+   * one at a time). Null for an automation with no trigger. */
+  trigger: {
+    kind: string;
+    enabled: boolean;
+    lastFiredAt: number | null;
+    lastSkippedAt: number | null;
+    lastSkipReason: TriggerListing['lastSkipReason'];
+  } | null;
 }
 
 export async function listAutomations(
@@ -452,13 +463,33 @@ export async function listAutomations(
     byName.set(binding.automationName, list);
   }
   const triggers = await sql<
-    { name: string; kind: string; enabled: boolean }[]
+    {
+      name: string;
+      kind: string;
+      enabled: boolean;
+      lastFiredAt: number | null;
+      lastSkippedAt: number | null;
+      lastSkipReason: TriggerListing['lastSkipReason'];
+    }[]
   >`
-    SELECT name, kind, enabled FROM app.automation_triggers
+    SELECT name, kind, enabled,
+           last_fired_at_ms::float8 AS "lastFiredAt",
+           last_skipped_at_ms::float8 AS "lastSkippedAt",
+           last_skip_reason AS "lastSkipReason"
+    FROM app.automation_triggers
     WHERE org_id = ${organizationId}
   `;
   const triggerByName = new Map(
-    triggers.map((row) => [row.name, { kind: row.kind, enabled: row.enabled }]),
+    triggers.map((row) => [
+      row.name,
+      {
+        kind: row.kind,
+        enabled: row.enabled,
+        lastFiredAt: row.lastFiredAt,
+        lastSkippedAt: row.lastSkippedAt,
+        lastSkipReason: row.lastSkipReason,
+      },
+    ]),
   );
   return rows.map((row) => ({
     name: row.name,

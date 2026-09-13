@@ -144,6 +144,52 @@ describe('validated reads through the real app', () => {
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
 
+  /**
+   * The refusals answered AHEAD of the door — the x-api-key guard, the URL
+   * budget, the NUL guard — through the real wiring. The regression
+   * (2026-09-12 round-d evaluation, S3-2/S3-3): the door's stamper ran
+   * behind these guards, so their answers were the only enveloped ones on
+   * the surface without `X-Tale-Api-Version` or `Cache-Control`, and the
+   * 414 alone omitted the `requestId` the Error schema promises of it.
+   */
+  it.each([
+    [
+      'a key in x-api-key',
+      'http://localhost/api/v1/me',
+      { headers: { ...bearer, 'x-api-key': 'tale_leaked' } },
+      401,
+      'UNAUTHORIZED',
+    ],
+    [
+      'a URL over 32 KiB',
+      `http://localhost/api/v1/contacts?q=${'a'.repeat(32 * 1024)}`,
+      { headers: bearer },
+      414,
+      'URI_TOO_LONG',
+    ],
+    [
+      'a NUL in the URL',
+      'http://localhost/api/v1/documents/a%00b',
+      { headers: bearer },
+      400,
+      'INVALID_URL',
+    ],
+  ])(
+    'answers %s with the contract headers the door promises of every answer',
+    async (_name, url, init, status, code) => {
+      const res = await app().request(url, init);
+      expect(res.status).toBe(status);
+      expect(res.headers.get('x-tale-api-version')).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      const id = res.headers.get('x-request-id');
+      expect(id).not.toBeNull();
+      const body: { code: string; requestId?: string } = await res.json();
+      expect(body.code).toBe(code);
+      if (status === 414) expect(body.requestId).toBe(id);
+    },
+  );
+
   it('validates the app surface the same way', async () => {
     // The app surface is a signed-in session; a key in `x-api-key` is
     // refused before any door (it used to act as the key holder's session

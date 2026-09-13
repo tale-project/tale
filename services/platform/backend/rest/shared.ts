@@ -33,6 +33,7 @@ import {
   codedAppError,
   type CodedRefusalStatus,
 } from '../lib/app-error-response.ts';
+import { describeByteCap } from '../lib/byte-cap.ts';
 import { entityTagOf, ifNoneMatchMatches } from '../lib/conditional-get.ts';
 import {
   rateLimitedResponse,
@@ -100,13 +101,19 @@ export class RestRefusal extends Error {
 }
 
 /** The 404 every family answers for a resource that is absent or invisible:
- * the flat envelope with a stable code, never a bare sentence. */
+ * the flat envelope with a stable code, never a bare sentence. `data` is
+ * the disambiguation a few absences carry (the stop that found no turn
+ * names the reply that already settled) — omitted, the envelope is flat. */
 export function notFound(
   c: Context<RestEnv>,
   message: string,
   code: string,
+  data?: Record<string, unknown>,
 ): Response {
-  return c.json({ error: message, code }, 404);
+  return c.json(
+    { error: message, code, ...(data !== undefined ? { data } : {}) },
+    404,
+  );
 }
 
 /**
@@ -256,14 +263,6 @@ const NOT_JSON_MESSAGE = 'The body is not valid JSON';
  * the door's error handler answers as `BODY_TOO_LARGE`.
  */
 export const DEFAULT_BODY_BYTES = 1024 * 1024;
-
-/** A byte count the way the docs write it: whole MiB above a mebibyte,
- * KiB below. */
-function describeByteCap(maxBytes: number): string {
-  return maxBytes >= 1024 * 1024 && maxBytes % (1024 * 1024) === 0
-    ? `${maxBytes / (1024 * 1024)} MiB`
-    : `${Math.round(maxBytes / 1024)} KiB`;
-}
 
 /**
  * The 413 every oversized body on this door answers (`BODY_TOO_LARGE`
@@ -963,6 +962,13 @@ export const noQuery: MiddlewareHandler<RestEnv> = (c, next) => {
 
 const CURSOR_MESSAGE =
   'The "cursor" query parameter is not a cursor this list answered — pass the cursor the previous page answered, unchanged, or omit it for the first page';
+/** The `data.issues` entry an `INVALID_CURSOR` carries — the field-naming
+ * shape every other refused parameter gets, so one branch reads every 400
+ * a list answers; the sentence alone named the parameter in prose only. */
+const CURSOR_ISSUE = {
+  path: 'cursor',
+  message: 'is not a cursor this list answered',
+} as const;
 
 /**
  * Page cursors are SIGNED: `<position>.<tag>`, the tag an HMAC over the
@@ -1076,7 +1082,7 @@ export function readKeysetCursor(
   const position = verifyCursor(c, list, raw);
   return (
     (position === null ? null : parseKeysetCursor(position)) ??
-    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE)
+    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
   );
 }
 
@@ -1100,7 +1106,7 @@ export function readIntegerCursor(
     parsed >= 0 &&
     parsed <= (bounds.max ?? Number.MAX_SAFE_INTEGER)
     ? parsed
-    : invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE);
+    : invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE]);
 }
 
 /** The page size a list route honours: the documented default, truncated
@@ -1139,10 +1145,18 @@ export function readPageLimit(
     return blankParameterResponse(c, 'limit');
   }
   if (raw !== undefined && !/^-?\d+$/.test(raw.trim())) {
+    // Names the parameter under `data.issues` too, like every other
+    // refused parameter, so a client branches on `path` on every 400.
     return invalidQueryResponse(
       c,
       'INVALID_LIMIT',
       `The "limit" query parameter must be a whole number (1..${defaults.max})`,
+      [
+        {
+          path: 'limit',
+          message: `must be a whole number (1..${defaults.max})`,
+        },
+      ],
     );
   }
   return pageLimit(raw, defaults);

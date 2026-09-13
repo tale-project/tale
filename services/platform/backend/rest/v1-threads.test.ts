@@ -28,7 +28,14 @@ vi.mock('../domains/governance/service.ts', () => ({
 vi.mock('../domains/chat/threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/chat/threads.ts')>()),
   renameThread: vi.fn(() => Promise.resolve(true)),
-  setThreadArchived: vi.fn(() => Promise.resolve(true)),
+  // The domain answers the state it wrote — the stamp included.
+  setThreadArchived: vi.fn(
+    (_sql: unknown, _auth: unknown, _id: unknown, archived: boolean) =>
+      Promise.resolve({
+        archived,
+        archivedAt: archived ? 1_700_000_000_777 : null,
+      }),
+  ),
   trashThread: vi.fn(() => Promise.resolve(true)),
 }));
 
@@ -121,6 +128,8 @@ function fakeSql(
     archived?: boolean;
     /** The text the generation row holds while streaming. */
     generationText?: string;
+    /** The reasoning the generation row holds while streaming. */
+    generationReasoning?: string;
     messages?: Record<string, unknown>[];
     /** A live ledger row an earlier keyed send committed — the claim finds
      * it and reads it back. */
@@ -160,6 +169,14 @@ function fakeSql(
         options.generating ? [{ messageId: 'm-pending' }] : [],
       );
     }
+    // The queued stop: the conditional stamp lands only while the 202's
+    // marker still stands, and answers the reply id it names.
+    if (
+      text.startsWith('UPDATE app.thread_metadata SET cancelled_at_ms') &&
+      text.includes('generation_queued_since_ms IS NOT NULL')
+    ) {
+      return Promise.resolve(options.queued ? [{ messageId: 'm-pre' }] : []);
+    }
     // The send's claim: the conditional marker write lands only while no
     // send is queued and no turn is running — the row lock's verdict, as
     // the real schema answers it.
@@ -181,6 +198,9 @@ function fakeSql(
                 messageId: 'm-pending',
                 ...(options.generationText !== undefined
                   ? { text: options.generationText }
+                  : {}),
+                ...(options.generationReasoning !== undefined
+                  ? { reasoning: options.generationReasoning }
                   : {}),
               },
             ]
@@ -492,11 +512,26 @@ describe('POST /threads/{id}/messages provider choice', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
     const tagged = await send(sql, { model: 'model-a', locale: 'de-CH' });
     expect(tagged.status).toBe(202);
+    // A named locale PINS the reply language: the flag rides the job so
+    // the directive says "answer in de-CH whatever the prompt's language".
     expect(addJobInTx).toHaveBeenCalledWith(
       sql,
       'chat.api_turn',
-      expect.objectContaining({ locale: 'de-CH', userText: 'Hello' }),
+      expect.objectContaining({
+        locale: 'de-CH',
+        localeFixed: true,
+        userText: 'Hello',
+      }),
     );
+  });
+
+  it('leaves the reply language open when no locale is named', async () => {
+    const { sql } = fakeSql();
+    const plain = await send(sql, { model: 'model-a' });
+    expect(plain.status).toBe(202);
+    const payload = vi.mocked(addJobInTx).mock.calls.at(-1)?.[2];
+    expect(payload).not.toHaveProperty('locale');
+    expect(payload).not.toHaveProperty('localeFixed');
   });
 });
 
@@ -693,13 +728,30 @@ describe('thread lifecycle', () => {
       body: JSON.stringify({ archived: true }),
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: 't-1', archived: true });
+    // The echo is the stamp the domain wrote — the next GET reads the
+    // same millisecond (the door used to answer a clock of its own).
+    expect(await res.json()).toMatchObject({
+      id: 't-1',
+      archived: true,
+      archivedAt: 1_700_000_000_777,
+    });
     expect(setThreadArchived).toHaveBeenCalledWith(
       sql,
       { organizationId: 'org-1', userId: 'user-1', email: 'user@example.com' },
       't-1',
       true,
     );
+    const restored = await mount(fakeSql({ archived: true }).sql).request(
+      'http://localhost/threads/t-1',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      },
+    );
+    const body = (await restored.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ archived: false });
+    expect(body).not.toHaveProperty('archivedAt');
   });
 
   it('DELETE trashes the thread, and refuses one mid-turn', async () => {
@@ -764,7 +816,48 @@ describe('thread lifecycle', () => {
       { method: 'DELETE' },
     );
     expect(none.status).toBe(404);
-    expect(await none.json()).toMatchObject({ code: 'CHAT_TURN_NOT_RUNNING' });
+    // The 404 carries the idle poll's pair: a stop that lost the race
+    // against a fast model reads the settled reply here, no second call.
+    expect(await none.json()).toEqual({
+      error: 'No turn is running.',
+      code: 'CHAT_TURN_NOT_RUNNING',
+      data: { lastMessageId: 'm-1', lastStatus: 'complete' },
+    });
+    const bare = fakeSql({ messages: [] });
+    const nothing = await mount(bare.sql).request(
+      'http://localhost/threads/t-1/generation',
+      { method: 'DELETE' },
+    );
+    expect(await nothing.json()).toEqual({
+      error: 'No turn is running.',
+      code: 'CHAT_TURN_NOT_RUNNING',
+    });
+  });
+
+  /**
+   * A send still queued had no generation row to flag, so the stop answered
+   * 404 while the poll said `queued` — the docs promised the send blocked
+   * deletes, and nothing could stop it. The stop is stamped for the reply
+   * the marker names (conditionally — the marker write is the verdict) and
+   * the job settles it as cancelled without a model call.
+   */
+  it('DELETE …/generation stops a send that is still queued', async () => {
+    const { sql, queries } = fakeSql({ queued: true });
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/generation',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({
+      status: 'cancelling',
+      messageId: 'm-pre',
+    });
+    const stamp = queries.find((q) =>
+      q.text.startsWith('UPDATE app.thread_metadata SET cancelled_at_ms'),
+    );
+    expect(stamp?.text).toContain('cancelled_message_id = stream_id');
+    expect(stamp?.text).toContain('generation_queued_since_ms IS NOT NULL');
+    expect(stamp?.text).toContain('RETURNING stream_id');
   });
 });
 
@@ -1203,6 +1296,8 @@ describe('GET …/generation — queued, streaming with progress, idle', () => {
       textOffset: 0,
       textLength: 0,
       reasoning: '',
+      reasoningOffset: 0,
+      reasoningLength: 0,
       cancelRequested: false,
     });
   });
@@ -1243,6 +1338,60 @@ describe('GET …/generation — queued, streaming with progress, idle', () => {
     expect(await bad.json()).toMatchObject({
       code: 'INVALID_QUERY',
       data: { issues: [{ path: 'since' }] },
+    });
+  });
+
+  /**
+   * `since` sliced the text only: the reasoning came back whole on every
+   * poll, so a long thinking turn re-sent its whole reasoning-so-far every
+   * two seconds. `reasoningSince` is the same rule on the second stream —
+   * the delta past what the caller holds, from 0 with an offset below the
+   * value sent when the stream was reset with the text.
+   */
+  it('answers the reasoning delta past ?reasoningSince, from 0 when it passes the length, and refuses a non-number', async () => {
+    const { sql } = fakeSql({
+      generating: true,
+      generationText: 'Sure.',
+      generationReasoning: 'think hard',
+    });
+    const delta = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?reasoningSince=6',
+    );
+    expect(await delta.json()).toMatchObject({
+      status: 'streaming',
+      text: 'Sure.',
+      textOffset: 0,
+      textLength: 5,
+      reasoning: 'hard',
+      reasoningOffset: 6,
+      reasoningLength: 10,
+    });
+    // The two slices are independent: each stream keeps its own cursor.
+    const both = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?since=5&reasoningSince=10',
+    );
+    expect(await both.json()).toMatchObject({
+      text: '',
+      textOffset: 5,
+      reasoning: '',
+      reasoningOffset: 10,
+      reasoningLength: 10,
+    });
+    const reset = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?reasoningSince=500',
+    );
+    expect(await reset.json()).toMatchObject({
+      reasoning: 'think hard',
+      reasoningOffset: 0,
+      reasoningLength: 10,
+    });
+    const bad = await mount(sql).request(
+      'http://localhost/threads/t-1/generation?reasoningSince=x',
+    );
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'reasoningSince' }] },
     });
   });
 
@@ -1392,5 +1541,29 @@ describe('thread reads — one join, no query per row', () => {
       archivedAt: 1_700_000_000_009,
       generating: false,
     });
+  });
+
+  /**
+   * The list excluded hidden threads (a regenerate's hidden sibling) and the
+   * by-id loader did not: a sibling the app keeps out of every list was
+   * readable, patchable and sendable by id through REST. Every by-id read
+   * and write goes through the one loader, so the predicate lives there.
+   */
+  it('keeps a hidden thread out of the by-id reads and writes', async () => {
+    const { sql, queries } = fakeSql();
+    await mount(sql).request('http://localhost/threads/t-1');
+    await mount(sql).request('http://localhost/threads/t-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Renamed' }),
+    });
+    const loads = queries.filter(
+      (q) =>
+        q.text.includes('FROM app.threads t') && q.text.includes('t.id = $?'),
+    );
+    expect(loads.length).toBe(2);
+    for (const load of loads) {
+      expect(load.text).toContain('tm.hidden IS NOT true');
+    }
   });
 });

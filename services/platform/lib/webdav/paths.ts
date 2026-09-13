@@ -1,3 +1,4 @@
+import { hasForbiddenNameChar } from '../shared/utils/plain-name';
 import type { ParsedPath } from './types';
 
 // Parse a /dav/<orgSlug>/<namespace>/<...segments> URL pathname into its
@@ -117,14 +118,16 @@ function isValidOrgSlug(s: string): boolean {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(s);
 }
 
-// Document / folder names. Reject path-traversal characters, NUL, and
-// C0/C1 control characters (incl. CR, LF, TAB, DEL) — these break
-// HTTP headers, filesystems, and CSV/log lines.
+// Document / folder names. Reject the shared forbidden class — the two
+// path separators, NUL and the other C0 controls (CR, LF, TAB), DEL —
+// which break HTTP headers, filesystems, and CSV/log lines.
 //
 // Exported because it is the grammar for a name in the org tree, not a
 // detail of URL parsing: the native WebDAV connector actions validate
-// their caller-supplied path segments with the same rule, so a name one
-// surface accepts is a name the other accepts too.
+// their caller-supplied path segments with the same rule, and the folder
+// domain and the REST file name share the character class
+// (`lib/shared/utils/plain-name.ts`), so a name one surface accepts is a
+// name the others accept too.
 //
 // We deliberately do NOT reject Windows reserved names (CON, PRN, AUX,
 // NUL, COM1-9, LPT1-9): they are legitimate filenames on Linux/macOS,
@@ -137,8 +140,6 @@ export function isValidSegment(s: string): boolean {
   // (a name with internal spaces like "my file.txt" is still fine).
   if (s.trim().length === 0) return false;
   if (s === '.' || s === '..') return false;
-  if (s.includes('/') || s.includes('\\')) return false;
-  // eslint-disable-next-line no-control-regex
-  if (/[\x00-\x1f\x7f]/.test(s)) return false;
+  if (hasForbiddenNameChar(s)) return false;
   return true;
 }

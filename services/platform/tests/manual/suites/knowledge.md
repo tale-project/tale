@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 24 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 25 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -189,6 +189,19 @@ records and delete them after.
   approved. RAG returns to **Queued**/**Indexing** and then reaches the
   environment's normal terminal state. **Submit for review** freezes the
   replacement as the file reviewers inspect.
+- [ ] `KNOW-F13` · **Page failure reason** — Websites → **Add website** →
+  **URL list** (KNOW-F10) with two URLs on one public site: a healthy page
+  and one that answers a redirect into a private address (`http://127.0.0.1/`
+  behind a `302`) or a plain `500` → wait for the scan → row **Open menu** →
+  **View pages** → The healthy page shows its word and chunk counts; the
+  failed page shows no words and no chunks but a destructive caption naming
+  the failed attempts and the reason (`websites.pagesDialog.lastError` — a
+  refused plaintext/private redirect reads as exactly that, never as a page
+  nobody fetched), and the pages header counts it
+  (`websites.pagesDialog.failedPages`). Reload `/dashboard/{org}/websites`
+  and reopen → the reason is still there (stored on the page, not remembered
+  by the tab). Fix the origin, or re-save the same list → the next scan
+  turns the page indexed and the caption is gone.
 
 ## Boundary & error tests
 

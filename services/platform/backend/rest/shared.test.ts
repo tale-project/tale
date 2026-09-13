@@ -17,7 +17,9 @@ import {
   pageLimit,
   parseKeysetCursor,
   queryFilter,
+  readIntegerCursor,
   readJsonBody,
+  readKeysetCursor,
   readOptionalJsonBody,
   readPageLimit,
   readQuery,
@@ -363,12 +365,70 @@ describe('readQuery / readPageLimit', () => {
     }
   });
 
-  it('refuses a fractional or non-numeric limit', async () => {
+  it('refuses a fractional or non-numeric limit, naming the parameter under data.issues', async () => {
     for (const bad of ['1.5', '1e2', 'abc']) {
       const res = await probe().request(`/list?limit=${bad}`);
       expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({ code: 'INVALID_LIMIT' });
+      expect(await res.json()).toEqual({
+        error: 'The "limit" query parameter must be a whole number (1..100)',
+        code: 'INVALID_LIMIT',
+        data: {
+          issues: [
+            { path: 'limit', message: 'must be a whole number (1..100)' },
+          ],
+        },
+      });
     }
+  });
+});
+
+/**
+ * A refused cursor names its parameter under `data.issues` like every other
+ * refused parameter — `INVALID_LIMIT` and `INVALID_CURSOR` used to be the two
+ * 400s on a list a client could not read by `path`.
+ */
+describe('readKeysetCursor / readIntegerCursor', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.use(async (c, next) => {
+      c.set('organizationId', 'org-1');
+      return next();
+    });
+    app.get('/keyset', (c) => {
+      const cursor = readKeysetCursor(c, 'keyset');
+      return cursor instanceof Response ? cursor : c.json({ cursor });
+    });
+    app.get('/integer', (c) => {
+      const cursor = readIntegerCursor(c, 'integer');
+      return cursor instanceof Response ? cursor : c.json({ cursor });
+    });
+    return app;
+  }
+
+  it.each(['/keyset', '/integer'])(
+    '%s refuses a token that is not its own, naming `cursor` under data.issues',
+    async (route) => {
+      const res = await probe().request(`${route}?cursor=not-a-cursor`);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: expect.stringContaining('"cursor"'),
+        code: 'INVALID_CURSOR',
+        data: {
+          issues: [
+            { path: 'cursor', message: 'is not a cursor this list answered' },
+          ],
+        },
+      });
+    },
+  );
+
+  it('reads its own token back as the position it minted', async () => {
+    const token = mintCursorFor('org-1', 'integer', '7');
+    const res = await probe().request(
+      `/integer?cursor=${encodeURIComponent(token)}`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cursor: 7 });
   });
 });
 

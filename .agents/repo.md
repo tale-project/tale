@@ -107,3 +107,13 @@ default means deleting the override and fixing what surfaces:
   `services/platform` only (11 sites needing real markup work, 2026-08).
 - `typescript/no-unnecessary-type-assertion` is relaxed for platform test files: the tsgolint 7
   engine false-positives on widening assertions over frozen literals and on mock returns.
+
+## Contract debt ledger
+
+- **Unbounded named-array lists on `/api/v1`** — `GET /automations`,
+  `GET /projects/{id}/automations`, the two `…/versions` listings, `GET /projects/{id}/folders`
+  (per level) and `GET /browser-sessions` answer the whole set with no `LIMIT`; declared
+  `x-tale-pagination: none` and documented as complete sets (2026-09). Paying it down means keyset
+  pages behind `?cursor=` + `?limit=` on each, with the family flipped to `keyset` in
+  `services/platform/scripts/openapi/spec.ts` so the envelope-family guard in
+  `scripts/openapi/spec.test.ts` holds the new shape.

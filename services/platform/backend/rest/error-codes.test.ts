@@ -361,9 +361,15 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TTS_TEXT_TOO_LONG',
   // The REST bind consumes a single-use intent `FOR UPDATE` and binds the
   // very `s3Ref` the organization minted, so a second row for one blob
-  // and a foreign blob reference cannot arise there — both are the app's
-  // session bind lane.
+  // cannot arise there — the app's session bind lane.
   'BLOB_ALREADY_REGISTERED',
+  // The store guard's refusal of a reference outside the organization's
+  // namespace. It IS reachable from REST — `conversations/sync` and the
+  // native reply HEAD every attachment a body names — but `api-sync.ts`
+  // reads it as "no such staged blob" and answers the documented 400
+  // `ATTACHMENT_NOT_STAGED` (a malformed `storageId` and another
+  // organization's alike); the 403 itself never leaves the door
+  // (`api-sync.attachments.test.ts`).
   'BLOB_REF_INVALID',
   // Find-or-create by e-mail is the mailbox sync's ingest lane, which
   // reads the address off the message before it asks.

@@ -608,3 +608,33 @@ export async function appendAssistantErrorMessage(
     error: args.error,
   });
 }
+
+/** The reply a stop cut before its turn ever opened — a send still queued
+ * when `DELETE …/generation` arrived: the id the 202 promised gets its
+ * terminal row the way the app's own stop settles one (`status:
+ * 'cancelled'`, the finish reason beside it), with nothing streamed and
+ * nothing to bill, so the poll's `lastStatus` and the message agree. */
+export async function appendAssistantCancelledMessage(
+  sql: Sql,
+  args: {
+    id?: string;
+    organizationId: string;
+    threadId: string;
+    model?: string;
+    providerSlug?: string;
+  },
+): Promise<void> {
+  await appendMessageRow(sql, {
+    ...(args.id !== undefined ? { id: args.id } : {}),
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    role: 'assistant',
+    parts: [],
+    ...(args.model !== undefined ? { model: args.model } : {}),
+    ...(args.providerSlug !== undefined
+      ? { providerSlug: args.providerSlug }
+      : {}),
+    usage: { finishReason: 'cancelled' },
+    status: 'cancelled',
+  });
+}

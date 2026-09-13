@@ -47,7 +47,10 @@ import {
   TASK_LABEL_CHARS_MAX,
   TASK_TITLE_MAX,
 } from '../../backend/core/tasks/helpers.ts';
-import { SCAN_INTERVAL_VALUES } from '../../backend/core/websites/types.ts';
+import {
+  PAGE_FAILURE_KINDS,
+  SCAN_INTERVAL_VALUES,
+} from '../../backend/core/websites/types.ts';
 import {
   DEFAULT_SESSION_TTL_MS,
   MAX_SESSION_TTL_MS,
@@ -261,20 +264,25 @@ function queryParam(
   };
 }
 
-/** `cursor` + `limit` for the keyset-paginated families. `cursorField`
- * names the response field the cursor comes back in — `continueCursor` for
- * the `{page, isDone, continueCursor}` envelope, `cursor` for the project
- * files listing — so the parameter never points at a field its own
- * response does not carry. */
-function paginationParams(
-  max: number,
-  fallback: number,
-  cursorField: 'continueCursor' | 'cursor' = 'continueCursor',
-) {
+/**
+ * `x-tale-pagination` — the vendor extension every list envelope carries,
+ * so a generated client (or a reader) learns the family from the schema,
+ * not from the prose: `keyset` (`isDone` + `continueCursor`, taking
+ * `cursor` + `limit`), `offset` (`total` + `offset` + `hasMore`, with the
+ * keyset pair beside them), `none` (a complete set — no cursor, no
+ * `isDone`, no `cursor`/`limit` parameter). The collection key stays the
+ * resource's own; a generic pager reads `body.page ?? body[<resource>]`.
+ * `spec.test.ts` holds every list operation to its declared family.
+ */
+const PAGINATION = 'x-tale-pagination';
+
+/** `cursor` + `limit` for the keyset-paginated families: the previous
+ * page's `continueCursor` comes back as `cursor`, on every list alike. */
+function paginationParams(max: number, fallback: number) {
   return [
     queryParam(
       'cursor',
-      `The previous page’s \`${cursorField}\`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 \`INVALID_CURSOR\` rather than read as the first page`,
+      'The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page',
     ),
     {
       ...queryParam(
@@ -286,10 +294,11 @@ function paginationParams(
   ];
 }
 
-/** A paginated envelope: `{page: [...], isDone, continueCursor}`. */
+/** A keyset page: `{page: [...], isDone, continueCursor}`. */
 function pageOf(item: Json): Json {
   return {
     type: 'object',
+    [PAGINATION]: 'keyset',
     required: ['page', 'isDone', 'continueCursor'],
     properties: {
       page: { type: 'array', items: item },
@@ -303,11 +312,14 @@ function pageOf(item: Json): Json {
   };
 }
 
-/** A named-array envelope: `{<name>: [...]}` — a bounded window or a
- * complete set, never a cursor walk. */
+/** A named-array envelope: `{<name>: [...]}` — the complete set (or the
+ * bounded roster the operation names), never a cursor walk: no `isDone`,
+ * no cursor, and no `cursor`/`limit` parameter on the request. */
 function listOf(name: string, item: Json, extra: Json = {}): Json {
   return {
     type: 'object',
+    description: `The complete set under \`${name}\` — never paginated: no \`isDone\`, no cursor to follow`,
+    [PAGINATION]: 'none',
     required: [name, ...Object.keys(extra)],
     properties: { [name]: { type: 'array', items: item }, ...extra },
   };
@@ -383,6 +395,71 @@ const runProperties: Record<string, Json> = {
 const bool: Json = { type: 'boolean' };
 const obj: Json = { type: 'object', additionalProperties: true };
 const strArray: Json = { type: 'array', items: str };
+
+/** The three health stamps of a trigger binding (the fire ledger, 0096),
+ * read on `Trigger` and on the listing's `AutomationSummary.trigger` — one
+ * definition, so the listing can never drift from the binding read. */
+const triggerHealthProperties: Json = {
+  lastFiredAt: {
+    ...nullable(epochMs),
+    description:
+      'The last time this binding started a run (`GET …/triggers` names ' +
+      'that run as `lastRunId`); null until it has. For a schedule this is ' +
+      'the occurrence the run fired for (the minute the cron named); for a ' +
+      'webhook or an event, the moment the delivery or the event was ' +
+      'accepted. A rebind to another kind starts it afresh.',
+  },
+  lastSkippedAt: {
+    ...nullable(epochMs),
+    description:
+      'The last time the binding came due (a schedule occurrence, an event, ' +
+      'a webhook delivery) and started nothing — `lastSkipReason` says why; ' +
+      'null until it has.',
+  },
+  lastSkipReason: {
+    type: 'string',
+    nullable: true,
+    enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+    description:
+      '`not_deployed`: the automation had no deployed version to run — ' +
+      'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
+      'could not be read; the scheduler leaves the binding alone until it ' +
+      'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
+      'refused the run’s input (`{trigger, firedAt}` for a schedule).',
+  },
+};
+
+/** Where a file-backed document stands in the search corpus — the one
+ * vocabulary `Document.indexing` and `ProjectFile.indexing` share. */
+const documentIndexing: Json = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  description:
+    'Where a file-backed document stands in the search corpus — absent for a content-only document (never indexed) and for a blob the platform does not track. Poll it after a create or a `retry-indexing`.',
+  properties: {
+    status: {
+      type: 'string',
+      enum: [
+        'pending',
+        'queued',
+        'running',
+        'completed',
+        'failed',
+        'unsupported',
+        'skipped',
+      ],
+      description:
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — no text extractor for this type; `failed` — see `error` / `errorCode`',
+    },
+    indexedAt: {
+      ...epochMs,
+      description: 'Epoch ms of the last completed indexing',
+    },
+    error: str,
+    errorCode: str,
+  },
+};
 /** A number whose magnitude JSON can carry exactly: beyond 2^53 − 1 the
  * parser rounds it before any schema sees it, so the door refuses it. */
 const safeNumber: Json = {
@@ -684,7 +761,8 @@ const orgSlugHeaderParam = {
     'dashboard’s last-active organization never steers a machine call). A ' +
     'slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the ' +
     'key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys ' +
-    'may omit it. The 400 lists the slugs the key holder may send under ' +
+    'may omit it; a blank or whitespace-only value reads as the header ' +
+    'absent. The 400 lists the slugs the key holder may send under ' +
     '`data.organizations`; `GET /api/v1/me` answers them too.',
 };
 
@@ -722,6 +800,13 @@ export function buildSpec(): Json {
     security: sec,
     parameters: [conversationOrg],
   };
+  /** The handle a staged upload answers and a snapshot or delivery echoes:
+   * opaque on the wire — a client persists and repeats it unchanged. */
+  const opaqueStorageId: Json = {
+    ...str,
+    description:
+      'Opaque — persist and echo it unchanged; its shape is not part of the contract',
+  };
   const snapshotState = {
     type: 'object',
     required: ['conversationId', 'organizationId', 'version', 'attachments'],
@@ -734,7 +819,7 @@ export function buildSpec(): Json {
         items: {
           type: 'object',
           required: ['id', 'storageId'],
-          properties: { id: str, storageId: str },
+          properties: { id: str, storageId: opaqueStorageId },
         },
       },
     },
@@ -803,7 +888,7 @@ export function buildSpec(): Json {
       operationId: 'synchronizeConversationSource',
       summary: 'Apply a complete native Inbox source snapshot',
       description:
-        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this integration and still be within its window (400 `ATTACHMENT_NOT_STAGED` otherwise) at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on either refusal. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this integration and still be within its window (400 `ATTACHMENT_NOT_STAGED` otherwise — a `storageId` that door never handed out, malformed or another organization’s, is the same refusal) at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on either refusal. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
       requestBody: jsonBody(
         z.toJSONSchema(apiSnapshotSchema, {
           target: 'openapi-3.0',
@@ -818,7 +903,10 @@ export function buildSpec(): Json {
         }),
         ...conversationErrors,
         '400': errorResponse(
-          'Invalid body (`INVALID_BODY`), an attachment never staged or whose window lapsed (`ATTACHMENT_NOT_STAGED`), or one whose declared size the landed bytes contradict (`ATTACHMENT_SIZE_MISMATCH`)',
+          'Invalid body (`INVALID_BODY`), an attachment never staged, whose window lapsed or whose `storageId` this door never handed out (`ATTACHMENT_NOT_STAGED`), or one whose declared size the landed bytes contradict (`ATTACHMENT_SIZE_MISMATCH`)',
+        ),
+        '413': errorResponse(
+          'The body exceeds 8 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a whole source snapshot (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
       },
     },
@@ -846,6 +934,7 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse('The queue, oldest-due first', {
           type: 'object',
+          [PAGINATION]: 'keyset',
           required: ['deliveries', 'isDone', 'continueCursor'],
           properties: {
             deliveries: {
@@ -962,7 +1051,7 @@ export function buildSpec(): Json {
                   type: 'object',
                   required: ['storageId', 'filename', 'contentType', 'size'],
                   properties: {
-                    storageId: str,
+                    storageId: opaqueStorageId,
                     filename: str,
                     contentType: str,
                     size: int,
@@ -973,6 +1062,9 @@ export function buildSpec(): Json {
           }),
         ),
         ...conversationErrors,
+        '413': errorResponse(
+          'The body exceeds 64 KiB — this operation’s own cap, below the door’s 1 MiB default (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
+        ),
       },
     },
   };
@@ -1002,6 +1094,9 @@ export function buildSpec(): Json {
         ...conversationErrors,
         '404': errorResponse(
           'No delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+        ),
+        '413': errorResponse(
+          'The body exceeds 64 KiB — this operation’s own cap, below the door’s 1 MiB default (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
       },
     },
@@ -1043,6 +1138,9 @@ export function buildSpec(): Json {
         ...conversationErrors,
         '404': errorResponse(
           'No claimed delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+        ),
+        '413': errorResponse(
+          'The body exceeds 64 KiB — this operation’s own cap, below the door’s 1 MiB default (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
       },
     },
@@ -1101,8 +1199,11 @@ export function buildSpec(): Json {
         '200': jsonResponse('Staged attachment', {
           type: 'object',
           required: ['storageId'],
-          properties: { storageId: str },
+          properties: { storageId: opaqueStorageId },
         }),
+        '413': errorResponse(
+          'The body exceeds 30 MiB — this operation’s own cap, above the door’s 1 MiB default, the staging cap the description names (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
+        ),
         ...conversationErrors,
       },
     },
@@ -1149,7 +1250,9 @@ export function buildSpec(): Json {
         'indexed Hub document (`sourceProvider: knowledge`, at most 8,000 ' +
         'characters, one active entry per topic). Every file-backed ' +
         'document answers its `indexing` state, so poll it after a create ' +
-        'or a `retry-indexing`.',
+        'or a `retry-indexing`. The body may run to 32 MiB — this ' +
+        'operation’s own cap, sized for the 5,000,000-character inline ' +
+        '`content`; past it the answer is 413 `BODY_TOO_LARGE`.',
       operationId: 'createDocument',
       security: sec,
       requestBody: jsonBody(ref('DocumentInput')),
@@ -1160,6 +1263,9 @@ export function buildSpec(): Json {
         ),
         '404': errorResponse(
           'The upload is absent, not owned by the key holder or already bound',
+        ),
+        '413': errorResponse(
+          'The body exceeds 32 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a 5,000,000-character inline `content` (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
         ...standardErrors,
       },
@@ -1203,7 +1309,9 @@ export function buildSpec(): Json {
         'another client’s `expectedUpdatedAt`. A document that backs an ' +
         'active knowledge entry keeps its title, content, MIME type and ' +
         'extension through the entry (update the entry instead); a ' +
-        'folder, team or metadata change goes through.',
+        'folder, team or metadata change goes through. The body may run to ' +
+        '32 MiB — this operation’s own cap, sized for the 5,000,000-character ' +
+        'inline `content`; past it the answer is 413 `BODY_TOO_LARGE`.',
       operationId: 'updateDocument',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
@@ -1223,6 +1331,9 @@ export function buildSpec(): Json {
         ...standardErrors,
         '400': errorResponse(
           'Invalid request (malformed body or parameters); or the patch touches the content, MIME type, extension or source provider of a controlled record — frozen while in review or approved (`DOCUMENT_RECORD_FROZEN`, `data.state`), or a draft whose bytes move only through the attested replacement flow (`DOCUMENT_RECORD_REPLACEMENT_REQUIRED`)',
+        ),
+        '413': errorResponse(
+          'The body exceeds 32 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for a 5,000,000-character inline `content` (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
       },
     },
@@ -1259,11 +1370,19 @@ export function buildSpec(): Json {
       summary: 'Retry RAG indexing',
       description:
         'Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a ' +
-        'documents-write role. Answers `skipped` — honestly, with the ' +
+        'documents-write role. The same guards as the app’s Index now: a ' +
+        'budget of 10 retries per user per minute (429 `RATE_LIMITED`, ' +
+        '`Retry-After` names the wait), and `skipped` — honestly, with the ' +
         '`reason` — for a content-only document (`content-only`: inline ' +
         'text never enters the search corpus, only file-backed documents ' +
-        'do), a blob the platform does not track (`untracked-blob`), or a ' +
-        'file whose RAG opt-out is persisted (`rag-opt-out`).',
+        'do), a blob the platform does not track (`untracked-blob`), a ' +
+        'file type no extractor can read (`unsupported` — terminal; the ' +
+        'document’s `indexing.error` says why), or a fresh index job ' +
+        'already queued or running (`in-progress` — poll the document’s ' +
+        '`indexing` instead). A file that opted out of indexing when it ' +
+        'was bound is opted back in by the retry — the explicit request is ' +
+        'the opt-in — so it queues and answers `indexing`; it used to ' +
+        'answer `skipped` with `rag-opt-out`, a reason no longer given.',
       operationId: 'retryDocumentIndexing',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
@@ -1275,7 +1394,12 @@ export function buildSpec(): Json {
             status: { type: 'string', enum: ['indexing', 'skipped'] },
             reason: {
               type: 'string',
-              enum: ['content-only', 'untracked-blob', 'rag-opt-out'],
+              enum: [
+                'content-only',
+                'untracked-blob',
+                'unsupported',
+                'in-progress',
+              ],
               description:
                 'Why indexing was skipped; absent when `status` is `indexing`',
             },
@@ -1485,11 +1609,21 @@ export function buildSpec(): Json {
       summary: 'Fetch pages',
       description:
         'The crawled pages of a website — OFFSET-paginated (`offset` + ' +
-        '`limit`, default 100), answering `{pages, total, offset, hasMore}`.',
+        '`limit`, default 100), answering `{pages, total, offset, hasMore}` ' +
+        'and, beside them, the keyset pair every other list answers: ' +
+        '`isDone`, and a `continueCursor` that stands for the next `offset` ' +
+        '— pass it back as `cursor` until `isDone`, the one loop for every ' +
+        'list. `cursor` and `offset` together answer 400 `INVALID_QUERY`.',
       operationId: 'listWebsitePages',
       security: sec,
       parameters: [
         pathParam('id', 'Website ID'),
+        queryParam(
+          'cursor',
+          'The previous window’s `continueCursor`, unchanged — opaque; the ' +
+            'alternative to `offset`, never beside it. A value this list ' +
+            'did not answer is refused with 400 `INVALID_CURSOR`',
+        ),
         queryParam(
           'offset',
           'Rows to skip (default 0). A whole number: a negative value is ' +
@@ -1576,7 +1710,7 @@ export function buildSpec(): Json {
         'The organization’s warmed browser-session pool — the cookie jars ' +
         'the video-link ingest presents to get past a platform’s bot wall, ' +
         'with each session’s status, expiry and strike count. Masked: the ' +
-        'jar itself is never returned.',
+        'jar itself is never returned. A complete set, not paginated.',
       operationId: 'listBrowserSessions',
       security: sec,
       responses: {
@@ -1792,7 +1926,9 @@ export function buildSpec(): Json {
       description:
         'Up to 500 contacts per call, each carrying at least one of name, email or externalId (a blank email reads as none); the per-row duplicate check keys on email and externalId. Rows are ' +
         'created independently: the result counts successes and failures ' +
-        'and names each failed row with its reason.',
+        'and names each failed row with its reason. The body may run to ' +
+        '8 MiB — this operation’s own cap; past it the answer is 413 ' +
+        '`BODY_TOO_LARGE`.',
       operationId: 'bulkCreateContacts',
       security: sec,
       requestBody: jsonBody({
@@ -1801,13 +1937,20 @@ export function buildSpec(): Json {
         properties: {
           contacts: {
             type: 'array',
+            minItems: 1,
             maxItems: 500,
+            description:
+              'At least one row — an empty batch is a 400 `INVALID_BODY`, ' +
+              'never a 201 that created nothing',
             items: ref('ContactInput'),
           },
         },
       }),
       responses: {
         '201': jsonResponse('Bulk creation result', ref('BulkCreateResult')),
+        '413': errorResponse(
+          'The body exceeds 8 MiB — this operation’s own cap, above the door’s 1 MiB default, sized for 500 contacts with 10,000-character notes (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
+        ),
         ...standardErrors,
       },
     },
@@ -1881,10 +2024,14 @@ export function buildSpec(): Json {
         'compared after NFC normalization and trimming, the form the create ' +
         'stored it in; a project the key holder cannot see answers the same ' +
         'empty list as no match, and a lookup takes no `cursor`, `limit` or ' +
-        '`archived` (400 `INVALID_QUERY`). Without it: the LIST of every ' +
-        'project the key holder can see, newest first, keyset-paged like the ' +
-        'project files listing — `{projects, isDone, cursor?}`, pass `cursor` ' +
-        'back unchanged until `isDone`. Archived projects are excluded ' +
+        '`archived` (400 `INVALID_QUERY`); it is one whole page and says so ' +
+        '(`isDone: true`, an empty `continueCursor`). Without it: the LIST ' +
+        'of every project the key holder can see, newest first, keyset-paged ' +
+        'like every other list — `{projects, isDone, continueCursor}`, pass ' +
+        '`continueCursor` back as `cursor` until `isDone`. While more pages ' +
+        'remain the answer also carries `cursor`, the same token under its ' +
+        'pre-1.5.0 name — deprecated, served for at least two more minor ' +
+        'versions. Archived projects are excluded ' +
         'unless `archived` says `include` or `only`. Either way a row ' +
         'carries `archivedAt` when the project is archived, so a worker can ' +
         'detect an archived project holding its key. Shares the general REST ' +
@@ -1913,27 +2060,36 @@ export function buildSpec(): Json {
             default: 'exclude',
           },
         },
-        ...paginationParams(100, 25, 'cursor'),
+        ...paginationParams(100, 25),
       ],
       responses: {
         '200': jsonResponse(
           'The lookup’s zero or one matching project, or one page of the list',
           {
             type: 'object',
-            required: ['projects'],
+            [PAGINATION]: 'keyset',
+            required: ['projects', 'isDone', 'continueCursor'],
             properties: {
               projects: { type: 'array', items: ref('Project') },
               isDone: {
                 type: 'boolean',
                 description:
-                  'List only: true when no more pages remain (a lookup ' +
-                  'answers `projects` alone)',
+                  'True when no more pages remain — a lookup is one whole ' +
+                  'page and says so',
+              },
+              continueCursor: {
+                type: 'string',
+                description:
+                  'Pass back as `cursor` for the next page; empty when ' +
+                  '`isDone` (a lookup answers it empty)',
               },
               cursor: {
                 type: 'string',
+                deprecated: true,
                 description:
-                  'List only: present while more pages remain — pass back ' +
-                  'as `cursor`, unchanged',
+                  'The same token as `continueCursor`, present only while ' +
+                  'more pages remain — the pre-1.5.0 spelling, served for ' +
+                  'at least two more minor versions; read `continueCursor`',
               },
             },
           },
@@ -1952,7 +2108,9 @@ export function buildSpec(): Json {
         'against an archived project is still a 409 (delete or restore it ' +
         'first). A value that is blank once trimmed, or over-long, is a 400 ' +
         '`INVALID_BODY`. `key` (the task-identifier prefix) is derived from ' +
-        'the name when omitted; a derived key that is already taken gets a ' +
+        'the name when omitted — omitted, not blank: a key that is blank ' +
+        'once trimmed is the same 400 `INVALID_BODY` a blank `name` is; a ' +
+        'derived key that is already taken gets a ' +
         'numeric suffix, and a name no key can be derived from creates the ' +
         'project keyless — a name-only create never fails on a key the ' +
         'caller did not choose. Only an EXPLICIT `key` that is taken ' +
@@ -1984,8 +2142,11 @@ export function buildSpec(): Json {
             description:
               'Immutable 2-6 char task-key prefix. Omitted: derived from ' +
               'the name (suffixed when taken), keyless when underivable. ' +
-              'Letters and digits only; normalized to uppercase, never ' +
-              'truncated. An explicit key that is taken is a 409.',
+              'Trimmed; whitespace alone is a 400 `INVALID_BODY`, not an ' +
+              'omitted key. Letters and digits only; normalized to ' +
+              'uppercase, never truncated. An explicit key that is taken ' +
+              'is a 409.',
+            minLength: 1,
             maxLength: 6,
           },
           description: { type: 'string', maxLength: 500 },
@@ -2038,7 +2199,7 @@ export function buildSpec(): Json {
     patch: {
       tags: ['Projects'],
       summary:
-        'Update a project — archive, restore, rename, re-describe, re-key',
+        'Update a project — archive, restore, rename, re-describe, re-attach its externalItemId',
       description:
         'The project’s mutable surface, every field optional and at least ' +
         'one required. `archived: true` archives the project, `false` ' +
@@ -2380,10 +2541,12 @@ export function buildSpec(): Json {
         'spelling; otherwise the folder is created and answered 201 with ' +
         '`created: true`. Two concurrent creates of one name yield one ' +
         'folder (the sibling rule is database-enforced). `name` is trimmed; ' +
-        'a name that is a path (`a/b`, `.`, `..`) is refused ' +
-        '(`FOLDER_NAME_INVALID`), and a parent 20 levels deep refuses a ' +
-        'child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must name a folder of ' +
-        'THIS project (an opaque 404 otherwise); omit it for a root folder. ' +
+        'a name that is a path (`a/b`, `a\\b`, `.`, `..`) or carries a ' +
+        'control character is refused (`FOLDER_NAME_INVALID`) — the rule a ' +
+        'file name and a WebDAV segment follow — and a parent 20 levels ' +
+        'deep refuses a child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must ' +
+        'name a folder of THIS project (an opaque 404 otherwise); omit it ' +
+        'for a root folder — a blank id is a 400 `INVALID_BODY`. ' +
         'Requires the org editor role and project edit access. Charged ' +
         'against the general REST bucket (120/min) and the per-org ' +
         '`folder:mutate` budget the in-app folder actions share.',
@@ -2401,12 +2564,16 @@ export function buildSpec(): Json {
             maxLength: 128,
             description:
               'Trimmed; matched against siblings without regard to case. ' +
-              'No path separators, not `.` or `..`.',
+              'No path separators (`/`, `\\`), no control characters, not ' +
+              '`.` or `..`.',
           },
           parentId: {
             type: 'string',
+            minLength: 1,
             maxLength: 64,
-            description: 'Parent folder id (a folder of this project)',
+            description:
+              'Parent folder id (a folder of this project) — present with ' +
+              'a value, or omitted for a root folder; blank is refused',
           },
         },
       }),
@@ -2416,8 +2583,8 @@ export function buildSpec(): Json {
         '201': jsonResponse('The created folder', ref('ProjectFolderResult')),
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`), a name that is a ' +
-            'path (`FOLDER_NAME_INVALID`), or a parent at the depth cap ' +
-            '(`FOLDER_DEPTH_EXCEEDED`)',
+            'path or carries a control character (`FOLDER_NAME_INVALID`), ' +
+            'or a parent at the depth cap (`FOLDER_DEPTH_EXCEEDED`)',
         ),
         '403': errorResponse('No write access to an active project'),
         '404': errorResponse('Project or parent folder not found'),
@@ -2762,8 +2929,11 @@ export function buildSpec(): Json {
       tags: ['Projects'],
       summary: 'List the project’s files',
       description:
-        'Paginated (`cursor` + `limit`, answering `{files, cursor?}` — no ' +
-        '`cursor` in the response means the listing is complete). ' +
+        'Keyset-paginated (`cursor` + `limit`, answering `{files, isDone, ' +
+        'continueCursor}` — pass `continueCursor` back as `cursor` until ' +
+        '`isDone`; while more pages remain the answer also carries `cursor`, ' +
+        'the same token under its pre-1.5.0 name — deprecated, served for at ' +
+        'least two more minor versions). ' +
         '`folderId` narrows to one folder of this project. Project files ' +
         'never appear in `GET /api/v1/documents` — that is the knowledge ' +
         'hub’s surface.',
@@ -2773,22 +2943,31 @@ export function buildSpec(): Json {
         orgSlugHeaderParam,
         pathParam('id', 'Project ID'),
         queryParam('folderId', 'Only files inside this project folder'),
-        ...paginationParams(100, 25, 'cursor'),
+        ...paginationParams(100, 25),
       ],
       responses: {
         '200': jsonResponse('The files', {
           type: 'object',
-          required: ['files', 'isDone'],
+          [PAGINATION]: 'keyset',
+          required: ['files', 'isDone', 'continueCursor'],
           properties: {
             files: { type: 'array', items: ref('ProjectFile') },
             isDone: {
               type: 'boolean',
               description: 'True when no more pages remain',
             },
-            cursor: {
+            continueCursor: {
               type: 'string',
               description:
-                'Present while more pages remain — pass back as `cursor`',
+                'Pass back as `cursor` for the next page; empty when `isDone`',
+            },
+            cursor: {
+              type: 'string',
+              deprecated: true,
+              description:
+                'The same token as `continueCursor`, present only while ' +
+                'more pages remain — the pre-1.5.0 spelling, served for at ' +
+                'least two more minor versions; read `continueCursor`',
             },
           },
         }),
@@ -2840,12 +3019,31 @@ export function buildSpec(): Json {
           properties: {
             file: {
               type: 'object',
-              required: ['id', 'fileName', 'folderId', 'projectId'],
+              required: [
+                'id',
+                'fileName',
+                'folderId',
+                'projectId',
+                'size',
+                'mimeType',
+              ],
               properties: {
                 id: { type: 'string' },
                 fileName: { type: 'string' },
                 folderId: { type: 'string' },
                 projectId: { type: 'string' },
+                size: {
+                  ...int,
+                  description:
+                    'The landed bytes — the authoritative size the upload ' +
+                    'policy judged',
+                },
+                mimeType: {
+                  ...str,
+                  description:
+                    'The type the gate resolved from the file name (a ' +
+                    'declared `contentType` is a hint), as the row was written',
+                },
               },
             },
           },
@@ -2905,7 +3103,9 @@ export function buildSpec(): Json {
         '(omitting description clears it); labels change only when supplied. An archived ' +
         'task stays unchanged. An archived project refuses intake. The key holder creates ' +
         'the task. `automationSlug` must ' +
-        'name a deployed automation applicable to this project and fills an empty assignee ' +
+        'name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed ' +
+        'version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 ' +
+        '`AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee ' +
         'without replacing an existing one. `runWorkflowSlug` starts only a freshly created ' +
         'task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` ' +
         'carries the same value and is deprecated). An undeployed ' +
@@ -3004,10 +3204,13 @@ export function buildSpec(): Json {
           ref('TaskUpsertResult'),
         ),
         '403': errorResponse(
-          'Project is read-only or archived, or the automation is bound to other projects',
+          'Project is read-only or archived, or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`)',
         ),
         '404': errorResponse(
-          'Project missing or invisible, or the explicit owning automation is not deployed',
+          'Project missing or invisible (`PROJECT_NOT_FOUND`), or `automationSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
+        ),
+        '409': errorResponse(
+          '`automationSlug` names an automation with no deployed version (`AUTOMATION_NOT_DEPLOYED`) — deploy it, then assign',
         ),
         ...standardErrors,
       },
@@ -3045,6 +3248,7 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse('The discussion page', {
           type: 'object',
+          [PAGINATION]: 'keyset',
           required: ['comments', 'isDone', 'continueCursor'],
           properties: {
             comments: {
@@ -3205,6 +3409,7 @@ export function buildSpec(): Json {
   /** The `{runs, isDone, continueCursor}` page every run listing answers. */
   const runsPage: Json = {
     type: 'object',
+    [PAGINATION]: 'keyset',
     required: ['runs', 'isDone', 'continueCursor'],
     properties: {
       runs: { type: 'array', items: ref('RunSummary') },
@@ -3230,9 +3435,12 @@ export function buildSpec(): Json {
     name: 'Idempotency-Key',
     in: 'header' as const,
     required: false,
-    schema: { type: 'string' },
+    schema: { type: 'string', pattern: '^[ -~]+$' },
     description:
-      `A stable key of your choosing that names this ${subject.names}. A ` +
+      `A stable key of your choosing that names this ${subject.names} — ` +
+      'printable ASCII (a UUID, a job id); a header value carrying a ' +
+      'control character never reaches the platform, the edge refuses the ' +
+      'request before any envelope. A ' +
       `repeat with the same key, ${subject.scope} within 24 hours answers ` +
       `202 with ${subject.answer} and \`duplicate: true\`; a repeat with a ` +
       'different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused ' +
@@ -3364,9 +3572,9 @@ export function buildSpec(): Json {
       summary: 'List automations installed in a project',
       description:
         'The definitions explicitly bound to the URL project, each with the ' +
-        'ids of the projects it is installed in that the key holder can see. ' +
-        'Requires project read access. Organization-wide definitions are ' +
-        'available from the global catalog.',
+        'ids of the projects it is installed in that the key holder can see ' +
+        '— a complete set, not paginated. Requires project read access. ' +
+        'Organization-wide definitions are available from the global catalog.',
       operationId: 'listProjectAutomations',
       security: sec,
       parameters: projectAutomationParameters,
@@ -3526,8 +3734,8 @@ export function buildSpec(): Json {
           ),
           '404': errorResponse(
             scope.project
-              ? 'Automation, version or visible project not found'
-              : 'Automation or version not found',
+              ? 'Project missing or invisible (`PROJECT_NOT_FOUND`), automation not found (`AUTOMATION_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)'
+              : 'Automation not found (`AUTOMATION_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
           ),
           '409': errorResponse(
             (scope.project
@@ -3614,7 +3822,10 @@ export function buildSpec(): Json {
         'only with `schedule`, `event` only with `event`, `rotateToken` only ' +
         'with `webhook`, `enabled` with any — and a key of another kind is ' +
         'refused like an unknown key (`INVALID_BODY`, named under ' +
-        '`data.issues`).',
+        '`data.issues`). The 200 says whether the automation has a version ' +
+        'to run (`deployed`): binding before deploying is accepted, and such ' +
+        'a trigger skips every occurrence as `not_deployed` — visible on ' +
+        '`GET /api/v1/automations` — until a version is deployed.',
       operationId: 'setAutomationTrigger',
       security: sec,
       parameters: [automationNameParam],
@@ -3657,9 +3868,16 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse('Trigger bound', {
           type: 'object',
-          required: ['name'],
+          required: ['name', 'deployed'],
           properties: {
             name: { type: 'string' },
+            deployed: {
+              ...bool,
+              description:
+                'Whether the automation has a deployed version. False means ' +
+                'the binding is live but starts nothing — every occurrence ' +
+                'is skipped as `not_deployed` — until one is deployed.',
+            },
             token: {
               type: 'string',
               description: 'Webhook trigger only, shown once',
@@ -3805,7 +4023,7 @@ export function buildSpec(): Json {
       tags: ['Threads'],
       summary: 'List available chat models',
       description:
-        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model when sending a message, and providerSlug when the same id is listed under more than one provider. Each entry carries what a client needs to choose — context window, output cap, capabilities, price when the catalog publishes one, tags — and `default: true` marks the organization’s default pick for this key holder. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.',
+        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available; the list is a complete set, not paginated. Use id as model when sending a message, and providerSlug when the same id is listed under more than one provider. Each entry carries what a client needs to choose — context window, output cap, capabilities, price when the catalog publishes one, tags — and `default: true` marks the organization’s default pick for this key holder. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.',
       operationId: 'listChatModels',
       security: sec,
       responses: {
@@ -4038,7 +4256,7 @@ export function buildSpec(): Json {
               maxLength: 20,
               pattern: '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$',
               description:
-                'A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in. Defaults to `en`.',
+                'A BCP 47 language tag (`de`, `en-GB`) — the language the assistant answers in, whatever language the prompt is written in. Omitted, the assistant answers in the prompt’s language.',
             },
           },
         }),
@@ -4115,7 +4333,7 @@ export function buildSpec(): Json {
       get: {
         tags: ['Threads'],
         summary: 'Poll the running turn',
-        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; send \`since\` (the characters of \`text\` you already hold) to receive only what arrived after them, with \`textOffset\` and \`textLength\` beside it; there is no push channel on this surface. \`idle\`: no turn is running — \`lastMessageId\` and \`lastStatus\` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until \`idle\`, then compare \`lastMessageId\` with the \`messageId\` the 202 named — equal means your turn settled (read that message at GET ${scope.item}/messages/{messageId}, or page the messages with \`order=desc\`), a different id means yours has not started yet.`,
+        description: `${visibility} \`queued\`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). \`streaming\`: the model is streaming its reply to the server — \`text\` and \`reasoning\` carry what has arrived so far, so a poller sees progress; send \`since\` (the characters of \`text\` you already hold) and \`reasoningSince\` (the characters of \`reasoning\`) to receive only what arrived after them, with \`textOffset\`/\`textLength\` and \`reasoningOffset\`/\`reasoningLength\` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE ${scope.item}/generation. \`idle\`: no turn is running — \`lastMessageId\` and \`lastStatus\` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until \`idle\`, then compare \`lastMessageId\` with the \`messageId\` the 202 named — equal means your turn settled (read that message at GET ${scope.item}/messages/{messageId}, or page the messages with \`order=desc\`), a different id means yours has not started yet.`,
         operationId: scope.project
           ? 'getProjectThreadGeneration'
           : 'getGeneration',
@@ -4126,6 +4344,13 @@ export function buildSpec(): Json {
             ...queryParam(
               'since',
               'The number of characters of `text` you already hold from an earlier poll: the answer carries only what arrived after them, `textOffset` says where the slice starts and `textLength` how long the whole reply is so far. A value past the current length — the text was reset when a tool round settled — answers from 0: when `textOffset` is below the `since` you sent, replace what you hold. Ignored unless the turn is streaming',
+            ),
+            schema: { type: 'integer', minimum: 0 },
+          },
+          {
+            ...queryParam(
+              'reasoningSince',
+              'The number of characters of `reasoning` you already hold from an earlier poll — the `since` of the reasoning stream: the answer carries only what arrived after them, `reasoningOffset` says where the slice starts and `reasoningLength` how long the whole reasoning is so far. A value past the current length — the reasoning was reset with the text when a tool round settled — answers from 0: when `reasoningOffset` is below the `reasoningSince` you sent, replace what you hold. Ignored unless the turn is streaming',
             ),
             schema: { type: 'integer', minimum: 0 },
           },
@@ -4176,7 +4401,19 @@ export function buildSpec(): Json {
                 reasoning: {
                   type: 'string',
                   description:
-                    'The model’s reasoning streamed so far — display-only, may be empty (present while streaming)',
+                    'The model’s reasoning streamed so far — from `reasoningOffset` on when `reasoningSince` was sent; display-only, may be empty (present while streaming)',
+                },
+                reasoningOffset: {
+                  ...int,
+                  minimum: 0,
+                  description:
+                    'The character position `reasoning` starts at: the `reasoningSince` you sent, or 0 when the reasoning was reset since (present while streaming)',
+                },
+                reasoningLength: {
+                  ...int,
+                  minimum: 0,
+                  description:
+                    'The length of the whole reasoning streamed so far — send it back as `reasoningSince` on the next poll (present while streaming)',
                 },
                 cancelRequested: {
                   type: 'boolean',
@@ -4198,27 +4435,31 @@ export function buildSpec(): Json {
       delete: {
         tags: ['Threads'],
         summary: 'Cancel the running turn',
-        description: `${visibility} Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. No running turn answers 404 \`CHAT_TURN_NOT_RUNNING\`.`,
+        description: `${visibility} Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. A send still queued (no worker has opened it) is stopped the same way: 202 naming the reply the send’s 202 promised, the model is never called, and that reply settles as \`cancelled\` with empty \`parts\`. Nothing running and nothing queued answers 404 \`CHAT_TURN_NOT_RUNNING\` with \`data.lastMessageId\` and \`data.lastStatus\` — the idle poll’s answer, so a stop that lost the race against a fast model needs no second call.`,
         operationId: scope.project
           ? 'cancelProjectThreadGeneration'
           : 'cancelGeneration',
         security: sec,
         parameters: itemParameters,
         responses: {
-          '202': jsonResponse('Cancellation requested', {
-            type: 'object',
-            required: ['status'],
-            properties: {
-              status: { type: 'string', enum: ['cancelling'] },
-              messageId: {
-                type: 'string',
-                description: 'The assistant message the turn was writing',
+          '202': jsonResponse(
+            'Cancellation requested — of the running turn, or of the queued send',
+            {
+              type: 'object',
+              required: ['status'],
+              properties: {
+                status: { type: 'string', enum: ['cancelling'] },
+                messageId: {
+                  type: 'string',
+                  description:
+                    'The assistant message the turn was writing, or the one the queued send was to write',
+                },
               },
             },
-          }),
+          ),
           ...archivedProject,
           '404': errorResponse(
-            'Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no turn is running (`CHAT_TURN_NOT_RUNNING`)',
+            'Thread missing, owned by another user, or outside the visible URL scope (`THREAD_NOT_FOUND`); or no turn is running and no send is queued (`CHAT_TURN_NOT_RUNNING` — `data.lastMessageId` and `data.lastStatus` name the newest assistant message, as the idle poll does)',
           ),
           ...standardErrors,
         },
@@ -4308,8 +4549,11 @@ export function buildSpec(): Json {
         },
         '304': {
           description:
-            'Not modified: `If-None-Match` named the current document; `ETag` repeats the tag, no body',
-          headers: { ETag: headerRef('ETag') },
+            'Not modified: `If-None-Match` named the current document (weakly — the `W/` and the edge-suffixed `"…-gzip"` forms match); `ETag` repeats the tag, `Cache-Control` says `private, no-cache` as the 200 does, no body',
+          headers: {
+            ETag: headerRef('ETag'),
+            'Cache-Control': headerRef('CacheControl'),
+          },
         },
         '404': errorResponse(
           'No such skill, none this key may see, or a malformed slug (`SKILL_NOT_FOUND`)',
@@ -4321,8 +4565,11 @@ export function buildSpec(): Json {
       tags: ['Skills'],
       summary: 'Create or update skill',
       description:
-        'Creates the bundle when the slug is free and updates it in place ' +
-        'otherwise: `description` and `body` are required; an omitted ' +
+        'Creates the bundle when the slug is free — **201** — and updates it ' +
+        'in place otherwise — **200** — so the status is the create-or-update ' +
+        'signal (the same convention as a task materialisation) and a sync ' +
+        'that mirrors bundles from elsewhere needs no read first: ' +
+        '`description` and `body` are required; an omitted ' +
         '`icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` ' +
         'keeps its stored value, `null` clears `icon` or `labels`, and ' +
         '`disableModelInvocation: false` drops the flag. A body that does ' +
@@ -4340,7 +4587,9 @@ export function buildSpec(): Json {
         'evaluated. Every skill carries `canEdit`: whether this key may edit ' +
         'the bundle; shipped skills are organization bundles an ' +
         'administrator may overwrite, so check it before a save that means ' +
-        'to replace one.',
+        'to replace one. The body may run to 4 MiB — this operation’s own ' +
+        'cap, so the worst JSON escaping of a full-size `body` still fits; ' +
+        'past it the answer is 413 `BODY_TOO_LARGE`.',
       operationId: 'saveSkill',
       security: sec,
       parameters: [
@@ -4421,7 +4670,11 @@ export function buildSpec(): Json {
       }),
       responses: {
         '200': jsonResponse(
-          'The saved skill — its `etag` names the version just written',
+          'The skill this save updated in place — its `etag` names the version just written',
+          ref('Skill'),
+        ),
+        '201': jsonResponse(
+          'The skill this save created (the slug was free) — its `etag` names the version just written',
           ref('Skill'),
         ),
         '403': errorResponse('Not editable with this key (`SKILL_FORBIDDEN`)'),
@@ -4430,6 +4683,9 @@ export function buildSpec(): Json {
         ),
         '422': errorResponse(
           'The skill body is malformed, or the bundle cannot be read — a planted symlink, a file over the staging cap (`SKILL_MALFORMED`)',
+        ),
+        '413': errorResponse(
+          'The body exceeds 4 MiB — this operation’s own cap, above the door’s 1 MiB default, so the worst JSON escaping of a full-size `body` still fits (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
         ),
         ...standardErrors,
         '400': errorResponse(
@@ -4628,16 +4884,21 @@ export function buildSpec(): Json {
         'Entries are immutable: an update writes a NEW row and answers its ' +
         'id (with the `documentId` it re-indexes under); the old row ' +
         'becomes `superseded`, stamped with `supersededAt`. Both `topic` ' +
-        'and `content` are required. Only the ACTIVE row of a topic takes ' +
-        'an update — a superseded row answers 409 naming the row that ' +
-        'replaced it. Requires the knowledge write grant (editor and up).',
+        'and `content` are required. A write that repeats the active row ' +
+        '— the same `topic` and `content` after trimming — writes no ' +
+        'version and answers the active row’s own id (the documents PATCH ' +
+        'rule), so a retry or a replaying sync job never inflates the ' +
+        'history; a case-only change of the topic is a change. Only the ' +
+        'ACTIVE row of a topic takes an update — a superseded row answers ' +
+        '409 naming the row that replaced it, an identical body included. ' +
+        'Requires the knowledge write grant (editor and up).',
       operationId: 'updateKnowledgeEntry',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
       requestBody: jsonBody(knowledgeEntryBody),
       responses: {
         '200': jsonResponse(
-          'The NEW row’s id and the document it re-indexes under',
+          'The NEW row’s id and the document it re-indexes under — or, for a body that repeats the active row, that row’s id with nothing written',
           ref('KnowledgeEntryCreated'),
         ),
         '403': errorResponse(
@@ -4693,7 +4954,8 @@ export function buildSpec(): Json {
         'the Hub document every version re-materializes onto, so a topic ' +
         'rename keeps it together; a version pruned with ' +
         '`DELETE /api/v1/knowledge-entries/{id}` is not listed. The same ' +
-        'history the app’s entry panel shows.',
+        'history the app’s entry panel shows — the whole chain at once, ' +
+        'not paginated.',
       operationId: 'listKnowledgeEntryVersions',
       security: sec,
       parameters: [pathParam('id', 'Entry ID')],
@@ -5154,7 +5416,11 @@ the whole string as opaque):
 Authorization: Bearer <api-key>
 \`\`\`
 
-Inbound automation webhooks authenticate with their URL token.
+Inbound automation webhooks authenticate with their URL token. The key is
+read from \`Authorization\` alone: a request that carries one as
+\`x-api-key\` — the header the platform's own door uses internally — is
+refused with 401 whatever else it carries; a valid \`Authorization\` header
+alongside it does not rescue it.
 
 If you belong to several organizations, send \`X-Organization-Slug\` on
 every request, reads included — without it the request answers 400
@@ -5162,14 +5428,16 @@ every request, reads included — without it the request answers 400
 \`ORG_SLUG_INVALID\`, one you are no member of 403 \`ORG_FORBIDDEN\`. The
 400 lists the slugs you may send under \`data.organizations\`; \`GET
 /api/v1/me\` lists them too, as its top-level \`organizations\`. The slug
-is matched without regard to case.
+is matched without regard to case; a blank or whitespace-only header reads
+as absent.
 
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
 number beyond 2^53 − 1 is refused rather than rounded (send such an id as a
 string). Every body schema is strict — an unknown key answers 400
-\`INVALID_BODY\` naming it — and so is every query string: a parameter a
+\`INVALID_BODY\` naming it, and a key given twice keeps its last value — and
+so is every query string: a parameter a
 route does not take, one given twice, or a named filter left blank answers
 400 \`INVALID_QUERY\`, and writes take no query parameters at all. An
 out-of-range number is handled by where it travels: a query parameter
@@ -5177,20 +5445,28 @@ out-of-range number is handled by where it travels: a query parameter
 \`limit\`, \`maxOutputTokens\`) is refused with 400 \`INVALID_BODY\` naming it.
 A body is capped at 1 MiB unless the operation says otherwise (a document's inline
 content 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8
-MiB, a staged conversation upload 30 MiB, a skill save 4 MiB); past the cap
+MiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery
+claim, failure report or acknowledgement 64 KiB); past the cap
 the answer is 413 \`BODY_TOO_LARGE\`, before a byte is read when the length
-is declared. Bodies are read as JSON whatever Content-Type says; there is no
+is declared. A request must finish arriving within 15 minutes, headers and
+body together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408
+\`REQUEST_TIMEOUT\` in the envelope (with a fresh \`requestId\`) and the
+connection closes. Bodies are read as JSON whatever Content-Type says; there is no
 415. Every served path answers HEAD (for a GET, with the \`Content-Length\`
 the GET would carry) and OPTIONS (204 with \`Allow\`, no key needed); a
 method a path does not take answers 405 \`METHOD_NOT_ALLOWED\` with
 \`Allow\`; one trailing slash on a path is tolerated. The surface is
-server-to-server: no response carries CORS headers, so a browser page
-cannot call it — keep the key behind your own backend. A request URL (path
+server-to-server: no response on this surface carries CORS headers (the
+status page's JSON is the one keyless exception), so a browser page cannot
+call it — keep the key behind your own backend. A request URL (path
 and query) above 32 KiB answers 414 \`URI_TOO_LONG\` in the envelope, before
 any route is looked up. Request headers as a whole are budgeted at 64 KiB
 at the edge: past it HTTP/1.1 answers a bare 431 without the envelope and
 an HTTP/2 connection is closed without a response — carry data in the body,
-never in a header. Every response from this surface carries an
+never in a header. A header value carrying a control character — below 0x20
+other than tab, or DEL — never reaches the platform either: HTTP/1.1 answers
+a bare text 400 at the edge, HTTP/2 resets the stream or, on a request with
+a body, closes the connection. Every response from this surface carries an
 \`X-Request-Id\` (a refusal answered at the edge, such as a dot-segment
 404, carries a fresh id of its own) — send your own to correlate: up to 255
 characters of letters, digits, \`_\`, \`-\` and \`=\`; anything else is
@@ -5207,32 +5483,49 @@ body-size 413 and a URL-size 414 add \`requestId\`; a refused body or query
 lists every problem under \`data.issues\`, each naming the field (\`path\`)
 and the reason as a short phrase you can show a person — \`is required\`,
 \`must be a string\`, \`must not be blank\`, \`must be at most 200
-characters\`, \`must be one of "a", "b"\` — so branch on \`path\` and the
-\`code\`, never on the sentence. The door's own refusals are
+characters\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
+\`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
+too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
 \`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
-\`HTTP_ERROR\` (a refusal a middleware raised) and \`INTERNAL_ERROR\`.
+\`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
+minutes; the connection closes), \`HTTP_ERROR\` (a refusal a middleware or
+the listener itself raised — bytes that are not HTTP, a header block past
+the budget) and \`INTERNAL_ERROR\`.
 
 ## Pagination
 
-The keyset-paginated lists — contacts, products, documents, knowledge
-entries, threads, messages, websites — take \`cursor\` + \`limit\` and answer
-\`{page, isDone, continueCursor}\`; pass \`continueCursor\` back as \`cursor\`
-until \`isDone\`. Lists that answer a named array (\`{automations}\`,
-\`{agents}\`, \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`,
-\`{deliveries}\`, \`{versions}\`, \`{triggers}\`) are complete sets or bounded
-windows; runs and task comments answer their named array WITH \`isDone\` and
-\`continueCursor\` (\`{runs, …}\`, \`{comments, …}\`); search answers \`{hits,
-diagnostics}\`, website pages \`{pages, total, offset, hasMore}\`; project
-files answer \`{files, isDone, cursor?}\` and the project list \`{projects,
-isDone, cursor?}\` — pass \`cursor\` back unchanged until \`isDone\`. Every
-cursor is an opaque signed token: one this list never answered is refused
-with 400 \`INVALID_CURSOR\`, never read as the first page — and a blank
-\`cursor\` (the empty \`continueCursor\` the last page answers) is refused
-like any blank parameter (400 \`INVALID_QUERY\`), so a pager that sends
-the last page's cursor back stops instead of starting over.
+One rule: a paginated list takes \`cursor\` + \`limit\` and answers \`isDone\`
+with a \`continueCursor\` — pass \`continueCursor\` back as \`cursor\`,
+unchanged, until \`isDone\` (it is empty then). Every list's 200 schema
+names its family in \`x-tale-pagination\`, so a generated client picks the
+loop from the document rather than from this prose:
+
+- **keyset** — the rows sit under \`page\` on the knowledge and chat lists
+  (contacts, products, documents, knowledge entries, threads, messages,
+  websites) and under the resource's own key elsewhere: \`{runs, …}\`,
+  \`{deliveries, …}\`, \`{comments, …}\`, \`{projects, …}\`, \`{files, …}\`.
+  The last two also answer \`cursor\` — the same token under its pre-1.5.0
+  name, present only while more pages remain, deprecated and served for at
+  least two more minor versions; a project lookup by \`externalItemId\` is
+  one whole page and says so.
+- **offset** — website pages alone: \`{pages, total, offset, hasMore}\`,
+  with \`isDone\` and a \`continueCursor\` (the next \`offset\`, signed)
+  beside them, so the same loop walks it; \`cursor\` and \`offset\` together
+  are refused (400 \`INVALID_QUERY\`).
+- **none** — a named array alone is the complete set (or the bounded roster
+  the operation names), never a cursor walk — no \`isDone\`, no cursor, no
+  \`cursor\` or \`limit\` parameter: \`{automations}\`, \`{agents}\`,
+  \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\`,
+  \`{triggers}\`; search answers \`{hits, diagnostics}\`.
+
+Every cursor is an opaque signed token: one this list never answered is
+refused with 400 \`INVALID_CURSOR\`, never read as the first page — and a
+blank \`cursor\` (the empty \`continueCursor\` the last page answers) is
+refused like any blank parameter (400 \`INVALID_QUERY\`), so a pager that
+sends the last page's cursor back stops instead of starting over.
 
 ## Rate limits
 
@@ -5386,6 +5679,23 @@ curl -H "Authorization: Bearer <api-key>" \\
                   type: 'number',
                   description: 'Wait in milliseconds for RATE_LIMITED',
                 },
+                providers: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description:
+                    'For CHAT_MODEL_AMBIGUOUS, the provider slugs that serve the model — name one as `providerSlug`',
+                },
+                lastMessageId: {
+                  type: 'string',
+                  description:
+                    'For CHAT_TURN_NOT_RUNNING, the newest assistant message on the thread (once it has one) — the idle poll’s own disambiguation: equal to the `messageId` a 202 named means that turn already settled',
+                },
+                lastStatus: {
+                  type: 'string',
+                  enum: ['pending', 'complete', 'failed', 'cancelled'],
+                  description:
+                    'For CHAT_TURN_NOT_RUNNING, how `lastMessageId` settled (present with it)',
+                },
                 organizations: {
                   type: 'array',
                   description:
@@ -5402,7 +5712,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 issues: {
                   type: 'array',
                   description:
-                    'For INVALID_BODY and INVALID_QUERY, every problem the schema found in the body or the query string; for AUTOMATION_INPUT_INVALID, every problem the automation’s inputs schema found in the run input (at most 20 either way), each naming the field and the reason; `error` repeats the first one',
+                    'For INVALID_BODY and INVALID_QUERY, every problem the schema found in the body or the query string; for INVALID_LIMIT and INVALID_CURSOR, the one parameter refused (`limit`, `cursor`); for AUTOMATION_INPUT_INVALID, every problem the automation’s inputs schema found in the run input (at most 20 either way), each naming the field and the reason; `error` repeats the first one',
                   items: {
                     type: 'object',
                     required: ['path', 'message'],
@@ -5455,35 +5765,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             createdBy: str,
             createdAt: epochMs,
             updatedAt: epochMs,
-            indexing: {
-              type: 'object',
-              required: ['status'],
-              additionalProperties: false,
-              description:
-                'Where a file-backed document stands in the search corpus — absent for a content-only document (never indexed) and for a blob the platform does not track. Poll it after a create or a `retry-indexing`.',
-              properties: {
-                status: {
-                  type: 'string',
-                  enum: [
-                    'pending',
-                    'queued',
-                    'running',
-                    'completed',
-                    'failed',
-                    'unsupported',
-                    'skipped',
-                  ],
-                  description:
-                    '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — no text extractor for this type; `failed` — see `error` / `errorCode`',
-                },
-                indexedAt: {
-                  ...epochMs,
-                  description: 'Epoch ms of the last completed indexing',
-                },
-                error: str,
-                errorCode: str,
-              },
-            },
+            indexing: documentIndexing,
           },
         },
         DocumentInput: {
@@ -5556,8 +5838,20 @@ curl -H "Authorization: Bearer <api-key>" \\
             scanInterval: str,
             lastScannedAt: nullable(epochMs),
             status: nullable(str),
-            pageCount: nullable(int),
-            crawledPageCount: nullable(int),
+            pageCount: nullable({
+              ...int,
+              description: 'Pages the crawler knows on this site',
+            }),
+            crawledPageCount: nullable({
+              ...int,
+              description:
+                'Pages the crawler ATTEMPTED in its scans so far — stored or not; a page whose every attempt failed counts here too (see `failedPageCount`), and `indexed` per page is on `GET /api/v1/websites/{id}/pages`',
+            }),
+            failedPageCount: nullable({
+              ...int,
+              description:
+                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list; `null` until the next corpus → row sync stamps the row',
+            }),
             metadata: nullable(obj),
             createdAt: epochMs,
             updatedAt: epochMs,
@@ -5640,27 +5934,78 @@ curl -H "Authorization: Bearer <api-key>" \\
             'discoveredAt',
             'chunksCount',
             'indexed',
+            'failCount',
+            'lastError',
+            'lastErrorKind',
+            'lastErrorAt',
           ],
           properties: {
             url: str,
             title: nullable(str),
             wordCount: int,
-            status: { ...str, description: 'The page’s crawl status' },
+            status: {
+              type: 'string',
+              enum: ['discovered', 'active'],
+              description:
+                '`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A page the site answered 404/410 for leaves the listing.',
+            },
             contentHash: nullable(str),
-            lastCrawledAt: nullable(epochMs),
+            lastCrawledAt: nullable({
+              ...epochMs,
+              description:
+                'Epoch milliseconds of the last ATTEMPT, stored or not',
+            }),
             discoveredAt: nullable(epochMs),
             chunksCount: int,
             indexed: bool,
+            failCount: {
+              ...int,
+              description:
+                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5; a listed one never does',
+            },
+            lastError: nullable({
+              ...str,
+              description:
+                'Why the last attempt stored nothing; `null` once a fetch stores the page again',
+            }),
+            lastErrorKind: nullable({
+              type: 'string',
+              enum: [...PAGE_FAILURE_KINDS],
+              description:
+                'The last failure’s kind: a fetch refusal (`insecure_public_http` — a redirect to a plaintext URL, a loopback included, is refused before it is dialed; `private_ip`; `dns_failed`; `timeout`; `response_too_large`; …), `http_error` (a 4xx/5xx other than 404/410), `render_failed` (the sandboxed browser gave up), or `extraction_failed` (a linked document no extractor could read); `null` when the last attempt succeeded',
+            }),
+            lastErrorAt: nullable({
+              ...epochMs,
+              description: 'Epoch milliseconds of the last failure',
+            }),
           },
         },
         WebsitePageList: {
           type: 'object',
-          required: ['pages', 'total', 'offset', 'hasMore'],
+          [PAGINATION]: 'offset',
+          required: [
+            'pages',
+            'total',
+            'offset',
+            'hasMore',
+            'isDone',
+            'continueCursor',
+          ],
           properties: {
             pages: { type: 'array', items: ref('WebsitePage') },
             total: int,
             offset: int,
             hasMore: bool,
+            isDone: {
+              type: 'boolean',
+              description: 'True when the window reached the end (`!hasMore`)',
+            },
+            continueCursor: {
+              type: 'string',
+              description:
+                'Pass back as `cursor` for the next window — the next ' +
+                '`offset`, signed; empty when `isDone`',
+            },
           },
         },
         WebsiteSearchHit: {
@@ -6178,12 +6523,29 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         ProjectFile: {
           type: 'object',
-          required: ['id', 'createdAt'],
+          required: ['id', 'createdAt', 'size'],
           properties: {
             id: { type: 'string' },
             fileName: nullable(str),
             folderId: nullable(str),
             mimeType: nullable(str),
+            size: nullable({
+              ...int,
+              description:
+                'The landed bytes, from the blob’s metadata row — the size ' +
+                'the upload policy judged; null when the platform does not ' +
+                'track the blob',
+            }),
+            indexing: {
+              ...documentIndexing,
+              description:
+                'Where the file stands in the search corpus — the vocabulary ' +
+                '`Document.indexing` speaks. A file bound with the default ' +
+                '`skipRagIndexing: true` reads `skipped` until someone indexes ' +
+                'it (the project’s Files tab, or a bind with `skipRagIndexing: ' +
+                'false`) and is not found by `POST …/knowledge/search` until ' +
+                'then; absent when the platform does not track the blob.',
+            },
             createdAt: epochMs,
           },
         },
@@ -6231,6 +6593,14 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'Label names as stored — the spelling each label was ' +
                 'first created with — in the order the task carries them ' +
                 '(the order they were sent)',
+            },
+            archivedAt: {
+              ...epochMs,
+              description:
+                'Epoch ms — present when the task is archived: the state ' +
+                '`…/comments` and `…/start` refuse with 403 `TASK_ARCHIVED`. ' +
+                'A task is archived from the board; this door has no verb ' +
+                'for it, so read the state here.',
             },
             createdAt: epochMs,
             updatedAt: epochMs,
@@ -6305,16 +6675,31 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             trigger: nullable({
               type: 'object',
-              required: ['kind', 'enabled'],
+              required: [
+                'kind',
+                'enabled',
+                'lastFiredAt',
+                'lastSkippedAt',
+                'lastSkipReason',
+              ],
               properties: {
                 kind: {
                   type: 'string',
                   enum: ['schedule', 'webhook', 'event'],
                 },
                 enabled: bool,
+                ...triggerHealthProperties,
               },
               description:
-                'What starts the automation, if a trigger is bound: its kind and whether it is switched on; null when none is. `GET …/triggers` has the rest.',
+                'What starts the automation, if a trigger is bound: its kind, ' +
+                'whether it is switched on, and its health — the same ' +
+                '`lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that ' +
+                '`GET …/triggers` reads, so one listing call finds every ' +
+                'binding that is enabled and not firing (a `lastSkipReason` ' +
+                'of `not_deployed` beside a null `deployedVersion` is a ' +
+                'trigger waiting for a deploy); null when none is bound. ' +
+                '`GET …/triggers` has the rest — the cron, the event, ' +
+                '`lastRunId`.',
             }),
             projectIds: {
               type: 'array',
@@ -6441,40 +6826,13 @@ curl -H "Authorization: Bearer <api-key>" \\
               description: 'A webhook secret exists (never returned here)',
             },
             enabled: bool,
-            lastFiredAt: {
-              ...nullable(epochMs),
-              description:
-                'The last time this binding started a run — `lastRunId` ' +
-                'names it; null until it has. For a schedule this is the ' +
-                'occurrence the run fired for (the minute the cron named); ' +
-                'for a webhook or an event, the moment the delivery or the ' +
-                'event was accepted. A rebind to another kind starts it afresh.',
-            },
             lastRunId: {
               ...nullable(str),
               description:
                 'The run `lastFiredAt` started; null until one has, and again ' +
                 'once that run is deleted.',
             },
-            lastSkippedAt: {
-              ...nullable(epochMs),
-              description:
-                'The last time the binding came due (a schedule occurrence, ' +
-                'an event, a webhook delivery) and started nothing — ' +
-                '`lastSkipReason` says why; null until it has.',
-            },
-            lastSkipReason: {
-              type: 'string',
-              nullable: true,
-              enum: ['not_deployed', 'unusable_cron', 'start_refused'],
-              description:
-                '`not_deployed`: the automation had no deployed version to ' +
-                'run — deploy one. `unusable_cron`: the schedule’s expression ' +
-                'or time zone could not be read; the scheduler leaves the ' +
-                'binding alone until it is edited. `start_refused`: the ' +
-                'deployed version’s `inputs` schema refused the run’s input ' +
-                '(`{trigger, firedAt}` for a schedule).',
-            },
+            ...triggerHealthProperties,
           },
         },
         RunSummary: {
@@ -6765,7 +7123,11 @@ curl -H "Authorization: Bearer <api-key>" \\
             id: str,
             title: str,
             kind: str,
-            harness: str,
+            harness: {
+              ...str,
+              description:
+                'The sandbox harness a thread the app started runs on (`claude-code`, …) — present only on such a thread; the direct threads this surface creates never carry it',
+            },
             projectId: {
               ...str,
               description:
@@ -6777,7 +7139,11 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'Epoch ms of the archive — present on an archived thread whose archive the deployment recorded; `updatedAt` does not move on archive or restore',
             },
-            isShared: bool,
+            isShared: {
+              ...bool,
+              description:
+                'Whether the owner’s share link for the thread is live — present once the thread has been shared or unshared in the app, absent on one that never was',
+            },
             generating: bool,
             createdAt: epochMs,
             updatedAt: {
@@ -7007,7 +7373,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 reasoningTokens: {
                   ...int,
                   description:
-                    'The share of `outputTokens` spent thinking before the reply',
+                    'The share of `outputTokens` spent thinking before the reply — absent when the provider reported no count (a `0` is a reported zero)',
                 },
                 costEstimateCents: {
                   ...num,
@@ -7173,7 +7539,11 @@ curl -H "Authorization: Bearer <api-key>" \\
           type: 'object',
           required: ['id', 'documentId'],
           properties: {
-            id: { ...str, description: 'The entry row written' },
+            id: {
+              ...str,
+              description:
+                'The entry row written — or, on an update whose body repeats the active row, that row',
+            },
             documentId: {
               ...str,
               description:

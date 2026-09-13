@@ -105,6 +105,9 @@ export interface ContextBudget {
 /** What a project contributes to a turn's prompt. */
 export interface ProjectContext {
   readonly name: string;
+  /** The project key (`WR` in `WR-12`) — the handle people and task ids use
+   * for it, so the assistant can recognise it when a message says it. */
+  readonly key?: string;
   /** The project's own standing instructions — the field the editor promises
    * "every chat in this project starts with these instructions". */
   readonly instructions?: string;
@@ -122,13 +125,20 @@ export interface ContextInput {
   /** The user's locale, for the response-language directive and for resolving
    * the agent's localized instructions. */
   readonly locale: string;
+  /** The caller FIXED the reply language: the assistant answers in `locale`
+   * whatever language the user writes in — the REST send that named
+   * `locale`. Absent, the user's own language wins, which is what the app
+   * lane wants from a `locale` that is only the UI's setting. */
+  readonly localeFixed?: boolean;
   readonly toolDocs?: readonly ToolDoc[];
   /**
-   * The project a project-bound thread belongs to. NAMED, not fenced: the
-   * model is told which project the conversation sits in and what the project
-   * asks of it, while retrieval keeps the user's FULL visibility — a
-   * project-bound chat is still allowed to answer from anything its user can
-   * read. Absent for an unbound thread.
+   * The project a project-bound thread belongs to — the scope boundary of
+   * the turn: the model is told which project the conversation sits in, that
+   * its tools reach this project's files and the organization's shared
+   * knowledge and no other project's, and what the project asks of it. The
+   * boundary itself is enforced server-side in the tool executor; this block
+   * tells the model so it never goes looking for what it cannot reach.
+   * Absent for an unbound thread.
    */
   readonly project?: ProjectContext;
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
@@ -197,10 +207,16 @@ function renderToolDocs(docs: readonly ToolDoc[]): string {
   ].join('\n');
 }
 
-function renderRuntimeDirectives(now: Date, locale: string): string {
+function renderRuntimeDirectives(
+  now: Date,
+  locale: string,
+  localeFixed: boolean,
+): string {
   return [
     `Current time: ${now.toISOString()} (UTC).`,
-    `Respond in the user's language (${locale}). If the user writes in another language, answer in the language they used.`,
+    localeFixed
+      ? `Answer in ${locale} whatever language the user writes in — the caller fixed the reply language.`
+      : `Respond in the user's language (${locale}). If the user writes in another language, answer in the language they used.`,
   ].join('\n');
 }
 
@@ -337,33 +353,36 @@ function fitHistory(
 }
 
 /**
- * Assemble the context for one turn. Pure: same input, same prompt — no clock
- * read, no model call, no I/O.
- */
-/**
- * The project block: which project this conversation belongs to, and the
- * project's standing instructions when it has any.
+ * The project block: which project this conversation belongs to, what its
+ * tools reach from here, and the project's standing instructions when it has
+ * any.
  *
- * Deliberately NOT a retrieval fence. The name is context so the assistant can
- * say "in Growth" instead of guessing, and the instructions are the project's
- * own standing ask; what the user may retrieve is unchanged, because narrowing
- * retrieval to the project would make a project chat worse at every question
- * that reaches outside it.
+ * The boundary sentence states what the executor enforces: a project chat's
+ * tools reach the project's files plus the organization's shared knowledge,
+ * and no other project. Said in the prompt so the model neither walks the
+ * project list to find "the project's files" nor apologises for a boundary
+ * that is the product's design.
  */
 function renderProjectContext(project?: ProjectContext): string | undefined {
   const name = project?.name.trim();
   if (!name) return undefined;
+  const key = project?.key?.trim();
   const instructions = project?.instructions?.trim();
   const lines = [
-    `This conversation belongs to the project "${name}". Prefer its material ` +
-      'when a question is ambiguous, but you may still use anything else the ' +
-      'user can read.',
+    `This conversation belongs to project "${name}"${key ? ` (${key})` : ''}. ` +
+      "Your tools reach this project's files and the organization's shared " +
+      'knowledge; other projects are out of scope in this chat.',
   ];
   if (instructions) {
     lines.push('', `Instructions for this project:`, instructions);
   }
   return lines.join('\n');
 }
+
+/**
+ * Assemble the context for one turn. Pure: same input, same prompt — no clock
+ * read, no model call, no I/O.
+ */
 
 export function assembleContext(input: ContextInput): AssembledContext {
   const blocks: ContextBlock[] = [];
@@ -403,7 +422,11 @@ export function assembleContext(input: ContextInput): AssembledContext {
   const cacheBreakpointIndex = blocks.length;
   blocks.push({ id: 'cache-breakpoint' });
 
-  const volatileSuffix = renderRuntimeDirectives(input.now, input.locale);
+  const volatileSuffix = renderRuntimeDirectives(
+    input.now,
+    input.locale,
+    input.localeFixed === true,
+  );
   blocks.push({ id: 'runtime-directives', text: volatileSuffix });
 
   const stablePrefix = blocks

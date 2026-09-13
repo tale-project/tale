@@ -1464,6 +1464,7 @@ chat:
     reading: Lecture de {hostname}
     searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
     readingDocument: Lecture de {name}
+    readingDocumentUnnamed: Lecture d'un document
     readingTask: Lecture de la tâche {name}
     listing:
       generic: Liste de l'espace de travail
@@ -7167,6 +7168,8 @@ websites:
     noSearchResultsDescription: Essaie un autre terme, ou efface la recherche pour parcourir toutes les pages.
     noChunks: Aucun fragment indexé pour cette page
     chunkIndex: Fragment {index}
+    lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
+    failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
   filter:
     status:
       idle: Inactif
@@ -7261,6 +7264,8 @@ projects:
     ragStatusRunningHint: Rend ce fichier consultable dans le chat…
     ragStatusCompleted: Indexé
     ragStatusFailed: Échec
+    ragStatusNotIndexed: Non indexé
+    ragStatusNotIndexedHint: Consultable dans le chat seulement après indexation.
     detachAction: Retirer du projet
     detachConfirm: Retirer ce fichier du projet ? Il sera déplacé vers «
       Connaissances » et deviendra visible par toute l'organisation.
@@ -7273,6 +7278,9 @@ projects:
     indexingRetry: Réessayer l'indexation
     indexingRetryQueued: Indexation relancée
     indexingRetryFailed: Impossible de relancer l'indexation
+    indexingStart: Indexer maintenant
+    indexingStartQueued: Indexation lancée
+    indexingStartFailed: Impossible de lancer l'indexation
     treeLabel: Fichiers du projet
     addToFolder: Ajouter un fichier à « {folder} »
     addFolderButton: Ajouter un dossier

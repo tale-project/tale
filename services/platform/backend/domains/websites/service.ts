@@ -144,7 +144,12 @@ export interface WebsiteRow {
   lastScannedAt: number | null;
   status: string | null;
   pageCount: number | null;
+  /** Pages the crawler ATTEMPTED — stored or not; the corpus mirror of
+   * `last_crawled_at IS NOT NULL`. */
   crawledPageCount: number | null;
+  /** Pages whose last attempt failed (`fail_count > 0` in the corpus);
+   * NULL on a row no sync has stamped since the column arrived (0099). */
+  failedPageCount: number | null;
   metadata: Record<string, unknown> | null;
   createdAt: number;
   updatedAt: number;
@@ -155,6 +160,7 @@ const WEBSITE_COLUMNS = `
   scan_interval AS "scanInterval",
   last_scanned_at_ms::float8 AS "lastScannedAt", status,
   page_count AS "pageCount", crawled_page_count AS "crawledPageCount",
+  failed_page_count AS "failedPageCount",
   metadata, created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt"
 `;
@@ -361,6 +367,7 @@ export async function patchWebsite(
     status?: string;
     pageCount?: number;
     crawledPageCount?: number;
+    failedPageCount?: number;
     metadata?: Record<string, unknown>;
     fillMetadataBlanks?: boolean;
   },
@@ -394,6 +401,7 @@ export async function patchWebsite(
       status = ${args.status !== undefined ? args.status : db.unsafe('status')},
       page_count = ${args.pageCount !== undefined ? args.pageCount : db.unsafe('page_count')},
       crawled_page_count = ${args.crawledPageCount !== undefined ? args.crawledPageCount : db.unsafe('crawled_page_count')},
+      failed_page_count = ${args.failedPageCount !== undefined ? args.failedPageCount : db.unsafe('failed_page_count')},
       metadata = ${metadata !== undefined ? db.json(toJson(metadata)) : db.unsafe('metadata')},
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.websiteId}
@@ -974,6 +982,7 @@ export async function syncSingleWebsite(
         kind: info.kind,
         pageCount: info.page_count,
         crawledPageCount: info.crawled_count,
+        failedPageCount: info.failed_count,
         ...(info.title !== null && website.title === null
           ? { title: info.title }
           : {}),

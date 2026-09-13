@@ -30,19 +30,11 @@ import type { LookupFunction } from 'node:net';
 import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
 import { Agent } from 'undici';
 
-export type SafeFetchErrorKind =
-  | 'invalid_url'
-  | 'unsupported_protocol'
-  | 'insecure_public_http'
-  | 'private_ip'
-  | 'dns_failed'
-  | 'redirect_missing_location'
-  | 'redirect_limit_exceeded'
-  | 'response_too_large'
-  | 'response_too_small'
-  | 'network_error'
-  | 'timeout'
-  | 'aborted';
+import type { SafeFetchErrorKind } from './safe-fetch-kinds';
+
+/** The refusal kinds, declared as a runtime list in `./safe-fetch-kinds` so
+ * the surfaces that record or document them read the same set. */
+export type { SafeFetchErrorKind };
 
 export class SafeFetchError extends Error {
   readonly kind: SafeFetchErrorKind;

@@ -346,6 +346,25 @@ describe('organization webhook scope and delivery contract', () => {
     expect((await disabled.deliver('p-1')).status).toBe(404);
   });
 
+  it('stamps Cache-Control: no-store on every answer, the 202 and the refusals alike', async () => {
+    // The door is mounted outside `/api/v1`, so the REST stamper never saw
+    // it: a bad token's 404 and the 413 carried no directive at all, and a
+    // caching relay in front of a sender could keep the 404 past the point
+    // the token became valid (2026-09-12 round-d evaluation, A4-03).
+    const { deliver } = await webhook();
+    const accepted = await deliver('p-1');
+    expect(accepted.status).toBe(202);
+    expect(accepted.headers.get('cache-control')).toBe('no-store');
+    const unknown = await deliver(undefined, { unknownToken: true });
+    expect(unknown.status).toBe(404);
+    expect(unknown.headers.get('cache-control')).toBe('no-store');
+    const large = await deliver(undefined, {
+      body: 'x'.repeat(256 * 1024 + 1),
+    });
+    expect(large.status).toBe(413);
+    expect(large.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('does not keep a delivery claim when the automation is not deployed', async () => {
     const { deliver, ledger, queries } = await webhook({
       bindings: [],

@@ -27,7 +27,10 @@ import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { BACKEND_SERVER_OPTIONS } from './lib/http-hygiene.ts';
+import {
+  BACKEND_SERVER_OPTIONS,
+  installClientErrorEnvelope,
+} from './lib/http-hygiene.ts';
 import { initBackendTelemetry } from './telemetry.ts';
 
 async function main(): Promise<void> {
@@ -169,6 +172,10 @@ async function main(): Promise<void> {
             );
           },
         );
+  // What the listener answers below the app — a body that stops arriving
+  // (408), a header block past the budget (431), bytes that are not HTTP
+  // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
+  if (server !== null) installClientErrorEnvelope(server);
 
   if (env.ROLE === 'worker') {
     console.log(

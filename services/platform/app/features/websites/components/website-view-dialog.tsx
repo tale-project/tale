@@ -64,6 +64,10 @@ const PLACEHOLDER_PAGE: CrawlerPage = {
   discovered_at: null,
   chunks_count: 0,
   indexed: false,
+  fail_count: 0,
+  last_error: null,
+  last_error_kind: null,
+  last_error_at: null,
 };
 
 function PageRow({
@@ -130,6 +134,14 @@ function PageRow({
           </span>
         )}
       </Row>
+      {page.fail_count > 0 && page.last_error !== null && (
+        <Text variant="caption" className="text-destructive break-words">
+          {t('pagesDialog.lastError', {
+            count: page.fail_count,
+            message: page.last_error,
+          })}
+        </Text>
+      )}
     </div>
   );
 
@@ -427,6 +439,8 @@ export function ViewWebsiteDialog({
           </Heading>
           <Text variant="caption">
             {website.crawledPageCount ?? 0} {t('indexed').toLowerCase()}
+            {(website.failedPageCount ?? 0) > 0 &&
+              ` · ${t('pagesDialog.failedPages', { count: website.failedPageCount ?? 0 })}`}
           </Text>
         </HStack>
 

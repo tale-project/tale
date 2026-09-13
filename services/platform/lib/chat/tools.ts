@@ -241,9 +241,12 @@ const RAG_SEARCH_SCHEMA = object(
     projectId: {
       type: 'string',
       description:
-        'Filter tasks or documents to one project. Only an id already seen ' +
-        'in a result row (e.g. "data"."projectId") — never invent one; if ' +
-        'you only hold a project name, find the project first.',
+        'Narrow a task list to one project — only an id already seen in a ' +
+        'result row (e.g. "data"."projectId"), never invented. In a project ' +
+        'chat the project is implied: its files and tasks are already the ' +
+        "scope, so omit this (its own id is accepted, any other project's " +
+        'is refused). In the organization chat, project files are not ' +
+        "listed here at all — they are read from the project's own chat.",
     },
     limit: {
       type: 'integer',
@@ -417,7 +420,12 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
     "Search or list the organization's own knowledge AND its work: uploaded " +
     'documents, knowledge entries, crawled website pages, products, ' +
-    'contacts, websites, tasks and projects, and inbox conversations. Two ' +
+    'contacts, websites, tasks and projects, and inbox conversations. The ' +
+    'scope is decided by where the chat lives: a project chat reaches its ' +
+    "project's files and tasks plus the organization's shared knowledge " +
+    '(other projects are out of scope); the organization chat reaches the ' +
+    "shared knowledge and every project's board, but project files only " +
+    "from the project's own chat. Two " +
     'actions. action="search" retrieves by meaning or keywords: pass ' +
     '"query" as a short information need — a question or noun phrase with ' +
     'distinctive terms ("refund policy", "login review task") — never the ' +

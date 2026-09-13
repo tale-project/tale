@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 import Ajv from 'ajv';
 import { Hono } from 'hono';
@@ -14,6 +14,7 @@ import type {
   SkillSummaryView,
 } from '../../backend/core/skills/views.ts';
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
+import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
@@ -587,6 +588,8 @@ describe('handler statuses and bodies match the documented operation', () => {
       textOffset: 0,
       textLength: 0,
       reasoning: '',
+      reasoningOffset: 0,
+      reasoningLength: 0,
       cancelRequested: false,
     });
   });
@@ -611,11 +614,16 @@ describe('handler statuses and bodies match the documented operation', () => {
   });
 
   it.each([
-    ['/projects', '/api/v1/projects', { projects: [project], isDone: true }],
+    [
+      '/projects',
+      '/api/v1/projects',
+      { projects: [project], isDone: true, continueCursor: '' },
+    ],
+    // A lookup is one whole page and says so in the list's own words.
     [
       '/projects?externalItemId=crm-4711',
       '/api/v1/projects',
-      { projects: [project] },
+      { projects: [project], isDone: true, continueCursor: '' },
     ],
     ['/projects?archived=only&limit=1', '/api/v1/projects', null],
   ])(
@@ -1223,6 +1231,260 @@ describe('the door-wide contract on every /api/v1 operation', () => {
       }
     }
     expect(loose).toEqual([]);
+  });
+});
+
+/**
+ * An operation whose handler holds the body to a cap of its own — above the
+ * door's 1 MiB default (a document's inline content, a bulk import, a skill
+ * save) or below it (a delivery claim) — names that cap in its OWN 413, never
+ * the door-wide sentence the post-pass stamps: an integrator who sized a
+ * client to "1 MiB unless the description says otherwise" had a 1.2 MiB
+ * document accepted (round d, S3-7a). The caps are read from the handlers
+ * themselves — every `maxBytes:`, `restBodyLimit(` and `readBodyBounded(`
+ * inside a route of backend/rest/ — so a cap that moves drags its sentence
+ * along, and a new capped route cannot ship on the generic text.
+ */
+describe('every operation with its own byte cap names it in its 413', () => {
+  const restDir = new URL('../../backend/rest/', import.meta.url);
+  const MIB = 1024 * 1024;
+  const SHARED = new Map<string, number>([['DEFAULT_BODY_BYTES', MIB]]);
+
+  /** `32 * 1024 * 1024` → 33554432; a name → the file's own constant. */
+  const evaluate = (
+    expression: string,
+    constants: ReadonlyMap<string, number>,
+  ): number => {
+    const trimmed = expression.trim();
+    const named = constants.get(trimmed) ?? SHARED.get(trimmed);
+    if (named !== undefined) return named;
+    if (!/^[\d\s*_]+$/.test(trimmed)) {
+      throw new Error(
+        `cannot read the byte cap "${trimmed}" — extend the resolver`,
+      );
+    }
+    return trimmed
+      .split('*')
+      .reduce(
+        (total, factor) => total * Number(factor.replace(/[\s_]/g, '')),
+        1,
+      );
+  };
+
+  const caps = new Map<string, number>();
+  for (const file of readdirSync(restDir)) {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+    const source = readFileSync(new URL(file, restDir), 'utf8');
+    const constants = new Map<string, number>();
+    for (const match of source.matchAll(
+      /^const ([A-Z_]+_BYTES) = ([^;]+);/gm,
+    )) {
+      constants.set(match[1] ?? '', evaluate(match[2] ?? '', constants));
+    }
+    const routes = [
+      ...source.matchAll(
+        /app\s*\.\s*(get|post|put|patch|delete)\(\s*'([^']+)'/g,
+      ),
+    ];
+    routes.forEach((route, index) => {
+      const block = source.slice(
+        route.index,
+        routes[index + 1]?.index ?? source.length,
+      );
+      const sites = [
+        ...block.matchAll(/maxBytes:\s*([^,}\n]+)/g),
+        ...block.matchAll(/restBodyLimit\(\s*([^)]+?)\s*\)/g),
+        ...block.matchAll(/readBodyBounded\([^,]+,\s*([^)]+?)\s*\)/g),
+      ];
+      for (const site of sites) {
+        const cap = evaluate(site[1] ?? '', constants);
+        if (cap === MIB) continue;
+        caps.set(
+          `${(route[1] ?? '').toUpperCase()} ${openapiPath(route[2] ?? '')}`,
+          cap,
+        );
+      }
+    });
+  }
+
+  it('sees the caps the handlers hold their bodies to', () => {
+    expect([...caps.keys()].sort()).toEqual([
+      'PATCH /api/v1/documents/{id}',
+      'POST /api/v1/contacts/bulk',
+      'POST /api/v1/conversations/deliveries/claim',
+      'POST /api/v1/conversations/deliveries/{id}/ack',
+      'POST /api/v1/conversations/deliveries/{id}/fail',
+      'POST /api/v1/conversations/sync',
+      'POST /api/v1/conversations/uploads',
+      'POST /api/v1/documents',
+      'PUT /api/v1/skills/{slug}',
+    ]);
+  });
+
+  it('names each cap in the operation’s own 413', () => {
+    const wrong = [...caps]
+      .filter(([key, cap]) => {
+        const [method = '', path = ''] = key.split(' ');
+        const op = paths[path]?.[method.toLowerCase()];
+        const responses = (op?.responses ?? {}) as Record<string, Json>;
+        const description = responses['413']?.description;
+        const sentence = typeof description === 'string' ? description : '';
+        return (
+          !sentence.includes(describeByteCap(cap)) ||
+          !sentence.includes('BODY_TOO_LARGE') ||
+          sentence.includes('unless the description says otherwise')
+        );
+      })
+      .map(([key, cap]) => `${key} (${describeByteCap(cap)})`);
+    expect(wrong).toEqual([]);
+  });
+});
+
+/**
+ * The pagination families the preamble promises, held to the document — the
+ * envelope-family guard round b's A-11 promised and never landed. Every list
+ * operation (an `operationId` starting with `list`) declares its family in
+ * `x-tale-pagination`, and the family dictates the shape: keyset answers
+ * `isDone` + `continueCursor` (required) and takes `cursor` + `limit`; offset
+ * answers `total`/`offset`/`hasMore` beside that pair and takes `offset` too;
+ * none answers neither `isDone` nor a cursor and takes no `cursor`/`limit`.
+ * The preamble's Pagination bullets name every collection key in the bullet
+ * of its family, so the prose cannot drift from the schemas again (the
+ * `{deliveries}` slip of 1.4.0).
+ */
+describe('the pagination families', () => {
+  const FAMILIES = ['keyset', 'offset', 'none'] as const;
+  const schemas = (spec.components as { schemas: Record<string, Json> })
+    .schemas;
+  const resolve = (schema: Json | undefined): Json => {
+    if (schema === undefined) return {};
+    const $ref = schema.$ref;
+    return typeof $ref === 'string'
+      ? (schemas[$ref.replace('#/components/schemas/', '')] ?? {})
+      : schema;
+  };
+  const lists = Object.entries(paths).flatMap(([path, ops]) =>
+    Object.entries(ops)
+      .filter(
+        ([method, op]) =>
+          HTTP_METHODS.has(method) &&
+          typeof op.operationId === 'string' &&
+          op.operationId.startsWith('list'),
+      )
+      .map(([method, op]) => {
+        const responses = (op.responses ?? {}) as Record<string, Json>;
+        const content = (responses['200']?.content ?? {}) as Record<
+          string,
+          Json
+        >;
+        const envelope = resolve(
+          content['application/json']?.schema as Json | undefined,
+        );
+        const properties = (envelope.properties ?? {}) as Record<string, Json>;
+        const declared = envelope['x-tale-pagination'];
+        return {
+          name: `${method.toUpperCase()} ${path}`,
+          family: FAMILIES.find((family) => family === declared),
+          key:
+            Object.entries(properties).find(
+              ([, shape]) => shape.type === 'array',
+            )?.[0] ?? '',
+          params: ((op.parameters ?? []) as { name: string; in: string }[])
+            .filter((parameter) => parameter.in === 'query')
+            .map((parameter) => parameter.name),
+          properties,
+          required: (envelope.required ?? []) as string[],
+        };
+      }),
+  );
+
+  it('sees every list operation', () => {
+    expect(lists.length).toBeGreaterThanOrEqual(28);
+  });
+
+  it('declares a family on every list operation', () => {
+    expect(
+      lists
+        .filter(({ family }) => family === undefined)
+        .map(({ name }) => name),
+    ).toEqual([]);
+  });
+
+  it('keyset: isDone + continueCursor required, cursor + limit taken, a cursor twin deprecated and optional', () => {
+    const wrong = lists
+      .filter(({ family }) => family === 'keyset')
+      .filter(
+        ({ required, params, properties }) =>
+          !required.includes('isDone') ||
+          !required.includes('continueCursor') ||
+          !params.includes('cursor') ||
+          !params.includes('limit') ||
+          ('cursor' in properties &&
+            (properties.cursor?.deprecated !== true ||
+              required.includes('cursor'))),
+      )
+      .map(({ name }) => name);
+    expect(wrong).toEqual([]);
+  });
+
+  it('offset: website pages alone — the offset trio beside the keyset pair, offset + cursor + limit taken', () => {
+    const offsetLists = lists.filter(({ family }) => family === 'offset');
+    expect(offsetLists.map(({ name }) => name)).toEqual([
+      'GET /api/v1/websites/{id}/pages',
+    ]);
+    const wrong = offsetLists
+      .filter(
+        ({ required, params }) =>
+          ![
+            'pages',
+            'total',
+            'offset',
+            'hasMore',
+            'isDone',
+            'continueCursor',
+          ].every((field) => required.includes(field)) ||
+          !['offset', 'cursor', 'limit'].every((name) => params.includes(name)),
+      )
+      .map(({ name }) => name);
+    expect(wrong).toEqual([]);
+  });
+
+  it('none: no isDone, no cursor field, no cursor or limit parameter', () => {
+    const wrong = lists
+      .filter(({ family }) => family === 'none')
+      .filter(
+        ({ properties, params }) =>
+          'isDone' in properties ||
+          'continueCursor' in properties ||
+          'cursor' in properties ||
+          params.includes('cursor') ||
+          params.includes('limit'),
+      )
+      .map(({ name }) => name);
+    expect(wrong).toEqual([]);
+  });
+
+  it('names every collection key in the preamble bullet of its family', () => {
+    const info = spec.info as { description?: string };
+    const description = info.description ?? '';
+    const section = description.slice(
+      description.indexOf('## Pagination'),
+      description.indexOf('## Rate limits'),
+    );
+    const bullets = new Map<string, string>();
+    for (const match of section.matchAll(
+      /^- \*\*(keyset|offset|none)\*\* — ([\s\S]*?)(?=\n- \*\*|\n\n)/gm,
+    )) {
+      bullets.set(match[1] ?? '', match[2] ?? '');
+    }
+    expect([...bullets.keys()].sort()).toEqual([...FAMILIES].sort());
+    const unnamed = lists
+      .filter(({ family, key }) => {
+        const bullet = bullets.get(family ?? '') ?? '';
+        return !bullet.includes(key === 'page' ? '`page`' : `\`{${key}`);
+      })
+      .map(({ name, key }) => `${name} ({${key}})`);
+    expect(unnamed).toEqual([]);
   });
 });
 

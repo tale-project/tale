@@ -250,6 +250,30 @@ export async function checkConversationApi(
       },
     ],
   });
+  // A `storageId` the upload door never handed out — malformed, or shaped
+  // like another organization's key — is refused as the documented 400
+  // `ATTACHMENT_NOT_STAGED`; the store guard's 403 `BLOB_REF_INVALID`
+  // (a code the contract never declared) used to reach the wire instead.
+  for (const stray of [
+    'e4-crm-fake-storage-id-a',
+    `s3:tale/other-org-${suffix}/${randomUUID()}`,
+  ]) {
+    const refused = await machine('/conversations/sync', {
+      ...payload,
+      messages: payload.messages.map((message) => ({
+        ...message,
+        attachments: message.attachments.map((file) => ({
+          ...file,
+          storageId: stray,
+        })),
+      })),
+    });
+    assert.equal(refused.status, 400, `stray storageId ${stray}`);
+    assert.equal(
+      z.object({ code: z.string() }).parse(await refused.json()).code,
+      'ATTACHMENT_NOT_STAGED',
+    );
+  }
   const created = await Promise.all([
     machine('/conversations/sync', payload),
     machine('/conversations/sync', payload),

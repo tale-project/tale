@@ -13,11 +13,13 @@ import { isBackendDraining } from '../control/service.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { runChatTurn } from './service.ts';
 import {
+  appendAssistantCancelledMessage,
   appendAssistantErrorMessage,
   appendMessageRow,
   assertThreadWriteScope,
 } from './store.ts';
 import {
+  cancelledMessageIdFor,
   ChatThreadError,
   loadOwnedThread,
   projectChatAccess,
@@ -53,6 +55,10 @@ export interface ApiTurnPayload {
   /** The caller's reply ceiling, already checked against the model's own. */
   maxOutputTokens?: number;
   locale?: string;
+  /** The caller named `locale` on the send: the reply is written in it
+   * whatever language the prompt uses. Absent (a job an older image
+   * enqueued), the prompt's own language wins, as in the app. */
+  localeFixed?: boolean;
 }
 
 /**
@@ -74,6 +80,7 @@ export const apiTurnPayloadSchema = z.object({
   reasoningEffort: z.enum(EFFORT_LEVELS).optional(),
   maxOutputTokens: z.number().int().min(1).optional(),
   locale: z.string().min(1).optional(),
+  localeFixed: z.boolean().optional(),
 });
 
 /**
@@ -154,7 +161,15 @@ async function runAcceptedTurn(
     const project = await loadProjectOrThrow(sql, payload.expectedProjectId);
     if (project.archivedAt !== null) return;
   }
-  const recordFailure = async (error: string, includeUserMessage: boolean) => {
+  /** Settle the accepted send WITHOUT a turn: the caller's prompt (its only
+   * copy) as the user row when no turn persisted it, then the reply the
+   * 202 promised as its terminal row — a failure with its sentence, or the
+   * cancel a stop asked for — inside the write-scope check every turn
+   * write makes, so a thread moved meanwhile gets nothing. */
+  const settleWithoutTurn = async (
+    outcome: { error: string } | { cancelled: true },
+    includeUserMessage: boolean,
+  ) => {
     try {
       await transactSerializable(sql, async (tx) => {
         await assertThreadWriteScope(tx, {
@@ -172,15 +187,27 @@ async function runAcceptedTurn(
             text: payload.userText,
           });
         }
-        await appendAssistantErrorMessage(tx, {
+        const reply = {
           ...(payload.assistantMessageId !== undefined
             ? { id: payload.assistantMessageId }
             : {}),
           organizationId: payload.organizationId,
           threadId: payload.threadId,
           model: payload.modelId,
-          error,
-        });
+        };
+        if ('error' in outcome) {
+          await appendAssistantErrorMessage(tx, {
+            ...reply,
+            error: outcome.error,
+          });
+        } else {
+          await appendAssistantCancelledMessage(tx, {
+            ...reply,
+            ...(payload.providerSlug !== undefined
+              ? { providerSlug: payload.providerSlug }
+              : {}),
+          });
+        }
       });
     } catch (writeError) {
       if (
@@ -191,6 +218,25 @@ async function runAcceptedTurn(
       throw writeError;
     }
   };
+  const recordFailure = (error: string, includeUserMessage: boolean) =>
+    settleWithoutTurn({ error }, includeUserMessage);
+  // A stop that arrived while this send was still queued: no generation
+  // row existed to flag, so the door stamped the reply id this job was to
+  // write. The prompt lands beside a cancelled reply and the model is never
+  // called — a 202 `cancelling` followed by a full turn would be a stop
+  // that did nothing. (The turn-open write resets the stamp, so a stop
+  // aimed at an earlier reply never matches this send's id.)
+  if (
+    payload.assistantMessageId !== undefined &&
+    (await cancelledMessageIdFor(sql, payload.threadId)) ===
+      payload.assistantMessageId
+  ) {
+    console.warn(
+      `[rest-turn] send ${payload.assistantMessageId} on ${payload.threadId} stopped while queued — no turn run`,
+    );
+    await settleWithoutTurn({ cancelled: true }, true);
+    return;
+  }
   const generating = await sql<{ threadId: string }[]>`
     SELECT thread_id AS "threadId" FROM app.generations
     WHERE thread_id = ${payload.threadId} LIMIT 1
@@ -238,6 +284,7 @@ async function runAcceptedTurn(
         ? { maxOutputTokens: payload.maxOutputTokens }
         : {}),
       locale: payload.locale ?? 'en',
+      ...(payload.localeFixed === true ? { localeFixed: true } : {}),
       onUserMessageAppended: async () => {
         userAppended = true;
       },

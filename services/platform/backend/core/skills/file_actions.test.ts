@@ -338,7 +338,7 @@ describe('saveSkill', () => {
   it('creates an org skill owned by its author', async () => {
     const saveSkill = await load('saveSkillForViewer');
 
-    const saved = await saveSkill({
+    const { skill: saved } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -355,6 +355,24 @@ describe('saveSkill', () => {
     expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
       'house-voice',
     ]);
+  });
+
+  it('says whether the save created the bundle or updated one', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const args = {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'First.',
+      body: 'Notes.\n',
+    };
+    // The door's 201 / 200 rides on this: nothing under the slug when the
+    // save ran is a create, anything else an update — a repeat with a
+    // different body included.
+    expect((await saveSkill(args)).created).toBe(true);
+    expect((await saveSkill({ ...args, description: 'Second.' })).created).toBe(
+      false,
+    );
   });
 
   it('refuses to replace an existing bundle when asked to create only', async () => {
@@ -392,7 +410,7 @@ describe('saveSkill', () => {
     expect(kept.description).toBe('First.');
 
     // The same flag on a slug nobody holds is an ordinary create.
-    const created = await saveSkill({
+    const { skill: created } = await saveSkill({
       orgSlug: 'acme',
       slug: 'fresh',
       ...alice,
@@ -408,7 +426,7 @@ describe('saveSkill', () => {
     const readSkill = await load('readSkillForViewer');
     const listSkills = await load('listSkillsForViewer');
 
-    const first = await saveSkill({
+    const { skill: first } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -431,7 +449,7 @@ describe('saveSkill', () => {
       updatedAt: first.updatedAt,
     });
 
-    const second = await saveSkill({
+    const { skill: second } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -445,7 +463,7 @@ describe('saveSkill', () => {
   it('honours If-Match under RFC 9110 strong comparison and names the current tag on a refusal', async () => {
     const saveSkill = await load('saveSkillForViewer');
     const readSkill = await load('readSkillForViewer');
-    const stored = await saveSkill({
+    const { skill: stored } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -484,10 +502,10 @@ describe('saveSkill', () => {
 
     // The current tag — alone or in a list, with `*` too — lets the save
     // through, and the answer names the new version.
-    const saved = await attempt(`"other", ${stored.etag}`);
+    const { skill: saved } = await attempt(`"other", ${stored.etag}`);
     expect(saved.body).toBe('Two.\n');
     expect(saved.etag).not.toBe(stored.etag);
-    const anyRep = await saveSkill({
+    const { skill: anyRep } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -524,7 +542,7 @@ describe('saveSkill', () => {
 
   it('evaluates If-Match before If-None-Match, and a listed If-None-Match tag against the current one weakly', async () => {
     const saveSkill = await load('saveSkillForViewer');
-    const stored = await saveSkill({
+    const { skill: stored } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -565,7 +583,7 @@ describe('saveSkill', () => {
       expect(errorData(err)).toEqual({ etag: stored.etag });
     }
     // A tag that is not the current one matches nothing: the write goes on.
-    const saved = await saveSkill({
+    const { skill: saved } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -611,11 +629,17 @@ describe('saveSkill', () => {
       description: 'Flagged.',
       body: 'Body.\n',
     };
-    const set = await saveSkill({ ...base, disableModelInvocation: true });
+    const { skill: set } = await saveSkill({
+      ...base,
+      disableModelInvocation: true,
+    });
     expect(set.disableModelInvocation).toBe(true);
-    const kept = await saveSkill(base);
+    const { skill: kept } = await saveSkill(base);
     expect(kept.disableModelInvocation).toBe(true);
-    const dropped = await saveSkill({ ...base, disableModelInvocation: false });
+    const { skill: dropped } = await saveSkill({
+      ...base,
+      disableModelInvocation: false,
+    });
     expect(dropped.disableModelInvocation).toBeUndefined();
     const onDisk = await readFile(
       path.join(configRoot, 'acme', 'skills', 'house-voice', 'SKILL.md'),
@@ -626,7 +650,7 @@ describe('saveSkill', () => {
 
   it('keeps icon and labels when the edit omits them, and clears them on null', async () => {
     const saveSkill = await load('saveSkillForViewer');
-    const first = await saveSkill({
+    const { skill: first } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -638,7 +662,7 @@ describe('saveSkill', () => {
     expect(first.icon).toBe('lucide:flask-conical');
     expect(first.labels).toEqual(['probe', 'inert']);
 
-    const merged = await saveSkill({
+    const { skill: merged } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -648,7 +672,7 @@ describe('saveSkill', () => {
     expect(merged.icon).toBe('lucide:flask-conical');
     expect(merged.labels).toEqual(['probe', 'inert']);
 
-    const cleared = await saveSkill({
+    const { skill: cleared } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -705,7 +729,7 @@ describe('saveSkill', () => {
     // An edit that does not touch visibility keeps it private — the owner is
     // not forced to reshare just to fix a typo. Sending `private` explicitly
     // (the edit form echoes the current state) is equally allowed.
-    const edited = await saveSkill({
+    const { skill: edited } = await saveSkill({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
@@ -786,7 +810,7 @@ describe('saveSkill', () => {
     );
     const saveSkill = await load('saveSkillForViewer');
 
-    const saved = await saveSkill({
+    const { skill: saved } = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...admin,
@@ -1267,7 +1291,7 @@ describe('team visibility', () => {
   it('saves a team skill and strips the teams when it is reshared org-wide', async () => {
     const saveSkill = await load('saveSkillForViewer');
 
-    const created = await saveSkill({
+    const { skill: created } = await saveSkill({
       orgSlug: 'acme',
       slug: 'red-notes',
       ...alice,
@@ -1279,7 +1303,7 @@ describe('team visibility', () => {
     expect(created.visibility).toBe('team');
     expect(created.teams).toEqual(['team_red']);
 
-    const reshared = await saveSkill({
+    const { skill: reshared } = await saveSkill({
       orgSlug: 'acme',
       slug: 'red-notes',
       ...alice,

@@ -11,7 +11,7 @@ import {
   searchWebsiteContent,
 } from '../domains/websites/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
-import type { RestEnv } from './shared.ts';
+import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createRestWebsiteRoutes } from './v1-websites.ts';
 
 vi.mock('../jobs/enqueue.ts', () => ({
@@ -413,22 +413,43 @@ describe('website create', () => {
  * family speaks, so a client needs one set of names and one clock.
  */
 describe('website corpus views', () => {
-  it('answers pages in camelCase with epoch-ms timestamps', async () => {
+  it('answers pages in camelCase with epoch-ms timestamps, the failure record included', async () => {
     vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
       pages: [
         {
           url: 'https://docs.example/a',
           title: 'A',
           word_count: 12,
-          status: 'crawled',
+          status: 'active',
           content_hash: 'abc',
           last_crawled_at: '2026-01-02T03:04:05.000Z',
           discovered_at: null,
           chunks_count: 2,
           indexed: true,
+          fail_count: 0,
+          last_error: null,
+          last_error_kind: null,
+          last_error_at: null,
+        },
+        // A page whose last attempt the fetch guard refused: the row says
+        // so — kind, message, moment, and how many attempts in a row.
+        {
+          url: 'https://docs.example/redirects-inside',
+          title: null,
+          word_count: 0,
+          status: 'discovered',
+          content_hash: null,
+          last_crawled_at: '2026-01-02T03:04:06.000Z',
+          discovered_at: '2026-01-01T00:00:00.000Z',
+          chunks_count: 0,
+          indexed: false,
+          fail_count: 3,
+          last_error: 'Plaintext http:// refused on this lane: 127.0.0.1',
+          last_error_kind: 'insecure_public_http',
+          last_error_at: '2026-01-02T03:04:06.000Z',
         },
       ],
-      total: 1,
+      total: 2,
       offset: 0,
       hasMore: false,
     });
@@ -441,18 +462,144 @@ describe('website corpus views', () => {
           url: 'https://docs.example/a',
           title: 'A',
           wordCount: 12,
-          status: 'crawled',
+          status: 'active',
           contentHash: 'abc',
           lastCrawledAt: Date.parse('2026-01-02T03:04:05.000Z'),
           discoveredAt: null,
           chunksCount: 2,
           indexed: true,
+          failCount: 0,
+          lastError: null,
+          lastErrorKind: null,
+          lastErrorAt: null,
+        },
+        {
+          url: 'https://docs.example/redirects-inside',
+          title: null,
+          wordCount: 0,
+          status: 'discovered',
+          contentHash: null,
+          lastCrawledAt: Date.parse('2026-01-02T03:04:06.000Z'),
+          discoveredAt: Date.parse('2026-01-01T00:00:00.000Z'),
+          chunksCount: 0,
+          indexed: false,
+          failCount: 3,
+          lastError: 'Plaintext http:// refused on this lane: 127.0.0.1',
+          lastErrorKind: 'insecure_public_http',
+          lastErrorAt: Date.parse('2026-01-02T03:04:06.000Z'),
         },
       ],
-      total: 1,
+      total: 2,
+      offset: 0,
+      hasMore: false,
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  /** The listing never carries a `deleted` row, so the wire status is the
+   * declared pair — the `'unknown'` a corpus row without a status used to
+   * read as was a value no client could act on. */
+  it('reads any status but active as discovered — there is no third value', async () => {
+    vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
+      pages: [
+        { url: 'https://docs.example/b', status: 'pending' },
+        { url: 'https://docs.example/c' },
+      ],
+      total: 2,
       offset: 0,
       hasMore: false,
     });
+    const { sql } = fakeSql();
+    const res = await mount(sql).request('http://localhost/websites/w-1/pages');
+    const body = (await res.json()) as {
+      pages: { status: string; failCount: number }[];
+    };
+    expect(body.pages.map((page) => page.status)).toEqual([
+      'discovered',
+      'discovered',
+    ]);
+    expect(body.pages.map((page) => page.failCount)).toEqual([0, 0]);
+  });
+
+  /**
+   * The one offset list answers the keyset pair too — `isDone` and a
+   * `continueCursor` standing for the next offset, signed under this
+   * website — so the loop written for every other list walks it; the
+   * window is named one way, `cursor` or `offset`, never both.
+   */
+  it('walks the pages window by continueCursor beside the offset arithmetic', async () => {
+    vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
+      pages: [
+        { url: 'https://docs.example/a' },
+        { url: 'https://docs.example/b' },
+      ],
+      total: 3,
+      offset: 0,
+      hasMore: true,
+    });
+    const { sql } = fakeSql();
+    const first = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?limit=2',
+    );
+    expect(first.status).toBe(200);
+    const token = mintCursorFor('org-1', 'website-pages:w-1', '2');
+    expect(await first.json()).toMatchObject({
+      total: 3,
+      offset: 0,
+      hasMore: true,
+      isDone: false,
+      continueCursor: token,
+    });
+    vi.mocked(fetchWebsitePages).mockResolvedValueOnce({
+      pages: [{ url: 'https://docs.example/c' }],
+      total: 3,
+      offset: 2,
+      hasMore: false,
+    });
+    const next = await mount(sql).request(
+      `http://localhost/websites/w-1/pages?limit=2&cursor=${encodeURIComponent(token)}`,
+    );
+    expect(next.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 2,
+      limit: 2,
+    });
+    expect(await next.json()).toMatchObject({
+      offset: 2,
+      hasMore: false,
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('refuses cursor beside offset, another website’s cursor, and a blank one, before the corpus is read', async () => {
+    const { sql } = fakeSql();
+    vi.mocked(fetchWebsitePages).mockClear();
+    const both = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?offset=2&cursor=x',
+    );
+    expect(both.status).toBe(400);
+    expect(await both.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [{ path: 'cursor' }] },
+    });
+    const foreign = await mount(sql).request(
+      `http://localhost/websites/w-1/pages?cursor=${encodeURIComponent(
+        mintCursorFor('org-1', 'website-pages:w-2', '2'),
+      )}`,
+    );
+    expect(foreign.status).toBe(400);
+    expect(await foreign.json()).toMatchObject({
+      code: 'INVALID_CURSOR',
+      data: { issues: [{ path: 'cursor' }] },
+    });
+    const blank = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?cursor=',
+    );
+    expect(blank.status).toBe(400);
+    expect(await blank.json()).toMatchObject({ code: 'INVALID_QUERY' });
+    expect(fetchWebsitePages).not.toHaveBeenCalled();
   });
 
   it('answers search hits in camelCase with one content field', async () => {
