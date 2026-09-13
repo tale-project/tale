@@ -24,7 +24,6 @@ import {
   noQuery,
   notFound,
   PAGE_QUERY,
-  pageLimit,
   parseBody,
   queryFilter,
   readIntegerCursor,
@@ -75,7 +74,11 @@ const websitePatch = z
 const searchBody = z
   .object({
     query: z.string().min(1).max(1000),
-    limit: z.number().optional(),
+    // A body field is refused out of range, never clamped — the door-wide
+    // rule the two knowledge-search doors already followed; this one used
+    // to clamp `9999` to 100 and `0` to one row without a word (round e,
+    // E5-04), and the spec said so while the reference page said 400.
+    limit: z.number().int().min(1).max(100).optional(),
   })
   .strict();
 
@@ -335,9 +338,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (body instanceof Response) return body;
     const result = await searchWebsiteContent(deps.sql, website, {
       query: body.query,
-      ...(body.limit !== undefined
-        ? { limit: pageLimit(body.limit, { fallback: 10, max: 100 }) }
-        : {}),
+      ...(body.limit !== undefined ? { limit: body.limit } : {}),
     });
     return c.json({
       ...result,

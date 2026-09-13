@@ -146,6 +146,11 @@ export interface TaskRow {
   lastAgentRunAt: number | null;
   claimedAt: number | null;
   completedAt: number | null;
+  /** When an external system's `closed` last parked this task — the
+   * mirror's claim on the park: its `open` lifts exactly such a park, and
+   * any status change through the board's doors clears it. Null for a
+   * park a person or an agent made. */
+  externalClosedAt: number | null;
   createdBy: string;
   createdByType: string;
   createdAt: number;
@@ -171,7 +176,8 @@ export const TASK_COLUMNS = `
   total_cost_cents AS "totalCostCents", agent_run_count AS "agentRunCount",
   last_agent_run_at_ms::float8 AS "lastAgentRunAt",
   claimed_at_ms::float8 AS "claimedAt",
-  completed_at_ms::float8 AS "completedAt", created_by AS "createdBy",
+  completed_at_ms::float8 AS "completedAt",
+  external_closed_at_ms::float8 AS "externalClosedAt", created_by AS "createdBy",
   created_by_type AS "createdByType", created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt"
 `;
@@ -798,6 +804,14 @@ export async function settleTaskStatusChange(
   },
 ): Promise<void> {
   const { task, toStatus } = args;
+  // A move through any board door ends the mirror's claim on a park it
+  // made (`external_closed_at_ms`): from here on an external `open` no
+  // longer reaches into a card a person or an agent has placed.
+  if (typeof task.externalClosedAt === 'number' && task.status !== toStatus) {
+    await tx`
+      UPDATE app.tasks SET external_closed_at_ms = NULL WHERE id = ${task.id}
+    `;
+  }
   await applyTaskCountTransition(
     tx,
     task.projectId,

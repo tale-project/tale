@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`); `br` is not served.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN`. The\n400 lists the slugs you may send under `data.organizations`; `GET\n/api/v1/me` lists them too, as its top-level `organizations`. The slug\nis matched without regard to case; a blank or whitespace-only header reads\nas absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared. A request must finish arriving within 15 minutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe GET would carry) and OPTIONS (204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: past it HTTP/1.1 answers a bare 431 without the envelope and\nan HTTP/2 connection is closed without a response — carry data in the body,\nnever in a header. A header value carrying a control character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` (a refusal answered at the edge, such as a dot-segment\n404, carries a fresh id of its own) — send your own to correlate: up to 255\ncharacters of letters, digits, `_`, `-` and `=`; anything else is\nreplaced by a fresh UUID. Every response also names the contract it\nimplements in `X-Tale-Api-Version`.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 repeats the code in `error`; a 500, a\nbody-size 413 and a URL-size 414 add `requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\ncharacters`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{comments, …}`, `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`; search answers `{hits, diagnostics}`.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`); `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN`. The\n400 lists the slugs you may send under `data.organizations`; `GET\n/api/v1/me` lists them too, as its top-level `organizations`. The slug\nis matched without regard to case; a blank or whitespace-only header reads\nas absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 repeats the code in `error`; a 500, a\nbody-size 413 and a URL-size 414 add `requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\ncharacters`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{comments, …}`, `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`; search answers `{hits, diagnostics}`.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -4065,7 +4065,7 @@
       "post": {
         "tags": ["Documents"],
         "summary": "Retry RAG indexing",
-        "description": "Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a documents-write role. The same guards as the app’s Index now: a budget of 10 retries per user per minute (429 `RATE_LIMITED`, `Retry-After` names the wait), and `skipped` — honestly, with the `reason` — for a content-only document (`content-only`: inline text never enters the search corpus, only file-backed documents do), a blob the platform does not track (`untracked-blob`), a file type no extractor can read (`unsupported` — terminal; the document’s `indexing.error` says why), or a fresh index job already queued or running (`in-progress` — poll the document’s `indexing` instead). A file that opted out of indexing when it was bound is opted back in by the retry — the explicit request is the opt-in — so it queues and answers `indexing`; it used to answer `skipped` with `rag-opt-out`, a reason no longer given.",
+        "description": "Re-queues a Knowledge Hub document’s blob for indexing; a project file answers 404 here — its own door is `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`, the same core behind it. Requires a documents-write role. The same guards as the app’s Index now: a budget of 10 retries per user per minute (429 `RATE_LIMITED`, `Retry-After` names the wait), and `skipped` — honestly, with the `reason` — for a content-only document (`content-only`: inline text never enters the search corpus, only file-backed documents do), a blob the platform does not track (`untracked-blob`), a file type no extractor can read (`unsupported` — terminal; the document’s `indexing.error` says why), or a fresh index job already queued or running (`in-progress` — poll the document’s `indexing` instead). A file that opted out of indexing when it was uploaded is opted back in by the retry — the explicit request is the opt-in — so it queues and answers `indexing`; it used to answer `skipped` with `rag-opt-out`, a reason no longer given.",
         "operationId": "retryDocumentIndexing",
         "security": [
           {
@@ -4108,24 +4108,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": ["status"],
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["indexing", "skipped"]
-                    },
-                    "reason": {
-                      "type": "string",
-                      "enum": [
-                        "content-only",
-                        "untracked-blob",
-                        "unsupported",
-                        "in-progress"
-                      ],
-                      "description": "Why indexing was skipped; absent when `status` is `indexing`"
-                    }
-                  }
+                  "$ref": "#/components/schemas/RetryIndexingResult"
                 }
               }
             },
@@ -4196,7 +4179,7 @@
             }
           },
           "404": {
-            "description": "Document not found (`DOCUMENT_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
+            "description": "Document not found (`DOCUMENT_NOT_FOUND`) — a project file included: retry it through its project door; or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4280,7 +4263,7 @@
       "get": {
         "tags": ["Documents"],
         "summary": "Download a document",
-        "description": "The bytes of a Knowledge Hub document — what `GET /api/v1/documents/{id}` cannot carry for a file-backed one: an uploaded file, and the document every knowledge entry mints. Streamed in the response itself (**200**, no redirect to follow), with the document’s title in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), the stored `Content-Type`, `Content-Length`, `ETag` and `Last-Modified`; `Range` is honoured (206, or a bodiless 416 for a range the file cannot satisfy) and a HEAD request answers the headers alone — `Content-Length`, `ETag`, `Last-Modified`, `Accept-Ranges` — ignoring `Range`. A content-only document answers its inline text the same way — typed as its `mimeType` (`text/plain` when it has none), UTF-8, `Accept-Ranges: none` — so every Hub document reads back from this one URL. A project file, a foreign document, a nonexistent id and a file whose bytes the store no longer holds all answer the same opaque 404 (`DOCUMENT_NOT_FOUND`). A store that does not answer is a 503 with `Retry-After`.",
+        "description": "The bytes of a Knowledge Hub document — what `GET /api/v1/documents/{id}` cannot carry for a file-backed one: an uploaded file, and the document every knowledge entry mints. Streamed in the response itself (**200**, no redirect to follow), with the document’s title in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), the stored `Content-Type`, `Content-Length`, `ETag` and `Last-Modified`; `Range` is honoured (206, or a bodiless 416 for a range the file cannot satisfy) and a HEAD request answers the headers alone — `Content-Length`, `ETag`, `Last-Modified`, `Accept-Ranges` — ignoring `Range`. A content-only document answers its inline text the same way — typed as its `mimeType` (`text/plain` when it has none), UTF-8, `Accept-Ranges: none` — so every Hub document reads back from this one URL, and `If-None-Match` and `If-Modified-Since` are judged against the `ETag` and `Last-Modified` issued on both kinds (a bodiless 304). A project file, a foreign document, a nonexistent id and a file whose bytes the store no longer holds all answer the same opaque 404 (`DOCUMENT_NOT_FOUND`). A store that does not answer is a 503 with `Retry-After`.",
         "operationId": "downloadDocument",
         "security": [
           {
@@ -4305,6 +4288,24 @@
               "type": "string"
             },
             "description": "Document ID"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `ETag` a previous answer carried (as received — the compressing edge suffixes the tag of a text file it compressed, and that form matches too): unchanged bytes answer 304 with no body. Takes precedence over `If-Modified-Since`."
+          },
+          {
+            "name": "If-Modified-Since",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `Last-Modified` a previous answer carried: bytes not modified since answer 304 with no body, judged at the whole-second precision an HTTP date carries. Ignored when `If-None-Match` is present. On a content-only Hub document the date is the document’s own `updatedAt`, which a title or metadata patch moves too — `If-None-Match` follows the bytes alone."
           },
           {
             "name": "X-Request-Id",
@@ -4386,6 +4387,26 @@
                   "type": "string",
                   "format": "binary"
                 }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag` (or `If-Modified-Since` the current `Last-Modified`), so no bytes are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Last-Modified": {
+                "$ref": "#/components/headers/LastModified"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -5777,7 +5798,9 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
             },
             "description": "Rows to skip (default 0). A whole number: a negative value is clamped to 0, while a fractional or non-numeric one answers 400 `INVALID_QUERY`"
           },
@@ -5786,7 +5809,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
             },
             "description": "Rows to return, 1..500 (default 100). A whole number: an out-of-range value is clamped, a fractional or non-numeric one answers 400 `INVALID_LIMIT`"
           },
@@ -5985,7 +6011,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Sync statuses",
-        "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished.",
+        "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished. The job is keyed per website: a second call while one is still queued or running folds into it — two calls answer `syncing` twice and run once — so calling after every crawl costs nothing extra.",
         "operationId": "syncWebsite",
         "security": [
           {
@@ -6190,7 +6216,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Search content",
-        "description": "A POST because it carries a body, not because it writes: semantic search over this website’s crawled content.",
+        "description": "A POST because it carries a body, not because it writes: semantic search over this website’s crawled content. Answers `{results, total}` — each result its `url`, `title`, `content`, `chunkIndex` and `score` — a shape of its own, not the `{hits, diagnostics}` of the two knowledge-search doors (a different corpus); `limit` is a body field, so a value outside 1..100 is refused with 400 `INVALID_BODY` naming it, never clamped — the rule every body number follows.",
         "operationId": "searchWebsite",
         "security": [
           {
@@ -6243,7 +6269,9 @@
                   },
                   "limit": {
                     "type": "integer",
-                    "description": "Matches to return, 1..100 (default 10; out-of-range values are clamped)"
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Matches to return, 1..100 (default 10); a value outside the range, or not a whole number, answers 400 `INVALID_BODY` naming `limit` — a body field is never clamped"
                   }
                 }
               }
@@ -6270,7 +6298,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "A body the schema refuses (`INVALID_BODY`, the field named under `data.issues`): a blank `query`, an unknown key, or a `limit` outside 1..100 or not a whole number",
             "content": {
               "application/json": {
                 "schema": {
@@ -8742,6 +8770,7 @@
               "schema": {
                 "type": "object",
                 "required": ["contacts"],
+                "additionalProperties": false,
                 "properties": {
                   "contacts": {
                     "type": "array",
@@ -9934,9 +9963,10 @@
                   },
                   "key": {
                     "type": "string",
-                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name (suffixed when taken), keyless when underivable. Trimmed; whitespace alone is a 400 `INVALID_BODY`, not an omitted key. Letters and digits only; normalized to uppercase, never truncated. An explicit key that is taken is a 409.",
-                    "minLength": 1,
-                    "maxLength": 6
+                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name (suffixed when taken), keyless when underivable. Trimmed; whitespace alone is a 400 `INVALID_BODY`, not an omitted key. Letters and digits only, starting with a letter (`PROJECT_KEY_INVALID` otherwise); normalized to uppercase, never truncated. An explicit key that is taken is a 409.",
+                    "minLength": 2,
+                    "maxLength": 6,
+                    "pattern": "^[A-Za-z][A-Za-z0-9]{1,5}$"
                   },
                   "description": {
                     "type": "string",
@@ -12359,7 +12389,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Get or create a folder",
-        "description": "GET-OR-CREATE semantics: a folder of the same name under the same parent — compared without regard to case, the way sibling names are unique — answers 200 with `created: false` and the STORED spelling; otherwise the folder is created and answered 201 with `created: true`. Two concurrent creates of one name yield one folder (the sibling rule is database-enforced). `name` is trimmed; a name that is a path (`a/b`, `a\\b`, `.`, `..`) or carries a control character is refused (`FOLDER_NAME_INVALID`) — the rule a file name and a WebDAV segment follow — and a parent 20 levels deep refuses a child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must name a folder of THIS project (an opaque 404 otherwise); omit it for a root folder — a blank id is a 400 `INVALID_BODY`. Requires the org editor role and project edit access. Charged against the general REST bucket (120/min) and the per-org `folder:mutate` budget the in-app folder actions share.",
+        "description": "GET-OR-CREATE semantics: a folder of the same name under the same parent — compared without regard to case, the way sibling names are unique — answers 200 with `created: false` and the STORED spelling; otherwise the folder is created and answered 201 with `created: true`. Two concurrent creates of one name yield one folder (the sibling rule is database-enforced). `name` is trimmed and NFC-normalized; a name that is a path (`a/b`, `a\\b`, `.`, `..`) or carries a control character is refused (`FOLDER_NAME_INVALID` — the sentence names the rule broken and `data.issues` names `name`) — the rule a file name and a WebDAV segment follow — and a parent 20 levels deep refuses a child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must name a folder of THIS project (an opaque 404 otherwise); omit it for a root folder — a blank id is a 400 `INVALID_BODY`. Requires the org editor role and project edit access. Charged against the general REST bucket (120/min) and the per-org `folder:mutate` budget the in-app folder actions share.",
         "operationId": "getOrCreateProjectFolder",
         "security": [
           {
@@ -12409,7 +12439,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "description": "Trimmed; matched against siblings without regard to case. No path separators (`/`, `\\`), no control characters, not `.` or `..`."
+                    "description": "Trimmed and NFC-normalized; matched against siblings without regard to case. No path separators (`/`, `\\`), no control characters, not `.` or `..`."
                   },
                   "parentId": {
                     "type": "string",
@@ -12460,7 +12490,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`), a name that is a path or carries a control character (`FOLDER_NAME_INVALID`), or a parent at the depth cap (`FOLDER_DEPTH_EXCEEDED`)",
+            "description": "A body the schema refuses (`INVALID_BODY`), a name that is a path or carries a control character (`FOLDER_NAME_INVALID`, the sentence naming the rule and `data.issues` naming `name`), or a parent at the depth cap (`FOLDER_DEPTH_EXCEEDED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -13107,7 +13137,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Mint an upload handoff",
-        "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. The signed URL is valid for exactly as long as the intent — `expiresAt` is the one deadline for both. Send `fileName` to have the bind’s type rules run here too: the organization’s extension and MIME allowlists and the platform’s format allowlist refuse a name they would refuse at the bind — 400 `UPLOAD_POLICY_REJECTED` / `UNSUPPORTED_FILE_TYPE` — before anything is presigned, so the bytes never travel. The answer names `maxBytes`, the largest file this organization accepts for the declared type (the platform ceiling, 100 MiB, or the organization’s lower cap); declare `size` and the size and volume caps are judged here too — 400 `FILE_TOO_LARGE` / `UPLOAD_POLICY_REJECTED` with `data.limitBytes` — where they were discoverable only by uploading past them (the bind still judges the landed size, so an undeclared or understated size is refused there). A handoff never bound — or bound and refused — is reclaimed lazily: 24 hours after its 30-minute expiry, on the next mint into the organization, the blob is deleted with the intent, so a crashed worker leaves no permanent orphan and needs no delete call. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
+        "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. The signed URL is valid for exactly as long as the intent — `expiresAt` is the one deadline for both. Send `fileName` to have the bind’s type rules run here too: the organization’s extension and MIME allowlists and the platform’s format allowlist refuse a name they would refuse at the bind — a name without an extension included, whatever `contentType` says — 400 `UPLOAD_POLICY_REJECTED` / `UNSUPPORTED_FILE_TYPE` before anything is presigned, so the bytes never travel. The answer names `maxBytes`, the largest file this organization accepts for the declared type (the platform ceiling, 100 MiB, or the organization’s lower cap); declare `size` and the size and volume caps are judged here too — 400 `FILE_TOO_LARGE` / `UPLOAD_POLICY_REJECTED` with `data.limitBytes` — where they were discoverable only by uploading past them (the bind judges the landed bytes against the same caps; the declared size is a pre-check, never compared with what landed, so understating it buys nothing). A handoff never bound — or bound and refused — is reclaimed lazily: 24 hours after its 30-minute expiry, on the next mint into the organization, the blob is deleted with the intent, so a crashed worker leaves no permanent orphan and needs no delete call. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
         "security": [
           {
@@ -13156,7 +13186,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1024,
-                    "description": "Optional. Checked against the bind’s own rules — a file name (no path separators, no `..`, no control characters) whose type the upload policy and the format allowlist accept — so a bad name fails here, before the bytes are uploaded; the bind’s `fileName` is what is stored."
+                    "description": "Optional. Checked against the bind’s own rules — a file name (no path separators, no `..`, no control characters; trimmed and NFC-normalized first) ending in an extension the upload policy and the format allowlist accept (a name without one is refused whatever `contentType` says) — so a bad name fails here, before the bytes are uploaded; the bind’s `fileName` is what is stored."
                   },
                   "contentType": {
                     "type": "string",
@@ -13656,7 +13686,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "The `Last-Modified` a previous answer carried: bytes not modified since answer 304 with no body. Ignored when `If-None-Match` is present."
+            "description": "The `Last-Modified` a previous answer carried: bytes not modified since answer 304 with no body, judged at the whole-second precision an HTTP date carries. Ignored when `If-None-Match` is present. On a content-only Hub document the date is the document’s own `updatedAt`, which a title or metadata patch moves too — `If-None-Match` follows the bytes alone."
           },
           {
             "name": "Range",
@@ -13958,6 +13988,213 @@
         }
       }
     },
+    "/api/v1/projects/{id}/files/{documentId}/retry-indexing": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Index a project file now",
+        "description": "The REST twin of **Index now** on the project’s Knowledge tab: re-queues the file’s blob for indexing through the core behind `POST /api/v1/documents/{id}/retry-indexing` (which answers 404 for a project file) and answers the same `{status, reason}`. A file bound with the default `skipRagIndexing: true` is opted back in by this request — the explicit ask is the opt-in — and answers `indexing`; poll its `indexing` on `GET /api/v1/projects/{id}/files` until `completed`, from when `POST …/knowledge/search` finds it. `skipped` names its `reason`: a blob the platform does not track (`untracked-blob`), a file type no extractor can read (`unsupported` — terminal; the row’s `indexing.error` says why), or a fresh index job already queued or running (`in-progress` — poll instead); `content-only` cannot occur here, a project file always has a blob. Requires the org editor role and project edit access on an active project — the gate `DELETE …/files/{documentId}` runs — plus a role that can write documents (403 `RBAC_FORBIDDEN`); the same budget as the Hub door, 10 retries per user per minute, answers 429 `RATE_LIMITED` with `Retry-After`. A file of another project or organization, a document without a file, and a trashed or absent one answer the same opaque 404 (`FILE_NOT_FOUND`).",
+        "operationId": "retryProjectFileIndexing",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. The 400 lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "File (document) ID"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether indexing was queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryIndexingResult"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "No write access to an active project, or a role that cannot write documents (`RBAC_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Project or file not found (`FILE_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/files": {
       "get": {
         "tags": ["Projects"],
@@ -14234,7 +14471,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
-        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s extension; a declared `contentType` is a hint resolved against it), and the organization’s `file:upload` budget answers 429. `fileName` must be a file name — no path separators, no `..`, no control characters. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
+        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s extension, which the name must carry; a declared `contentType` is a hint resolved against it, never a substitute), and the organization’s `file:upload` budget answers 429. `fileName` must be a file name — no path separators, no `..`, no control characters — and is stored trimmed and NFC-normalized, the rule a folder name follows. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
         "security": [
           {
@@ -14651,7 +14888,7 @@
                   "externalState": {
                     "type": "string",
                     "enum": ["open", "closed"],
-                    "description": "The source item’s lifecycle (default `open`). `closed` parks the task for review — done, when the caller may complete it; `open` reopens a done task. Local triage owns every other status."
+                    "description": "The source item’s lifecycle (default `open`). `closed` parks the task at `in_review` for a person to complete — only the workflow engine itself lands a close at `done`. `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`. A park a person or an agent made is theirs: `open` leaves it, and any move through the board ends the mirror’s claim on a park it made. Local triage owns every other status; a cancelled task stays cancelled."
                   },
                   "runWorkflowSlug": {
                     "type": "string",
@@ -15677,7 +15914,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Start a deployed workflow on a project task",
-        "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. The answer is 200 either way — branch on `started`, never on the status alone: an undeployed workflow answers `started: false` with `reason: \"not_started\"` and a null `runId`; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
+        "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run, and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startTaskWorkflow",
         "security": [
           {
@@ -15841,7 +16078,7 @@
             }
           },
           "404": {
-            "description": "The project is missing or invisible (`PROJECT_NOT_FOUND` — the URL is judged left to right, so a bad project id is blamed on the project), or the task is missing or outside this project (`TASK_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
+            "description": "The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or belongs to another project (`TASK_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -15876,6 +16113,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "`workflowSlug` names an automation that is saved but has no deployed version (`AUTOMATION_NOT_DEPLOYED`) — deploy it, then start again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -17857,7 +18112,7 @@
               "type": "string",
               "pattern": "^[ -~]+$"
             },
-            "description": "A stable key of your choosing that names this start — printable ASCII (a UUID, a job id); a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, automation and scope within 24 hours answers 202 with the run the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused start is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
+            "description": "A stable key of your choosing that names this start — printable ASCII (a UUID, a job id): any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no start happens — keys are compared byte for byte, so the pattern is what keeps two spellings of one key from naming two starts; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, automation and scope within 24 hours answers 202 with the run the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused start is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
           },
           {
             "name": "X-Request-Id",
@@ -18441,7 +18696,7 @@
               "type": "string",
               "pattern": "^[ -~]+$"
             },
-            "description": "A stable key of your choosing that names this start — printable ASCII (a UUID, a job id); a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, automation and scope within 24 hours answers 202 with the run the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused start is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
+            "description": "A stable key of your choosing that names this start — printable ASCII (a UUID, a job id): any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no start happens — keys are compared byte for byte, so the pattern is what keeps two spellings of one key from naming two starts; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, automation and scope within 24 hours answers 202 with the run the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused start is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
           },
           {
             "name": "X-Request-Id",
@@ -23003,7 +23258,7 @@
               "type": "string",
               "pattern": "^[ -~]+$"
             },
-            "description": "A stable key of your choosing that names this send — printable ASCII (a UUID, a job id); a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, thread and scope within 24 hours answers 202 with what the first attempt answered — the same `messageId` to poll for, nothing new queued and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused send is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
+            "description": "A stable key of your choosing that names this send — printable ASCII (a UUID, a job id): any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no send happens — keys are compared byte for byte, so the pattern is what keeps two spellings of one key from naming two sends; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, thread and scope within 24 hours answers 202 with what the first attempt answered — the same `messageId` to poll for, nothing new queued and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused send is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
           },
           {
             "name": "X-Request-Id",
@@ -23051,14 +23306,14 @@
                   "maxOutputTokens": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "The largest reply this turn may produce, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: \"length\"` on the message."
+                    "description": "The largest reply this turn may produce across every model round, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A tool-calling turn spends the cap round by round: a later round gets what the earlier ones left, and a round that would start with nothing left is not run. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: \"length\"` on the message — a cut that fell on an earlier round’s tool call included: that call does not run and its tool-result reads `status: \"invalid_args\"`."
                   },
                   "locale": {
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 20,
                     "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
-                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant answers in, whatever language the prompt is written in. Omitted, the assistant answers in the prompt’s language."
+                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in, whatever language the prompt is written in. The instruction rides the prompt as a directive, on the system prompt and on the message itself; a model may still slip (most often a reasoning model on a short prompt), and nothing on the wire marks a slip — a client that must have the language checks the reply and resends. An organization’s mandatory instructions win over `locale`. Omitted, the assistant answers in the prompt’s language."
                   }
                 }
               }
@@ -25544,7 +25799,7 @@
               "type": "string",
               "pattern": "^[ -~]+$"
             },
-            "description": "A stable key of your choosing that names this send — printable ASCII (a UUID, a job id); a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, thread and scope within 24 hours answers 202 with what the first attempt answered — the same `messageId` to poll for, nothing new queued and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused send is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
+            "description": "A stable key of your choosing that names this send — printable ASCII (a UUID, a job id): any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no send happens — keys are compared byte for byte, so the pattern is what keeps two spellings of one key from naming two sends; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, thread and scope within 24 hours answers 202 with what the first attempt answered — the same `messageId` to poll for, nothing new queued and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused send is not remembered, so the same key runs once the refusal is fixed. A blank value is read as no key."
           },
           {
             "name": "X-Request-Id",
@@ -25592,14 +25847,14 @@
                   "maxOutputTokens": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "The largest reply this turn may produce, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: \"length\"` on the message."
+                    "description": "The largest reply this turn may produce across every model round, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A tool-calling turn spends the cap round by round: a later round gets what the earlier ones left, and a round that would start with nothing left is not run. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: \"length\"` on the message — a cut that fell on an earlier round’s tool call included: that call does not run and its tool-result reads `status: \"invalid_args\"`."
                   },
                   "locale": {
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 20,
                     "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
-                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant answers in, whatever language the prompt is written in. Omitted, the assistant answers in the prompt’s language."
+                    "description": "A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in, whatever language the prompt is written in. The instruction rides the prompt as a directive, on the system prompt and on the message itself; a model may still slip (most often a reasoning model on a short prompt), and nothing on the wire marks a slip — a client that must have the language checks the reply and resends. An organization’s mandatory instructions win over `locale`. Omitted, the assistant answers in the prompt’s language."
                   }
                 }
               }
@@ -27075,7 +27330,7 @@
       "put": {
         "tags": ["Skills"],
         "summary": "Create or update skill",
-        "description": "Creates the bundle when the slug is free — **201** — and updates it in place otherwise — **200** — so the status is the create-or-update signal (the same convention as a task materialisation) and a sync that mirrors bundles from elsewhere needs no read first: `description` and `body` are required; an omitted `icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` keeps its stored value, `null` clears `icon` or `labels`, and `disableModelInvocation: false` drops the flag. A body that does not end with a newline gets one appended. The save rewrites `SKILL.md` only — every other file of the bundle stays, and frontmatter keys the body does not carry (`license`, `recommended-packages`, community keys) are preserved; replacing a whole bundle is the app’s zip upload. Guard an update with `If-Match`: the `etag` you last read (the GET’s `ETag`) — a document that changed since, or is not there, answers 412 `SKILL_STALE` with the current tag in `data.etag` and nothing is written. Send `If-None-Match: *` to create only — a slug that already has a bundle then answers 412 `SKILL_EXISTS` and nothing is written. The body is validated before the preconditions are evaluated. Every skill carries `canEdit`: whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite, so check it before a save that means to replace one. The body may run to 4 MiB — this operation’s own cap, so the worst JSON escaping of a full-size `body` still fits; past it the answer is 413 `BODY_TOO_LARGE`.",
+        "description": "Creates the bundle when the slug is free — **201** — and updates it in place otherwise — **200** — so the status is the create-or-update signal (the same convention as a task materialisation) and a sync that mirrors bundles from elsewhere needs no read first: `description` and `body` are required; an omitted `icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` keeps its stored value, `null` clears `icon` or `labels`, and `disableModelInvocation: false` drops the flag. A body that does not end with a newline gets one appended. The save rewrites `SKILL.md` only — every other file of the bundle stays, and frontmatter keys the body does not carry (`license`, `recommended-packages`, community keys) are preserved; replacing a whole bundle is the app’s zip upload. Guard an update with `If-Match`: the `etag` you last read (the GET’s `ETag`) — a document that changed since, or is not there, answers 412 `SKILL_STALE` with the current tag in `data.etag` and nothing is written. Send `If-None-Match: *` to create only — a slug that already has a bundle then answers 412 `SKILL_EXISTS` and nothing is written. The body is validated before the preconditions are evaluated. A save whose composed `SKILL.md` is byte-identical to the stored document writes nothing — 200 with the stored `etag` and `updatedAt`, no history entry — the preconditions still evaluated first, so a stale `If-Match` on an identical body is still 412. Every skill carries `canEdit`: whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite, so check it before a save that means to replace one. The body may run to 4 MiB — this operation’s own cap, so the worst JSON escaping of a full-size `body` still fits; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "saveSkill",
         "security": [
           {
@@ -27194,7 +27449,7 @@
         },
         "responses": {
           "200": {
-            "description": "The skill this save updated in place — its `etag` names the version just written",
+            "description": "The skill this save updated in place — its `etag` names the version just written, or the stored one when the body changed nothing (then `updatedAt` stays too)",
             "content": {
               "application/json": {
                 "schema": {
@@ -27362,7 +27617,7 @@
             }
           },
           "422": {
-            "description": "The skill body is malformed, or the bundle cannot be read — a planted symlink, a file over the staging cap (`SKILL_MALFORMED`)",
+            "description": "The bundle already stored under the slug cannot be read — a planted symlink, a file over the 4 MiB staging cap, a `SKILL.md` that does not parse (`SKILL_MALFORMED`); never the body you send, which is refused as 400 (`INVALID_BODY`, `INVALID_SKILL`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -27653,7 +27908,7 @@
         "tags": ["Skills"],
         "summary": "Download a bundle file",
         "operationId": "downloadSkillFile",
-        "description": "The bytes of one file of the bundle — `SKILL.md` included — exactly as the organization’s tree holds it: `application/octet-stream`, `Content-Length`, the file’s own name in an RFC 6266 `Content-Disposition`, private and uncacheable; a HEAD request answers the headers alone. The skill’s `files[]` is the only legitimate source of paths: a path it would never list — a traversal, a dot-entry, `node_modules/…` — reads as a file the bundle does not have (404 `SKILL_FILE_NOT_FOUND`), where an unknown, invisible or malformed slug is 404 `SKILL_NOT_FOUND`. A bundle the file layer refuses to read — a planted symlink, a file over the 4 MiB staging cap — answers 422 `SKILL_MALFORMED`.",
+        "description": "The bytes of one file of the bundle — `SKILL.md` included — exactly as the organization’s tree holds it: `application/octet-stream`, `Content-Length`, the file’s own name in an RFC 6266 `Content-Disposition`, private and uncacheable; a HEAD request answers the headers alone. The skill’s `files[]` is the only legitimate source of paths: a path it would never list — a traversal, a dot-entry, `node_modules/…` — reads as a file the bundle does not have (404 `SKILL_FILE_NOT_FOUND`), where an unknown, invisible or malformed slug is 404 `SKILL_NOT_FOUND`. A raw dot-segment in the URL (`../`, or `%2e%2e/` — the dots encoded, the slash not) never reaches this operation: the edge refuses it first with its own 404 `NOT_FOUND`, without `X-Tale-Api-Version`; a spelling whose slashes are encoded too (`%2e%2e%2f…`) does, and reads as `SKILL_FILE_NOT_FOUND`. A bundle the file layer refuses to read — a planted symlink, a file over the 4 MiB staging cap — answers 422 `SKILL_MALFORMED`.",
         "security": [
           {
             "bearerAuth": []
@@ -29620,7 +29875,7 @@
       "post": {
         "tags": ["Knowledge"],
         "summary": "Search a project’s indexed files",
-        "description": "Searches only indexed files attached to the URL project (project files index only when bound with `skipRagIndexing: false`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.",
+        "description": "Searches only indexed files attached to the URL project (a project file indexes when bound with `skipRagIndexing: false`, or later through `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.",
         "operationId": "searchProjectKnowledge",
         "security": [
           {
@@ -30430,6 +30685,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30445,6 +30703,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30460,6 +30721,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30475,6 +30739,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30490,6 +30757,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30505,6 +30775,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30520,6 +30793,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -30602,6 +30878,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30617,6 +30896,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30632,6 +30914,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30647,6 +30932,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30662,6 +30950,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30677,6 +30968,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -30692,6 +30986,9 @@
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -30714,7 +31011,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.5.0"
+          "example": "1.6.0"
         }
       },
       "RetryAfter": {
@@ -30818,6 +31115,7 @@
               "AUTOMATION_VERSION_NOT_DEPLOYED",
               "AUTOMATION_VERSION_UNKNOWN",
               "BLOB_NOT_FOUND",
+              "BODY_LENGTH_MISMATCH",
               "BODY_TOO_LARGE",
               "BROWSER_SESSION_NOT_FOUND",
               "CHAT_MODEL_AMBIGUOUS",
@@ -30870,6 +31168,7 @@
               "INTERNAL_ERROR",
               "INVALID_BODY",
               "INVALID_CURSOR",
+              "INVALID_HEADER",
               "INVALID_LIMIT",
               "INVALID_QUERY",
               "INVALID_SESSION",
@@ -30936,6 +31235,7 @@
               "UPLOAD_FILE_MISMATCH",
               "UPLOAD_INTENT_INVALID",
               "UPLOAD_POLICY_REJECTED",
+              "UPSTREAM_UNAVAILABLE",
               "URI_TOO_LONG",
               "WEBSITE_DOMAIN_IMMUTABLE",
               "WEBSITE_DOMAIN_INVALID",
@@ -31007,6 +31307,28 @@
                 }
               }
             }
+          }
+        }
+      },
+      "RetryIndexingResult": {
+        "type": "object",
+        "required": ["status"],
+        "description": "What a retry-indexing request did — the one answer the Hub document door and the project-file door share.",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["indexing", "skipped"],
+            "description": "`indexing` — the blob was queued (an opt-out lifted); `skipped` — nothing was queued, `reason` says why"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "content-only",
+              "untracked-blob",
+              "unsupported",
+              "in-progress"
+            ],
+            "description": "Why indexing was skipped; absent when `status` is `indexing`. `content-only`: inline text never enters the search corpus (a Hub document without a file — never a project file); `untracked-blob`: the platform does not track the blob; `unsupported`: no extractor reads the file type — terminal; `in-progress`: a fresh index job is already queued or running — poll `indexing` instead."
           }
         }
       },
@@ -32534,7 +32856,7 @@
             "type": "object",
             "required": ["status"],
             "additionalProperties": false,
-            "description": "Where the file stands in the search corpus — the vocabulary `Document.indexing` speaks. A file bound with the default `skipRagIndexing: true` reads `skipped` until someone indexes it (the project’s Files tab, or a bind with `skipRagIndexing: false`) and is not found by `POST …/knowledge/search` until then; absent when the platform does not track the blob.",
+            "description": "Where the file stands in the search corpus — the vocabulary `Document.indexing` speaks. A file bound with the default `skipRagIndexing: true` reads `skipped` until someone indexes it (**Index now** on the project’s Knowledge tab, `POST …/files/{documentId}/retry-indexing`, or a bind with `skipRagIndexing: false`) and is not found by `POST …/knowledge/search` until then; absent when the platform does not track the blob.",
             "properties": {
               "status": {
                 "type": "string",
@@ -32761,6 +33083,8 @@
           "name",
           "version",
           "document",
+          "testsPassed",
+          "testsCheckedAt",
           "deployedVersion",
           "projectIds",
           "createdBy",
@@ -32817,7 +33141,13 @@
           },
           "testsPassed": {
             "type": "boolean",
-            "description": "null: no verdict (no tests, or never gated); true: the deploy gate ran the tests and they passed; false: saved with failing tests",
+            "description": "The last run of this version’s tests: null — no verdict (a document without tests, or one never run); true — they passed, at the save that ran them (an MCP save of a document with tests) or at the deploy gate; false — they failed, at the save or at the gate, which persists its refusal. The latest verdict wins; `testsCheckedAt` says when it was reached.",
+            "nullable": true
+          },
+          "testsCheckedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "When `testsPassed` was last judged; null beside a null verdict",
             "nullable": true
           },
           "deployedVersion": {
@@ -32844,7 +33174,14 @@
       },
       "AutomationVersion": {
         "type": "object",
-        "required": ["version", "createdBy", "createdAt", "deployed"],
+        "required": [
+          "version",
+          "testsPassed",
+          "testsCheckedAt",
+          "createdBy",
+          "createdAt",
+          "deployed"
+        ],
         "properties": {
           "version": {
             "type": "integer"
@@ -32855,6 +33192,13 @@
           },
           "testsPassed": {
             "type": "boolean",
+            "description": "The last run of this version’s tests — null while none was recorded (no tests, or never run), else the save’s or the deploy gate’s verdict, the latest winning; a gate refusal persists its `false`",
+            "nullable": true
+          },
+          "testsCheckedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "When `testsPassed` was last judged; null beside a null verdict",
             "nullable": true
           },
           "createdBy": {
@@ -32946,6 +33290,7 @@
         "type": "object",
         "description": "One run as a listing reports it — identity, scope, status and timing. The input, output, trace, effects and checkpoints of the full `Run` are inlined only when `include` names them; the single read answers the full row.",
         "required": [
+          "id",
           "runId",
           "name",
           "version",
@@ -32956,12 +33301,17 @@
           "startedAt"
         ],
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "The run id — the name the full read uses; `runId` carries the same value"
+          },
           "runId": {
             "type": "string",
-            "description": "The run id (`id` on the full read)"
+            "description": "The run id again, under the name the start answered — one value under both names"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "The automation the run was started as. Runs outlive their automation: after `DELETE /api/v1/automations/{name}` the rows stay listed and readable by id under this name, which `GET /api/v1/automations/{name}` then answers 404 for."
           },
           "version": {
             "type": "integer"
@@ -33439,7 +33789,7 @@
           "maxOutputTokens": {
             "type": "integer",
             "minimum": 1,
-            "description": "The largest reply the model produces, in tokens"
+            "description": "The largest reply the model produces, in tokens. Absent when the catalog declares no ceiling — then no `maxOutputTokens` check applies to a send."
           },
           "capabilities": {
             "type": "object",
@@ -33677,7 +34027,7 @@
               "cancelled",
               "other"
             ],
-            "description": "Why the turn stopped, on a settled assistant message, in one vocabulary over every provider: `stop` (a natural end), `length` (the `maxOutputTokens` cap or the model’s own ceiling cut the reply short — the text is truncated and the status still reads `complete`), `tool-calls` (the final round ended on tool calls), `content-filter` (the provider’s or the platform’s filter), `cancelled` (stopped through DELETE …/generation), `other` (a reason the provider named that has no bucket here). Absent when the provider reported none."
+            "description": "Why the turn stopped, on a settled assistant message, in one vocabulary over every provider: `stop` (a natural end), `length` (the `maxOutputTokens` cap or the model’s own ceiling cut a round of this reply short — the final text, or, in a tool-calling turn, a tool call’s arguments in an earlier round: that call’s tool-result then reads `status: \"invalid_args\"` and the final text may be whole; the status still reads `complete`), `tool-calls` (the final round ended on tool calls), `content-filter` (the provider’s or the platform’s filter), `cancelled` (stopped through DELETE …/generation), `other` (a reason the provider named that has no bucket here). Absent when the provider reported none."
           },
           "model": {
             "type": "string"

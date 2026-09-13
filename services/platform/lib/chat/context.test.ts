@@ -209,15 +209,21 @@ describe('assembleContext', () => {
    * The directive let the prompt's language win, so a REST send's `locale`
    * (documented as the language the assistant answers in) read as doing
    * nothing on an English prompt. A caller that FIXED the locale gets a
-   * directive that pins it; the app lane, which never sets the flag, keeps
-   * the directive it always had.
+   * directive that names the language in words — the raw tag alone
+   * ("Answer in de …") still lost to the prompt's language on a reasoning
+   * model with a short prompt; the app lane, which never sets the flag,
+   * keeps the directive it always had.
    */
-  it('pins the reply language when the caller fixed the locale, and lets the prompt win otherwise', () => {
+  it('names the reply language when the caller fixed the locale, and lets the prompt win otherwise', () => {
     const fixed = assembleContext(input({ locale: 'de', localeFixed: true }));
     expect(fixed.system).toContain(
-      'Answer in de whatever language the user writes in — the caller fixed the reply language.',
+      "Reply language: German (de). Write the whole reply in German, whatever language the user writes in — the caller fixed the reply language; do not switch to the user's language.",
     );
     expect(fixed.system).not.toContain("Respond in the user's language");
+    // A tag the runtime has no name for still reads as itself, twice.
+    expect(
+      assembleContext(input({ locale: 'xx', localeFixed: true })).system,
+    ).toContain('Reply language: xx (xx). Write the whole reply in xx,');
 
     const open = assembleContext(input({ locale: 'de' }));
     expect(open.system).toContain(

@@ -197,9 +197,10 @@ async function automationOwnerOfWorkflowSlug(
  * lookup covers it, because the same external ref in two projects is legal
  * under `dedupeScope: 'project'`. Status policy (task-ops invariant): only
  * the workflow engine (`actorId === 'workflow'`) may COMPLETE — any other
- * actor parks an external close at `in_review`; an external reopen lifts
- * only a `done` task back to the neutral inbox (a human `cancelled` stays
- * rejected).
+ * actor parks an external close at `in_review` and stamps the park as the
+ * mirror's; an external reopen lifts a `done` task, or a park the mirror
+ * itself made, back to the neutral inbox (a park a person or an agent made
+ * stays theirs; a human `cancelled` stays rejected).
  */
 export async function upsertTaskByExternalRef(
   tx: TransactionSql,
@@ -263,11 +264,19 @@ export async function upsertTaskByExternalRef(
       }
     }
 
-    // The external lifecycle drives done/reopen; local triage owns the rest.
+    // The external lifecycle drives close/reopen; local triage owns the
+    // rest. A park the mirror made is stamped (`external_closed_at_ms`), so
+    // its `open` can undo exactly that park — and a `done` — never a park a
+    // person or an agent placed: `closed` used to park at `in_review` and
+    // `open` to lift `done` alone, so a mirror could not represent an item
+    // closed and then reopened upstream (2026-09-13 evaluation, E2-02).
     const completingActor = args.actorId === 'workflow';
+    const mirrorParked =
+      existing.status === 'in_review' && existing.externalClosedAt !== null;
     let statusFrom: TaskStatus | undefined;
     let newStatus: TaskStatus | undefined;
     let completedAt: number | null = existing.completedAt;
+    let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
     if (
       args.externalState === 'closed' &&
@@ -276,11 +285,16 @@ export async function upsertTaskByExternalRef(
       newStatus = completingActor ? 'done' : 'in_review';
       statusFrom = existing.status;
       completedAt = completingActor ? now : null;
+      externalClosedAt = now;
       rank = await computeEndRank(tx, existing.projectId, newStatus);
-    } else if (args.externalState === 'open' && existing.status === 'done') {
+    } else if (
+      args.externalState === 'open' &&
+      (existing.status === 'done' || mirrorParked)
+    ) {
       newStatus = SYNC_OPEN_STATUS;
       statusFrom = existing.status;
       completedAt = null;
+      externalClosedAt = null;
       rank = await computeEndRank(tx, existing.projectId, SYNC_OPEN_STATUS);
     }
 
@@ -304,6 +318,7 @@ export async function upsertTaskByExternalRef(
         assignee_id = ${assigneePatch?.assigneeId ?? existing.assigneeId},
         status = ${newStatus ?? existing.status},
         completed_at_ms = ${completedAt},
+        external_closed_at_ms = ${externalClosedAt},
         rank = ${rank},
         status_changed_at_ms = ${statusFrom !== undefined ? now : existing.statusChangedAt},
         updated_at_ms = ${now}
@@ -419,14 +434,15 @@ export async function upsertTaskByExternalRef(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, status, priority, label_ids,
       assignee_type, assignee_id, rank, number, external_system, external_id,
-      external_url, completed_at_ms, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms
+      external_url, completed_at_ms, external_closed_at_ms, created_by,
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
       ${args.organizationId}, ${projectId}, ${title}, ${description ?? null},
       ${status}, ${args.priority ?? null}, ${labelIds},
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
       ${rank}, ${number}, ${externalSystem}, ${externalId},
       ${args.externalUrl ?? null}, ${status === 'done' ? now : null},
+      ${status === 'done' ? now : null},
       ${createdByUser ? args.actorId : (ownerAutomation ?? args.actorId)},
       ${createdByUser ? 'user' : ownerAutomation !== null ? 'app' : 'agent'},
       ${now}, ${now}, ${now}

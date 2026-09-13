@@ -39,14 +39,17 @@ interface Statement {
 }
 
 /** One hub document (no team, no project → visible to any member) and its
- * file row. `sql` is callable AND transactional: `begin` hands the same
- * recorder back as the transaction. */
-function fakeSql(file: {
-  skipRagIndexing: boolean | null;
-  ragStatus: string | null;
-  ragError?: string | null;
-  ragQueuedAt?: number | null;
-}): { sql: Sql; statements: Statement[] } {
+ * file row — `null` for a blob the platform does not track. `sql` is
+ * callable AND transactional: `begin` hands the same recorder back as the
+ * transaction. */
+function fakeSql(
+  file: {
+    skipRagIndexing: boolean | null;
+    ragStatus: string | null;
+    ragError?: string | null;
+    ragQueuedAt?: number | null;
+  } | null,
+): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -66,6 +69,7 @@ function fakeSql(file: {
       ]);
     }
     if (text.includes('FROM app.file_metadata')) {
+      if (file === null) return Promise.resolve([]);
       return Promise.resolve([
         {
           id: 'fm-1',
@@ -187,6 +191,22 @@ describe('retryRagIndexingForDocument — the explicit opt-in', () => {
         doc,
       ),
     ).toEqual({ kind: 'queued' });
+  });
+
+  /** Each skip is its own sentence (round e, S4): an untracked blob used
+   * to read "Document has no file" — the content-only sentence — which
+   * sent a person to upload a file the document already had. */
+  it('names an untracked blob as its own sentence, writing nothing', async () => {
+    const { sql, statements } = fakeSql(null);
+    expect(await retryRagIndexingForDocument(sql, AUTH, 'doc-1')).toEqual({
+      success: false,
+      error:
+        "The platform doesn't track this file's blob, so it can't be indexed.",
+    });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.file_metadata')),
+    ).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
   it('leaves a file that never opted out alone', async () => {

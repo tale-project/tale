@@ -737,17 +737,38 @@ describe('website list bounds', () => {
     expect(fetchWebsitePages).toHaveBeenCalledTimes(1);
   });
 
-  it('caps the search limit for POST /websites/{id}/search', async () => {
+  /**
+   * A body field is refused out of range, never clamped — the door-wide
+   * rule the two knowledge-search doors already followed (round e, E5-04):
+   * `limit: 9999` used to answer 200 with a hundred rows' worth and `0`
+   * one row, without a word, while the reference page promised 400.
+   */
+  it('refuses an out-of-range or fractional search limit for POST /websites/{id}/search, naming limit', async () => {
     const { sql } = fakeSql();
-    const res = await send(sql, '/websites/w-1/search', 'POST', {
-      query: 'refunds',
-      limit: 1e9,
-    });
-    expect(res.status).toBe(200);
-    expect(vi.mocked(searchWebsiteContent).mock.calls.at(-1)?.[2]).toEqual({
-      query: 'refunds',
-      limit: 100,
-    });
+    for (const limit of [0, -1, 101, 1e9, 2.5]) {
+      vi.mocked(searchWebsiteContent).mockClear();
+      const res = await send(sql, '/websites/w-1/search', 'POST', {
+        query: 'refunds',
+        limit,
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: { issues: [{ path: 'limit' }] },
+      });
+      expect(searchWebsiteContent).not.toHaveBeenCalled();
+    }
+    for (const limit of [1, 100]) {
+      const res = await send(sql, '/websites/w-1/search', 'POST', {
+        query: 'refunds',
+        limit,
+      });
+      expect(res.status).toBe(200);
+      expect(vi.mocked(searchWebsiteContent).mock.calls.at(-1)?.[2]).toEqual({
+        query: 'refunds',
+        limit,
+      });
+    }
   });
 });
 

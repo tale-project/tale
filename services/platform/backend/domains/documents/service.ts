@@ -1643,13 +1643,23 @@ export async function retryRagIndexingForDocument(
   if (outcome.kind === 'unsupported') {
     return { success: false, error: outcome.error };
   }
-  return {
-    success: false,
-    error:
-      outcome.kind === 'in-progress'
-        ? 'Indexing is already in progress for this file.'
-        : 'Document has no file',
-  };
+  // Each skip its own sentence: an untracked blob used to read "Document
+  // has no file" too, which sent a person to upload a file the document
+  // already had.
+  if (outcome.kind === 'in-progress') {
+    return {
+      success: false,
+      error: 'Indexing is already in progress for this file.',
+    };
+  }
+  if (outcome.kind === 'untracked-blob') {
+    return {
+      success: false,
+      error:
+        "The platform doesn't track this file's blob, so it can't be indexed.",
+    };
+  }
+  return { success: false, error: 'Document has no file' };
 }
 
 // ---------------------------------------------------------------------------
@@ -1711,12 +1721,11 @@ function assertUploadTypeAllowedByPolicy(
   }
 }
 
-/** The platform's own format allowlist (keyed on the file name's extension). */
-function assertUploadFormatSupported(
-  contentType: string,
-  fileName: string,
-): void {
-  if (!isAllowedDocumentUpload(contentType, fileName)) {
+/** The platform's own format allowlist — keyed on the file name's
+ * extension, which the name must carry; a declared type never stands in
+ * for it. */
+function assertUploadFormatSupported(fileName: string): void {
+  if (!isAllowedDocumentUpload(fileName)) {
     // Sorted: the Set's insertion order put `ac2` (a real format — Banana
     // accounting) last, after `py`, where a reader took it for a typo.
     throw new DocumentError(
@@ -1754,7 +1763,7 @@ export async function assertUploadTypeAllowedForOrg(
   if (policy?.enabled === true) {
     assertUploadTypeAllowedByPolicy(policy, contentType, extension);
   }
-  assertUploadFormatSupported(contentType, args.fileName);
+  assertUploadFormatSupported(args.fileName);
   return { contentType, extension };
 }
 
@@ -1922,7 +1931,7 @@ export async function validateDocumentUploadForOrg(
   }
   await assertUploadSizeAllowedForOrg(sql, auth, args);
 
-  assertUploadFormatSupported(contentType, args.fileName);
+  assertUploadFormatSupported(args.fileName);
   return { contentType, extension };
 }
 

@@ -480,28 +480,8 @@ export const TASK_UPLOAD_ALLOWED_TYPES: readonly string[] = [
 /** Max attachments per task (parity with the chat per-message file cap). */
 export const TASK_MAX_ATTACHMENTS = 10;
 
-/** Allowed MIME types for document uploads (used for client + server validation) */
-const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.PDF,
-  MIME_TYPES.DOC,
-  MIME_TYPES.DOCX,
-  MIME_TYPES.ODT,
-  MIME_TYPES.PPT,
-  MIME_TYPES.PPTX,
-  MIME_TYPES.XLS,
-  MIME_TYPES.XLSX,
-  MIME_TYPES.CSV,
-  MIME_TYPES.PLAIN,
-  MIME_TYPES.MARKDOWN,
-  MIME_TYPES.JSON,
-  MIME_TYPES.YAML,
-  MIME_TYPES.JPEG,
-  MIME_TYPES.PNG,
-  MIME_TYPES.GIF,
-  MIME_TYPES.WEBP,
-]);
-
-/** Allowed extensions for document uploads (fallback when MIME is unreliable) */
+/** The extensions a document upload may carry — THE allowlist: a file name
+ * must end in one of these, whatever MIME type the caller declares. */
 export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'pdf',
   'doc',
@@ -817,17 +797,18 @@ export function hasFileTools(toolNames: readonly string[]): boolean {
 
 // ---------------------------------------------------------------------------
 /**
- * Check whether a file is allowed for document upload based on its resolved
- * MIME type and extension. Returns `true` when either the MIME type or the
- * file extension matches the allowlist.
+ * Whether a file may be uploaded as a document: its name must carry an
+ * extension, and that extension must be on the allowlist. The MIME type
+ * plays no part — a declared `text/plain` used to let a name without an
+ * extension (`CON`, `attachment-4711`) through the upload mint, whose
+ * pre-check promises the bytes never travel for a name the bind refuses,
+ * and let `program.exe` in beside it (2026-09-13 evaluation, E2-01). The
+ * type a caller declares stays a hint the gate resolves against the name
+ * for the stored row; the allowlist keys on the name alone.
  */
-export function isAllowedDocumentUpload(
-  resolvedMimeType: string,
-  fileName: string,
-): boolean {
-  if (DOCUMENT_UPLOAD_ALLOWED_TYPES.has(resolvedMimeType)) return true;
+export function isAllowedDocumentUpload(fileName: string): boolean {
   const ext = extractExtension(fileName);
-  return ext ? DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS.has(ext) : false;
+  return ext !== undefined && DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS.has(ext);
 }
 
 /**

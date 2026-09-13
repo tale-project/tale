@@ -40,6 +40,7 @@ import {
   type ExecutionResolution,
   type HarnessTable,
 } from '../shared/providers/resolve_execution';
+import { languageDisplayName } from '../shared/utils/language-name';
 import {
   assembleContext,
   type AssembledContext,
@@ -128,6 +129,20 @@ export const TOOL_BUDGET_SPENT_NOTICE =
   'run. Answer now from what you have gathered. If you could not read ' +
   'everything, say exactly which parts you did read and offer to continue ' +
   'in a follow-up reply — do not announce further lookups.]';
+
+/**
+ * The fixed-reply-language notice, appended to the newest user message on
+ * the wire when the caller fixed `locale` (the REST send that named it).
+ * The system prompt already carries the directive; this puts it where a
+ * reasoning model on a short prompt actually looks — on the message it is
+ * answering. Never stored: the row keeps what the person typed (the same
+ * seam as the transcript and document appendixes). It rides every tool
+ * round, because every round starts from the assembled context.
+ */
+export function fixedLocaleNotice(locale: string): string {
+  const name = languageDisplayName(locale);
+  return `\n\n[Write your entire reply in ${name} (${locale}), whatever language this message is written in — the caller fixed the reply language.]`;
+}
 
 // ------------------------------------------------------------------- ports
 
@@ -534,7 +549,9 @@ function assembleTurnContext(
   now: Date,
 ): AssembledContext {
   const appendix =
-    (request.audioTranscriptAppendix ?? '') + (request.documentAppendix ?? '');
+    (request.audioTranscriptAppendix ?? '') +
+    (request.documentAppendix ?? '') +
+    (request.localeFixed === true ? fixedLocaleNotice(request.locale) : '');
   const modelFacingText =
     appendix.length > 0 ? filteredUserText + appendix : filteredUserText;
   const history: ChatMessage[] = [
@@ -634,7 +651,8 @@ async function streamWithOutputGuardrails(
   request: TurnRequest,
   context: AssembledContext,
   execution: ExecutionResolution,
-  /** The sampling the turn resolved once, up front — see `runTurn`. */
+  /** The sampling for THIS round: the turn's, or a later tool round's
+   * re-fit to what the caller's per-turn cap has left — see `runTurn`. */
   sampling: TurnSampling,
   deps: TurnDeps,
   /** The placeholder assistant message the cleared text streams into. */
@@ -873,6 +891,23 @@ export const TOOL_CALL_STOPPED_OUTPUT = {
   message: 'The user stopped the reply before this tool ran.',
 } as const;
 
+/**
+ * What a call in a round the output cap cut settles with, in place of an
+ * execution. The cap truncated the model's output mid-call: the arguments
+ * are whatever fitted — `{}` with the raw text kept when they no longer
+ * parse, a call that looks whole when the cut fell after it — and neither
+ * is a request the model finished making. Running it answered a question
+ * nobody asked and then let the next round settle `stop` over a cut reply.
+ * Same shape as the executor's own `invalid_args`, so the model reads it
+ * the way it reads any correctable failure.
+ */
+export const CAP_CUT_CALL_OUTPUT = {
+  status: 'invalid_args',
+  message:
+    'The arguments were cut by the reply cap (maxOutputTokens, or the ' +
+    'model’s own ceiling); the call did not run.',
+} as const;
+
 /** Cost of a turn in cents from the model's catalog pricing — fractional
  * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
  * rather than guessing a rate — an under-count is honest where a fabricated
@@ -884,10 +919,13 @@ export function estimateCostCents(
   pricing: ModelCatalogEntry['pricing'] | undefined,
 ): number {
   if (!pricing) return 0;
-  return (
+  const cents =
     (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
-    (outputTokens / 1_000_000) * pricing.outputCentsPerMillion
-  );
+    (outputTokens / 1_000_000) * pricing.outputCentsPerMillion;
+  // Rounded to a millionth of a cent: the doubles the rates produce carry
+  // binary noise (`0.042601999999999994`) that reached the wire and the
+  // ledger alike, and a booked figure means a fixed scale.
+  return Math.round(cents * 1e6) / 1e6;
 }
 
 /**
@@ -1124,10 +1162,12 @@ export async function runTurn(
 
   try {
     steps.push('stream');
-    // Resolved ONCE per turn, before any chunk flows: the model call, and
-    // nothing else, decides how to spell it on the wire. Fitted to the same
-    // effective window the context budget used, so the reserve the history
-    // made room for and the ceiling the wire requests never disagree.
+    // The FIRST round's sampling, resolved before any chunk flows: the model
+    // call, and nothing else, decides how to spell it on the wire. Fitted to
+    // the same effective window the context budget used, so the reserve the
+    // history made room for and the ceiling the wire requests never
+    // disagree. A later tool round re-fits it to what the caller's per-turn
+    // cap has left — see `roundSampling` in the loop.
     const sampling = fitSamplingToWindow(
       resolveTurnSampling(
         request.model,
@@ -1196,6 +1236,16 @@ export async function runTurn(
      * paragraph twice.
      */
     let roundSettled = false;
+    /** The caller's per-turn reply cap ran out across the rounds: the round
+     *  that would have started with nothing left was not run. */
+    let capExhausted = false;
+    /** Some round hit the output cap — the caller's or the model's own — so
+     *  its text, or a tool call's arguments, were cut. */
+    let anyRoundLength = false;
+    /** This round's sampling: the turn's for the first round; for a later
+     *  tool round, re-fitted at the end of the previous pass to what the
+     *  caller's per-turn cap has left. */
+    let roundSampling = sampling;
     for (;;) {
       // Each round starts un-settled; only the settle block below flips it,
       // and only for the round that is about to run its tools.
@@ -1228,7 +1278,7 @@ export async function runTurn(
         request,
         context,
         execution,
-        sampling,
+        roundSampling,
         deps,
         placeholder.id,
         {
@@ -1238,6 +1288,7 @@ export async function runTurn(
           onCancelRequested: () => cancel.abort(),
         },
       );
+      if (streamed.finishReason === 'length') anyRoundLength = true;
       firstChunkAtMs ??= streamed.firstChunkAtMs;
       firstReasoningAtMs ??= streamed.firstReasoningAtMs;
       firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
@@ -1341,16 +1392,24 @@ export async function runTurn(
         }
       };
       const outputByKey = new Map<string, Promise<unknown>>();
-      const outputs = await Promise.all(
-        calls.map((call) => {
-          // A call that failed to parse keys on its raw text — two broken
-          // calls are only "the same" when they broke identically.
-          const key = `${call.name} ${call.rawInput ?? canonicalArgs(call.input)}`;
-          const pending = outputByKey.get(key) ?? runCall(call);
-          outputByKey.set(key, pending);
-          return pending;
-        }),
-      );
+      // A round the output cap cut does not run its calls: the cap fell in
+      // the middle of what the model was asking, so every call of the round
+      // settles `CAP_CUT_CALL_OUTPUT` instead — the record still pairs each
+      // call with a result, and the loop's budget decides whether another
+      // round follows.
+      const outputs: readonly unknown[] =
+        streamed.finishReason === 'length'
+          ? calls.map(() => CAP_CUT_CALL_OUTPUT)
+          : await Promise.all(
+              calls.map((call) => {
+                // A call that failed to parse keys on its raw text — two broken
+                // calls are only "the same" when they broke identically.
+                const key = `${call.name} ${call.rawInput ?? canonicalArgs(call.input)}`;
+                const pending = outputByKey.get(key) ?? runCall(call);
+                outputByKey.set(key, pending);
+                return pending;
+              }),
+            );
       for (const [index, call] of calls.entries()) {
         const output = outputs[index];
         settledParts.push({
@@ -1393,6 +1452,28 @@ export async function runTurn(
       }
       if (streamed.cancelled === true || paused) break;
       toolRounds += 1;
+      // The caller's `maxOutputTokens` bounds the TURN, not each round: the
+      // next round gets what this one and its predecessors left of the cap,
+      // and a round that would start with nothing left is not run — the
+      // turn settles as cut (`finishReason: length`) on the parts it has.
+      // Decided here, with this round settled, so the finalize below sees
+      // the last round as settled and does not print its text twice. (A
+      // thinking model's floor can lift a small remainder back to the
+      // provider minimum — `capSampling` documents that; the cap is a
+      // ceiling on the request, not a meter.)
+      if (request.maxOutputTokens !== undefined) {
+        const remaining = request.maxOutputTokens - summed.output;
+        if (remaining < 1) {
+          capExhausted = true;
+          break;
+        }
+        roundSampling = fitSamplingToWindow(
+          resolveTurnSampling(request.model, request.reasoningEffort, {
+            maxOutputTokens: remaining,
+          }),
+          request.budget?.maxTokens ?? request.model.contextWindow,
+        );
+      }
     }
 
     steps.push('output-guardrails');
@@ -1402,14 +1483,19 @@ export async function runTurn(
     // ledger always tell the same story; `stepLimitHit` marks a turn whose
     // final round had tools withheld because the round budget was spent;
     // `estimated` marks counts the platform had to guess. The finish
-    // reason is the FINAL round's — the platform's own verdicts (a stop, a
-    // guardrail block) win over what the provider said about that round.
+    // reason: the platform's own verdicts first (a stop, a guardrail
+    // block), then `length` when ANY round hit the cap or the turn's budget
+    // ran out before a round could start — a cut tool round whose final
+    // round then ended cleanly is still a cut reply — and otherwise what the
+    // provider said about the FINAL round.
     const finishReason: TurnFinishReason | undefined =
       streamed.refusal !== undefined
         ? 'content-filter'
         : streamed.cancelled === true
           ? 'cancelled'
-          : streamed.finishReason;
+          : capExhausted || anyRoundLength
+            ? 'length'
+            : streamed.finishReason;
     const usage: TurnUsage = {
       inputTokens: summed.input,
       outputTokens: summed.output,

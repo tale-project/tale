@@ -30,6 +30,7 @@ import {
   type SkillViewer,
   type UserSkillViewer,
 } from '../../../lib/skills/visibility';
+import { sha256 } from '../lib/file_io';
 import { type ParsedBundle } from './bundle_zip';
 import {
   createOrgSkillReader,
@@ -432,9 +433,29 @@ export async function saveSkillForViewer(
       }
       throw err;
     }
-    const written = await bundleRead(args.orgSlug, args.slug, () =>
-      writeSkillMdText(args.orgSlug, args.slug, content),
-    );
+    // A save whose composed document is byte-identical to the stored one
+    // writes nothing: the tag is the document's SHA-256, so an equal tag
+    // means equal bytes, and rewriting them would only move `SKILL.md`'s
+    // mtime — `updatedAt` — and mint a history entry for a version that did
+    // not change, which is what a mirror re-pushing an unchanged bundle
+    // used to see (2026-09-13 round-e evaluation, E6-03). Documents and
+    // knowledge entries already answer an identical write as a no-op; the
+    // preconditions above are still evaluated first, so a stale `If-Match`
+    // on an identical body is refused like any other.
+    const version =
+      existing !== null && skillEntityTag(sha256(content)) === existing.etag
+        ? { etag: existing.etag, updatedAt: existing.updatedAt }
+        : await bundleRead(args.orgSlug, args.slug, async () => {
+            const written = await writeSkillMdText(
+              args.orgSlug,
+              args.slug,
+              content,
+            );
+            return {
+              etag: skillEntityTag(written.hash),
+              updatedAt: written.mtimeMs,
+            };
+          });
 
     const entries = await bundleRead(args.orgSlug, args.slug, () =>
       listSkillBundleFileEntries(args.orgSlug, args.slug),
@@ -447,8 +468,8 @@ export async function saveSkillForViewer(
             path: relativeSkillPath(args.slug),
             meta: verified.meta,
             body: verified.body,
-            etag: skillEntityTag(written.hash),
-            updatedAt: written.mtimeMs,
+            etag: version.etag,
+            updatedAt: version.updatedAt,
           },
           viewer,
         ),

@@ -75,6 +75,22 @@ export function ifNoneMatchMatches(header: string, etag: string): boolean {
     .some((tag) => tag !== '' && tag === wanted);
 }
 
+/**
+ * Whether a representation last modified at `lastModifiedMs` has changed
+ * since the date an `If-Modified-Since` field names (RFC 9110 §13.1.3): it
+ * has not — the read answers 304 — when its modification date is at or
+ * before that date, compared at the whole-second precision an HTTP-date
+ * carries (the `Last-Modified` the client echoes was truncated to it). A
+ * date that does not parse is ignored, which reads as modified. The
+ * field is evaluated only when no `If-None-Match` was sent — the caller
+ * decides that precedence, as the bytes lane does.
+ */
+export function modifiedSince(header: string, lastModifiedMs: number): boolean {
+  const since = Date.parse(header);
+  if (Number.isNaN(since)) return true;
+  return Math.floor(lastModifiedMs / 1000) * 1000 > since;
+}
+
 export interface ConditionalGetOptions {
   /**
    * A `Cache-Control` value the door stamps on every answer by default —

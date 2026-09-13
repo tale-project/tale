@@ -775,6 +775,45 @@ describe('OPTIONS on the status doors', () => {
   });
 });
 
+/**
+ * The web tier's own doors answer HEAD with the GET's headers, the docs
+ * say — and all four answered `content-length: 0`, the adapter's stamp for
+ * the body Hono drops (2026-09-13 round-e evaluation, E1-03). The REST
+ * door measures its own; these share the rule through `headContentLength`.
+ */
+describe('HEAD on the web-tier doors', () => {
+  const document = {
+    openapi: '3.0.3',
+    info: { title: 'Tale Platform API', version: '1.3.0' },
+    servers: [{ url: '{origin}', variables: { origin: { default: 'x' } } }],
+    paths: {},
+  };
+
+  test.each(['/api/health', '/status', '/status.json', '/openapi.json'])(
+    '%s carries the Content-Length its GET would, and no body',
+    async (door) => {
+      const app = createApp(baseEnv, {
+        openapiDocument: () => Promise.resolve(document),
+      });
+      const got = await app.fetch(new Request(`http://localhost${door}`));
+      expect(got.status).toBe(200);
+      const body = await got.text();
+      expect(body).not.toBe('');
+      const head = await app.fetch(
+        new Request(`http://localhost${door}`, { method: 'HEAD' }),
+      );
+      expect(head.status).toBe(200);
+      expect(head.headers.get('content-length')).toBe(
+        String(Buffer.byteLength(body)),
+      );
+      expect(head.headers.get('content-type')).toBe(
+        got.headers.get('content-type'),
+      );
+      expect(await head.text()).toBe('');
+    },
+  );
+});
+
 describe('SSE /events/file', () => {
   test('returns 401 when no session cookie is present', async () => {
     const app = createApp(baseEnv);

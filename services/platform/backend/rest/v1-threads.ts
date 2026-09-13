@@ -40,6 +40,7 @@ import {
   notFound,
   PAGE_QUERY,
   parseBody,
+  readIdempotencyKey,
   readIntegerCursor,
   readKeysetCursor,
   readPageLimit,
@@ -912,10 +913,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           .strict(),
       );
       if (body instanceof Response) return body;
-      // A blank key is no key — the run-start door reads its header the
-      // same way.
-      const idempotencyKey =
-        c.req.header('idempotency-key')?.trim() || undefined;
+      // The run-start door's reader: a blank key is no key, a key outside
+      // printable ASCII is the 400 `INVALID_HEADER` — before the thread
+      // is looked up, so nothing is claimed or queued for it.
+      const idempotencyKey = readIdempotencyKey(c);
+      if (idempotencyKey instanceof Response) return idempotencyKey;
       const projectId = projectIdFor(c);
       const thread = await loadRestThread(c, threadIdFor(c), projectId);
       if (thread === null)

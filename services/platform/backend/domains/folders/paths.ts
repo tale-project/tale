@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { hasForbiddenNameChar } from '../../../lib/shared/utils/plain-name.ts';
+import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
+import { forbiddenNameCharKind } from '../../../lib/shared/utils/plain-name.ts';
 
 /**
  * Hub folder-path plumbing shared by the sync engines (OneDrive today,
@@ -18,31 +19,60 @@ import { hasForbiddenNameChar } from '../../../lib/shared/utils/plain-name.ts';
 export const MAX_FOLDER_DEPTH = 20;
 const FOLDER_NAME_MAX = 128;
 
+/** Why a folder name was refused — each reason has the one sentence a
+ * refusal shows a person, so `FOLDER_NAME_INVALID` says what to fix. */
+export type FolderNameReason =
+  | 'blank'
+  | 'too_long'
+  | 'separator'
+  | 'control'
+  | 'dot';
+
+const FOLDER_NAME_RULES: Readonly<Record<FolderNameReason, string>> = {
+  blank: 'must not be blank',
+  too_long: `must be at most ${FOLDER_NAME_MAX} characters`,
+  separator: 'must not contain a path separator ("/" or "\\")',
+  control: 'must not contain a control character',
+  dot: 'must not be "." or ".."',
+};
+
 export class FolderNameError extends Error {
-  constructor() {
-    super('Invalid folder name');
+  readonly reason: FolderNameReason;
+  /** The rule broken, as the phrase a `data.issues` entry carries. */
+  readonly rule: string;
+
+  constructor(reason: FolderNameReason) {
+    const rule = FOLDER_NAME_RULES[reason];
+    super(`Folder name ${rule}`);
     this.name = 'FolderNameError';
+    this.reason = reason;
+    this.rule = rule;
   }
 }
 
 /**
- * A folder name is a name, never a path: bounded, not `.`/`..`, and free
+ * A folder name is a name, never a path: canonical (NFC, trimmed — the
+ * rule every caller-owned key and the REST file name follow, so `café`
+ * decomposed and composed are one folder), bounded, not `.`/`..`, and free
  * of the shared class (`/`, `\`, the control characters) the REST file
  * name and the WebDAV segment refuse — a folder used to take a backslash
- * or a tab a file beside it could not carry.
+ * or a tab a file beside it could not carry. The refusal names the rule
+ * it broke: "Invalid folder name" alone told nobody what to fix.
  */
 export function validateFolderName(name: string): string {
-  const trimmed = name.trim();
-  if (
-    trimmed.length === 0 ||
-    trimmed.length > FOLDER_NAME_MAX ||
-    hasForbiddenNameChar(trimmed) ||
-    trimmed === '.' ||
-    trimmed === '..'
-  ) {
-    throw new FolderNameError();
-  }
-  return trimmed;
+  const canonical = canonicalExternalKey(name);
+  const reason = folderNameReason(canonical);
+  if (reason !== undefined) throw new FolderNameError(reason);
+  return canonical;
+}
+
+function folderNameReason(name: string): FolderNameReason | undefined {
+  if (name.length === 0) return 'blank';
+  if (name.length > FOLDER_NAME_MAX) return 'too_long';
+  const kind = forbiddenNameCharKind(name);
+  if (kind !== undefined) return kind;
+  if (name === '.' || name === '..') return 'dot';
+  return undefined;
 }
 
 async function findHubChild(

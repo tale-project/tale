@@ -48,6 +48,7 @@ import {
   PAGE_QUERY,
   parseBody,
   queryFilter,
+  readIdempotencyKey,
   readKeysetCursor,
   readPageLimit,
   readQuery,
@@ -664,9 +665,11 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const mode = body.mode ?? 'live';
     const name = decodeName(c);
     if (name instanceof Response) return name;
-    // A blank key is no key — the webhook door reads its delivery-id
-    // headers the same way.
-    const idempotencyKey = c.req.header('idempotency-key')?.trim() || undefined;
+    // A blank key is no key; a key outside printable ASCII is the 400
+    // `INVALID_HEADER` — before the capability gate and the lane charge, a
+    // header the contract refuses spends nothing.
+    const idempotencyKey = readIdempotencyKey(c);
+    if (idempotencyKey instanceof Response) return idempotencyKey;
     try {
       // The capability gate before the lane charge: a caller the role
       // refuses must not spend the key holder's run-start budget.
@@ -855,6 +858,8 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       ...(row.testsPassed !== undefined
         ? { testsPassed: row.testsPassed }
         : {}),
+      // When the verdict was reached — null beside a null verdict.
+      testsCheckedAt: row.testsCheckedAt ?? null,
       // One spelling of "nothing deployed" on both the listing and this
       // read: null, never an absent key.
       deployedVersion: deployed ?? null,

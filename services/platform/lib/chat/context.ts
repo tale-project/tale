@@ -38,6 +38,7 @@
  */
 
 import { boundJson } from '../shared/utils/bound-json';
+import { languageDisplayName } from '../shared/utils/language-name';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
 import {
@@ -215,9 +216,23 @@ function renderRuntimeDirectives(
   return [
     `Current time: ${now.toISOString()} (UTC).`,
     localeFixed
-      ? `Answer in ${locale} whatever language the user writes in — the caller fixed the reply language.`
+      ? fixedReplyLanguageDirective(locale)
       : `Respond in the user's language (${locale}). If the user writes in another language, answer in the language they used.`,
   ].join('\n');
+}
+
+/**
+ * The directive for a caller-fixed reply language names the language in
+ * words. The raw tag alone ("Answer in de …") read as an abbreviation a
+ * reasoning model on a short prompt weighted weakly — it answered in the
+ * prompt's language anyway. The tag rides beside the name, so a tag the
+ * runtime cannot name still says what it is. The system prompt is one of
+ * the two places the directive sits: the turn pipeline also appends a
+ * wire-only notice to the newest user message (`fixedLocaleNotice`).
+ */
+function fixedReplyLanguageDirective(locale: string): string {
+  const name = languageDisplayName(locale);
+  return `Reply language: ${name} (${locale}). Write the whole reply in ${name}, whatever language the user writes in — the caller fixed the reply language; do not switch to the user's language.`;
 }
 
 /** The notice that replaces dropped messages. Phrased as a fact about the

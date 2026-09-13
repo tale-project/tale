@@ -29,6 +29,17 @@ here the first time a round re-files it.
   `save-auth-state.ts`. Observed live 2026-08-04.
 - **"Tale is ready to work offline." fires once on first service-worker
   install.** Benign, and it will photobomb an unrelated screenshot.
+- **A chunked body past a route's cap is read to the cap before the 413.** A
+  JSON write sent with `Transfer-Encoding: chunked` and no `Content-Length`
+  cannot be refused before a byte arrives: the door counts the chunks as they
+  land and stops at the first one past the cap (`readBodyBytes`,
+  `backend/rest/shared.ts`), answering the same 413 `BODY_TOO_LARGE` a
+  declared length gets before any byte is read. A client streaming 1.14 MB at
+  the 1 MiB cap therefore sees its whole upload go out first — the bytes in
+  flight on the connection drain, the platform does not read past the cap —
+  and a slower refusal than the declared-length path. A `Connection: close`
+  the platform added would not survive the edge, which strips hop-by-hop
+  headers. Observed live in the 2026-09-13 round-e API evaluation (E5-03).
 
 ## Known benign console output
 

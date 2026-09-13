@@ -200,7 +200,7 @@ describe('every refusal carries a code and a hint', () => {
     expect(result.hint).toMatch(/\S/);
   });
 
-  it('the deploy gate names failing tests', async () => {
+  it('the deploy gate names failing tests, and records the verdict on the version', async () => {
     vi.mocked(runAutomationTests).mockResolvedValueOnce({
       passed: 0,
       failed: 1,
@@ -210,12 +210,16 @@ describe('every refusal carries a code and a hint', () => {
       ...DOC_EXAMPLE.automation,
       tests: [{ name: 'fails', input: {}, expect: { output: 1 } }],
     };
+    const recordTestVerdict = vi.fn(async () => undefined);
+    const deploy = vi.fn(async () => ({ name: SAVED, version: 1 }));
     const result = await dispatch(
       'deploy_automation',
       { name: SAVED, version: 1 },
       {
         store: fullStore({
           get: async () => ({ meta: { version: 1 }, automation: withTests }),
+          recordTestVerdict,
+          deploy,
         }),
       },
     );
@@ -224,6 +228,26 @@ describe('every refusal carries a code and a hint', () => {
       hint: expect.stringContaining('report.results'),
       report: { failed: 1 },
     });
+    // The refusal is the version's verdict from now on (2026-09-13
+    // evaluation, E4-04): the row used to keep `null` after the gate said no.
+    expect(recordTestVerdict).toHaveBeenCalledWith(SAVED, 1, false);
+    expect(deploy).not.toHaveBeenCalled();
+  });
+
+  it('the deploy gate hands a passing run to the store as the verdict', async () => {
+    vi.mocked(runAutomationTests).mockResolvedValueOnce({
+      passed: 1,
+      failed: 0,
+      results: [],
+    });
+    const deploy = vi.fn(async () => ({ name: SAVED, version: 1 }));
+    const result = await dispatch(
+      'deploy_automation',
+      { name: SAVED, version: 1 },
+      { store: fullStore({ deploy }) },
+    );
+    expect(result).toMatchObject({ deployed: { name: SAVED, version: 1 } });
+    expect(deploy).toHaveBeenCalledWith(SAVED, 1, { testsPassed: true });
   });
 
   it('a live run on a host with no runner is a refusal, not a mock run', async () => {
@@ -303,5 +327,55 @@ describe('the name-scoped lists refuse an unknown automation', () => {
     expect(await dispatch('list_triggers', {}, { store })).toEqual({
       triggers: [],
     });
+  });
+});
+
+/**
+ * A save runs the document's own tests and records the verdict with the
+ * version (2026-09-13 evaluation, E4-04): a version saved with failing
+ * tests reads `testsPassed: false` from the moment it exists, as the
+ * contract promises, where the row used to read `null`. A document without
+ * tests records nothing.
+ */
+describe('save_automation records the save’s own test verdict', () => {
+  it('runs the tests and hands the verdict to the store, answering it too', async () => {
+    vi.mocked(runAutomationTests).mockClear();
+    vi.mocked(runAutomationTests).mockResolvedValueOnce({
+      passed: 0,
+      failed: 1,
+      results: [{ name: 'fails', pass: false }],
+    });
+    const save = vi.fn(async () => ({ name: SAVED, version: 2 }));
+    const result = await dispatch(
+      'save_automation',
+      { automation: DOC_EXAMPLE.automation, message: 'why' },
+      { store: fullStore({ save }) },
+    );
+    expect(runAutomationTests).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
+      'why',
+      { testsPassed: false },
+    );
+    expect(result).toEqual({ name: SAVED, version: 2, testsPassed: false });
+  });
+
+  it('records no verdict for a document without tests', async () => {
+    vi.mocked(runAutomationTests).mockClear();
+    const { tests: _tests, ...untested } = DOC_EXAMPLE.automation;
+    const save = vi.fn(async () => ({ name: SAVED, version: 2 }));
+    const result = await dispatch(
+      'save_automation',
+      { automation: untested },
+      { store: fullStore({ save }) },
+    );
+    expect(runAutomationTests).not.toHaveBeenCalled();
+    // `message` travels as the empty string dispatch reads an absent one as.
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ name: DOC_EXAMPLE.automation.name }),
+      '',
+      undefined,
+    );
+    expect(result).toEqual({ name: SAVED, version: 2 });
   });
 });

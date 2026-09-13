@@ -18,5 +18,13 @@
  * can be stopped, `201` on a skill create, the door-wide `408`
  * `REQUEST_TIMEOUT`, page failure facts on websites, trigger health on the
  * automation summary, `size` on project files, `archivedAt` on tasks.
+ *
+ * 1.6.0 — 2026-09-13: the 09-13 evaluation's fifth pass — a project file's
+ * own `retry-indexing` door, `testsCheckedAt` on automation versions, `id`
+ * beside `runId` on run rows, `404`/`409` on a task start naming an unknown
+ * or undeployed automation, `400` `INVALID_HEADER` for an `Idempotency-Key`
+ * outside printable ASCII, the edge's own `BODY_LENGTH_MISMATCH` (400) and
+ * `UPSTREAM_UNAVAILABLE` (502/503/504) envelopes, `X-Tale-Api-Version` on
+ * the webhook doors, `If-Modified-Since` declared on the document download.
  */
-export const API_CONTRACT_VERSION = '1.5.0';
+export const API_CONTRACT_VERSION = '1.6.0';

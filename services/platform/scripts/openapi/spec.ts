@@ -460,6 +460,51 @@ const documentIndexing: Json = {
     errorCode: str,
   },
 };
+
+/** The conditional-read parameters both download doors take — a project
+ * file's and a Hub document's — declared once so the two cannot drift:
+ * the Hub door used to declare neither while honouring both (round e). */
+const fileConditionalParams = [
+  {
+    name: 'If-None-Match',
+    in: 'header',
+    required: false,
+    schema: { type: 'string' },
+    description:
+      'The `ETag` a previous answer carried (as received — the ' +
+      'compressing edge suffixes the tag of a text file it ' +
+      'compressed, and that form matches too): unchanged bytes ' +
+      'answer 304 with no body. Takes precedence over ' +
+      '`If-Modified-Since`.',
+  },
+  {
+    name: 'If-Modified-Since',
+    in: 'header',
+    required: false,
+    schema: { type: 'string' },
+    description:
+      'The `Last-Modified` a previous answer carried: bytes not ' +
+      'modified since answer 304 with no body, judged at the whole-second ' +
+      'precision an HTTP date carries. Ignored when `If-None-Match` is ' +
+      'present. On a content-only Hub document the date is the ' +
+      'document’s own `updatedAt`, which a title or metadata patch moves ' +
+      'too — `If-None-Match` follows the bytes alone.',
+  },
+];
+
+/** The 304 both download doors answer. */
+const fileNotModified = {
+  description:
+    'Not Modified — `If-None-Match` named the current `ETag` (or ' +
+    '`If-Modified-Since` the current `Last-Modified`), so no bytes ' +
+    'are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along',
+  headers: {
+    ETag: headerRef('ETag'),
+    'Last-Modified': headerRef('LastModified'),
+    'Cache-Control': headerRef('CacheControl'),
+  },
+};
+
 /** A number whose magnitude JSON can carry exactly: beyond 2^53 − 1 the
  * parser rounds it before any schema sees it, so the door refuses it. */
 const safeNumber: Json = {
@@ -1369,7 +1414,10 @@ export function buildSpec(): Json {
       tags: ['Documents'],
       summary: 'Retry RAG indexing',
       description:
-        'Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a ' +
+        'Re-queues a Knowledge Hub document’s blob for indexing; a project ' +
+        'file answers 404 here — its own door is `POST ' +
+        '/api/v1/projects/{id}/files/{documentId}/retry-indexing`, the ' +
+        'same core behind it. Requires a ' +
         'documents-write role. The same guards as the app’s Index now: a ' +
         'budget of 10 retries per user per minute (429 `RATE_LIMITED`, ' +
         '`Retry-After` names the wait), and `skipped` — honestly, with the ' +
@@ -1380,33 +1428,22 @@ export function buildSpec(): Json {
         'document’s `indexing.error` says why), or a fresh index job ' +
         'already queued or running (`in-progress` — poll the document’s ' +
         '`indexing` instead). A file that opted out of indexing when it ' +
-        'was bound is opted back in by the retry — the explicit request is ' +
-        'the opt-in — so it queues and answers `indexing`; it used to ' +
+        'was uploaded is opted back in by the retry — the explicit request ' +
+        'is the opt-in — so it queues and answers `indexing`; it used to ' +
         'answer `skipped` with `rag-opt-out`, a reason no longer given.',
       operationId: 'retryDocumentIndexing',
       security: sec,
       parameters: [pathParam('id', 'Document ID')],
       responses: {
-        '200': jsonResponse('Whether indexing was queued', {
-          type: 'object',
-          required: ['status'],
-          properties: {
-            status: { type: 'string', enum: ['indexing', 'skipped'] },
-            reason: {
-              type: 'string',
-              enum: [
-                'content-only',
-                'untracked-blob',
-                'unsupported',
-                'in-progress',
-              ],
-              description:
-                'Why indexing was skipped; absent when `status` is `indexing`',
-            },
-          },
-        }),
+        '200': jsonResponse(
+          'Whether indexing was queued',
+          ref('RetryIndexingResult'),
+        ),
         '403': errorResponse('The key holder’s role cannot write documents'),
-        '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
+        '404': errorResponse(
+          'Document not found (`DOCUMENT_NOT_FOUND`) — a project file ' +
+            'included: retry it through its project door',
+        ),
         ...standardErrors,
       },
     },
@@ -1430,13 +1467,15 @@ export function buildSpec(): Json {
         'A content-only document answers its inline text the same way — ' +
         'typed as its `mimeType` (`text/plain` when it has none), UTF-8, ' +
         '`Accept-Ranges: none` — so every Hub document reads back from this ' +
-        'one URL. A project file, a foreign document, a nonexistent id and a ' +
+        'one URL, and `If-None-Match` and `If-Modified-Since` are judged ' +
+        'against the `ETag` and `Last-Modified` issued on both kinds (a ' +
+        'bodiless 304). A project file, a foreign document, a nonexistent id and a ' +
         'file whose bytes the store no longer holds all answer the same ' +
         'opaque 404 (`DOCUMENT_NOT_FOUND`). A store that does not answer is ' +
         'a 503 with `Retry-After`.',
       operationId: 'downloadDocument',
       security: sec,
-      parameters: [pathParam('id', 'Document ID')],
+      parameters: [pathParam('id', 'Document ID'), ...fileConditionalParams],
       responses: {
         '200': {
           description: 'The bytes, named by `Content-Disposition`',
@@ -1476,6 +1515,7 @@ export function buildSpec(): Json {
             'Content-Length': headerRef('ContentLength'),
           },
         },
+        '304': fileNotModified,
         '404': errorResponse('Document not found (`DOCUMENT_NOT_FOUND`)'),
         '503': errorResponse(
           'The object store did not serve the file ' +
@@ -1624,20 +1664,24 @@ export function buildSpec(): Json {
             'alternative to `offset`, never beside it. A value this list ' +
             'did not answer is refused with 400 `INVALID_CURSOR`',
         ),
-        queryParam(
-          'offset',
-          'Rows to skip (default 0). A whole number: a negative value is ' +
-            'clamped to 0, while a fractional or non-numeric one answers ' +
-            '400 `INVALID_QUERY`',
-          { type: 'integer' },
-        ),
-        queryParam(
-          'limit',
-          'Rows to return, 1..500 (default 100). A whole number: an ' +
-            'out-of-range value is clamped, a fractional or non-numeric one ' +
-            'answers 400 `INVALID_LIMIT`',
-          { type: 'integer' },
-        ),
+        {
+          ...queryParam(
+            'offset',
+            'Rows to skip (default 0). A whole number: a negative value is ' +
+              'clamped to 0, while a fractional or non-numeric one answers ' +
+              '400 `INVALID_QUERY`',
+          ),
+          schema: { type: 'integer', minimum: 0, default: 0 },
+        },
+        {
+          ...queryParam(
+            'limit',
+            'Rows to return, 1..500 (default 100). A whole number: an ' +
+              'out-of-range value is clamped, a fractional or non-numeric one ' +
+              'answers 400 `INVALID_LIMIT`',
+          ),
+          schema: { type: 'integer', minimum: 1, maximum: 500, default: 100 },
+        },
       ],
       responses: {
         '200': jsonResponse('The pages window', ref('WebsitePageList')),
@@ -1653,7 +1697,10 @@ export function buildSpec(): Json {
       summary: 'Sync statuses',
       description:
         'Schedules the per-site corpus → row status sync and answers ' +
-        'immediately; `syncing` means the job is queued, not finished.',
+        'immediately; `syncing` means the job is queued, not finished. The ' +
+        'job is keyed per website: a second call while one is still queued ' +
+        'or running folds into it — two calls answer `syncing` twice and ' +
+        'run once — so calling after every crawl costs nothing extra.',
       operationId: 'syncWebsite',
       security: sec,
       parameters: [pathParam('id', 'Website ID')],
@@ -1675,7 +1722,13 @@ export function buildSpec(): Json {
       summary: 'Search content',
       description:
         'A POST because it carries a body, not because it writes: semantic ' +
-        'search over this website’s crawled content.',
+        'search over this website’s crawled content. Answers `{results, ' +
+        'total}` — each result its `url`, `title`, `content`, `chunkIndex` ' +
+        'and `score` — a shape of its own, not the `{hits, diagnostics}` of ' +
+        'the two knowledge-search doors (a different corpus); `limit` is a ' +
+        'body field, so a value outside 1..100 is refused with 400 ' +
+        '`INVALID_BODY` naming it, never clamped — the rule every body ' +
+        'number follows.',
       operationId: 'searchWebsite',
       security: sec,
       parameters: [pathParam('id', 'Website ID')],
@@ -1687,15 +1740,24 @@ export function buildSpec(): Json {
           query: { ...str, minLength: 1, maxLength: 1000 },
           limit: {
             type: 'integer',
+            minimum: 1,
+            maximum: 100,
             description:
-              'Matches to return, 1..100 (default 10; out-of-range values are clamped)',
+              'Matches to return, 1..100 (default 10); a value outside the ' +
+              'range, or not a whole number, answers 400 `INVALID_BODY` ' +
+              'naming `limit` — a body field is never clamped',
           },
         },
       }),
       responses: {
-        '200': jsonResponse('Matches', ref('WebsiteSearchResults')),
-        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
         ...standardErrors,
+        '200': jsonResponse('Matches', ref('WebsiteSearchResults')),
+        '400': errorResponse(
+          'A body the schema refuses (`INVALID_BODY`, the field named ' +
+            'under `data.issues`): a blank `query`, an unknown key, or a ' +
+            '`limit` outside 1..100 or not a whole number',
+        ),
+        '404': errorResponse('Website not found (`WEBSITE_NOT_FOUND`)'),
       },
     },
   };
@@ -1934,6 +1996,7 @@ export function buildSpec(): Json {
       requestBody: jsonBody({
         type: 'object',
         required: ['contacts'],
+        additionalProperties: false,
         properties: {
           contacts: {
             type: 'array',
@@ -2143,11 +2206,13 @@ export function buildSpec(): Json {
               'Immutable 2-6 char task-key prefix. Omitted: derived from ' +
               'the name (suffixed when taken), keyless when underivable. ' +
               'Trimmed; whitespace alone is a 400 `INVALID_BODY`, not an ' +
-              'omitted key. Letters and digits only; normalized to ' +
+              'omitted key. Letters and digits only, starting with a ' +
+              'letter (`PROJECT_KEY_INVALID` otherwise); normalized to ' +
               'uppercase, never truncated. An explicit key that is taken ' +
               'is a 409.',
-            minLength: 1,
+            minLength: 2,
             maxLength: 6,
+            pattern: '^[A-Za-z][A-Za-z0-9]{1,5}$',
           },
           description: { type: 'string', maxLength: 500 },
         },
@@ -2540,10 +2605,12 @@ export function buildSpec(): Json {
         'are unique — answers 200 with `created: false` and the STORED ' +
         'spelling; otherwise the folder is created and answered 201 with ' +
         '`created: true`. Two concurrent creates of one name yield one ' +
-        'folder (the sibling rule is database-enforced). `name` is trimmed; ' +
-        'a name that is a path (`a/b`, `a\\b`, `.`, `..`) or carries a ' +
-        'control character is refused (`FOLDER_NAME_INVALID`) — the rule a ' +
-        'file name and a WebDAV segment follow — and a parent 20 levels ' +
+        'folder (the sibling rule is database-enforced). `name` is trimmed ' +
+        'and NFC-normalized; a name that is a path (`a/b`, `a\\b`, `.`, ' +
+        '`..`) or carries a control character is refused ' +
+        '(`FOLDER_NAME_INVALID` — the sentence names the rule broken and ' +
+        '`data.issues` names `name`) — the rule a file name and a WebDAV ' +
+        'segment follow — and a parent 20 levels ' +
         'deep refuses a child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must ' +
         'name a folder of THIS project (an opaque 404 otherwise); omit it ' +
         'for a root folder — a blank id is a 400 `INVALID_BODY`. ' +
@@ -2563,9 +2630,9 @@ export function buildSpec(): Json {
             minLength: 1,
             maxLength: 128,
             description:
-              'Trimmed; matched against siblings without regard to case. ' +
-              'No path separators (`/`, `\\`), no control characters, not ' +
-              '`.` or `..`.',
+              'Trimmed and NFC-normalized; matched against siblings ' +
+              'without regard to case. No path separators (`/`, `\\`), no ' +
+              'control characters, not `.` or `..`.',
           },
           parentId: {
             type: 'string',
@@ -2583,7 +2650,8 @@ export function buildSpec(): Json {
         '201': jsonResponse('The created folder', ref('ProjectFolderResult')),
         '400': errorResponse(
           'A body the schema refuses (`INVALID_BODY`), a name that is a ' +
-            'path or carries a control character (`FOLDER_NAME_INVALID`), ' +
+            'path or carries a control character (`FOLDER_NAME_INVALID`, ' +
+            'the sentence naming the rule and `data.issues` naming `name`), ' +
             'or a parent at the depth cap (`FOLDER_DEPTH_EXCEEDED`)',
         ),
         '403': errorResponse('No write access to an active project'),
@@ -2680,16 +2748,19 @@ export function buildSpec(): Json {
         'for both. Send `fileName` to have the bind’s type rules run here ' +
         'too: the organization’s extension and MIME allowlists and the ' +
         'platform’s format allowlist refuse a name they would refuse at ' +
-        'the bind — 400 `UPLOAD_POLICY_REJECTED` / `UNSUPPORTED_FILE_TYPE` ' +
-        '— before anything is presigned, so the bytes never travel. The ' +
+        'the bind — a name without an extension included, whatever ' +
+        '`contentType` says — 400 `UPLOAD_POLICY_REJECTED` / ' +
+        '`UNSUPPORTED_FILE_TYPE` before anything is presigned, so the ' +
+        'bytes never travel. The ' +
         'answer names `maxBytes`, the largest file this organization ' +
         'accepts for the declared type (the platform ceiling, 100 MiB, or ' +
         'the organization’s lower cap); declare `size` and the size and ' +
         'volume caps are judged here too — 400 `FILE_TOO_LARGE` / ' +
         '`UPLOAD_POLICY_REJECTED` with `data.limitBytes` — where they were ' +
-        'discoverable only by uploading past them (the bind still judges ' +
-        'the landed size, so an undeclared or understated size is refused ' +
-        'there). A handoff never bound — or bound and refused — is ' +
+        'discoverable only by uploading past them (the bind judges the ' +
+        'landed bytes against the same caps; the declared size is a ' +
+        'pre-check, never compared with what landed, so understating it ' +
+        'buys nothing). A handoff never bound — or bound and refused — is ' +
         'reclaimed lazily: 24 hours after its 30-minute expiry, on the ' +
         'next mint into the organization, the blob is deleted with the ' +
         'intent, so a crashed worker leaves no permanent orphan and needs ' +
@@ -2712,9 +2783,11 @@ export function buildSpec(): Json {
               description:
                 'Optional. Checked against the bind’s own rules — a file ' +
                 'name (no path separators, no `..`, no control ' +
-                'characters) whose type the upload policy and the format ' +
-                'allowlist accept — so a bad name fails here, before the ' +
-                'bytes are uploaded; the bind’s `fileName` is what is ' +
+                'characters; trimmed and NFC-normalized first) ending in ' +
+                'an extension the upload policy and the format allowlist ' +
+                'accept (a name without one is refused whatever ' +
+                '`contentType` says) — so a bad name fails here, before ' +
+                'the bytes are uploaded; the bind’s `fileName` is what is ' +
                 'stored.',
             },
             contentType: { type: 'string', maxLength: 255 },
@@ -2816,28 +2889,7 @@ export function buildSpec(): Json {
         orgSlugHeaderParam,
         pathParam('id', 'Project ID'),
         pathParam('documentId', 'File (document) ID'),
-        {
-          name: 'If-None-Match',
-          in: 'header',
-          required: false,
-          schema: { type: 'string' },
-          description:
-            'The `ETag` a previous answer carried (as received — the ' +
-            'compressing edge suffixes the tag of a text file it ' +
-            'compressed, and that form matches too): unchanged bytes ' +
-            'answer 304 with no body. Takes precedence over ' +
-            '`If-Modified-Since`.',
-        },
-        {
-          name: 'If-Modified-Since',
-          in: 'header',
-          required: false,
-          schema: { type: 'string' },
-          description:
-            'The `Last-Modified` a previous answer carried: bytes not ' +
-            'modified since answer 304 with no body. Ignored when ' +
-            '`If-None-Match` is present.',
-        },
+        ...fileConditionalParams,
         {
           name: 'Range',
           in: 'header',
@@ -2902,23 +2954,60 @@ export function buildSpec(): Json {
             'Content-Length': headerRef('ContentLength'),
           },
         },
-        '304': {
-          description:
-            'Not Modified — `If-None-Match` named the current `ETag` (or ' +
-            '`If-Modified-Since` the current `Last-Modified`), so no bytes ' +
-            'are sent; `ETag`, `Last-Modified` and `Accept-Ranges` ride along',
-          headers: {
-            ETag: headerRef('ETag'),
-            'Last-Modified': headerRef('LastModified'),
-            'Cache-Control': headerRef('CacheControl'),
-          },
-        },
+        '304': fileNotModified,
         '404': errorResponse('File not found (`FILE_NOT_FOUND`)'),
         '503': errorResponse(
           'The object store did not serve the file ' +
             '(`OBJECT_STORE_UNAVAILABLE`, with `Retry-After`) or none is ' +
             'configured (`OBJECT_STORE_UNCONFIGURED`)',
         ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/projects/{id}/files/{documentId}/retry-indexing'] = {
+    post: {
+      tags: ['Projects'],
+      summary: 'Index a project file now',
+      description:
+        'The REST twin of **Index now** on the project’s Knowledge tab: ' +
+        're-queues the file’s blob for indexing through the core behind ' +
+        '`POST /api/v1/documents/{id}/retry-indexing` (which answers 404 ' +
+        'for a project file) and answers the same `{status, reason}`. A ' +
+        'file bound with the default `skipRagIndexing: true` is opted back ' +
+        'in by this request — the explicit ask is the opt-in — and answers ' +
+        '`indexing`; poll its `indexing` on `GET /api/v1/projects/{id}/files` ' +
+        'until `completed`, from when `POST …/knowledge/search` finds it. ' +
+        '`skipped` names its `reason`: a blob the platform does not track ' +
+        '(`untracked-blob`), a file type no extractor can read ' +
+        '(`unsupported` — terminal; the row’s `indexing.error` says why), ' +
+        'or a fresh index job already queued or running (`in-progress` — ' +
+        'poll instead); `content-only` cannot occur here, a project file ' +
+        'always has a blob. Requires the org editor role and project edit ' +
+        'access on an active project — the gate `DELETE …/files/{documentId}` ' +
+        'runs — plus a role that can write documents (403 `RBAC_FORBIDDEN`); ' +
+        'the same budget as the Hub door, 10 retries per user per minute, ' +
+        'answers 429 `RATE_LIMITED` with `Retry-After`. A file of another ' +
+        'project or organization, a document without a file, and a trashed ' +
+        'or absent one answer the same opaque 404 (`FILE_NOT_FOUND`).',
+      operationId: 'retryProjectFileIndexing',
+      security: sec,
+      parameters: [
+        orgSlugHeaderParam,
+        pathParam('id', 'Project ID'),
+        pathParam('documentId', 'File (document) ID'),
+      ],
+      responses: {
+        '200': jsonResponse(
+          'Whether indexing was queued',
+          ref('RetryIndexingResult'),
+        ),
+        '403': errorResponse(
+          'No write access to an active project, or a role that cannot ' +
+            'write documents (`RBAC_FORBIDDEN`)',
+        ),
+        '404': errorResponse('Project or file not found (`FILE_NOT_FOUND`)'),
         ...standardErrors,
       },
     },
@@ -2990,10 +3079,12 @@ export function buildSpec(): Json {
         'allowlist, or per-user volume refusal answers 400 with ' +
         'code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / ' +
         '`UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s ' +
-        'extension; a declared `contentType` is a hint resolved against ' +
-        'it), and the organization’s `file:upload` ' +
-        'budget answers 429. `fileName` must be a file name — no path ' +
-        'separators, no `..`, no control characters. A refusal rolls the ' +
+        'extension, which the name must carry; a declared `contentType` ' +
+        'is a hint resolved against it, never a substitute), and the ' +
+        'organization’s `file:upload` budget answers 429. `fileName` must ' +
+        'be a file name — no path separators, no `..`, no control ' +
+        'characters — and is stored trimmed and NFC-normalized, the rule ' +
+        'a folder name follows. A refusal rolls the ' +
         'intent consume back, so the handshake survives a corrected retry. ' +
         'Uses the upload lane bucket (240/min, keyed on the key holder).',
       operationId: 'bindProjectFile',
@@ -3177,9 +3268,14 @@ export function buildSpec(): Json {
             enum: ['open', 'closed'],
             description:
               'The source item’s lifecycle (default `open`). `closed` parks ' +
-              'the task for review — done, when the caller may complete it; ' +
-              '`open` reopens a done task. Local triage owns every other ' +
-              'status.',
+              'the task at `in_review` for a person to complete — only the ' +
+              'workflow engine itself lands a close at `done`. `open` ' +
+              'reopens a task the mirror closed — one it parked at ' +
+              '`in_review`, or a `done` one — back to `backlog`. A park a ' +
+              'person or an agent made is theirs: `open` leaves it, and any ' +
+              'move through the board ends the mirror’s claim on a park it ' +
+              'made. Local triage owns every other status; a cancelled ' +
+              'task stays cancelled.',
           },
           runWorkflowSlug: {
             type: 'string',
@@ -3328,7 +3424,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Start a deployed workflow on a project task',
       description:
-        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. The answer is 200 either way — branch on `started`, never on the status alone: an undeployed workflow answers `started: false` with `reason: "not_started"` and a null `runId`; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
+        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run, and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
       operationId: 'startTaskWorkflow',
       security: sec,
       parameters: taskParameters,
@@ -3371,7 +3467,17 @@ export function buildSpec(): Json {
           'Project is read-only or archived, the task is archived ' +
             '(`TASK_ARCHIVED`), or the automation is bound elsewhere',
         ),
-        '404': taskNotFound,
+        '404': errorResponse(
+          'The project is missing or invisible (`PROJECT_NOT_FOUND`), the ' +
+            'task is missing or belongs to another project ' +
+            '(`TASK_NOT_FOUND`), or `workflowSlug` names an automation ' +
+            'nobody saved (`AUTOMATION_NOT_FOUND`)',
+        ),
+        '409': errorResponse(
+          '`workflowSlug` names an automation that is saved but has no ' +
+            'deployed version (`AUTOMATION_NOT_DEPLOYED`) — deploy it, then ' +
+            'start again',
+        ),
         ...standardErrors,
       },
     },
@@ -3438,9 +3544,13 @@ export function buildSpec(): Json {
     schema: { type: 'string', pattern: '^[ -~]+$' },
     description:
       `A stable key of your choosing that names this ${subject.names} — ` +
-      'printable ASCII (a UUID, a job id); a header value carrying a ' +
-      'control character never reaches the platform, the edge refuses the ' +
-      'request before any envelope. A ' +
+      'printable ASCII (a UUID, a job id): any other character answers ' +
+      '400 `INVALID_HEADER`, naming the header under `data.issues`, and ' +
+      `no ${subject.names} happens — keys are compared byte for byte, so ` +
+      'the pattern is what keeps two spellings of one key from naming two ' +
+      `${subject.names}s; a header value carrying a control character ` +
+      'never reaches the platform, the edge refuses the request before ' +
+      'any envelope. A ' +
       `repeat with the same key, ${subject.scope} within 24 hours answers ` +
       `202 with ${subject.answer} and \`duplicate: true\`; a repeat with a ` +
       'different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused ' +
@@ -4248,7 +4358,7 @@ export function buildSpec(): Json {
               type: 'integer',
               minimum: 1,
               description:
-                'The largest reply this turn may produce, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: "length"` on the message.',
+                'The largest reply this turn may produce across every model round, in tokens — a cap under the model’s own `maxOutputTokens` from GET /api/v1/models; a value above it answers 400 `INVALID_BODY`. Omitted, the model’s own ceiling applies. A tool-calling turn spends the cap round by round: a later round gets what the earlier ones left, and a round that would start with nothing left is not run. A thinking model keeps its reasoning budget under the cap. A reply that runs into the cap still settles `complete`, cut short, and says so with `finishReason: "length"` on the message — a cut that fell on an earlier round’s tool call included: that call does not run and its tool-result reads `status: "invalid_args"`.',
             },
             locale: {
               type: 'string',
@@ -4256,7 +4366,7 @@ export function buildSpec(): Json {
               maxLength: 20,
               pattern: '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$',
               description:
-                'A BCP 47 language tag (`de`, `en-GB`) — the language the assistant answers in, whatever language the prompt is written in. Omitted, the assistant answers in the prompt’s language.',
+                'A BCP 47 language tag (`de`, `en-GB`) — the language the assistant is asked to answer in, whatever language the prompt is written in. The instruction rides the prompt as a directive, on the system prompt and on the message itself; a model may still slip (most often a reasoning model on a short prompt), and nothing on the wire marks a slip — a client that must have the language checks the reply and resends. An organization’s mandatory instructions win over `locale`. Omitted, the assistant answers in the prompt’s language.',
             },
           },
         }),
@@ -4584,7 +4694,11 @@ export function buildSpec(): Json {
         'written. Send `If-None-Match: *` to create only — a slug that ' +
         'already has a bundle then answers 412 `SKILL_EXISTS` and nothing ' +
         'is written. The body is validated before the preconditions are ' +
-        'evaluated. Every skill carries `canEdit`: whether this key may edit ' +
+        'evaluated. A save whose composed `SKILL.md` is byte-identical to ' +
+        'the stored document writes nothing — 200 with the stored `etag` ' +
+        'and `updatedAt`, no history entry — the preconditions still ' +
+        'evaluated first, so a stale `If-Match` on an identical body is ' +
+        'still 412. Every skill carries `canEdit`: whether this key may edit ' +
         'the bundle; shipped skills are organization bundles an ' +
         'administrator may overwrite, so check it before a save that means ' +
         'to replace one. The body may run to 4 MiB — this operation’s own ' +
@@ -4670,7 +4784,7 @@ export function buildSpec(): Json {
       }),
       responses: {
         '200': jsonResponse(
-          'The skill this save updated in place — its `etag` names the version just written',
+          'The skill this save updated in place — its `etag` names the version just written, or the stored one when the body changed nothing (then `updatedAt` stays too)',
           ref('Skill'),
         ),
         '201': jsonResponse(
@@ -4682,7 +4796,7 @@ export function buildSpec(): Json {
           'A precondition failed and nothing was written: `If-Match` named no tag matching the stored SKILL.md, or `*` with nothing stored (`SKILL_STALE` — `data.etag` carries the current tag, `null` when nothing is stored); or `If-None-Match: *` was sent and the slug already has a bundle, or a tag list named its current tag (`SKILL_EXISTS`)',
         ),
         '422': errorResponse(
-          'The skill body is malformed, or the bundle cannot be read — a planted symlink, a file over the staging cap (`SKILL_MALFORMED`)',
+          'The bundle already stored under the slug cannot be read — a planted symlink, a file over the 4 MiB staging cap, a `SKILL.md` that does not parse (`SKILL_MALFORMED`); never the body you send, which is refused as 400 (`INVALID_BODY`, `INVALID_SKILL`)',
         ),
         '413': errorResponse(
           'The body exceeds 4 MiB — this operation’s own cap, above the door’s 1 MiB default, so the worst JSON escaping of a full-size `body` still fits (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
@@ -4748,6 +4862,11 @@ export function buildSpec(): Json {
         'traversal, a dot-entry, `node_modules/…` — reads as a file the ' +
         'bundle does not have (404 `SKILL_FILE_NOT_FOUND`), where an ' +
         'unknown, invisible or malformed slug is 404 `SKILL_NOT_FOUND`. A ' +
+        'raw dot-segment in the URL (`../`, or `%2e%2e/` — the dots ' +
+        'encoded, the slash not) never reaches this operation: the edge ' +
+        'refuses it first with its own 404 `NOT_FOUND`, without ' +
+        '`X-Tale-Api-Version`; a spelling whose slashes are encoded too ' +
+        '(`%2e%2e%2f…`) does, and reads as `SKILL_FILE_NOT_FOUND`. A ' +
         'bundle the file layer refuses to read — a planted symlink, a file ' +
         'over the 4 MiB staging cap — answers 422 `SKILL_MALFORMED`.',
       security: sec,
@@ -4981,7 +5100,7 @@ export function buildSpec(): Json {
           ? 'Search a project’s indexed files'
           : 'Search visible Hub knowledge and organization websites',
         description: scope.project
-          ? 'Searches only indexed files attached to the URL project (project files index only when bound with `skipRagIndexing: false`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.'
+          ? 'Searches only indexed files attached to the URL project (a project file indexes when bound with `skipRagIndexing: false`, or later through `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.'
           : 'Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams — file-backed documents only; a document created with inline `content` and no `fileId` is never indexed and cannot match. Web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.',
         operationId: scope.project
           ? 'searchProjectKnowledge'
@@ -5261,6 +5380,13 @@ export function buildSpec(): Json {
     };
   }
 
+  // The headers every answer through the app carries — the request id and
+  // the contract version the instance implements — declared once for the
+  // REST door and the two webhook doors below, so the pair cannot drift.
+  const doorHeaders: Record<string, keyof typeof responseHeaders> = {
+    'X-Request-Id': 'XRequestId',
+    'X-Tale-Api-Version': 'XTaleApiVersion',
+  };
   // The door's own contract is a property of every `/api/v1` operation,
   // not of a family, so it is stamped on each here rather than repeated by
   // hand: the tenant header (a multi-organization key MUST send it on
@@ -5340,10 +5466,7 @@ export function buildSpec(): Json {
       // status implies: a 401's challenge, a 405's `Allow`, the wait a 429
       // (or a 503 that names it) asks for.
       for (const [status, response] of Object.entries(responses)) {
-        withHeaders(response, {
-          'X-Request-Id': 'XRequestId',
-          'X-Tale-Api-Version': 'XTaleApiVersion',
-        });
+        withHeaders(response, doorHeaders);
         if (status === '401') {
           withHeaders(response, { 'WWW-Authenticate': 'WWWAuthenticate' });
         }
@@ -5360,15 +5483,17 @@ export function buildSpec(): Json {
     }
   }
   // The two token-authenticated webhook doors live outside `/api/v1` but
-  // answer through the same app: the request id on every response, the
-  // wait on a 429.
+  // answer through the same app and sit in this document: the request id
+  // and the contract version on every response (the REST door's stamper is
+  // mounted on both in app.ts — a sender pinning to a version used to read
+  // no header at all, 2026-09-13 round-e evaluation), the wait on a 429.
   for (const [path, operations] of Object.entries(paths)) {
     if (!path.includes('/automations/webhook/')) continue;
     for (const [method, operation] of Object.entries(operations)) {
       if (!HTTP_METHODS.has(method)) continue;
       const op = operation as { responses: Record<string, Json> };
       for (const [status, response] of Object.entries(op.responses)) {
-        withHeaders(response, { 'X-Request-Id': 'XRequestId' });
+        withHeaders(response, doorHeaders);
         if (status === '429') {
           withHeaders(response, { 'Retry-After': 'RetryAfter' });
         }
@@ -5404,7 +5529,11 @@ honours \`If-None-Match\` and \`If-Modified-Since\` against the \`ETag\` and
 request budget; a read that only needs a few keys of a large resource should
 name them where the operation offers \`fields\` (run reads do). Responses are
 compressed with \`gzip\` or \`zstd\` when the request offers one in
-\`Accept-Encoding\` (\`curl --compressed\`); \`br\` is not served.
+\`Accept-Encoding\` (\`curl --compressed\`); \`br\` is not served. A
+compressed answer's \`Content-Length\`, when present, is the compressed size
+(a large answer streams without one) and its \`ETag\` carries the
+\`-gzip\`/\`-zstd\` suffix; a HEAD is never compressed and reports the
+uncompressed length.
 
 ## Authentication
 
@@ -5448,12 +5577,21 @@ content 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8
 MiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery
 claim, failure report or acknowledgement 64 KiB); past the cap
 the answer is 413 \`BODY_TOO_LARGE\`, before a byte is read when the length
-is declared. A request must finish arriving within 15 minutes, headers and
+is declared — the platform reads none of it, though over HTTP/1.1 the edge
+may still drain up to 256 KiB of it before the refusal reaches you — and at
+the first chunk past the cap when it is not: an oversized body is never
+read in full. A body that ends before its declared length is a malformed
+request: over HTTP/2 the edge answers 400 \`BODY_LENGTH_MISMATCH\` (the
+platform's 413 instead when the declared length was over the cap and its
+refusal won the race); over HTTP/1.1 the missing bytes are waited for until
+the 15-minute arrival deadline. A request must finish arriving within 15
+minutes, headers and
 body together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408
 \`REQUEST_TIMEOUT\` in the envelope (with a fresh \`requestId\`) and the
 connection closes. Bodies are read as JSON whatever Content-Type says; there is no
 415. Every served path answers HEAD (for a GET, with the \`Content-Length\`
-the GET would carry) and OPTIONS (204 with \`Allow\`, no key needed); a
+the uncompressed GET would carry — a HEAD is never compressed) and OPTIONS
+(204 with \`Allow\`, no key needed); a
 method a path does not take answers 405 \`METHOD_NOT_ALLOWED\` with
 \`Allow\`; one trailing slash on a path is tolerated. The surface is
 server-to-server: no response on this surface carries CORS headers (the
@@ -5461,17 +5599,23 @@ status page's JSON is the one keyless exception), so a browser page cannot
 call it — keep the key behind your own backend. A request URL (path
 and query) above 32 KiB answers 414 \`URI_TOO_LONG\` in the envelope, before
 any route is looked up. Request headers as a whole are budgeted at 64 KiB
-at the edge: past it HTTP/1.1 answers a bare 431 without the envelope and
-an HTTP/2 connection is closed without a response — carry data in the body,
-never in a header. A header value carrying a control character — below 0x20
+at the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without
+the envelope, so a URL or header just past 64 KiB may still reach the
+platform and be judged by its rules (a 66 KiB URL still answers 414); on
+HTTP/2 the budget is exact and the connection is closed without a response
+— carry data in the body, never in a header. A header value carrying a
+control character — below 0x20
 other than tab, or DEL — never reaches the platform either: HTTP/1.1 answers
 a bare text 400 at the edge, HTTP/2 resets the stream or, on a request with
 a body, closes the connection. Every response from this surface carries an
-\`X-Request-Id\` (a refusal answered at the edge, such as a dot-segment
-404, carries a fresh id of its own) — send your own to correlate: up to 255
-characters of letters, digits, \`_\`, \`-\` and \`=\`; anything else is
-replaced by a fresh UUID. Every response also names the contract it
-implements in \`X-Tale-Api-Version\`.
+\`X-Request-Id\` — send your own to correlate: up to 255 characters of
+letters, digits, \`_\`, \`-\` and \`=\`; anything else is replaced by a
+fresh UUID. Every response the platform answers also names the contract it
+implements in \`X-Tale-Api-Version\`; a refusal answered at the edge — a
+dot-segment 404, a body shorter than its declared length (400
+\`BODY_LENGTH_MISMATCH\`), a 502/503/504 while the platform restarts
+(\`UPSTREAM_UNAVAILABLE\`) — carries a fresh id of its own and no version
+header: only the platform knows the contract it implements.
 
 ## Errors
 
@@ -5493,7 +5637,11 @@ too, so branch on \`path\` and the \`code\`, never on the sentence. The door's o
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
 minutes; the connection closes), \`HTTP_ERROR\` (a refusal a middleware or
 the listener itself raised — bytes that are not HTTP, a header block past
-the budget) and \`INTERNAL_ERROR\`.
+the budget), \`BODY_LENGTH_MISMATCH\` (400, answered at the edge — an HTTP/2
+body that ended before its declared Content-Length), \`UPSTREAM_UNAVAILABLE\`
+(502, 503 or 504, answered at the edge with \`Retry-After\` while the
+platform restarts or cannot be reached — the maintenance page a browser
+gets, as JSON) and \`INTERNAL_ERROR\`.
 
 ## Pagination
 
@@ -5732,6 +5880,39 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
 
         // ── Documents ──
+        RetryIndexingResult: {
+          type: 'object',
+          required: ['status'],
+          description:
+            'What a retry-indexing request did — the one answer the Hub ' +
+            'document door and the project-file door share.',
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['indexing', 'skipped'],
+              description:
+                '`indexing` — the blob was queued (an opt-out lifted); ' +
+                '`skipped` — nothing was queued, `reason` says why',
+            },
+            reason: {
+              type: 'string',
+              enum: [
+                'content-only',
+                'untracked-blob',
+                'unsupported',
+                'in-progress',
+              ],
+              description:
+                'Why indexing was skipped; absent when `status` is ' +
+                '`indexing`. `content-only`: inline text never enters the ' +
+                'search corpus (a Hub document without a file — never a ' +
+                'project file); `untracked-blob`: the platform does not ' +
+                'track the blob; `unsupported`: no extractor reads the file ' +
+                'type — terminal; `in-progress`: a fresh index job is ' +
+                'already queued or running — poll `indexing` instead.',
+            },
+          },
+        },
         Document: {
           type: 'object',
           required: [
@@ -6542,9 +6723,11 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'Where the file stands in the search corpus — the vocabulary ' +
                 '`Document.indexing` speaks. A file bound with the default ' +
                 '`skipRagIndexing: true` reads `skipped` until someone indexes ' +
-                'it (the project’s Files tab, or a bind with `skipRagIndexing: ' +
-                'false`) and is not found by `POST …/knowledge/search` until ' +
-                'then; absent when the platform does not track the blob.',
+                'it (**Index now** on the project’s Knowledge tab, `POST ' +
+                '…/files/{documentId}/retry-indexing`, or a bind with ' +
+                '`skipRagIndexing: false`) and is not found by `POST ' +
+                '…/knowledge/search` until then; absent when the platform ' +
+                'does not track the blob.',
             },
             createdAt: epochMs,
           },
@@ -6720,6 +6903,8 @@ curl -H "Authorization: Bearer <api-key>" \\
             'name',
             'version',
             'document',
+            'testsPassed',
+            'testsCheckedAt',
             'deployedVersion',
             'projectIds',
             'createdBy',
@@ -6750,9 +6935,19 @@ curl -H "Authorization: Bearer <api-key>" \\
             testsPassed: nullable({
               ...bool,
               description:
-                'null: no verdict (no tests, or never gated); true: the ' +
-                'deploy gate ran the tests and they passed; false: saved ' +
-                'with failing tests',
+                'The last run of this version’s tests: null — no verdict ' +
+                '(a document without tests, or one never run); true — they ' +
+                'passed, at the save that ran them (an MCP save of a ' +
+                'document with tests) or at the deploy gate; false — they ' +
+                'failed, at the save or at the gate, which persists its ' +
+                'refusal. The latest verdict wins; `testsCheckedAt` says ' +
+                'when it was reached.',
+            }),
+            testsCheckedAt: nullable({
+              ...epochMs,
+              description:
+                'When `testsPassed` was last judged; null beside a null ' +
+                'verdict',
             }),
             deployedVersion: nullable({
               ...int,
@@ -6771,11 +6966,31 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
         AutomationVersion: {
           type: 'object',
-          required: ['version', 'createdBy', 'createdAt', 'deployed'],
+          required: [
+            'version',
+            'testsPassed',
+            'testsCheckedAt',
+            'createdBy',
+            'createdAt',
+            'deployed',
+          ],
           properties: {
             version: int,
             message: nullable(str),
-            testsPassed: nullable(bool),
+            testsPassed: nullable({
+              ...bool,
+              description:
+                'The last run of this version’s tests — null while none ' +
+                'was recorded (no tests, or never run), else the save’s ' +
+                'or the deploy gate’s verdict, the latest winning; a gate ' +
+                'refusal persists its `false`',
+            }),
+            testsCheckedAt: nullable({
+              ...epochMs,
+              description:
+                'When `testsPassed` was last judged; null beside a null ' +
+                'verdict',
+            }),
             createdBy: {
               ...str,
               description:
@@ -6843,6 +7058,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'the full `Run` are inlined only when `include` names them; the ' +
             'single read answers the full row.',
           required: [
+            'id',
             'runId',
             'name',
             'version',
@@ -6853,11 +7069,26 @@ curl -H "Authorization: Bearer <api-key>" \\
             'startedAt',
           ],
           properties: {
+            id: {
+              ...str,
+              description:
+                'The run id — the name the full read uses; `runId` carries ' +
+                'the same value',
+            },
             runId: {
               ...str,
-              description: 'The run id (`id` on the full read)',
+              description:
+                'The run id again, under the name the start answered — one ' +
+                'value under both names',
             },
-            name: str,
+            name: {
+              ...str,
+              description:
+                'The automation the run was started as. Runs outlive their ' +
+                'automation: after `DELETE /api/v1/automations/{name}` the ' +
+                'rows stay listed and readable by id under this name, which ' +
+                '`GET /api/v1/automations/{name}` then answers 404 for.',
+            },
             version: int,
             projectId: {
               ...nullable(str),
@@ -7185,7 +7416,8 @@ curl -H "Authorization: Bearer <api-key>" \\
             maxOutputTokens: {
               ...int,
               minimum: 1,
-              description: 'The largest reply the model produces, in tokens',
+              description:
+                'The largest reply the model produces, in tokens. Absent when the catalog declares no ceiling — then no `maxOutputTokens` check applies to a send.',
             },
             capabilities: {
               type: 'object',
@@ -7335,7 +7567,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'string',
               enum: [...TURN_FINISH_REASONS],
               description:
-                'Why the turn stopped, on a settled assistant message, in one vocabulary over every provider: `stop` (a natural end), `length` (the `maxOutputTokens` cap or the model’s own ceiling cut the reply short — the text is truncated and the status still reads `complete`), `tool-calls` (the final round ended on tool calls), `content-filter` (the provider’s or the platform’s filter), `cancelled` (stopped through DELETE …/generation), `other` (a reason the provider named that has no bucket here). Absent when the provider reported none.',
+                'Why the turn stopped, on a settled assistant message, in one vocabulary over every provider: `stop` (a natural end), `length` (the `maxOutputTokens` cap or the model’s own ceiling cut a round of this reply short — the final text, or, in a tool-calling turn, a tool call’s arguments in an earlier round: that call’s tool-result then reads `status: "invalid_args"` and the final text may be whole; the status still reads `complete`), `tool-calls` (the final round ended on tool calls), `content-filter` (the provider’s or the platform’s filter), `cancelled` (stopped through DELETE …/generation), `other` (a reason the provider named that has no bucket here). Absent when the provider reported none.',
             },
             model: str,
             providerSlug: str,

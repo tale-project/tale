@@ -134,12 +134,14 @@ function defaultSampling(model: ModelCatalogEntry): TurnSampling {
 
 /**
  * Resolve the sampling for one turn — see the module doc for the semantics.
- * Called once per turn, before streaming; the result rides the model call
- * unchanged. `options.maxOutputTokens` is the caller's own reply ceiling (the
- * REST door's per-turn cap): it only ever LOWERS the resolved `maxTokens`,
- * and a thinking budget shrinks with it so the `maxTokens > budgetTokens`
- * invariant survives — the same squeeze {@link fitSamplingToWindow} applies
- * for a governance window.
+ * Called before streaming: once for the turn, and again for a later tool
+ * round when the caller's per-turn cap has only part of itself left (the
+ * pipeline passes the remainder as `options.maxOutputTokens`); the result
+ * rides that model call unchanged. `options.maxOutputTokens` is the caller's
+ * own reply ceiling (the REST door's per-turn cap): it only ever LOWERS the
+ * resolved `maxTokens`, and a thinking budget shrinks with it so the
+ * `maxTokens > budgetTokens` invariant survives — the same squeeze
+ * {@link fitSamplingToWindow} applies for a governance window.
  */
 export function resolveTurnSampling(
   model: ModelCatalogEntry,

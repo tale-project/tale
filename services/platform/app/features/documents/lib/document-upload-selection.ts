@@ -62,10 +62,10 @@ export function validateDocumentUploadSelection(
   requiredExtension?: string,
   requiredContentType?: string,
 ): DocumentUploadSelectionIssue | null {
-  const resolved = resolveFileType(file.name, file.type);
-  if (!isAllowedDocumentUpload(resolved, file.name)) {
+  if (!isAllowedDocumentUpload(file.name)) {
     return { kind: 'unsupported', fileName: file.name };
   }
+  const resolved = resolveFileType(file.name, file.type);
 
   const extension = extractExtension(file.name) ?? '';
   if (requiredExtension && extension !== requiredExtension) {

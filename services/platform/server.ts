@@ -11,6 +11,7 @@ import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
+import { headContentLength } from './backend/lib/http-hygiene';
 import {
   buildCanvasPreviewCsp,
   wrapCanvasPreviewHtml,
@@ -721,6 +722,19 @@ export function createApp(
       },
     });
   });
+
+  // HEAD on the web tier's own doors carries the length the GET would —
+  // the docs promise it, and the adapter stamped `content-length: 0` on
+  // all four (2026-09-13 round-e evaluation, E1-03). The REST door
+  // measures its own answers behind `restDoorHeaders()`.
+  for (const door of [
+    '/api/health',
+    '/status',
+    '/status.json',
+    '/openapi.json',
+  ]) {
+    app.use(door, headContentLength());
+  }
 
   app.get('/api/health', (c) => {
     if (existsSync(SHUTDOWN_MARKER)) {

@@ -173,6 +173,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     lastAgentRunAt: null,
     claimedAt: null,
     completedAt: null,
+    externalClosedAt: null,
     createdBy: 'u-owner',
     createdByType: 'user',
     createdAt: 1,

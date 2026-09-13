@@ -27,6 +27,9 @@ export const REST_ERROR_CODES = [
   'AUTOMATION_VERSION_NOT_DEPLOYED',
   'AUTOMATION_VERSION_UNKNOWN',
   'BLOB_NOT_FOUND',
+  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
+  // by a handler: an HTTP/2 body that ended before its declared length.
+  'BODY_LENGTH_MISMATCH',
   'BODY_TOO_LARGE',
   'BROWSER_SESSION_NOT_FOUND',
   'CHAT_MODEL_AMBIGUOUS',
@@ -79,6 +82,7 @@ export const REST_ERROR_CODES = [
   'INTERNAL_ERROR',
   'INVALID_BODY',
   'INVALID_CURSOR',
+  'INVALID_HEADER',
   'INVALID_LIMIT',
   'INVALID_QUERY',
   'INVALID_SESSION',
@@ -145,6 +149,10 @@ export const REST_ERROR_CODES = [
   'UPLOAD_FILE_MISMATCH',
   'UPLOAD_INTENT_INVALID',
   'UPLOAD_POLICY_REJECTED',
+  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
+  // by a handler: a 502/503/504 on a machine door while the platform
+  // restarts or cannot be reached.
+  'UPSTREAM_UNAVAILABLE',
   'URI_TOO_LONG',
   'WEBSITE_DOMAIN_IMMUTABLE',
   'WEBSITE_DOMAIN_INVALID',

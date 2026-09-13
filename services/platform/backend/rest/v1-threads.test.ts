@@ -1224,6 +1224,20 @@ describe('POST …/messages — Idempotency-Key', () => {
     ).toBe(false);
   });
 
+  it('refuses a key outside printable ASCII with 400 INVALID_HEADER, claiming and queueing nothing', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await keyedSend(sql, 'send-é');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_HEADER',
+      data: { issues: [expect.objectContaining({ path: 'Idempotency-Key' })] },
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(
+      queries.some((q) => q.text.includes('app.chat_send_idempotency')),
+    ).toBe(false);
+  });
+
   it('refuses a live key reused with another body (409 IDEMPOTENCY_KEY_REUSED) and queues nothing', async () => {
     const { sql } = fakeSql({
       remembered: {

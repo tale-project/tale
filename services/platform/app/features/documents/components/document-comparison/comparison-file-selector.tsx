@@ -13,7 +13,6 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
   isAllowedDocumentUpload,
-  resolveFileType,
 } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
@@ -55,8 +54,7 @@ export function ComparisonFileSelector({
       const file = files[0];
       if (!file) return;
 
-      const resolved = resolveFileType(file.name, file.type);
-      if (!isAllowedDocumentUpload(resolved, file.name)) {
+      if (!isAllowedDocumentUpload(file.name)) {
         return;
       }
 

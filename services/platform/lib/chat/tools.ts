@@ -441,7 +441,10 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'task tracker. It is not for general knowledge, definitions, or ' +
     'reasoning about what the user wrote — call it only when the answer ' +
     "needs the organization's material and the conversation does not " +
-    'already contain it. "score" orders hits within one response only. ' +
+    'already contain it. A name, identifier, value, decision or document ' +
+    'you do not know is such a need — search before answering that you do ' +
+    'not have it; never ask where it would live before looking. "score" ' +
+    'orders hits within one response only. ' +
     'Document, web-page and task rows carry a "ref" for rag_fetch; contact, ' +
     'product, knowledge-entry, website and project rows carry their content ' +
     'inline and cannot be fetched. Never present one page of a list as the ' +
