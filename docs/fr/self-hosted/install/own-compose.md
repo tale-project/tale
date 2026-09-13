@@ -381,6 +381,8 @@ Ils ont l’air optionnels et échouent fermés quand ils manquent.
 
 Ne publie que `80` et `443` sur `proxy`. Tout le reste reste sur le réseau interne.
 
+Derrière un port publié par Docker, les clients IPv6 arrivent tous sous une seule adresse — celle de la passerelle du bridge, parce que le proxy userland de Docker réécrit leur source — tant que le daemon ne tourne pas avec `ip6tables` et que le réseau du proxy n’a pas IPv6 activé ; d’ici là, tous les appelants IPv6 partagent un même budget par adresse (une clé API en échec, la porte webhook) et une même adresse dans le journal d’audit. La plateforme ne lit le vrai client dans `X-Forwarded-For` qu’au-delà des sauts auxquels elle fait confiance — loopback et plages privées par défaut, ce qui couvre le conteneur `proxy` ; un proxy qui atteint `backend-api` depuis une adresse publique doit figurer sous `trustedProxies` dans la politique de connexion du déploiement (`$TALE_CONFIG_DIR/default/governance/login-policy.yml`, ou `.json`) avant que ses adresses transmises comptent, sinon chaque appelant est facturé comme le proxy.
+
 ## Ordre de démarrage
 
 Monte les stores d’abord, puis le plan sandbox, puis l’étage app. Une api qui démarre avant que `db` et `object-store` soient sains crash-loop sur `ENOTFOUND` et sur une base manquante. Dans un seul fichier, `depends_on` avec `service_healthy` suffit.

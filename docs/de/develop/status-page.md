@@ -19,7 +19,7 @@ curl -sS https://your-host.example.com/status.json
 
 Polle sie aus deinem Monitor im selben Takt wie alles andere; sie kostet kein API-Budget und braucht keinen Schlüssel, und das Urteil ist fünf Sekunden lang gecacht, sodass ein enger Poll nicht zu einem Probe-Sturm wird. Die HTML-Seite unter `/status` ist dasselbe Urteil für einen Menschen. `GET /api/health` ist der billigere Liveness-Probe, den der Container-Healthcheck nutzt — `{"status":"ok","version":"<build>"}`, ohne Anmeldung — und der richtige, wenn du nur wissen willst, ob der Prozess antwortet.
 
-Das JSON antwortet mit `Access-Control-Allow-Origin: *`, ein Browser-Dashboard kann es also direkt und ohne Proxy pollen; `OPTIONS` antwortet auf beiden Türen mit **204** und `Allow: GET, HEAD, OPTIONS`, und `HEAD` liefert nur die Header. Die HTML-Seite trägt keinen CORS-Header — ein Mensch öffnet sie direkt.
+Das JSON antwortet mit `Access-Control-Allow-Origin: *`, ein Browser-Dashboard kann es also direkt und ohne Proxy pollen; `OPTIONS` antwortet auf beiden Türen mit **204** und `Allow: GET, HEAD, OPTIONS`, und `HEAD` liefert nur die Header — `Content-Length` eingeschlossen, die Länge, die das `GET` tragen würde, auf diesen beiden Türen wie auf `/api/health` und `/openapi.json`. Die HTML-Seite trägt keinen CORS-Header — ein Mensch öffnet sie direkt.
 
 ## Das JSON
 

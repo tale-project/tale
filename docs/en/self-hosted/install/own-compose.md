@@ -378,6 +378,8 @@ These look optional and fail closed when they are missing.
 
 Publish only `80` and `443` on `proxy`. Everything else stays on the internal network.
 
+Behind a Docker-published port, IPv6 clients all arrive as one address — the bridge gateway's, because Docker's userland proxy rewrites their source — unless the daemon runs with `ip6tables` and the proxy's network is IPv6-enabled; until it does, every IPv6 caller shares one per-address budget (a failed API key, the webhook door) and one address in the audit trail. The platform reads the real client from `X-Forwarded-For` only past hops it trusts — loopback and private ranges by default, which covers the `proxy` container; a proxy that reaches `backend-api` from a public address must be listed under `trustedProxies` in the deployment's login policy (`$TALE_CONFIG_DIR/default/governance/login-policy.yml`, or `.json`) before its forwarded addresses count, or every caller is charged as the proxy.
+
 ## Boot order
 
 Bring the stores up first, then the sandbox plane, then the app tier. An api that starts before `db` and `object-store` are healthy crash-loops on `ENOTFOUND` and on a missing database. In one file, `depends_on` with `service_healthy` is enough.
