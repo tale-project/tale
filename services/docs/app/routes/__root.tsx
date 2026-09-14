@@ -143,7 +143,7 @@ function RootLayout() {
           activeSlug={activeSlug}
           onOpenSearch={openSearch}
         />
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
           <Outlet />
         </main>
         <DocsFooter />

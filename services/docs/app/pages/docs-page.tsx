@@ -11,10 +11,10 @@ import { pageAsMarkdown } from '@tale/ui/seo/builders/page-as-markdown';
 import { resolveFullTitle } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
-import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
 import { DocsImage } from '@/app/components/docs/docs-image';
+import { DocsPageHeader } from '@/app/components/docs/docs-page-header';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
-import { DocsToc } from '@/app/components/docs/docs-toc';
+import { DocsToc, DocsTocOutline } from '@/app/components/docs/docs-toc';
 import { DocsVideo } from '@/app/components/docs/docs-video';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
 import { PageActions } from '@/app/features/page-actions/page-actions';
@@ -232,17 +232,15 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   const contentPath = `${doc.locale}/${doc.slug}.mdx`;
 
   return (
-    <div className="flex gap-10">
-      <div className="min-w-0 flex-1">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="min-w-0 flex-1">
-            <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
-          </div>
+    <>
+      <DocsPageHeader
+        locale={locale}
+        crumbs={breadcrumbs}
+        actions={
           <PageActions
             pageUrl={url}
             markdownUrl={markdownUrl}
             markdown={rawMarkdown}
-            className="ml-auto shrink-0"
             labels={{
               copyPage: t('pageActions.copyPage'),
               copied: t('pageActions.copied'),
@@ -253,42 +251,44 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
               openCursor: t('pageActions.openCursor'),
             }}
           />
-        </div>
-        <header className="min-w-0 [overflow-wrap:anywhere]">
-          <h1
-            className="text-fg-base text-3xl font-semibold tracking-tight md:text-4xl"
-            style={{ letterSpacing: '-0.4px', lineHeight: 1.15 }}
-          >
-            {doc.frontmatter.title}
-          </h1>
-          {doc.frontmatter.description ? (
-            <p className="text-fg-muted mt-2 text-base leading-relaxed">
-              {doc.frontmatter.description}
-            </p>
-          ) : null}
-          <p className="text-fg-subtle mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            <span>{t('readingTime', { minutes: readingTime })}</span>
-            {formattedUpdatedAt ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
-              </>
+        }
+      />
+      <div className="mx-auto flex w-full max-w-6xl flex-1 justify-between gap-8 px-4 py-8 lg:px-6 xl:gap-10">
+        <article className="w-full max-w-3xl min-w-0 flex-1">
+          <DocsTocOutline entries={tocEntries} />
+          <header className="min-w-0 [overflow-wrap:anywhere]">
+            <h1 className="text-foreground text-3xl font-semibold tracking-tight md:text-4xl">
+              {doc.frontmatter.title}
+            </h1>
+            {doc.frontmatter.description ? (
+              <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+                {doc.frontmatter.description}
+              </p>
             ) : null}
-          </p>
-        </header>
-        <RoutedMarkdown
-          // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
-          components={docsMarkdownComponents as any}
-          className="mt-6"
-        >
-          {doc.body}
-        </RoutedMarkdown>
-        <DocsPrevNext locale={locale} prevSlug={prev} nextSlug={next} />
-        <div className="mt-4 flex justify-end">
-          <EditOnGithub contentPath={contentPath} />
-        </div>
+            <p className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <span>{t('readingTime', { minutes: readingTime })}</span>
+              {formattedUpdatedAt ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
+                </>
+              ) : null}
+            </p>
+          </header>
+          <RoutedMarkdown
+            // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
+            components={docsMarkdownComponents as any}
+            className="mt-8"
+          >
+            {doc.body}
+          </RoutedMarkdown>
+          <DocsPrevNext locale={locale} prevSlug={prev} nextSlug={next} />
+          <div className="mt-4 flex justify-end">
+            <EditOnGithub contentPath={contentPath} />
+          </div>
+        </article>
+        <DocsToc entries={tocEntries} />
       </div>
-      <DocsToc entries={tocEntries} />
-    </div>
+    </>
   );
 }

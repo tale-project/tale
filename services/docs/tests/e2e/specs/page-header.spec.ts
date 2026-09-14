@@ -10,6 +10,22 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   const releasePath = `${prefix}/self-hosted/configuration/config-releases`;
 
   test.describe(`${locale} docs page header`, () => {
+    for (const width of [1440, 390]) {
+      test(`starts keyboard navigation at the skip link at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto(releasePath);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        await page.keyboard.press('Tab');
+        await expect(
+          page.getByRole('link', { name: t('nav.skipToMain') }),
+        ).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('main')).toBeFocused();
+      });
+    }
+
     test('wraps long page titles within the phone viewport', async ({
       page,
     }) => {
