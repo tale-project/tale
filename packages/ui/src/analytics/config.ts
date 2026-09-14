@@ -7,8 +7,6 @@ export const publicAnalyticsSchema = z.object({
   proxyPath: z.string().regex(/^\/(?:[a-zA-Z0-9_-]+\/)*_a$/),
 });
 
-export type PublicAnalyticsConfig = z.infer<typeof publicAnalyticsSchema>;
-
 /** Only these explicit outcomes may be counted; never accept arbitrary event data. */
 export const analyticsEventSchema = z.enum([
   'contact-submitted',
