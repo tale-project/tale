@@ -8,7 +8,3 @@ import { z } from 'zod';
 export const automationEditorSearchSchema = z.object({
   version: z.number().int().positive().optional().catch(undefined),
 });
-
-export type AutomationEditorSearch = z.infer<
-  typeof automationEditorSearchSchema
->;
