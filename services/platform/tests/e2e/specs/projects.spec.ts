@@ -1,3 +1,4 @@
+import { E2E_PASSWORD } from '../helpers/auth';
 import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
@@ -198,4 +199,3 @@ test('creates a project with a task shown in both views, then deletes it', async
     page.getByRole('row').filter({ hasText: projectName }),
   ).toHaveCount(0, { timeout: TIMEOUT.PERSIST });
 });
-import { E2E_PASSWORD } from '../helpers/auth';
