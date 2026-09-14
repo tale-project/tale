@@ -249,6 +249,7 @@
         "@playwright/test": "1.58.2",
         "@tale/e2e": "workspace:*",
         "@types/bun": "1.3.11",
+        "vitest-axe": "1.0.0-pre.5",
         "yaml": "2.8.3",
       },
     },
@@ -455,12 +456,16 @@
       "name": "@tale/ui-docs",
       "version": "0.1.0",
       "dependencies": {
+        "@tale/marketing-ui": "workspace:*",
         "@tale/ui": "workspace:*",
+        "@tanstack/react-table": "8.21.3",
+        "minisearch": "7.2.0",
       },
       "devDependencies": {
         "@playwright/test": "1.58.2",
         "@tale/e2e": "workspace:*",
         "@types/bun": "1.3.11",
+        "vitest-axe": "1.0.0-pre.5",
       },
     },
     "services/web": {

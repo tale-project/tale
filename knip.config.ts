@@ -225,6 +225,20 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/ui-docs': {
+      vite: { config: ['vite.config.ts'] },
+      entry: [
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        // SSR build target — passed to `vite build --ssr` in package.json scripts.
+        'app/entry-server.tsx',
+        // Live examples are discovered by `import.meta.glob` in the demo registry.
+        'app/demos/**/*.tsx',
+        // Playwright specs (config builds via the shared @tale/e2e factory).
+        'tests/e2e/specs/**/*.spec.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],

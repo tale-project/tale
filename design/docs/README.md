@@ -29,6 +29,7 @@ surface's layout into another.
 | **App** (product)   | `services/platform`      | `design/sources/platform/*.pen` + `design-system.md` | `@tale/ui` product components                | light + dark     |
 | **Web** (marketing) | `services/web`           | `design/docs/web.md` + `@tale/marketing-ui` + assets | `@tale/marketing-ui` + marketing composition | light + dark     |
 | **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, app patterns                     | **light-locked** |
+| **Design-system docs** (ui.tale.dev) | `services/ui-docs` | front page: **web** language · `/docs/*`: **app** language | `@tale/marketing-ui` (front page) + `@tale/ui` (docs pages, live `<Demo>`s) | light + dark |
 | **Shared** (brand)  | `design/sources/shared/` | `branding.pen` / `logofolio.pen`                     | `TaleLogo`, accent `#056CFF`, Inter          | —                |
 
 Convex / auth / the SPA shell are **app only** — never add them to web or docs. **Docs follow the app**

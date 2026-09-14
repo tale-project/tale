@@ -1,0 +1,135 @@
+{
+  "components/app-shell": {
+    "slug": "components/app-shell",
+    "frontmatter": {
+      "title": "App shell",
+      "description": "The providers every Tale frontend mounts, and the chrome pieces a page is assembled from."
+    }
+  },
+  "components/button": {
+    "slug": "components/button",
+    "frontmatter": {
+      "title": "Button",
+      "description": "The primary control of the system — its variants, its single height, and the accessibility machinery it carries for you."
+    }
+  },
+  "components/data-table": {
+    "slug": "components/data-table",
+    "frontmatter": {
+      "title": "Data table",
+      "description": "The list surface — columns, search, filters, the create action and the empty state, in one component."
+    }
+  },
+  "components/dialog": {
+    "slug": "components/dialog",
+    "frontmatter": {
+      "title": "Dialog",
+      "description": "The modal surface and its specialised forms — confirm, delete, form and view."
+    }
+  },
+  "components/input": {
+    "slug": "components/input",
+    "frontmatter": {
+      "title": "Input",
+      "description": "The text field — its label, description, hint and error slots, and the states you get without writing any markup."
+    }
+  },
+  "components/tabs-and-navigation": {
+    "slug": "components/tabs-and-navigation",
+    "frontmatter": {
+      "title": "Tabs and navigation",
+      "description": "Two tab components with different jobs — one switches panels in place, the other switches routes."
+    }
+  },
+  "components/toast": {
+    "slug": "components/toast",
+    "frontmatter": {
+      "title": "Toast",
+      "description": "Transient feedback — one toast at a time, announced politely, dismissed on its own."
+    }
+  },
+  "foundations/accessibility": {
+    "slug": "foundations/accessibility",
+    "frontmatter": {
+      "title": "Accessibility",
+      "description": "The WCAG 2.1 AA bar the system holds, the focus and labelling contracts, and how the guards check them."
+    }
+  },
+  "foundations/colors": {
+    "slug": "foundations/colors",
+    "frontmatter": {
+      "title": "Colours",
+      "description": "Every semantic colour token in the system, which vocabulary it belongs to, and what it is for."
+    }
+  },
+  "foundations/icons": {
+    "slug": "foundations/icons",
+    "frontmatter": {
+      "title": "Icons",
+      "description": "Lucide only, four sizes, and the naming rule that keeps an icon-only button usable."
+    }
+  },
+  "foundations/spacing-and-layout": {
+    "slug": "foundations/spacing-and-layout",
+    "frontmatter": {
+      "title": "Spacing and layout",
+      "description": "One control height, one gap scale, one bordered surface, and the containers that hold a page together."
+    }
+  },
+  "foundations/typography": {
+    "slug": "foundations/typography",
+    "frontmatter": {
+      "title": "Typography",
+      "description": "One typeface, two components, and the heading rules that keep a page's outline readable by a screen reader."
+    }
+  },
+  "getting-started/i18n": {
+    "slug": "getting-started/i18n",
+    "frontmatter": {
+      "title": "Internationalization",
+      "description": "How a component finds its strings, how the package catalog merges with your service's, and what to do when you add a key."
+    }
+  },
+  "getting-started/installation": {
+    "slug": "getting-started/installation",
+    "frontmatter": {
+      "title": "Installation",
+      "description": "Wire the packages up inside the Tale monorepo, or install them from GitHub into a repository of your own."
+    }
+  },
+  "getting-started/introduction": {
+    "slug": "getting-started/introduction",
+    "frontmatter": {
+      "title": "Introduction",
+      "description": "What the Tale design system is, why it ships as two packages, and which one you should be reaching for."
+    }
+  },
+  "getting-started/theming": {
+    "slug": "getting-started/theming",
+    "frontmatter": {
+      "title": "Theming",
+      "description": "The two token vocabularies, how dark mode is switched, and how a host tints the system with its own accent colour."
+    }
+  },
+  "marketing-ui/overview": {
+    "slug": "marketing-ui/overview",
+    "frontmatter": {
+      "title": "Marketing UI overview",
+      "description": "The other design language — site chrome, page sections, feature frames and animated product demos, layered on @tale/ui."
+    }
+  },
+  "patterns/list-page": {
+    "slug": "patterns/list-page",
+    "frontmatter": {
+      "title": "List page",
+      "description": "The most common screen in the product — page chrome, a create action, and a searchable table."
+    }
+  },
+  "patterns/settings-page": {
+    "slug": "patterns/settings-page",
+    "frontmatter": {
+      "title": "Settings page",
+      "description": "Label-left fields on one measure, and a save bar that only appears when something changed."
+    }
+  }
+}

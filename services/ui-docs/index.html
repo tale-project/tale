@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="%BASE_URL%favicon.ico" sizes="any" />
+    <link
+      id="favicon-light"
+      rel="icon"
+      type="image/png"
+      href="%BASE_URL%favicon-light.png"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      id="favicon-dark"
+      rel="icon"
+      type="image/png"
+      href="%BASE_URL%favicon-dark.png"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      id="theme-color"
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      id="theme-color-dark"
+      name="theme-color"
+      content="#0a0a0a"
+      media="(prefers-color-scheme: dark)"
+    />
+    <!-- seo:start -->
+    <!--
+      Per-route SEO tags. In production the prerenderer (scripts/prerender.ts)
+      replaces everything between seo:start/seo:end with the exact `<head>`
+      the route's `useDocumentMeta` renders (incl. robots and JSON-LD).
+      These defaults are what dev and the SPA-shell fallback show pre-JS.
+    -->
+    <title>The Tale design system</title>
+    <meta
+      name="description"
+      content="Documentation for @tale/ui and @tale/marketing-ui — the components, tokens and patterns every Tale interface is built from."
+    />
+    <link rel="canonical" href="https://ui.tale.dev/" />
+    <meta property="og:url" content="https://ui.tale.dev/" />
+    <meta property="og:title" content="The Tale design system" />
+    <meta
+      property="og:description"
+      content="Documentation for @tale/ui and @tale/marketing-ui — the components, tokens and patterns every Tale interface is built from."
+    />
+    <meta property="og:site_name" content="Tale" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://tale.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta
+      property="og:image:alt"
+      content="Tale — The Orchestrator for AI Agents"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The Tale design system" />
+    <meta
+      name="twitter:description"
+      content="Documentation for @tale/ui and @tale/marketing-ui — the components, tokens and patterns every Tale interface is built from."
+    />
+    <meta name="twitter:image" content="https://tale.dev/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Tale — The Orchestrator for AI Agents"
+    />
+    <!-- seo:end -->
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="%BASE_URL%llms.txt"
+      title="llms.txt"
+    />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="%BASE_URL%llms-full.txt"
+      title="llms-full.txt"
+    />
+  </head>
+  <body class="font-sans antialiased">
+    <script>
+      // Apply the theme synchronously before React mounts to avoid a flash.
+      // Mirrors @tale/ui ThemeProvider (storage key, system fallback) and
+      // pins the favicon + theme-color to the resolved theme.
+      (function () {
+        try {
+          var stored = localStorage.getItem('tale-theme');
+          var theme =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : 'system';
+          var resolved =
+            theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : theme;
+          var root = document.documentElement;
+          if (resolved === 'dark') root.classList.add('dark');
+          root.style.colorScheme = resolved;
+          var light = document.getElementById('favicon-light');
+          var dark = document.getElementById('favicon-dark');
+          if (light) light.media = resolved === 'light' ? 'all' : 'not all';
+          if (dark) dark.media = resolved === 'dark' ? 'all' : 'not all';
+          var tcLight = document.getElementById('theme-color');
+          var tcDark = document.getElementById('theme-color-dark');
+          if (tcLight) tcLight.media = resolved === 'light' ? 'all' : 'not all';
+          if (tcDark) tcDark.media = resolved === 'dark' ? 'all' : 'not all';
+        } catch (_e) {
+          /* localStorage unavailable; fall through to the React default */
+        }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/app/main.tsx"></script>
+  </body>
+</html>

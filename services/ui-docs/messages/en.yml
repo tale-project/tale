@@ -1,0 +1,107 @@
+seo:
+  siteTitle: The Tale design system
+  ogImageAlt: Tale — The Orchestrator for AI Agents
+nav:
+  homeAriaLabel: Tale design system home
+  skipToMain: Skip to main content
+  sidebarAriaLabel: Design system documentation
+  openSearch: Open search
+  openMenu: Open navigation menu
+  closeMenu: Close navigation menu
+  docs: Docs
+  components: Components
+  github: GitHub
+  groups:
+    gettingStarted: Getting started
+    foundations: Foundations
+    components: Components
+    patterns: Patterns
+    marketingUi: Marketing UI
+docs:
+  onThisPage: On this page
+  breadcrumbs: Breadcrumbs
+  home: Docs
+  editOnGithub: Edit this page on GitHub
+  previous: Previous
+  next: Next
+  pagination: Page navigation
+  readingTime: '{minutes} min read'
+  searchTrigger: Search
+  notFoundTitle: Page not found
+  notFoundBody: That page is not part of the design system docs. Start from the
+    introduction, or search for the component you were looking for.
+  notFoundBackHome: Back to the introduction
+  pageActions:
+    copyPage: Copy page
+    copied: Copied
+    viewMarkdown: View as Markdown
+    openIn: Open in
+    openChatGpt: Open in ChatGPT
+    openClaude: Open in Claude
+    openCursor: Open in Cursor
+demo:
+  preview: Live example
+  showCode: Code
+  hideCode: Hide code
+  missingTitle: Unknown demo
+  missingBody: No demo is registered under "{name}". Add
+    app/demos/{name}.tsx and reference it from a page.
+home:
+  heroTitle: The Tale design system
+  heroDescription: Two design languages, one system — @tale/ui builds the
+    product, @tale/marketing-ui builds the site around it. Every component on
+    this page is the real thing, running in your browser.
+  heroPrimary: Read the docs
+  heroSecondary: View on GitHub
+  showcaseTitle: Real components, not screenshots
+  showcaseDescription: The window below renders the shipped package. Change your
+    theme and it follows, because it reads the same tokens the product does.
+  showcaseWindowTitle: Workspace settings
+  showcaseFormLegend: General
+  showcaseNameLabel: Workspace name
+  showcaseNameValue: Northwind Trading
+  showcaseRegionLabel: Data region
+  showcaseRegionSwitzerland: Switzerland
+  showcaseRegionGermany: Germany
+  showcaseRegionIreland: Ireland
+  showcaseDigestLabel: Weekly digest
+  showcaseDigestDescription: Send a Monday summary to every member.
+  showcaseTabGeneral: General
+  showcaseTabMembers: Members
+  showcaseTableCaption: Members of this workspace
+  showcaseColumnName: Name
+  showcaseColumnRole: Role
+  showcaseColumnStatus: Status
+  showcaseRoleAdmin: Admin
+  showcaseRoleEditor: Editor
+  showcaseRoleMember: Member
+  showcaseStatusActive: Active
+  showcaseStatusInvited: Invited
+  sectionsTitle: Where to go next
+  sectionsDescription: Five sections, each one a different question about the
+    system.
+  sectionsGettingStarted: Install the packages, learn how they relate, and set up
+    theming and translations.
+  sectionsFoundations: The tokens underneath every component — colour, type,
+    spacing, icons, accessibility.
+  sectionsComponents: One page per component, each with live examples and the
+    props table from the source.
+  sectionsPatterns: How the components compose into the screens the product
+    actually ships.
+  sectionsMarketingUi: The site chrome, the marketing primitives and the demo
+    frames that build tale.dev.
+  installTitle: Install it in your own repository
+  installDescription: The packages ship TypeScript source, not a build. Pin the
+    snapshot branch, or a release tag for a reproducible install.
+  installCodeLabel: package.json
+  installDocsLink: Read the installation guide
+  closingTitle: Start with the introduction
+  closingDescription: It explains the two languages, how the packages relate, and
+    what belongs in a service instead.
+  closingPrimary: Read the introduction
+  closingSecondary: See the Button page
+footer:
+  copyrightLine1: © {year} Tale by Ruler GmbH
+  copyrightLine2: Tale is MIT licensed — free to use, modify, and distribute.
+  llmsTxt: llms.txt
+  github: GitHub

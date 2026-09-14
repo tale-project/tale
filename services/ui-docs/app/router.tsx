@@ -1,0 +1,23 @@
+import { reportBrowserError } from '@tale/ui/monitoring/browser';
+import { createRouter } from '@tanstack/react-router';
+
+import { routeTree } from './routeTree.gen';
+
+// Vite injects BASE_URL from the `base` config (always trailing-slashed).
+// TanStack Router wants the prefix without the trailing slash, and undefined
+// when mounted at the root.
+const basepath =
+  (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
+
+export const router = createRouter({
+  routeTree,
+  defaultOnCatch: reportBrowserError,
+  defaultPreload: 'intent',
+  basepath,
+});
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}

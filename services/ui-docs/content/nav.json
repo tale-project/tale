@@ -1,0 +1,43 @@
+{
+  "groups": [
+    {
+      "label": "gettingStarted",
+      "pages": [
+        "getting-started/introduction",
+        "getting-started/installation",
+        "getting-started/theming",
+        "getting-started/i18n"
+      ]
+    },
+    {
+      "label": "foundations",
+      "pages": [
+        "foundations/colors",
+        "foundations/typography",
+        "foundations/spacing-and-layout",
+        "foundations/icons",
+        "foundations/accessibility"
+      ]
+    },
+    {
+      "label": "components",
+      "pages": [
+        "components/button",
+        "components/input",
+        "components/data-table",
+        "components/dialog",
+        "components/tabs-and-navigation",
+        "components/toast",
+        "components/app-shell"
+      ]
+    },
+    {
+      "label": "patterns",
+      "pages": ["patterns/list-page", "patterns/settings-page"]
+    },
+    {
+      "label": "marketingUi",
+      "pages": ["marketing-ui/overview"]
+    }
+  ]
+}

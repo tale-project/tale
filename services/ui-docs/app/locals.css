@@ -1,0 +1,6 @@
+/*
+ * Service-local style slot (required by the plop service template — keep the
+ * file even when empty). The design-system site deliberately adds nothing on
+ * top of `@tale/marketing-ui/globals.css` (which imports `@tale/ui`'s): an
+ * override here would be a token the documented system does not have.
+ */
