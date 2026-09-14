@@ -115,4 +115,24 @@ describe('optional browser analytics', () => {
       'data',
     );
   });
+
+  it.each(['throw', 'reject'])(
+    'contains a tracker %s for queued and immediate pageviews',
+    async (failure) => {
+      vi.mocked(window.umami!.track).mockImplementation(() => {
+        if (failure === 'throw') throw new Error('Storage unavailable');
+        return Promise.reject(new Error('Transport unavailable'));
+      });
+      const analytics = initBrowserAnalytics();
+      analytics?.page('/contact');
+      expect(() =>
+        document
+          .querySelector('script[src*="/_a/"]')!
+          .dispatchEvent(new Event('load')),
+      ).not.toThrow();
+      expect(() => analytics?.page('/pricing')).not.toThrow();
+      await Promise.resolve();
+      expect(window.umami?.track).toHaveBeenCalledTimes(2);
+    },
+  );
 });

@@ -23,6 +23,16 @@ function optedOut(): boolean {
   );
 }
 
+/** Analytics must never turn a completed action into a visible failure. */
+function sendPayload(payload: AnalyticsPayload): void {
+  try {
+    void window.umami?.track(payload).catch(() => {});
+  } catch {
+    // The upstream tracker can throw before returning a promise, for example
+    // when browser storage access is restricted. Collection is best-effort.
+  }
+}
+
 /** Bind once at client bootstrap. Only resolved, known routes enter the tracker. */
 export function initBrowserAnalytics() {
   if (typeof window === 'undefined' || optedOut()) return undefined;
@@ -55,7 +65,7 @@ export function initBrowserAnalytics() {
       ...(name ? { name } : {}),
     });
     if (!payload.success) return;
-    if (ready) void window.umami?.track(payload.data);
+    if (ready) sendPayload(payload.data);
     else if (pending.length < 20) pending.push(payload.data);
   };
   const script = document.createElement('script');
@@ -73,8 +83,7 @@ export function initBrowserAnalytics() {
     'load',
     () => {
       ready = true;
-      if (!optedOut())
-        for (const payload of pending) void window.umami?.track(payload);
+      if (!optedOut()) for (const payload of pending) sendPayload(payload);
       pending.length = 0;
     },
     { once: true },
