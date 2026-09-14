@@ -1,5 +1,5 @@
 import { ActiveEditorProvider } from '@tale/ui/editor';
-import { forwardRef, useState, type AnchorHTMLAttributes } from 'react';
+import { useState, type AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -135,18 +135,23 @@ interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: Record<string, string>;
 }
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    { to, params: _params, children, ...rest },
-    ref,
-  ) {
-    return (
-      <a ref={ref} href={to ?? '#'} {...rest}>
-        {children}
-      </a>
-    );
-  }),
-}));
+vi.mock('@tanstack/react-router', async () => {
+  // Package imports can reach this hoisted factory before the test's React
+  // import initializes. Resolve its dependency inside the factory itself.
+  const { forwardRef } = await import('react');
+  return {
+    Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
+      { to, params: _params, children, ...rest },
+      ref,
+    ) {
+      return (
+        <a ref={ref} href={to ?? '#'} {...rest}>
+          {children}
+        </a>
+      );
+    }),
+  };
+});
 
 // The canvas is a React Flow viewport and jsdom performs no layout; the page
 // only needs it to hand a node to the inspector, so the stub offers that.
