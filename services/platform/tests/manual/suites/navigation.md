@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 34 boxes
 
 Exercise cross-app navigation — the primary side-nav rail, the breadcrumb
 trail, browser back/forward, the chat command palette (Cmd/Ctrl+K), the org
@@ -41,18 +41,21 @@ is hidden when the org has no teams.
 
 ## Functional tests
 
-- [ ] `NAV-F1` · **Side nav** — In the rail (`<nav aria-label>` = **Main
-  navigation**, `common.aria.mainNavigation`) click each item in order: **New
-  chat** (`navigation.newChat`), **Projects** (`projects.title`),
-  **Knowledge** (`navigation.knowledge`), **Automations**
+- [ ] `NAV-F1` · **Side nav** — On a FRESH profile (no nav memory yet — clear
+  `tale:nav-memory:v1:*` from both localStorage and sessionStorage), in the
+  rail (`<nav aria-label>` = **Main navigation**, `common.aria.mainNavigation`)
+  click each item in order: **New chat** (`navigation.newChat`), **Projects**
+  (`projects.title`), **Knowledge** (`navigation.knowledge`), **Automations**
   (`navigation.automations`), **Inbox** (`conversations.title`, gated on inbox
   availability), **Settings** (`navigation.userSettings`) → Each click commits
-  the matching URL: `/chat`, `/projects`, `/documents` (Knowledge expands
-  sub-items Documents/Websites/Products/Contacts), `/automations`,
-  `/conversations`, and for **Settings** the role's default landing
-  (`/settings/organization` for the seeded **owner** — see Scope & routes).
-  The clicked rail item gets `aria-current`/active styling; the rail persists
-  across navigations; the item order matches the list above.
+  that section's DEFAULT entry: `/chat`, `/projects`, `/documents` (Knowledge
+  expands sub-items Documents/Knowledge entries/Websites/Products/Contacts),
+  `/automations`, `/conversations` (which forwards to `/conversations/open`),
+  and for **Settings** the role's default landing (`/settings/organization`
+  for the seeded **owner** — see Scope & routes). The clicked rail item gets
+  `aria-current`/active styling; the rail persists across navigations; the
+  item order matches the list above. With memory present the targets differ —
+  that is `NAV-F16`.
 - [ ] `NAV-F2` · **Breadcrumbs** — Open `/dashboard/{org}/projects`, click a
   project row to open it (`/dashboard/{org}/projects/{projectId}`) → The
   adaptive header shows a breadcrumb trail (e.g. **Projects** → project name);
@@ -145,6 +148,28 @@ is hidden when the org has no teams.
   ones. The badge reads as a quiet chip beside the title, not a second
   heading, and stays legible in dark mode and at 400px width.
 
+- [ ] `NAV-F16` · **Section memory** — Open **Projects**, open a project, land
+  on **Tasks → Board**, open a task so the URL carries `?task=…`. Click
+  **Chat** in the rail, then click **Projects** again → You land back on the
+  exact board URL including `?task=…`, not the projects list. Repeat for
+  **Knowledge** (switch to **Websites** first), **Automations** (open one
+  automation), and **Inbox** (switch to **Closed**): each returns to where you
+  were, not to the section's default entry.
+- [ ] `NAV-F17` · **Re-entry resets the section** — While sitting on a
+  project's board (deep inside Projects), click the **Projects** rail item you
+  are already on → You land on `/projects`, the list. Same gesture in **Inbox**
+  lands on `/conversations/open`; in **Settings** on the role's default
+  landing; in **Knowledge** on `/documents`.
+- [ ] `NAV-F18` · **Chat** — From **Projects**, click **Chat** → It opens the
+  thread you last READ (not merely the one with the newest activity: have a
+  second account post into an older thread first, then confirm the rail still
+  reopens yours). Now click the **Chat** rail item while already in chat → A
+  fresh composer opens (`?new=1`), not a thread.
+- [ ] `NAV-F19` · **A reset sticks** — After `NAV-F17`, go to **Chat** and back
+  to **Projects** → You stay on the projects list, because the reset was
+  recorded like any other navigation. Then open a project again, leave, and
+  return → You are back on that project.
+
 ## Boundary & error tests
 
 - [ ] `NAV-B1` · **Bad deep link** — Open
@@ -178,6 +203,26 @@ is hidden when the org has no teams.
   instead, the overlay reads **Can't reach Tale**
   (`connectivity.backendTitle`) with a **Try again** button
   (`connectivity.retry`)
+
+- [ ] `NAV-B6` · **Memory expiry** — With a remembered place in **Projects**,
+  close the tab (this clears the per-tab copy), then in devtools edit
+  `localStorage['tale:nav-memory:v1:{org}']` and set `savedAt` to a timestamp
+  more than **8 hours** old. Open the app in a new tab and click **Projects**
+  → You land on `/projects`, the default entry, and the stale localStorage key
+  is gone. Within the 8h window the same steps restore the remembered place.
+- [ ] `NAV-B7` · **Remembered target is gone** — Remember a project (open it,
+  then leave the section). In a second session **delete that project**. Back in
+  the first session, click **Projects** → You land on the projects list, with
+  no "We couldn't find that project" dead end, and a second click also lands on
+  the list (the stale memory was dropped). Reaching a deleted project by
+  pasting its URL still shows the message — now with a **Projects** link out.
+- [ ] `NAV-B8` · **Knowledge entries lights the rail** — Navigate to
+  `/dashboard/{org}/knowledge-entries` → The **Knowledge** rail item shows
+  active styling (it previously did not), and clicking it returns you to
+  `/documents` rather than restoring an older Knowledge tab.
+- [ ] `NAV-B9` · **Two tabs do not fight** — Open the app in two browser tabs.
+  In tab A open project X; in tab B open project Y. In each tab go to **Chat**
+  and back to **Projects** → Tab A returns to X and tab B returns to Y.
 
 ## Accessibility (WCAG 2.1 AA)
 
