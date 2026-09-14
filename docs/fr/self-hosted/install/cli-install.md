@@ -137,7 +137,7 @@ Pour les jobs Linux ou macOS ARM64 de GitHub Actions, utilise l’action composi
 
 `origin` et chaque entrée native `redirectUris` acceptent aussi des références d’environnement. Un registre de déploiement peut ainsi posséder les adresses publiques. La préparation les résout en URL HTTPS littérales validées dans le bundle.
 
-Pour reconnaître l’environnement dans la liste des conteneurs, renseigne l’option `runtime.containerPrefix`, par exemple `north-desk-prod`. Choisis un slug en minuscules avec des traits d’union, limité à 40 caractères. Chaque service géré reçoit le nom de conteneur `<prefix>-<service>`, comme `north-desk-prod-db` ou `north-desk-prod-backend-api` ; les noms DNS des services restent identiques. Sans cette option, les noms du code source s’appliquent. Ajouter, modifier ou retirer le préfixe recrée les conteneurs et peut interrompre brièvement le service. Pour une installation existante, conserve `name`, `composeProject` et `stateDirectory` afin de garder l’identité des volumes, des identifiants et des journaux de récupération. Le snapshot habituel et la reprise avec le même bundle s’appliquent. Continue à exécuter un seul runtime géré complet par daemon Docker : cette option n’attribue pas de ports, de réseaux sandbox ou de répertoires de travail distincts sur l’hôte.
+L’exemple définit `runtime.containerPrefix` pour rendre l’environnement reconnaissable dans la liste des conteneurs. Cette option est expliquée ci-dessous.
 
 ```json
 {
@@ -180,6 +180,22 @@ Pour reconnaître l’environnement dans la liste des conteneurs, renseigne l’
   ]
 }
 ```
+
+#### Choisir les noms des conteneurs
+
+Définis `runtime.containerPrefix` pour obtenir des noms comme `north-desk-prod-db` et `north-desk-prod-backend-api` dans la liste des conteneurs. Le préfixe commence par une lettre minuscule et contient des lettres minuscules, des chiffres et des traits d’union simples, sur 40 caractères au maximum. Les espaces, les traits de soulignement, les traits d’union répétés et un trait d’union final sont refusés.
+
+| Paramètre | Ce qu’il identifie |
+| --- | --- |
+| `runtime.containerPrefix` | Le nom visible de chaque conteneur géré : `<prefix>-<service>`. |
+| `name` et `composeProject` | Le déploiement existant et son projet Compose, y compris l’appartenance des volumes. |
+| `stateDirectory` | L’état du déploiement, les identifiants et les traces nécessaires à la reprise. |
+
+Garde les valeurs des deux dernières lignes lorsque tu renommes les conteneurs d’une installation existante. Le préfixe ne modifie pas les noms DNS des services : leurs adresses internes conservent donc les mêmes noms. Sans préfixe, la convention de nommage du code source s’applique.
+
+Ajouter, modifier ou retirer un préfixe recrée les conteneurs et peut interrompre brièvement le service. Prépare un nouveau bundle, examine sa simulation, puis applique-le en suivant la procédure habituelle de snapshot et de reprise. Si l’application est interrompue, relance exactement ce bundle ; un déploiement en attente refuse un autre bundle. Une fois le déploiement terminé, tu peux retirer le préfixe avec un autre bundle préparé pour rétablir la convention du code source.
+
+Exécute une seule instance gérée complète par démon Docker. Un préfixe de nom n’attribue pas de ports, de réseaux sandbox ou de répertoires de travail distincts sur l’hôte.
 
 #### Préparer, vérifier et appliquer le bundle
 

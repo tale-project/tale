@@ -137,7 +137,7 @@ Nutze für Linux- oder macOS-ARM64-Jobs in GitHub Actions Tales Composite Action
 
 Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. So kann eine Deployment-Registry die öffentlichen Adressen verwalten. Die Vorbereitung löst sie zu geprüften wörtlichen HTTPS-URLs im Bundle auf.
 
-Setze optional `runtime.containerPrefix`, etwa `north-desk-prod`, um die Umgebung in der Containerliste zu erkennen. Verwende einen kleingeschriebenen Slug mit Bindestrichen und höchstens 40 Zeichen. Jeder verwaltete Dienst erhält den Containernamen `<prefix>-<service>`, etwa `north-desk-prod-db` oder `north-desk-prod-backend-api`; die DNS-Namen der Dienste bleiben gleich. Ohne die Option gelten die Containernamen aus dem Quellcode. Wenn du das Präfix hinzufügst, änderst oder entfernst, erstellt das Deployment die Container neu und kann den Dienst kurz unterbrechen. Behalte bei einer bestehenden Installation `name`, `composeProject` und `stateDirectory` bei, damit Volumes, Zugangsdaten und Wiederherstellungsprotokolle ihre Identität behalten. Der übliche Snapshot und die Wiederholung mit demselben Bundle gelten auch hier. Betreibe weiterhin nur eine vollständige verwaltete Laufzeit pro Docker-Daemon: Die Option vergibt keine eigenen Ports, Sandbox-Netzwerke oder Arbeitsverzeichnisse auf dem Host.
+Im Beispiel macht `runtime.containerPrefix` die Umgebung in der Containerliste erkennbar. Die optionale Einstellung wird unten erläutert.
 
 ```json
 {
@@ -180,6 +180,22 @@ Setze optional `runtime.containerPrefix`, etwa `north-desk-prod`, um die Umgebun
   ]
 }
 ```
+
+#### Containernamen wählen
+
+Setze `runtime.containerPrefix`, wenn in der Containerliste Namen wie `north-desk-prod-db` und `north-desk-prod-backend-api` erscheinen sollen. Das Präfix beginnt mit einem Kleinbuchstaben und besteht aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen. Es darf höchstens 40 Zeichen lang sein. Leerzeichen, Unterstriche, doppelte Bindestriche und ein Bindestrich am Ende sind nicht erlaubt.
+
+| Einstellung | Zugehörige Identität |
+| --- | --- |
+| `runtime.containerPrefix` | Sichtbare Containernamen: `<prefix>-<service>` für jeden verwalteten Dienst. |
+| `name` und `composeProject` | Das bestehende Deployment und sein Compose-Projekt, einschließlich der Zuordnung der Volumes. |
+| `stateDirectory` | Der vorhandene Deployment-Zustand, Zugangsdaten und Wiederherstellungsprotokolle. |
+
+Lass die Werte der letzten beiden Zeilen unverändert, wenn du die Container einer bestehenden Installation umbenennst. Das Präfix verändert die DNS-Namen der Dienste nicht; interne Dienstadressen verwenden weiterhin ihre bisherigen Namen. Ohne Präfix gilt die Benennung aus dem Quellcode.
+
+Wenn du ein Präfix hinzufügst, änderst oder entfernst, werden Container neu erstellt. Dabei kann der Dienst kurz unterbrochen werden. Bereite ein neues Bundle vor, prüfe den Probelauf und wende es über den üblichen Ablauf mit Snapshot und Wiederherstellung an. Wiederhole nach einer Unterbrechung genau dieses Bundle; ein ausstehender Rollout lehnt ein anderes Bundle ab. Sobald der Rollout abgeschlossen ist, kannst du das Präfix mit einem weiteren vorbereiteten Bundle entfernen und so zur Benennung aus dem Quellcode zurückkehren.
+
+Betreibe nur eine vollständige verwaltete Laufzeit pro Docker-Daemon. Ein Namenspräfix vergibt keine separaten Ports, Sandbox-Netzwerke oder Arbeitsverzeichnisse auf dem Host.
 
 #### Bundle vorbereiten, prüfen und anwenden
 

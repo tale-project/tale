@@ -137,7 +137,7 @@ For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-
 
 `origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
 
-To identify an environment in container listings, set optional `runtime.containerPrefix`, for example `north-desk-prod`. Use a lowercase hyphenated slug of at most 40 characters. Every managed service receives `<prefix>-<service>` as its container name, including `north-desk-prod-db` and `north-desk-prod-backend-api`; service DNS names stay unchanged. Omit the option to retain source container names. Adding, changing or removing the prefix recreates containers and can briefly interrupt service. Keep `name`, `composeProject` and `stateDirectory` unchanged on a retained deployment so its volumes, credentials and recovery records keep their identity. The normal snapshot and exact-bundle retry flow applies. Continue to run one complete managed runtime per Docker daemon: this option does not allocate separate ports, sandbox networks or host workspaces.
+The example sets `runtime.containerPrefix` to make its environment recognizable in container listings. This optional setting is explained below.
 
 ```json
 {
@@ -180,6 +180,22 @@ To identify an environment in container listings, set optional `runtime.containe
   ]
 }
 ```
+
+#### Choose container names
+
+Set `runtime.containerPrefix` when you want names such as `north-desk-prod-db` and `north-desk-prod-backend-api` in container listings. The prefix starts with a lowercase letter and uses lowercase letters, digits and single hyphens, up to 40 characters. Spaces, underscores, repeated hyphens and a trailing hyphen are refused.
+
+| Setting | What it identifies |
+| --- | --- |
+| `runtime.containerPrefix` | Visible container names: `<prefix>-<service>` for every managed service. |
+| `name` and `composeProject` | The retained deployment and its Compose project, including volume ownership. |
+| `stateDirectory` | The existing deployment state, credentials and recovery records. |
+
+Keep the last two rows unchanged when renaming an existing deployment's containers. The prefix leaves service DNS names unchanged, so internal service addresses continue to use their existing names. Omit it to use the source's container naming policy.
+
+Adding, changing or removing a prefix recreates containers and can briefly interrupt service. Prepare a new bundle, review its dry run, then apply it through the normal snapshot and recovery flow. If application is interrupted, retry that exact bundle; a pending rollout refuses a different bundle. Once the rollout is ready, removing the prefix through another prepared bundle restores the source naming policy.
+
+Run one complete managed runtime per Docker daemon. A name prefix does not allocate separate ports, sandbox networks or host workspaces.
 
 #### Prepare, verify, and apply the bundle
 
