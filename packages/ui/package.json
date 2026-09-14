@@ -10,6 +10,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./accent-color": "./src/theme/accent-color.tsx",
+    "./analytics/browser": "./src/analytics/browser.ts",
+    "./analytics/server": "./src/analytics/server.ts",
     "./accordion": "./src/components/feedback/accordion.tsx",
     "./action-row": "./src/components/layout/action-row.tsx",
     "./adaptive-header": "./src/components/layout/adaptive-header.tsx",

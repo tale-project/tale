@@ -18,13 +18,15 @@ Drei Eimer an Daten existieren, jeder mit eigener Aufbewahrungsregel:
 
 Wir verkaufen keine personenbezogenen Daten. Wir nutzen Produkt-Daten nicht, um Modelle zu trainieren — deine Konversationen und Dokumente sind in keinem Modell-Trainingssatz, weder unserem noch dem eines Anbieters, ausser wo du ein Feature ausdrücklich aktiviert hast, das das verlangt, und der Einwilligungs-Prompt bestätigt wurde.
 
+Optionale aggregierte Nutzungsstatistiken verwenden selbst gehostetes Umami auf Tales eigenen Seiten und auf Deployments, deren Betreiber die Erfassung aktiviert. Erfasst werden bekannte öffentliche Seitenpfade oder private Routenvorlagen, Referrer-Ursprünge, Browsersprache, Bildschirmgröße, Geräte- und Browserdaten sowie der ungefähre Standort. Die IP-Adresse dient zur Standortableitung und kurzzeitigen Gruppierung von Besuchen, ohne Speicherung im Klartext. Cookies, dauerhafte Browserkennungen, websiteübergreifende Identitäten, Seitentitel, Suchparameter, Formularinhalte, Organisations- und Ressourcenkennungen sowie Sitzungsaufzeichnungen werden nicht erfasst. Do Not Track und Global Privacy Control deaktivieren diese Erfassung. Die Marketing-Seite zählt abgeschlossene Kontakt- und Demo-Anfragen ohne deren Inhalt.
+
 ## Warum wir es erheben
 
 Die rechtliche Grundlage für jeden Eimer ist eine von:
 
 - **Vertragsnotwendigkeit.** Konto-Daten und die Produkt-Daten, die du anlegst, existieren, weil du uns gebeten hast, den Dienst bereitzustellen. Wir können die Plattform ohne sie nicht betreiben.
 - **Berechtigtes Interesse.** Betriebs-Daten werden erhoben, um die Plattform sicher zu halten, Ausfälle zu debuggen und vertragliche SLAs zu erfüllen.
-- **Einwilligung.** Marketing-Kommunikation, Analytik auf der Marketing-Seite und jedes Feature, das Daten über den Vertrag hinaus verarbeitet, sind einwilligungsbasiert — opt-in, widerrufbar und protokolliert.
+- **Einwilligung.** Marketing-Kommunikation, jedes Feature, das Daten über den Vertrag hinaus verarbeitet, sind einwilligungsbasiert — opt-in, widerrufbar und protokolliert.
 
 Die Aufschlüsselung der Rechtsgrundlage pro Datenkategorie steht im Auftragsverarbeitungs-Vertrag, der Enterprise-Kunden auf Anfrage zur Verfügung steht.
 

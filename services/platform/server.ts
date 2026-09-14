@@ -7,6 +7,7 @@ import {
   requestSiteOrigin,
   resolveSiteOrigins,
 } from '@tale/shared/utils/site-urls';
+import { createAnalytics } from '@tale/ui/analytics/server';
 import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
@@ -577,6 +578,7 @@ export function createApp(
   opts: CreateAppOptions = {},
 ): Hono {
   const app = new Hono();
+  const analytics = createAnalytics(process.env, env.BASE_PATH);
 
   const makeSecure = (storageOrigins: readonly string[]) =>
     secureHeaders({
@@ -952,6 +954,11 @@ export function createApp(
     );
   });
 
+  app.all(
+    '/_a/*',
+    async (c) => (await analytics.handle(c.req.raw)) ?? c.notFound(),
+  );
+
   // Static files + index.html fallback (TanStack Router SPA).
   app.get('*', async (c) => {
     const pathname = new URL(c.req.url).pathname;
@@ -1028,6 +1035,7 @@ export function createApp(
         : { ...env, SITE_URL: requestOrigin };
 
     let html = template
+      .replace('<head>', `<head>${analytics.html}`)
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
         `window.__ENV__ = ${JSON.stringify(pageEnv)};`,

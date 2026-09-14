@@ -197,6 +197,31 @@ describe('managed runtime credential adoption', () => {
     ).toEqual({ TEST: 'literal $HOME $(not-run)', QUOTE: "a'b" });
   });
 
+  test('carries declared optional analytics configuration through the runtime environment', async () => {
+    const { fixture } = await create();
+    const analytics = {
+      UMAMI_URL: 'https://metrics.example',
+      UMAMI_WEBSITE_ID: '11111111-1111-4111-8111-111111111111',
+      UMAMI_PROXY_TOKEN: 'synthetic-collector-token',
+    };
+    const result = prepareRuntimeEnvironment(
+      { ...fixture.options, environment: analytics },
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(result.environment, 'compose'),
+    ).toMatchObject(analytics);
+    const disabled = prepareRuntimeEnvironment(
+      { ...fixture.options, environment: { UMAMI_WEBSITE_ID: '' } },
+      fixture.revision,
+      true,
+    );
+    expect(
+      parseRuntimeEnvironment(disabled.environment, 'compose').UMAMI_WEBSITE_ID,
+    ).toBe('');
+  });
+
   test.each([
     'A=first\nA=second\n',
     'A=$(false)\n',

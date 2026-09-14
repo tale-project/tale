@@ -58,6 +58,16 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 Die Sample-Rate begrenzt Performance-Traces im Browser und gilt nur dort — das Backend meldet Fehler, nie Traces. Lass sie unset für den Default 1.0 in Development und ziehe sie an (0.05–0.2) in Produktion. Stack-Frames werden auf beiden Seiten unredigiert geschickt, also richte den DSN auf Infrastruktur, die du kontrollierst, wenn deine Error-Payloads sensibel sind.
 
+## Aggregierte Nutzungsstatistik mit Umami
+
+Die aggregierte Verkehrsmessung aktivierst du getrennt pro Deployment. Setze `UMAMI_URL`, `UMAMI_WEBSITE_ID` und `UMAMI_PROXY_TOKEN` gemäß der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference). Eine leere Website-ID deaktiviert sie ohne neues Image. Das Token bleibt auf dem Server. Verwende für jedes Deployment eine eigene Website-ID.
+
+Der Proxy auf der eigenen Domain liefert den Umami-Tracker aus und leitet nur Seitenaufrufe sowie abgeschlossene Kontakt- und Demo-Anfragen der Marketing-Seite weiter. Das Erfassungs-Gateway muss `GET /_collect/script.js` und `POST /_collect/api/send` mit dem konfigurierten Bearer-Token authentifizieren. Caddy muss `X-Analytics-Client-IP` aus der vertrauenswürdigen Client-Adresse neu setzen. Halte die Anwendungsports privat und konfiguriere vertrauenswürdige Proxy-Netze, wenn ein weiterer Proxy vorgeschaltet ist. Browser-Cookies, Anmeldedaten, Referrer-Kopfzeilen, Seitentitel, Suchparameter, Fragmente, Kontokennungen, Formularfelder und Produktinhalte gelangen nie zur Erfassung.
+
+Die Berichte enthalten bekannte öffentliche Seitenpfade, Routenvorlagen der privaten Plattform, Referrer-Ursprünge, Browsersprache, Bildschirmgröße, Browser, Betriebssystem, Gerät und ungefähren Standort. Die Erfassung leitet Besuche und Standort aus der IP-Adresse ab, ohne diese im Klartext zu speichern. Private Organisations- und Ressourcenkennungen erscheinen als Platzhalter. Es gibt keine websiteübergreifende Identität, automatische Klickerfassung oder Sitzungsaufzeichnung. Do Not Track und Global Privacy Control deaktivieren die Erfassung.
+
+Öffne nach dem Rollout eine bekannte Seite, navigiere innerhalb der Anwendung und prüfe beide Seitenaufrufe in der Umami-Website des Deployments. Prüfe den Inhalt der Erfassungsanfrage: Eine private Route enthält Platzhalter, aber keine Suchparameter, Titel oder Formulardaten. Die Navigation muss auch bei blockierter oder ausgefallener Erfassung funktionieren.
+
 ## Was noch nicht mitkommt
 
 OpenTelemetry-Traces sind nicht in die Container eingebaut. Die Daten sind indirekt erreichbar — Backend-Request-Dauern und HTTP-Route-Timings kommen durch die Prometheus-Metriken — aber es gibt heute keinen OTLP-Exporter auf der Box. Brauchst du vollen Trace-Export, betreib einen OpenTelemetry Collector neben Tale und scrape die Prometheus-Endpoints aus ihm.

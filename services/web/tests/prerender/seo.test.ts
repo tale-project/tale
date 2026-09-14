@@ -57,16 +57,14 @@ describe('prerender SEO suite', () => {
         expect(html ?? '').toMatch(/rel="canonical"/i);
       });
 
-      // The analytics tag lives outside the seo markers so it survives
-      // prerendering on every route, and it must stay same-origin: this
-      // server sends script-src 'self' + inline hashes, so an absolute
-      // tracker URL would be blocked in the browser.
-      it('keeps the first-party analytics tag', () => {
+      // One image serves deployments with analytics enabled or disabled.
+      // Only the runtime server may inject deployment-specific configuration;
+      // the browser then loads the same-origin tracker after checking opt-outs.
+      it('leaves analytics opt-in to runtime configuration', () => {
         const html = readHtml(url) ?? '';
-        expect(html).toContain(
-          'data-website-id="86021df0-293b-4436-8dd3-aa83bdf4b86e"',
-        );
-        expect(html).toMatch(/<script[^>]+src="\/_a\/script\.js"/);
+        expect(html).not.toMatch(/\bdata-website-id=/);
+        expect(html).not.toContain('id="tale-analytics"');
+        expect(html).not.toMatch(/<script[^>]+src="\/_a\/script\.js"/);
       });
     });
   }

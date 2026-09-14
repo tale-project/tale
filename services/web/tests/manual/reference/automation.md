@@ -14,6 +14,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [forms](../suites/forms.md) | Completed submission counts only; no failed conversion or form contents | ✅ automated | `lib/forms/submit-client.test.ts` |
+| [navigation](../suites/navigation.md) | Optional analytics: runtime disablement, safe SPA pageviews, private route templates, DNT/GPC and collector boundary | ✅ automated | `packages/ui/src/analytics/browser.test.ts`, `packages/ui/src/analytics/server.test.ts` |
 | [accessibility](../suites/accessibility.md) | Layer / case | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `@tale/ui` component tests (`checkAccessibility()` via `vitest-axe`) + Storybook a11y addon |
 | [accessibility](../suites/accessibility.md) | `A11Y-A3` on `/platform` + `/pricing` | ✅ automated | `smoke.spec.ts` (single `h1`, no skipped levels in `main`) |

@@ -58,6 +58,16 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 The sample rate caps browser performance traces and applies only there — the backend reports errors, never traces. Leave it unset for the default 1.0 in development and tighten it (0.05–0.2) in production. Stack frames are sent unredacted on both sides, so point the DSN at infrastructure you control if your error payloads are sensitive.
 
+## Aggregate analytics with Umami
+
+Aggregate traffic collection is an independent deployment opt-in. Set all three `UMAMI_URL`, `UMAMI_WEBSITE_ID` and `UMAMI_PROXY_TOKEN` values from the [environment reference](/self-hosted/configuration/environment-reference); clearing the website ID disables it without rebuilding an image. The token stays on the server. Use a separate website ID for each deployment.
+
+The first-party proxy serves the upstream Umami tracker and forwards only pageviews and the marketing site’s completed contact/demo events. The collector gateway must authenticate `GET /_collect/script.js` and `POST /_collect/api/send` with the configured bearer token. Caddy must overwrite `X-Analytics-Client-IP` from a trusted client address; keep application ports private and configure trusted proxy ranges when another proxy sits in front. Browser cookies, authorization, referrer headers, page titles, search parameters, fragments, account identifiers, form fields and product content never reach the collector.
+
+Reports contain known public page paths, private platform route templates, referrer origins, browser language, screen size, browser/OS/device and approximate location. The collector derives visits and location from the IP without storing the raw address. Private organization and resource identifiers become placeholders. There is no cross-site identity, automatic click capture or session replay. Do Not Track and Global Privacy Control disable collection.
+
+After rollout, open a known page, navigate inside the app and confirm the two pageviews in the deployment’s Umami website. Inspect the collector request body: a private route contains placeholders, and query strings, titles and form data are absent. A blocked or unavailable collector must leave normal navigation working.
+
 ## What does not ship yet
 
 OpenTelemetry traces are not built into the containers. The data is reachable indirectly — backend request durations and HTTP route timings come through the Prometheus metrics — but there is no OTLP exporter on the box today. If you need full trace export, run an OpenTelemetry Collector alongside Tale and scrape the Prometheus endpoints from it.

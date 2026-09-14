@@ -124,6 +124,9 @@ See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for
 | `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for browser performance traces (`0.0`–`1.0`). Browser-only — the backend reports errors, never traces.            |
 | `METRICS_BEARER_TOKEN`      | unset   | Bearer token required to access the Prometheus `/metrics/*` endpoints. Leave unset to keep metrics endpoints unreachable from outside. |
+| `UMAMI_URL` | unset | HTTPS origin of the authenticated Umami collector gateway. Runtime only; requires the website ID and proxy token. |
+| `UMAMI_WEBSITE_ID` | unset | Umami website UUID. Unset or invalid disables aggregate analytics; use a separate ID for each deployment. |
+| `UMAMI_PROXY_TOKEN` | unset | Server-only bearer token for the collector gateway. Never inject into browser configuration. |
 
 Setting `METRICS_BEARER_TOKEN` exposes the metrics endpoints behind the token: `/metrics/platform`, `/metrics/backend` (the application backend's metrics), and `/metrics/sla-rules`. See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
 
