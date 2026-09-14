@@ -9,9 +9,9 @@ Diese Seite ist die praktische Hälfte der Automatisierungen: was du klickst und
 
 Öffne **Automatisierungen** in der Seitenleiste. Die Liste zeigt jede Automatisierung der Organisation mit der Anzahl ihrer Versionen und entweder der Version, die live ist, oder **Nicht live**, solange es keine gibt. Klick eine an, und du landest auf ihrer Seite.
 
-Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag, um seine neueste gespeicherte Version zu öffnen.
+Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag, um seine neueste gespeicherte Version zu öffnen. Der Wechsel landet auf dem Tab, den du gerade offen hattest.
 
-Diese Seite ist ein Arbeitsplatz, keine Reihe von Tabs. Der Name trägt das Badge **Live**, wenn die Version auf dem Canvas live ist. **Version**, **Testlauf**, **Live ausführen**, **Verwerfen** und **Speichern** stehen rechts — **Diese Version live schalten** sitzt neben **Version**, wenn die Auswahl nicht live ist. Neben dem Canvas zeigt das Panel **Trigger** und **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keines heißt die ganze Organisation — bis du eine Box anklickst. Das Panel ist so hoch wie der Canvas, der das Fenster unter der Kopfzeile füllt. Wählst du eine Node, bleibt der Canvas gleich hoch — überzählige Felder scrollst du im Panel. Klick **Schließen**, drück Escape, klick die ausgewählte Box noch einmal, oder in den leeren Canvas, und sie kommen zurück. **Versionen** und **Läufe** liegen darunter.
+Diese Seite hat drei Tabs, wie ein Projekt: **Editor**, **Versionen** und **Läufe**; sie öffnet auf **Editor**. Der Name trägt das Badge **Live**, wenn die Version auf dem Canvas live ist. **Version**, **Testlauf**, **Live ausführen**, **Verwerfen** und **Speichern** stehen am rechten Ende der Tab-Leiste — **Diese Version live schalten** sitzt neben **Version**, wenn die Auswahl nicht live ist. Neben dem Canvas zeigt das Panel **Trigger** und **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keines heißt die ganze Organisation — bis du eine Box anklickst. Das Panel ist so hoch wie der Canvas, der das Fenster unter den Tabs füllt. Wählst du eine Node, bleibt der Canvas gleich hoch — überzählige Felder scrollst du im Panel. Klick **Schließen**, drück Escape, klick die ausgewählte Box noch einmal, oder in den leeren Canvas, und sie kommen zurück. **Versionen** listet jede gespeicherte Version, **Läufe** jeden Lauf — beide in ihrem eigenen Tab.
 
 ## Den Canvas lesen
 
@@ -84,11 +84,11 @@ tests:
         - connector: email.send
 ```
 
-Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und die Liste **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Seite sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
+Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und der Tab **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Seite sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
 
 ## Zurückrollen
 
-Zurückrollen heißt, eine ältere Version live zu schalten. Wähl sie oben unter **Version** — oder such sie in **Versionen**, lies die Notiz und klick sie an — und klick **Diese Version live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
+Zurückrollen heißt, eine ältere Version live zu schalten. Wähl sie in der Tab-Leiste unter **Version** — oder öffne **Versionen**, lies die Notiz und klick die Zeile an, die den Editor mit dieser Version öffnet — und klick **Diese Version live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
 
 Deshalb zählen Versionsnotizen mehr, als sie aussehen. Sechs Versionen später sagt dir die Notiz, welche der letzte gute Stand war — schreib sie also für die Person, die sie während einer Störung lesen wird.
 
@@ -104,7 +104,7 @@ Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diese
 
 Wähl bei eingeblendetem Lauf eine Node, und das Panel ergänzt einen Abschnitt **In diesem Lauf**: die **Aufgelöste Eingabe**, die die Node tatsächlich bekommen hat, nachdem jedes Template ausgewertet war, ihre **Ausgabe** und die Auswirkungen, die sie erzeugt hat, oder den Hinweis, dass sie außerhalb der Plattform nichts verändert hat. Die aufgelöste Eingabe beantwortet meist am schnellsten die Frage, warum eine Node getan hat, was sie getan hat — sie zeigt den Wert, den eine Referenz ergeben hat, nicht die Referenz, die du geschrieben hast.
 
-Ein Klick auf eine Zeile unter **Läufe** öffnet die Lauf-Seite, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
+Öffne **Läufe** und klick eine Zeile an: Das öffnet die Lauf-Seite — die Tabs bleiben, **Läufe** ist aktiv —, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
 
 ## Wo das hingehört
 

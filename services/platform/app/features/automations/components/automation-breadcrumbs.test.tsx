@@ -53,6 +53,9 @@ vi.mock('@tanstack/react-router', () => ({
     return undefined;
   },
   useNavigate: () => mockNavigate,
+  useLocation: () => ({
+    pathname: '/dashboard/org-1/automations/billing__dunning/editor',
+  }),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -157,7 +160,10 @@ describe('AutomationBreadcrumbs', () => {
 
     expect(
       screen.getByRole('link', { name: 'Chase overdue invoices' }),
-    ).toHaveAttribute('href', '/dashboard/org-1/automations/billing__dunning');
+    ).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/billing__dunning/editor',
+    );
     expect(
       screen.getByRole('heading', { level: 1, name: 'Run' }),
     ).toBeVisible();
@@ -165,7 +171,7 @@ describe('AutomationBreadcrumbs', () => {
     const back = screen.getByRole('link', { name: /back/i });
     expect(back).toHaveAttribute(
       'href',
-      '/dashboard/org-1/automations/billing__dunning',
+      '/dashboard/org-1/automations/billing__dunning/editor',
     );
   });
 
@@ -186,7 +192,7 @@ describe('AutomationBreadcrumbs', () => {
       screen.getByRole('link', { name: 'Chase overdue invoices' }),
     ).toHaveAttribute(
       'href',
-      '/dashboard/org-1/projects/proj-1/automations/billing__dunning',
+      '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor',
     );
   });
 

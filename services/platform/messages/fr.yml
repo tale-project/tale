@@ -343,14 +343,14 @@ analytics:
         agent: Agent
 auth:
   oauth:
-    title: "Continuer avec Tale"
-    request: "{application} souhaite te connecter avec Tale."
-    permissions: "Autorise cette application à lire ton nom, ton adresse e-mail vérifiée et ton appartenance à son organisation Tale. Ton mot de passe reste dans Tale."
-    allow: "Autoriser et continuer"
-    cancel: "Annuler"
-    continuing: "Connexion…"
-    retry: "Réessayer"
-    failed: "Cette connexion ne peut pas continuer. Retourne dans l’application et recommence."
+    title: 'Continuer avec Tale'
+    request: '{application} souhaite te connecter avec Tale.'
+    permissions: 'Autorise cette application à lire ton nom, ton adresse e-mail vérifiée et ton appartenance à son organisation Tale. Ton mot de passe reste dans Tale.'
+    allow: 'Autoriser et continuer'
+    cancel: 'Annuler'
+    continuing: 'Connexion…'
+    retry: 'Réessayer'
+    failed: 'Cette connexion ne peut pas continuer. Retourne dans l’application et recommence.'
   email: Courriel
   password: Mot de passe
   emailPlaceholder: Entre ton adresse email
@@ -527,12 +527,17 @@ automations:
   title: Automatisations
   entityLabel: automatisations
   entityLabelOne: automatisation
+  navigation:
+    editor: Éditeur
+    versions: Versions
+    runs: Exécutions
   switcher:
     title: Changer d'automatisation
     searchPlaceholder: Rechercher des automatisations
     empty: Aucune automatisation trouvée
     ariaLabel: "Changer d'automatisation, actuel : {name}"
   list:
+    createButton: Créer une automatisation
     searchPlaceholder: Rechercher des automatisations
     columnName: Nom
     columnProjects: Projets
@@ -597,7 +602,6 @@ automations:
     noProviders:
       Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
       clé API dans Paramètres → Fournisseurs d’IA.
-    new: Nouvelle automatisation
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -762,6 +766,7 @@ automations:
     nothingToSave: Aucune modification à enregistrer
   versions:
     title: Versions
+    description: Chaque version enregistrée, la plus récente en premier — ouvre-la pour l'afficher sur le canvas. Une seule est en service à la fois.
     empty: Aucune version n’a encore été enregistrée.
     versionLabel: v{version}
     deployed: En service
@@ -818,6 +823,7 @@ automations:
       placeholder: Écris ta réponse — du texte simple suffit.
       submit: Envoyer la réponse & reprendre
     title: Exécutions
+    description: Chaque exécution de cette automatisation, la plus récente en premier — essais et exécutions réelles. Ouvre-en une pour ses étapes, ses effets et sa sortie.
     breadcrumb: Exécution
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
@@ -1650,6 +1656,7 @@ common:
     skipToContent: Aller au contenu principal
     mainNavigation: Navigation principale
     projectsNavigation: Navigation des projets
+    automationsNavigation: Navigation des automatisations
     sortAscending: trié par ordre croissant
     sortDescending: trié par ordre décroissant
     sortAvailable: tri disponible
@@ -1733,8 +1740,7 @@ connectivity:
   deviceDescription: Vérifie ta connexion Internet. Tale se reconnectera
     automatiquement dès que tu seras en ligne.
   backendTitle: Impossible de joindre Tale
-  backendDescription:
-    Le serveur Tale ne répond pas. On essaie de se reconnecter.
+  backendDescription: Le serveur Tale ne répond pas. On essaie de se reconnecter.
   retry: Réessayer
   getApp: Obtenir l'application
   reachingServer: Connexion au serveur en cours
@@ -2249,8 +2255,7 @@ documents:
     downloadedSuccessfully: '{filename} téléchargé'
     downloadFailed: Échec du téléchargement du fichier
     notAvailable: Aperçu non disponible
-    notAvailableDescription:
-      Ce type de fichier ne peut pas être prévisualisé.
+    notAvailableDescription: Ce type de fichier ne peut pas être prévisualisé.
       Télécharge le fichier pour consulter son contenu.
     truncatedNotice:
       Ce fichier est trop volumineux pour un aperçu complet — seul le
@@ -4563,14 +4568,14 @@ personalization:
         Les souvenirs apparaissent ici après que l'assistant en propose et que tu
         les enregistres.
       delete: Supprimer
-      deleteLabel: "Supprimer le souvenir : {content}"
+      deleteLabel: 'Supprimer le souvenir : {content}'
     pending:
       title: Suggestions en attente
       empty: Aucune suggestion en attente.
       save: Enregistrer
-      saveLabel: "Enregistrer la suggestion : {content}"
+      saveLabel: 'Enregistrer la suggestion : {content}'
       discard: Écarter
-      discardLabel: "Écarter la suggestion : {content}"
+      discardLabel: 'Écarter la suggestion : {content}'
   errors:
     saveFailed: Échec de l'enregistrement. Réessaie.
     tooLong: Les instructions personnalisées dépassent {max} caractères.
@@ -5062,7 +5067,8 @@ settings:
         description: La surface propre à l'organisation — chercher ce qu'elle
           sait faire, invoquer une capacité, récupérer des connaissances.
     exampleTitle: Essaie
-    exampleHelp: Liste les outils — remplace par ta clé API ; X-Organization-Slug
+    exampleHelp:
+      Liste les outils — remplace par ta clé API ; X-Organization-Slug
       est déjà renseigné.
     copyExample: Copier la requête d'exemple
   account:
@@ -6302,8 +6308,7 @@ settings:
         d'embedding n'est configuré.
       banner:
         title: La recherche de connaissances est coupée
-        body:
-          Cette organisation a un fournisseur IA mais aucun modèle
+        body: Cette organisation a un fournisseur IA mais aucun modèle
           d'embedding, donc les documents ne peuvent être ni indexés ni
           cherchés.
         link: Choisir un modèle d'embedding
@@ -7086,8 +7091,7 @@ twoFactor:
         singleDevice: Clé liée à un appareil
         multiDevice: Passkey synchronisé
   errors:
-    enableFailed:
-      Impossible de démarrer la configuration du double facteur. Réessaie.
+    enableFailed: Impossible de démarrer la configuration du double facteur. Réessaie.
     disableFailed: Échec de la désactivation de l'authentification à double facteur.
     regenerateFailed: Échec de la génération de nouveaux codes de secours.
     invalidCode: Code invalide ou expiré. Réessaie.

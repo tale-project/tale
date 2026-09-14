@@ -7,7 +7,9 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderRoot,
   AdaptiveHeaderSlot,
+  AdaptiveHeaderTabActionsSlot,
   AdaptiveHeaderTitle,
+  useAdaptiveHeaderSlots,
 } from './adaptive-header';
 
 describe('AdaptiveHeader', () => {
@@ -72,5 +74,32 @@ describe('AdaptiveHeader', () => {
     const save = screen.getByRole('button', { name: 'Save' });
     expect(title.parentElement?.className).toMatch(/\bh-13\b/);
     expect(save.parentElement?.parentElement).toBe(title.parentElement);
+  });
+
+  it('exposes the tab-strip actions slot to pages, and nothing without one', () => {
+    function Probe() {
+      const slots = useAdaptiveHeaderSlots();
+      return (
+        <span data-testid="probe">
+          {slots?.tabActionsEl instanceof HTMLElement ? 'slot' : 'none'}
+        </span>
+      );
+    }
+    const { rerender } = render(
+      <AdaptiveHeaderProvider>
+        <Probe />
+      </AdaptiveHeaderProvider>,
+    );
+    expect(screen.getByTestId('probe')).toHaveTextContent('none');
+
+    rerender(
+      <AdaptiveHeaderProvider>
+        <nav>
+          <AdaptiveHeaderTabActionsSlot />
+        </nav>
+        <Probe />
+      </AdaptiveHeaderProvider>,
+    );
+    expect(screen.getByTestId('probe')).toHaveTextContent('slot');
   });
 });

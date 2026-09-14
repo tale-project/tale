@@ -78,7 +78,7 @@ describe('AutomationsList', () => {
 
     await user.click(screen.getByText('org/digest'));
     expect(navigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations/$automationSlug',
+      to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'org__digest' },
     });
   });
@@ -93,7 +93,7 @@ describe('AutomationsList', () => {
 
     await user.click(screen.getByText('desk/prepare-return'));
     expect(navigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
       params: {
         id: 'org-1',
         projectId: 'proj_1',
@@ -110,7 +110,7 @@ describe('AutomationsList', () => {
 
     await user.click(screen.getByText('desk/prepare-return'));
     expect(navigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
       params: {
         id: 'org-1',
         projectId: 'proj_1',
@@ -131,7 +131,7 @@ describe('AutomationsList', () => {
 
     await user.click(screen.getByText('desk/prepare-return'));
     expect(navigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations/$automationSlug',
+      to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'desk__prepare-return' },
     });
     expect(screen.getAllByText('automations.list.projectBound')).toHaveLength(
@@ -194,7 +194,7 @@ describe('AutomationsList create menu', () => {
     ).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole('button', { name: 'automations.builder.new' }),
+      screen.getByRole('button', { name: 'automations.list.createButton' }),
     );
 
     expect(
@@ -218,7 +218,7 @@ describe('AutomationsList create menu', () => {
       screen.queryByText('automations.list.description'),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'automations.builder.new' }),
+      screen.getByRole('button', { name: 'automations.list.createButton' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('row-actions')).toBeInTheDocument();
     expect(

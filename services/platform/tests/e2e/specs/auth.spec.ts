@@ -13,6 +13,31 @@ import { t } from '../helpers/i18n';
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('login', () => {
+  for (const destination of [
+    '/dashboard/example/projects/project/files?doc=document&folderId=folder%20one',
+    '/dashboard/example/conversations/open?conversation=conversation#latest',
+  ]) {
+    test(`retains a signed-out deep link: ${destination}`, async ({
+      page,
+      request,
+    }) => {
+      await signUpViaApi(request, uniqueCredentials('login-destination'));
+      await page.goto(destination);
+      await expect(page).toHaveURL((url) => {
+        const redirectTo = url.searchParams.get('redirectTo');
+        if (url.pathname !== '/log-in' || !redirectTo) return false;
+        const actual = new URL(redirectTo, url);
+        const expected = new URL(destination, url);
+        return (
+          actual.origin === expected.origin &&
+          actual.pathname === expected.pathname &&
+          actual.searchParams.toString() === expected.searchParams.toString() &&
+          actual.hash === expected.hash
+        );
+      });
+    });
+  }
+
   test('rejects a wrong password with a uniform error', async ({
     page,
     request,
