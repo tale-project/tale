@@ -27,7 +27,7 @@ and name the test that now holds it. Never key a row by round — the journal in
 
 | Box | What it pins |
 |---|---|
-| `HOME-3` | The first composition put the showcase heading **below** the product window while its copy said "the window below" — the sections are now heading first, window second. |
+| `HOME-3` | The sample window is now labelled “Components in a sample workspace” and remains an inert illustration. The first composition put the showcase heading **below** the product window while its copy said "the window below" — the sections are now heading first, window second. |
 | `HOME-5` | `DemoShell` marks its payload `role="img"` + `inert`; a round that files "the settings form on the home page cannot be focused" has found the contract, not a bug. |
 
 ## Documentation pages
@@ -38,3 +38,9 @@ and name the test that now holds it. Never key a row by round — the journal in
 | `DOCS-12` | The drawer's close control used to be an `IconButton`, whose automatic tooltip opened the moment the drawer focused it; the Radix tooltip layer swallowed the first Escape, so the drawer needed two presses. It is a plain `Button` now, and focus is returned to the menu button explicitly because a state-driven `Sheet` has no `Dialog.Trigger` to do it (`docs-mobile-nav.tsx`). |
 | `DOCS-13` | `Sheet`'s `md:hidden` hides the panel, not the portalled overlay: an open drawer plus a widening viewport left an invisible scrim over the page. The `open` state is released by the viewport, not just by CSS. |
 | `DOCS-2` | The trail's leaf is the page's only `h1` (`HeaderBreadcrumbs`); the article deliberately renders no second heading of level one, and `tests/content.test.ts` refuses a body that starts with `# `. |
+
+## Crawler surface
+
+| Box | What it pins |
+|---|---|
+| `SEO-7` | **Docs correction:** the SEO compiler serializes frontmatter and resolves site links to canonical absolute URLs. The Markdown twin preserves the authored body and Demo tags, but is not a byte-for-byte copy of the source file. Built endpoint review compares the body after normalizing those links. |

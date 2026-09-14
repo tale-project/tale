@@ -106,7 +106,10 @@ test.describe('documentation page', () => {
       .poll(() => toggles.count())
       .toBeGreaterThanOrEqual(BUTTON_PAGE_DEMOS);
     await expect(
-      article.getByRole('heading', { level: 2, name: 'Where to go next' }),
+      article.getByRole('heading', {
+        level: 2,
+        name: 'Accessibility and alternatives',
+      }),
     ).toBeVisible();
   });
 

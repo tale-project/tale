@@ -1,107 +1,70 @@
 ---
 title: Input
-description: The text field — its label, description, hint and error slots, and the states you get without writing any markup.
+description: Build labelled text fields with validation, read-only states, and appropriate password or secret handling.
 ---
 
-`Input` is a field, not a bare `<input>`. It renders its own label,
-description, hint and error through `FieldShell`, with the ids connected, so a
-form written with it is labelled correctly by construction.
-
-By the end of this page you will know which slot each piece of copy belongs in,
-how the states differ, and when the raw element is the right call instead.
+`Input` combines an input element with a label, help text, and validation feedback. Supply a visible `label` for ordinary forms; if the surrounding UI already labels the control, provide the corresponding accessible name yourself.
 
 ```tsx
 import { Input } from '@tale/ui/input';
 ```
 
-## A labelled field
+## Give the field enough context
 
 <Demo name="input/basic" />
 
-Four text slots, each with a job:
+Use `label` for the field's name, `description` for context before entry, and `hint` for a short format or usage rule below the control. A placeholder is an example value, not a replacement for a label: it disappears when the person types.
 
-- **`label`** — the field's name. Always present, always `text-foreground`.
-- **`description`** — one sentence under the label, explaining what the value
-  does. Shown before the reader types.
-- **`hint`** — a note under the control, for a rule that only makes sense once
-  you have seen the field.
-- **`errorMessage`** — inline validation, paired with `isInvalid`.
+The component generates an ID unless you pass one. It associates the label, description, hint, and error with the input, and preserves additional IDs you supply through `aria-describedby`.
 
-## States
+## Validate and explain the fix
 
 <Demo name="input/states" />
 
-**`passwordToggle`** adds a show/hide control to a `type="password"` field.
-**`sensitive`** marks the value as a secret — it suppresses the browser's save-
-password prompt and password-manager autofill, so an API key never lands in the
-credential store. A `type="password"` field is treated as sensitive
-automatically.
+`errorMessage` displays an inline alert and sets the invalid state automatically. `isInvalid` can also set the state without an error string, for example when a separately rendered error summary explains the problem. The component displays validation supplied by the host; it does not decide whether an email, URL, or identifier is valid for your application.
 
-**`isInvalid` with `errorMessage`** renders the error and wires `aria-invalid`.
-Pass both: the colour alone is not a message, and the message alone is not a
-state.
+For a controlled field, pass `value` and update it from `event.target.value` in `onChange`. For an uncontrolled example, use `defaultValue`. Keep the user's draft after a failed submission and explain how to repair the value.
 
-**`disabledReason`** works exactly as it does on
-[Button](/docs/components/button) — the field stays focusable and becomes
-`readOnly` with `aria-disabled`, so the tooltip explaining why can reach a
-keyboard reader. It applies only while `disabled` is true.
+## Choose read-only or disabled behavior
 
-**`variant="readOnly"`** is for a value the reader may not edit in this
-context. It keeps the field's exact footprint — the same `h-9`, the same
-padding — and drops only the ring and the fill, so toggling editable and
-read-only causes no layout shift.
+| Need | Use |
+| --- | --- |
+| Show a value that can be focused and copied but not edited | Native `readOnly`; it automatically selects the borderless read-only appearance unless you specify a variant. |
+| Keep the outlined appearance while preventing edits | `readOnly` with `variant="default"`. |
+| Make the control unavailable | `disabled`. |
+| Explain why it is unavailable on hover and focus | `disabled` with `disabledReason`. |
+
+`variant="readOnly"` changes styling only. Pass `readOnly` as well to prevent editing. A disabled field with a reason stays focusable and read-only with `aria-disabled`; native disabled fields leave the tab order and are excluded from normal form submission. Account for that difference when reading form values.
+
+## Distinguish account passwords from secrets
+
+For an account sign-in field, use `type="password"` with `autoComplete="current-password"`. For a new account password, use `autoComplete="new-password"`. Explicit autocomplete lets these fields retain normal password-manager behavior.
+
+For an API key or token, use `sensitive`. A password field with no explicit `autoComplete` is also treated as sensitive. This branch uses a text input masked with CSS, `autocomplete="off"`, and password-manager opt-out hints. These reduce unwanted autofill; they do not encrypt the value or guarantee that every browser extension ignores it. Never use a real secret in a demonstration.
+
+The reveal toggle is enabled by default for password or sensitive fields. Set `passwordToggle={false}` to hide it. In the example, enter a sample value and use **Show password** and **Hide password** to inspect the two states.
 
 ## Props
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `label` | `string` | — | The field's name |
-| `description` | `ReactNode` | — | Sentence under the label |
-| `hint` | `ReactNode` | — | Note under the control |
-| `errorMessage` | `string` | — | Inline validation message |
-| `isInvalid` | `boolean` | `false` | Error state; wires `aria-invalid` |
-| `variant` | `'default' \| 'unstyled' \| 'readOnly'` | `'default'` | |
-| `passwordToggle` | `boolean` | `false` | Show/hide control for a password |
-| `sensitive` | `boolean` | `false` | Suppress autofill and the save prompt |
-| `disabledReason` | `ReactNode` | — | Why the field is disabled |
-| `wrapperClassName` | `string` | — | Classes on the `FieldShell` frame |
+| Prop | Type or default | Purpose |
+| --- | --- | --- |
+| `label` | Optional string | Visible field name; supply another accessible name if omitted. |
+| `description`, `hint` | Optional React content | Context above and below the control. |
+| `errorMessage` | Optional string | Error text and invalid state. |
+| `isInvalid` | Optional boolean | Additional way to mark invalid. |
+| `variant` | `default`, `unstyled`, `readOnly` | Appearance; native `readOnly` automatically selects the last when no variant is set. |
+| `passwordToggle` | `true` | Reveal control for a password or sensitive value. |
+| `sensitive` | Optional boolean | Secret-entry behavior described above. |
+| `disabledReason` | Optional React content | Explanation while `disabled`. |
+| `prefix`, `suffix` | Optional React content | Fixed text inside the outlined field; do not combine with the password toggle. |
+| `labelInfo` | Optional React content | Additional label tooltip. |
+| `wideControl` | `false` | Lets the control fill a layout-owned frame instead of the settings control column. |
+| `wrapperClassName` | Optional string | Classes on `FieldShell`. |
 
-Every remaining `<input>` attribute passes through, except `size` and `prefix`,
-which the component reserves.
+Other native input attributes pass through, except native `size`; `prefix` is reserved for the component's fixed addon. A prefix or suffix is visual context, not part of the submitted input value. Your host must construct and validate any combined value.
 
-## Layout
+## Layout and related controls
 
-The field is stacked by default — label, control, hint. Inside a container
-that declares the **row layout** it becomes two columns from `sm` up, with the
-label on the left and the control pinned to a fixed 20rem column.
+`ContentArea variant="narrow"` selects the shared settings field layout: stacked on small screens, label beside control from `sm`. See [Settings page](/docs/patterns/settings-page) before adding per-field widths.
 
-You never set that per field. `ContentArea variant="narrow"` declares it for
-the whole page, which is how every control on a settings screen lines up. See
-the [settings page pattern](/docs/patterns/settings-page).
-
-## Accessibility
-
-- The label is a real `<label for>`; the description and error are connected
-  through `aria-describedby`.
-- Error text is `text-destructive` **and** carries `aria-invalid` on the
-  control. Colour is never the only signal.
-- The field's border is `border-border-input`, which is stronger than the
-  default border in light mode — the plain one measures about 1.2:1 on white,
-  which is not a visible shape.
-- Focus is the shared ring, on `focus-visible`.
-
-## When to use something else
-
-| Instead of | Use |
-| --- | --- |
-| Multi-line text | `Textarea` |
-| A fixed set of options | `Select`, or `RadioGroup` for three or fewer |
-| A searchable set | `SearchableSelect` |
-| JSON or config text | `JsonInput` |
-| A value the reader copies | `CopyableField` |
-| A table's filter box | `DataTable`'s `search` prop |
-
-## Where to go next
-
-[Data table](/docs/components/data-table) is where most of these fields end up
-pointing — it is the surface a list page is built around.
+Use `Textarea` for multiple lines, `Select` for a fixed set, `SearchableSelect` for a searchable set, `JsonInput` for structured JSON, and `CopyableField` for a value primarily meant to be copied. A table search belongs in [`DataTable.search`](/docs/components/data-table), where it can stay associated with the filtered results.

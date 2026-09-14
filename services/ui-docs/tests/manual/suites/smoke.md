@@ -33,7 +33,7 @@ viewport, the theme at **System** with the OS in light mode.
   with the same chrome; no flash of an empty shell, no error boundary, no
   hydration warning in the console.
 - [ ] `SMOKE-4` · **Scroll the Button page to the end** → every section the
-  outline lists is in the article (Variants … Where to go next), and every
+  outline lists is in the article (Variants … Accessibility and alternatives), and every
   **Live example** shows real controls, not an **Unknown demo** box.
 - [ ] `SMOKE-5` · **Reach the first Live example's Code button with Tab alone
   and activate it with Enter, then with Space** → focus is visible at every stop,

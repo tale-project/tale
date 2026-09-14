@@ -4,7 +4,6 @@ import {
   AdaptiveHeaderTitle,
 } from '@tale/ui/adaptive-header';
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { PageLayout } from '@tale/ui/page-layout';
@@ -65,7 +64,7 @@ export default function PatternListPage() {
   return (
     <div
       role="img"
-      aria-label="A list page: header row with a title and a New button, a searchable table of three automations below it."
+      aria-label="A list page: header with a title, followed by a table toolbar with search and a create action above three automation rows."
       className="border-border bg-background w-full overflow-hidden rounded-lg border"
     >
       <div aria-hidden="true" inert className="flex h-96 flex-col">
@@ -74,9 +73,6 @@ export default function PatternListPage() {
             header={
               <AdaptiveHeaderRoot showBorder standalone={false}>
                 <AdaptiveHeaderTitle>Automations</AdaptiveHeaderTitle>
-                <Button size="sm" icon={Plus} className="ml-auto">
-                  New automation
-                </Button>
               </AdaptiveHeaderRoot>
             }
           >
@@ -90,7 +86,8 @@ export default function PatternListPage() {
                   onChange: setQuery,
                   placeholder: 'Search automations',
                 }}
-                emptyState={{ title: 'No automation matches that search' }}
+                addAction={{ label: 'New automation', icon: Plus }}
+                emptyState={{ title: 'No automations yet' }}
               />
             </ContentArea>
           </PageLayout>

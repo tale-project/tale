@@ -1,93 +1,72 @@
 ---
 title: Icons
-description: Lucide only, four sizes, and the naming rule that keeps an icon-only button usable.
+description: Use consistent Lucide glyphs, supply accessible names, and preserve usable pointer targets.
 ---
 
-Icons come from one set. A custom SVG in a component is a fork of the visual
-language that nobody will maintain, so the system ships the handful of marks
-Lucide does not have and otherwise takes what Lucide gives.
+Use Lucide for interface glyphs and the package's existing custom marks for supported brands. Choose the icon from the action's meaning, then decide whether it supplements visible text or carries the whole label.
 
-By the end of this page you will know the sizes, the stroke, and the one rule
-that decides whether an icon needs a name.
-
-## The set and the sizes
+## Choose the icon size
 
 <Demo name="foundations/icons" />
 
-`lucide-react` is the icon set. Lucide's default stroke width is used
-unmodified — there is no global override, and a component that sets its own
-`strokeWidth` is deviating on purpose.
-
-| Class | Use it for |
+| Class | Typical use |
 | --- | --- |
-| `size-3` | Inline with 11–12px text |
-| `size-4` | The default. Button icons, row icons, most chrome |
-| `size-5` | A standalone control that needs presence |
-| `size-6` | A feature or empty-state glyph |
+| `size-3` | Small inline metadata. |
+| `size-4` | Standard button, row, and navigation icons. |
+| `size-5` | A more prominent standalone control or status. |
+| `size-6` | A feature or empty-state glyph. |
 
-`Button` hardcodes `size-4` for its leading icon. `IconButton` takes an
-`iconSize` of `3 | 4 | 5 | 6` and defaults to `4`.
+Lucide's normal stroke is the starting point. `Button.icon` uses `size-4`; `IconButton` accepts `iconSize={3 | 4 | 5 | 6}` and defaults to 4. Changing the glyph size does not change the button's pointer target.
 
-## The marks Lucide does not ship
-
-`lucide-react` v1 dropped brand icons, so the package ships its own with the
-same `forwardRef` + `LucideProps` shape — they drop straight into any
-`icon: LucideIcon` slot:
+## Hide decoration, name controls
 
 ```tsx
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { Download, Search } from 'lucide-react';
+
+export function FileActions() {
+  return (
+    <div className="flex gap-2">
+      <Button type="button" icon={Download}>Export</Button>
+      <IconButton type="button" icon={Search} aria-label="Search files" />
+    </div>
+  );
+}
+```
+
+The Export icon is decorative because the visible text already names the action. Button hides that icon from assistive technology. The search control has no visible text, so its `aria-label` supplies the name and the shared IconButton uses that label for its tooltip.
+
+`IconButton` requires `aria-label` at the type level. An icon-sized `Button` accepts `aria-label` or `title`; in that specific case, `title` supplies both an accessible name and tooltip. A generic Tooltip only supplies a description. Do not rely on its text to name an otherwise unnamed button.
+
+For a stateful action, name the next action or communicate the current state clearly. A changed glyph alone may be ambiguous; use appropriate state attributes such as `aria-pressed` where the control is a toggle.
+
+## Reuse custom brand marks
+
+```tsx
+import { IconButton } from '@tale/ui/icon-button';
 import { GithubIcon } from '@tale/ui/icons/github';
 
-<IconButton icon={GithubIcon} aria-label="Source on GitHub" />;
+export function SourceLink() {
+  return (
+    <IconButton
+      icon={GithubIcon}
+      aria-label="Source on GitHub"
+      asChild
+      slotChild={<a href="https://github.com/tale-project/tale" />}
+    />
+  );
+}
 ```
 
-Alongside GitHub there are `claude-icon`, `google-icon`, `microsoft-icon`,
-`gmail-icon`, `google-drive-icon`, `onedrive-icon`, `outlook-icon`,
-`sharepoint-icon`, `shopify-icon`, `website-icon`, `enter-key-icon` and the
-locale flags. Each has its own `@tale/ui/icons/<name>` subpath.
+The package exposes GitHub, Claude, Google, Microsoft, Gmail, Google Drive, OneDrive, Outlook, SharePoint, Shopify, website, enter-key, and locale-flag marks through its exported icon paths. Check `packages/ui/package.json` for the exact subpath; names such as `github` and `google-drive-icon` are not uniform enough to guess safely.
 
-Anything outside that list is a Lucide glyph or it is a defect.
+Before drawing a new mark, search the package and Lucide. A new shared icon should match the existing prop/ref convention, carry no embedded screen-specific label, and be tested at its intended sizes.
 
-## Name it, or hide it
+## Keep the target larger than the glyph
 
-An icon is either decoration beside a label, or it **is** the control. The two
-cases have opposite requirements.
+An IconButton is 36px square by default or 32px with `size="sm"`. Keep that hit area even when the glyph is only 12px. On touch-heavy layouts, favor additional space around important actions and inspect neighboring targets for accidental activation.
 
-**Decoration** — the label already names the thing, so the icon is hidden:
+WCAG 2.2 AA [Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) uses 24×24 CSS pixels with specified exceptions. WCAG 2.1's [Target Size criterion](https://www.w3.org/WAI/WCAG21/Understanding/target-size.html) is the 44×44 AAA criterion. These are different requirements; do not cite the latter as a 24px rule.
 
-```tsx
-<Button icon={Download}>Export</Button>
-// Button sets aria-hidden="true" on the icon for you
-```
-
-**The control itself** — the icon carries the whole meaning, so it needs a
-name:
-
-```tsx
-<IconButton icon={Search} aria-label="Search" />
-```
-
-`IconButton` requires `aria-label` at the type level, so this cannot be
-forgotten. `Button` enforces the same thing as a union: an icon-only size is
-only valid when the button also carries `aria-label` or `title`.
-
-> [!WARNING]
-> A tooltip is a **description, not a name**. The shared `Tooltip` wires its
-> content through `aria-describedby`, so a button named only by its tooltip is
-> announced as "button" with a trailing description — a WCAG 4.1.2 failure.
-> Set `aria-label` (or `title`, which populates both) and let the tooltip add
-> detail on top.
-
-`title` is the one-stop prop for an icon button: a plain string populates both
-the accessible name and the hover tooltip, and the native browser tooltip is
-suppressed so there is no duplicate.
-
-## Hit targets
-
-Anything clickable is at least 24×24 CSS pixels (WCAG 2.5.5). Both icon-button
-sizes clear that — `size-9` is 36px, `size-8` is 32px — and the mobile header
-pads its slots to 44px.
-
-## Where to go next
-
-[Accessibility](/docs/foundations/accessibility) collects the rest of the
-rules, including the ones that are easy to break without noticing.
+Check focus visibility in both themes and verify that an icon inside an overlay does not make Escape or focus restoration confusing. [Accessibility](/docs/foundations/accessibility) covers the full page review.

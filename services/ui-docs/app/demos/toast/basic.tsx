@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { Toaster } from '@tale/ui/toaster';
 import { useToast } from '@tale/ui/use-toast';
 
 export default function ToastBasic() {
@@ -18,7 +17,6 @@ export default function ToastBasic() {
       >
         Save settings
       </Button>
-      <Toaster />
     </div>
   );
 }

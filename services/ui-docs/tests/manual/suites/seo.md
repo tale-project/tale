@@ -47,8 +47,8 @@ for the prerender boxes.
   with the site title and description and lists every page under its section
   with an absolute `.md` link; the full variant inlines every page body.
 - [ ] `SEO-7` · **`curl -si /docs/components/button.md`** → `200`,
-  `content-type: text/markdown`, the frontmatter block first and the body
-  exactly as authored (the `<Demo>` tags still self-closing).
+  `content-type: text/markdown`, serialized frontmatter first and the authored body with site links resolved
+  to absolute URLs (the `<Demo>` tags still self-closing).
 - [ ] `SEO-8` · **`curl -si /docs/nope-not-a-page`** → the status is **404**
   and the body is the prerendered not-found page, not the home page and not an
   empty shell.

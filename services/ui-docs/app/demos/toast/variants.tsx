@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { Toaster } from '@tale/ui/toaster';
 import { useToast } from '@tale/ui/use-toast';
 
 export default function ToastVariants() {
@@ -29,7 +28,6 @@ export default function ToastVariants() {
           Destructive
         </Button>
       </div>
-      <Toaster />
     </div>
   );
 }

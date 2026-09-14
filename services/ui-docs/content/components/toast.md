@@ -1,83 +1,67 @@
 ---
 title: Toast
-description: Transient feedback — one toast at a time, announced politely, dismissed on its own.
+description: Show brief completion feedback, avoid duplicate viewports, and keep essential information on the page.
 ---
 
-A toast confirms that something happened. It is not a place to put information
-the reader needs, because it leaves on its own and cannot be recalled: five
-seconds, paused while the pointer is over it or the window is unfocused.
+Use a toast for brief feedback after an action, such as a successful save. Keep instructions, repairable errors, and progress that someone must revisit in the page itself. A transient message is not a history of completed operations.
 
-By the end of this page you will know how to fire one, which variant to pick,
-and where the `Toaster` belongs.
-
-```tsx
-import { Toaster } from '@tale/ui/toaster';
-import { useToast } from '@tale/ui/use-toast';
-```
-
-## Fire a toast
+## Trigger a notification
 
 <Demo name="toast/basic" />
 
-`useToast()` returns `{ toast, dismiss, toasts }`. Call `toast(...)` from an
-event handler; the return value carries `{ id, dismiss, update }` if you need
-to close or change it yourself.
+Choose **Save settings**. This example shows a notification only; it does not save organization settings. The title states the result, and the optional description supplies one useful detail.
 
 ```tsx
-const { toast } = useToast();
+import { Button } from '@tale/ui/button';
+import { useToast } from '@tale/ui/use-toast';
 
-toast({
-  title: 'Settings saved',
-  description: 'Members see the new name on their next request.',
-});
+export function SaveNoticeDemo() {
+  const { toast } = useToast();
+  return (
+    <Button type="button" onClick={() => toast({ title: 'Settings saved' })}>
+      Show save notice
+    </Button>
+  );
+}
 ```
 
-## Variants
+In an application, call `toast` after the operation succeeds, not merely when the button is pressed. For a failed save, retain the draft and show a persistent explanation near the affected fields.
+
+## Mount one viewport
+
+```tsx
+import { Toaster } from '@tale/ui/toaster';
+
+// Inside your AppShell, beside the router or application content:
+<Toaster />;
+```
+
+Mount one `Toaster` for the application. `AppShell` does not mount it automatically. The examples on this site share the root viewport; their source files only trigger notifications.
+
+The toast store is shared across callers and holds one current notification. A new toast replaces the previous one. Two mounted Toasters subscribe to that same store and render duplicate messages, rather than creating two isolated queues.
+
+## Choose the message type
 
 <Demo name="toast/variants" />
 
-| Variant | Use it for |
+| Variant | Presentation and use |
 | --- | --- |
-| `default` | A neutral confirmation. Copy only, no icon |
-| `success` | A positive terminal state, with a check |
-| `destructive` | A failure the reader has to know about |
+| `default` | Neutral text, without a leading status icon. |
+| `success` | A check icon for successful completion. |
+| `destructive` | An error icon for a failed operation; keep actionable recovery available elsewhere. |
 
-`position` is `'top-right'` (default) or `'top-center'`, and is read from the
-first toast in the queue.
+`position` is `top-right` by default or `top-center`. The current toast determines the viewport position. Keep placement consistent within a workflow.
 
-## Mount the `Toaster` once
+## Timing and programmatic control
 
-`Toaster` renders the viewport that holds the toasts. Mount it once per app,
-high in the tree — usually next to the router inside `AppShell`. The demos on
-this page mount their own so the example is self-contained.
+The default duration is five seconds. Radix pauses dismissal while the notification is hovered or focused and when the window loses focus. A toast can also be dismissed by a swipe. The component does not render a close button.
 
-Only **one toast is visible at a time**. A second call replaces the first
-rather than stacking, which keeps the corner from turning into a log.
+A `duration` can be supplied per toast. A longer duration alone does not make time-sensitive information accessible to everyone; information needed to continue should remain available in a persistent surface. See W3C's [timing-adjustable guidance](https://www.w3.org/WAI/WCAG21/Understanding/timing-adjustable.html).
 
-## Accessibility
+`useToast()` returns `toast`, `dismiss`, and the current `toasts`. Creating a toast returns its `id`, a scoped `dismiss`, and `update`. Use these handles for an operation-specific change rather than relying on a notification's position in the store. An `action` can hold a React action element, but an essential action should also have a stable home in the application.
 
-- The viewport is a live region: a toast is announced without moving focus.
-- There is **no close button** by design — toasts dismiss themselves, pause on
-  hover and focus, and can be swiped away. A control that steals focus for a
-  transient message costs more than it gives.
-- Five seconds is the auto-dismiss window. It is long enough to read a title
-  and a description without rushing, which is what WCAG 2.2.1 asks for, and the
-  timer pauses whenever the reader is looking at it.
-- A destructive toast carries an icon **and** its text. Colour alone is never
-  the message.
+## Review the complete feedback path
 
-## When to use something else
+Trigger two notices in quick succession and confirm only the latest remains. Check that a notice does not cover the action needed next, that keyboard focus stays where the task expects, and that the same information has a persistent location when required.
 
-| Instead of | Use |
-| --- | --- |
-| A decision the reader must make | `ConfirmDialog` |
-| A persistent condition on the page | `Alert` |
-| Field-level validation | `Input`'s `errorMessage` with `isInvalid` |
-| Progress of something long-running | `ProgressBar` or an inline status |
-
-A toast that the reader must read to continue is a dialog in disguise. Move it.
-
-## Where to go next
-
-[App shell](/docs/components/app-shell) shows where the `Toaster` and the rest
-of the cross-cutting providers are mounted.
+Use `Input.errorMessage` for a field issue, `Alert` for a persistent page condition, and [Dialog](/docs/components/dialog) for a decision. Use inline status for a long operation whose progress and outcome need to remain visible.

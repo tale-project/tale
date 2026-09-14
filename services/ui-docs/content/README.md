@@ -1,118 +1,107 @@
-# Authoring design-system documentation
+# Write a design-system guide
 
-Every page under this directory becomes a route at `/docs/<path-without-.md>`.
-This file is the contract for adding one; it is skipped by the content walk, so
-it never becomes a page itself.
+Help a reader build a working screen with the shipped packages. Follow the
+[write-docs method](../../../.agents/skills/write-docs/SKILL.md); this contract
+adds the routing, example, and verification rules specific to this site.
 
-Read [`.agents/skills/write-docs/SKILL.md`](../../../.agents/skills/write-docs/SKILL.md)
-first — it owns the method (journey-first, show before you tell, prove with
-code, truth over polish). What follows is only what is specific to this site.
+## Choose the reader’s task
 
-## Where a page lives
+Use a tutorial for the first working control, a how-to for a composition, an
+explanation for a design decision, and reference for exact interfaces. A component
+page usually needs an example, state choices, host responsibilities, and accessibility
+guidance. Arrange those details around the task; a fixed section count, exhaustive
+prop dump, or closing recap is not required.
 
-```
-content/<section>/<slug>.md
-```
+Read the component source and its tests before describing props, defaults, focus,
+loading, or persistence. Drive the rendered example. Distinguish the package’s
+behavior from the host’s work: a Save button does not persist data, and a local
+example does not establish a platform business rule. Explain the result and recovery
+where a reader would otherwise hesitate.
 
-`<section>` is one of `getting-started`, `foundations`, `components`,
-`patterns`, `marketing-ui`. A file directly in `content/` is not a page — the
-walk requires a section folder.
+## Add the page and its navigation
 
-## Frontmatter
+Place a page at `content/<section>/<slug>.md`, with `section` in `getting-started`,
+`foundations`, `components`, `patterns`, or `marketing-ui`. Files directly in
+`content/`, including this contract, are excluded from the page walk.
 
 ```yaml
 ---
 title: Button
-description: One sentence. It is the page's meta description and the text under the title.
-noindex: false # optional; omit unless the page must stay out of the sitemap
+description: Choose an action style and handle loading or unavailable actions.
 ---
 ```
 
-`title` is rendered as the page's **only `h1`**, in the header strip — so a
-page body **never starts with `# Heading`**. Start at `##`. A test enforces
-this, because a second `h1` breaks the outline for a screen reader.
+The header renders `title` as the page’s only accessible `h1`; body headings begin
+at `##`. `description` appears below the title, in metadata, and in search results.
+Write a useful sentence. Set optional `noindex: true` only when a page should be
+excluded from the sitemap.
 
-`description` is used three times: the meta description, the sentence under the
-title, and the search result's subtitle. Write it as a sentence, not a label.
+Add the slug to [nav.json](nav.json). Its order also controls previous/next links.
+Group labels resolve through `nav.groups.<label>` in all three service catalogs.
+Use site links such as `/docs/components/input`, and test any heading fragment
+against the rendered ID. The navigation and content tests enforce file/nav parity,
+frontmatter, and heading structure.
 
-## Navigation
+## Show the actual component
 
-A page is only reachable once it is in [`nav.json`](nav.json):
-
-```json
-{ "label": "components", "pages": ["components/button"] }
-```
-
-`label` resolves through `nav.groups.<label>` in `messages/{en,de,fr}.yml`, so a
-new group needs its key in **every** locale. Nav order is also prev/next order.
-
-`tests/navigation.test.ts` fails when a nav entry has no file, or a file has no
-nav entry.
-
-## Live examples
-
-The renderer is the shared markdown registry (callouts, steps, tabs, code
-groups, frames, cards, accordions) plus one tag this site adds:
+The shared Markdown registry supports callouts, steps, tabs, code groups, frames,
+cards, and accordions. Use them when they make a decision or sequence clearer.
+This site additionally renders live examples:
 
 ```md
 <Demo name="button/variants" />
 ```
 
-`name` is the path of a file under `app/demos/`, without the extension. The
-preview surface, the theme, the **Code** toggle and the copy button are the
-component's job; the demo file only renders the example.
+That name resolves to `app/demos/button/variants.tsx`. Each demo default-exports
+one prop-less component and imports public package subpaths such as `@tale/ui/button`.
+The wrapper supplies the preview, theme, Code toggle, and source-copy control.
+Keep the example small enough to understand as a complete file; explain additional
+providers or dependencies in the guide. Mark partial code blocks as excerpts and
+name the values the host must supply.
 
-### Demo file rules
+Demo strings are plain English sample code. Service chrome uses translated catalogs;
+shared control strings come from package catalogs. Do not add `useT` calls to sample
+code solely to translate its fictional values. Use semantic tokens, not raw palette
+colors, in demo styling. Reference every demo from a page; the demo test rejects
+missing and orphan examples.
 
-- One file per example, default-exporting a component with **no props**:
-  `app/demos/<family>/<name>.tsx`.
-- Small and self-contained. A reader should be able to paste it into a file and
-  have it work.
-- Import from the real package subpaths (`@tale/ui/button`), never a relative
-  path into `packages/`.
-- Plain English string literals, like a Storybook story. Demos are sample code,
-  not product UI, and `useT` calls would make them unreadable as examples.
-- Tokens only — no hex values, no raw greys. The demo is also an example of the
-  rules the page describes.
-- **Page chrome needs a frame.** A component that renders its own `h1`
-  (`AdaptiveHeaderTitle`, `HeaderBreadcrumbs`) would add a second one to the
-  page. Wrap those demos in `role="img"` + `aria-label` with an `aria-hidden`
-  `inert` payload, the way `DemoShell` does — see
-  `app/demos/app-shell/page-layout.tsx`.
+A page-layout example that introduces another application header must be a labelled
+illustration, with `role="img"` around an `aria-hidden`, `inert` payload. See
+`app/demos/app-shell/page-layout.tsx`. Explain that it is an illustration and link
+to interactive examples for the controls it contains. Never place required actions
+inside an inert frame. Mount one toast viewport at the site root; individual demos
+trigger it without mounting another.
 
-`tests/demos.test.ts` fails when a page references a demo that does not exist,
-and when a demo file is not referenced by any page.
+## Keep language and scope honest
 
-## Voice
+Write clear English addressed to `you`, with concrete actions and exact labels.
+Avoid claims that a task is easy, promotional adjectives, and repeated introductions.
+The guide bodies and routes are intentionally English-only. Chrome catalogs in
+`messages/{en,de,fr}.yml` remain complete and receive a native-language review under
+[write-translations](../../../.agents/skills/write-translations/SKILL.md).
 
-- Second person, informal. Never "we", never "the user".
-- Imperative for instructions, with the consequence before the step.
-- Strike on sight: `simply`, `easy`, `just`, `seamless`, exclamation marks.
-- Verify every prop name, default and type against the component source before
-  you write it down. An invented prop is the one defect this site cannot
-  recover from.
+Use real interactive examples when they explain behavior better than a static image.
+Any shipped screenshot still follows the repository’s reproducible capture pipeline.
+Do not invent a component state or an output to make an example appear complete.
 
-## Page shape for a component
+## Verify the published experience
 
-The [Button page](components/button.md) is the template. In order:
-
-1. Two or three sentences on what the component is and what it carries for you.
-2. `<Demo>` of the main axis (variants), with a table explaining when to use
-   which.
-3. The other axes — sizes, icon, loading, disabled, `asChild` — each with a
-   demo or a short code block.
-4. **Props** — a table taken from the real interface, with types and defaults.
-5. **Accessibility** — what the component guarantees, what you still owe.
-6. **When to use something else** — a table pointing at the right neighbour.
-7. **Where to go next** — a named closing, not a `## Next` stub.
-
-## Checking your work
+Run these commands from the repository root after installing its pinned Bun version:
 
 ```bash
-bun run --filter @tale/ui-docs dev        # http://localhost:3003
-bun run --filter @tale/ui-docs test       # nav, demo and frontmatter parity
+bun run --filter @tale/ui-docs build:content
+bun run --filter @tale/ui-docs test
 bun run --filter @tale/ui-docs typecheck
 bun run --filter @tale/ui-docs lint
+bun run --filter @tale/ui-docs build
 ```
 
-View the page rendered, in both themes, before calling it done.
+Commit the regenerated `app/content/frontmatter.json`. The search index and build
+outputs are generated and ignored. Restart the dev server after content changes when
+checking search: `dev` builds its index at startup.
+
+Read the rendered page in both themes at desktop and phone widths. Complete the
+example, inspect its Code panel, follow related links, and check keyboard names,
+focus, and overflow. Check the built Markdown twin and page HTML when changing
+routing or metadata. Tests prove structure; source review and observed outcomes
+prove whether the guide teaches the right behavior.

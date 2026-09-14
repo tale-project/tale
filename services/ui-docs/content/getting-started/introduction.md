@@ -1,92 +1,46 @@
 ---
 title: Introduction
-description: What the Tale design system is, why it ships as two packages, and which one you should be reaching for.
+description: Choose the Tale UI package for your screen and find a working example to build from.
 ---
 
-Tale ships one design system in two packages, because a product screen and a
-landing page are not the same problem. `@tale/ui` is the **app language** — the
-components, hooks and tokens the platform is assembled from. `@tale/marketing-ui`
-is the **marketing language** — the site chrome, page sections and product-demo
-frames that tale.dev is assembled from, layered on top of `@tale/ui`.
+Use `@tale/ui` to build application screens: forms, tables, dialogs, navigation, and the providers behind them. Use `@tale/marketing-ui` for public websites: page sections, calls to action, site navigation, and product illustrations. The marketing package builds on the application package, so you install both when building a marketing site.
 
-By the end of this section you will know which package a given screen belongs
-to, how the two relate at runtime, and what stays in your service instead of
-moving into a package.
+## Start with your task
 
-## Pick the language before you pick the component
+| You want to… | Start here |
+| --- | --- |
+| Render your first Tale component | [Installation](/docs/getting-started/installation) |
+| Add an action or edit a value | [Button](/docs/components/button) and [Input](/docs/components/input) |
+| Build a searchable collection | [Data table](/docs/components/data-table), then [List page](/docs/patterns/list-page) |
+| Build configuration with Save and Discard | [Settings page](/docs/patterns/settings-page) |
+| Add dark mode or translate component labels | [Theming](/docs/getting-started/theming) and [Internationalization](/docs/getting-started/i18n) |
+| Build a public product page | [Marketing UI](/docs/marketing-ui/overview) |
 
-The split is not stylistic decoration. The two languages answer to different
-readers, and mixing them is the fastest way to make a screen look wrong.
+## Choose the package by the screen's purpose
 
-| | App language (`@tale/ui`) | Marketing language (`@tale/marketing-ui`) |
+Application screens favor compact controls, readable status, and predictable placement for repeated tasks. Marketing pages use larger headings, wider sections, and pill-shaped calls to action. This site's documentation uses the application components; its [home page](/) uses marketing components.
+
+| Package | Typical building blocks | Stylesheet |
 | --- | --- | --- |
-| Used by | the platform, this site's `/docs` pages, any Tale-project app | tale.dev, this site's front page |
-| Reader | someone doing work, many times a day | someone deciding, once |
-| Surface | `bg-background`, `bg-bg-base` — flat, quiet | `bg-surface-site` — cool stone paper, atmosphere |
-| Type | Inter, weight 500–600, `text-base` headings | Inter, weight 400, display sizes up to 80px |
-| Controls | one height (`h-9`), square-ish radii | pill buttons, generous bands |
-| Motion | state transitions only | scroll reveals, demo timelines |
+| `@tale/ui` | `Button`, `Input`, `DataTable`, `Dialog`, `PageLayout` | `@tale/ui/globals.css` |
+| `@tale/marketing-ui` | `MarketingButton`, `SectionHeading`, feature sections, `DemoShell` | `@tale/marketing-ui/globals.css` |
 
-You are reading both right now. This page is the app language; the
-[front page](/) is the marketing one.
+The marketing stylesheet imports the application stylesheet. Load the stylesheet for your site once; you do not need both imports.
 
-## How the packages relate
+Both packages ship TypeScript source. Import documented package subpaths, such as `@tale/ui/button`, rather than reaching into another workspace's `src` directory. The package's `exports` map defines which paths consumers can use.
 
-`@tale/marketing-ui` declares `@tale/ui` as a **peer dependency** and imports
-from it directly — `cn`, `Button`, `Tooltip`, the logo, the i18n glue and every
-colour token come from there. The marketing package adds only what a marketing
-page needs, and its stylesheet pulls the app one in:
+## Use the examples
 
-```css
-/* @tale/marketing-ui/globals.css, first line */
-@import '@tale/ui/globals.css';
-```
+Each **Live example** renders package components. Choose **Code** to inspect the source for that example, and **Hide code** to close it. You can change inputs, open dialogs, and switch tabs without connecting a Tale backend.
 
-That is why a marketing site imports one stylesheet and gets both vocabularies,
-while an app imports `@tale/ui/globals.css` and gets only the app one.
+Examples demonstrate UI behavior with local sample data. They do not send invitations, connect providers, or save organization settings. Page-layout and marketing-window examples are labelled illustrations: their contents are deliberately inert so a second application header and its controls do not enter the page's keyboard or screen-reader navigation. Use the linked component examples for interaction.
 
-Both packages are **source-consumed**: there is no build step, and a consumer
-imports straight from `src/` through the `exports` map in `package.json`. That
-map is the public surface — one subpath per module, so
-`import { Button } from '@tale/ui/button'` is the only way in, and a deep
-relative import into `src/` is not supported.
+The guides and examples are currently in English. The packages support translated interface text; [Internationalization](/docs/getting-started/i18n) explains how to supply it in your application.
 
-## What belongs in a package, and what does not
+## Keep business rules in the service
 
-A component earns its place in `@tale/ui` when it is reusable UI. It loses that
-place the moment it learns about Tale's business:
+The shared package owns reusable presentation and interaction. Your service owns authorization, network requests, validation rules specific to its domain, and persistence.
 
-- **In the package**: a `DataTable` that takes columns and rows; a `Dialog`
-  that takes a title and a footer; a `FieldShell` that lays a label out beside
-  its control.
-- **In your service**: anything that knows an organization id, an ability
-  check, or a backend query. Wrap the package primitive in a service component
-  and pass it what it needs through props.
+For example, `DataTable` displays the rows you pass; it does not fetch organization members. `ConfirmDialog` asks for a decision; your callback decides whether and how to delete a record. Pass screen-specific titles and labels as props. Shared labels such as a dialog's close control come from the package catalog.
 
-The same rule draws the line for strings. A component that renders text of its
-own reads it from the package catalog with `useT('<namespace>')`; text that
-belongs to a screen is passed in as a prop.
-
-## What this site gives you
-
-- **[Installation](/docs/getting-started/installation)** — use the packages
-  inside this monorepo, or install them from GitHub in another repository.
-- **[Foundations](/docs/foundations/colors)** — the tokens every component
-  resolves through, and the rules that keep them consistent.
-- **[Components](/docs/components/button)** — one page per component, each
-  with live examples and a props table taken from the source.
-- **[Patterns](/docs/patterns/list-page)** — how the components compose into
-  the screens the product actually ships.
-- **[Marketing UI](/docs/marketing-ui/overview)** — the other language.
-
-Every example on this site is the real component running in your browser, not a
-screenshot. Open the **Code** panel under any of them to see the exact source
-that produced what you are looking at.
-
-## Where to go next
-
-If you are adding a screen inside this monorepo, go straight to
-[Foundations](/docs/foundations/colors) — the packages are already wired up for
-you. If you are pulling the design system into another repository, start with
-[Installation](/docs/getting-started/installation), which carries the exact
-requirements on the consumer side.
+Before introducing a new component, check the existing exports and [composition patterns](/docs/patterns/list-page). A service wrapper around a shared component is the appropriate place for a backend query or permission check.
