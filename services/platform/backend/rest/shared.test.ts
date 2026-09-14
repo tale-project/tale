@@ -262,6 +262,58 @@ describe('findNulByte', () => {
 });
 
 /**
+ * An unpaired UTF-16 surrogate is the second value Postgres cannot store:
+ * Node's UTF-8 encoder rewrites it to U+FFFD on the way to the driver, so a
+ * legacy CRM export carrying one was stored as a different string with a 201
+ * and no signal (2026-09-14 evaluation, g7-6). It is refused the way a NUL
+ * is — field-named, `INVALID_BODY` — while a proper pair passes untouched.
+ */
+describe('readJsonBody — unpaired surrogates', () => {
+  function probe() {
+    const app = new Hono<RestEnv>();
+    app.post('/echo', async (c) => {
+      const body = await readJsonBody(c);
+      if (body === INVALID_JSON) {
+        return c.json({ issue: c.get('bodyIssue') ?? null }, 400);
+      }
+      return c.json({ ok: true, body });
+    });
+    return app;
+  }
+  const post = (raw: string) =>
+    probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: raw,
+    });
+
+  it.each([
+    ['a value', '{"name":"g7-\\ud800"}', 'name'],
+    ['a nested value', '{"a":{"list":["ok","x\\udfff"]}}', 'a.list.1'],
+    ['an object key', '{"we\\ud800ird":1}', 'we\ud800ird'],
+  ])(
+    'refuses %s carrying a lone surrogate, naming the path',
+    async (_w, raw, path) => {
+      const res = await post(raw);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        issue: {
+          path,
+          message:
+            'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
+        },
+      });
+    },
+  );
+
+  it('keeps a well-formed surrogate pair (an emoji) byte-exact', async () => {
+    const res = await post('{"name":"g7-\\ud83d\\ude00"}');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, body: { name: 'g7-😀' } });
+  });
+});
+
+/**
  * The keyset codec only ever writes a whole epoch-millisecond count. A
  * fraction, an exponent or a count beyond the bigint column used to pass
  * `Number.isFinite` and reach Postgres as a cast error — a 500 where the
@@ -406,12 +458,46 @@ describe('readIdempotencyKey', () => {
       ...(key === undefined ? {} : { headers: { 'Idempotency-Key': key } }),
     });
 
-  it('reads the trimmed key, and an absent or blank header as no key', async () => {
+  it('reads the trimmed key, and an absent header as no key', async () => {
     expect(await (await start(' order-42 ')).json()).toEqual({
       key: 'order-42',
     });
     expect(await (await start()).json()).toEqual({ key: null });
-    expect(await (await start('   ')).json()).toEqual({ key: null });
+  });
+
+  // A blank header used to be silently read as "no key", so a client whose
+  // key generator emitted `"   "` lost at-most-once protection and every
+  // retry billed a fresh run with no signal (2026-09-14 evaluation, g5-2).
+  it('refuses a header the client sent but left blank with 400 INVALID_HEADER', async () => {
+    const res = await start('   ');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid header: "Idempotency-Key" must not be blank',
+      code: 'INVALID_HEADER',
+      data: {
+        issues: [{ path: 'Idempotency-Key', message: 'must not be blank' }],
+      },
+    });
+  });
+
+  it('accepts 255 characters and refuses 256 with 400 INVALID_HEADER', async () => {
+    expect(await (await start('k'.repeat(255))).json()).toEqual({
+      key: 'k'.repeat(255),
+    });
+    const res = await start('k'.repeat(256));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid header: "Idempotency-Key" must be at most 255 characters',
+      code: 'INVALID_HEADER',
+      data: {
+        issues: [
+          {
+            path: 'Idempotency-Key',
+            message: 'must be at most 255 characters',
+          },
+        ],
+      },
+    });
   });
 
   it('keeps the whole printable range, spaces and punctuation included', async () => {
@@ -611,6 +697,43 @@ describe('readJsonBody — numbers the parser cannot carry', () => {
           },
         ],
       },
+    });
+  });
+
+  // The issue names the FULL path: the reviver only knew the property key,
+  // so a message-level literal in a sync body was reported as `createdAt`
+  // and a client mapping `issues[].path` back to a row could not find it
+  // (2026-09-14 evaluation, g7-7b).
+  it('names the full path of an inexact literal nested in an array', async () => {
+    const res = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"messages":[{"createdAt": 1},{"createdAt": 9007199254740993}]}',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          {
+            path: 'messages.1.createdAt',
+            message: expect.stringContaining('beyond 2^53 − 1'),
+          },
+        ],
+      },
+    });
+  });
+
+  it('names the empty path for a bare root literal', async () => {
+    const res = await probe().request('/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '9007199254740993',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: { issues: [{ path: '' }] },
     });
   });
 

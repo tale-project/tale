@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { crawlHostRefusal } from '../../../lib/net/crawl-host-policy.ts';
 import { boundedJsonObject } from '../../../lib/shared/utils/json-bounds.ts';
 import { isHttpUrl } from '../../../lib/utils/url.ts';
 import {
@@ -55,7 +56,23 @@ export const productImageUrlSchema = z
   .string()
   .trim()
   .max(PRODUCT_IMAGE_URL_MAX)
-  .refine(isHttpUrl, 'must be an absolute http(s) URL');
+  .refine(isHttpUrl, 'must be an absolute http(s) URL')
+  // A stored URL becomes a server-side request the day any feature renders a
+  // product image, so the host is held to the crawl-target rule by name — no
+  // DNS lookup — the same rule the websites surface applies: loopback,
+  // link-local, RFC1918/CGNAT/ULA, `.internal`/`.lan`-style suffixes,
+  // single-label names and cloud-metadata hosts are refused. The metadata
+  // half is never lifted; `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` lifts the rest.
+  .superRefine((value, ctx) => {
+    if (!isHttpUrl(value)) return;
+    const refusal = crawlHostRefusal(new URL(value).hostname);
+    if (refusal !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `must name a public host — ${refusal}`,
+      });
+    }
+  });
 
 export const productFieldsShape = {
   name: productNameSchema.optional(),

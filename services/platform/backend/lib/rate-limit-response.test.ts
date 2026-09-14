@@ -46,6 +46,29 @@ describe('rateLimitedResponse', () => {
     });
   });
 
+  // The REST door passes a sentence and its request id so `error` reads
+  // like every other refusal of its envelope (2026-09-14 evaluation,
+  // g4-11); the app doors keep the bare shape their client reads the code
+  // from, so the default is unchanged.
+  it('carries a caller-supplied sentence and requestId when given', async () => {
+    const app = new Hono();
+    app.get('/', (c) =>
+      rateLimitedResponse(c, new RateLimitExceededError('spent', 307), {
+        message: 'Too many requests — retry after 307 ms',
+        requestId: 'req-1',
+      }),
+    );
+    const res = await app.request('/');
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('1');
+    expect(await res.json()).toEqual({
+      error: 'Too many requests — retry after 307 ms',
+      code: 'RATE_LIMITED',
+      requestId: 'req-1',
+      data: { retryAfterMs: 307 },
+    });
+  });
+
   it('never advertises a zero-second wait', async () => {
     const app = new Hono();
     app.get('/', (c) =>

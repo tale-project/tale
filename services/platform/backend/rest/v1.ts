@@ -15,13 +15,16 @@ import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { reportRequestError, requestIdOf } from '../error-reporting.ts';
 import { noStoreByDefault } from '../lib/http-hygiene.ts';
-import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
   checkIpRateLimit,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import { domainErrorResponse, type RestEnv } from './shared.ts';
+import {
+  domainErrorResponse,
+  restRateLimited,
+  type RestEnv,
+} from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
@@ -88,7 +91,7 @@ function unauthorized(
 /** The plugin's own per-key window, answered in the one 429 shape every
  * door speaks — the window is a refusal the limiter never threw. */
 function rateLimited(c: Context<RestEnv>, retryAfterMs: number): Response {
-  return rateLimitedResponse(
+  return restRateLimited(
     c,
     new RateLimitExceededError('API key rate limit exceeded', retryAfterMs),
   );
@@ -208,7 +211,7 @@ export function createRestV1Routes(deps: {
         await checkIpRateLimit(deps.sql, 'rest:auth-fail-ip', ip);
       } catch (error) {
         if (error instanceof RateLimitExceededError) {
-          return rateLimitedResponse(c, error);
+          return restRateLimited(c, error);
         }
         throw error;
       }
@@ -221,7 +224,7 @@ export function createRestV1Routes(deps: {
       await checkUserRateLimit(deps.sql, 'rest:api', session.user.id);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
-        return rateLimitedResponse(c, error);
+        return restRateLimited(c, error);
       }
       throw error;
     }

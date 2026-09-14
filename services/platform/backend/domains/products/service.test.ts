@@ -241,3 +241,62 @@ describe('product update — merge and the clearing rule', () => {
     );
   });
 });
+
+describe('product update — a patch that changes nothing', () => {
+  const stored = {
+    ...product,
+    description: 'A widget',
+    currency: 'EUR',
+    tags: ['a'],
+    metadata: { a: 1, keep: true },
+  };
+  function sqlWithRow() {
+    return recordingSql((text) =>
+      text.includes('FROM app.products WHERE id = ?') ? [stored] : [],
+    );
+  }
+
+  // A no-op used to move `updatedAt`, write an audit row and raise a hint
+  // (2026-09-14 evaluation, g7-7c).
+  it('writes nothing, audits nothing and raises no hint when every field is already at its value', async () => {
+    const { sql, statements } = sqlWithRow();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateProduct(sql as never, scope, 'p-1', {
+      description: 'A widget',
+      currency: 'EUR',
+      tags: ['a'],
+      metadata: { a: 1 },
+      externalId: 'sku-1',
+      expectedUpdatedAt: 1,
+    });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.products')),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit', async () => {
+    const { sql, statements } = sqlWithRow();
+    await expect(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+      updateProduct(sql as never, scope, 'p-1', {
+        description: 'A widget',
+        expectedUpdatedAt: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'PRODUCT_STALE' });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.products')),
+    ).toBe(false);
+  });
+
+  it('writes once a single field differs', async () => {
+    const { sql, statements } = sqlWithRow();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateProduct(sql as never, scope, 'p-1', { description: 'Changed' });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.products')),
+    ).toBe(true);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+});

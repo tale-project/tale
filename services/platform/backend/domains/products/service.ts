@@ -336,19 +336,52 @@ export async function updateProduct(
     current: string | null,
     next: string | null | undefined,
   ): string | null => (next === undefined ? current : textOrNull(next));
+  const next = {
+    name,
+    description: text(product.description, patch.description),
+    imageUrl: text(product.imageUrl, patch.imageUrl),
+    stock: patch.stock === undefined ? product.stock : patch.stock,
+    price: patch.price === undefined ? product.price : patch.price,
+    currency: text(product.currency, patch.currency),
+    category: text(product.category, patch.category),
+    tags: patch.tags === undefined ? product.tags : (patch.tags ?? []),
+    status: patch.status === undefined ? product.status : patch.status,
+    externalId,
+    metadata,
+  };
+  // A patch that changes nothing — an empty body, or every field already at
+  // its value — writes nothing and leaves `updatedAt` alone (the document
+  // door's rule): a mirror re-pushing the source record on every pass used
+  // to churn `updatedAt`, jump the row to the head of the "most recently
+  // updated" list and spend every peer's `expectedUpdatedAt` (2026-09-14
+  // evaluation, g7-7c). The stale check above still runs first.
+  const changed =
+    next.name !== product.name ||
+    next.description !== product.description ||
+    next.imageUrl !== product.imageUrl ||
+    next.stock !== product.stock ||
+    next.price !== product.price ||
+    next.currency !== product.currency ||
+    next.category !== product.category ||
+    next.status !== product.status ||
+    next.externalId !== product.externalId ||
+    next.tags.length !== product.tags.length ||
+    next.tags.some((tag, index) => tag !== product.tags[index]) ||
+    JSON.stringify(next.metadata) !== JSON.stringify(product.metadata);
+  if (!changed) return;
   await tx`
     UPDATE app.products SET
-      name = ${name},
-      description = ${text(product.description, patch.description)},
-      image_url = ${text(product.imageUrl, patch.imageUrl)},
-      stock = ${patch.stock === undefined ? product.stock : patch.stock},
-      price = ${patch.price === undefined ? product.price : patch.price},
-      currency = ${text(product.currency, patch.currency)},
-      category = ${text(product.category, patch.category)},
-      tags = ${patch.tags === undefined ? product.tags : (patch.tags ?? [])},
-      status = ${patch.status === undefined ? product.status : patch.status},
-      external_id = ${externalId},
-      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
+      name = ${next.name},
+      description = ${next.description},
+      image_url = ${next.imageUrl},
+      stock = ${next.stock},
+      price = ${next.price},
+      currency = ${next.currency},
+      category = ${next.category},
+      tags = ${next.tags},
+      status = ${next.status},
+      external_id = ${next.externalId},
+      metadata = ${next.metadata === null ? null : tx.json(toJson(next.metadata))},
       updated_at_ms = ${Math.max(Date.now(), product.updatedAt + 1)}
     WHERE id = ${productId}
   `;
