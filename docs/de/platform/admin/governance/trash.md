@@ -27,10 +27,10 @@ Der Kategoriefilter umfasst unterstützte Chats, Dokumente, Dateien, Feedback, K
 
 ## Die Wiederherstellungsfrist prüfen
 
-Die Aufbewahrungsrichtlinie der Organisation legt die Schonfrist fest. Bei einer positiven Frist bleiben unterstützte abgelaufene Datensätze bis zur Bereinigung wiederherstellbar. Null erlaubt die sofortige endgültige Bereinigung. Prüfe die aktive Richtlinie unter [Richtlinien und Limits](/platform/admin/governance/policies-and-limits), statt von einer festen Anzahl Tage auszugehen.
+Die Aufbewahrungsrichtlinie der Organisation legt die Schonfrist fest. Bei einer positiven Frist bleiben unterstützte abgelaufene Datensätze bis zur Bereinigung wiederherstellbar. Null erlaubt die sofortige endgültige Bereinigung. Prüfe die aktive Richtlinie unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), statt von einer festen Anzahl Tage auszugehen.
 
 Ein leerer Papierkorb bedeutet, dass es in dieser Ansicht keine wiederherstellbaren Datensätze gibt. Er beweist nicht, dass nie etwas gelöscht wurde. Entferne Kategoriefilter, bevor du einen Datensatz als fehlend einstufst.
 
 ## Aufbewahrungssperren berücksichtigen
 
-Ein [Legal Hold](/platform/admin/governance/legal-hold) schützt betroffene Daten vor Löschung durch Aufbewahrung oder Löschanfragen. Er bewahrt noch vorhandene Daten, kann aber endgültig gelöschte Daten nicht zurückholen. Prüfe Sperren und Aufbewahrungshistorie, wenn du klärst, warum ein Datensatz im Papierkorb gelandet ist oder dort fehlt.
+Ein [Legal Hold](/de/platform/admin/governance/legal-hold) schützt betroffene Daten vor Löschung durch Aufbewahrung oder Löschanfragen. Er bewahrt noch vorhandene Daten, kann aber endgültig gelöschte Daten nicht zurückholen. Prüfe Sperren und Aufbewahrungshistorie, wenn du klärst, warum ein Datensatz im Papierkorb gelandet ist oder dort fehlt.

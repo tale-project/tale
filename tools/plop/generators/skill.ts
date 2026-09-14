@@ -42,7 +42,7 @@ function nextSteps(name: string, category: SkillCategory): string {
       intro +
       `  1. write .agents/skills/${name}/SKILL.md (the repo-dev guide)\n` +
       `  2. run \`bun run skills:sync\` to mirror it into .claude/skills/ (Claude Code reads the mirror; Cursor/Codex/Copilot read .agents/skills/ directly)\n` +
-      `  3. add its row to the skills index in AGENTS.md`
+      `  3. add its row to the skills index in .agents/repo.md`
     );
   }
   return (

@@ -70,4 +70,4 @@ Während der Übergangsfrist sehen Mitglieder eine Erinnerung. Danach sperrt Tal
 
 Prüfe zuerst die Identität der Person nach dem Wiederherstellungsprozess deiner Organisation. Öffne dann **Einstellungen > Mitglieder**, bearbeite das Mitglied und wähle **Zwei-Faktor zurücksetzen**. Die Bestätigung entfernt die Authenticator-Einrichtung und beendet alle aktiven Sitzungen. Die Person kann sich erneut anmelden und einen neuen Authenticator einrichten. Gilt die Pflicht, muss sie die Einrichtung abschließen, bevor sie weiterarbeiten kann.
 
-Ist ein Passkey verloren gegangen, entferne stattdessen diesen Eintrag im Abschnitt **Passkeys** des Mitglieddialogs. Auch das beendet alle Sitzungen des Mitglieds. Die Wiederherstellungsaktionen findest du in den [Audit-Logs](/platform/admin/governance/audit-logs).
+Ist ein Passkey verloren gegangen, entferne stattdessen diesen Eintrag im Abschnitt **Passkeys** des Mitglieddialogs. Auch das beendet alle Sitzungen des Mitglieds. Die Wiederherstellungsaktionen findest du in den [Audit-Logs](/de/platform/admin/governance/audit-logs).

@@ -1,63 +1,44 @@
 ---
-title: Modellkatalog
-description: Welche Modelle deine Organisation auswählen kann, woher die Liste jedes Anbieters stammt und was du prüfst, wenn ein erwartetes Modell in der Auswahl fehlt.
+title: Ein verfügbares Modell wählen
+description: Verstehe Modellauswahl und Provider-Kataloge und finde heraus, warum ein Modell fehlt oder ein Aufruf abgelehnt wird.
 ---
 
-Der Modellkatalog erklärt, welche Modelle deine Organisation wählen kann und warum ein erwartetes Modell fehlt. Verfügbarkeit hängt vom Provider, nutzbaren Zugangsdaten, deren Modell-Freigabeliste und den Zugriffsregeln der Organisation ab.
+Die Modellauswahl zeigt, was deine Organisation derzeit nutzen kann, nicht alle Angebote eines Providers. Nutzbare Zugangsdaten, deren Modell-Freigabeliste und die Zugriffsregeln der Organisation bestimmen das Ergebnis. Administratoren verwalten diese unter **Einstellungen > KI-Anbieter** und [Inhalte & Modelle](/de/platform/admin/governance/content-models).
 
-## Der Katalog gehört zum Anbieter
+## Automatisch oder gezielt auswählen
 
-Eine einzige globale Modellliste gibt es nicht. Jeder Anbieter-Connector deklariert, woher seine Modelle kommen, und das Badge im Abschnitt dieses Connectors unter **Einstellungen > KI-Anbieter** benennt die Quelle:
+Im Chat wählt **Auto** für jede Nachricht ein Modell anhand ihrer Merkmale, etwa Länge, Code und angehängte Dokumente. Dafür dient eine einfache Heuristik, kein zweiter KI-Aufruf. Die Details einer Antwort zeigen, welches Modell tatsächlich geantwortet hat.
 
-- **Mitgelieferter Katalog** — die Liste kommt mit der Plattform und wird mit ihr aktualisiert. So arbeiten OpenAI, Anthropic, Gemini, DeepSeek, Moonshot AI (Kimi), Qwen (Alibaba), SpaceXAI und Z.ai (GLM).
-- **OpenRouter-Katalog** — direkt aus OpenRouters eigenem Katalog geholt und beim Eintreffen normalisiert. So arbeitet OpenRouter, weshalb seine Liste mit Abstand die längste ist.
-- **Models-Endpunkt des Anbieters** — aus der Modell-Auflistung des Anbieters selbst geholt. So arbeitet Vercel AI Gateway.
-- **Kein Katalog** — der Anbieter veröffentlicht nichts, was sich mitliefern liesse, also kommen die Modelle stattdessen aus den einzelnen Zugangsdaten. So arbeiten Azure OpenAI und Nous Portal (Hermes).
+Wähle im Eingabebereich ein bestimmtes Modell, wenn du Ergebnisse vergleichen, die Auswahl kontrollieren oder eine bekannte Aufgabe gezielt bearbeiten möchtest. Diese Auswahl bleibt, bis du sie änderst oder zu Auto zurückkehrst. In der [Arena](/de/platform/chat/arena-mode) vergleichst du zwei verfügbare Modelle mit derselben Nachricht.
 
-Die Zahl neben dem Badge ist die aktuelle Liste dieses Connectors. Diese Zahl sagt nichts darüber, was deine Organisation aufrufen darf, sondern nur, was der Anbieter anbietet.
+Projektagenten und Modellschritte in Workflows verwenden ihr konfiguriertes Modell. Die Auswahl eines Agenten unterscheidet Einträge verschiedener Provider auch bei gleicher Modell-ID. Mit einem Eintrag legst du die Kombination aus Provider und Modell fest. Ein Modellfehler wird angezeigt; die Antwort kommt nicht stillschweigend von einem anderen Modell.
 
-## Was über Verfügbarkeit entscheidet
+## Die Herkunft der Liste verstehen
 
-Ein Modell erreicht eine Auswahl, nachdem es zwei Schranken in dieser Reihenfolge passiert hat.
+Öffne **Einstellungen > KI-Anbieter**, um den Provider und seine angebotenen Modelle zu prüfen. Die Anzahl beschreibt die vorhandenen Modelldefinitionen. Sie belegt weder Zugangsdaten noch die Berechtigung deiner Organisation, jedes dieser Modelle aufzurufen.
 
-Die erste sind die Zugangsdaten. Ein Connector ohne Zugangsdaten ist ein Anbieter, den du nicht aufrufen kannst — Katalog hin oder her. Ein Eintrag mit leerer Liste **Erlaubte Modelle** bietet den ganzen Katalog seines Connectors an, ein Eintrag mit gefüllter Liste nur die Modelle darauf. Die Vereinigung über alle aktiven Zugangsdaten ist das, was deine Organisation technisch erreicht.
+| Quelle | Wie Modelle in den Katalog gelangen | Wann sie sich ändert |
+| --- | --- | --- |
+| Mitgelieferter Katalog | Die Modelldefinitionen werden mit Tale ausgeliefert. | Bei einem Plattform- oder Katalogupdate. |
+| OpenRouter-Katalog | Tale ruft die Liste von OpenRouter ab. | Nach einem Abruf oder einer erzwungenen Aktualisierung. |
+| Modell-Endpunkt des Providers | Tale ruft die Modellliste des Providers ab. | Nach einem Abruf oder einer erzwungenen Aktualisierung. |
+| Kein Katalog | Modell-IDs stammen aus der Freigabeliste der Zugangsdaten. | Wenn ein Administrator diese Liste ändert. |
 
-Die zweite ist Governance. Die Modellzugriffs-Regeln unter [Inhalte und Modelle](/de/platform/admin/governance/content-models) erlauben oder sperren Modelle pro Organisation, Team, Rolle oder Person und greifen auf die erste Schranke obendrauf. Ein Modell, das die Zugangsdaten passiert, aber nicht die Richtlinie, bleibt für diesen Geltungsbereich unsichtbar, und die Auflösung bindet auch dann nicht daran, wenn ein Agent es fest gesetzt hat.
+Azure OpenAI und Nous Portal verwenden Modell-IDs aus den Zugangsdaten. Trage bei Azure die Deployment-Namen deiner Ressource ein; sie können von öffentlichen Modellnamen abweichen. Bei einem Provider ohne Katalog macht eine leere Freigabeliste kein Modell verfügbar.
 
-<Note>
+## Einen abgerufenen Katalog aktualisieren
 
-Fehlt ein Modell, das du erwartet hast, geh die beiden Schranken in dieser Reihenfolge durch. Prüf, ob Zugangsdaten für seinen Anbieter existieren und aktiv sind, ob deren Liste erlaubter Modelle es ausschliesst, und dann die Modellzugriffs-Regeln für den Geltungsbereich, aus dem du schaust. Fast jedes „fehlende Modell“ ist einer dieser drei Fälle.
+Inhaber, Admins und Entwickler wählen **Kataloge aktualisieren** im Kopfbereich der Einstellungen. Lies das Ergebnis je Provider: Es enthält die Modellanzahl oder den Fehler, der den Abruf verhindert hat. Ein fehlgeschlagener Abruf bedeutet nicht, dass der Provider keine Modelle anbietet.
 
-</Note>
+Externe Kataloge werden 24 Stunden zwischengespeichert und bei einer späteren Anfrage aktualisiert, wenn der Cache veraltet ist. Der Button erzwingt einen neuen Versuch. Schlägt ein automatischer Abruf fehl, kann Tale den bisherigen Katalog oder mitgelieferte Modelle weiterverwenden; ein erzwungener Abruf meldet den Fehler. Ein neues Modell muss außerdem die Prüfungen für Zugangsdaten und Richtlinien bestehen. Installationen mit ausschließlich mitgelieferten Katalogen haben keine externen Listen abzurufen.
 
-## Anbieter ohne mitgelieferten Katalog
+## Ein fehlendes Modell finden
 
-Manche Anbieter können keine Liste veröffentlichen, die Tale mitliefern könnte. Bei diesen Connectoren ist die Liste **Erlaubte Modelle** kein Filter mehr, sondern die Verfügbarkeit selbst: Das Feld nimmt freien Text, du trägst Modell-IDs durch Kommas getrennt ein, und genau diese IDs sind die einzigen Modelle, die der Eintrag erreicht.
+Prüfe die Grenzen in dieser Reihenfolge. Wenn du die Einstellungen nicht ändern darfst, gib die Informationen an einen Administrator weiter:
 
-<Info>
+1. Prüfe, ob der Provider aktivierte, nutzbare Zugangsdaten hat. Ein Katalogeintrag allein verbindet noch kein Konto.
+2. Lies die **Erlaubte Modelle** dieser Zugangsdaten. Bei einem Provider mit Katalog begrenzt sie die Auswahl, ohne Katalog legt sie sie fest.
+3. Prüfe die Modellzugriffsregeln für Organisation, Team oder Person unter [Inhalte & Modelle](/de/platform/admin/governance/content-models).
+4. Prüfe bei einem Projektagenten, ob die Zugangsdaten seinen gewählten [Harness](/de/platform/agents/harnesses) unterstützen. Ein Abonnement kann an eine bestimmte Laufzeit gebunden sein.
 
-Bei Azure OpenAI sind das die Deployment-Namen, die du in deiner Azure-Ressource vergeben hast, nicht die öffentlichen Modellnamen des Herstellers. Ein Eintrag mit leerer Liste stellt dort überhaupt kein Modell bereit — das ist die übliche Ursache für einen Azure-Connector, der konfiguriert aussieht und trotzdem nichts anbietet.
-
-</Info>
-
-## Einen Live-Katalog aktualisieren
-
-Kataloge, die von einem Anbieter geholt werden, liegen im Cache und werden nur auf Zuruf erneuert. Die Karte **Modellkataloge** oben auf **Einstellungen > KI-Anbieter** trägt den Knopf **Kataloge aktualisieren**, der jede Live-Quelle neu holt und eine Zeile pro Connector meldet: die Anzahl gefundener Modelle oder den Fehler, der sie gestoppt hat.
-
-Einen Hintergrundabgleich und einen geplanten Job gibt es nicht, also erscheint ein heute Morgen veröffentlichtes Modell nach der nächsten Aktualisierung und keine Minute früher. Wenn jeder Connector deiner Instanz einen mitgelieferten Katalog hat, gibt es nichts zu holen, und die Karte sagt genau das.
-
-## Ein Modell auswählen
-
-Der Chat startet auf **Auto**: Tale liest jede Nachricht und wählt ein Modell dafür — eine leichte Heuristik über Länge, Code, Thema und angehängte Dokumente, nie ein weiterer KI-Aufruf — und lässt genau dieses Modell laufen. Auf der Antwort steht es dann fest; die Nachrichtendetails nennen es beim Namen. Wählst du stattdessen ein Modell aus dem Menü, bleibt die Wahl deine, bis du sie an Auto zurückgibst — ein Modell festzunageln ist die Lösung, wenn die automatische Wahl zu langsam, zu teuer oder für die Aufgabe falsch ist.
-
-Überall sonst wird das Modell immer ausdrücklich benannt: auf einem Agenten, auf jedem Workflow-Schritt, der ein Modell aufruft, und auf jeder API-Anfrage. Dort routet nichts für dich — keine Auswahl nach Aufgabenkomplexität, keine Qualitätsstufen. Und nirgendwo — der Chat eingeschlossen — gibt es stilles Ausweichen: Das Modell, das eine Antwort beginnt, beantwortet sie auch, oder du siehst den Fehler. Ein Lauf bleibt reproduzierbar und eine Rechnung zuordenbar, denn welches Modell lief, wird festgehalten, nie geraten.
-
-<Tip>
-
-Der [Arena-Modus](/de/platform/chat/arena-mode) vergleicht zwei Modelle mit derselben Frage. Wähle eine Frage und Quelle, die du beurteilen kannst. Vergleiche Richtigkeit und Nutzen statt nur die Antwortlänge.
-
-</Tip>
-
-## Wo das hingehört
-
-Der Katalog ist die sichtbare Hälfte der Anbieter-Konfiguration: Was ein Admin unter [KI-Anbieter](/de/platform/admin/providers) verbindet, sehen alle anderen hier in einer Auswahl. Die Menge zu erweitern heisst, Zugangsdaten hinzuzufügen oder eine Liste zu lockern; sie zu verengen heisst, eine Liste erlaubter Modelle zu setzen oder eine Modellzugriffs-Regel unter [Inhalte und Modelle](/de/platform/admin/governance/content-models). Wie das Modell neben Anweisungen, Wissen und Werkzeugen in einen Agenten passt, steht in [Agent-Konzepte](/de/platform/agents/concepts).
+Ist das Modell sichtbar, aber der Aufruf schlägt fehl, lies die Begründung. Abgelaufene Zugangsdaten, Provider-Ausfälle, Budgetgrenzen und fehlende Sandbox-Kapazität sind unterschiedliche Probleme. Ein Katalogabruf behebt sie nicht alle. [KI-Provider](/de/platform/admin/providers) erklärt Zugangsdaten; [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) behandelt Ausgabengrenzen.

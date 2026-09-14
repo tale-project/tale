@@ -1,11 +1,9 @@
 ---
-title: Ajouter des automatisations à ton organisation
-description: D’où viennent les automatisations — les packs livrés avec chaque organisation, les brouillons créés sur le canvas, et les paquets téléversés, y compris les zips qui installent les skills qu’ils embarquent.
+title: Créer ou importer une automatisation
+description: Choisis un point de départ, importe un paquet validé et prépare ses skills, paramètres et livrables avant la mise en service.
 ---
 
-La page **Automatisations** de la barre latérale liste chaque automatisation de l’organisation et sert de porte d’entrée aux nouvelles. Une organisation démarre avec les packs livrés déjà en place, tu peux en créer une de zéro sur son canvas, et **Téléverser un paquet** accepte un pack construit ailleurs — sous forme de fichiers, ou d’un seul zip qui installe aussi les bundles de skills que le pack embarque. Gérer la page demande les permissions Propriétaire, Admin ou Développeur ; tout ce qu’un téléversement crée reste un brouillon jusqu’au déploiement — rien de ce qui tourne ne change parce qu’un fichier a atterri.
-
-Cette page couvre la provenance des automatisations et ce qu’un paquet téléversé peut contenir. En piloter une — canvas, versions, exécutions de test, déploiement — vit sur [L’éditeur de workflow](/fr/platform/automations/editor) ; le modèle sous-jacent sur [Concepts d’automatisation](/fr/platform/automations/concepts) ; ce que font les packs livrés sur [Automatisations livrées](/fr/platform/automations/builtin).
+Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
 
 <Frame caption="La page Automatisations — chaque ligne est une automatisation avec son nombre de versions et la version en service, ou Pas en service.">
 
@@ -13,15 +11,23 @@ Cette page couvre la provenance des automatisations et ce qu’un paquet télév
 
 </Frame>
 
-## Ce que montre la liste
+## Choisir un point de départ
 
-Chaque ligne affiche le nom, les projets liés, le nombre de versions et la version active ou **Pas en service**. Sous **Nouvelle automatisation**, choisis **À partir d’un objectif**, **Vierge (trigger + agent)** ou **Téléverser un paquet**. Ouvre une ligne pour examiner le workflow ou utilise son menu pour supprimer. Les liens aux projets rendent l’automatisation disponible sur leurs tableaux et se modifient dans le panneau **Projets** de l’éditeur.
+Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la pour examiner le workflow et ses exécutions. Le panneau **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation.
 
-**Créer une automatisation** propose deux façons de partir de zéro : **À partir d’un objectif** confie ta description au builder, qui construit les nœuds pour toi ; **Vierge (trigger + agent)** échafaude une automatisation à un seul agent que tu câbles toi-même — nomme-la, choisis le modèle de l’agent, et le reste (le prompt, les outils et secrets accordés, le trigger) est à toi de le poser sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
+Le menu **Nouvelle automatisation** propose trois parcours :
 
-## Téléverser un paquet
+| Choix | À utiliser si… | Suite du parcours |
+| --- | --- | --- |
+| **À partir d’un objectif** | tu connais le résultat attendu, mais souhaites de l’aide pour organiser les étapes. | Le builder prépare un workflow à examiner. |
+| **Vierge (trigger + agent)** | tu souhaites configurer le workflow toi-même. | Nomme-le, choisis le modèle, puis complète les instructions et les équipements dans l’éditeur. |
+| **Téléverser un paquet** | tu disposes d’un fichier de workflow ou d’un pack réutilisable. | Tale valide les fichiers et enregistre une version brouillon. |
 
-Un pack est un dossier : `workflow.yml` (le document de l’automatisation — requis), `automation.yml` (le manifeste — optionnel) et, quand le pack apporte son propre savoir, un dossier par skill sous `skills/`.
+Les automatisations fournies sont installées à la création de l’organisation. Elles demandent encore leur configuration et une version en service avant un usage automatique. [L’éditeur de workflows](/fr/platform/automations/editor) explique comment tester les données, examiner les résultats et mettre la version choisie en service.
+
+## Importer un paquet
+
+Un pack contient le fichier obligatoire `workflow.yml`, un manifeste `automation.yml` facultatif et, si nécessaire, des bundles de skills :
 
 ```text
 review-invoices/
@@ -34,12 +40,17 @@ review-invoices/
             └── checklist-rules.md
 ```
 
-Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Créer une automatisation**, puis l’une des deux formes du même pack :
+<Steps>
 
-- **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
-- **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, tout comme les dotfiles et les résidus de build (`__pycache__/`, `node_modules/`) — alors zippe le dossier tel quel, même juste après avoir lancé les tests. Le zip reste sous 20 MiB.
+<Step title="Sélectionner les fichiers">
 
-Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Un pack dont le manifeste déclare `scope: project` ne s’installe que dans un projet ; le serveur refuse de l’installer à l’échelle de l’organisation. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
+Choisis **Nouvelle automatisation > Téléverser un paquet**. Ajoute le workflow et son manifeste éventuel comme fichiers séparés, ou sélectionne une seule archive `.zip` du pack. Les skills exigent l’archive ; téléverse-la seule. Les notes Markdown hors de `skills/`, les fichiers cachés et les résidus de compilation comme `node_modules/` ou `__pycache__/` sont ignorés.
+
+</Step>
+
+<Step title="Choisir la destination">
+
+Sous **Installer dans**, sélectionne **Organisation** ou un projet existant. Un manifeste déclarant `scope: project` exige un projet. Importer une automatisation existante dans un autre projet ajoute cette association sans retirer les précédentes. Le panneau **Projets** permet ensuite de modifier l’ensemble des associations.
 
 <Frame caption="Téléverser un paquet — les fichiers ou un zip, et où l’automatisation s’installe.">
 
@@ -47,35 +58,42 @@ Choisis avant d’envoyer où l’automatisation s’installe — l’organisati
 
 </Frame>
 
-Le serveur valide avant d’enregistrer quoi que ce soit. Le document passe par la même validation moteur que l’éditeur — un téléversement qui ne tournerait pas est refusé avec les messages du moteur, pas enregistré cassé — et les blocs `subjects` et `settings` du manifeste deviennent le contrat de tâches et les [formulaires de paramètres](#paramètres-déclarés-par-le-pack) de l’automatisation, exactement comme le ferait un enregistrement depuis le canvas. Ce qui atterrit est une **version brouillon** derrière la barrière de déploiement habituelle — aucun déclencheur ne tourne tant qu’aucune version n’est en service. Le dialogue propose la mise en service dès que le téléversement réussit : mets la nouvelle version en service directement, ou choisis **Plus tard** et fais-le depuis la page de l’automatisation quand tu veux.
+</Step>
 
-Téléverser à nouveau le pack d’une automatisation existante ajoute la version suivante — le store n’écrase jamais l’historique, chaque version antérieure reste exactement où elle était. Choisir un projet comme cible lie aussi l’automatisation existante à ce projet, en plus de ceux qu’elle sert déjà.
+<Step title="Valider et enregistrer">
 
-## Les skills que le paquet embarque
+Choisis **Téléverser le paquet** et corrige les problèmes signalés dans le workflow, le manifeste ou les skills. La validation précède l’écriture de l’automatisation et des skills fournis. Un nouvel import de la même automatisation ajoute une version brouillon et conserve l’historique.
 
-Un zip peut livrer les skills sur lesquels son document s’appuie — les instructions et fichiers complémentaires utilisés par un nœud agent. Le manifeste doit les nommer, et la déclaration se vérifie dans les deux sens : un dossier `skills/` que le manifeste ne déclare pas refuse le téléversement, tout comme un slug déclaré que le zip n’apporte pas.
+</Step>
+
+<Step title="Examiner avant la mise en service">
+
+Choisis **Plus tard** pour ouvrir et tester le brouillon dans l’éditeur. Le dialogue de réussite permet aussi de mettre directement la version numérotée en service. Le téléversement seul ne change pas la version active. Configure les identifiants nécessaires et examine les skills avant le déploiement.
+
+</Step>
+
+</Steps>
+
+L’archive ne doit dépasser 20 MiB ni compressée ni décompressée, avec au plus 500 fichiers, 2 MiB par fichier et 20 bundles de skills. Si elle est trop volumineuse, retire les artefacts générés et sépare les contenus indépendants en plusieurs skills. Une compression plus forte ne réduit pas la taille décompressée.
+
+## Résoudre les conflits de skills
+
+La liste `skills` du manifeste doit correspondre aux dossiers fournis sous `skills/`. Un dossier non déclaré ou un bundle déclaré mais absent fait refuser l’import. Chaque bundle exige des métadonnées valides dans `SKILL.md`, avec un `name` identique au nom du dossier.
 
 ```yaml
 # automation.yml
 name: Review invoices
 skills:
   - invoice-rules
-subjects:
-  task:
-    # …le contrat de tâches, inchangé
 ```
 
-Chaque bundle embarqué est validé comme un vrai skill — frontmatter parsé, `name` égal à son dossier — et installé dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation dès que le téléversement est accepté ; les exécutions de test du brouillon les trouvent donc déjà. Ce qui arrive par slug dépend de ce que la bibliothèque tient déjà :
+Les nouveaux bundles rejoignent la [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation ; les bundles identiques restent inchangés. Un contenu différent suspend l’import et affiche les slugs concernés. Examine-les avant de confirmer : le paquet remplace ces bundles partagés, tandis que l’ancien `SKILL.md` reste dans leur historique. Aucune automatisation ni aucun skill n’est écrit avant cette confirmation.
 
-- **Slug nouveau** — le bundle est installé.
-- **Bundle identique** — rien n’est écrit ; le téléversement le signale inchangé.
-- **Contenu différent** — le téléversement s’arrête et liste les slugs en collision. Confirme pour les remplacer par les versions du paquet ; l’ancien `SKILL.md` reste dans l’historique de chaque skill. Rien — ni l’automatisation, ni aucun skill — n’est écrit avant ta confirmation.
+Le workflow peut aussi appeler des skills de la bibliothèque qu’il ne fournit pas. Si l’un manque, l’import affiche un avertissement. Installe un bundle accessible avant de lancer l’agent qui en dépend. L’enregistrement d’un brouillon ne prouve pas que toutes ses dépendances sont prêtes.
 
-Un document qui référence un skill que le paquet n’embarque pas et que la bibliothèque ne tient pas se téléverse quand même — la référence manquante revient en avertissement, pour qu’un pack puisse nommer un skill que tu installeras plus tard.
+## Configurer un projet avec les formulaires du paquet
 
-## Paramètres déclarés par le pack
-
-Quand une automatisation lit à chaque exécution une configuration qui appartient à l’opérateur — un profil de dossier, une politique de validation —, le manifeste peut la déclarer comme **formulaires de paramètres**. La plateforme les affiche dans le dialogue de création du tableau des tâches et enregistre chaque formulaire comme fichier YAML plat dans un dossier du projet : personne n’édite un fichier à la main pour configurer l’automatisation, et chaque projet garde ses propres valeurs.
+Le manifeste peut définir des formulaires qui apparaissent à la sélection du modèle de tâche. Les valeurs appartiennent au projet : deux projets peuvent donc employer la même automatisation avec des règles différentes.
 
 ```yaml
 # automation.yml
@@ -92,17 +110,18 @@ settings:
           default: strict_rules
           options:
             - value: strict_rules
-              label: Strict checklist (standard)
+              label: Strict checklist
 ```
 
-Un formulaire possède son fichier : enregistrer réécrit `Setup/validation-policy.yaml` entièrement à partir des valeurs du formulaire, et le formulaire se préremplit avec ce que contient le fichier — qu’il l’ait écrit lui-même ou que quelqu’un l’ait déposé à la main. Les champs sont `text`, `number`, `boolean` ou `select` ; chaque valeur est stockée comme chaîne, un champ `text` peut imposer un `pattern`, et les titres, libellés, textes d’aide et noms d’options se localisent via des blocs `i18n` sur chaque entrée. Tout ce qui dépasse un fichier clé-valeur plat — blocs imbriqués, listes — va dans un fichier séparé, tenu à la main, que le workflow lit à côté.
+Si le projet n’est pas encore configuré, les formulaires obligatoires précèdent les champs de la tâche. **Enregistrer et continuer** les écrit puis reprend la création. **Paramètres** les rouvre ensuite sous forme d’onglets. Un point signale les modifications non enregistrées ; **Enregistrer** écrit tous les formulaires modifiés. Fermer avec des changements en attente demande confirmation.
 
-Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés — un seul **Enregistrer et continuer** les écrit tous. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier, sous forme d’onglets derrière un seul **Enregistrer** : il écrit chaque formulaire modifié, un point marque les onglets aux modifications non enregistrées, et si tu fermes avec des modifications en attente, le dialogue demande d’abord confirmation.
+L’enregistrement remplace le fichier YAML plat du formulaire, par exemple `Setup/validation-policy.yaml`. Les valeurs existantes préremplissent le formulaire, y compris celles d’un fichier téléversé manuellement. Les types admis sont `text`, `number`, `boolean` et `select` ; les valeurs sont stockées comme chaînes. Un champ texte peut imposer un `pattern`. Des blocs `i18n` par entrée traduisent titres, libellés, aide et options. Place les listes et structures imbriquées dans des fichiers séparés que le workflow lira en complément.
 
-Certains réglages sont des fichiers plutôt que des valeurs — des documents de référence que les exécutions lisent tels quels. Déclare-les comme **formulaire de téléversements** (`kind: uploads`) : au lieu d'écrire un fichier YAML, le formulaire gère un dossier du projet — zone de dépôt, sélection de dossier et liste de ce qui s'y trouve déjà.
+## Fournir des références dans un formulaire de fichiers
+
+Un formulaire de fichiers gère directement un dossier au lieu de produire du YAML :
 
 ```yaml
-# automation.yml
 settings:
   folder: Setup
   forms:
@@ -114,38 +133,23 @@ settings:
       requireFolder: true
 ```
 
-`accept` nomme les extensions que le sélecteur propose, `match` filtre les noms de fichiers que le panneau liste (sans tenir compte de la casse — et un téléversement dont le nom ne correspondrait jamais est refusé d'emblée, pour que rien n'atterrisse puis « disparaisse » de la liste), `subdir` rattache le formulaire à un sous-dossier dédié du dossier de réglages, et `requireFolder: true` t'oblige à choisir ou créer un sous-dossier avant de téléverser — pour du matériel qui doit rester rangé par période ou par sujet plutôt que s'empiler à la racine. Les téléversements s'appliquent immédiatement : un formulaire de téléversements n'a pas d'**Enregistrer**, ne bloque jamais la création d'une tâche, et les exécutions lisent le contenu courant du dossier.
+`subdir` désigne un sous-dossier des paramètres. `accept` limite les extensions proposées par le sélecteur ; `match` filtre les noms sans distinguer la casse et refuse les fichiers qui ne figureraient pas dans la liste. Avec `requireFolder: true`, choisis ou crée d’abord un sous-dossier, par exemple pour chaque période de rapport.
 
-## Livrables déclarés par le pack
+Les téléversements s’appliquent immédiatement, sans bouton **Enregistrer**, et ne bloquent jamais la création d’une tâche. Les exécutions lisent le contenu actuel du dossier. Termine donc la préparation des références avant de lancer le travail qui en dépend.
 
-Un pack dont les exécutions déposent des documents dans le dossier d'une tâche
-peut nommer lesquels sont les **livrables** — ce pour quoi quelqu'un ouvre la
-tâche. La zone Résultat de la tâche liste exactement ceux-là, toujours ouverte et
-dans l'ordre déclaré, tandis que tout le reste du dossier — les fichiers déposés,
-les fichiers de travail de l'exécution — se replie sous **Fichiers**.
+## Définir les livrables attendus
+
+Le manifeste peut nommer les fichiers de la zone **Résultat** de la tâche. Ils restent dans l’ordre déclaré ; les autres pièces jointes et fichiers de travail sont regroupés sous **Fichiers**.
 
 ```yaml
-# automation.yml
 subjects:
   task:
     outcome:
       files:
         - return.xml
         - report.md
-        - journal.csv
+        - name: audit-summary.md
+          optional: true
 ```
 
-Seul le pack sait lesquels de ses fichiers écrits sont l'essentiel : la
-plateforme ne devine rien. Un nom qu'aucune exécution n'a encore déposé apparaît
-quand même comme une ligne promise marquée _Pas encore prêt_ — la tâche nomme donc
-ce qu'elle produira avant de le produire. Les jokers `*` et `?` sont acceptés
-(`return-*.xml`) pour un nom qu'une exécution construit. Un livrable que seules
-certaines exécutions produisent — une synthèse d'audit qui n'existe que pour
-certains projets — se déclare `{ name: audit-summary.md, optional: true }` :
-il apparaît dès qu'une exécution le dépose, sans jamais être annoncé comme une
-promesse qui pourrait ne pas venir. Ne déclare rien et la zone Résultat retombe
-sur tous les fichiers déposés par les exécutions, le plus récent d'abord.
-
-## Où cela s’insère
-
-Les automatisations arrivent par trois chemins — livrées avec l’organisation, créées sur le canvas, ou téléversées en pack — et chaque chemin finit au même endroit : une version brouillon sur la page de l’automatisation, déployée quand tu le décides. Un téléversement en zip alimente aussi la [bibliothèque de skills](/fr/platform/workspace/skills) avec les bundles dont l’automatisation a besoin, avec une confirmation devant chaque skill qu’il remplacerait. [L’éditeur de workflow](/fr/platform/automations/editor) est la lecture suivante pour mettre ce brouillon en service.
+Un fichier obligatoire apparaît comme **Pas encore prêt** tant qu’une exécution ne l’a pas déposé. Un fichier facultatif n’apparaît qu’une fois présent. Les motifs acceptent `*` et `?`, par exemple `return-*.xml`. Sans déclaration, le résultat regroupe tous les fichiers déposés par les exécutions, du plus récent au plus ancien. Une liste explicite aide à distinguer le rapport final des documents de travail.

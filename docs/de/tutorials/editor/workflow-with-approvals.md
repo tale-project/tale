@@ -7,7 +7,7 @@ Diese Übung erstellt einen Workflow mit zwei Schritten: eine Nachricht vorberei
 
 ## Bevor du beginnst
 
-Nutze ein Konto mit der Rolle Developer, Admin oder Owner. Prüfe, dass die Freigaberichtlinie deiner Organisation für `imap-smtp.send` eine Entscheidung verlangt. Das ist die Standardeinstellung. Eine eigene Richtlinie kann sie ändern. Lies deshalb vor dem Live-Teil [Freigaben konfigurieren](/de/platform/approvals/configure).
+Nutze ein Konto mit der Rolle Entwickler, Admin oder Inhaber. Prüfe, dass die Freigaberichtlinie deiner Organisation für `imap-smtp.send` eine Entscheidung verlangt. Das ist die Standardeinstellung. Eine eigene Richtlinie kann sie ändern. Lies deshalb vor dem Live-Teil [Freigaben konfigurieren](/de/platform/approvals/configure).
 
 Der Mock-Test braucht keine Postfach-Zugangsdaten. Für einen tatsächlich freigegebenen Versand wären ein eingerichteter IMAP-/SMTP-Connector und ein beabsichtigter Empfänger nötig. Diese Übung endet mit **Ablehnen**.
 

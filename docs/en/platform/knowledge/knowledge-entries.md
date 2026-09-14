@@ -47,7 +47,7 @@ Click **Save**. The entry appears in the table with its topic, content, source, 
 
 <Frame caption="The table lets you check the fact and its indexing status before relying on it in an answer.">
 
-![The Knowledge entries table lists three manual facts with topic, content, source, indexing status, and update time.](/images/platform/knowledge-entries-list.webp)
+![The Knowledge entries table lists manual facts with topic, content, source, indexing status, and update time.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

@@ -10,10 +10,12 @@ Use a local checkout of the [Tale repository](https://github.com/tale-project/ta
 
 | Requirement | What it runs | Check |
 | --- | --- | --- |
-| Bun 1.3 or newer | Workspaces, dependency installation, Vite and development scripts | `bun --version` |
+| Bun version pinned in the root `package.json` | Workspaces, dependency installation, Vite and development scripts | `bun --version` |
 | Node.js 22.21.1 or newer in the 22.x line | The application backend; the container pins 22.21.1 | `node --version` |
 | Docker with Compose | Application and knowledge databases, object storage and sandbox services | `docker info` and `docker compose version` |
 | Free local ports | App on 3000 and backend on 3005 | `bun run setup:check` |
+
+The repository pins its package-manager version. Match that version when reproducing a failure or contributing a lockfile change; the startup pre-flight checks only a minimum version.
 
 The pre-flight command checks Bun and the two ports. Check Node and Docker separately; a green pre-flight result does not verify them. The first boot also needs network access to fetch dependencies and container images. A model provider is needed for real AI replies, but not for signing in and inspecting the app.
 

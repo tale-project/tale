@@ -22,9 +22,9 @@ Lies die Kosten als erfasste Anwendungsnutzung, nicht als Rechnung deines Anbiet
 
 ## Auf eine Budgetwarnung reagieren
 
-Wähle für die Untersuchung denselben Zeitraum und die betroffene Aufgabe. Finde die Person, den Assistenten oder das Modell hinter dem Anstieg. Entscheide dann, ob du den Ablauf änderst, ein anderes Modell wählst oder unter [Richtlinien und Limits](/platform/admin/governance/policies-and-limits) eine Obergrenze anpasst.
+Wähle für die Untersuchung denselben Zeitraum und die betroffene Aufgabe. Finde die Person, den Assistenten oder das Modell hinter dem Anstieg. Entscheide dann, ob du den Ablauf änderst, ein anderes Modell wählst oder unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) eine Obergrenze anpasst.
 
-Prüfe die [Feedback-Analyse](/platform/admin/governance/feedback-analytics), bevor du ein Modell allein wegen der Kosten wechselst. Geringere Ausgaben helfen nur, wenn die Ergebnisse die Aufgabe weiterhin erfüllen.
+Prüfe die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics), bevor du ein Modell allein wegen der Kosten wechselst. Geringere Ausgaben helfen nur, wenn die Ergebnisse die Aufgabe weiterhin erfüllen.
 
 ## Fehlende Historie verstehen
 

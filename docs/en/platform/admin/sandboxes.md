@@ -1,9 +1,19 @@
 ---
-title: Sandboxes
-description: Set concurrent workload limits and compare organization allocations with actual sandbox runtime and host capacity.
+title: Manage sandbox capacity
+description: Adjust concurrent workload limits, interpret infrastructure measurements and investigate work waiting for a sandbox.
 ---
 
-Sandboxes shows how much work your organization may start and how much infrastructure is currently occupied. Open **Settings > Sandboxes** to change workload limits as an Admin or Owner; Developers can read the limits and aggregate capacity without seeing private workspace details.
+Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execution environment. The page separates your organization’s workload limits from the deployment’s actual infrastructure. Owners and Admins can change limits; Developers can read limits and aggregate capacity, without the private workspace list.
+
+## Identify the limit that matters
+
+| Workload | Default | What uses a slot |
+| --- | --- | --- |
+| **Project agent sessions** | 2 | An agent workspace starting or doing work. The agent reuses its workspace across tasks. |
+| **Workflow sessions** | 2 | A workflow run’s sandbox, shared by its sandbox work. Concurrent runs use separate slots. |
+| **Render sessions** | 2 | A temporary sandbox rendering pages during website crawling. |
+
+These are concurrency limits, not a count of tasks or a spending budget. An agent can work on several tasks in its one workspace. Limits do not reserve infrastructure for the organization; all organizations share the deployment capacity.
 
 <Frame caption="The three workload limits add up automatically. Their total must fit within the deployment capacity.">
 
@@ -11,25 +21,18 @@ Sandboxes shows how much work your organization may start and how much infrastru
 
 </Frame>
 
-## Set concurrent workload limits
+## Change a workload limit
 
-Change a limit and click **Save** in the settings header. **Discard** restores your saved values. Each limit accepts a whole number from 1 to 500; the saved value controls future admissions. Lowering a limit does not interrupt work already running.
+1. Check the workload’s **Allocated** count and the infrastructure measurements below it.
+2. Enter a whole number from 1 to 500 for the relevant limit. **Total organization sessions** recalculates the sum of all three fields.
+3. Keep that total within deployment capacity, then select **Save** in the header. **Discard** restores the saved values.
+4. Reopen the page to confirm the saved limits and inspect whether new work can obtain an allocation.
 
-**Total organization sessions** updates as you edit and compares the sum of the three limits with deployment capacity. The defaults add up to **2 + 2 + 2 = 6**. With deployment capacity at 8, a total of 8 is allowed; 9 blocks saving and asks you to reduce a limit. The server checks the current deployment capacity again when you save. If capacity is unavailable, you can still lower limits; refresh the infrastructure data before raising one. If the operator lowers capacity below your saved total, reduce the limits before saving again.
+For example, the defaults total 6. If deployment capacity is 8, a total of 8 is valid and 9 is refused. The server rechecks capacity when saving, so another observation may differ from the one you first saw.
 
-| Workload | Default | What consumes an allocation |
-| --- | --- | --- |
-| Project agent sessions | 2 | An agent workspace starting or doing work; the same agent reuses it across tasks. |
-| Workflow sessions | 2 | A workflow run's workspace, shared across its agent and script steps. |
-| Render sessions | 2 | Temporary environments that render web pages during crawling. |
+Lowering a limit affects future admissions; it does not interrupt active work. If infrastructure data is unavailable, reductions remain possible but increases need a fresh capacity observation. If the operator lowered capacity below your existing total, reduce your limits before saving again. If organization allocation data itself cannot load, the fields remain unavailable instead of showing editable defaults.
 
-One workflow run uses one sandbox for its agent and sandbox script steps. Concurrent runs each use their own sandbox and workflow allocation, even when they execute the same workflow.
-
-**Allocated** compares occupied organization slots with the saved limit. If allocation data cannot be read, the inputs stay unavailable rather than presenting editable defaults.
-
-## Read actual capacity
-
-**Infrastructure capacity** refreshes every 15 seconds. Use **Refresh** for another observation. Its numbers describe a different boundary from the organization limits:
+## Read the infrastructure measurements
 
 <Frame caption="Deployment sandboxes shows the shared count and capacity. Your organization's sandboxes shows its current count, including idle environments kept for reuse.">
 
@@ -37,23 +40,37 @@ One workflow run uses one sandbox for its agent and sandbox script steps. Concur
 
 </Frame>
 
-| Measurement | Meaning |
+| Measurement | What it means |
 | --- | --- |
-| Deployment sandboxes | Running and starting environments across all organizations / deployment capacity. Kubernetes shows **Deployment sandboxes (namespace)**. |
-| Your organization's sandboxes | This organization's running and starting environments across all workload types, including idle environments kept for reuse. This is a count with no separate organization runtime ceiling. |
-| Host CPU usage | Recently used CPU cores and total cores, including other services on the host. |
-| Host memory usage | Used and total memory in GiB, including other services and accounting for reclaimable cache. |
+| **Deployment sandboxes** | Running and starting environments across all organizations, compared with shared capacity. Kubernetes reports the namespace boundary. |
+| **Your organization's sandboxes** | This organization’s running and starting environments, including idle ones kept for reuse. This is a count, not another organization limit. |
+| **Host CPU usage** | Recently used and total CPU cores for the host, including its other services. |
+| **Host memory usage** | Used and total host memory, including other services and allowing for reclaimable cache. |
 
-The observation time tells you when the data was collected. CPU needs two recent samples; a new observation after a long gap may show unavailable usage. Remote hosts can expose totals without usage, and Kubernetes namespace access does not expose host resource measurements. A failed observation shows **Unavailable**, never zero.
+Measurements refresh every 15 seconds; **Refresh** requests a new observation. Check its timestamp before interpreting it. CPU usage needs two samples, and a first observation after a long gap can be unavailable. Remote hosts may expose totals without usage. Kubernetes namespace access does not expose host measurements. **Unavailable** means unknown, not zero.
 
-## Understand workspace allocation
+## Explain an allocated or idle workspace
 
-Admins and Owners also see **Workspaces**. Each row names the agent or workflow run that owns the workspace, its runtime and allocation status, and every task running in it. A project agent runs its tasks concurrently in the one workspace it owns, so a single row can list several tasks while the organization limit counts one session. **Spend** adds up the metered cost of the workspace's finished turns; a turn still running is added when it ends. A released allocation can still have a running environment: work finished and freed the organization slot, while the container stays ready until its idle cleanup. Runtime status and allocation status therefore appear separately.
+Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot.
 
-When deployment capacity is full, Tale can stop an unpinned idle environment whose allocation has been released to make room for new work. Its persistent workspace files remain available for the next start. This only applies when the environment confirms it has no ongoing work; pinned, busy or unresponsive environments are protected from this reclamation. If no safe candidate exists, new work still needs capacity to become available.
+**Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
-Crawler environments are temporary. Their use appears in the capacity counts, even when there is no standing workspace row.
+When deployment capacity is full, Tale may reclaim an unpinned idle environment whose allocation is released and which confirms it has no ongoing work. Its persistent workspace files remain for the next start. Busy, pinned or unresponsive environments are not candidates. If there is no safe candidate, new work must wait for capacity.
 
-## Decide which limit to change
+## Manage an existing workspace
 
-Raise an organization limit when that workload's allocations are full and its new total fits the deployment capacity. Other organizations share that capacity; your limits do not reserve containers, CPU or memory. A free place does not guarantee enough resources to start more work. Deployment operators control the shared capacity; self-hosted operators can find the setting in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure). Token and spending budgets remain under [Policies and limits](/platform/admin/governance/policies-and-limits).
+Owners and Admins can use a workspace’s row menu:
+
+| Action | Effect |
+| --- | --- |
+| **Stop task** | Cancels all currently running operations in that workspace. Check the listed tasks first; one agent may have several. |
+| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup, or restores normal cleanup. A pinned allocation can continue holding capacity. |
+| **Destroy** | Asks for confirmation, cancels running work and removes the sandbox and its workspace files. The next agent start creates a fresh environment. |
+
+Use stop when the current work should end but its files should remain. Before destruction, preserve outputs you still need and read the confirmation. Idle capacity reclamation preserves workspace files; explicit destruction does not.
+
+## Resolve a blocked start
+
+Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. Ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
+
+For a credential or model refusal, use [AI providers](/platform/admin/providers). For a spending refusal, use [Policies and limits](/platform/admin/governance/policies-and-limits). Self-hosted operators can inspect the deployment setting in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure).

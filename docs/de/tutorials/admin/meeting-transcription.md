@@ -31,7 +31,7 @@ Prüfe den Leserkreis vor dem Upload. Eine Projektdatei erscheint nicht automati
 
 </Frame>
 
-Prüfe bei **Fehlgeschlagen** den Fehler und nutze nach der Behebung **Indexierung erneut versuchen**. Bei **Nicht indexiert** kannst du, sofern angeboten, **Jetzt indexieren** wählen. Anhaltende Fehler erfordern möglicherweise eine Prüfung von Speicher, Textextraktion und Embedding-Anbieter durch einen Admin. [Projektdateien verwalten](/platform/projects/manage-files) erklärt Status und Grenzen.
+Prüfe bei **Fehlgeschlagen** den Fehler und nutze nach der Behebung **Indexierung erneut versuchen**. Bei **Nicht indexiert** kannst du, sofern angeboten, **Jetzt indexieren** wählen. Anhaltende Fehler erfordern möglicherweise eine Prüfung von Speicher, Textextraktion und Embedding-Anbieter durch einen Admin. [Projektdateien verwalten](/de/platform/projects/manage-files) erklärt Status und Grenzen.
 
 ## Die Suche im Projekt prüfen
 
@@ -41,6 +41,6 @@ Prüfe bei vertraulichen Transkripten die Anbieterwege: Die Indexierung kann Tex
 
 ## Die Übernahme wiederholbar machen
 
-Für gelegentliche Besprechungen reicht die Upload-Checkliste. Für regelmäßige Übernahmen kann ein Entwickler die [Projektupload-API](/develop/api-reference) oder einen [Automatisierungs-Webhook](/tutorials/developer/trigger-automation-via-webhook) mit einer eigens eingerichteten Importautomatisierung nutzen. Ein Webhook startet diese Automatisierung; allein speichert er kein Transkript.
+Für gelegentliche Besprechungen reicht die Upload-Checkliste. Für regelmäßige Übernahmen kann ein Entwickler die [Projektupload-API](/de/develop/api-reference) oder einen [Automatisierungs-Webhook](/de/tutorials/developer/trigger-automation-via-webhook) mit einer eigens eingerichteten Importautomatisierung nutzen. Ein Webhook startet diese Automatisierung; allein speichert er kein Transkript.
 
 Die Integration muss das Projekt auswählen, doppelte Zustellungen vermeiden, die Indexierung anfordern und deren Ergebnis prüfen. Projektdateien aus der REST-API überspringen die Indexierung standardmäßig; beim Verknüpfen fordert `skipRagIndexing: false` sie an. Ein gleicher Dateiname erzeugt keine Revision. Nutze für geprüfte Versionsverläufe den vorgesehenen Ersetzungsablauf.

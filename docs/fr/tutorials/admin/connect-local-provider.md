@@ -10,7 +10,7 @@ Un fournisseur de chat local détermine la destination de cette requête de mod�
 
 Demande le nom du fournisseur, le format d’API compatible, l’URL de base, les identifiants des modèles et la méthode d’authentification. L’adresse doit être joignable depuis les processus backend, pas seulement depuis ton navigateur. Dans un conteneur, `localhost` désigne ce conteneur.
 
-Pour un déploiement auto-hébergé, l’opérateur suit [Endpoints de fournisseurs locaux](/self-hosted/configuration/providers#endpoints-de-fournisseurs-locaux). Les hôtes privés exigent une activation explicite dans le déploiement. Les endpoints publics nécessitent HTTPS ; les adresses privées prises en charge peuvent utiliser HTTP si l’opérateur accepte cette configuration réseau. Un nom de proxy ne contourne pas la politique des hôtes privés.
+Pour un déploiement auto-hébergé, l’opérateur suit [Endpoints de fournisseurs locaux](/fr/self-hosted/configuration/providers#endpoints-de-fournisseurs-locaux). Les hôtes privés exigent une activation explicite dans le déploiement. Les endpoints publics nécessitent HTTPS ; les adresses privées prises en charge peuvent utiliser HTTP si l’opérateur accepte cette configuration réseau. Un nom de proxy ne contourne pas la politique des hôtes privés.
 
 Ollama, LM Studio et vLLM peuvent exposer des API compatibles, mais cela dépend des fonctions activées et du modèle. Vérifie la liste réelle des modèles et un appel de chat pris en charge avant de configurer Tale.
 
@@ -46,4 +46,4 @@ Demande à l’opérateur de confirmer la requête dans les journaux du serveur 
 | Erreur de connexion ou de certificat | Accès réseau depuis le backend, nom du conteneur et confiance TLS. |
 | Modèle refusé ou aucune réponse | Identifiant exact, authentification, compatibilité de l’API et capacité du serveur. |
 
-[Fournisseurs IA](/platform/admin/providers) explique le remplacement des accès et les valeurs par défaut. Documente l’endpoint et le modèle dans les consignes d’exploitation pour qu’un autre administrateur puisse répéter le test après une modification du serveur.
+[Fournisseurs IA](/fr/platform/admin/providers) explique le remplacement des accès et les valeurs par défaut. Documente l’endpoint et le modèle dans les consignes d’exploitation pour qu’un autre administrateur puisse répéter le test après une modification du serveur.

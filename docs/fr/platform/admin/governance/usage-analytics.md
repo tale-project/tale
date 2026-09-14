@@ -22,9 +22,9 @@ Lis le coût affiché comme l’usage enregistré par l’application, pas comme
 
 ## Réagir à une alerte de budget
 
-Utilise la même période et la tâche concernée pour examiner une alerte. Identifie la personne, l’assistant ou le modèle à l’origine de la hausse. Décide ensuite de modifier le fonctionnement, de choisir un autre modèle ou d’ajuster un plafond dans [Politiques et limites](/platform/admin/governance/policies-and-limits).
+Utilise la même période et la tâche concernée pour examiner une alerte. Identifie la personne, l’assistant ou le modèle à l’origine de la hausse. Décide ensuite de modifier le fonctionnement, de choisir un autre modèle ou d’ajuster un plafond dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
 
-Consulte l’[analyse des retours](/platform/admin/governance/feedback-analytics) avant de changer de modèle uniquement pour son coût : dépenser moins reste utile si les résultats répondent toujours au besoin.
+Consulte l’[analyse des retours](/fr/platform/admin/governance/feedback-analytics) avant de changer de modèle uniquement pour son coût : dépenser moins reste utile si les résultats répondent toujours au besoin.
 
 ## Comprendre un historique incomplet
 

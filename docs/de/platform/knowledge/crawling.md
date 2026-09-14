@@ -3,7 +3,7 @@ title: Websites zum Wissen hinzufügen
 description: Wähle öffentliche Seiten für die Indexierung, lege ein Intervall fest und untersuche fehlende oder veraltete Inhalte.
 ---
 
-Füge eine Website hinzu, wenn dein Team Fragen zu öffentlichen, veränderlichen Inhalten stellen möchte. Tale ruft die ausgewählten Seiten ab und indexiert ihren lesbaren Text für die Wissenssuche. Zum Verwalten brauchst du Editor-Rechte oder höher. Seiten hinter einer Anmeldung benötigen einen anderen Importweg, etwa [Dokumente](/de/platform/knowledge/documents).
+Füge eine Website hinzu, wenn dein Team Fragen zu öffentlichen, veränderlichen Inhalten stellen möchte. Tale ruft die ausgewählten Seiten ab und indexiert ihren lesbaren Text für die Wissenssuche. Zum Verwalten brauchst du Redakteurrechte oder höher. Seiten hinter einer Anmeldung benötigen einen anderen Importweg, etwa [Dokumente](/de/platform/knowledge/documents).
 
 ## Eine Website oder einzelne Seiten hinzufügen
 

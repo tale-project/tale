@@ -34,20 +34,20 @@ Explique les changements attendus dans un commentaire et **mentionne l’agent a
 
 Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue.
 
-Pour une tâche pilotée par une automation, mentionne celle qui en est responsable pour demander une nouvelle exécution. Mentionner une autre automation ne lui transfère pas la tâche et ne la démarre pas. [Automations](/fr/platform/automations/concepts) présente les workflows qui coordonnent plusieurs étapes.
+Pour une tâche pilotée par une automatisation, mentionne celle qui en est responsable pour demander une nouvelle exécution. Mentionner une autre automatisation ne lui transfère pas la tâche et ne la démarre pas. [Automatisations](/fr/platform/automations/concepts) présente les workflows qui coordonnent plusieurs étapes.
 
 ## Traiter une attente ou un échec
 
 | État ou symptôme | Action |
 | --- | --- |
-| Attente d’une place de sandbox | La capacité simultanée de l’organisation est atteinte. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
+| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
 | L’exécution reste en échec | Lis l’erreur, corrige sa cause, puis utilise **Relancer** pour continuer la conversation. Un agent supprimé ou une limite de temps atteinte demande une intervention. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
 | Automatisation suspendue sur une tâche | Des démarrages trop fréquents ont déclenché la protection. Examine le travail répété avant qu’un changement de statut humain lève la pause. |
 | Clôture impossible | Termine d’abord les sous-tâches ouvertes. |
 
-Un échec récupérable donne lieu à trois tentatives immédiates au maximum. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.
+Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives après la tentative initiale. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.
 
 ## Annuler ou suspendre le travail
 

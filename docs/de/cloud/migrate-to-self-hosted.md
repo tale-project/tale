@@ -5,7 +5,7 @@ description: Eine betreute Cloud-Migration vorbereiten, das Ziel prüfen und ein
 
 Beim Wechsel von der Cloud in den Eigenbetrieb übernimmt dein Team die Infrastruktur. Plane den Umzug mit Tale und dem Betreiber des Zielsystems, damit Anwendungsdaten, Wissen, Dateien, Konfiguration und Verschlüsselungsschlüssel zusammenpassen.
 
-Die Migration erfolgt mit Unterstützung des Betreibers. Das gemeinsame Produkt bietet keinen organisationsweiten Ablauf aus **Exportieren** und `/_internal/import`, wie ihn ältere Anleitungen beschrieben haben. Einzelne API-Exporte ersetzen keine vollständige Instanzsicherung.
+Plane mit dem Betreiber die Übertragung der Datenbanken, Dateien, Konfiguration und benötigten Secrets. Einzelne API-Exporte erfassen ausgewählte Ressourcen; sie ersetzen keine konsistente Sicherung der Instanz.
 
 ## Festlegen, was erhalten bleiben muss
 

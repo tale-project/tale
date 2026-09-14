@@ -22,9 +22,9 @@ Ein privates Netzwerk allein beweist nicht, dass deine Installation sicher ist. 
 
 ## Die Korrektur einspielen und prüfen
 
-Tale ist ein fortlaufend aktualisiertes 0.x-Projekt. Sicherheitskorrekturen erscheinen nur in der neuesten Version; ältere Versionen erhalten keine Rückportierungen. Lies alle Release-Hinweise bis zum Ziel und folge der [Upgrade-Anleitung](/de/self-hosted/operate/upgrades), einschliesslich Backup und Wiederherstellungsvorbereitung.
+Tale ist ein fortlaufend aktualisiertes 0.x-Projekt. Sicherheitskorrekturen erscheinen nur in der neuesten Version; ältere Versionen erhalten keine Rückportierungen. Lies alle Release-Hinweise bis zum Ziel und folge der [Upgrade-Anleitung](/de/self-hosted/operate/upgrades), einschließlich Backup und Wiederherstellungsvorbereitung.
 
-Dokumentiere die installierte Korrektur und prüfe das betroffene Verhalten nach dem Deployment. Hebe eine vorübergehende Schutzmassnahme erst auf, wenn die korrigierte Runtime läuft und deine Prüfungen erfolgreich sind.
+Dokumentiere die installierte Korrektur und prüfe das betroffene Verhalten nach dem Deployment. Hebe eine vorübergehende Schutzmaßnahme erst auf, wenn die korrigierte Runtime läuft und deine Prüfungen erfolgreich sind.
 
 ## Eine Schwachstelle vertraulich melden
 
@@ -34,6 +34,6 @@ Nenne Komponente und Version, Schritte zur Reproduktion und vermutete Auswirkung
 
 Die Sicherheitsrichtlinie sieht Bestätigung und erste Bewertung innerhalb von 72 Stunden vor, eine vertraulich mit dem Reporter geteilte Korrektur oder Übergangslösung innerhalb von 14 Tagen sowie ein GitHub Security Advisory zur korrigierten Version. Stimme die Untersuchung über die vertrauliche Meldung ab.
 
-## Die Prüfung regelmässig durchführen
+## Die Prüfung regelmäßig durchführen
 
-Speichere die Seiten für Sicherheitsmeldungen und Releases und nimm sie in deine regelmässige Update-Prüfung auf. Halte fest, wer sie prüft, welche Installationen betroffen sind und wohin dringende Befunde eskaliert werden. Die [Release-Prüfung](/de/self-hosted/operate/release-notes/format) enthält den übergreifenden Ablauf; [Härtung](/de/self-hosted/operate/security/hardening) beschreibt Schutzmassnahmen zwischen Updates.
+Speichere die Seiten für Sicherheitsmeldungen und Releases und nimm sie in deine regelmäßige Update-Prüfung auf. Halte fest, wer sie prüft, welche Installationen betroffen sind und wohin dringende Befunde eskaliert werden. Die [Release-Prüfung](/de/self-hosted/operate/release-notes/format) enthält den übergreifenden Ablauf; [Härtung](/de/self-hosted/operate/security/hardening) beschreibt Schutzmaßnahmen zwischen Updates.

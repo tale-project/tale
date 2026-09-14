@@ -18,7 +18,7 @@ Mit **Nur Kommentare** konzentrierst du dich auf schriftliche Erläuterungen. Pr
 | Daumen hoch/runter | Ob ein Mitglied eine bestimmte Antwort hilfreich fand. Ein optionaler Kommentar liefert Kontext. |
 | Arena-Urteil | Welche Antwort in einem konkreten Paar bevorzugt wurde oder ob beide gleich gut beziehungsweise schlecht waren. |
 
-Mitglieder können Bewertungen ändern oder zurückziehen. Das Dashboard zeigt den aktuellen Stand, keine dauerhafte Zählung aller Klicks. Im [Arena-Modus](/platform/chat/arena-mode) erfährst du, wie Mitglieder zwei Antworten vergleichen.
+Mitglieder können Bewertungen ändern oder zurückziehen. Das Dashboard zeigt den aktuellen Stand, keine dauerhafte Zählung aller Klicks. Im [Arena-Modus](/de/platform/chat/arena-mode) erfährst du, wie Mitglieder zwei Antworten vergleichen.
 
 ## Ergebnisse fair vergleichen
 
@@ -27,7 +27,7 @@ Lies die Anzahl der Bewertungen zusammen mit dem Anteil hilfreicher Antworten. E
 Finde die Veränderung in den Tabellen nach Assistent und Modell, ihren Zeitpunkt im Verlauf und die Gründe in den aktuellen Feedback-Kommentaren. Vergleiche bei Arena-Ergebnissen dieselbe Modellpaarung. Ein Sieg gegen ein Modell belegt keinen Vorteil gegenüber allen anderen.
 
 <Tip>
-Ziehe die [Nutzungsanalyse](/platform/admin/governance/usage-analytics) hinzu. Ein Modell kann pro Anfrage günstiger sein und trotzdem mehr Versuche brauchen, bis eine brauchbare Antwort entsteht.
+Ziehe die [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) hinzu. Ein Modell kann pro Anfrage günstiger sein und trotzdem mehr Versuche brauchen, bis eine brauchbare Antwort entsteht.
 </Tip>
 
 ## Teilergebnisse verstehen

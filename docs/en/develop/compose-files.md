@@ -6,6 +6,8 @@ Use the repository’s Compose files to develop or test Tale from source. For th
 
 Packaged self-hosted installations use the CLI-generated stack described in [Quickstart](/self-hosted/install/quickstart). The source-tree overlays have development ports and mounts; review them before exposing a host publicly.
 
+Choose one workflow for the change you are testing. Starting native development and the container frontend on the same port produces a conflict, not a second isolated instance.
+
 ## Start the container development workflow
 
 Run from the repository root with the pinned Bun version and Docker Compose available:

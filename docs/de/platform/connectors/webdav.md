@@ -1,87 +1,80 @@
 ---
-title: WebDAV
-description: Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein.
+title: Tale-Dokumente über WebDAV öffnen
+description: Erzeuge ein Gerätepasswort, verbinde einen WebDAV-Client und prüfe den Zugriff auf organisationsweite Dokumente.
 ---
 
-WebDAV verwandelt Tales Dokumentenspeicher in einen entfernten Ordner, den du wie jedes geteilte Netzlaufwerk einhängst. Der dahinterliegende Speicher ist derselbe, den der Dokumenten-Hub zeigt — was du in den eingehängten Ordner legst, erscheint in der UI, und umgekehrt. Alles Nötige liegt auf einem Panel: **Einstellungen > API > WebDAV** trägt die Verbindungsdaten und den App-Passwort-Generator.
+Mit WebDAV öffnet und bearbeitet ein kompatibler Datei-Client Tale-Dokumente wie einen entfernten Ordner. Änderungen betreffen denselben Speicher wie **Wissen > Dokumente**. Dateien aus dem Wissensbereich einzelner Projekte sind nicht Teil dieses Laufwerks.
+
+## Die Verbindungsdaten abrufen
+
+Öffne **Einstellungen > API > WebDAV**. Inhaber, Admins und Entwickler können eigene Gerätezugänge erzeugen. Kopiere die angezeigte URL einschließlich Organisations-Slug und `/documents/`. Baue sie nicht aus einer Organisations-ID zusammen und verwende keine Adresse einer anderen Organisation.
 
 <Frame caption="Einstellungen > API > WebDAV — oben die vorbefüllten Verbindungsdaten, darunter der App-Passwort-Generator.">
 
-![Die WebDAV-Einstellungsseite mit einer Verbindungs-URL, einem Benutzernamensfeld mit der Konto-E-Mail, einer Erklärung, dass das Passwort ein erzeugtes App-Passwort ist, und einer App-Passwort-Tabelle mit zwei Einträgen — Design workstation und MacBook Pro, jeder nur mit seinem Präfix und dem Erstellungsdatum — neben einem Erzeugen-Button.](/images/platform/settings-webdav.webp)
+![Die WebDAV-Einstellungen zeigen Verbindungs-URL und Benutzername über drei App-Passwörtern. Retired design workstation ist widerrufen; Design workstation und MacBook Pro sind aktiv und bieten die Aktion zum Widerrufen.](/images/platform/settings-webdav.webp)
 
 </Frame>
 
-## Ein App-Passwort erzeugen
+Verwende deine Tale-E-Mail-Adresse als Benutzernamen und ein App-Passwort als Passwort. Das normale Kontopasswort funktioniert für WebDAV nicht. Verbinde dich bei einem bereitgestellten Dienst über HTTPS. Schreibe Zugangsdaten weder in URLs noch in die Befehlshistorie.
 
-Der Endpunkt authentifiziert mit App-Passwörtern — kurzen Geheimnissen, die du pro Gerät prägst — weil jeder WebDAV-Client seinen Zugangsnachweis im System-Schlüsselbund ablegt, und dorthin gehört ein begrenztes, widerrufbares Geheimnis statt deines Konto-Passworts. Dein Konto-Passwort funktioniert an diesem Endpunkt nicht.
+## Ein Passwort pro Gerät erzeugen
 
-Klicke auf **Erzeugen**, benenne das Passwort nach dem Gerät (`MacBook Finder`, `ops-laptop rclone`) und kopiere es — nutze eines pro Gerät; das vollständige Passwort erscheint nur einmal. Danach behält die Tabelle nur die Bezeichnung und ein kurzes Präfix, genug, um die Zeile wiederzuerkennen, wenn du sie widerrufst. Das Erzeugen verlangt dieselbe Berechtigung, die auch API-Schlüssel schützt; Mitglieder ohne sie bitten einen Admin.
+1. Wähle **Erzeugen** und gib unter **Bezeichnung** einen Namen wie `Design-Laptop` ein.
+2. Erzeuge das Passwort und kopiere es vor dem Schließen. Der vollständige Wert erscheint nur einmal.
+3. Speichere es in der Zugangsdatenverwaltung des Clients und wähle **Ich habe es gespeichert**.
 
-Für den Benutzernamen nimm deine Tale-Konto-E-Mail. Der Server prüft tatsächlich nur das Passwort, aber die E-Mail hält Audit-Zeilen lesbar und entspricht dem, was Client-Dialoge erwarten.
+Die Liste enthält Bezeichnung, Präfix und Nutzungsdaten, kein wiederherstellbares Passwort. Bei Verlust erzeugst du einen Ersatz und widerrufst das alte Passwort, nachdem der Client umgestellt ist. Getrennte Passwörter erlauben den Entzug eines einzelnen Gerätezugangs.
 
-## Von deinem Gerät verbinden
-
-Die Adresse ist die URL vom Panel — `https://<your-site>/dav/<orgSlug>/documents/`.
+## Den Client einrichten
 
 <Tabs>
 
 <Tab title="macOS Finder">
 
-Drücke **⌘K** (Mit Server verbinden), füge die URL ein und melde dich mit deiner E-Mail und dem App-Passwort an. Die Freigabe erscheint in der Seitenleiste; zieh Dateien hinein zum Hochladen, hinaus zum Herunterladen, und benenne um oder lösche direkt an Ort und Stelle. Das erste Auflisten eines großen Baums kann ein paar Sekunden dauern.
+Öffne im Finder mit **⌘K** die Verbindung zu einem Server. Füge die WebDAV-URL ein und melde dich mit E-Mail-Adresse und App-Passwort an. Öffne den verbundenen Ordner und prüfe ein bekanntes Dokument, bevor du Dateien hineinkopierst. Speichere den Zugang nur auf einem vertrauenswürdigen Gerät.
 
 </Tab>
 
 <Tab title="Windows">
 
-Wähle unter **Dieser PC** die Aktion **Netzlaufwerk verbinden**, füge die HTTPS-URL ein und aktiviere **Verbindung mit anderen Anmeldeinformationen herstellen**. Nutze deine E-Mail und das erzeugte App-Passwort. Der Windows-Dienst WebClient muss verfügbar und gestartet sein. Scheitern Verbindung oder große Übertragungen, nutze einen WebDAV-Client oder lass die IT die [Windows-WebDAV-Grenzen](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector) prüfen. Behalte HTTPS bei: `BasicAuthLevel: 2` erlaubt unverschlüsselte Verbindungen und behebt keinen abweichenden Port.
+Verbinde im Datei-Explorer ein Netzlaufwerk mit der HTTPS-WebDAV-Adresse und den erzeugten Zugangsdaten. Der Windows-Dienst WebClient muss verfügbar sein. Kläre Verbindungs- oder Größenprobleme anhand von Microsofts [WebDAV-Anforderungen und Limits](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector) mit der IT oder nutze einen eigenen WebDAV-Client. Behalte HTTPS bei.
 
 </Tab>
 
 <Tab title="Linux">
 
-GNOME Dateien hängt WebDAV unter einem eigenen Schema ein — drücke **Strg+L**, gib die URL mit `davs://` statt `https://` ein (`davs://<your-site>/dav/<orgSlug>/documents/`) und melde dich mit deiner E-Mail und dem App-Passwort an. KDE Dolphin nutzt für dieselbe Adresse `webdavs://`.
-
-Dateimanager mit einem geteilten **Mit Server verbinden**-Dialog (Nemo, Caja) bauen die Adresse aus ihren Feldern zusammen — trage in **Server** nur den Hostnamen ein (`<your-site>`), lass Port auf `443` und Typ auf **Sicheres WebDAV (HTTPS)** stehen und gib `/dav/<orgSlug>/documents` als Ordner an.
+Ein Dateimanager mit WebDAV-Unterstützung verwendet den angezeigten Host und Pfad. GNOME Files nutzt `davs://` für sicheres WebDAV, KDE Dolphin `webdavs://`. Trennt der Dialog Server und Ordner, trage den Host als Server und `/dav/<orgSlug>/documents/` als Ordner ein, mit HTTPS und dem passenden Port.
 
 </Tab>
 
 <Tab title="iPhone und iPad">
 
-Nutze eine App mit ausdrücklicher WebDAV-Unterstützung, die HTTPS-URL und ein eigenes App-Passwort für das Gerät. Folge ihrer Anleitung; der allgemeine Serverdialog der Dateien-App ist keine WebDAV-Einrichtungsanleitung. Direkte WebDAV-Uploads in Pages, Numbers und Keynote werden [nicht mehr unterstützt](https://support.apple.com/en-us/101948). Für gelegentlichen Zugriff kannst du Tale im Browser öffnen und Dokumente nutzen.
+Wähle einen Client, der WebDAV ausdrücklich unterstützt, und ein eigenes App-Passwort für das Gerät. Für gelegentlichen Zugriff eignet sich auch Tales Dokumentenseite im Browser. Der allgemeine Serverdialog der Dateien-App ist kein gesicherter WebDAV-Einstieg. Direkte WebDAV-Uploads aus Pages, Numbers und Keynote werden [nicht mehr unterstützt](https://support.apple.com/en-us/101948).
 
 </Tab>
 
 <Tab title="rclone">
 
-```bash
-rclone config create tale webdav \
-    url=https://<your-site>/dav/<orgSlug>/documents/ \
-    vendor=other \
-    user=<your-email> \
-    pass=$(rclone obscure '<app-password>')
-rclone copy ./local-folder tale: --progress
-```
-
-`vendor=other` ist richtig — Tales Server ist generisch, keine benannte Spielart, die rclone kennt.
+Starte `rclone config` und lege einen WebDAV-Zugang mit Tales URL, deiner E-Mail-Adresse und dem App-Passwort an. Wähle `other` als Anbieter und gib das Passwort interaktiv ein. Die [WebDAV-Anleitung von rclone](https://rclone.org/webdav/) erklärt Auflisten und Kopieren. Beginne mit einem kleinen Testordner.
 
 </Tab>
 
 </Tabs>
 
-## Was das eingehängte Laufwerk kann
+## Eine kleine Übertragung prüfen
 
-Lese- und Schreibzugriffe spiegeln deine Berechtigungen im Dokumenten-Hub, Dateien, die du hochlädst, landen im Index und in der Suche wie direkte Uploads, und ihr Quellfeld steht auf `webdav` zum Filtern in Audit-Ansichten. Projekt-Dateien sind die Ausnahme: Der **Wissen**-Tab eines Projekts ist auf dieses eine Projekt begrenzt und taucht nie über WebDAV auf, das eingehängte Laufwerk zeigt also nur den org-weiten Dokumenten-Hub. Der Namensraum `.trash/` listet weich gelöschte Dokumente schreibgeschützt — lade zur Wiederherstellung herunter, stelle über die UI wieder her. Editoren, die WebDAV-Locks nehmen (Office, LibreOffice), bekommen sie; ein konkurrierender Schreibzugriff während einer Bearbeitung erhält `423 Locked`.
+Öffne oder lade ein Dokument herunter, das du auch in Tale lesen kannst. Darfst du schreiben, lade eine kleine Textdatei mit eindeutigem Namen in einen Testordner hoch. Prüfe Name und Inhalt unter **Wissen > Dokumente** und danach den Indexierungsstatus, bevor du sie in der Suche erwartest.
 
-## Widerrufen
+WebDAV-Uploads folgen den Dokumentberechtigungen und Indexierungsregeln; ihre Quelle wird als `webdav` erfasst. Eine abgeschlossene Übertragung bedeutet nicht, dass die Indexierung fertig ist. Fehlt eine Projektdatei im Laufwerk, öffne stattdessen den Wissensbereich dieses Projekts.
 
-Widerrufe ein Passwort mit dem Papierkorb-Symbol auf seiner Zeile — die nächste Anfrage damit wird abgewiesen, andere Geräte bleiben unberührt, und alle Locks, die es hielt, werden freigegeben. Es gibt kein Zurück; präge ein neues Passwort, wenn du die falsche Zeile widerrufst.
+## Sperren und gelöschte Dateien handhaben
 
-<Warning>
+Ein kompatibler Editor kann eine Datei während der Bearbeitung sperren. Ein konkurrierender Schreibzugriff erhält **423 Locked**. Beende die andere Bearbeitung, statt wiederholt zu überschreiben. Der Widerruf eines App-Passworts löst auch seine Dateisperren.
 
-Basic Auth sendet das App-Passwort mit jeder Anfrage. Hänge nur über HTTPS ein, lass das Passwort im Schlüsselbund des Betriebssystems und füge es nie in eine URL der Form `https://user:pass@host/` ein — Shell-Verlauf und Proxy-Logs überleben das Laufwerk. Widerrufe sofort bei jedem Verdacht auf ein Leck.
+Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade eine noch gespeicherte Datei bei Bedarf zur Prüfung herunter und stelle sie über Tale wieder her. Endgültig entfernte Dateien lassen sich dort nicht zurückholen.
 
-</Warning>
+## Einen Zugang widerrufen oder reparieren
 
-## Wo das hingehört
+Wähle an der Passwortzeile **Widerrufen** und bestätige. Künftige Anfragen damit werden abgelehnt; andere App-Passwörter bleiben nutzbar. Der Widerruf ist nicht umkehrbar. Stelle den Client bei Bedarf auf ein neues Passwort um.
 
-WebDAV ist die gerätezugewandte Tür pro Nutzer zu denselben Daten wie der [Dokumenten-Hub](/de/platform/knowledge/documents); das Drahtprotokoll steht unter [WebDAV-API](/de/develop/webdav-api). Für Maschine-zu-Maschine-Importe sind [API-Schlüssel](/de/platform/admin/api-keys) plus die REST-API meist die bessere Wahl.
+Bei wiederholten Anmeldeaufforderungen prüfe die genaue URL, Organisationsmitgliedschaft und einen möglichen Widerruf. Eine fehlende Berechtigung nach der Anmeldung unterscheidet sich von einem falschen Passwort. Die [WebDAV-API-Referenz](/de/develop/webdav-api) erklärt Statuscodes und Protokolldiagnose. Für Software mit REST-Zugriff dienen stattdessen [API-Schlüssel](/de/platform/admin/api-keys).

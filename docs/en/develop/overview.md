@@ -19,6 +19,8 @@ Use these guides when writing a client, connecting an external system, or changi
 
 ## Make the first request reliable
 
+Choose the credential with the surface: REST and MCP use API keys, WebDAV uses an app password, and a webhook uses a secret trigger URL. These credentials are not interchangeable.
+
 Create a separate API key for each integration, send it only to the intended instance, and keep it out of source control. [Make your first API request](/get-started/developers) explains instance URLs and organization scope. For a long-running operation, distinguish the accepted request from its eventual result: poll the resource or run and handle a failed outcome.
 
 Read the [rate limits](/develop/rate-limits) before adding retries. Check [instance availability](/develop/status-page) when troubleshooting a connection. The API reference describes the error envelope and the generated specification for the current checkout.

@@ -1,11 +1,11 @@
 ---
 title: Fournisseurs
-description: Le versant opérateur des fournisseurs IA — les fichiers de connecteurs livrés avec la plateforme, et les variables d’environnement réservées qui laissent le déploiement porter les clés API à la place de la base de données.
+description: Configure des endpoints IA personnalisés, comprends les définitions de fournisseurs et fournis les identifiants depuis les secrets du déploiement.
 ---
 
-Pour configurer un fournisseur AI, distingue sa définition de connector, les identifiants de l’organisation et le serveur de modèles. La définition décrit l’endpoint et le protocole ; les identifiants contrôlent l’accès ; l’opérateur de l’endpoint exploite le service.
+Pour configurer un fournisseur IA, distingue sa définition de fournisseur, les identifiants de l’organisation et le serveur de modèles. La définition décrit l’endpoint et le protocole ; les identifiants contrôlent l’accès ; l’opérateur de l’endpoint exploite le service.
 
-Cette page couvre les définitions personnalisées et les secrets issus de l’environnement. Pour créer des identifiants et choisir les valeurs par défaut dans l’application, suis [Fournisseurs AI](/fr/platform/admin/providers).
+Cette page couvre les définitions personnalisées et les secrets issus de l’environnement. Pour créer des identifiants et choisir les valeurs par défaut dans l’application, suis [Fournisseurs IA](/fr/platform/admin/providers).
 
 ## Endpoints de fournisseurs locaux
 
@@ -13,7 +13,7 @@ Un serveur d’inférence local exige une définition de fournisseur et l’auto
 
 1. Rends le serveur joignable depuis chaque rôle backend qui l’appelle. Dans un conteneur, `localhost` désigne ce conteneur, pas la machine hôte. Vérifie la résolution du nom, l’accès réseau et, si nécessaire, le certificat TLS depuis le réseau d’exécution réel.
 2. Pour un endpoint privé ou de boucle locale, définis `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` dans l’environnement du backend. Cette option autorise les hôtes de fournisseurs privés pour tout le déploiement ; ce n’est pas une liste d’autorisation par fournisseur. Les endpoints de métadonnées cloud restent bloqués. Recrée les conteneurs concernés pour appliquer le changement : un redémarrage conserve leur environnement Compose actuel.
-3. Déclare le fournisseur dans `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ou avec la [procédure de configuration gérée](/self-hosted/configuration/config-releases). Respecte le schéma natif et choisis un nom distinct des définitions fournies.
+3. Déclare le fournisseur dans `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ou avec la [procédure de configuration gérée](/fr/self-hosted/configuration/config-releases). Respecte le schéma natif et choisis un nom distinct des définitions fournies.
 
 Dans cet exemple, remplace l’IP privée et le port par ceux de ton serveur. HTTP est accepté uniquement pour les hôtes reconnus comme privés ou de boucle locale ; les endpoints publics exigent HTTPS. Un nom DNS interne ne contourne pas le contrôle des hôtes privés effectué à chaque requête.
 
@@ -29,13 +29,13 @@ auth:
   - method: env
 ```
 
-Cette définition utilise une API de chat compatible OpenAI et découvre les modèles à partir de `/v1/models`. Vérifie la compatibilité réelle du serveur : une liste de modèles ne prouve pas que la génération, les appels d’outils ou le streaming fonctionnent. Utilise un catalogue statique ou des modèles explicitement autorisés si le serveur ne fournit pas le catalogue demandé ici.
+Cette définition utilise une API de chat compatible OpenAI et découvre les modèles à partir de `/v1/models`. Vérifie la compatibilité réelle du serveur : une liste de modèles ne prouve pas que la génération, les appels d’outils ou le streaming fonctionnent. Si le serveur ne peut pas lister ses modèles, utilise `catalog.source: none` et saisis leurs identifiants exacts dans la liste autorisée de l’accès. Un fournisseur personnalisé ne charge pas de fichier de modèles statique propre à l’organisation.
 
-Un administrateur ajoute ensuite un accès dans [Fournisseurs IA](/platform/admin/providers), actualise le catalogue et sélectionne un modèle précis pour un court chat. Vérifie la requête terminée dans les journaux du serveur prévu. Les embeddings, la parole et les outils nécessitent leur propre contrôle des destinations ; un endpoint de chat local ne les rend pas locaux.
+Un administrateur ajoute ensuite un accès dans [Fournisseurs IA](/fr/platform/admin/providers), actualise le catalogue et sélectionne un modèle précis pour un court chat. Vérifie la requête terminée dans les journaux du serveur prévu. Les embeddings, la parole et les outils nécessitent leur propre contrôle des destinations ; un endpoint de chat local ne les rend pas locaux.
 
 ## Où vivent les connecteurs
 
-Les définitions de connecteurs sont des fichiers YAML sous `configs/platform/system/providers/`, un par fournisseur, nommés d’après son slug — `openrouter.yml`, `openai.yml`, `anthropic.yml`, `azure.yml`, et ainsi de suite. Ils font partie de l’image de la plateforme et évoluent avec elle. Les catalogues de modèles intégrés correspondants se trouvent à côté, sous `configs/platform/system/models/<slug>.yml`.
+Les définitions fournies se trouvent dans `configs/platform/system/providers/<slug>/provider.yml` et leurs catalogues statiques dans `configs/platform/system/models/<slug>/models.yml`. Anthropic utilise par exemple `providers/anthropic/provider.yml` et `models/anthropic/models.yml`. Ces fichiers appartiennent à l’image et évoluent avec sa version.
 
 <Warning>
 
@@ -45,7 +45,7 @@ Les fichiers fournis sont des entrées d’image en lecture seule, remplacées l
 
 ## Ce qu’un connecteur déclare
 
-Un connecteur est court par construction. Il nomme le fournisseur, le dialecte réseau que son API parle, l’endpoint sur lequel il répond, la provenance de sa liste de modèles et les méthodes d’authentification qu’il accepte — rien de spécifique à une organisation et aucun secret.
+Une définition décrit le protocole, l’endpoint, le catalogue et les méthodes d’authentification admises. Elle ne contient aucun identifiant d’organisation. Ces deux extraits en montrent le format :
 
 <CodeGroup>
 
@@ -79,13 +79,20 @@ auth:
 
 </CodeGroup>
 
-`apiFormat` est le dialecte réseau — `openai` ou `anthropic`. Un connecteur au format `openai` peut aussi déclarer `wireDialect: openai-modern`, comme le font les connecteurs OpenAI et Azure livrés : la plateforme écrit alors le plafond de sortie `max_completion_tokens` et n’envoie pas de température personnalisée aux modèles de raisonnement, parce que api.openai.com rejette `max_tokens` et toute température non standard sur ces modèles, tandis que les endpoints compatibles OpenAI tiers gardent les champs classiques. `baseUrl` est l’endpoint fixe ; un connecteur qui l’omet déclare `endpointMode: per-credential` à la place, ce que fait Azure OpenAI, puisque chaque ressource Azure sert son propre endpoint et que chaque identifiant porte donc sa propre URL. `catalog.source` vaut `static` (un fichier livré sous `configs/platform/system/models/`), `openrouter-api`, `models-endpoint` ou `none`. Chaque entrée sous `auth` est une méthode que les identifiants de ce fournisseur peuvent employer, et une méthode peut porter des `constraints` qui l’épinglent à une exécution en sandbox sur un harness nommé.
+| Champ | Rôle |
+| --- | --- |
+| `apiFormat` | Format de requête : `openai` ou `anthropic`. |
+| `wireDialect: openai-modern` | Pour le format OpenAI : utilise `max_completion_tokens` et omet la température personnalisée pour les modèles de raisonnement. Laisse-le absent pour les endpoints qui exigent les champs classiques. |
+| `baseUrl` | Endpoint fixe partagé par les accès correspondants. |
+| `endpointMode: per-credential` | Utilise un endpoint propre à chaque accès à la place de `baseUrl`, comme Azure OpenAI. |
+| `catalog.source` | `static`, `openrouter-api`, `models-endpoint` ou `none`. Les entrées statiques viennent du catalogue de modèles décrit plus haut. |
+| `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un harness sandbox précis. |
 
 ## Source de clé par variable d’environnement
 
-Si tes clés API vivent déjà dans des secrets Kubernetes, Vault ou un gestionnaire de secrets cloud, un identifiant n’a pas à porter le secret. La méthode d’authentification **Variable d’environnement** ne stocke que le _nom_ d’une variable du déploiement, et la plateforme en lit la valeur dans l’environnement du processus au moment de l’appel. C’est le chemin géré par les ops : la clé n’entre jamais dans la base de l’application, et la renouveler relève du déploiement plutôt que d’une tâche d’administration.
+Avec la méthode **Variable d’environnement**, l’accès enregistre un nom de variable ; le backend en lit la valeur dans son environnement au moment de la requête. Fournis cette valeur avec le gestionnaire de secrets du déploiement. Cette méthode ne stocke pas la clé API dans la base applicative.
 
-Le nom de la variable est protégé par un préfixe. Il doit commencer par `TALE_PROVIDER_KEY_`, et l’application fixe ce préfixe dans le formulaire, si bien que seul le suffixe se saisit :
+Seuls les noms commençant par `TALE_PROVIDER_KEY_` sont acceptés. Le nom complet est limité à 40 caractères ; le suffixe accepte lettres, chiffres et traits de soulignement. Le formulaire ajoute le préfixe automatiquement.
 
 ```bash
 TALE_PROVIDER_KEY_OPENROUTER=sk-or-...
@@ -94,26 +101,16 @@ TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 
 <Note>
 
-La barrière est fail-closed : tout nom hors du préfixe réservé est rejeté, ce qui empêche un identifiant de désigner un secret de déploiement étranger comme `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET` et de le voir partir en jeton Bearer vers l’endpoint d’un fournisseur. Les noms sont plafonnés à 40 caractères — un nom plus long n’atteindrait jamais le runtime du backend.
+Le préfixe réservé empêche un accès de désigner un autre secret tel que `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET`. La validation refuse les noms invalides avant l’enregistrement.
 
 </Note>
 
-Définis la variable de façon que le backend puisse la lire — il résout l’identifiant du fournisseur au moment de la requête. Après avoir ajouté ou modifié une variable de déploiement, recrée `backend-api` et `backend-worker` avec le nouvel environnement. Un redémarrage Compose conserve les anciennes valeurs. Les valeurs sont nettoyées de leurs espaces, ce qui t’épargne le retour à la ligne que porte souvent un fichier de secret monté, et le `401` qui s’ensuit.
+Après avoir ajouté ou renouvelé la valeur, recrée `backend-api` et `backend-worker` avec le nouvel environnement. Un redémarrage Compose conserve les anciennes valeurs. Les espaces au début et à la fin sont supprimés avant utilisation. Vérifie une vraie requête après le déploiement.
 
 ## Secrets de courtier depuis l’environnement
 
-Des identifiants de type **Courtier d’abonnement** s’authentifient auprès du courtier avant de pouvoir récupérer un pool de jetons, et ce secret de courtier peut lui aussi venir du déploiement. Ses variables portent leur propre préfixe réservé, `TALE_TOKEN_SOURCE_`, distinct de celui des clés de fournisseur pour que les deux espaces de noms ne se confondent pas. La même règle fail-closed s’applique : un nom hors du préfixe est rejeté. Dans le formulaire, le champ s’appelle **Secret depuis une variable d’environnement** ; le laisser vide signifie que le secret du courtier est stocké chiffré avec les identifiants.
+Un accès de type **Courtier d’abonnement** peut aussi lire le secret du courtier dans l’environnement du déploiement. Utilise le préfixe distinct `TALE_TOKEN_SOURCE_` dans **Secret depuis une variable d’environnement**. Les autres noms sont refusés. Si le champ reste vide, le secret est chiffré avec l’accès. Recrée les processus concernés lorsque tu changes une valeur issue de l’environnement.
 
-## Ce qui relève de l’organisation et non du déploiement
+## Gérer les réglages propres à l’organisation
 
-Identifiants, noms, modèles autorisés, valeurs par défaut et état actif restent des données d’organisation. L’application les gère normalement. Après avoir vérifié l’organisation et l’opérateur, un déploiement géré peut créer des identifiants exacts liés à l’environnement via l’API native ; il n’écrit pas directement dans les lignes de la base de données.
-
-<Tip>
-
-Sépare les caractéristiques du connecteur, les accès et l’exploitation du serveur. Le déploiement géré vérifie le catalogue déclaré et les politiques natives ; il n’installe aucun serveur d’inférence et ne prouve pas le comportement réel du modèle.
-
-</Tip>
-
-## Où cela s’inscrit
-
-Utilise le déploiement géré pour les paramètres vérifiés de fournisseurs externes et la [Référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference) pour injecter les clés. [Fournisseurs IA](/fr/platform/admin/providers) décrit les identifiants, valeurs par défaut et catalogues dans l’application ; le [Catalogue de modèles](/fr/platform/models) explique ce que voient les membres.
+Les noms des accès, modèles autorisés, valeurs par défaut et états actifs restent des données d’organisation, généralement gérées sous [Fournisseurs IA](/fr/platform/admin/providers). Une version de configuration gérée peut créer des accès précis liés à l’environnement via les API natives après vérification de l’organisation et de l’opérateur. Elle n’installe aucun serveur d’inférence et ne prouve pas le comportement du modèle. Effectue les contrôles de l’endpoint local décrits plus haut après le déploiement.

@@ -39,7 +39,7 @@ Verwende für Entra eine Tenant-spezifische Issuer-URL wie `https://login.micros
 Wähle für Google **Generisches OIDC** mit dem Issuer `https://accounts.google.com`; siehe Googles [OpenID-Connect-Einrichtung](https://developers.google.com/identity/openid-connect/openid-connect). Googles Standard-OIDC liefert keine Gruppenmitgliedschaften. Eine Google-Anmeldung allein ermöglicht deshalb keine Gruppen-Team-Synchronisierung.
 
 <Note>
-Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge `Files.Read` oder `Sites.Read.All` nicht zu den SSO-Scopes hinzu, wenn Mitglieder sich nur anmelden sollen. Richte den Import über [OAuth-Apps für Konnektoren](/platform/admin/connectors) ein.
+Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge `Files.Read` oder `Sites.Read.All` nicht zu den SSO-Scopes hinzu, wenn Mitglieder sich nur anmelden sollen. Richte den Import über [OAuth-Apps für Konnektoren](/de/platform/admin/connectors) ein.
 </Note>
 
 ## Einen SAML-Anbieter verbinden
@@ -62,7 +62,7 @@ SAML kann vom IdP oder von Tale aus gestartet werden. Wenn du in Tale beginnst, 
 | **IdP-Gruppen mit Teams synchronisieren** | Erstellt Teams oder fügt Mitglieder bei der Anmeldung anhand ihrer Gruppen hinzu. |
 | **Gruppen ausschließen** | Kommagetrennte Gruppennamen, die die Team-Synchronisierung auslässt. |
 
-Verschwinden Gruppen, entfernt die Synchronisierung die zuvor von ihr vergebenen Mitgliedschaften. Von ihr erstellte Teams löscht sie, sobald diese leer sind. Manuell oder über SCIM angelegte Mitgliedschaften bleiben erhalten; ausgeschlossene Gruppen bleiben unberührt. Die manuelle Verwaltung beschreibt [Teams](/platform/admin/teams).
+Verschwinden Gruppen, entfernt die Synchronisierung die zuvor von ihr vergebenen Mitgliedschaften. Von ihr erstellte Teams löscht sie, sobald diese leer sind. Manuell oder über SCIM angelegte Mitgliedschaften bleiben erhalten; ausgeschlossene Gruppen bleiben unberührt. Die manuelle Verwaltung beschreibt [Teams](/de/platform/admin/teams).
 
 ## Mitglieder über SCIM bereitstellen
 
@@ -85,6 +85,6 @@ Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen d�
 | Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
 | Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. |
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
-| Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/self-hosted/configuration/authentication) zu prüfen. |
+| Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |
 
 **Anmeldung deaktivieren** stoppt neue SSO-Anmeldungen; aktive Sitzungen bleiben bestehen. **Entfernen** löscht die Verbindungskonfiguration samt Zugangsdaten. Sorge vor beiden Aktionen für eine andere funktionierende Anmeldemethode.

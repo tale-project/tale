@@ -2,9 +2,11 @@
 title: Fichiers Compose pour contribuer
 description: Choisir un mode de développement et comprendre les fichiers Compose complémentaires du dépôt.
 ---
-Utilise les fichiers Compose du dépôt pour développer ou tester Tale à partir du code source. Dans le parcours local habituel, [l’application et le backend tournent sur la machine, avec leurs dépendances dans Docker](/develop/contributor-setup). Choisis le parcours ci-dessous pour tester les images de développement elles-mêmes.
+Utilise les fichiers Compose du dépôt pour développer ou tester Tale à partir du code source. Dans le parcours local habituel, [l’application et le backend tournent sur la machine, avec leurs dépendances dans Docker](/fr/develop/contributor-setup). Choisis le parcours ci-dessous pour tester les images de développement elles-mêmes.
 
-Les installations auto-hébergées utilisent le déploiement généré par la CLI, décrit dans le [démarrage rapide](/self-hosted/install/quickstart). Les fichiers du dépôt contiennent des ports et des montages de développement. Examine-les avant d’exposer un hôte publiquement.
+Les installations auto-hébergées utilisent le déploiement généré par la CLI, décrit dans le [démarrage rapide](/fr/self-hosted/install/quickstart). Les fichiers du dépôt contiennent des ports et des montages de développement. Examine-les avant d’exposer un hôte publiquement.
+
+Choisis un seul parcours pour la modification à tester. Démarrer le frontend natif et celui en conteneur sur le même port crée un conflit, pas une seconde instance isolée.
 
 ## Démarrer le développement en conteneurs
 
@@ -33,7 +35,7 @@ bun run docker:dev:logs
 | `compose.web.test.yml` | Configuration des tests de conteneur du site marketing. |
 | `compose.test.mock.yml` | Configuration d’intégration avec services simulés. |
 
-Lis le script qui utilise un fichier de test avant de l’appeler directement : il peut préparer les images, les ports et les données de test. [Contribuer à Docker](/develop/contributing-docker) décrit les contrôles adaptés.
+Lis le script qui utilise un fichier de test avant de l’appeler directement : il peut préparer les images, les ports et les données de test. [Contribuer à Docker](/fr/develop/contributing-docker) décrit les contrôles adaptés.
 
 ## Examiner la fusion Compose
 
@@ -49,7 +51,7 @@ Cette commande examine les fichiers statiques. `docker:dev` ajoute aussi son com
 
 Le déploiement du dépôt sépare `backend-api` et `backend-worker`. L’API traite les requêtes et l’authentification ; le processus de traitement exécute les tâches, les appels de modèles et le traitement des connaissances. `platform` sert l’application web. `proxy` dirige le trafic ; `db`, `knowledge-db` et `object-store` stockent les données applicatives, les connaissances et les fichiers.
 
-`sandbox`, `sandbox-egress` et `sandbox-llm-gateway` fournissent l’exécution isolée et ses accès réseau et modèles. Le dépôt comprend aussi le service auxiliaire d’import vidéo. La topologie de production peut différer : le déploiement généré pour un seul hôte combine les bases applicative et de connaissances. Consulte [Architecture des conteneurs](/self-hosted/operate/container-architecture) pour les responsabilités et la [référence d’environnement](/self-hosted/configuration/environment-reference) pour leur configuration.
+`sandbox`, `sandbox-egress` et `sandbox-llm-gateway` fournissent l’exécution isolée et ses accès réseau et modèles. Le dépôt comprend aussi le service auxiliaire d’import vidéo. La topologie de production peut différer : le déploiement généré pour un seul hôte combine les bases applicative et de connaissances. Consulte [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) pour les responsabilités et la [référence d’environnement](/fr/self-hosted/configuration/environment-reference) pour leur configuration.
 
 ## Comprendre le premier échec
 

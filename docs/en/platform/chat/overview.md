@@ -15,7 +15,7 @@ Chat is the quickest place to ask about a document, understand a topic, or refin
 
 Open **Chat**, type in the composer, and send. A starter prompt can help if you are unsure where to begin. Include the outcome you need and the relevant source: “Using the onboarding guide, list the steps a new customer needs to complete. Cite the guide.”
 
-The model picker starts on **Auto**. Select a named model when you want control over which available model answers, and adjust reasoning effort where supported. You can attach a file for a question about its contents or open a project chat for recurring reference material.
+When several usable models are available, the model picker can start on **Auto**. Select a named model when you want control over which available model answers, and adjust reasoning effort where supported. You can attach a file for a question about its contents or open a project chat for recurring reference material.
 
 <Frame caption="Starter prompts offer a first question; the composer also accepts your own.">
 

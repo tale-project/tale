@@ -7,7 +7,7 @@ Ton travail quotidien dans Tale commence par une conversation ou un projet. Ce g
 
 ## Comprendre tes accès
 
-Commence avec un compte connecté et un [premier chat](/fr/get-started/quickstart) qui répond. Ton rôle et ton accès au projet déterminent ce que tu peux lire ou modifier. Un Membre utilise les fonctions de ce rôle ; créer et modifier des contenus partagés nécessite généralement le rôle Éditeur ou supérieur. Si une commande manque, consulte [les membres et les rôles](/fr/platform/admin/members-and-roles).
+Commence avec un compte connecté et un [premier chat](/fr/get-started/quickstart) qui répond. Ton rôle et ton accès au projet déterminent ce que tu peux lire ou modifier. Les Membres peuvent discuter et travailler dans les projets accessibles. Modifier les connaissances de l’organisation nécessite le rôle Éditeur ou supérieur ; le travail de projet suit les règles d’accès du projet. Si une commande manque, consulte [les membres et les rôles](/fr/platform/admin/members-and-roles).
 
 ## Donner assez de contexte à ta question
 

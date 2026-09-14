@@ -34,6 +34,7 @@ import {
   DEMO_PROJECTS,
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_SSO_EXAMPLE,
+  DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
 } from './demo-content';
 
@@ -768,8 +769,14 @@ export const SHOTS: readonly Shot[] = [
     name: 'settings-webdav',
     section: 'platform',
     route: '/dashboard/:orgId/settings/api/webdav',
-    readyWhen: (page) =>
-      page.getByText(t('webdav.connectionDetails.title')).first(),
+    prepare: async (page) => {
+      // Wait for the organization-derived URL, not the static section title;
+      // a late query render would replace the sanitized origin again.
+      await expect(
+        page.getByText(/\/dav\/[^/]+\/documents\//).first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    },
+    readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
     sanitize: replaceRigOrigin,
   },

@@ -5,7 +5,7 @@ description: Organiser une migration Cloud accompagnée, valider la destination 
 
 Passer du Cloud à une instance auto-hébergée confie l’infrastructure à ton équipe. Prépare le déplacement avec Tale et l’opérateur de destination pour garder cohérents les données applicatives, les connaissances, les fichiers, la configuration et les clés de chiffrement.
 
-Cette migration nécessite l’intervention de l’opérateur. Le produit commun ne propose pas le parcours d’export d’organisation **Exporter** puis `/_internal/import` décrit dans d’anciennes pages. Exporter des enregistrements par l’API ne constitue pas une sauvegarde complète de l’instance.
+Prévois avec l’opérateur le transfert des bases de données, des fichiers, de la configuration et des secrets nécessaires. Les exports API couvrent des ressources précises ; ils ne remplacent pas une sauvegarde cohérente de l’instance.
 
 ## Définir ce qui doit être conservé
 

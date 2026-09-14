@@ -137,7 +137,7 @@ suite does not establish fluent or accurate prose.
 
 - A file on disk but missing from `nav.json` is invisible in the sidebar.
 - Translated heading anchors: `/de/foo#some-heading` only works if the German heading slugs to
-  `some-heading` — the link checker does not verify anchors.
+  `some-heading`, or the heading has that explicit ID. The section-link check verifies these targets.
 - External links cast as internal (`](/external-site)`) 404 — fully qualify them.
 - Env-var and API reference content is authoritative in one place — link, don't duplicate.
 - Moving or renaming a page: add the `redirects.json` entry, sweep inbound links repo-wide (the

@@ -3,7 +3,7 @@ title: Examiner l’intégrité du journal d’audit
 description: Vérifie la chaîne d’audit, comprends les limites du contrôle et conserve les preuves en cas d’échec.
 ---
 
-Suis cette procédure si **Intégrité de la chaîne** signale une rupture ou si tu reçois une notification d’intégrité. Le parcours dans les paramètres nécessite un compte Admin ou Owner. Fais intervenir l’opérateur de ton installation pour examiner la base de données.
+Suis cette procédure si **Intégrité de la chaîne** signale une rupture ou si tu reçois une notification d’intégrité. Le parcours dans les paramètres nécessite un compte Admin ou Propriétaire. Fais intervenir l’opérateur de ton installation pour examiner la base de données.
 
 ## Identifier la plage vérifiée
 

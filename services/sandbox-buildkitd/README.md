@@ -67,7 +67,11 @@ client authentication. Cache size is bounded by the GC policy in
 separate from the BuildKit cache.
 
 Keep Docker's outer network allocation within RFC1918 and separate from the
-runtime's reserved `172.31.0.0/16` inner Docker pool. The proxy accepts clients
+inner Docker pool. Current runtimes select a non-overlapping private `/16` at
+startup; the spawner also reserves `172.31.0.0/16` when allocating build bridges
+for compatibility with older runtime images. See the
+[inner networking contract](../sandbox/README.md#inner-docker-networking) before
+pinning `SANDBOX_DIND_INNER_POOL`. The proxy accepts clients
 from `10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`; private build bridges
 must fit entirely inside one of those ranges. A public or conflicting bridge is
 refused and the session uses its local builder; the spawner preserves the

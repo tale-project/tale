@@ -34,13 +34,13 @@ Beschreibe die nötige Änderung in einem Aufgabenkommentar und **erwähne den z
 
 Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist.
 
-Bei einer Aufgabe mit zuständiger Automation erwähnst du diese Automation für einen weiteren Lauf. Die Erwähnung einer anderen Automation überträgt weder die Zuständigkeit noch startet sie diese. [Automationen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
+Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 
 ## Wartende und fehlgeschlagene Läufe behandeln
 
 | Zustand oder Problem | Maßnahme |
 | --- | --- |
-| Warten auf einen Sandbox-Platz | Die gleichzeitige Kapazität der Organisation ist ausgeschöpft. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
+| Warten auf einen Sandbox-Platz | Die Kapazität der Organisation oder der gemeinsam genutzten Infrastruktur kann ausgeschöpft sein. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
 | Automatischer Wiederholungsversuch | Tale wiederholt einen behebbaren Fehler. Beobachte die Versuchszahl und starte keinen zusätzlichen Lauf. |
 | Der Lauf bleibt fehlgeschlagen | Lies den Fehler und behebe die Ursache. Nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. Gelöschte Agenten und Zeitlimits erfordern einen Eingriff. |
 | Neuzuweisung wird verweigert | Brich den aktiven Lauf ab, bevor du neu zuweist. |
@@ -57,6 +57,6 @@ Ein Admin kann die Aufgabenautomatisierung für die Organisation ausschalten. Ne
 
 ## Die passende Zuständigkeit wählen
 
-Weise einer Person Arbeit zu, die menschliches Urteilsvermögen oder Zugriff außerhalb der Agentenrechte braucht. Nutze einen Projektagenten für eine klar begrenzte Aufgabe mit seinen konfigurierten Dateien und Tools. Eine Automation passt zu festen Abläufen mit mehreren Schritten, Auslösern oder Connector-Freigaben.
+Weise einer Person Arbeit zu, die menschliches Urteilsvermögen oder Zugriff außerhalb der Agentenrechte braucht. Nutze einen Projektagenten für eine klar begrenzte Aufgabe mit seinen konfigurierten Dateien und Tools. Eine Automatisierung passt zu festen Abläufen mit mehreren Schritten, Auslösern oder Connector-Freigaben.
 
 Für den ersten Lauf folge [Deinen ersten Agenten erstellen](/de/tutorials/editor/first-agent-end-to-end). Halte die Aufgabe so klein, dass du ihr Ergebnis selbst prüfen kannst.

@@ -10,8 +10,10 @@ instrument finds the page's relevant ones for you (see [Auto-detection](#auto-de
 
 ## Install
 
+Run from the repository root:
+
 ```bash
-bun install
+bun install --frozen-lockfile
 bunx playwright install chromium   # for the live CLI / e2e only
 ```
 
@@ -21,14 +23,14 @@ Runs on Bun directly — **no build step**; the in-page instrument is bundled in
 
 ```bash
 # Turnkey: analyze a live url (launches its own browser, auto-detects elements)
-bun src/analyze-cli.ts <url>
+bun run --filter @tale/visual-aspect-analyzer analyze <url>
 
 # Offline: re-analyze a recorded session
-bun src/cli.ts examples/sample-recording.json
+bun run --filter @tale/visual-aspect-analyzer report examples/sample-recording.json
 ```
 
 There are no selectors to pass — the instrument auto-detects the page's relevant elements.
-Pixel capture and auto-scroll are always on (so a bare run never misses a defect), and the
+Pixel capture and auto-scroll are enabled by the live CLI, and the
 health summary always prints to `stderr`. The only flag is `--full` (faithful `Report`).
 
 Or embed the driver (any Playwright-shaped page satisfies `PageLike`):
@@ -96,13 +98,13 @@ truncation.
 ## Verify
 
 ```bash
-bun run typecheck   # strict TS, no any/as/unknown
-bun test            # unit (analysis, instrument via happy-dom, pixels, bundle)
-bun run e2e         # real Chromium against tests/fixtures (skips with no browser)
+bun run --filter @tale/visual-aspect-analyzer typecheck
+bun run --filter @tale/visual-aspect-analyzer test
+bun run --filter @tale/visual-aspect-analyzer e2e  # real Chromium; skips if unavailable
 ```
 
 `typecheck` and `test` run on every pull request as part of the repo-wide gate
-in [`.github/workflows/checks.yml`](../../../.github/workflows/checks.yml), which also
+in [`.github/workflows/checks.yml`](../../../../../.github/workflows/checks.yml), which also
 runs oxfmt, oxlint, knip, and commitlint. This skill is a turbo workspace, so its
 checks run through `bun run check` (or `bunx turbo run typecheck test`) at the
 repo root — no separate install or lockfile here.

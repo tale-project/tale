@@ -13,7 +13,7 @@ Jedes Mitglied kann einen Skill erstellen und seine eigenen bearbeiten. Zum Bear
 
 <Step title="Den Skill benennen und seinen Einsatz erklären">
 
-Öffne **Einstellungen > Skills**, dann **Skill hinzufügen > Leerer Skill**. Gib einen **Namen** wie `brief-summary` und eine **Beschreibung** ein:
+Öffne **Einstellungen > Skills**, dann **Skill hinzufügen > Leerer Skill**. Gib unter **Name** einen Namen wie `brief-summary` und eine **Beschreibung** ein:
 
 ```text
 Fasse ein Projektbriefing in Prüftermin, Zuständigkeit und offenen Fragen
@@ -116,6 +116,6 @@ Unbekannte Frontmatter-Schlüssel bleiben erhalten. Die Frontmatter darf bis zu 
 
 Öffne eine Zeile, um Beschreibung, Anweisungen, Labels und Sichtbarkeit zu ändern. Unter **Bundle** kannst du ergänzende Dateien prüfen. Agenten sind nicht an eine bestimmte Fassung gebunden: Beim nächsten Bereitstellen wird das aktuelle Bundle verwendet. Teste gemeinsame Änderungen deshalb mit einer typischen Aufgabe.
 
-Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Ignoriert er einen zugeordneten Skill, präzisiere die Beschreibung und prüfe `disable-model-invocation`. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
+Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Ignoriert er einen zugeordneten Skill, nenne den gewünschten Skill ausdrücklich in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
 
 Prüfe bei einem Importfehler, ob `SKILL.md` im Stammverzeichnis liegt, gültige Frontmatter enthält und einen gültigen Namen hat. Die Fehlermeldung nennt abgelehnte Pfade oder Größenlimits. Zum Entfernen öffne das Bundle und wähle nach Prüfung der betroffenen Agenten **Skill löschen**.

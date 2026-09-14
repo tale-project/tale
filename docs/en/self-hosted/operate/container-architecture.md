@@ -1,83 +1,55 @@
 ---
-title: Container architecture
-description: Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like.
+title: Find the service behind a failure
+description: Trace requests, background work, and sandbox execution to the right logs and understand automatic knowledge-index repair.
 ---
 
-Use this reference to identify which service owns a request, job or persistent store. The request path and failure table help you choose logs during an incident; the install contract defines the networks, mounts and probes needed to run those services.
+Use service ownership to narrow an incident before changing containers. The packaged stack combines the application and knowledge databases in `db`; source Compose can run `knowledge-db` separately. Confirm your actual layout with `tale status` or your orchestrator's service inventory.
 
-The packaged single-host deployment combines application and knowledge databases in its database service. Contributor Compose can run a separate knowledge database, so compare the deployment you are inspecting before counting containers.
+## Choose the first logs
 
-## The containers, with their jobs
+| Symptom | Start with | Check next |
+| --- | --- | --- |
+| Public URL or TLS fails | `proxy` | DNS, certificate state, public ports, upstream reachability. |
+| App shell fails to load | `platform`, then `proxy` | Web health, static assets, and the selected deployment version. |
+| Shell loads, but sign-in or data requests fail | `backend-api` | API health, database access, request errors, and proxy routing. |
+| Jobs, scheduled automations, or ingestion stop progressing | `backend-worker` | Queue state, job errors, credentials, and required stores. |
+| Reads or writes fail across the application | `db` or the external application database | Connectivity, disk space, locks, and database logs. |
+| Files cannot be uploaded or downloaded | `backend-api`, then `object-store` or the external bucket | The resolved organization connection, credentials, public endpoint, and browser CORS. |
+| A harness cannot start or reach its model | `sandbox`, `sandbox-llm-gateway` | Session creation, gateway authentication, model availability, and runtime image. |
+| Sandboxed network access or page rendering fails | `sandbox-egress`, `sandbox` | Target hostname, allowed ports, egress policy, and session logs. |
+| Video transcript retrieval fails | `backend-worker`, `bgutil-provider` | Video access, extractor errors, configured proxy, and browser-session status. |
 
-| Container                  | Job                                                                            | Crashes affect                                                             |
-| -------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `tale-proxy`               | TLS termination + edge routing                                                 | All ingress — no client can reach the UI                                   |
-| `tale-platform`            | Web tier: SPA + static assets, branding, the config SSE watch                  | Browser sees the loading page; the API keeps serving cached tabs           |
-| `tale-backend-api`         | Every application door: app API, auth, the SSE hint stream, the machine doors  | UI loads, but no data; sign-in, chat, and uploads fail                     |
-| `tale-backend-worker`      | Job runner: schedules, agent turns, ingestion, crawling, RAG indexing, doc gen | Chat still answers; background jobs, automations, and ingestion stall      |
-| `tale-db`                  | Operational Postgres — the `tale_app` store and the `tale_knowledge` corpus    | Writes block; knowledge search returns empty                               |
-| `tale-object-store`        | S3-compatible blob store (uploads, attachments, generated media)               | Every upload and download fails; existing chats without files keep working |
-| `tale-sandbox-llm-gateway` | LLM gateway for harness turns                                                  | Harness turns can't reach a model; chat is unaffected                      |
-| `tale-sandbox-egress`      | Network egress for sandboxed code                                              | `Run code` errors with "egress denied"; web render fails                   |
-| `tale-sandbox`             | Sandbox runtime + headless browser for web render and document generation      | `Run code`, web-crawl render, and document generation all fail             |
+Use logical service names with `tale logs <service>`. For your own Compose stack, use `docker compose logs --tail=200 <service>`; generated container names may include a project, colour, and replica number.
 
-One container is exposed to the public network (`tale-proxy` for HTTPS); the rest are internal-only. The `tale-bgutil-provider` sidecar is best-effort — its outage only degrades YouTube video-link ingestion.
+## Follow an interactive chat request
 
-## The request path
+1. The browser reaches `proxy`. Web assets go to `platform`; application and authentication requests go to `backend-api`.
+2. The API checks the session and organization, resolves the chosen model and credential, and executes the interactive turn. It stores progress in the application database.
+3. The browser reads turn progress through the thread's stream endpoint. `/events` carries invalidation hints for refreshed data; it is not the token payload stream.
+4. Knowledge tools access the requesting organization's knowledge connection. Original files are read through its storage configuration.
+5. A turn using a coding harness needs a sandbox session and the model gateway. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
 
-A chat message takes one round trip through the containers:
+A worker outage therefore has a different scope from an API outage, but it is not safe to declare all chat or agent work unaffected. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
 
-1. Browser → `tale-proxy` (TLS terminated).
-2. `tale-proxy` → `tale-platform` for the SPA shell and assets, → `tale-backend-api` for the app API (`/api/app/*`, `/api/auth/*`) and the `/events` SSE stream.
-3. `tale-backend-api` reads the org's provider config, picks the model, and opens a stream to the upstream provider, relaying tokens back over the `/events` SSE lane.
-4. If the agent retrieves knowledge: the backend runs the RAG search against `tale-db`'s `tale_knowledge` database directly — no separate retrieval service in the path.
-5. If the agent runs code: `tale-backend-api` → `tale-sandbox` → `tale-sandbox-egress` for any outbound network.
-6. Heavier work an agent turn spins off — document ingestion, generation, a scheduled automation — is picked up by `tale-backend-worker`, not the api.
+## Understand the sandbox dependencies
 
-The hot path is short. If chat latency feels wrong, the culprit is almost always the upstream provider, not Tale; the metrics endpoint on `tale-backend-api` surfaces the time spent in each hop.
+`sandbox` is a spawner with access to the host's Docker daemon. It creates temporary containers from the pinned sandbox-runtime image and mounts their workspaces. Those sessions use an isolated network: outbound web requests pass through `sandbox-egress`, while model calls use the gateway's scoped session access.
 
-## The sandbox plane
+The runtime also supplies Chromium and Playwright for page rendering and document generation. A healthy web UI does not prove that this execution plane works. Check image availability, workspace mounts, the shared sandbox token, and gateway credentials before diagnosing an individual script.
 
-Sandboxed code execution runs in `tale-sandbox` with `tale-sandbox-egress` as the only network seam. The two-container split is deliberate: `tale-sandbox` itself has no outbound network; every request the sandboxed code makes goes through `tale-sandbox-egress`, which blocks cloud-metadata and private-range targets at the IP layer and — when the operator sets `SANDBOX_EGRESS_ALLOWLIST` — enforces a default-deny hostname allowlist on top. If the egress container is down, sandboxed code that needs the network fails closed with "egress denied" — not a silent timeout.
+The egress service blocks private and metadata destinations and can enforce a hostname allowlist. An unavailable egress path can cause refusals or network failures; the precise error depends on the operation. [Hardening](/self-hosted/operate/security/hardening) describes the policy, and [Run Compose yourself](/self-hosted/install/own-compose) lists required capabilities and mounts.
 
-The sandbox runtime carries Chromium and Playwright, so the backend reuses it for the headless work it cannot do in-process: rendering a JavaScript page during a web crawl, and turning generated HTML into a PDF or image. Those jobs run as ephemeral sandbox executions rather than user code, but they ride the same egress and isolation seam. The sandbox is the only container that runs untrusted-ish code (user-supplied skill scripts, agent `Run code` invocations); the rest of the stack runs the platform's own code.
+## Recognize knowledge-index repair
 
-## Failure modes — what each container's outage looks like
+A damaged BM25 index can cause ingestion failures even when the underlying document tables remain readable. The backend checks knowledge indexes with `pdb.verify_index`; an advisory lock coordinates repair attempts for a database. Organization-specific databases are checked when they are first used.
 
-**`tale-proxy` down.** TLS handshake fails; every client sees a connection error. Inside the host, the platform and backend containers are still up — restart proxy first.
+| Result | Backend behavior | Operator response |
+| --- | --- | --- |
+| Healthy | Continue normal work. | No repair is needed. |
+| Damaged index at or below `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | Rebuild inline and verify again; the default limit is 1 GiB. | Allow for slower startup and inspect the final result. |
+| Larger damaged index | Schedule a concurrent background rebuild; affected indexing can wait with an index-rebuilding reason. | Watch worker progress and the final verification. |
+| Repair fails or verification cannot establish health | Record the failure; affected corpus operations can remain unavailable. | Inspect the exact cause, database permissions, and storage health before attempting manual repair. |
 
-**`tale-platform` down.** The browser gets the proxy's loading page instead of the app shell; the API keeps working. Existing tabs with cached assets keep talking to the backend and may not notice until they reload.
+Repair events can produce `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled`, or `knowledge_index_repair_failed` audit entries and administrator notifications. A failed rebuild is not proof that source documents are lost, and a successful rebuild does not replace a database backup.
 
-**`tale-backend-api` down.** The browser loads the UI shell but nothing populates, and sign-in, chat, and uploads all fail — this is the container every application request depends on. Restarting it is safe: sessions are server-side and clients reconnect the SSE stream. It is only a single point of failure at the default one replica; the api runs as a replica set, and raising `TALE_BACKEND_API_REPLICAS` puts more than one behind the same DNS alias ([Upgrades](/self-hosted/operate/upgrades)).
-
-**`tale-backend-worker` down.** Chat still answers — the api serves it — but scheduled automations, agent task runs, document ingestion, and RAG indexing stall until the worker is back. Jobs are at-least-once, so in-flight work resumes on the next pass rather than being lost. Raise `TALE_BACKEND_WORKER_REPLICAS` when the job queue is the bottleneck ([Upgrades](/self-hosted/operate/upgrades)).
-
-**`tale-db` down.** Writes block and knowledge search returns empty; the app surfaces "saving failed" toasts on any mutation. This is the one container whose data is not rederivable — restart it first and confirm it comes back healthy before worrying about the rest.
-
-**`tale-object-store` down.** Every upload and every download of a stored file fails; agents that read or write documents error, while chats that touch no files keep working. Restarting the container clears it — the blobs are on the `object-store-data` volume, not in the container.
-
-**`tale-sandbox` / `tale-sandbox-egress` down.** `Run code` tool calls return an error and skill scripts fail. Because the backend renders web pages and generates documents through the sandbox runtime, a web crawl that needs JavaScript rendering and document generation also fail closed while the sandbox is down. Agents that use none of these keep working.
-
-**`tale-sandbox-llm-gateway` down.** Harness turns lose their path to a model provider. Regular chat — which calls providers directly from the backend, not through the LLM gateway — is unaffected.
-
-## When `tale-db` comes back from a crash: the knowledge search index
-
-A hard stop of `tale-db` — a crash, a kill, a host reboot — can leave the knowledge corpus's BM25 search index (pg_search) with a zeroed block. The tables are intact, but every new chunk written to the corpus then crashes the database server ("corrupted page pointers"), the server restarts, and the next indexing job repeats the cycle. The index is derived data, so rebuilding it loses nothing — and the backend performs the rebuild itself.
-
-At boot, every backend container (api and worker) verifies each BM25 index of the knowledge database with `pdb.verify_index` before it serves requests or consumes jobs; an organization's own knowledge database is verified the same way the first time the backend touches it. An advisory lock on the knowledge database makes one container repair while the others skip. What happens next depends on the index size:
-
-- Up to `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` (default 1 GiB): the container rebuilds the index right there (`REINDEX INDEX`) and verifies it again before it goes on. Boot is delayed by the rebuild — seconds for a small corpus.
-- Larger: boot continues, a background job rebuilds the index without blocking reads (`REINDEX INDEX CONCURRENTLY`), and documents uploaded in the meantime get the reason "index rebuilding" in their indexing status instead of crashing the database. They are re-queued automatically once the rebuilt index verifies.
-
-The backend logs the whole sequence; this is what a repaired index looks like in `docker logs tale-backend-api`:
-
-```text
-[knowledge] the deployment-default knowledge database: BM25 index private_knowledge.idx_pk_chunks_bm25 is unhealthy (2.9 MB) — rebuilding it now: pdb.verify_index raised: assertion `left == right` failed
-[knowledge] the deployment-default knowledge database: rebuilt BM25 index private_knowledge.idx_pk_chunks_bm25 (2.9 MB, inline, 96 ms) — re-verified healthy (4 checks)
-```
-
-Every repair — and every rebuild that did not restore health — also writes an audit-log row (actor `system`; action `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled`, or `knowledge_index_repair_failed`) and rings the admin bell of every organization whose corpus lives in that database. A repair is one attempt per index per container start: when the rebuilt index still fails verification, the backend stops, refuses writes to that corpus with a clear error, and the bell says so — rebuild the index by hand (`REINDEX INDEX private_knowledge.idx_pk_chunks_bm25` on the `tale_knowledge` database) or restore the database from a backup. Repeated repairs after restarts point at how the container is being stopped; `KNOWLEDGE_INDEX_REPAIR_DISABLED=1` switches the check off entirely.
-
-## Where this fits
-
-This page is the operator's map; the [Architecture overview](/self-hosted/overview) is the introduction to the same picture, the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page is the symptom-first index when something has gone wrong. If you are setting alert thresholds, [Operations](/self-hosted/operate/observability/operations) names the signals worth wiring.
+`KNOWLEDGE_INDEX_REPAIR_DISABLED=1` disables the automatic check; it is not a fix for corruption. Repeated damage after restarts warrants investigating the database shutdown path and storage. Prefer normal stops with the configured grace period over forced kills. [Troubleshooting](/self-hosted/operate/observability/troubleshooting) gives the read-only index check and recovery precautions.

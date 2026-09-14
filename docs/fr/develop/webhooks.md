@@ -3,65 +3,135 @@ title: Webhooks
 description: Déclencheurs webhook entrants — poste sur une URL à jeton et une automatisation déployée s'exécute. Gestion du jeton, rotation, idempotence et codes de réponse.
 ---
 
-Une URL de webhook permet à un système externe de démarrer une automation déployée par HTTP POST. Utilise-la pour un événement comme une commande reçue ou un formulaire envoyé. Le token secret de l’URL autorise la livraison.
+Un webhook permet à un système externe de démarrer une automatisation déployée en envoyant une requête à une URL secrète. Il convient aux événements de commande, formulaires et autres notifications envoyées vers une destination fixe. Une réponse `202` confirme l'acceptation et fournit un ID d'exécution ; elle ne confirme pas la fin du travail.
 
-La réponse confirme l’acceptation et fournit un ID d’exécution, pas le résultat final. Les démarrages par webhook et par clé API sont tous deux asynchrones. Pour un premier envoi, suis le [tutoriel webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
+Pour une première configuration guidée, suis [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). Cette référence détaille la livraison, son périmètre, le cycle de vie du jeton et les relances.
 
 ## Un déclencheur, de bout en bout
 
-Lie un déclencheur webhook à une automatisation — dans l'éditeur de l'automatisation, ou avec `PUT /api/v1/automations/{name}/triggers` et `{"kind": "webhook"}` — et Tale répond une seule fois avec le jeton de l'URL. Ensuite, n'importe quel système démarre une exécution :
+### Préparer une automatisation déployée
 
-Choisis l’URL selon le travail à lancer. Pour une exécution de projet, utilise `/api/projects/{id}/automations/webhook/{token}`, comme dans cet exemple. L’automatisation doit être installée dans ce projet actif ; le projet et le token doivent appartenir à la même organisation. Le token autorise l’appel, mais ne permet pas de choisir un projet sans liaison. Pour une exécution sans projet, utilise `/api/automations/webhook/{token}` avec une automatisation qui n’a aucune liaison de projet. Une automatisation liée refuse cette URL globale avec **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED`. Le paramètre de requête `projectId` donne **400** sur les deux URL. Le corps du fournisseur devient une donnée de l’automatisation ; il ne choisit pas le projet.
+Enregistre puis déploie une automatisation dont les tests passent. Lie un webhook dans l'éditeur, ou envoie `PUT /api/v1/automations/{name}/triggers` avec `{"kind":"webhook"}` et une clé API autorisée. Copie immédiatement le nouveau jeton : il n'est renvoyé qu'une fois.
+
+Choisis l'URL selon le périmètre voulu :
+
+| Travail à démarrer | URL | Condition |
+| --- | --- | --- |
+| Exécution de projet | `/api/projects/{id}/automations/webhook/{token}` | Projet actif dans l'organisation du jeton, avec l'automatisation installée |
+| Exécution d'organisation | `/api/automations/webhook/{token}` | Automatisation sans liaison à un projet |
+
+Une automatisation liée à un projet refuse l'URL globale avec `409 AUTOMATION_PROJECT_SCOPE_REQUIRED`. N'ajoute pas de paramètre de requête `projectId` : les deux URL le refusent avec `400 INVALID_QUERY`. Un champ du corps fournisseur reste une donnée d'entrée, pas un sélecteur de projet.
+
+### Envoyer une livraison
+
+Conserve l'URL secrète complète dans `TALE_WEBHOOK_URL` via la configuration sécurisée de l'émetteur. Cette requête utilise un ID stable pour un même événement métier :
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
-  -H "Content-Type: application/json" \
-  -d '{ "orderId": "12345", "amount": 199.0 }'
-# → 202 { "runId": "..." }
+curl --fail-with-body --request POST "$TALE_WEBHOOK_URL" \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: order-12345-paid' \
+  --data '{"orderId":"12345","status":"paid"}'
 ```
 
-L’exécution reçoit `{ "trigger": "webhook", "payload": <body> }`. Lis l’identifiant de commande de l’exemple avec `input.payload.orderId`. Si tu définis un schéma `inputs`, il décrit cet objet englobant. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Kio (262 144 octets) est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/projects/{id}/runs/{runId}` avec une clé API, ou regarde-la dans le produit. Pour une livraison sans projet, utilise plutôt `GET /api/v1/runs/{runId}`. Une livraison de projet exige l’URL de ce projet et une clé API dont le détenteur peut le lire.
+L'acceptation renvoie HTTP `202` et une réponse de forme `{"runId":"..."}`. Conserve cet ID avec l'ID de livraison de l'émetteur. Tale transmet le corps à l'automatisation dans cette enveloppe :
 
-Le vocabulaire complet des réponses :
+```json
+{
+  "trigger": "webhook",
+  "payload": { "orderId": "12345", "status": "paid" }
+}
+```
 
-- **202** `{ "runId": "..." }` — l'exécution a démarré.
-- **202** `{ "runId": "...", "duplicate": true }` — une nouvelle livraison d’une livraison déjà acceptée ; `runId` est l’exécution que la première a lancée, et il n’en existe pas de seconde.
-- **400** — un paramètre de requête `projectId` (`INVALID_QUERY`), ou une entrée incompatible avec le schéma `inputs` de l’automatisation (`AUTOMATION_INPUT_INVALID`, chaque problème sous `data.issues`) ; aucune exécution ne démarre.
-- **403** `AUTOMATION_PROJECT_FORBIDDEN` — l’automatisation ne peut pas s’exécuter dans le projet de l’URL : il n’existe pas, il est archivé, ou l’automatisation n’y est pas installée. La réponse ne dit jamais lequel et ne nomme pas l’automatisation — une URL fuitée n’est pas un oracle des identifiants de projet de l’organisation.
-- **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien. La porte ne prend que `POST` : `GET`, `HEAD` et `OPTIONS` répondent le même **404** — jamais un 405, jamais d’en-tête `Allow` — le verbe n’est donc pas un oracle non plus.
-- **409** — `AUTOMATION_NOT_DEPLOYED` (déploie une version dont les tests passent et le même appel s’exécute), `AUTOMATION_PROJECT_SCOPE_REQUIRED` (une automatisation liée appelée sur l’URL globale — utilise son URL de projet) ou `AUTOMATION_DELIVERY_SCOPE_MISMATCH` (cet identifiant de livraison a d’abord été accepté par un autre périmètre d’URL).
-- **413** — le corps dépasse 256 Kio (262 144 octets).
-- **429** — le budget de l’expéditeur ou du déclencheur est épuisé ; `Retry-After` nomme l’attente. Les budgets sont plus bas.
+Lis la commande via `input.payload.orderId`. Si l'automatisation déclare un schéma `inputs`, il doit décrire cette enveloppe. Un corps qui n'est pas du JSON devient du texte dans `payload`. La limite est de 256 Kio (262 144 octets), comptés pendant la réception ; une requête plus grande reçoit `413`.
+
+### Suivre le résultat
+
+| Périmètre de livraison | Route de suivi authentifiée |
+| --- | --- |
+| Projet | `GET /api/v1/projects/{id}/runs/{runId}` |
+| Organisation | `GET /api/v1/runs/{runId}` |
+
+Interroge la route avec une clé API dont le titulaire peut lire ce périmètre, ou ouvre l'exécution dans Tale. Le jeton webhook autorise les livraisons, pas la lecture des résultats REST. Attends un état terminal avant d'annoncer que le travail a réussi.
+
+### Interpréter les réponses
+
+| Statut | Code/résultat | Action |
+| --- | --- | --- |
+| `202` | `runId` | Accepté ; suivre l'exécution |
+| `202` | `runId`, `duplicate: true` | Déjà accepté ; suivre l'exécution d'origine, aucune nouvelle exécution |
+| `400` | `INVALID_QUERY` | Retirer `projectId` de la chaîne de requête |
+| `400` | `AUTOMATION_INPUT_INVALID` | Corriger l'enveloppe ou le schéma avec `data.issues` |
+| `403` | `AUTOMATION_PROJECT_FORBIDDEN` | Vérifier projet actif, bonne organisation et installation |
+| `404` | Jeton inconnu, désactivé ou mal saisi ; aussi toute méthode autre que POST | Vérifier l'URL enregistrée et l'état du déclencheur |
+| `409` | `AUTOMATION_NOT_DEPLOYED` | Déployer une version dont les tests passent |
+| `409` | `AUTOMATION_PROJECT_SCOPE_REQUIRED` | Utiliser l'URL du projet d'installation |
+| `409` | `AUTOMATION_DELIVERY_SCOPE_MISMATCH` | Vérifier le périmètre de l'ID de livraison d'origine |
+| `413` | Corps trop volumineux | Réduire les données sous 256 Kio |
+| `429` | Budget de l'émetteur ou du déclencheur épuisé | Attendre au moins `Retry-After` |
+
+Une entrée refusée ne crée aucune exécution. Un refus de projet ne distingue volontairement pas un projet absent, archivé ou sans installation, et ne révèle pas le nom de l'automatisation. `GET`, `HEAD` et `OPTIONS` reçoivent le même `404` qu'un jeton invalide, sans en-tête `Allow`.
 
 ## Le jeton est l'identifiant
 
-Pas de signature, pas de header Authorization : le jeton dans l'URL est tout l'identifiant — traite l'URL comme un mot de passe. Tale n'en stocke qu'un hachage et compare en temps constant ; le texte en clair existe exactement une fois, dans la réponse qui l'a frappé.
+Le secret dans l'URL autorise la livraison. Ce point d'accès ne vérifie pas de signature HMAC du fournisseur et n'utilise pas d'en-tête `Authorization`. Garde l'URL hors des tickets publics, journaux partagés et captures d'écran. Tale stocke son hachage et le compare en temps constant ; le texte en clair n'est fourni qu'à la création.
 
-URL perdue ou fuitée ? Fais-la tourner — `PUT /api/v1/automations/{name}/triggers` avec `{"kind": "webhook", "rotateToken": true}` frappe un jeton neuf et le répond une fois ; l'ancienne URL meurt aussitôt. Délier le déclencheur (`DELETE .../triggers`, ou dans l'éditeur) la révoque entièrement ; les versions et l'historique d'exécution de l'automatisation restent. Lier une autre sorte par-dessus fait la même chose : un `PUT` de `{"kind": "schedule", ...}` sur une automatisation qui porte un webhook vivant répond **200** avec `"revoked": "webhook"` à côté du nom, l’ancienne URL répond 404 dès cet instant, et relier `webhook` plus tard frappe un jeton différent — lis donc `revoked` à chaque liaison que tu scriptes, et ne relie jamais vers une autre sorte tant qu’un partenaire poste encore sur l’URL. Désactiver le déclencheur (`"enabled": false`, ou l’interrupteur dans l’éditeur) ne fait que suspendre l’URL : elle répond le même **404** qu’un jeton qui n’a jamais existé, mais le jeton dort, il n’est pas mort — le réactiver, y compris par un `PUT` ultérieur qui omet simplement `enabled`, ramène la même URL à la vie. Après une fuite, fais tourner ou délie ; ne compte jamais sur l’interrupteur.
+| Modification | Effet sur le jeton |
+| --- | --- |
+| `PUT` webhook avec `rotateToken: true` | Nouveau jeton renvoyé une fois ; ancienne URL immédiatement invalide |
+| Supprimer/délier le déclencheur | Jeton révoqué ; versions et historique conservés |
+| Remplacer le webhook par une planification/un événement | Jeton révoqué ; réponse avec `revoked: "webhook"` |
+| Relier ensuite un webhook | Nouveau jeton ; l'ancien ne revient pas |
+| Définir `enabled: false` | URL suspendue avec `404`, jeton conservé |
+| Réactiver, y compris par un `PUT` ultérieur sans `enabled` | La même URL suspendue redevient active |
+
+<Warning>
+
+Après une fuite, renouvelle le jeton ou délie le déclencheur. Désactiver suspend temporairement l'accès, sans révocation définitive. Coordonne la rotation avec l'émetteur et remplace son URL enregistrée avant de reprendre les livraisons.
+
+</Warning>
+
+Lis `revoked` dans les changements de déclencheur scriptés pour éviter qu'un changement de type coupe discrètement un partenaire qui utilise toujours l'ancienne URL.
 
 ## Idempotence et relances
 
-L’endpoint reconnaît les livraisons répétées. La déduplication porte sur le déclencheur et le projet de son URL : le même identifiant peut démarrer une exécution dans chaque projet où l’automatisation est installée. Avant de renvoyer un doublon mémorisé, Tale vérifie encore la liaison et l’état actif du projet. Deux éléments identifient une livraison :
+La déduplication porte sur le déclencheur et le projet de son URL. Le même ID de livraison peut démarrer une exécution dans chaque projet d'installation. Tale vérifie encore l'activité du projet et l'installation avant de renvoyer un doublon mémorisé.
 
-- **Un identifiant de livraison que tu envoies.** Le premier de ces en-têtes présent l’emporte : `Idempotency-Key`, `X-Idempotency-Key`, le `webhook-id` des Standard Webhooks, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. L’identifiant est apparié par sa valeur, quel que soit l’en-tête qui le portait — une passerelle qui recopie l’identifiant de livraison d’un fournisseur sous `Idempotency-Key` livre la même livraison, pas une seconde. Une répétition avec le même identifiant dans les 24 heures répond **202** avec l’exécution d’origine et `"duplicate": true` — quoi que dise son corps.
-- **Le corps lui-même.** Sans en-tête d’identifiant, un corps identique à l’octet envoyé à la même URL en moins de deux minutes correspond à la même livraison. Après deux minutes, c’en est une nouvelle. Un heartbeat qui renvoie le même corps toutes les quelques minutes continue donc à démarrer des exécutions.
+| Identité | Fenêtre de doublon | Ce qui doit rester identique |
+| --- | --- | --- |
+| En-tête d'ID de livraison | 24 heures | Valeur de l'ID et périmètre ; même un corps différent compte comme la même livraison |
+| Aucun en-tête d'ID | 2 minutes | Corps identique octet par octet et même URL |
 
-```bash
-curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: order-12345-paid" \
-  -d '{ "orderId": "12345", "status": "paid" }'
-# → 202 { "runId": "run_a" }
-# la même requête à nouveau, autant de fois que tu veux, pendant 24 heures :
-# → 202 { "runId": "run_a", "duplicate": true }
+Pour les en-têtes, le premier présent dans cet ordre de priorité l'emporte :
+
+```text
+Idempotency-Key
+X-Idempotency-Key
+webhook-id
+X-GitHub-Delivery
+X-Gitlab-Event-UUID
+X-Shopify-Webhook-Id
+Linear-Delivery
+X-Atlassian-Webhook-Identifier
+X-Request-UUID
+I-Twilio-Idempotency-Token
+X-Webhook-Id
 ```
 
-Réessaie après une erreur réseau ou une réponse **5xx** temporaire, avec un nombre limité de tentatives et des pauses de plus en plus longues. Pour **429**, attends au moins la durée de `Retry-After`. Conserve le même identifiant de livraison pour éviter une seconde exécution si seule la réponse a été perdue. Corrige la cause des erreurs **4xx** avant de réessayer : `AUTOMATION_NOT_DEPLOYED` exige une version déployée et `AUTOMATION_PROJECT_SCOPE_REQUIRED` une URL de projet. Toute réponse **202** confirme la réception ; consulte ensuite l’exécution pour connaître son résultat. La déduplication empêche une seconde exécution pour la même livraison pendant sa durée de validité. Elle ne garantit pas qu’un système externe applique chaque modification exactement une fois.
+Les noms d'en-têtes sont des alternatives, pas des espaces d'identité séparés. Transmettre l'ID du fournisseur dans `Idempotency-Key` conserve son identité. Sans ID, une mise en forme JSON différente change les octets et peut créer une nouvelle livraison. Préfère un ID d'événement explicite et stable si l'émetteur le permet.
+
+Répéter l'exemple dans les 24 heures renvoie le `runId` d'origine avec `duplicate: true`. Cela ne réexécute pas une automatisation échouée. Décide séparément comment récupérer l'exécution en échec, sans changer aveuglément les IDs de livraison.
+
+Relance les erreurs réseau et les réponses `5xx` temporaires avec une attente exponentielle bornée. Pour `429`, respecte `Retry-After`. Garde l'ID si une réponse a pu être perdue. Corrige les autres causes `4xx` avant de relancer. La déduplication évite les exécutions supplémentaires dans sa fenêtre ; elle ne garantit pas des effets appliqués exactement une fois dans un service externe.
 
 ## Budgets
 
-Rien n’authentifie un expéditeur, la porte est donc budgétée deux fois. Chaque adresse d’expéditeur — telle que les proxys de confiance du déploiement la rapportent — reçoit 120 livraisons par minute avec une rafale de 240, facturées avant même la vérification du jeton, si bien qu’un déluge d’URL devinées ne coûte rien de plus à la porte. Chaque déclencheur vérifié reçoit 20 livraisons par minute avec une rafale de 40 : une livraison coûte une exécution durable entière, le même prix qu’un démarrage authentifié par clé. Au-delà de l’un ou de l’autre, la porte répond **429** avec `Retry-After` en secondes entières et l’enveloppe d’erreur habituelle ; recule comme la page [Limites de débit](/fr/develop/rate-limits) le décrit, garde l’identifiant de livraison stable d’une tentative à l’autre, et la relance se lit comme le doublon qu’elle est, pas comme une seconde exécution.
+| Budget | Recharge | Rafale | Décompté |
+| --- | --- | --- | --- |
+| IP de l'émetteur selon les proxys de confiance | 120/minute | 240 | Avant vérification du jeton |
+| Déclencheur vérifié | 20/minute | 40 | À l'admission de la livraison |
+
+Chacun peut provoquer `429` avec `Retry-After` en secondes entières et l'enveloppe d'erreur habituelle. Le jeton authentifie l'accès au déclencheur, mais il n'existe pas d'identité de compte émetteur distincte à limiter. Suis les [limites de débit](/fr/develop/rate-limits) et conserve l'ID de livraison pendant l'attente.
 
 ## Choisir entre webhook et clé API
 
-Choisis un webhook si l’émetteur peut envoyer ses événements à une URL fixe. Utilise une clé API pour un programme qui doit aussi lister les automatisations, choisir un projet ou lire les résultats. Garde ces deux types d’accès secrets. La page [Déclencheurs](/platform/automations/triggers) explique la configuration dans l’application ; la [référence API](/develop/api-reference) décrit le lancement et le suivi des exécutions avec une clé.
+Utilise un webhook si l'émetteur accepte une URL d'événement fixe. Choisis une clé API si ton client doit aussi découvrir les automatisations, sélectionner des projets ou lire les résultats. [Déclencheurs](/fr/platform/automations/triggers) explique la configuration dans l'application ; la [référence API](/fr/develop/api-reference) décrit les démarrages authentifiés et leur suivi.

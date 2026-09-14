@@ -3,15 +3,15 @@ title: Connectors
 description: Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wohin dein eigener Code gehört, wenn kein Connector passt.
 ---
 
-Ein Connector beschreibt, wie Tale einen Dienst aufruft: erlaubte Hosts, Authentifizierung und typisierte Aktionen. Definitionen werden mit der Plattform ausgeliefert; Zugangsdaten verwaltet jede Organisation selbst. Nutze diese Referenz, um einen Aktionsvertrag zu prüfen oder einen Connector beizutragen.
+Ein Connector stellt Tale einen wiederverwendbaren Zugriff auf einen Dienst bereit. Seine Definition beschreibt Authentifizierung, erlaubte Ziele und Aktionen; jede Organisation hinterlegt eigene Zugangsdaten. Diese Seite hilft dir, den Vertrag zu prüfen oder einen neuen Connector beizutragen.
 
-Für das Verbinden eines Kontos in der App folge [Connector-Zugangsdaten](/de/platform/admin/connectors). Vorhandene Integrationen findest du im [Connector-Katalog](/de/platform/connectors/overview).
+Wenn du ein Konto in der Anwendung verbinden möchtest, nutze [Connector-Zugangsdaten](/de/platform/admin/connectors). Verfügbare Integrationen findest du im [Connector-Katalog](/de/platform/connectors/overview).
 
 ## Wie ein Connector deklariert wird
 
-Jeder Connector ist ein Verzeichnis unter `configs/platform/system/connectors/`, benannt nach seinem Slug, mit einer `connector.yml` und dem Icon, das die Einstellungsseite rendert. Der Slug ist der Verzeichnisname, der deklarierte `name` des Connectors und die erste Hälfte des Node-Typs, mit dem eine Automation eine seiner Aktionen setzt — `<connector>.<action>`. Vierzehn Vendor-Connectoren erscheinen heute in den Einstellungen (plus einige Platform-Auth-Connectoren, die der Picker ausblendet).
+Definitionen liegen unter `configs/platform/system/connectors/<slug>/connector.yml`, zusammen mit dem Symbol des Connectors. Der Verzeichnis-Slug muss `name` entsprechen. Automatisierungen rufen Aktionen mit `<connector>.<action>` auf, etwa `tavily.search`. Anbieter-Connectoren erscheinen in den Einstellungen; interne Connectoren mit Plattformauthentifizierung nicht.
 
-Die Datei beginnt mit der Identität des Connectors und seinem Authentifizierungs-Vertrag, danach folgen die Aktionen:
+Dieser Ausschnitt aus der mitgelieferten Tavily-Definition zeigt Identität und Authentifizierung. Er ist kein vollständiger Connector: Die Aktionsdefinitionen fehlen hier bewusst.
 
 ```yaml
 name: tavily
@@ -23,43 +23,50 @@ allowedHosts:
   - api.tavily.com
 auth:
   - method: api-key
-actions:
-  - name: search
-    description: >-
-      Search the open web via Tavily. Returns top results with title, URL,
-      content snippet, and score.
-    effects: read
-    input:
-      type: object
-      required: [query]
-      properties:
-        query: { type: string, description: 'Natural-language search query.' }
-        max_results: { type: number, description: 'Max results (1-10).' }
-    output: '{ answer?: string, results: Array<{ title: string, url: string, content: string, score: number }> }'
 ```
 
-`allowedHosts` ist die Egress-Grenze — ein Aktionsrumpf, der woanders hingreift, wird abgewiesen statt weitergeleitet. Ein Connector, dessen API bei der Kundschaft statt beim Anbieter liegt, ergänzt `endpointMode: per-credential`; jeder Eintrag trägt dann den Ursprung, aus dem seine Aufrufe gebaut werden. Confluence und Shopify sind die beiden ausgelieferten Fälle.
+### Erlaubte Ziele festlegen
+
+| Feld | Bedeutung |
+| --- | --- |
+| `endpointMode: fixed` | Standard. Live-HTTP-Aufrufe verwenden feste Anbieter-URLs; `allowedHosts` enthält genaue Hostnamen |
+| `endpointMode: per-credential` | Jeder Zugang enthält eine HTTPS-`endpointUrl`; Aktionen lesen den Ursprung ohne abschließenden Schrägstrich über `ctx.endpoint` |
+| `allowedHosts` bei per-credential | Hostsuffixe: `atlassian.net` erlaubt seine Subdomains |
+| `configFields` | Nicht geheime Angaben je Zugang, etwa Serverhost, Port, Region oder API-Version |
+
+Confluence und Shopify verwenden Ursprünge je Zugang. Geheimnisse gehören nicht in `configFields`, sondern in die verschlüsselten Zugangsdaten. Bei JavaScript-Aktionen setzt `ctx.http` die erlaubten HTTP-Ziele durch. Native Backends, etwa für Mailprotokolle, prüfen ihren Transport selbst; eine HTTP-Freigabeliste beschreibt nicht ihre gesamte Sicherheitsgrenze.
 
 <Info>
 
-Connectoren werden aus dem Baum der Plattform gelesen, nicht aus der Konfiguration einer Organisation, und es gibt keinen Upload-Weg, der zur Laufzeit einen hinzufügt. Einen Connector zu ergänzen ist ein Beitrag am Quellcode — siehe [Contributor-Setup](/de/develop/contributor-setup). Einen eigenen Dienst ohne Eingriff in den Quellcode erreichst du über die **Secrets** eines Projekt-Agenten oder einen `transform`-Knoten einer Automatisierung — der Abschnitt zur Wahl der Oberfläche unten zeigt, wie.
+Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformkatalog; Organisationen können keine Connector-Definition hochladen. Beginne mit der [Entwicklungsumgebung](/de/develop/contributor-setup) und prüfe vor der Umsetzung einen vorhandenen Connector mit ähnlicher Authentifizierung und ähnlichem Transport.
 
 </Info>
 
 ## Was eine Aktion zusichert
 
-Eine Aktion ist ein Vertrag, und jedes Feld davon liegt offen, bevor der Aufruf passiert:
+| Feld | Vertrag für Autor und Aufrufer |
+| --- | --- |
+| `name`, `description` | Stabiler Aktionsname in snake_case und eine Erklärung zum Einsatzzweck |
+| `input` | Objekt-JSON-Schema, vor der Ausführung validiert; Felder beschreiben und Pflichtfelder markieren |
+| `output` | Ergebnissignatur im TypeScript-Stil; Dokumentation, keine Laufzeitvalidierung der Ausgabe |
+| `effects` | `read` oder `write`; Schreibaktionen durchlaufen die Genehmigungsrichtlinie |
+| `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
+| `backend` | Optionale Live-Implementierung: `yaml-js` mit `live` oder `native` mit `impl`-Kennung |
+| `exampleInput` | Optionales kleines, aussagekräftiges Beispiel für Erkennung und Tests |
 
-- **Name und Beschreibung.** Der Name vervollständigt den Node-Typ; die Beschreibung ist das, was ein Agent liest, wenn er entscheidet, ob diese Aktion die richtige ist.
-- **Eingabe.** Ein JSON Schema — Objekttyp, Pflichtfelder und eine Beschreibung pro Property. Automationen prüfen die Konfiguration eines Nodes dagegen, und Agents füllen sie aus demselben Schema.
-- **Ausgabe.** Eine Signatur der Form, die zurückkommt, damit beim Bauen eines Workflows klar ist, worauf der nächste Schritt zugreifen kann.
-- **Effekte.** Entweder `read` oder `write`. Schreibende Aktionen laufen über die Genehmigungsrichtlinie der Organisation, und ein Aufruf, der keine Genehmigungsentscheidung erreicht, wird abgewiesen statt ungeprüft ausgeführt.
+Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 
-Aktionen lösen ihre Zugangsdaten zum Aufrufzeitpunkt auf: den Eintrag, den der Aufrufer benennt, oder den Standard des Connectors, wenn er keinen benennt. Genau diese Naht lässt dieselbe Automation gegen ein anderes Konto laufen, sobald sie auf einen anderen Namen zeigt. Mail-Sync und Posteingangs-Sichtung weichen davon absichtlich ab: `conversation.sync_mailbox` und `conversation.list_mailbox_messages` laufen über jeden aktiven Eintrag des Connectors, damit jedes verbundene Postfach dran ist, ohne dass eine Automation sie einzeln benennen muss.
+Lies bei Ergebnisverträgen auch die Live-Implementierung. Tavily beschreibt beispielsweise `max_results` als Eingabe, begrenzt die zurückgegebenen Suchergebnisse aber auf fünf. Die Ausgabesignatur allein erklärt diese Grenze nicht.
+
+### Das richtige Konto auswählen
+
+Der Zugang wird beim Aufruf bestimmt: der ausdrücklich benannte, sonst der Standardzugang des Connectors. Ein geänderter Standard kann daher beeinflussen, welches Konto ein späterer Lauf nutzt. Benenne den Zugang ausdrücklich, wenn das Konto Teil deines Integrationsvertrags ist.
+
+Für Postfächer gilt eine gezielte Ausnahme: `conversation.sync_mailbox` und `conversation.list_mailbox_messages` durchlaufen alle aktiven Zugänge des Connectors. So werden sämtliche verbundenen Postfächer berücksichtigt, nicht nur das Standardkonto.
 
 ## Die Authentifizierungsmethoden
 
-Ein Connector deklariert die Methoden, die er akzeptiert, und ein Eintrag liegt an genau einer davon. Die vier stehen fest, weil jede einen anderen Weg beschreibt, auf dem ein Secret den Anbieter erreicht.
+Ein Connector kann mehrere Verfahren unterstützen; ein gespeicherter Zugang verwendet genau eines.
 
 | Methode   | Bezeichnung in der Oberfläche | Was der Eintrag hält                                                                                                       |
 | --------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -68,44 +75,52 @@ Ein Connector deklariert die Methoden, die er akzeptiert, und ein Eintrag liegt 
 | `basic`   | Benutzername & Passwort       | Benutzername und Passwort als HTTP Basic — dieselbe Form, die auch ein Postfach-Login annimmt.                             |
 | `oauth2`  | OAuth                         | Ein Authorization-Code-Grant: Access Token, Refresh Token, Ablauf und die erteilten Scopes.                                |
 
-Secrets liegen verschlüsselt in einem einzigen Umschlag und wandern nie an einen Aufrufer zurück. Eine Auflistung zeigt eine maskierte Vorschau, die beim Schreiben des Eintrags berechnet wurde — das Lesen der Liste berührt den Geheimtext also nie.
+Das interne Verfahren `platform` hat keine gespeicherten Zugangsdaten und lässt sich nicht mit Anbieter-Verfahren kombinieren. Es ist nativen Plattformfunktionen wie Aufgaben- und Dokumentaktionen vorbehalten.
+
+Geheimnisse werden verschlüsselt gespeichert. Listen liefern maskierte Vorschauen und Metadaten statt Klartext. Die autorisierte Live-Laufzeit löst das Geheimnis für den eigentlichen Aufruf auf. Erfolgreiches Speichern bestätigt nur die Ablage, nicht die Gültigkeit beim Anbieter oder ausreichende Berechtigungen.
 
 ## Eine OAuth-App registrieren
 
-Ein `oauth2`-Connector deklariert die Authorize- und Token-URLs des Anbieters sowie die Scopes, die er anfragt; irgendwo muss die App herkommen, gegen die sich diese URLs authentifizieren. Zwei Quellen gibt es, und die spezifischere gewinnt:
+Der Connector deklariert Autorisierungs- und Token-URLs sowie angeforderte Berechtigungen. Konfiguriere zuerst die Anbieteranwendung und verbinde danach ein Konto darüber.
 
-- **Pro Organisation** — ein Org-Admin öffnet **Einstellungen > Connectors** und trägt unter **OAuth-Apps** Client-ID und Secret aus der App-Registrierung des Anbieters ein (plus die Verzeichnis-ID bei einer Single-Tenant-Microsoft-App; Tale autorisiert dann gegen diesen Tenant statt gegen `/common`). Das Secret liegt verschlüsselt und wird nie wieder angezeigt. Auf einem Multi-Org-Deployment bringt so jede Organisation ihre eigene Anbieter-App mit.
-- **Pro Deployment** — Umgebungsvariablen, pro Connector benannt als `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, mit großgeschriebenem Slug und Bindestrichen als Unterstriche. Sie sind der deployment-weite Standard überall dort, wo eine Organisation keine eigene App hinterlegt hat.
+| Quelle | Vorrang und Einrichtung |
+| --- | --- |
+| Organisations-App | Hat Vorrang. Ein Administrator hinterlegt Client-ID und Geheimnis unter **Einstellungen > Connectoren > OAuth-Apps** |
+| Deployment-App | Standard ohne Organisations-App: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
-Slack ist die Ausnahme: Seine App bleibt reine Umgebungskonfiguration (`CONNECTOR_OAUTH_SLACK_*` plus `CONNECTOR_SLACK_SIGNING_SECRET`), weil die Signaturprüfung eingehender Events läuft, bevor irgendeine Organisation bekannt ist. Registriere in der Slack-App `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Request URL; der Endpunkt beantwortet den Registrierungs-Handshake erst, wenn das Signing-Secret gesetzt ist, und antwortet bis dahin mit 503. Eine Zustellung wird gegen das Signing-Secret geprüft, der Organisation zugeordnet, deren Workspace sie geschickt hat, und bestätigt — weiter verarbeitet wird sie in dieser Version nicht. Wer Slack heute verbindet, bekommt also die ausgehenden Aktionen, keine eingehende Konversation.
+Schreibe den Slug in Umgebungsvariablen groß und ersetze Bindestriche durch Unterstriche. Bei einer Microsoft-App für einen einzelnen Mandanten gehört die Verzeichnis-ID dazu, damit die Autorisierung diesen Mandanten statt `/common` nutzt. Organisationsgeheimnisse werden verschlüsselt und nicht erneut angezeigt.
 
-Registriere beim Anbieter genau diesen Callback als erlaubte Redirect-URI, gebaut aus `SITE_URL` und einem etwaigen `BASE_PATH`-Präfix des Deployments:
+### Die Callback-URL exakt registrieren
+
+Alle OAuth-Connectoren der Organisation verwenden diese Redirect-URI:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 ```
 
-Ist `SITE_URL` nicht gesetzt, verweigert der Freigabe-Flow den Start, statt einen Ursprung aus der Anfrage zu raten.
+Schema, Host und Pfad müssen exakt übereinstimmen, einschließlich des fehlenden abschließenden Schrägstrichs. Ohne `SITE_URL` startet Tale die Einwilligung nicht; es leitet keine öffentliche Callback-URL aus der Anfrage ab. Ein `redirect_uri`-Fehler beim Anbieter deutet meist darauf hin, dass registrierte und gesendete URI voneinander abweichen.
 
-Persönlicher OneDrive- / Google-Drive-Import für Wissen ist **kein** Org-Connector — er löst seine OAuth-App aber auf demselben Weg auf, und die **google-drive**-App teilen sich beide Bahnen: ein Google-OAuth-Client mit beiden registrierten Redirect-URIs bedient den Connector und den Wissens-Import. Siehe [Dokumente](/de/platform/knowledge/documents) und den Cloud-Import-Redirect unter [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
+Persönliche OneDrive-/Google-Drive-Importe für Wissen sind ein eigener Ablauf. Google Drive verwendet dieselbe OAuth-App für Connector und Import. Registriere deshalb beide Redirect-URIs beim Google-Client. Die Import-URL steht in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
-<Warning>
+### Slacks Ereignisendpunkt einrichten
 
-Die Redirect-URI muss Byte für Byte übereinstimmen — Schema, Host, Pfad und kein abschließender Schrägstrich. Eine Abweichung scheitert schon am Freigabe-Dialog des Anbieters mit einem `redirect_uri`-Fehler, bevor Tale den Callback überhaupt sieht; das ist der mit Abstand häufigste Grund, warum ein frischer OAuth-Connector nicht verbindet.
+Die Slack-App wird ausschließlich für das Deployment konfiguriert: `CONNECTOR_OAUTH_SLACK_*` und `CONNECTOR_SLACK_SIGNING_SECRET`. Eingehende Ereignisse müssen geprüft werden, bevor Tale die Organisation kennt; eine Organisations-App kann dieses Geheimnis daher nicht bereitstellen.
 
-</Warning>
+Registriere `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Request URL. Ohne Signaturgeheimnis erhält schon die Registrierung `503`. Mit gültiger Konfiguration prüft Tale Signaturen und ordnet den Slack-Workspace einer Organisation zu. Der Endpunkt bestätigt Ereignisse derzeit nur. Er macht aus eingehenden Slack-Nachrichten keine Konversationen und startet nicht automatisch eine Automatisierung.
 
 ## Die passende Oberfläche wählen
 
-Zwei Oberflächen erreichen Systeme außerhalb von Tale, und die Wahl dreht sich darum, wem die Brücke gehört und wer sie betreibt.
+| Bedarf | Weg |
+| --- | --- |
+| Unterstützte Anbieteraktion | Mitgelieferter Connector mit Organisationszugang |
+| Wiederverwendbare Aktion fehlt im Katalog | Quellcodebeitrag mit Schema, deterministischem Mock, Live-Backend und Tests |
+| Projektspezifische Aufrufe deines Dienstes | Geheimnisse und Sandbox-Code eines Projektagenten, innerhalb der Netzwerkfreigaben der Sandbox |
+| Eigene Logik in einer Automatisierung | `transform`-Knoten im Rahmen der Fähigkeiten und Netzwerkregeln des Runners |
 
-| Oberfläche               | Greif dazu, wenn                                                                                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mitgelieferter Connector | Für das Zielsystem gibt es bereits einen. Deine Arbeit sind die Zugangsdaten, der Anbieter-Vertrag wird für dich gepflegt.                                           |
-| Dein eigener Code        | Nichts Mitgeliefertes deckt das System ab — eine interne API, ein selbstgebautes Tool, ein Host, den nur dein Netz erreicht. Ein Projekt-Agent ruft ihn mit einem **Secrets**-Eintrag aus seiner Sandbox auf; eine Automatisierung aus einem `transform`-Knoten. |
+Ein Geheimnis ermöglicht die Anmeldung, aber nicht die Erreichbarkeit eines privaten Dienstes. Prüfe den Netzwerkzugriff aus der tatsächlichen Sandbox oder dem Runner, bevor du deine Integration darauf aufbaust.
 
-Einen externen MCP-Server zu registrieren, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein MCP-Client Tale steuert. [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist; [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz für die Oberfläche, die es tatsächlich gibt.
+Externe MCP-Server lassen sich nicht registrieren. Über Tales [MCP-Endpunkt](/de/develop/mcp-endpoint) ruft ein externer Client Tale auf; dadurch entsteht kein ausgehender Connector zu einem anderen MCP-Server.
 
 ## Wo das hingehört
 
-Ein Connector ist ein deklarierter Vertrag — Hosts, Authentifizierung und eine typisierte Aktionsliste — der mit der Plattform kommt und aus Zugangsdaten gespeist wird, die der Organisation gehören. Lies [Connectors](/de/platform/connectors/overview) für das, was im Katalog steht, [Zugangsdaten für Connectors](/de/platform/admin/connectors) für den täglichen Umgang mit diesen Einträgen, und [MCP-Server](/de/platform/connectors/mcp-servers) für die einzige MCP-Oberfläche, die diese Version mitbringt.
+Prüfe bei einem Beitrag drei Bereiche getrennt: Schemavalidierung, deterministisches Mock-Verhalten und echte Anbieteraufrufe. Prüfe auch Fehlerfälle: fehlender Zugang, falsche Berechtigungen, gesperrtes Ziel, ungültige Eingabe, Anbieterfehler und ausstehende Genehmigung bei Schreibaktionen. Die [Entwicklungsanleitung](/de/develop/contributor-setup) beschreibt die lokale Umgebung, die [Zugangsdaten-Anleitung](/de/platform/admin/connectors) die Einrichtung durch Administratoren.

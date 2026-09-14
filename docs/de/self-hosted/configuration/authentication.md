@@ -28,7 +28,7 @@ Prüfe mit einem Testkonto Einladung, Anmeldung, Abmeldung und Wiederherstellung
 
 ## Unternehmens-SSO verbinden
 
-Konfiguriere die Organisation unter **Einstellungen > Unternehmens-SSO**. Microsoft Entra ID und generisches OIDC lesen die Endpunkte über den Aussteller; OAuth2 verwendet ausdrücklich angegebene Autorisierungs-, Token- und Userinfo-Endpunkte. SAML verwendet Metadaten, eine Assertion-Consumer-URL und Signaturzertifikate.
+Konfiguriere die Organisation unter **Einstellungen > Enterprise-SSO**. Microsoft Entra ID und generisches OIDC lesen die Endpunkte über den Aussteller; OAuth2 verwendet ausdrücklich angegebene Autorisierungs-, Token- und Userinfo-Endpunkte. SAML verwendet Metadaten, eine Assertion-Consumer-URL und Signaturzertifikate.
 
 <Frame caption="Kopiere die URLs aus der laufenden Instanz, damit Domain und Bereitstellungspfad stimmen.">
 

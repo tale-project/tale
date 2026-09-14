@@ -1,85 +1,51 @@
 ---
-title: Execution logs
-description: How to read an automation's runs — the statuses, the mode, what started each one, the per-node results and effects, and a worked session that finds a failure.
+title: Read automation runs and recover from failures
+description: Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry.
 ---
 
-Every start of an automation opens a run, and the run keeps writing to itself until it finishes. It records what started it, which version it used, what it received, what each node produced, and recorded connector writes. This is the surface every other automations page points at when something did not happen the way you expected, so it is worth knowing how to read one before you need to.
+Open an automation and select a row under **Runs** to understand what happened. Start with its status, version and mode, then inspect the relevant node. A successful test run proves the workflow’s mocked execution; it does not prove that a real external account will accept the same action.
 
-## The run list
+## Read the run’s state
 
-An automation's page has a **Runs** tab: every run, newest first. Each row carries the run's status, whether it was a test or a live run, the version it ran, when it started, and what started it. A run that failed or is waiting shows the reason on the row itself instead of the starter, so the list often answers the question without being opened.
+The run list is newest first. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time.
 
-An automation that has never run says so rather than showing an empty table.
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| **Queued** | Accepted, waiting for execution. | Wait and inspect capacity if it does not progress. |
+| **Running** | The engine is processing the workflow. | Follow node progress. |
+| **Waiting** | A decision, reply, agent turn or polling condition is outstanding. | Read what it is waiting for. |
+| **Succeeded** | Reached nodes completed and the workflow produced its output. | Review output and effects. |
+| **Failed** | Execution ended with an unhandled failure. | Open the failed node and read its error. |
+| **Stopped** | The run was cancelled. | Inspect work already performed before restarting. |
 
-## What each status means
+A waiting approval or question requires a person; a running agent or polling node may continue without you. A decision or answer can also be refused or expire. Use the displayed reason, not **Waiting** alone, to decide whether action is needed. [Approvals in workflows](/platform/automations/approvals-in-workflows) explains the decision controls.
 
-| Status        | What it tells you                                                 |
-| ------------- | ----------------------------------------------------------------- |
-| **Queued**    | The run exists and is waiting for the engine to pick it up        |
-| **Running**   | The engine is working through the nodes                           |
-| **Waiting**   | The run is parked — on a person, or on something still in flight  |
-| **Succeeded** | Every node the graph reached finished and the output was produced |
-| **Failed**    | A node errored and nothing was configured to carry on past it     |
-| **Stopped**   | Somebody cancelled the run; work already performed is not undone  |
+## Inspect the node that matters
 
-**Waiting** is the one people misread. It is not a stall and not a failure — the run is holding its place and will carry on from the node it stopped at. What it waits for comes in two families, and only one of them needs you: a run parked on an **approval** or on a **question** an agent asked is waiting for a person, and stays there until the decision is made or the question answered; a run parked on an agent turn that is still working, or on a node that polls until its condition holds, is waiting on itself and moves on without anyone. The row names the wait, so a run that reads _waiting_ for minutes while a poll ticks is healthy, not stuck. Over the API the same distinction is the `waitingFor` field — `approval`, `ask`, `agent` or `repeat` — and "runs that need a human" is `waitingFor` in the first two, never the status alone. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates.
+Select a node on the run’s canvas. **Resolved input** shows the actual values after template evaluation; **Output** shows what the step returned. These fields distinguish a bad reference from a service failure.
 
-## Test runs and live runs
+Node states include **Ran**, **Skipped**, **Failed**, **Never reached** and **Not reached yet**. A skipped node may have a false condition, an unmet dependency, an alternate branch or a failure rule that permits continuation. Do not assume every skipped node is an error.
 
-Every run is marked as one or the other, and the difference is whether the outside world was touched. A **test** run uses each connector's deterministic stand-in: no mail leaves, no record is written, nothing is charged. A **live** run may do all three, which is why starting one is a developer-level action and why every effect it produces is recorded.
+For example, a reminder node may receive a customer name but an empty invoice ID. Inspect its upstream output: if the record now uses another field, correct the reference there rather than replacing the mail credential. Verify the corrected resolved input in a new test run.
 
-Reading a test run tells you whether the graph and the data flow are right. Only a live run tells you whether the outside systems behaved.
+## Check what the run changed
 
-## Reading one run
+The effects list records connector writes, with the node, connector and input. A test uses deterministic stand-ins; live actions can change external systems. The run explicitly reports when it has no recorded effects.
 
-Open a run and you get the automation's canvas with that run painted onto it, plus the run's own facts around it: the version, the mode, when it started, and when it finished.
+Read effects before retrying. A failure later in the graph does not undo an earlier message or update. For delivery-sensitive work, confirm the result with the receiving service as well. Effects are retained with the run until deletion or retention removes that record; they are not a permanent independent archive.
 
-### Per-node results
+## Understand continuation and automatic retries
 
-Every box on the canvas carries the status the run gave it — it **Ran**, was **Skipped**, **Failed**, was **Never reached**, or has **Not reached yet** while the run is still going. A failure is therefore a position in the graph rather than a line to search for, and the nodes downstream of it show plainly as never reached.
+The engine checkpoints completed nodes and resumes after those checkpoints when execution continues. An unfinished run whose continuation was lost can be picked up after a grace period. A separate run starts with separate checkpoints and can repeat writes, so “run again” is different from resuming the existing run.
 
-Select a node and the panel shows what happened to it: the **Resolved input** it actually received once every template had been evaluated, and its **Output**. Resolved input is the single most useful field on this page. It shows the value a reference produced rather than the reference you wrote, which is how a template that quietly resolved to nothing gets caught.
+An eligible agent-step failure can receive up to three automatic retries after the original attempt. Upstream checkpoints remain intact, and the header reports **Auto-retry 1 of 3** and subsequent attempts. An attempt that performs at least fifteen minutes of execution refreshes that retry budget. Subscription pools can choose another account for a new attempt.
 
-Skipped nodes are worth reading rather than glossing over, because the reason differs: a node can be skipped by its own condition, by a node it depends on having been skipped, because it is the else-branch of a node that ran, or because it failed under a setting that lets the run continue.
+An exhausted budget, full execution-window timeout, or expired question does not receive those retries. Each attempt consumes its own resources; retrying does not erase earlier charges. If repeated attempts cannot fix the cause, stop the run and correct the dependency before starting another.
 
-### Effects
+## Stop or repair the workflow
 
-A run also keeps an ordered list of recorded connector writes — each entry naming which node caused it, which connector was called, and the input it was called with. A run that changed nothing outside the platform says so explicitly, which is a real answer rather than an empty section.
+Select **Stop the run** for an unfinished run you want to cancel. Cancellation stops further work at the engine’s execution boundaries; it does not roll back completed effects.
 
-The effects list is what makes a run auditable after the fact. Use it to inspect recorded connector writes and their inputs. The records remain with the run until retention or deletion removes it; confirm final delivery with the receiving service when that matters.
+To repair a document problem, return to the editor, change the relevant input or node, and save a version with a useful message. Run a test with representative input and inspect the values and output, not only the success badge. Deploy that version when the result is ready. Scheduled and webhook starts then use the deployed version; an older failed run remains a record of the old version.
 
-## How a long run resumes
-
-A live run does not execute in one go. It steps node by node, and every completed node is checkpointed before the next one starts, so when a run reaches the platform's time window it hands itself back and resumes from the last completed node. The engine resumes after completed checkpoints. Before starting a separate run, inspect the recorded effects: a new run has its own checkpoints and may repeat a write.
-
-The same checkpoints cover a run whose continuation was lost. A run left in a non-terminal state past a grace period is picked back up automatically and continues from where its checkpoints say it got to, rather than restarting or sitting unfinished forever.
-
-## When an agent step fails
-
-An agent step that fails for a reason a fresh attempt could change — the provider refused the call, the sandbox died under it, the harness crashed — is retried by the run itself: up to three automatic attempts, immediately, on top of the original one. Everything upstream keeps its checkpoints, the run stays live the whole time, and its header counts the platform's attempts as **Auto-retry 1 of 3**, so you can tell the engine's retry from a rerun you started yourself. An attempt that made real progress — fifteen minutes of actual execution — refreshes the budget instead of spending it, and on providers served by a pool of subscription accounts each new attempt avoids the accounts that just failed.
-
-Two failures are never retried, because a fresh attempt could not end differently: a step that ran out its whole time window, and a question left unanswered until it expired. Once the budget is spent the run fails with the last error and says how many attempts it burned; each attempt is billed on its own, so a run that retried three times paid for four. A retrying run is still one live run — **Stop the run** is the way out when you can see the retries are not going to change anything.
-
-## A worked debugging session
-
-The daily reminder did not go out. Open the automation's **Runs** tab: this morning's run is there and it is **Failed**, with its reason on the row.
-
-Open it. The canvas shows the first three nodes as having run, the fourth as failed, and everything after it as never reached — so the question is already narrowed to one box. Select the failed node and read its **Resolved input**: the customer name is present, the invoice id is an empty string. That points one node upstream.
-
-Select that upstream node and read its output. It returned a record with no `id` field, because the field it was reading had been renamed. The template referencing it resolved to nothing, and the node downstream failed on the empty value rather than on anything wrong with itself.
-
-<Tip>
-
-Read the effects list before you fix anything. It tells you whether the run got far enough to touch the outside world, which decides whether re-running is harmless or needs cleaning up first.
-
-</Tip>
-
-Fix the reference in the node panel, save a version with a message naming the renamed field, and press **Test run**. The mock run walks the same graph and this time every box shows as having run. Deploy that version, and tomorrow's schedule picks it up.
-
-## Stopping a run
-
-While a run is unfinished you can stop it, and a stopped run is terminal — the engine checks at every node boundary and stops scheduling the next one. Work already performed is not rolled back, because it cannot be: a message that was sent is sent. Read the effects list to see exactly how far it got before deciding what to do next.
-
-## Where this fits
-
-A run is the receipt an automation leaves behind: its status says what happened, its per-node results say where, its resolved inputs say why, and its effects say what it changed outside the platform. Pair this page with [Workflow triggers](/platform/automations/triggers) for the kinds of start that open these records, and with [audit logs](/platform/admin/governance/audit-logs) for the organization-wide trail of who changed what.
+If the run never started, inspect its [trigger](/platform/automations/triggers). A disabled trigger, missing deployment or rejected input can explain the absence of a run altogether.

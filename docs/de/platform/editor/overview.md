@@ -1,9 +1,9 @@
 ---
-title: Editor
+title: Redakteur
 description: Pflege gemeinsames Wissen und erledige die Inhaltsarbeit für dein Team.
 ---
 
-Als Editor hältst du gemeinsame Informationen brauchbar: Dokumente hochladen, Wissenseinträge korrigieren und Datensätze pflegen. In Projekten kannst du innerhalb deines Bearbeitungszugriffs arbeiten. Beginne mit einer Quelle und einer Frage, die sie beantworten soll. Erweitere die Sammlung, wenn sich weiterer Bedarf zeigt.
+Als Redakteur hältst du gemeinsame Informationen brauchbar: Dokumente hochladen, Wissenseinträge korrigieren und Datensätze pflegen. In Projekten kannst du innerhalb deines Bearbeitungszugriffs arbeiten. Beginne mit einer Quelle und einer Frage, die sie beantworten soll. Erweitere die Sammlung, wenn sich weiterer Bedarf zeigt.
 
 ## Eine Inhaltsaufgabe wählen
 
@@ -35,6 +35,6 @@ Erstelle und teile Skills für Agenten, die eine wiederholbare Methode brauchen.
 
 </CardGroup>
 
-## Wann ein Developer nötig ist
+## Wann ein Entwickler nötig ist
 
-Die Rolle Editor erlaubt weder das Erstellen von Workflows noch die Verwaltung von Connectoren; diese Ressourcen sind schreibgeschützt. Ein Developer, Admin oder Owner übernimmt Automatisierungsänderungen und technische Zugangsdaten. Für Projektagenten sind außerdem Projekt-Bearbeitungszugriff sowie funktionierende Provider und Sandboxes nötig. Prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles), bevor du mit einer Anleitung für zusätzliche Berechtigungen beginnst.
+Die Rolle Redakteur erlaubt weder das Erstellen von Workflows noch die Verwaltung von Connectoren; diese Ressourcen sind schreibgeschützt. Ein Entwickler, Admin oder Inhaber übernimmt Automatisierungsänderungen und technische Zugangsdaten. Für Projektagenten sind außerdem Projekt-Bearbeitungszugriff sowie funktionierende Provider und Sandboxes nötig. Prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles), bevor du mit einer Anleitung für zusätzliche Berechtigungen beginnst.

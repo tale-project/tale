@@ -18,7 +18,7 @@ Utilise **Commentaires uniquement** pour privilégier les explications écrites.
 | Pouce vers le haut/bas | Si un membre a trouvé une réponse précise utile. Un commentaire facultatif apporte du contexte. |
 | Verdict d’arène | Quelle réponse a été préférée dans une paire donnée, ou si les réponses sont à égalité ou toutes deux mauvaises. |
 
-Les membres peuvent modifier ou retirer une évaluation. Le tableau de bord reflète l’état actuel, pas un compteur permanent de chaque clic. Le [mode arène](/platform/chat/arena-mode) explique comment comparer deux réponses.
+Les membres peuvent modifier ou retirer une évaluation. Le tableau de bord reflète l’état actuel, pas un compteur permanent de chaque clic. Le [mode arène](/fr/platform/chat/arena-mode) explique comment comparer deux réponses.
 
 ## Comparer les résultats équitablement
 
@@ -27,7 +27,7 @@ Lis le nombre d’évaluations avec la proportion de réponses utiles. Un seul v
 Utilise les tableaux par assistant et modèle pour localiser la variation, la tendance pour la dater, puis les commentaires des retours récents pour la comprendre. Pour l’arène, compare la même paire de modèles : une victoire contre l’un ne prouve pas une supériorité sur tous les autres.
 
 <Tip>
-Croise cette lecture avec l’[analyse de l’usage](/platform/admin/governance/usage-analytics). Un modèle peut coûter moins par requête tout en demandant davantage d’essais pour obtenir une réponse utile.
+Croise cette lecture avec l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics). Un modèle peut coûter moins par requête tout en demandant davantage d’essais pour obtenir une réponse utile.
 </Tip>
 
 ## Comprendre les résultats partiels

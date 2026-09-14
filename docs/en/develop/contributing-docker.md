@@ -1,76 +1,91 @@
 ---
-title: Contributing to Docker images
-description: How to build and extend Tale's Docker images for forks, vendored builds, or air-gapped distributions.
+title: Build and maintain Tale images
+description: Choose the correct Dockerfile, build a local image, verify its behavior and publish a reviewed image set to your registry.
 ---
 
-Build Tale’s images when you need to test a container change or distribute a controlled build. Start from the repository Dockerfiles so the runtime dependencies, startup roles and health probes remain consistent.
+Build an image when a change affects container dependencies, startup behavior or packaged application code. Start from a source checkout with the prerequisites in [Contributor setup](/develop/contributor-setup), a running Docker daemon and access to the base-image and package registries used by the Dockerfile.
 
-This guide covers building and testing images. Use [Run Compose yourself](/self-hosted/install/own-compose) for the deployment contract and [Upgrades](/self-hosted/operate/upgrades) for the lifecycle of an existing installation.
+A successful build proves that an image can be assembled. Run it in a separate development stack and exercise the changed behavior before using it in a deployment.
 
 ## What the images are
 
-The stack is entirely TypeScript — no Python image. Each image has one Dockerfile under `services/<name>/`:
+Dockerfiles use the repository root as their build context. Open the relevant Dockerfile for exact base-image versions and build arguments; the table describes each image’s purpose.
 
-| Image                      | Source path                     | Base                         |
-| -------------------------- | ------------------------------- | ---------------------------- |
-| `tale-proxy`               | `services/proxy/`               | Caddy                        |
-| `tale-platform`            | `services/platform/`            | Bun + Debian slim            |
-| `tale-db`                  | `services/db/`                  | ParadeDB (Postgres)          |
-| `tale-sandbox`             | `services/sandbox/`             | Bun + Docker CLI             |
-| `tale-sandbox-egress`      | `services/sandbox-egress/`      | Alpine + tinyproxy           |
-| `tale-sandbox-runtime`     | `services/sandbox-runtime/`     | Bun + Chromium + Playwright  |
-| `tale-sandbox-buildkitd`   | `services/sandbox-buildkitd/`   | Debian + BuildKit + redsocks |
-| `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | `maximhq/bifrost` wrapper    |
+| Image | Dockerfile directory | Contents and role |
+| --- | --- | --- |
+| `tale-platform` | `services/platform/` | Debian-based application image with the built web app and native backend. Build stages use Bun and Node; API and worker roles reuse this image. |
+| `tale-db` | `services/db/` | PostgreSQL with the supplied search/vector extensions, based on ParadeDB. Both application and knowledge database services use it. |
+| `tale-proxy` | `services/proxy/` | Caddy configuration and proxy startup. |
+| `tale-sandbox` | `services/sandbox/` | Sandbox orchestration, including Bun and the Docker CLI. |
+| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-based execution environment with coding harnesses, Node, Bun, browsers and document tools. |
+| `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine-based outbound proxy and DNS support. |
+| `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit with the sandbox’s networking and startup configuration. |
+| `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Model gateway built from Bifrost. |
 
-Both database containers — `db` and `knowledge-db` — build from the same `tale-db` ParadeDB image; the difference is the database each one serves. The application backend (`backend-api`, `backend-worker`) runs the same `tale-platform` image under a different `TALE_ROLE`, so it has no image of its own. The blob store, `tale-object-store` (`quay.io/minio/minio`), and the video-ingestion sidecar, `tale-bgutil-provider`, are pinned upstream images with no Dockerfile in the repo. The compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
+Object storage and the video-ingestion sidecar use upstream images directly. They are not built from a Tale Dockerfile. Sandbox runtime and BuildKit images are launched on demand; do not assume that building only the services in a Compose file also builds them.
 
 ## Building locally
 
-A first build of every image takes about 15 minutes on a recent laptop; subsequent builds hit Docker's layer cache and finish in under a minute for the image you changed.
+For an isolated proxy-image build, run this from the repository root:
 
 ```bash
-# Build every image in compose.yml
-docker compose build
+docker build -f services/proxy/Dockerfile -t tale-proxy:docs-review .
+```
 
-# Build one image
+The local `docs-review` tag makes the result distinguishable from a published release. The build must finish successfully before you test or tag it for distribution.
+
+For services declared with `build:` in the repository Compose file, use:
+
+```bash
 docker compose build platform
 ```
 
-Set `PULL_POLICY=build` in your environment (or in `.env`) to force compose to build rather than pull the published image. The shipped `compose.yml` defaults to `build`, so a local clone with no overrides already builds; production compose files generated by `tale deploy` default to `always` and pull from the registry.
+`docker compose build` without a service selects all services that have a build definition. Build time depends on cached layers, network access, platform and the image; a browser or application image has different requirements from the proxy.
+
+The repository Compose file defaults `PULL_POLICY` to `build`. Generated production Compose normally pulls release images. Use [Compose files](/develop/compose-files) for the supported development launcher, which also prepares services and images that a bare build does not start.
 
 ## The customisation seams
 
-The supported extension points for forks are at the Dockerfile level. The image's entrypoint and the configuration files inside it are stable — patch them, build the image, and the rest of the system does not need to know.
+Choose the narrowest change that satisfies the requirement:
 
-- **Caddyfile** — `services/proxy/Caddyfile` controls routing and TLS termination. Custom headers, custom subdomains, and custom rate limits land here.
-- **Platform plop templates** — `services/platform/Dockerfile` runs a build step that bakes in the messages, the schema, and the static assets. A fork that ships custom UI strings or extra routes builds the platform image.
-- **Sandbox runtime image** — `services/sandbox-runtime/Dockerfile` is the execution environment for `Run code`, web rendering, and document generation; it already carries Chromium and Playwright. A fork that needs an extra system package or a different browser build patches here.
-- **Sandbox egress proxy** — `services/sandbox-egress/tinyproxy.conf.template` is the proxy config the entrypoint renders at startup: open egress by default, or a default-deny hostname filter when `SANDBOX_EGRESS_ALLOWLIST` is set. A fork that needs different proxy behaviour patches here.
+| Requirement | Where to start |
+| --- | --- |
+| Routing, TLS or public headers | `services/proxy/Caddyfile` and proxy configuration. Test callbacks and streaming after changes. |
+| Application UI, backend or extraction behavior | Application source under `services/platform/`, followed by an application-image build and relevant tests. |
+| A package or browser in agent sessions | `services/sandbox-runtime/Dockerfile`. Test in a newly created session using the changed image. |
+| Sandbox outbound policy | Existing environment configuration first; proxy templates and startup code only when the configuration cannot express the change. |
+| BuildKit behavior | `services/sandbox-buildkitd/`, including its network assumptions. |
 
-What is not a supported seam: the backend's application code, including document extraction and the RAG and crawler logic that now live in-process (`services/platform/backend/`), and the platform container's runtime code (`services/platform/app/`). Those files are application code, not configuration — adding a document-format extractor or changing retrieval behaviour is a real fork and rides the upgrade tax.
+Entrypoints, health checks and internal paths are implementation contracts. A fork must maintain and test changes to them across upgrades. A configuration-only change may not need a new image; see [Run Compose yourself](/self-hosted/install/own-compose).
 
 ## Tagging and pushing your own registry
 
-For air-gapped or vendored distributions, the path is "build, tag, push to your registry, change the compose `image:` lines."
+After testing the image, set your registry namespace and an immutable tag. This example publishes only the proxy image built above; it is not a complete deployment image set. Registry authentication and permission to push are prerequisites.
 
 ```bash
-# Build, tag, push
 export REGISTRY=registry.internal.example.com/tale
-docker compose build
-docker tag ghcr.io/tale-project/tale/tale-platform:latest \
-  $REGISTRY/tale-platform:vendored-1.0
-docker push $REGISTRY/tale-platform:vendored-1.0
+export IMAGE_TAG=reviewed-build-1
+docker tag tale-proxy:docs-review "$REGISTRY/tale-proxy:$IMAGE_TAG"
+docker push "$REGISTRY/tale-proxy:$IMAGE_TAG"
 ```
 
-The CLI's deploy generates a compose file with the registry path and deletes it after `docker compose up`. For an air-gapped registry, retag as above and point `GHCR_REGISTRY` at yours before `tale deploy`, or write the production file yourself against [Run Compose yourself](/self-hosted/install/own-compose).
+Record the resulting digest, source commit and build platform. Distribute all images required by the destination, including sandbox images and upstream dependencies. An offline environment also needs a plan for packages, browser downloads and model access; moving a single image does not make the system self-contained.
+
+The CLI reads `GHCR_REGISTRY` for the Tale image namespace. Its selected version still determines the image tag, so publish the names and version tags the deployment expects. For independently pinned images and source commits, follow the [managed deployment reference](/self-hosted/install/cli-install#managed-deployments).
 
 ## Staying in sync with upstream
 
-The cheap path is a fork on GitHub that periodically merges from `tale-project/tale@main`. Conflicts land in the files you patched; the rest carries through clean. The two anti-patterns:
+Keep the fork’s source changes under version control and review upstream changes before rebuilding. Record base-image versions or digests with the build. Review updates to those pins deliberately; rebuilding against an unchanged pin does not incorporate a newer upstream image automatically.
 
-- **Patching application code instead of contributing it back.** If the change is broadly useful, upstream a PR — every release tax goes down.
-- **Pinning to an old base image.** The Caddy, Bun, and Postgres bases pick up security patches on rebuild; pinning the base for "stability" is borrowing trouble.
+Before rollout, verify the startup role, health checks, public routes and the feature you changed. For sandbox changes, include a new session and its required network calls. Contribute generally useful fixes upstream when possible to reduce the code your fork must maintain.
 
-## Where this fits
+## Diagnose a failed build or startup
 
-This page is the contributor-facing seam of the operator story. The architecture overview lives in [Container architecture](/self-hosted/operate/container-architecture); the upgrade workflow that runs the published images is in [Upgrades](/self-hosted/operate/upgrades). If your fork is non-trivial, the conversation worth starting before you write code is the one on the project's Discord or GitHub Discussions — many forks end up being features waiting to land upstream.
+| Symptom | Next check |
+| --- | --- |
+| A `COPY` source is missing | Run from the repository root with the expected build context; check `.dockerignore` and the source path. |
+| Package or base-image download fails | Check registry access, authentication and the first failed build step. |
+| The image builds but exits | Read that container’s startup logs and confirm its environment, mounts and role. |
+| A sandbox still uses old packages | Confirm the configured runtime image and create a new session. An existing container is not replaced by retagging an image. |
+
+Use [Container architecture](/self-hosted/operate/container-architecture) to trace service dependencies and [Upgrades](/self-hosted/operate/upgrades) for rollout and recovery.

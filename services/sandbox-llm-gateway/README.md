@@ -24,15 +24,15 @@ Ports:
 - `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` — management API basic-auth password. **Required**: the backend refuses every management call without it, so the plane is never anonymous on the sandbox network (`tale deploy` / `bun run dev` mint it; `compose.dev.yml` carries an insecure dev default). Keep it stable — the gateway stores its hash in its volume.
 - `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` — per-stream idle timeout passed to the gateway.
 
-The pre-rename `LLM_GATEWAY_*` names are still read as a fallback for one release.
+The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SANDBOX_LLM_GATEWAY_*` names for new configuration.
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container.
 
 ## Development
 
 ```bash
-bun run logs   --filter=@tale/sandbox-llm-gateway   # docker compose logs -f sandbox-llm-gateway
-bun run shell  --filter=@tale/sandbox-llm-gateway   # exec into the running container
+bun run --filter @tale/sandbox-llm-gateway logs   # docker compose logs -f sandbox-llm-gateway
+bun run --filter @tale/sandbox-llm-gateway shell   # exec into the running container
 ```
 
 ## Layout

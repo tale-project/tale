@@ -3,7 +3,7 @@ title: Eine Produktionsinstallation absichern
 description: Schütze Hostzugriff, Netzwerk, Geheimnisse und Wiederherstellung, bevor du Tale für Benutzer öffnest.
 ---
 
-Prüfe diese Schutzmassnahmen vor dem Start und nach Änderungen an Host, Netzwerk oder Anmeldung. Du brauchst Betreiberzugriff und einen Wiederherstellungsweg, der auch während Änderungen an den Zugriffsregeln erreichbar bleibt.
+Prüfe diese Schutzmaßnahmen vor dem Start und nach Änderungen an Host, Netzwerk oder Anmeldung. Du brauchst Betreiberzugriff und einen Wiederherstellungsweg, der auch während Änderungen an den Zugriffsregeln erreichbar bleibt.
 
 ## Den Hostzugriff beschränken
 
@@ -15,7 +15,7 @@ Die Mitgliedschaft in der Gruppe `docker` gewährt über den Docker-Daemon Befug
 
 Öffne die vorgesehenen Proxy-Ports und beschränke administrative Zugriffe auf vertrauenswürdige Quellen. Datenbank, Speicherverwaltung, interne Backend- und Sandbox-Dienste gehören nicht ins öffentliche Netz, sofern keine gesondert geprüfte Architektur das erfordert.
 
-Prüfe die veröffentlichten Ports deiner tatsächlichen Compose-Konfiguration und teste die Erreichbarkeit von ausserhalb des Hosts. Host-Firewallregeln allein können täuschen: Docker verwaltet eigene Regeln für Weiterleitung und veröffentlichte Ports. Beachte die [Docker-Hinweise zu Firewalls](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
+Prüfe die veröffentlichten Ports deiner tatsächlichen Compose-Konfiguration und teste die Erreichbarkeit von außerhalb des Hosts. Host-Firewallregeln allein können täuschen: Docker verwaltet eigene Regeln für Weiterleitung und veröffentlichte Ports. Beachte die [Docker-Hinweise zu Firewalls](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
 Bei Anmeldung über vertrauenswürdige Header darf nur der vorgelagerte Proxy die Anwendung erreichen. Er muss vom Aufrufer gelieferte Identitätsheader entfernen, bevor er eigene setzt. Mehr dazu unter [Authentifizierung](/de/self-hosted/configuration/authentication).
 
@@ -37,11 +37,11 @@ Setze `TALE_AUDIT_PEPPER`, um Daten fehlgeschlagener Anmeldungen zu pseudonymisi
 
 Wähle Backup-Häufigkeit und Aufbewahrung danach, welchen Datenverlust deine Organisation verkraften kann. Sichere Datenbank, Konfiguration, Objektspeicher und die zur Wiederherstellung nötigen Geheimnisse. Externe Speicher benötigen eine eigene abgestimmte Sicherung.
 
-Bewahre geschützte Kopien ausserhalb des Deployment-Hosts auf und stelle sie regelmässig an einem isolierten Ziel wieder her. Prüfe danach Anmeldung, Dateien und wichtige Abläufe. [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) erklärt den Umfang der CLI-Snapshots und die Dienstunterbrechungen.
+Bewahre geschützte Kopien außerhalb des Deployment-Hosts auf und stelle sie regelmäßig an einem isolierten Ziel wieder her. Prüfe danach Anmeldung, Dateien und wichtige Abläufe. [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) erklärt den Umfang der CLI-Snapshots und die Dienstunterbrechungen.
 
 ## Sandbox-Ziele begrenzen
 
-Der Egress-Proxy der Sandbox erlaubt standardmässig öffentliche HTTPS-Ziele und blockiert private Adressen sowie Metadatenadressen. Mit `SANDBOX_EGRESS_ALLOWLIST` begrenzt du zusätzlich die Hostnamen. Dieses Beispiel gehört in die `.env` des Projekts und erlaubt zwei Python-Pakethosts:
+Der Egress-Proxy der Sandbox erlaubt standardmäßig öffentliche HTTPS-Ziele und blockiert private Adressen sowie Metadatenadressen. Mit `SANDBOX_EGRESS_ALLOWLIST` begrenzt du zusätzlich die Hostnamen. Dieses Beispiel gehört in die `.env` des Projekts und erlaubt zwei Python-Pakethosts:
 
 ```dotenv .env
 SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
@@ -53,7 +53,7 @@ Erstelle den Egress-Dienst mit der geänderten Umgebung neu. Prüfe, ob benötig
 
 Richte mit `METRICS_BEARER_TOKEN` authentifizierten Metrikzugriff ein und verbinde deine Überwachung. Prüfe, ob eine Warnung den zuständigen Betreiber erreicht. [Betriebsüberwachung](/de/self-hosted/operate/observability/operations) beschreibt hilfreiche Signale.
 
-Ein täglicher Job prüft die erhaltenen Audit-Zeilen schrittweise und meldet erkannte Hash-Brüche an Admins. **Jetzt prüfen** unter **Einstellungen > Governance > Protokolle > Ketten-Integrität** prüft höchstens 1.000 Einträge. Grenzen und Beweissicherung erklärt [Audit-Protokollintegrität](/de/self-hosted/operate/security/audit-log-integrity).
+Ein täglicher Job prüft die erhaltenen Audit-Zeilen schrittweise und meldet erkannte Hash-Brüche an Admins. **Jetzt prüfen** unter **Einstellungen > Richtlinien > Protokolle > Ketten-Integrität** prüft höchstens 1.000 Einträge. Grenzen und Beweissicherung erklärt [Audit-Protokollintegrität](/de/self-hosted/operate/security/audit-log-integrity).
 
 ## Die bereitgestellte Antwort prüfen
 

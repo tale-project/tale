@@ -19,7 +19,40 @@ Tale réunit le chat IA, les projets, les connaissances et les automatisations d
 
 Le code est sous licence MIT. Community et Enterprise donnent accès aux mêmes fonctions ; Enterprise ajoute l’exploitation et l’assistance professionnelles. Consulte [les offres et les tarifs](https://tale.dev/pricing) pour connaître les conditions actuelles.
 
-![Un tableau de projet Tale avec les tâches regroupées par statut, du backlog à la fin du travail.](.github/assets/readme-gallery-tasks.webp)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena affiche deux réponses au même prompt et les commandes de vote." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/chat/arena-mode"><b>Chat et Arena</b></a><br><sub>Compare deux réponses côte à côte.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="Le tableau des tâches du projet Website relaunch regroupe les cartes par statut." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/projects/tasks"><b>Tâches de projet</b></a><br><sub>Organise le travail et suis son avancement.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="L’onglet Agents du projet présente les agents avec leur moteur et leur modèle." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/projects/project-agents"><b>Agents de projet</b></a><br><sub>Choisis les instructions, le moteur, le modèle et les outils.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="L’éditeur d’automatisation montre les étapes reliées et les réglages du nœud sélectionné." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/automations/editor"><b>Éditeur de workflow</b></a><br><sub>Examine les étapes, les données de test et les exécutions.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/connectors-add-credential.webp"><img src=".github/assets/readme-gallery-connectors.webp" alt="Le dialogue d’ajout d’identifiants présente les connecteurs disponibles." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/connectors/overview"><b>Connecteurs</b></a><br><sub>Choisis les services utilisés par ton espace.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Les réglages des garde-fous affichent l’état des règles et les paramètres disponibles." width="100%"></a>
+      <br><a href="https://tale.dev/docs/fr/platform/admin/governance/guardrails"><b>Gouvernance</b></a><br><sub>Vérifie les règles de sécurité et de traitement des données.</sub>
+    </td>
+  </tr>
+</table>
+
+Ouvre une capture pour la voir en taille réelle. Les images montrent l’interface en anglais.
 
 ## Choisir ton point de départ
 

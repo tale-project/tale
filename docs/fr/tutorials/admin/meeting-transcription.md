@@ -31,7 +31,7 @@ Vérifie le public prévu avant l’import. Un fichier de projet n’apparaît p
 
 </Frame>
 
-Pour **Échec**, consulte l’erreur et utilise **Relancer l'indexation** après l’avoir corrigée. Pour **Non indexé**, choisis **Indexer maintenant** si l’action est proposée. Un échec persistant peut nécessiter un contrôle du stockage, de l’extraction du texte et du fournisseur d’embeddings par un administrateur. [Gérer les fichiers du projet](/platform/projects/manage-files) explique les états et les limites.
+Pour **Échec**, consulte l’erreur et utilise **Réessayer l'indexation** après l’avoir corrigée. Pour **Non indexé**, choisis **Indexer maintenant** si l’action est proposée. Un échec persistant peut nécessiter un contrôle du stockage, de l’extraction du texte et du fournisseur d’embeddings par un administrateur. [Gérer les fichiers du projet](/fr/platform/projects/manage-files) explique les états et les limites.
 
 ## Vérifier la recherche dans le projet
 
@@ -41,6 +41,6 @@ Pour les transcriptions sensibles, vérifie le choix des fournisseurs : l’inde
 
 ## Préparer les imports récurrents
 
-Pour des réunions occasionnelles, conserve la procédure d’import. Pour des livraisons régulières, un développeur peut utiliser l’[API d’import de projet](/develop/api-reference) ou un [webhook d’automatisation](/tutorials/developer/trigger-automation-via-webhook) associé à une automatisation d’import explicitement créée. Le webhook lance cette automatisation ; il n’est pas, à lui seul, un endpoint de stockage des transcriptions.
+Pour des réunions occasionnelles, conserve la procédure d’import. Pour des livraisons régulières, un développeur peut utiliser l’[API d’import de projet](/fr/develop/api-reference) ou un [webhook d’automatisation](/fr/tutorials/developer/trigger-automation-via-webhook) associé à une automatisation d’import explicitement créée. Le webhook lance cette automatisation ; il n’est pas, à lui seul, un endpoint de stockage des transcriptions.
 
 L’intégration doit choisir le projet, éviter les doublons, demander l’indexation et suivre son résultat. Les fichiers de projet importés par REST ne sont pas indexés par défaut ; `skipRagIndexing: false` demande l’indexation lors du rattachement. Réutiliser un nom de fichier ne crée pas de révision. Pour conserver un historique approuvé, utilise la procédure de remplacement prévue.

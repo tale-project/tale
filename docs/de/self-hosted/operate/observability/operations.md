@@ -1,101 +1,49 @@
 ---
-title: Operations
-description: Worauf zu alarmieren ist, welche Metriken zählen, und die Oncall-Checkliste, wenn sich eine Tale-Instanz schlecht zu benehmen anfängt.
+title: Betrieb überwachen und Störungen bearbeiten
+description: Wähle aussagekräftige Signale, ordne Metriken richtig ein und untersuche Störungen, ohne wichtige Hinweise zu verlieren.
 ---
 
-Überwache mehrere Ebenen: öffentliche Erreichbarkeit, Backend und Speicher, Hintergrundarbeit sowie die für dein Team wichtigen Aktionen. Eine HTTP-Antwort beweist noch nicht, dass Chat, Upload oder Automation fertig werden.
+Überwache die Aufgaben, die Nutzer abschließen müssen, ebenso wie die darunterliegenden Dienste. Eine erfolgreiche HTTP-Prüfung beweist nicht, dass Anmeldung, Dateidownload, Wissenssuche oder Automatisierung funktionieren. Lege die Dringlichkeit anhand der Auswirkungen auf deine Instanz fest und gib jedem Alarm einen Verantwortlichen und ein Wiederherstellungsverfahren.
 
-Wähle anhand der folgenden Signale Alarme und erste Maßnahmen. [Beobachtbarkeit konfigurieren](/de/self-hosted/configuration/observability-config) beschreibt die Erfassung, [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) einzelne fehlgeschlagene Abläufe.
+[Observability konfigurieren](/de/self-hosted/configuration/observability-config) erklärt Endpunkte und Zugriffstoken. [Prometheus und Grafana](/de/self-hosted/operate/observability/prometheus-grafana) zeigt ein Beispiel für die Erfassung.
 
-## Signale, auf die zu alarmieren sich lohnt
+## Signale mit einer sinnvollen Reaktion wählen
 
-| Signal                                      | Schweregrad | Warum es zählt                                             |
-| ------------------------------------------- | ----------- | ---------------------------------------------------------- |
-| `tale-proxy`-Health-Probe scheitert > 1 Min | page        | Jeder Benutzer sieht einen Verbindungsfehler               |
-| `tale-platform` HTTP-5xx-Rate > 5 %         | page        | Die UI ist für einen relevanten Anteil der Anfragen kaputt |
-| `tale-backend-api` down oder crash-loopend  | page        | UI lädt, aber keine Daten fliessen                         |
-| Postgres-Verbindungen > 80 % des Pools      | warn        | Die nächste Spitze fängt an zu blockieren                  |
-| `db-data`-Volume > 80 % voll                | warn        | Das operative Postgres geht bei voll auf read-only         |
-| `knowledge-db-data`-Volume > 80 % voll      | warn        | Ingestion scheitert, wenn die Korpus-Datenbank voll ist    |
-| `knowledge-db` vom Backend unerreichbar     | warn        | Wissens-Suche liefert leer; Ingestion stockt               |
-| Anbieter-Anfrage-Fehlerrate > 20 %          | warn        | Der Upstream-LLM-Anbieter hat einen schlechten Tag         |
-| Tägliches Backup nicht geschrieben          | page        | Restore-Drill scheitert zum schlimmsten Zeitpunkt          |
-| TLS-Cert-Erneuerung gescheitert             | warn        | Erneuert 30 T vor Ablauf — du hast Zeit                    |
+| Signal | Untersuchung | Wann eskalieren? |
+| --- | --- | --- |
+| Öffentliche URL, Zertifikat oder Anmeldung schlägt fehl | Prüfe den öffentlichen Zugang von außerhalb des Hosts, danach Proxy- und Backend-Protokolle. | Nutzer erreichen einen benötigten Dienst nicht oder ein Zertifikat läuft ohne funktionierende Erneuerung bald ab. |
+| Mehr 5xx-Antworten im Backend | Vergleiche `tale_backend_http_requests_total` nach `route` und `status` mit der betroffenen Aktion. | Fehler betreffen aktive Nutzer oder wichtige Integrationen. |
+| Ein Speicher ist nicht erreichbar | Prüfe `tale_backend_store_up` und die Überwachung des Speichers selbst. | Benötigte Daten, Suche oder Dateizugriffe sind blockiert. |
+| Wartende oder fehlgeschlagene Jobs häufen sich | Prüfe `tale_backend_jobs{state=...}`, Worker und beispielhafte Lauf-Fehler. | Der Rückstand baut sich nicht ab oder eine Frist ist gefährdet. |
+| Speicherplatz oder freie Verbindungen werden knapp | Nutze Host- und Datenbanküberwachung; Tale liefert nicht alle diese Metriken. | Handle mit genug Vorlauf, um Kapazität zu schaffen oder die Ursache zu beseitigen. |
+| Eine geplante Sicherung oder Kopie fehlt | Prüfe Backup-Job, vollständiges Manifest und externes Ziel. | Der maximal zulässige Datenverlust wird überschritten. |
+| Anbieter drosselt oder verweigert Anfragen | Lies Anbieterantwort und Lauf-Fehler; prüfe Kontingent, Zugangsdaten und Anbieterstatus. | Benötigte Arbeit scheitert oder wartet länger als erlaubt. |
 
-Die ersten zwei Pages sind die wirklich kundenwirksamen. Die warns fangen Trends, bevor sie ins Page-Gebiet kippen.
+Ein Alarm bei 80 % Plattenbelegung kann ein Ausgangspunkt sein. Wachstumsrate und benötigte Reaktionszeit sind jedoch aussagekräftiger als ein pauschaler Prozentwert. Eine Störung der Wissenssuche kann für ein Team kritisch sein. Verschiebe sie nicht automatisch, nur weil die Oberfläche noch lädt.
 
-## Log-Signale, nach denen man greppen sollte
+## Aussagekraft der Metriken verstehen
 
-Logs kommen über stdout pro Container, aufgefangen vom `json-file`-Driver von Docker. Die vier Phrasen, die konsistent Ärger bedeuten:
+Das Backend liefert Prozessmetriken, Anzahl und Dauer von HTTP-Antworten, Job-Zähler, laufende Generierungen, offene Hinweis-Streams, den Drain-Zustand und die Speichererreichbarkeit. Prüfe die tatsächlich ausgegebenen Zeitreihen deiner Version, bevor du Alarme darauf aufbaust.
 
-- wiederholte unbehandelte Fehler-Zeilen in `tale-backend-api`-Logs — ein Crash-Loop im Backend-Request-Handler.
-- `decryption failed` in `tale-platform`-Logs — SOPS-age-Schlüssel-Mismatch mit der Datei auf Platte.
-- `429 Too Many Requests` wiederholt von einem Anbieter — Rate-Limit getroffen, Agents fangen an zu scheitern.
-- `connection refused` oder `ECONNREFUSED` zu `knowledge-db` in `tale-backend-worker`-Logs — der Worker erreicht die Korpus-Datenbank nicht; Ingestion und Wissens-Suche scheitern.
+- `tale_backend_store_up` prüft die **Bereitstellungsstandards** für Anwendungsdatenbank, Wissensdatenbank und Bucket. Organisationsspezifische Verbindungen brauchen eine eigene Überwachung.
+- Speicherprüfungen werden 30 Sekunden zwischengespeichert. Eine Bucket-Antwort `403` gilt als erreichbar, weil dem Schlüssel lediglich das Auflisten fehlen kann. Der Wert `1` beweist nicht, dass sich ein bestimmtes Objekt hoch- oder herunterladen lässt.
+- `/ready` beschreibt die Bereitschaft für einen Rollout. Externe Speicher fließen nicht ein; ein bereites Replikat kann daher von einem ausgefallenen Speicher abhängen.
+- Die öffentliche Backend-Metrik-URL kann verschiedene API-Replikate erreichen. Prozessmetriken beschreiben das antwortende Replikat. Job- und Generierungszähler lesen gemeinsamen Datenbankzustand. Addiere diese gemeinsamen Zähler nicht so, als hätte jedes Replikat eine eigene Warteschlange.
 
-Leite diese als abgeleitete Alerts an deinen Aggregator weiter; die Metric-Endpoints zeigen sie nicht als Gauges.
+Prüfe die Lücken mit einem kontrollierten Ablauf: Melde dich mit einem Überwachungskonto an, lies einen bekannten Datensatz und teste die benötigte Datei- oder Wissensfunktion. Nutze dafür einen eigenen Bereich und vermeide Versandaktionen oder andere externe Änderungen.
 
-## Oncall-Checkliste
+## Latenzziele von Messwerten trennen
 
-Wenn eine Page landet, folgen die ersten fünf Minuten jedes Mal derselben Form.
+Tale stellt `tale_sla_target_seconds` und eine Regelvorlage unter `/metrics/sla-rules` bereit. Die aktuellen Ziele sind im Mittel 1 Sekunde bis zum ersten Token über 30 Minuten sowie 40 Sekunden für lange Operationen über 6 Stunden. Das sind Zielwerte, keine Messwerte und keine Zusage, dass deine Instanz sie erreicht.
 
-1. **Bestätige, dass der Alert echt ist.** Öffne `$SITE_URL` im Browser. Lädt die UI und Chat funktioniert, schaust du auf ein Metrik- oder Scraper-Problem, nicht ein kundenwirksames.
-2. **Identifiziere den Container.** `docker compose ps` zeigt, welcher unhealthy ist; `docker compose logs --tail=200 <service>` zeigt den letzten Fehler.
-3. **Starte den wahrscheinlichsten Schuldigen neu.** `docker compose restart <service>` löst einen überraschenden Anteil der Vorfälle — Prozess-Crashes, abgestandene File-Watcher, erschöpfte Verbindungs-Pools. Die Architektur ist gebaut, um einen einzelnen Container-Restart sauber zu überleben.
-4. **Prüf Upstream-Anbieter.** `https://status.openai.com`, `https://status.anthropic.com`, etc. Brennt der Anbieter, scheitern Agents; Tale ist nicht die Ursache.
-5. **Page die diensthabende Ingenieurin, wenn das benutzerwirksame Symptom nach einem Restart bleibt.** Nicht früher eskalieren — die meisten Vorfälle lösen sich in den ersten drei Schritten.
+Die erzeugten Regeln erwarten Histogramme namens `tale_dialog_ttft_seconds` und `tale_long_operation_seconds`. Das Backend liefert diese beiden Latenzreihen nicht automatisch. Sein HTTP-Histogramm misst die Anfragebearbeitung; das entspricht weder der Zeit bis zum ersten Token noch der vollständigen Dauer eingereihter Arbeit. Instrumentiere die tatsächlichen Start- und Endpunkte der Operation und prüfe vorhandene Messwerte, bevor du diese Regeln aktivierst. Eine leere Abfrage bedeutet fehlende Daten, keine bestandene Latenzprüfung.
 
-## Was Oncall nicht braucht
+## Vor Zustandsänderungen untersuchen
 
-Ein `tale-knowledge-db`-Ausfall ist ein warn, kein page. Der Web-Crawl-Plan absorbiert Stunden von Downtime ohne Benutzerwirkung, und die Dokument-Ingestion versucht es erneut, statt Arbeit zu verwerfen — Uploads sitzen in „indexing", bis die Korpus-Datenbank zurück ist. Die Wissens-Suche liefert in der Zwischenzeit leer, aber Chats, die kein Wissen abrufen, arbeiten weiter. Fang das im warn-Band und fix es zu Geschäftszeiten.
+1. Halte betroffene Organisation, URL oder Aktion, Fehlercode, Zeitraum und Ausmaß fest. Prüfe, ob sich der Fehler ohne Datenänderung nachvollziehen lässt.
+2. Lies `tale status` und `tale logs <service>`. Bei selbst verwalteten Bereitstellungen verwendest du den Compose-Dienstnamen mit `docker compose ps` und `docker compose logs --tail=200 <service>`.
+3. Gleiche Netzwerkfehler im Browser mit API-/Worker-Protokollen und dem Speicher- oder Anbieterstatus ab. Sichere relevante Protokolle, bevor ein Neustart sie rotiert oder Zusammenhänge verdeckt.
+4. Behebe die ermittelte Ursache: Kapazität, Verbindung, Konfiguration, Zugangsdaten oder Prozessausfall. Erstelle betroffene Container nach Änderungen an Umgebungswerten neu; `docker compose restart` behält deren bisherige Umgebung.
+5. Prüfe nach der Wiederherstellung die ursprüngliche Aktion und zugehörige wartende Arbeit. Halte fest, welche unterbrochenen Anfragen oder Jobs ausdrücklich wiederholt werden müssen, und ergänze den Störungsverlauf.
 
-## Antwortzeit-SLAs
-
-Zwei Antwortzeit-Budgets werden als erstklassige Signale verfolgt: interaktive Dialog-Eingabe und langlaufende Operationen wie Evaluierungen. Beide werden als **Mittelwert** über ein gleitendes Fenster verifiziert — die vertragliche Zahl ist ein Durchschnitt, keine Obergrenze pro Anfrage — und beide sind so verdrahtet, dass Prometheus alarmiert, sobald der Durchschnitt über das Budget driftet.
-
-| Budget          | Statistik  | Ziel  | Fenster | Zugrundeliegende Serie        |
-| --------------- | ---------- | ----- | ------- | ----------------------------- |
-| Dialog-Eingabe  | Mittelwert | ~1 s  | 30 Min  | `tale_dialog_ttft_seconds`    |
-| Lange Operation | Mittelwert | ~40 s | 6 Std   | `tale_long_operation_seconds` |
-
-Jedes Ziel reitet zudem auf dem Plattform-Metrik-Endpoint als `tale_sla_target_seconds{sla,statistic}`, sodass ein Grafana-Panel die Budget-Linie direkt aus Prometheus zeichnet, statt sie fest zu verdrahten. Die zugrundeliegenden Latenz-Serien sind die Request-Dauer-Histogramme des Backends auf `/metrics/backend`; relabel oder record sie auf die Namen oben, damit die Rules auflösen. Die Plattform liefert die fertigen Recording- und Alerting-Rules unter `/metrics/sla-rules` (hinter demselben Bearer-Token wie die anderen Metrik-Pfade) — hole sie einmal und referenziere die Datei unter `rule_files:`, oder füge das Äquivalent ein:
-
-```yaml
-groups:
-  - name: tale-sla-recording
-    rules:
-      - record: tale_sla_dialog_ttft:mean30m
-        expr: rate(tale_dialog_ttft_seconds_sum[30m]) / rate(tale_dialog_ttft_seconds_count[30m])
-        labels:
-          sla: dialog_ttft
-      - record: tale_sla_long_operation:mean6h
-        expr: rate(tale_long_operation_seconds_sum[6h]) / rate(tale_long_operation_seconds_count[6h])
-        labels:
-          sla: long_operation
-  - name: tale-sla-alerts
-    rules:
-      - alert: TaleSlaDialogTtftBreached
-        expr: tale_sla_dialog_ttft:mean30m > 1
-        for: 15m
-        labels:
-          severity: warn
-          sla: dialog_ttft
-        annotations:
-          summary: 'Dialog input response time: mean response time over 30m exceeds the 1s SLA'
-          description: Mean time-to-first-token for an interactive chat / dialog turn.
-      - alert: TaleSlaLongOperationBreached
-        expr: tale_sla_long_operation:mean6h > 40
-        for: 30m
-        labels:
-          severity: warn
-          sla: long_operation
-        annotations:
-          summary: 'Long operation response time: mean response time over 6h exceeds the 40s SLA'
-          description: Mean end-to-end time for long-running operations such as evaluations.
-```
-
-Ein Breach hier ist ein **warn**, kein page: ein driftender Durchschnitt ist eine Degradation, die zu Geschäftszeiten zu verfolgen ist, und die `for:`-Fenster warten bewusst eine kurze Spitze aus, bevor sie feuern. Das ~1-s-Dialog-Budget versöhnt sich mit dem lockereren ~3-s-Warm-Time-to-First-Token im manuellen Performance-Plan — jene ~3 s sind eine Obergrenze pro Anfrage für ein einzelnes kaltes, Auto-geroutetes erstes Token (das erste Text-Delta per Provider-SSE) inklusive Modell- und Netzwerk-Zeit, während die ~1 s hier der Steady-State-Mittelwert über Dialog-Turns ist, sodass gelegentliche erste Tokens, die die Obergrenze erreichen, mit einem Sub-Sekunden-Mittelwert vereinbar sind. Den 1-s-Mittelwert auf Live-Anbietern zu halten, kann noch die Backend-Overhead-Optimierung brauchen, die im Feature-Issue verfolgt wird; dieser Alert bestätigt, ob das Ziel erreicht ist.
-
-## Wo das hingehört
-
-Die Signale oben sind die proaktive Seite des Betreibens einer Tale-Instanz; die reaktive Seite ist [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting), und die Konfiguration, die die Metriken in Prometheus bekommt, ist [Observability-Konfiguration](/de/self-hosted/configuration/observability-config). Hast du `METRICS_BEARER_TOKEN` noch nicht gesetzt, ist jede Schwelle oben unbeobachtet — fang dort an.
+Eskaliere, sobald dein Störungsprozess es verlangt. Ein Neustart kann laufende Arbeit unterbrechen. Er ist weder ein verpflichtender Diagnoseschritt noch ein Grund, die Eskalation aufzuschieben. [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) ordnet häufige Symptome gezielteren Prüfungen zu.

@@ -7,7 +7,7 @@ Erstelle einen Agenten, der eine Kontaktnachricht zusammenfasst und einen nächs
 
 ## Bevor du beginnst
 
-Du brauchst ein Projekt mit Bearbeitungszugriff, einen verfügbaren Coding-Agent-Harness mit passenden Modellzugangsdaten und eine funktionierende Sandbox-Zuteilung. Ein Administrator verwaltet [KI-Provider](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes). Dass ein Modell im Chat funktioniert, genügt allein nicht: Der gewählte Harness muss seine Zugangsdaten verwenden können.
+Du brauchst ein Projekt mit Bearbeitungszugriff, einen verfügbaren Coding-Agent-Harness mit passenden Modellzugangsdaten und eine funktionierende Sandbox-Zuteilung. Ein Administrator verwaltet [KI-Anbieter](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes). Dass ein Modell im Chat funktioniert, genügt allein nicht: Der gewählte Harness muss seine Zugangsdaten verwenden können.
 
 Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einrichtung. Für diese Übung sind keine Skills, Connectoren, Plattform-Tools oder eingeblendeten Secrets nötig.
 
@@ -22,7 +22,7 @@ Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einric
 </Frame>
 
 1. Gib unter **Name** `Triage-Assistent` ein.
-2. Wähle einen **Agent-Laufzeit**, den dein Administrator eingerichtet hat.
+2. Wähle eine **Agent-Laufzeit**, die dein Administrator eingerichtet hat.
 3. Suche unter **Modell** nach Modellname oder API-ID und wähle den Eintrag des gewünschten Providers. Dasselbe Modell kann von mehreren Providern angeboten werden.
 4. Lass **Skills, Connectors & Tools** und **Secrets** für diese Übung leer.
 5. Füge die folgenden Anweisungen unter **Anweisungen** ein und klicke auf **Agent erstellen**.

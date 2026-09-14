@@ -1,5 +1,5 @@
 ---
-title: Konfigurationsgeheimnisse mit SOPS schützen
+title: Geheimnisse mit SOPS schützen
 description: Unterscheide Datei- und Datenbankverschlüsselung und rotiere age-Schlüssel, ohne den Zugriff zu verlieren.
 ---
 Tale verwendet SOPS und age für unterstützte Geheimnisdateien der Konfiguration, unter anderem für Verbindungen zur Wissensdatenbank und zum Objektspeicher. Aktuelle Zugangsdaten für AI-Anbieter liegen dagegen in der Anwendungsdatenbank und verwenden `ENCRYPTION_SECRET_HEX`. Eine age-Schlüsselrotation ändert diese Datenbankzugangsdaten nicht.
@@ -54,4 +54,4 @@ Stelle danach eine Schlüsseldatei bereit, die nur den neuen Schlüssel enthält
 | Neuer Schlüssel kann eine Datei nicht lesen | Behalte den alten Schlüssel und verschlüssele die Datei vor Abschluss der Rotation neu. |
 | Anbieterzugangsdaten scheitern nach Änderung von `ENCRYPTION_SECRET_HEX` | Stelle den Zugriff auf Datenbankgeheimnisse wieder her; age-Schlüssel helfen hier nicht. |
 
-Für Geheimnisse aus Vault, Kubernetes oder einem anderen externen Speicher bevorzuge, soweit unterstützt, die [Schlüsselquelle aus Umgebungsvariablen](/de/self-hosted/configuration/providers#umgebungsvariable-als-schlüsselquelle). Bewahre Verschlüsselungsschlüssel mit deinem Wiederherstellungsplan auf, getrennt geschützt von den Backups, die sie entschlüsseln.
+Für Geheimnisse aus Vault, Kubernetes oder einem anderen externen Speicher bevorzuge, soweit unterstützt, die [Schlüsselquelle aus Umgebungsvariablen](/de/self-hosted/configuration/providers#umgebungsvariable-als-schlusselquelle). Bewahre Verschlüsselungsschlüssel mit deinem Wiederherstellungsplan auf, getrennt geschützt von den Backups, die sie entschlüsseln.

@@ -10,10 +10,12 @@ Arbeite in einem lokalen Checkout des [Tale-Repositorys](https://github.com/tale
 
 | Voraussetzung | Aufgabe | Prüfung |
 | --- | --- | --- |
-| Bun ab 1.3 | Workspaces, Abhängigkeiten, Vite und Entwicklungsskripte | `bun --version` |
+| Bun-Version aus der `package.json` im Repository-Stamm | Workspaces, Abhängigkeiten, Vite und Entwicklungsskripte | `bun --version` |
 | Node.js ab 22.21.1 innerhalb von 22.x | Anwendungsbackend; das Container-Image verwendet 22.21.1 | `node --version` |
 | Docker mit Compose | Anwendungs- und Wissensdatenbank, Objektspeicher und Sandbox-Dienste | `docker info` und `docker compose version` |
 | Freie lokale Ports | App auf 3000 und Backend auf 3005 | `bun run setup:check` |
+
+Das Repository legt die Paketmanager-Version fest. Nutze sie beim Nachstellen eines Fehlers oder bei einer Lockfile-Änderung; die Startprüfung kontrolliert nur eine Mindestversion.
 
 Die Vorabprüfung kontrolliert Bun und die beiden Ports. Prüfe Node und Docker separat; ein grünes Ergebnis bestätigt diese Voraussetzungen nicht. Beim ersten Start brauchst du außerdem Netzwerkzugriff für Abhängigkeiten und Container-Images. Für echte AI-Antworten brauchst du einen Modellanbieter, für die Anmeldung und das Erkunden der App noch nicht.
 

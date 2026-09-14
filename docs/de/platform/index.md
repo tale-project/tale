@@ -58,7 +58,7 @@ Fähigkeiten, Verfügbarkeit und Auswahl von Modellen verstehen.
 
 </Card>
 
-<Card title="Connectoren" icon="plug" href="/de/platform/connectors/overview">
+<Card title="Connectors" icon="plug" href="/de/platform/connectors/overview">
 
 Externe Dienste verbinden und verfügbare Aktionen für Agenten und Automatisierungen kennen.
 
@@ -72,19 +72,19 @@ Deine Rolle bestimmt die verfügbaren Aktionen. Teams und Projektzugriff bestimm
 
 <CardGroup cols="2">
 
-<Card title="Member" icon="user" href="/de/platform/member/overview">
+<Card title="Mitglied" icon="user" href="/de/platform/member/overview">
 
 Fragen stellen, gemeinsames Wissen lesen und persönliche Einstellungen verwalten.
 
 </Card>
 
-<Card title="Editor" icon="pencil-ruler" href="/de/platform/editor/overview">
+<Card title="Redakteur" icon="pencil-ruler" href="/de/platform/editor/overview">
 
 Gemeinsame Inhalte pflegen und in bearbeitbaren Projekten arbeiten.
 
 </Card>
 
-<Card title="Developer" icon="terminal" href="/de/platform/developer/overview">
+<Card title="Entwickler" icon="terminal" href="/de/platform/developer/overview">
 
 Automatisierungen erstellen und Code, Clients sowie externe Dienste verbinden.
 

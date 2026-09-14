@@ -39,7 +39,7 @@ Pour Entra, utilise un émetteur propre au tenant, comme `https://login.microsof
 Pour Google, choisis **OIDC générique** avec l’émetteur `https://accounts.google.com` ; consulte la [configuration OpenID Connect de Google](https://developers.google.com/identity/openid-connect/openid-connect). L’OIDC standard de Google ne fournit pas les appartenances aux groupes. La connexion Google seule ne permet donc pas de synchroniser les groupes avec les équipes.
 
 <Note>
-L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas `Files.Read` ou `Sites.Read.All` aux scopes SSO pour permettre une simple connexion. Configure l’accès à l’import via les [apps OAuth des connecteurs](/platform/admin/connectors).
+L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas `Files.Read` ou `Sites.Read.All` aux scopes SSO pour permettre une simple connexion. Configure l’accès à l’import via les [apps OAuth des connecteurs](/fr/platform/admin/connectors).
 </Note>
 
 ## Connecter un fournisseur SAML
@@ -62,7 +62,7 @@ SAML peut être lancé par l’IdP ou par Tale. Pour une connexion commencée da
 | **Synchroniser les groupes de l'IdP avec les équipes** | Crée ou rejoint les équipes selon les groupes à la connexion. |
 | **Exclure des groupes** | Noms de groupes séparés par des virgules à écarter de la synchronisation. |
 
-Quand des groupes disparaissent, la synchronisation retire les appartenances qu’elle avait ajoutées et supprime les équipes qu’elle avait créées une fois vides. Elle préserve les appartenances créées manuellement ou par SCIM et laisse les groupes exclus tels quels. La page [Équipes](/platform/admin/teams) décrit la gestion manuelle.
+Quand des groupes disparaissent, la synchronisation retire les appartenances qu’elle avait ajoutées et supprime les équipes qu’elle avait créées une fois vides. Elle préserve les appartenances créées manuellement ou par SCIM et laisse les groupes exclus tels quels. La page [Équipes](/fr/platform/admin/teams) décrit la gestion manuelle.
 
 ## Provisionner les membres par SCIM
 
@@ -85,6 +85,6 @@ Ouvre une session de navigateur séparée, choisis **Continuer avec SSO**, puis 
 | Erreur de liaison au navigateur | Recommence dans le même navigateur et autorise les cookies nécessaires aux redirections. |
 | Mauvais rôle ou équipe absente | Vérifie les claims réellement fournis, les règles de rôles, les exclusions et les autorisations de groupes. |
 | SCIM ne se connecte pas | Vérifie l’URL de base, le jeton Bearer et l’activation du provisionnement. |
-| URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/self-hosted/configuration/authentication). |
+| URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/fr/self-hosted/configuration/authentication). |
 
 **Désactiver la connexion** empêche les nouvelles connexions SSO mais conserve les sessions actives. **Supprimer** efface la configuration de la connexion et ses identifiants. Prévois une autre méthode de connexion fonctionnelle avant d’utiliser l’une de ces actions.

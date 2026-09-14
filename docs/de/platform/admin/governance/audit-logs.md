@@ -32,7 +32,7 @@ Nutze das Protokoll als Nachweis der darin erfassten Ereignisse. Es enthält kei
 
 **Audit-Protokolle** enthält einzelne Ereignisse. Die Ansicht für Anmeldesperren hilft bei blockierten Anmeldungen. Aktivitätslogs fassen Vorgänge und Ergebnisse über einen Zeitraum zusammen. Fehlerlogs konzentrieren sich auf Fehler und lassen sich nach Kategorie eingrenzen.
 
-Kann sich ein Mitglied nicht anmelden, beginne mit den Anmeldesperren und der [Anleitung zur Kontosicherheit](/platform/admin/two-factor-authentication). Wurde eine Konfiguration unerwartet geändert, prüfe das Audit-Ereignis und seine Details.
+Kann sich ein Mitglied nicht anmelden, beginne mit den Anmeldesperren und der [Anleitung zur Kontosicherheit](/de/platform/admin/two-factor-authentication). Wurde eine Konfiguration unerwartet geändert, prüfe das Audit-Ereignis und seine Details.
 
 ## Ergebnisse exportieren
 
@@ -46,4 +46,4 @@ Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte A
 
 Eine erfolgreiche Prüfung gilt für die aufbewahrten Datensätze, die sie untersucht hat. Sie belegt keinen unabhängig signierten Ursprung der Historie. Die [Integritätsanleitung für den Betrieb](/de/self-hosted/operate/security/audit-log-integrity) erklärt die Prüfungen und ihre Grenzen.
 
-Die Hash-Verkettung hilft, Veränderungen gespeicherter Datensätze zu erkennen. Sie beweist nicht, dass jede mögliche Aktion protokolliert wurde. Die Audit-Aufbewahrung ist unter [Richtlinien und Limits](/platform/admin/governance/policies-and-limits) einstellbar. Prüfe die aktive Richtlinie und Deployment-Grenzen, statt eine feste Dauer anzunehmen. Wiederherstellbare Audit-Einträge können im [Papierkorb](/platform/admin/governance/trash) erscheinen. Endgültige Bereinigung begrenzt die verfügbare Historie.
+Die Hash-Verkettung hilft, Veränderungen gespeicherter Datensätze zu erkennen. Sie beweist nicht, dass jede mögliche Aktion protokolliert wurde. Die Audit-Aufbewahrung ist unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) einstellbar. Prüfe die aktive Richtlinie und Deployment-Grenzen, statt eine feste Dauer anzunehmen. Wiederherstellbare Audit-Einträge können im [Papierkorb](/de/platform/admin/governance/trash) erscheinen. Endgültige Bereinigung begrenzt die verfügbare Historie.

@@ -34,7 +34,7 @@ These tutorials need additional permissions or a configured service. Check the p
 | Send a message from your own program | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) | A running instance, a model, an API key, and Python |
 | Start an automation from another system | [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) | A published automation and a securely stored webhook credential |
 | Connect a local model server | [Connect a local provider](/tutorials/admin/connect-local-provider) | Administrative access and a model server reachable from Tale |
-| Turn meeting audio into text | [Set up meeting transcription](/tutorials/admin/meeting-transcription) | A configured speech-to-text service and permission to process the recording |
+| Make a meeting transcript searchable | [Add meeting transcripts to a project](/tutorials/admin/meeting-transcription) | A reviewed transcript, project editing access, and working document indexing |
 
 ## Find a reference while you work
 

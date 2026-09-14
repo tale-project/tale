@@ -1,6 +1,6 @@
 ---
 title: Environment reference
-description: Every environment variable Tale reads at boot, the default, and the surface in the product the variable controls. The complete operator reference for `.env`.
+description: Deployment variables, defaults, secret injection, and the services that need each setting.
 i18nLintExclude:
   - terminology-loanword
   - prose-exclamation
@@ -13,9 +13,9 @@ After changing an environment value, recreate the consuming services through you
 
 ## How to read this page
 
-Each group is a `Name | Default | Description` table. Variables marked **Required** must be set before `docker compose up` succeeds. Variables marked **Optional** can be left unset; the column's description names what disabling the feature does.
+Tables list names, defaults, and purpose. Required values must reach the consuming service; deployment tooling may generate some of them. Optional values can remain unset. A documented default can come from the shipped Compose configuration rather than the process itself.
 
-The `.env.example` file ships with inline comments that explain each variable in context; this page is the structured, grouped reference for the same set.
+Use the example file alongside this reference and inspect your effective service environment before diagnosing a missing value.
 
 ## Domain identity (required at first boot)
 
@@ -26,7 +26,7 @@ The `.env.example` file ships with inline comments that explain each variable in
 | `ADDITIONAL_SITE_URLS` | unset      | **Optional.** Other origins the same deployment answers on, comma- or whitespace-separated (e.g. `https://a.example,https://b.example`). Each is a full entry point. See [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once). |
 | `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 
-The `SITE_URL` must match what the user types in the browser exactly. A trailing slash, a missing port, or `http` instead of `https` will break the auth callback and produce sign-in loops. When a deployment serves several domains, `SITE_URL` stays the canonical one and the rest go in `ADDITIONAL_SITE_URLS`; an entry there must be a bare origin, and a malformed one stops the backend at boot rather than leaving a domain nobody can sign in on.
+`SITE_URL` identifies the canonical public origin. Keep scheme, hostname, and port consistent with the browser address and registered callbacks; `BASE_PATH` supplies a deployment path prefix. A trailing slash is normalized by the proxy. Additional addresses belong in `ADDITIONAL_SITE_URLS` as bare origins. Invalid additional origins stop backend startup.
 
 ## TLS
 
@@ -41,11 +41,11 @@ The `SITE_URL` must match what the user types in the browser exactly. A trailing
 
 | Name                    | Default                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | example value in shipped file | **Required.** Base64 secret for the Better Auth session signer. Generate with `openssl rand -base64 32`. Rotating invalidates every session.                                                                                                                                                                                                                                                                                                                                |
-| `ENCRYPTION_SECRET_HEX` | example value in shipped file | **Required.** 32-byte hex key. AES-256 key for OAuth and connector credentials and HKDF input for the guardrails secret box. Generate with `openssl rand -hex 32`. Rotating invalidates every DB-stored ciphertext; operators must re-enter affected secrets.                                                                                                                                                                                                               |
+| `BETTER_AUTH_SECRET` | example value in shipped file | Authentication secret shared by backend replicas. Generate a high-entropy value, for example with `openssl rand -base64 32`. Keep it stable; changing it can invalidate sessions and active sign-in flows. |
+| `ENCRYPTION_SECRET_HEX` | example value in shipped file | 32-byte hex encryption root for stored secrets; generate with `openssl rand -hex 32`. Preserve the value matching existing encrypted data. Replacing it does not migrate ciphertext: restore the matching key or re-enter affected secrets through their supported flow. |
 | `INSTANCE_SECRET`       | example value in shipped file | **Required.** The instance's root secret: 64 hex chars, generated by `tale init` (`openssl rand -hex 32` by hand). At boot the WebDAV app-password HMAC key (`WEBDAV_APP_PASSWORD_HMAC_KEY`) is derived from it unless you set that key yourself, and the short-lived tokens sandbox sessions use to fetch blobs are signed with a subkey of the same derivation. Keep it stable across deploys: rotating it re-derives that key and invalidates every WebDAV app-password. |
 | `SANDBOX_TOKEN`         | example value in shipped file | **Required.** Shared HMAC secret between the backend and the sandbox spawner: the backend signs every spawner call with it, and the spawner rejects unsigned ones. The spawner refuses to start without it — it holds the host docker socket, so there is no unsigned mode. `tale init` and `bun run dev` mint it; a stack you compose yourself sets it (`openssl rand -hex 32`) before the first boot. Rotating it means restarting the backend and the spawner together — they must agree. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | unset | **Required for agent runs.** Admin credential for the sandbox LLM gateway's management API, which the backend calls to mint the session-scoped virtual key every harness turn runs on. The gateway is dual-homed onto the sandbox network, so its management plane is never left anonymous: unset, the backend refuses the call and every agent run fails to start. `tale init` / `tale deploy` and `bun run dev` mint it; a stack you compose yourself sets it (`openssl rand -hex 32`) before the first boot. Only the backend reads it — the gateway is handed the credential over its management API on the first provisioning call and needs no environment of its own. Keep it stable — the gateway hashes it into `llm-gateway-data`, so a changed value locks the platform out until that volume is wiped. The username defaults to `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | unset | **Required for sandbox harness turns.** Gateway management credential used by the backend to provision session keys. The backend provisions the gateway on first use; the gateway retains a password hash in `llm-gateway-data`. Keep the matching secret or use the gateway’s supported credential recovery/rotation procedure. Do not wipe its state as routine recovery. The username defaults to `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
 
 Replace the values that ship in `.env.example` before exposing the instance — they are intentionally insecure placeholders.
 
@@ -55,42 +55,42 @@ Tale keeps two databases: the operational store (`tale_app` — agents, runs, th
 
 | Name                                      | Default                                                             | Description                                                                                                                                                                                                                                                                               |
 | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`                             | `tale_password_change_me`                                           | **Required.** Password for the self-hosted Postgres user. Change before production. Used by both database containers.                                                                                                                                                                     |
+| `DB_PASSWORD` | `tale_password_change_me` | **Required for bundled Postgres.** Password shared by the application and knowledge databases in the packaged layout. Replace the example value before production. |
 | `DATABASE_URL`                            | constructed from `DB_PASSWORD`                                      | **Optional.** Connection URL for the operational database. Set it to point the backend at a Postgres of your own; it needs no extensions and no superuser, only a database and a role that may create schemas. Read on every start.                                                       |
 | `DATABASE_POOL_MAX`                       | `10`                                                                | **Optional.** Connections one backend process opens to the operational database. It costs this twice — the app pool and the job queue's — per `backend-api` and `backend-worker` replica, which is the number to check against a managed Postgres's `max_connections`.                    |
 | `POSTGRES_CA_FILE`                        | unset                                                               | **Optional.** Path to a PEM bundle trusted for **every** Postgres connection: the operational database, the knowledge corpus, and the databases organizations bring themselves. Needed whenever a URL asks for `sslmode=verify-ca` or `verify-full` against a provider whose root is not one Node ships (Amazon RDS is the common one). Concatenate several roots into one file if your databases use different providers. |
-| `KNOWLEDGE_DATABASE_URL`                  | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | **Optional.** Connection URL the backend uses for the knowledge corpus. Override to relocate the corpus to your own managed ParadeDB — the data-residency-sensitive store moves independently.                                                                                            |
-| `KNOWLEDGE_DB_NAME`                       | `tale_knowledge`                                                    | **Optional.** Name of the knowledge database. The bundled `knowledge-db` container creates this database on first boot.                                                                                                                                                                   |
+| `KNOWLEDGE_DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@knowledge-db:5432/tale_knowledge` | Connection URL for the default knowledge corpus. Pointing it elsewhere selects another database; it does not migrate existing chunks or vectors. |
+| `KNOWLEDGE_DB_NAME` | `tale_knowledge` | Name of the knowledge database created by the bundled database initialization. |
 | `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | `1073741824`                                                        | **Optional.** Largest BM25 search index (in bytes) the backend rebuilds synchronously at boot when it finds it corrupted; a larger one is rebuilt by a background job while writes to that corpus are refused. See [Container architecture](/self-hosted/operate/container-architecture). |
-| `KNOWLEDGE_INDEX_REPAIR_DISABLED`         | unset                                                               | **Optional.** `1` or `true` switches the boot-time verification and repair of the BM25 search indexes off. A corrupted index then crashes the knowledge database on every write until it is rebuilt by hand.                                                                              |
+| `KNOWLEDGE_INDEX_REPAIR_DISABLED` | unset | `1` or `true` disables automatic boot-time BM25 verification and repair. It does not fix corruption; failed queries or writes need investigation and a controlled repair. |
 
 The auto-constructed operational form is `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` (override the database name with `APP_DB_NAME`). The knowledge corpus lives in `tale_knowledge` with the `private_knowledge` and `public_web` schemas. These variables set the deployment defaults every organization shares; an organization can additionally point its own corpus and its own bucket at infrastructure of its own under **Settings > Data residency** (per-organization files, applied live, no restart), covered in [Data residency](/self-hosted/configuration/data-residency).
 
 Two things to know before pointing either database at infrastructure of your own:
 
 - **The knowledge corpus needs `pgvector` installed.** Tale creates its schemas and tables on a database that starts empty, but it never installs extensions — the chunk table has a `vector` column, so `CREATE EXTENSION vector;` has to have been run on the target database first. ParadeDB's `pg_search` is optional: without it, search degrades to vector-only rather than failing. The operational database needs no extensions at all.
-- **Neither database may sit behind a transaction-mode connection pooler.** The job queue holds `LISTEN` connections, the migrator holds a session-scoped advisory lock, and the query layer uses prepared statements — all of which need a session to themselves. PgBouncer in `session` mode is fine; `transaction` mode is not, and neither is any pooler endpoint that multiplexes (Supabase's pooler port, RDS Proxy where it pins). Point Tale at the database's own port.
+- **Use a direct or session-compatible Postgres connection.** Job notifications, migration locks, and prepared statements need session semantics. Validate any managed connection proxy against those requirements.
 
 ## Object store
 
-Uploaded documents, chat attachments, audio, and generated media live in an S3-compatible store: the bundled one (the `object-store` service, MinIO), or any bucket you bring — AWS S3, MinIO, Cloudflare R2, Wasabi. It is the only blob backend, so a deployment that cannot reach it refuses every upload. An organization that points its own blobs at a bucket of its own (**Settings > Data residency**) is resolved before this deployment default and is unaffected by these variables.
+Files and media use S3-compatible storage. These variables configure the deployment default. An organization’s explicit connection takes precedence; an unavailable default does not imply that every organization’s own bucket is unavailable.
 
 | Name                             | Default                        | Description                                                                                                                                                             |
 | -------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OBJECT_STORE_ACCESS_KEY`        | unset                          | **Required.** S3 access key — and, for the bundled store, its root user, where both sides read the same value. The process has no default: with either key missing the backend configures no store and refuses every upload. |
-| `OBJECT_STORE_SECRET_KEY`        | auto-generated by `tale init`  | **Required.** S3 secret key / MinIO root password. For the **bundled** store this must stay stable — it is the store's own credential, and changing it orphans every blob written under the old one. For an **external** bucket it is just a credential, and rotating it here is the supported way to rotate it. |
+| `OBJECT_STORE_ACCESS_KEY` | unset | Access key for the deployment’s default S3 connection. For bundled MinIO, configure the same value as `MINIO_ROOT_USER`. Missing credentials do not create a default connection; an organization can still have its own valid connection. |
+| `OBJECT_STORE_SECRET_KEY` | auto-generated by `tale init` | Secret key for the default store. For bundled MinIO, it must match `MINIO_ROOT_PASSWORD`. Rotate the store and backend credentials together and verify reads and writes; changing a password does not migrate or inherently orphan blobs. |
 | `OBJECT_STORE_BUCKET`            | `tale-blobs`                   | Bucket blobs are stored in. Created if it is absent and the key is allowed to; an existing bucket is used as it is.                                                     |
-| `OBJECT_STORE_ENDPOINT`          | `http://object-store:9000` in the shipped compose | Where the backend reaches the store. **Leave it unset for AWS S3 proper** — the bucket is then addressed at `https://<bucket>.s3.<region>.amazonaws.com`. Set it for MinIO, R2, Wasabi, or any other S3-compatible endpoint. |
+| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` in the shipped compose | Backend endpoint for the store. AWS S3 uses no custom endpoint; remove or explicitly clear the bundled endpoint in your effective Compose environment. Set a custom URL for MinIO, R2, or another compatible service. |
 | `OBJECT_STORE_REGION`            | `us-east-1`                    | Signing region. Meaningful for AWS; arbitrary but required by the signer for a self-hosted store.                                                                       |
 | `OBJECT_STORE_FORCE_PATH_STYLE`  | `true` with an endpoint, `false` without | Address the bucket as `endpoint/bucket/key` rather than `bucket.endpoint/key`. The default follows the endpoint, which is right for both the self-hosted case and AWS; set it only for a store that disagrees with its own shape. |
 | `OBJECT_STORE_PREFIX`            | unset                          | Key prefix inside the bucket, so Tale's blobs can share a bucket with other data. Empty means the bucket root.                                                          |
 | `OBJECT_STORE_PUBLIC_ENDPOINT`   | `${SITE_URL}` (set by the CLI) | Where the **browser** reaches the store. The proxy publishes the bundled store at `/<bucket>/*` and forwards presigned URLs verbatim, so uploads and downloads run browser↔store directly. Leave it unset for a bucket the browser can already reach. |
 
-The bundled store is internal-only: presigned URLs are signed by the backend against the internal endpoint and forwarded by the proxy, so the store itself is never published.
+The packaged proxy exposes the bundled store’s object route to browsers without publishing the store’s administration port. An external store can be reached directly through its configured public endpoint.
 
 ### How these variables reach the running deployment
 
-The backend keeps `default/object-storage/connection.json` in the config volume in step with these variables, and re-reads them on every start — so repointing the store, or rotating its credentials, is an environment change plus a restart of `backend-api` and `backend-worker`. The boot log says which of these happened:
+At startup, the backend reconciles `default/object-storage/connection.json` with its environment. Apply changed values by recreating `backend-api` and `backend-worker`. The startup messages identify these outcomes:
 
 | Line | Meaning |
 | --- | --- |
@@ -98,7 +98,7 @@ The backend keeps `default/object-storage/connection.json` in the config volume 
 | `object store (reconciled)` | the environment changed; the connection was updated to match |
 | `object store (adopted)` | a connection written by an older release was recognised and is now kept in step |
 | `object store (ignored)` | the connection is marked `"managedBy": "operator"`, so these variables do nothing |
-| `object store (skipped)` | no credential pair; the deployment will refuse every upload |
+| `object store (skipped)` | No credential pair was supplied to create a deployment default. Check whether a usable existing or organization connection remains. |
 | *(nothing)* | already in step — the steady state |
 
 To manage the store by hand instead, set `"managedBy": "operator"` in `connection.json`; the backend then never touches that file. A file with no `managedBy` at all — written before this behaviour existed — is taken over only if it still names the same bucket at the same endpoint the environment does; if you had repointed it by hand, that edit is kept.
@@ -113,7 +113,7 @@ The current PostgreSQL audit verifier checks SHA-256 row hashes and linkage. It 
 | --------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_AUDIT_SIGNING_KEY` | auto-generated by `tale init` | 64-character hex value generated and retained by the CLI for compatibility. Keep existing values with deployment secrets; the current PostgreSQL verifier does not consume this key. |
 | `TALE_AUDIT_SIGNING_KEY_PREVIOUS` | unset | Compatibility variable for a prior signing key. The current PostgreSQL verifier does not use it; setting it does not enable signature verification. |
-| `TALE_AUDIT_PEPPER`               | auto-generated by `tale init` | Pepper (16+ chars) for the HMAC-SHA256 hash of the email and the `/24` (IPv4) or `/64` (IPv6) prefix of the IP that a failed sign-in writes into the audit log — rows that live 365–3650 days, far longer than the attempt itself. Unset, those rows carry the plaintext email and IP and the backend logs a `[SECURITY]` warning. Rotating it ends correlation across the boundary; older rows age out under retention. |
+| `TALE_AUDIT_PEPPER` | auto-generated by `tale init` | At least 16 characters for failed-sign-in pseudonymization: HMAC-SHA256 of email and truncated IP address. Without it, these audit fields retain plaintext values and the backend warns. Rotation breaks correlation with earlier identifiers; retention follows each organization’s applied policy. |
 
 See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for the verification model.
 
@@ -123,10 +123,7 @@ See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for browser performance traces (`0.0`–`1.0`). Browser-only — the backend reports errors, never traces.            |
-| `METRICS_BEARER_TOKEN`      | unset   | Bearer token required to access the Prometheus `/metrics/*` endpoints. Leave unset to keep metrics endpoints unreachable from outside. |
-| `UMAMI_URL` | unset | HTTPS origin of the authenticated Umami collector gateway. Runtime only; requires the website ID and proxy token. |
-| `UMAMI_WEBSITE_ID` | unset | Umami website UUID. Unset or invalid disables aggregate analytics; use a separate ID for each deployment. |
-| `UMAMI_PROXY_TOKEN` | unset | Server-only bearer token for the collector gateway. Never inject into browser configuration. |
+| `METRICS_BEARER_TOKEN` | unset | Bearer token for the proxy’s `/metrics/*` routes. Without a configured token they return 401. Internal process endpoints remain a separate network-access concern. |
 
 Setting `METRICS_BEARER_TOKEN` exposes the metrics endpoints behind the token: `/metrics/platform`, `/metrics/backend` (the application backend's metrics), and `/metrics/sla-rules`. See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
 
@@ -184,7 +181,7 @@ Register the same cloud-import callback URI on the Google OAuth client. Consent 
 
 ## Feature flags
 
-Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.
+These variables configure backend authentication, file events, and operator permissions. Recreate the consuming backend roles when their environment changes; changing only the web container is insufficient.
 
 | Name                              | Default                  | Description                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -197,7 +194,7 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Name of the request header carrying team memberships as comma-separated `id:name` entries. Absent = teams untouched; present = the proxy's list is authoritative for the memberships it granted (empty revokes them). |
 | `TALE_FILE_EVENTS`                | `false`                  | Streams config-file changes under `TALE_CONFIG_DIR` to open browser tabs (`/events/file`), so an agent, skill, or branding file edited on disk shows up without a reload. On in the dev compose, off in production.   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Comma-separated email allowlist of operators allowed to write the deployment config file (`deployment.yml`, today the sandbox runtime section) through the API. Empty/unset = read-only for all admins. Data residency is configured per organization and is not gated by this list. |
-| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | unset                    | Lets a website crawl target (`POST /api/v1/websites`, and every fetch the crawler makes) — and a product's `imageUrl`, which is held to the same host rule as a string, never fetched — name a loopback, link-local or private-network host (RFC 1918, CGNAT, ULA, `.internal`, `.local`, single-label). Unset, such a target answers **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` (`INVALID_BODY` on the product) — the crawler dials from inside the deployment's own network. Set to `1` only on a deployment that crawls its own intranet; the cloud metadata endpoints stay refused regardless. |
+| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | unset                    | Lets a website crawl target (`POST /api/v1/websites`, and every fetch the crawler makes) name a loopback, link-local or private-network host (RFC 1918, CGNAT, ULA, `.internal`, `.local`, single-label). Unset, such a target answers **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` — the crawler dials from inside the deployment's own network. Set to `1` only on a deployment that crawls its own intranet; the cloud metadata endpoints stay refused regardless. |
 
 ## RAG retrieval tuning
 
@@ -205,7 +202,7 @@ These optional `RAG_` variables tune knowledge search and cross-encoder re-ranki
 
 | Name                         | Default                                | Description                                                                                                                                                                    |
 | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RAG_RERANKING_ENABLED`      | `false`                                | Re-scores the merged BM25 + vector candidates with a cross-encoder before results are returned. Improves precision at the cost of per-query latency.                           |
+| `RAG_RERANKING_ENABLED` | `false` | Enable cross-encoder re-scoring of merged BM25 and vector candidates. Also configure the API provider below. Measure relevance and added latency with your corpus. |
 | `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model identifier passed to the rerank provider.                                                                                                                  |
 | `RAG_RERANKING_PROVIDER`     | `local`                                | Must be set to `api` to enable re-ranking — it posts the candidates to an external `/rerank` endpoint (Cohere/Jina-compatible). `local` is no longer supported and fails fast. |
 | `RAG_RERANKING_TOP_K`        | `10`                                   | Maximum number of results the reranker returns. The response never exceeds the request's own `top_k`.                                                                          |
@@ -213,11 +210,11 @@ These optional `RAG_` variables tune knowledge search and cross-encoder re-ranki
 | `RAG_RERANKING_API_BASE_URL` | unset                                  | Base URL for the rerank provider; the backend calls `{base_url}/rerank`. Required when re-ranking is enabled.                                                                  |
 | `RAG_RERANKING_API_KEY`      | unset                                  | Bearer token sent to the external rerank endpoint. Leave unset for unauthenticated endpoints.                                                                                  |
 
-Re-ranking ships disabled because it adds per-query latency and depends on an external endpoint. Enable it — by setting `RAG_RERANKING_PROVIDER=api` and pointing `RAG_RERANKING_API_BASE_URL` at a hosted rerank service — when retrieval precision matters more than response time. There is no in-process model to download or cache; with re-ranking off, search returns the plain merged BM25 + vector ranking.
+Re-ranking is disabled by default. To use it, set `RAG_RERANKING_ENABLED=true`, `RAG_RERANKING_PROVIDER=api`, and a valid `RAG_RERANKING_API_BASE_URL`, plus credentials when required. The backend does not run a local re-ranking model. Compare results and latency before enabling it for users.
 
 ## Deployment topology
 
-How many replicas of each stateless role a colour runs. Read by `tale deploy` from the project `.env`; a value outside the range is clamped with a warning rather than refused, because zero replicas of the API is an outage nobody configures on purpose.
+These values control replicas per application role in a workspace deployment. `tale deploy` reads them from the project environment and clamps values to the supported range with a warning.
 
 | Name                           | Default | Description                                                                                              |
 | ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
@@ -225,7 +222,7 @@ How many replicas of each stateless role a colour runs. Read by `tale deploy` fr
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
 
-A deploy runs both colours at once, so each count is doubled for the length of the flip. Raise the worker first — it is the cheapest. [Upgrades](/self-hosted/operate/upgrades) is when those counts apply.
+A workspace rollout temporarily runs both colors. Plan capacity for that overlap. Increase the role whose measured workload is the bottleneck; more replicas also increase database connections and memory use. See [Upgrades](/self-hosted/operate/upgrades).
 
 ## Sessions
 
@@ -318,23 +315,21 @@ Kubernetes Pods do not receive unsafe sysctls automatically. The egress proxy ne
 | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optional.** How long an in-sandbox coding-agent turn (Claude Code, OpenCode, Codex) may sit with nobody draining its output before the sandbox daemon reaps it. A sliding window, re-armed every time the platform re-attaches to the output — not an absolute cap on the turn. Milliseconds. |
 
-Raise it when long agent turns on a slow host come back as reaped orphans; the platform re-attaches on its own, so the window only ends a turn whose drain chain died. Read by the backend at boot — restart `backend-api backend-worker` after changing it.
+Investigate why output consumption stopped before increasing this deadline. It limits orphaned output streams, not total task duration. Recreate the consuming backend roles after changing the environment.
 
 ## Video-link ingestion (yt-dlp)
 
-When Tale ingests a video link, it fetches the transcript for the agent. YouTube blocks automated access from datacenter/server IPs, so this can fail on a cloud deployment. The deployment ships a PO-token provider wired up by default (see [Video ingestion](/self-hosted/configuration/video-ingestion) for the full picture); the options below are optional overrides and escalations. None guarantees a bypass — a clean egress IP is the single biggest lever. Read by the backend worker and re-read on each ingestion, so a change takes effect without a restart.
+The worker uses these values for video transcript retrieval. Its image includes yt-dlp and a PO-token plugin. Use [Video ingestion](/self-hosted/configuration/video-ingestion) to distinguish source restrictions, egress problems, and authorized session handling. Recreate the worker after changing deployment environment values; rereading a variable inside a process does not reload `.env`.
 
 | Name                             | Default                               | Description                                                                                                                                                                                                                                                                                             |
 | -------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VIDEO_INGEST_PROXY_URL`         | unset                                 | Route yt-dlp egress through a proxy (a residential/ISP IP works best; datacenter proxies are usually flagged too). Schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h` — prefer `socks5h://` so DNS resolves at the proxy.                                                               |
-| `VIDEO_INGEST_POT_PROVIDER_URL`  | `http://bgutil-provider:4416` (baked) | Base URL of the PO-token provider supplying the GVS tokens that dissolve YouTube's bot wall. Defaults to the `bgutil-provider` compose sidecar when the baked plugin is present — set only to point at a provider on another host.                                                                      |
-| `VIDEO_INGEST_FETCH_POT`         | `always` when a provider is wired     | When yt-dlp requests PO tokens from the provider (`never`/`auto`/`always`). yt-dlp's own `auto` never fetches a token for the player request — exactly where the bot wall hits — so Tale defaults to `always` alongside a provider. `never` bypasses a misbehaving provider.                            |
+| `VIDEO_INGEST_PROXY_URL` | unset | Proxy for yt-dlp requests. Supported schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; the last resolves destination DNS at the proxy. Use an approved egress service. |
+| `VIDEO_INGEST_POT_PROVIDER_URL` | `http://bgutil-provider:4416` (baked) | PO-token provider URL. Defaults to the bundled sidecar when the image plugin is present. Tokens can help retrieval but do not grant access to private content or guarantee success. |
+| `VIDEO_INGEST_FETCH_POT` | `always` when a provider is wired | When to request provider tokens: `never`, `auto`, or `always`. The bundled provider path defaults to `always`. Use `never` only when deliberately disabling that token path. |
 | `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` | `/opt/yt-dlp/plugins` (baked)         | Directory yt-dlp loads plugins from — each plugin nested one level down (`<dir>/<name>/yt_dlp_plugins/…`). Defaults to the baked-in bgutil plugin dir when present; override only to add your own plugins.                                                                                              |
-| `VIDEO_INGEST_COOKIES_FILE`      | unset                                 | Path to a Netscape cookie jar. Guest cookies from an incognito session raise the rate limit with no ban risk; account cookies unlock gated content but risk the account.                                                                                                                                |
+| `VIDEO_INGEST_COOKIES_FILE` | unset | Path inside the worker to a Netscape cookie file. Protect it as account credentials and use only an authorized session. The organization-scoped browser-session pool in the video guide offers managed import and revocation. |
 | `VIDEO_INGEST_PLAYER_CLIENT`     | `default,tv_simply`                   | Comma-separated YouTube player-client fallback list. When a PO-token provider is wired the default widens to `default,mweb,tv_simply` (mweb needs a GVS token); set explicitly to force a list.                                                                                                         |
 | `VIDEO_INGEST_PO_TOKEN`          | unset                                 | Manually pinned PO token (`CLIENT.CONTEXT+TOKEN`). Mainly for testing — tokens are video-ID-bound and short-lived; prefer the provider.                                                                                                                                                                 |
 | `VIDEO_INGEST_IMPERSONATE`       | unset                                 | Browser TLS/JA3 impersonation target (e.g. `safari`). Requires `curl_cffi` in the image; leave unset unless you know it's available.                                                                                                                                                                    |
 | `VIDEO_INGEST_BIN_DIR`           | unset                                 | Directory prepended to the yt-dlp/ffmpeg child's `PATH` so a self-provisioned `yt-dlp` (and its Deno runtime) installed outside the image's pinned bin dirs is found first. The backend image bakes yt-dlp into `PATH`, so leave it unset there; set it on a host or dev box running its own toolchain. |
 | `VIDEO_INGEST_FFMPEG_LOCATION`   | `/usr/bin/ffmpeg`                     | Absolute path to the ffmpeg yt-dlp uses for post-processing (subtitle conversion, audio extraction). Override when ffmpeg lives elsewhere — e.g. Homebrew's `/opt/homebrew/bin/ffmpeg` on a macOS dev box.                                                                                              |
-
-None of these guarantees success against YouTube's adversarial detection. Ordinary public videos, less aggressive platforms, or a residential-IP/self-hosted deployment typically work without any of them.

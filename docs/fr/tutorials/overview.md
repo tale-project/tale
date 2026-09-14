@@ -34,7 +34,7 @@ Ces tutoriels demandent des droits supplémentaires ou un service déjà configu
 | Envoyer un message depuis ton programme | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) | Une instance opérationnelle, un modèle, une clé API et Python |
 | Lancer une automatisation depuis un autre système | [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) | Une automatisation publiée et un identifiant de webhook conservé en lieu sûr |
 | Connecter un serveur de modèles local | [Connecter un fournisseur local](/fr/tutorials/admin/connect-local-provider) | Les droits d'administration et un serveur de modèles accessible depuis Tale |
-| Convertir une réunion enregistrée en texte | [Configurer la transcription](/fr/tutorials/admin/meeting-transcription) | Un service de transcription configuré et l'autorisation de traiter l'enregistrement |
+| Retrouver des informations dans une transcription | [Ajouter une transcription à un projet](/fr/tutorials/admin/meeting-transcription) | Une transcription relue, le droit de modifier le projet et une indexation opérationnelle |
 
 ## Consulter une référence en cours de route
 

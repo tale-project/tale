@@ -1,6 +1,7 @@
 # @tale/web
 
-Tale marketing site
+The public marketing site, including product pages, pricing, contact forms, and the changelog.
+Run these commands from the repository root after installing dependencies:
 
 ```bash
 bun run --filter @tale/web dev       # Vite dev server on :3001
@@ -9,9 +10,7 @@ bun run --filter @tale/web typecheck
 bun run --filter @tale/web test
 ```
 
-Stack: Vite · TanStack Router · React 19 · `@tale/marketing-ui` (the marketing design language — site chrome, primitives, feature and demo frames — on `@tale/ui`) · Tailwind v4 (`app/globals.css` imports `@tale/marketing-ui/globals.css`, which layers on `@tale/ui/globals.css`) · framer-motion · Zod · Vitest.
-
-The site keeps every business and content decision — copy, routes, the platform-page registry, CTAs, demo scenarios — and feeds them to the package's frames: `app/components/marketing/index.ts` binds the primitives to the typed route table, `app/routes/__root.tsx` mounts `MarketingRouterProvider`, and `lib/i18n/i18n.ts` merges the package catalog next to `@tale/ui`'s.
+Stack: Vite · TanStack Router · React 19 · Tailwind v4 (imports `@tale/ui/globals.css`) · framer-motion · Zod · Vitest.
 
 ## Configuration
 
@@ -69,24 +68,20 @@ The shared implementation lives in `@tale/ui/monitoring` and
 web/docs images without publishing platform images, CLI assets, a full Tale
 release, or latest tags. Use a distinct version such as `0.5.15-sites.1`.
 
-## Optional aggregate analytics
+## Change content and verify it
 
-Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and server-only `UMAMI_PROXY_TOKEN` at runtime
-to enable Umami. Leave the website ID empty to disable it. The shared
-`@tale/ui/analytics` implementation loads the upstream tracker through `/_a/script.js`
-and sends curated pageviews through `/_a/api/send`; existing same-origin CSP stays intact.
-Subpath deployments prefix those browser URLs with their configured base path.
+Routes and page components live in `app/`; translated copy lives in `messages/`.
+Follow the repository's translation skill when changing English, German, or French content.
+Reuse `@tale/ui` components and the [design contract](../../design/docs/README.md) for visual changes.
 
-The collector origin must expose authenticated `GET /_collect/script.js` and
-`POST /_collect/api/send`, accepting the bearer token. Edge Caddy must overwrite
-`X-Analytics-Client-IP` from its trusted client address; application ports must stay
-private. The proxy forwards only that validated IP, browser User-Agent and Umami
-session headers. It drops cookies, browser credentials and referrer headers.
+Run the workspace lint, type, and unit checks, then build before testing prerendered output:
 
-See the [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md)
-and [observability guide](../../docs/en/self-hosted/configuration/observability-config.md)
-for collected fields and opt-outs. Tracking requires the production Bun server;
-the Vite development server does not inject deployment configuration.
+```bash
+bun run --filter @tale/web lint
+bun run --filter @tale/web build
+bun run --filter @tale/web test:prerender
+bun run --filter @tale/web test:e2e
+```
 
-Contact and demo submission successes emit `contact-submitted` and
-`demo-request-submitted`; rejected submissions and form contents are never sent.
+Use the [manual test guide](tests/manual/readme.md) for layout, keyboard, responsive, and degraded
+mode checks. A successful build does not verify that production contact forms can deliver a message.

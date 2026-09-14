@@ -1,18 +1,35 @@
 ---
-title: Backlog du projet
-description: Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé.
+title: Trier le backlog du projet
+description: Recueille les propositions, décide lesquelles retenir et distingue l’affectation du démarrage du travail.
 ---
 
-Une tâche au statut **Backlog** est du travail proposé auquel personne ne s’est encore engagé. Elle vit dans la colonne la plus à gauche du tableau et la section du haut de la liste, avec la même carte, la même fiche de détail, le même sélecteur de statut et le même sélecteur d’affectation que tout autre statut — il n’y a pas de contrôles réservés au backlog. Rien de livré ne remplit la colonne tout seul dans cette version : [Trier les issues GitHub](/fr/platform/automations/builtin) évalue les issues et renvoie un rapport, et aucune automatisation ne synchronise d’issues en tâches. Le Backlog se remplit quand une personne ou un agent dépose une proposition.
+Utilise **Backlog** pour les propositions sur lesquelles l’équipe ne s’est pas encore engagée. Ce statut ordinaire apparaît en premier dans le tableau et la liste. Une proposition peut déjà être affectée à quelqu’un ; cette affectation ne signifie pas que le travail a commencé.
 
-## Comment une tâche atterrit dans le Backlog
+## Enregistrer une proposition
 
-Crée une tâche et choisis **Backlog** dans le sélecteur de statut du formulaire de création — il propose **À faire** par défaut. Un agent peut aussi en déposer une : un agent de projet équipé de l’outil de création de tâches ne peut créer que dans **Backlog** ou **À faire**, nulle part ailleurs, si bien qu’une proposition faite par un agent n’atterrit jamais dans une colonne de travail ni dans une colonne terminale. La même règle vaut pour une automatisation qui tourne avec les outils de tâches d’un projet.
+Ouvre les **Tâches** du projet et crée une tâche. Choisis **Backlog** dans le sélecteur de statut ; sinon, une nouvelle tâche commence avec **À faire**. Donne-lui un titre qui décrit le résultat recherché et assez de contexte pour décider si la proposition mérite d’être suivie.
 
-## Faire avancer le travail
+Par exemple, « Examiner l’erreur du paiement mobile » se juge mieux avec la page concernée, un symptôme reproductible et une capture d’écran qu’avec un titre seul. Attends de comprendre le problème avant de préciser la solution technique.
 
-Glisse la carte vers une autre colonne, ouvre la fiche de détail et choisis un nouveau statut, ou affecte un responsable — les mêmes chemins que pour **À faire** ou **En cours**. L’affectation est permise tant qu’une tâche est dans le Backlog ; tu peux donc confier une proposition à une personne ou à un agent de projet avant qu’elle bouge. Affecter un agent de projet et cliquer sur **Démarrer l'agent** le met au travail, et [Automatisation des tâches](/fr/platform/projects/task-automation) couvre ce qui se passe ensuite. Écarte une proposition comme tu fermes toute autre tâche : passe son statut à **Annulé**.
+Un agent de projet équipé de l’outil de création de tâches peut aussi déposer une proposition. Cet outil autorise **Backlog** ou **À faire** comme statut initial, pas un statut de travail en cours ou terminé. La même limite s’applique aux automatisations qui utilisent les outils de tâches du projet.
 
-## Où cela se place
+## Décider de la suite
 
-Le Backlog est la colonne d’entrée entre une proposition — la tienne, celle d’un collègue ou celle d’un agent — et l’équipe qui s’y engage. [Automatisation des tâches](/fr/platform/projects/task-automation) est la lecture suivante pour la boucle dans laquelle une tâche entre une fois affectée ; [Automatisations livrées](/fr/platform/automations/builtin) explique pourquoi le paquet GitHub livré rapporte au lieu de créer des tâches.
+| Décision | Action |
+| --- | --- |
+| Il manque des informations | Garde **Backlog** et précise ce qui manque dans la description ou un commentaire. |
+| L’équipe accepte le travail | Choisis **À faire** et affecte la tâche. |
+| Le travail a commencé | Passe à **En cours**. |
+| La proposition ne sera pas suivie | Choisis **Annulé** pour conserver la discussion. |
+
+Change le statut dans le détail de la tâche ou déplace la carte entre les colonnes. Ce sont les commandes habituelles des tâches : le backlog n’a pas de procédure distincte d’acceptation ou de rejet.
+
+## Confier la tâche à un agent
+
+Choisis un agent du même projet et précise le résultat attendu avant de sélectionner **Démarrer l'agent**. L’affectation ne remplace pas cette action de démarrage. L’[automatisation des tâches](/fr/platform/projects/task-automation) explique les prérequis, le suivi et la vérification du résultat.
+
+## Comprendre l’origine des propositions
+
+L’automatisation fournie **Trier les issues GitHub** renvoie un rapport classé par priorité. Elle ne crée pas de tâches et ne remplit pas automatiquement le backlog. Une personne ou un agent correctement équipé doit transformer une issue retenue en tâche. Le rapport recommande ainsi du travail ; son acceptation reste une décision distincte.
+
+Le guide [Gérer les tâches du projet](/fr/platform/projects/tasks) couvre les détails, les commentaires, les dépendances et les autres fonctions du tableau.

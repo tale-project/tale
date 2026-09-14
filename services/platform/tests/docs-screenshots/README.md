@@ -102,6 +102,25 @@ bun run --filter @tale/docs test
 bun run --filter @tale/docs dev
 ```
 
+## Refresh the README gallery
+
+The English, German, and French READMEs share six thumbnails. Each links to its full-resolution
+source. After starting the platform and successfully seeding it, retake those source images:
+
+```bash
+bun run docs:screenshots -- --skip-seed --only chat-arena-split,projects-task-board,project-agents-models,automation-editor-canvas,connectors-add-credential,governance-guardrails
+bun run readme:assets --gallery-only
+```
+
+`--gallery-only` rebuilds the six WebP thumbnails under `.github/assets/` without regenerating the
+animated tour. The thumbnails preserve the entire frame and use a higher quality setting for
+small UI text. The source images remain governed by the docs pipeline's size budget.
+
+Inspect all six sources and thumbnails, then preview each README at a normal repository reading
+width and a narrow viewport. Check the captions, image links, and [visual guide](../../../../SCREENSHOTS.md)
+against the captured state. A freshly captured image can still show a loading screen or an
+irrelevant state; capture success alone is not visual approval.
+
 ## What the pipeline verifies
 
 - Preflight checks the app and gateway are reachable. A responsive app alone does not prove its

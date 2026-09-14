@@ -114,7 +114,8 @@ case "${TLS_MODE:-selfsigned}" in
       ;;
     selfsigned|*)
       echo "  Mode: Self-signed (internal CA - browser warning expected)"
-      echo "  To trust certs on host: docker exec tale-proxy caddy trust"
+      echo "  For client trust, copy /data/caddy/pki/authorities/local/root.crt from this container and install it in the client OS/browser trust store."
+      echo "  See https://tale.dev/docs/self-hosted/configuration/tls-and-domains"
       # Internal CA for self-signed certificates
       TLS_CONFIG="tls internal"
       ;;

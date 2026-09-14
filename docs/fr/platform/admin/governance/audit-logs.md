@@ -32,7 +32,7 @@ Le journal atteste les événements qu’il enregistre. Il ne constitue pas une 
 
 **Journaux d'audit** contient les événements individuels. La vue des blocages de connexion aide à examiner les verrouillages. Les journaux d’activité résument les actions et leurs résultats sur une période. Les journaux d’erreurs se concentrent sur les échecs et peuvent être filtrés par catégorie.
 
-Si un membre ne peut pas se connecter, commence par les blocages et le [guide de sécurité du compte](/platform/admin/two-factor-authentication). Pour un changement de configuration inattendu, consulte l’événement d’audit et ses détails.
+Si un membre ne peut pas se connecter, commence par les blocages et le [guide de sécurité du compte](/fr/platform/admin/two-factor-authentication). Pour un changement de configuration inattendu, consulte l’événement d’audit et ses détails.
 
 ## Exporter les résultats
 
@@ -46,4 +46,4 @@ Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne p
 
 Une vérification réussie couvre les enregistrements conservés qu’elle a examinés. Elle n’établit pas une origine de l’historique signée de façon indépendante. Le [guide d’intégrité pour l’exploitation](/fr/self-hosted/operate/security/audit-log-integrity) décrit les contrôles et leurs limites.
 
-Le chaînage par empreintes aide à détecter les changements des enregistrements stockés. Il ne prouve pas que toute action possible a été enregistrée. La rétention de l’audit se configure dans [Politiques et limites](/platform/admin/governance/policies-and-limits). Vérifie la règle active et les bornes du déploiement sans supposer une durée fixe. Des entrées d’audit récupérables peuvent apparaître dans la [Corbeille](/platform/admin/governance/trash). Le nettoyage définitif limite l’historique disponible ici.
+Le chaînage par empreintes aide à détecter les changements des enregistrements stockés. Il ne prouve pas que toute action possible a été enregistrée. La rétention de l’audit se configure dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Vérifie la règle active et les bornes du déploiement sans supposer une durée fixe. Des entrées d’audit récupérables peuvent apparaître dans la [Corbeille](/fr/platform/admin/governance/trash). Le nettoyage définitif limite l’historique disponible ici.

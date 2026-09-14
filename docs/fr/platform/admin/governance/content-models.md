@@ -3,11 +3,11 @@ title: Modèles
 description: Définis les modèles par défaut, limite leur accès et choisis le modèle qui lit les images pour les agents textuels.
 ---
 
-En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modèles** pour choisir les modèles proposés au départ et ceux que les membres peuvent utiliser. Les valeurs par défaut orientent le choix ; les règles d’accès imposent une restriction. Configure d’abord les [identifiants fournisseur](/platform/admin/providers) pour rendre les modèles souhaités disponibles.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modèles** pour choisir les modèles proposés au départ et ceux que les membres peuvent utiliser. Les valeurs par défaut orientent le choix ; les règles d’accès imposent une restriction. Configure d’abord les [identifiants fournisseur](/fr/platform/admin/providers) pour rendre les modèles souhaités disponibles.
 
-<Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par scope, avec la liste d’autorisation de l’accès aux modèles en dessous et le modèle de vision plus bas.">
+<Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par portée, avec la liste d’autorisation de l’accès aux modèles en dessous et le modèle de vision plus bas.">
 
-![La page de gouvernance Modèles montrant le tableau des modèles par défaut avec trois règles — un défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter — au-dessus de la section d’accès aux modèles en mode liste d’autorisation, avec une règle de modèles autorisés par rôle.](/images/platform/governance-content-models.webp)
+![La page de gouvernance Modèles montrant le tableau des modèles par défaut avec trois règles — un modèle par défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter — au-dessus de la section d’accès aux modèles en mode liste d’autorisation, avec une règle de modèles autorisés par rôle.](/images/platform/governance-content-models.webp)
 
 </Frame>
 
@@ -31,7 +31,7 @@ Sous **Accès aux modèles**, choisis le mode et ajoute des règles pour les per
 
 Les règles individuelles passent avant celles des équipes, puis des rôles et enfin la règle par défaut. Plusieurs règles d’équipe correspondantes combinent leurs listes ; un blocage explicite reste prioritaire pour le modèle. Si aucune règle ne correspond, la politique ne restreint pas cette personne. Ajoute une règle de base pour couvrir tout le monde.
 
-L’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre défaut et accès. Corrige-les pour que le défaut prévu soit réellement utilisé.
+L’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre modèle par défaut et accès. Corrige-les pour que le modèle par défaut prévu soit réellement utilisé.
 
 <Tip>
 Après un changement, teste les deux cas pour le membre concerné : un modèle autorisé doit fonctionner et un modèle interdit doit être refusé. Tester uniquement avec un compte admin ne prouve pas une règle propre à un rôle.
@@ -47,4 +47,4 @@ Fixe un modèle si tu souhaites un choix stable. La sélection propose des modè
 
 ## Expliquer un choix inattendu
 
-Vérifie les rôles et équipes du membre, le choix explicite dans le chat, le défaut correspondant, la règle d’accès et la liste de modèles des identifiants fournisseur. Une entrée au catalogue ne prouve pas que l’organisation dispose d’identifiants utilisables. Les plafonds de coût et de tokens continuent de s’appliquer via [Politiques et limites](/platform/admin/governance/policies-and-limits).
+Vérifie les rôles et équipes du membre, le choix explicite dans le chat, le modèle par défaut correspondant, la règle d’accès et la liste de modèles des identifiants fournisseur. Une entrée au catalogue ne prouve pas que l’organisation dispose d’identifiants utilisables. Les plafonds de coût et de tokens continuent de s’appliquer via [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).

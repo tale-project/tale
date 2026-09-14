@@ -3,7 +3,7 @@ title: Bibliothèque de skills
 description: Crée des instructions réutilisables, importe un bundle et choisis les équipes et agents de projet qui pourront l’utiliser.
 ---
 
-Un skill décrit une méthode de travail réutilisable : rédiger des notes de version, vérifier un brief ou préparer un document selon vos conventions. Il contient un fichier d’instructions `SKILL.md` et, si nécessaire, des fichiers complémentaires. Entretiens-le dans **Paramètres > Skills**, puis [équipe les agents concernés](/fr/platform/agents/skills).
+Un skill décrit une méthode de travail réutilisable : rédiger des notes de version, vérifier un brief ou préparer un document selon les conventions de ton équipe. Il contient un fichier d’instructions `SKILL.md` et, si nécessaire, des fichiers complémentaires. Entretiens-le dans **Paramètres > Skills**, puis [équipe les agents concernés](/fr/platform/agents/skills).
 
 Chaque membre peut créer un skill et modifier les siens. Pour modifier ou supprimer le skill partagé d’une autre personne, il faut être administrateur de l’organisation.
 
@@ -116,6 +116,6 @@ Tale conserve les clés de frontmatter inconnues. Le frontmatter est limité à 
 
 Ouvre une ligne pour modifier la description, les instructions, les libellés et la visibilité. L’arborescence **Bundle** permet d’examiner les fichiers complémentaires. Les agents ne sont pas liés à une version précise : la prochaine préparation utilise le bundle courant. Teste donc les changements partagés sur une tâche représentative.
 
-Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. S’il ignore un skill équipé, précise la description et vérifie `disable-model-invocation`. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
+Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. S’il ignore un skill équipé, précise dans la tâche quel skill utiliser et compare le résultat avec ses instructions. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
 
 En cas d’erreur d’import, vérifie que `SKILL.md` est à la racine, que son frontmatter est valide et que son nom est accepté. L’erreur précise les chemins ou limites de taille en cause. Pour retirer un bundle, ouvre-le et choisis **Supprimer le skill** après avoir vérifié les agents concernés.

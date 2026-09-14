@@ -34,7 +34,7 @@ Für diese Tutorials brauchst du zusätzliche Rechte oder einen eingerichteten D
 | Eine Nachricht aus einem eigenen Programm senden | [Tale per Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) | Eine laufende Instanz, ein Modell, ein API-Schlüssel und Python |
 | Eine Automatisierung aus einem anderen System starten | [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) | Eine veröffentlichte Automatisierung und sicher gespeicherte Webhook-Zugangsdaten |
 | Einen lokalen Modellserver verbinden | [Einen lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider) | Verwaltungsrechte und ein von Tale erreichbarer Modellserver |
-| Besprechungsaudio in Text umwandeln | [Transkription einrichten](/de/tutorials/admin/meeting-transcription) | Ein eingerichteter Speech-to-Text-Dienst und die Erlaubnis, die Aufnahme zu verarbeiten |
+| Ein Besprechungstranskript durchsuchbar machen | [Transkripte einem Projekt hinzufügen](/de/tutorials/admin/meeting-transcription) | Ein geprüftes Transkript, Bearbeitungsrechte im Projekt und eine funktionierende Dokumentindexierung |
 
 ## Während der Arbeit nachschlagen
 

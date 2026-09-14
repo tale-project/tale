@@ -5092,9 +5092,8 @@ settings:
   connectors:
     searchPlaceholder: Rechercher des connectors
     sectionDescription:
-      Les identifiants avec lesquels cette organisation s'authentifie auprès
-      des services connectés. Chacun ouvre les actions de son service aux
-      automatisations et au chat.
+      Gère les identifiants que ton organisation utilise pour les actions
+      des connectors dans les workflows et les outils compatibles de la plateforme.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5111,8 +5110,8 @@ settings:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       connect: Connecter
       emptyBodyOauth:
-        Connecte {connector} pour accorder l'accès à Tale, et ses actions
-        deviennent disponibles dans les automatisations et le chat.
+        Connecte {connector} pour que les workflows configurés et les outils
+        compatibles de la plateforme puissent utiliser ce compte.
       oauthAppMissing:
         "{connector} n'a pas encore d'app OAuth pour se connecter. Demande à
         un admin de ton organisation de la configurer dans Paramètres >

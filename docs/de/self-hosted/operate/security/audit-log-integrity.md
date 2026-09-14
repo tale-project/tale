@@ -3,11 +3,11 @@ title: Die Integrität des Audit-Protokolls untersuchen
 description: Prüfe die Audit-Kette, beachte die Grenzen der Prüfung und sichere Nachweise bei einem Fehler.
 ---
 
-Nutze diese Anleitung, wenn **Ketten-Integrität** einen Bruch meldet oder du eine Benachrichtigung zur Audit-Integrität erhältst. Für den beschriebenen Weg durch die Einstellungen brauchst du ein Admin- oder Owner-Konto. Ziehe für die Untersuchung der Datenbank den Betreiber deiner Installation hinzu.
+Nutze diese Anleitung, wenn **Ketten-Integrität** einen Bruch meldet oder du eine Benachrichtigung zur Audit-Integrität erhältst. Für den beschriebenen Weg durch die Einstellungen brauchst du ein Admin- oder Inhaberkonto. Ziehe für die Untersuchung der Datenbank den Betreiber deiner Installation hinzu.
 
 ## Den geprüften Bereich feststellen
 
-1. Öffne **Einstellungen > Governance > Protokolle** und suche **Ketten-Integrität**.
+1. Öffne **Einstellungen > Richtlinien > Protokolle** und suche **Ketten-Integrität**.
 2. Notiere Status und Zeitpunkt der letzten automatischen Prüfung. **Noch nicht geprüft** bedeutet, dass noch kein Ergebnis vorliegt; es bestätigt keine erfolgreiche Prüfung.
 3. Wähle **Jetzt prüfen**. Das Ergebnis nennt die Zahl der geprüften Einträge. Ein Aufruf prüft höchstens 1.000 Einträge ab dem Anfang der noch vorhandenen Kette.
 4. Ist das Ergebnis unvollständig, bitte den Betreiber, den restlichen Bereich zu prüfen. Ein erneuter Klick beginnt wieder am selben Anfang. Eine fehlerfreie erste Seite belegt nicht die Integrität des gesamten Verlaufs.
@@ -20,7 +20,7 @@ Das aktuelle PostgreSQL-Backend prüft den SHA-256-Hash jedes noch vorhandenen, 
 
 Die Aufbewahrungsregel kann den Anfang der Kette entfernen. Die geplante Prüfung setzt an ihrem gespeicherten Fortschritt fort. Wurde dieser Ausgangspunkt regulär durch die Aufbewahrung gelöscht, beginnt sie bei der ersten erhaltenen Verknüpfung. Fehlt ein Ausgangspunkt innerhalb des Aufbewahrungszeitraums, wird das nicht auf diese Weise akzeptiert.
 
-Bei Einträgen, deren personenbezogene Inhalte gelöscht wurden, prüft das Backend die Verknüpfung, ohne den Hash aus den gelöschten Inhalten neu zu berechnen. Es zählt ausserdem bereinigte Zeilen ohne passenden Löschantrag. Untersuche eine solche Warnung anhand der Löschvorgänge. Das aktuelle Backend prüft keine HMAC-signierten Prüfpunkte; ein Audit-Signaturschlüssel behebt diese Befunde nicht.
+Bei Einträgen, deren personenbezogene Inhalte gelöscht wurden, prüft das Backend die Verknüpfung, ohne den Hash aus den gelöschten Inhalten neu zu berechnen. Es zählt außerdem bereinigte Zeilen ohne passenden Löschantrag. Untersuche eine solche Warnung anhand der Löschvorgänge. Das aktuelle Backend prüft keine HMAC-signierten Prüfpunkte; ein Audit-Signaturschlüssel behebt diese Befunde nicht.
 
 <Warning title="Unabhängige Nachweise aufbewahren">
 Eine Hash-Kette verhindert weder Datenbankänderungen noch belegt sie, dass jede Aktion protokolliert wurde. Schütze den Datenbankzugriff und bewahre geeignete unabhängige Nachweise auf. Eine vollständig neu geschriebene Kette lässt sich mit dieser Prüfung allein nicht zuverlässig erkennen.
@@ -41,6 +41,6 @@ Die Anleitung zu [Audit-Protokollen](/de/platform/admin/governance/audit-logs) e
 
 Ein täglicher Job prüft Organisationen mit Audit-Einträgen schrittweise. Ein erkannter Hash-Bruch aktiviert eine Integritätswarnung und benachrichtigt die Admins der Organisation. Wiederholte Prüfungen führen für denselben Befund nicht zu doppelten Benachrichtigungen. Ein veränderter Befund kann eine neue auslösen.
 
-Prüfe nach Reparatur oder Wiederherstellung, ob der betroffene Bereich wieder gültig ist. Eine anschliessende erfolgreiche geplante Prüfung hebt die aktive Warnung auf. Einem Kollegen den Fehler zu erklären oder eine Benachrichtigung zu schliessen repariert die Kette nicht.
+Prüfe nach Reparatur oder Wiederherstellung, ob der betroffene Bereich wieder gültig ist. Eine anschließende erfolgreiche geplante Prüfung hebt die aktive Warnung auf. Einem Kollegen den Fehler zu erklären oder eine Benachrichtigung zu schließen repariert die Kette nicht.
 
-Weitere Schutzmassnahmen findest du unter [Härtung](/de/self-hosted/operate/security/hardening). Welche alten Nachweise entfernt werden, regelt die [Aufbewahrung](/de/self-hosted/configuration/retention).
+Weitere Schutzmaßnahmen findest du unter [Härtung](/de/self-hosted/operate/security/hardening). Welche alten Nachweise entfernt werden, regelt die [Aufbewahrung](/de/self-hosted/configuration/retention).

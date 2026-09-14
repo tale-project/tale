@@ -1,163 +1,55 @@
-# Conversations Model
+# Conversation ingestion and reply helpers
 
-## External Message ID
+These modules normalize incoming email, resolve its conversation, preserve
+attachments and threading, and prepare replies. The native PostgreSQL
+[conversation domain](../../domains/conversations/) owns routes, persistence,
+permissions and delivery state; its [`shim.ts`](../../domains/conversations/shim.ts)
+connects the reused helpers to SQL-backed handlers.
 
-The `externalMessageId` field allows you to store and query conversations by their external message identifiers (e.g., email Message-ID headers). This field is now available on **both** the `conversations` and `conversationMessages` tables:
+## Follow an incoming message
 
-- **conversations.externalMessageId**: Stores the external message ID that created the conversation (e.g., the root email's Message-ID)
-- **conversationMessages.externalMessageId**: Stores the external message ID for each individual message in the conversation
+Start with [`sync_mailbox.ts`](sync_mailbox.ts) and the helpers in [`ingest/`](ingest/):
 
-This is useful for:
+| Job | Source to inspect |
+| --- | --- |
+| Normalize a Message-ID for storage and lookup | `ingest/normalize_external_message_id.ts` |
+| Find a stored message | `ingest/check_message_exists.ts` |
+| Resolve replies and references to a conversation | `ingest/resolve_email_conversation_target.ts` |
+| Find or create the sender’s contact | `ingest/find_or_create_contact_from_email.ts` |
+| Create an inbound or sent-email conversation | `ingest/create_conversation_from_email.ts`, `ingest/create_conversation_from_sent_email.ts` |
+| Reuse, materialize and bind attachments | `ingest/reuse_stored_attachments.ts`, `ingest/materialize_email_attachments.ts`, `ingest/bind_email_attachments.ts` |
 
-- **Avoiding duplicates**: Check if a conversation already exists before creating a new one
-- **Linking replies**: Find the parent conversation when processing email replies
-- **Idempotent processing**: Safely re-process the same external message without creating duplicates
+Pass the organization through every lookup. Normalize external message IDs with
+the existing helper: it trims surrounding whitespace and removes surrounding
+angle brackets. Do not introduce a second normalization rule or compare raw
+header spelling with canonical stored IDs. Missing IDs require the caller’s
+existing deduplication path; an absent ID is not a reliable identity.
 
-### Schema
+## Change reply behavior
 
-```typescript
-conversations: defineTable({
-  organizationId: v.string(), // Better Auth organization ID
-  externalMessageId: v.optional(v.string()), // Root message ID that created this conversation
-  subject: v.optional(v.string()),
-  // ...other fields
-}).index('by_organizationId_and_externalMessageId', [
-  'organizationId',
-  'externalMessageId',
-]);
+[`reply_to_conversation.ts`](reply_to_conversation.ts) and
+[`build_threading_headers.ts`](build_threading_headers.ts) handle reply preparation.
+Native delivery scheduling and retry ownership are in
+[`domains/conversations/send.ts`](../../domains/conversations/send.ts). Keep the
+queued message, authorization and durable delivery behavior together when
+changing this path; sending a network request inside a retried SQL transaction
+can duplicate an external effect.
 
-conversationMessages: defineTable({
-  organizationId: v.string(), // Better Auth organization ID
-  conversationId: v.id('conversations'),
-  externalMessageId: v.optional(v.string()), // Message ID for this specific message
-  // ...other fields
-}).index('by_organizationId_and_externalMessageId', [
-  'organizationId',
-  'externalMessageId',
-]);
+External applications that synchronize their own conversation system use the
+[native API sync implementation](../../domains/conversations/api-sync.ts), not
+these internal helpers. Its revision and delivery receipts are separate from an
+email Message-ID. See the [API reference](../../../../../docs/en/develop/api-reference.md)
+for the public contract.
+
+## Verify a change
+
+Run the platform’s server tests from the repository root:
+
+```bash
+bun run --filter @tale/platform test
 ```
 
-### Usage Example
-
-```typescript
-import { internal } from './_generated/api';
-
-// 1. Check if conversation already exists by external message ID
-const existing = await ctx.runQuery(
-  internal.conversations.getConversationByExternalMessageId,
-  {
-    organizationId: orgId,
-    externalMessageId: emailMessageId,
-  },
-);
-
-if (existing) {
-  console.log('Conversation already exists:', existing._id);
-  return existing._id;
-}
-
-// 2. Create new conversation with external message ID
-const result = await ctx.runMutation(
-  internal.conversations.createConversation,
-  {
-    organizationId: orgId,
-    externalMessageId: emailMessageId, // Store the root email's Message-ID
-    subject: emailSubject,
-    status: 'open',
-    priority: 'medium',
-    metadata: {
-      from: email.from,
-      to: email.to,
-      receivedAt: email.date,
-    },
-  },
-);
-
-console.log('Created conversation:', result.conversationId);
-```
-
-### Email Sync Example
-
-```typescript
-// When syncing emails, use externalMessageId to avoid duplicates
-for (const email of emails) {
-  const messageId = email.messageId; // e.g., "<abc123@mail.example.com>"
-
-  // Check if we've already processed this email
-  const existing = await ctx.runQuery(
-    internal.conversations.getConversationByExternalMessageId,
-    {
-      organizationId: orgId,
-      externalMessageId: messageId,
-    },
-  );
-
-  if (existing) {
-    console.log(`Skipping duplicate email: ${messageId}`);
-    continue;
-  }
-
-  // Create new conversation for this email
-  await ctx.runMutation(internal.conversations.createConversation, {
-    organizationId: orgId,
-    externalMessageId: messageId, // Store the email's Message-ID
-    subject: email.subject,
-    metadata: {
-      from: email.from,
-      to: email.to,
-      body: email.text,
-    },
-  });
-}
-```
-
-### API Reference
-
-#### Internal Query: `getConversationByExternalMessageId`
-
-```typescript
-ctx.runQuery(internal.conversations.getConversationByExternalMessageId, {
-  organizationId: Id<'organizations'>,
-  externalMessageId: string,
-});
-// Returns: Doc<'conversations'> | null
-```
-
-#### Internal Query: `getMessageByExternalId`
-
-```typescript
-ctx.runQuery(internal.conversations.getMessageByExternalId, {
-  organizationId: Id<'organizations'>,
-  externalMessageId: string,
-});
-// Returns: Doc<'conversationMessages'> | null
-```
-
-#### Public Query: `getMessageByExternalIdPublic`
-
-```typescript
-ctx.runQuery(api.conversations.getMessageByExternalIdPublic, {
-  organizationId: Id<'organizations'>,
-  externalMessageId: string,
-});
-// Returns: Doc<'conversationMessages'> | null
-// Note: Requires RLS authentication
-```
-
-#### Create conversation
-
-```typescript
-ctx.runMutation(internal.conversations.createConversation, {
-  organizationId: Id<'organizations'>,
-  externalMessageId: string, // Optional: Store the root external message ID
-  // ... other fields
-});
-```
-
-### Best Practices
-
-1. **Always check for existing conversations** before creating new ones when processing external messages
-2. **Use the full Message-ID** from email headers (including angle brackets if present)
-3. Store the root external message ID on `conversations.externalMessageId` for conversation-level deduplication
-4. Store individual message IDs on `conversationMessages.externalMessageId` for message-level tracking
-5. Use the indexed queries (`getConversationByExternalMessageId` or `getMessageByExternalId`) instead of filtering by metadata
+Colocated tests cover ID normalization, threading, timestamps and attachments.
+Native domain tests cover access, persistence, send state and retries. Changes
+across that boundary also need the real-Postgres integration proof described in
+the [backend README](../../README.md).

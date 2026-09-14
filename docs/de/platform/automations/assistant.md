@@ -3,11 +3,11 @@ title: Den Weg zur Automation wählen
 description: Bearbeite Workflows direkt im visuellen Editor oder verbinde einen externen Assistenten über MCP mit Tale.
 ---
 
-Bearbeite eine Automation direkt auf ihrer Arbeitsfläche oder verbinde einen externen Assistenten über MCP mit den Tools von Tale. Beide Wege speichern Versionen desselben Workflows und nutzen dieselben Prüf- und Bereitstellungsregeln. Zum Erstellen und Bereitstellen brauchst du Entwicklerrechte.
+Bearbeite eine Automation direkt auf ihrer Arbeitsfläche oder verbinde einen externen Assistenten über MCP mit den Werkzeugen von Tale. Beide Wege speichern Versionen desselben Workflows und nutzen dieselben Prüf- und Bereitstellungsregeln. Zum Erstellen und Bereitstellen brauchst du Entwicklerrechte.
 
 ## Eine Änderung im visuellen Editor vornehmen
 
-Öffne **Automationen** und wähle den Workflow. Klicke auf einen Knoten, um Eingaben, Modell, Code oder andere Einstellungen zu prüfen. Speichere die Änderung mit einer Versionsnachricht, führe einen Test aus und stelle nach bestandenen Prüfungen die gewünschte Version bereit.
+Öffne **Automatisierungen** und wähle den Workflow. Klicke auf einen Knoten, um Eingaben, Modell, Code oder andere Einstellungen zu prüfen. Speichere die Änderung mit einer Versionsnachricht, führe einen Test aus und stelle nach bestandenen Prüfungen die gewünschte Version bereit.
 
 <Frame caption="Ein ausgewählter Knoten zeigt seine Konfiguration neben dem Workflow-Graphen.">
 

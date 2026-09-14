@@ -1,60 +1,52 @@
 ---
-title: Selbst gehostete Architektur
-description: Neun Container hinter einem Caddy-Proxy, ein Postgres, ein S3-kompatibler Blob-Store. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen.
+title: Architektur beim Selbsthosting
+description: Verstehe Anwendungs-, Speicher- und Sandbox-Dienste, bevor du Bereitstellung und Betrieb von Tale planst.
 ---
 
-Eine Tale-Instanz besteht aus neun Containern hinter einem Caddy-Proxy: der Web-Tier, ein Application-Backend mit zwei Rollen, ein Postgres, ein S3-kompatibler Blob-Store und die dreiteilige Sandbox-Ebene an der Seite für die Code-Ausführung. Ein kleiner `bgutil-provider`-Sidecar rundet das Ganze für die Video-Link-Ingestion ab. Die compose-Datei ist der Vertrag — was läuft, was exponiert ist, was gemountet ist. Diese Seite vermittelt das mentale Modell, sodass die Install-, Konfigurations- und Betriebsseiten es nicht erneut erklären müssen.
+Bei einer selbst gehosteten Tale-Instanz betreibst du Anwendung, Speicher und Sandbox-Dienste auf deiner Infrastruktur. Eine Instanz kann mehrere Organisationen enthalten; Datensätze und Konfiguration bleiben jeweils der zugehörigen Organisation zugeordnet.
 
-Lies das, bevor du deployst. Komm zurück, wenn du einen Ausfall debuggst und wissen musst, welches Container-Log du zuerst öffnen solltest.
+Diese Übersicht hilft bei der Kapazitätsplanung und bei der Auswahl der zu sichernden Daten. [Compose selbst betreiben](/de/self-hosted/install/own-compose) beschreibt die erforderlichen Netzwerke, Mounts und Zustandsprüfungen. [Container-Architektur](/de/self-hosted/operate/container-architecture) hilft dir, Fehler im laufenden Betrieb einzugrenzen.
 
-## Die Container
+## Zusammenspiel der Dienste
 
-**tale-proxy** ist Caddy am Rand. Er terminiert TLS, liefert die SPA und die eigenen Routen der Plattform aus dem Plattform-Container aus und leitet die Anwendungsoberfläche — alles unter `/api/` außer `/api/health`, dazu `/events` und die WebDAV-Tür — an das Backend weiter. Health-Checks leben hier.
+Die mitgelieferte Bereitstellung auf einem Host umfasst zehn Dienste, bevor Replikate und vorübergehende Sandbox-Sitzungen hinzukommen. Der Stack für die Entwicklung kann eine eigene Wissensdatenbank verwenden. Vergleiche daher die Aufgaben der Dienste statt nur die Anzahl der Container.
 
-**tale-platform** ist der Web-Tier: eine Vite- + TanStack-Router-SPA plus der Bun-Server, der sie ausliefert. Er rendert die UI, liefert statische Assets und Branding aus, beobachtet den Config-Store auf Live-Änderungen und besitzt einige eigene Routen (die Health-Probe, die Canvas-Vorschau, den WebDAV-Fallback). Er ist der einzige Container, mit dem der Browser direkt spricht, und er hält keinen Geschäfts-State — alles, was persistiert, läuft über das Backend.
+| Ebene | Dienste | Aufgabe |
+| --- | --- | --- |
+| Öffentlicher Zugang | `proxy` | Caddy beendet TLS und leitet Browseranfragen an Web-Oberfläche, APIs und Dateispeicher weiter. |
+| Anwendung | `platform`, `backend-api`, `backend-worker` | Die Web-Ebene liefert die Oberfläche. Die API authentifiziert Anfragen und führt Anwendungsoperationen aus. Worker bearbeiten Aufgaben, Automatisierungen und Importe aus der Warteschlange. |
+| Dauerhafter Speicher | `db`, `object-store` | Postgres speichert Anwendungs- und Wissensdaten; der S3-kompatible Speicher enthält Originaldateien und erzeugte Medien. |
+| Sandbox-Ausführung | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Der Spawner erstellt Ausführungssitzungen, der Egress-Proxy kontrolliert ausgehende Anfragen und das Modell-Gateway stellt begrenzten Modellzugriff bereit. |
+| Video-Unterstützung | `bgutil-provider` | Liefert Proof-of-Origin-Tokens für den Videoimport. Seine Verfügbarkeit kann den Abruf von Transkripten beeinflussen. |
 
-**tale-backend-api** ist das Application-Backend in der `api`-Rolle (`TALE_ROLE=api`): jede Anwendungstür — die App-API, Better Auth, der SSE-Hinweis-Stream, die Maschinentüren und die In-Sandbox-Bridges. Provider-Keys, Agent-Definitionen, Automation-Läufe und Audit-Logs laufen allesamt durch es hindurch. Es rollt mit jeder Farbe, genau wie `platform` und `backend-worker` — beide Farben antworten während der Überlappung auf denselben `backend-api`-Alias — und ist zusätzlich ans Sandbox-Netz angebunden, damit ein Session-Container es direkt erreicht.
+Der Browser verbindet sich über den öffentlichen Proxy. Datenbank-, Gateway- und Sandbox-Ports sollten nicht öffentlich erreichbar sein. Bei einem externen Bucket können vorsignierte Dateianfragen direkt vom Browser an dessen öffentlichen Endpunkt gehen.
 
-**tale-backend-worker** ist dasselbe Image in der `worker`-Rolle (`TALE_ROLE=worker`): der Job-Runner hinter Schedules, Watchdogs und Agent-Turns. Er erledigt auch die Wissens-Arbeit — Dokument-Ingestion, Web-Crawling, RAG-Indexierung und Dokumentgenerierung — als Hintergrund-Jobs statt als separate Services. Die Headless-Arbeit, die diese Jobs brauchen (eine Webseite rendern, HTML in ein PDF oder Bild verwandeln), wird an die Sandbox-Laufzeit delegiert, die ohnehin schon Chromium und Playwright mitbringt. Der Worker exponiert kein HTTP und skaliert horizontal (`--scale backend-worker=N`).
+Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image. `TALE_ROLE=api` startet die API, `TALE_ROLE=worker` einen Worker. Worker stellen keinen HTTP-Server bereit. Die Sandbox-Laufzeit ist ein separates Image für vorübergehende Sitzungscontainer und kein zusätzlicher dauerhaft laufender Compose-Dienst.
 
-**tale-db** ist das operative Postgres (ParadeDB, mit `pg_search` + `pgvector`). Der Single-Host-Stack faltet zwei Datenbanken hinein: `tale_app` — den Anwendungsspeicher hinter Agents, Runs und dem Audit-Log — und `tale_knowledge`, den Wissens-Korpus mit zwei Schemata, `private_knowledge` (Chunks hochgeladener Dokumente, Embeddings, der BM25-Index, der semantische Cache) und `public_web` (gecrawlte Webseiten). Der Service ist im internen Netz als `knowledge-db` aliasiert, sodass der Korpus ohne zusätzliche Verdrahtung auf dasselbe Postgres auflöst. Den Korpus zu verlagern ist eine Änderung an `KNOWLEDGE_DATABASE_URL` — siehe [Datenresidenz](/de/self-hosted/configuration/data-residency).
+## Wo dauerhafte Daten liegen
 
-**tale-object-store** ist MinIO, das S3-kompatible Blob-Backend. Hochgeladene Dokumente, Chat-Anhänge, Audio und generierte Medien leben hier — es ist das einzige Blob-Backend, sodass ein Deployment, das es nicht erreicht, jeden Upload ablehnt. Es ist rein intern: Blobs erreichen den Browser über presignte URLs, die das Backend signiert und der Proxy weiterreicht, nie durch Exponieren des Stores selbst.
+| Speicherort im mitgelieferten Stack | Zu erhaltende Daten |
+| --- | --- |
+| `db-data` | `tale_app`: Nutzer, Chats, Läufe, Audit-Einträge und verschlüsselte Datenbankgeheimnisse. `tale_knowledge`: extrahierte Inhalte, Embeddings, Suchindizes und abgerufene Webseiten. |
+| `config-data` | Konfigurationsdateien der Organisationen, darunter Agenten, Skills, Anbieterdefinitionen, Richtlinien, SSO-Einstellungen und Branding. |
+| `object-store-data` | Hochgeladene Dokumente, Anhänge, Audio und erzeugte Dateien. |
+| `caddy-data`, `caddy-config` | Zertifikate und Proxy-Zustand. |
+| `llm-gateway-data` | Gateway-Konfiguration und Zugangsdaten für Sitzungen. |
 
-**tale-sandbox-llm-gateway** ist das LLM-Gateway für In-Sandbox-Coding-Agent-Turns (Harness). Es ist der einzige Pfad von einem sandboxten Harness zu einem Modell-Provider; das Backend provisioniert es und prägt Keys pro Session.
+Im mitgelieferten Stack liegen beide Datenbanken in einem Postgres-Dienst. Der Netzwerkalias `knowledge-db` führt zur Wissensverbindung. Es bleiben zwei getrennte Datenbanken. Eine Bereitstellung aus dem Quellcode mit eigenem Wissensdienst besitzt zusätzlich `knowledge-db-data`.
 
-**tale-sandbox** und **tale-sandbox-egress** führen sandboxten Code im Auftrag des `Run code`-Tools und von Skill-Skripten aus und dienen als Headless-Browser-Laufzeit, die das Backend für Web-Rendering und Dokumentgenerierung aufruft. Der Egress-Container ist der einzige Pfad, den die Sandbox zum Netz hat. Egress ist standardmäßig offen — sandboxter Code erreicht jeden öffentlichen Host über HTTPS, während Cloud-Metadaten- und Private-Range-Ziele auf IP-Ebene blockiert bleiben; sperre ihn mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist herunter, beschrieben in [Härtung](/de/self-hosted/operate/security/hardening).
+Beim Ersetzen eines Containers bleiben Daten nur erhalten, wenn seine dauerhaften Volumes oder externen Speicher weiter eingebunden sind. Sichere auch den Bereitstellungsordner, die Umgebung, Verschlüsselungsschlüssel und Kopien außerhalb des Hosts. Die CLI erfasst nicht jedes oben genannte Volume; prüfe den Umfang unter [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore).
 
-Ein zehnter Container, **tale-bgutil-provider**, ist ein Best-Effort-Sidecar eines Drittanbieters, der die PO-Tokens liefert, die die Video-Link-Ingestion braucht, um an YouTubes Bot-Wall vorbeizukommen — siehe [Video-Ingestion](/de/self-hosted/configuration/video-ingestion).
+## Geheimnisse und Anmeldung
 
-## Daten auf dem Storage
+`ENCRYPTION_SECRET_HEX` schützt Anbieterzugangsdaten und andere verschlüsselte Werte in der Anwendungsdatenbank. SOPS und age schützen unterstützte Begleitdateien mit Geheimnissen, etwa Passwörter für externe Speicher. Sichere die benötigten Schlüssel getrennt von den geschützten Daten. Ein neuer Schlüssel entschlüsselt keine vorhandenen Geheimnisse.
 
-Diese Volumes überleben ein `docker compose down`:
+Better Auth läuft im Backend. Lokale Anmeldung, Zwei-Faktor-Authentifizierung, Passkeys, Unternehmens-SSO und die Anmeldung über vertrauenswürdige Header haben unterschiedliche Voraussetzungen. [Authentifizierung](/de/self-hosted/configuration/authentication) erklärt die Einrichtung; [Mitglieder und Rollen](/de/platform/admin/members-and-roles) beschreibt die Organisationsrechte.
 
-- `db-data` — das Datenverzeichnis des operativen Postgres: der Anwendungsspeicher _und_ der Wissens-Korpus (Dokument-Chunks, Embeddings, die Such-Indizes, gecrawlte Seiten), da der Single-Host-Stack beide in eine Datenbank faltet.
-- `config-data` — der Org-Config-Store: Agents, Skills, Provider, Governance-Policies, SSO-Verbindungsdateien und hochgeladenes Branding. Das Backend besitzt jeden Schreibzugriff, die Plattform mountet es read-only. Instanzen, die von einer Version vor 0.5.11 kommen, behalten daneben eine vollständige Kopie im Volume `convex-data` — dem früheren Namen des Stores; `tale deploy` kopiert den Inhalt einmalig herüber und löscht das alte Volume nie, du kannst es also von Hand entfernen, sobald das Upgrade durch ist.
-- `object-store-data` — der Blob-Store: hochgeladene Dateien, Chat-Anhänge, generierte Dokumente, exportierte Bundles.
-- `caddy-data`, `caddy-config` — TLS-Zertifikate und Proxy-State.
-- `backups` — prüfsummengesicherte Volume-Snapshots, geschrieben von `tale backup` und automatisch vor migrierenden Deploys; [Backups und Restore](/de/self-hosted/operate/backups-and-restore) ist die Übung.
+## Kapazität und Isolation planen
 
-Alles andere ist ephemer. Container lassen sich ohne Datenverlust ersetzen, solange die Volumes überleben. `tale backup` snapshottet die Daten-Volumes oben — `object-store-data` eingeschlossen, solange die Blobs im mitgelieferten Objektspeicher liegen. Blobs in einem externen S3-Bucket, ob umgebogener Deployment-Default oder eigener Bucket einer Organisation, sicherst du selbst, und das Backup sagt dir das; [Backups und Restore](/de/self-hosted/operate/backups-and-restore) hat die Liste und die Übung.
+Anwendungsrollen können mehrere Replikate haben. Die CLI aktualisiert sie als gemeinsame Versionsgruppe. Während eines Upgrades laufen alte und neue Gruppe vorübergehend gleichzeitig; plane diese zusätzliche Kapazität ein. Datenbank, Objektspeicher und Sandbox-Dienste brauchen eine eigene Kapazitäts- und Wiederherstellungsplanung.
 
-## Provider-Secrets und die SOPS-Schicht
+Anwendungsdatenbank, Wissensdatenbank und Dateispeicher können auf externe Infrastruktur umziehen. Eine Organisation kann außerdem eine eigene Wissensdatenbank und einen eigenen Bucket wählen. Eine geänderte Verbindung überträgt keine vorhandenen Inhalte. Plane Kopie, Umschaltung, Prüfung und Sicherungsumfang anhand von [Datenresidenz](/de/self-hosted/configuration/data-residency).
 
-Aktuelle Anbieterzugangsdaten liegen verschlüsselt in der Anwendungsdatenbank. `ENCRYPTION_SECRET_HEX` schützt sie und weitere Datenbankgeheimnisse. Anbieterdefinitionen sind davon getrennte YAML-Konfigurationsdateien.
-
-SOPS und age schützen unterstützte Geheimnisdateien der Konfiguration, etwa für externe Wissensdatenbanken und Objektspeicher. Bewahre beide Schlüsselfamilien mit deinem Backup- und Wiederherstellungsplan auf. [Geheimnisse mit SOPS](/de/self-hosted/configuration/secrets-with-sops) erklärt die Trennung und die Rotation von Dateischlüsseln.
-
-## Auth und Sessions
-
-Die Anmeldung ist Better Auth, das im backend-api-Container läuft. Die ausgelieferten Modi sind lokale E-Mail/Passwort-Anmeldung (mit optionalem Zweitfaktor und Passkeys), SSO — Microsoft Entra und generisches OIDC — und Trusted Headers, bei denen der Reverse-Proxy die Identität liefert. Der Plattform-Container liest das Cookie und leitet die Anfrage weiter; backend-api validiert die Session und entscheidet, was sie darf, basierend auf der Rolle des Nutzers und der Berechtigungsmatrix pro Ressource, dokumentiert in [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
-
-Die [Authentifizierungs-Referenz](/de/self-hosted/configuration/authentication) behandelt die Env-Vars und die Abwägungen pro Modus.
-
-## Wenn du Single-Host hinter dir lässt
-
-Der Standard-Stack läuft mit jedem Container auf einem Host. Die Architektur ist single-tenant, aber die Tiers trennen sich schon sauber: `tale-backend-worker` skaliert horizontal, und der operative und der Wissens-Speicher sind getrennte Datenbanken, selbst wenn sie sich einen Postgres-Prozess teilen. Alle drei Speicher lassen sich ohne Umbau von der Box holen, jeder für sich: `KNOWLEDGE_DATABASE_URL` verlagert den Wissens-Korpus auf ein gemanagtes ParadeDB (für Kapazität oder eine Residenz-Anforderung), `DATABASE_URL` verlagert die Anwendungsdatenbank, und die `OBJECT_STORE_*`-Variablen richten die Blobs auf jeden S3-kompatiblen Bucket. Jede wird bei jedem Start gelesen, einen Speicher zu verlagern ist also eine Variablen-Änderung plus ein Neustart. Organisationen können noch weiter gehen und unter **Einstellungen > Datenresidenz** einzeln ihre eigene Korpus-Datenbank und ihren eigenen Bucket mitbringen. Alles davon steht in [Datenresidenz](/de/self-hosted/configuration/data-residency).
-
-## Wo das hingehört
-
-Diese Architekturseite ist die Karte, die jede andere selbst-gehostete Seite voraussetzt. Der natürliche nächste Schritt ist [Schnellstart](/de/self-hosted/install/quickstart), wenn du eine frische Instanz aufsetzt, oder [Container-Architektur](/de/self-hosted/operate/container-architecture), wenn du eine betreibst und dasselbe Bild mit überlagerten Fehlermodi brauchst.
+Selbsthosting bestimmt, wo Tale läuft. Anbieteraufrufe, Konnektoren, Webabrufe und Netzwerkzugriffe der Sandbox hängen weiterhin von deiner Konfiguration ab. Prüfe diese Ziele zusammen mit den Speicherorten unter [Härtung](/de/self-hosted/operate/security/hardening).

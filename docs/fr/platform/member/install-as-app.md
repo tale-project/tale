@@ -30,7 +30,7 @@ Les notifications dépendent toujours du navigateur, du système, de l’autoris
 
 Utilise **Désinstaller** ou **Supprimer l’app** dans le navigateur ou le système. Retirer une icône du Dock de macOS ne supprime que son raccourci. Dans Chrome, utilise le menu de l’application ou `chrome://apps`. Effacer ses données de navigation peut aussi fermer ta session.
 
-La désinstallation ne supprime ni ton compte Tale, ni l’organisation, ni les documents stockés sur le serveur. Pour modifier ton compte, consulte [Profil et compte](/platform/member/preferences). Sur un appareil partagé, déconnecte-toi de l’application et des sessions de navigateur utilisées.
+La désinstallation ne supprime ni ton compte Tale, ni l’organisation, ni les documents stockés sur le serveur. Pour modifier ton compte, consulte [Profil et compte](/fr/platform/member/preferences). Sur un appareil partagé, déconnecte-toi de l’application et des sessions de navigateur utilisées.
 
 ## Si l’installation est indisponible
 

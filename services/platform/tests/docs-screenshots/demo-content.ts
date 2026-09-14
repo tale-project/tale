@@ -320,9 +320,11 @@ export const DEMO_API_KEYS: readonly string[] = [
 ] as const;
 
 /** WebDAV app-passwords (Settings > API > WebDAV). */
+export const DEMO_WEBDAV_RETIRED_LABEL = 'Retired design workstation';
 export const DEMO_WEBDAV_LABELS: readonly string[] = [
   'MacBook Pro',
   'Design workstation',
+  DEMO_WEBDAV_RETIRED_LABEL,
 ] as const;
 
 /** MCP server (Settings > API > MCP). `name` is lowercase alphanumeric + hyphens. */

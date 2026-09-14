@@ -7,7 +7,7 @@ Deine tägliche Arbeit in Tale beginnt mit einem Gespräch oder einem Projekt. D
 
 ## Deinen Zugriff kennen
 
-Du brauchst ein angemeldetes Konto und einen funktionierenden [ersten Chat](/de/get-started/quickstart). Rolle und Projektzugriff legen fest, was du lesen oder ändern darfst. Ein Mitglied nutzt die für diese Rolle verfügbaren Funktionen; gemeinsame Inhalte zu erstellen oder zu bearbeiten erfordert in der Regel die Rolle Bearbeiter oder höher. Fehlt ein Bedienelement, prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+Du brauchst ein angemeldetes Konto und einen funktionierenden [ersten Chat](/de/get-started/quickstart). Rolle und Projektzugriff legen fest, was du lesen oder ändern darfst. Mitglieder können chatten und in zugänglichen Projekten arbeiten. Organisationsweite Wissensquellen zu bearbeiten erfordert die Rolle Bearbeiter oder höher; für Projektarbeit gelten die Zugriffsregeln des Projekts. Fehlt ein Bedienelement, prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
 ## Eine Frage mit ausreichend Kontext stellen
 

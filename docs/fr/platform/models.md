@@ -1,63 +1,44 @@
 ---
-title: Catalogue de modèles
-description: Quels modèles ton organisation peut choisir, d’où vient la liste de chaque fournisseur, et quoi vérifier quand un modèle attendu manque dans le sélecteur.
+title: Choisir un modèle disponible
+description: Comprends la sélection et les catalogues de modèles, puis identifie pourquoi un modèle manque ou refuse un appel.
 ---
 
-Le catalogue explique quels modèles ton organisation peut choisir et pourquoi un modèle attendu manque. La disponibilité dépend du fournisseur, d’identifiants utilisables, de leur liste de modèles autorisés et des règles d’accès de l’organisation.
+Le sélecteur affiche les modèles que ton organisation peut utiliser actuellement, pas toute l’offre d’un fournisseur. Des identifiants utilisables, leur liste de modèles autorisés et les règles d’accès déterminent le résultat. Un administrateur les gère dans **Paramètres > Fournisseurs IA** et [Contenu et modèles](/fr/platform/admin/governance/content-models).
 
-## Le catalogue appartient au fournisseur
+## Choisir une sélection automatique ou explicite
 
-Il n’existe pas de liste globale unique. Chaque connecteur de fournisseur déclare d’où viennent ses modèles, et le badge de sa section sous **Paramètres > Fournisseurs IA** nomme la source :
+Dans Chat, **Auto** choisit un modèle pour chaque message selon ses caractéristiques, comme la longueur, le code et les documents joints. Il utilise une heuristique légère, sans second appel à une IA. Consulte les détails d’une réponse pour voir quel modèle a répondu.
 
-- **Catalogue intégré** — la liste est livrée avec la plateforme et évolue avec elle. C’est le cas d’OpenAI, Anthropic, Gemini, DeepSeek, Moonshot AI (Kimi), Qwen (Alibaba), SpaceXAI et Z.ai (GLM).
-- **Catalogue OpenRouter** — récupéré depuis le catalogue d’OpenRouter et normalisé à l’arrivée. C’est le cas d’OpenRouter, ce qui explique que sa liste soit de loin la plus longue.
-- **Endpoint models du fournisseur** — récupéré depuis la liste de modèles du fournisseur lui-même. C’est le cas de Vercel AI Gateway.
-- **Pas de catalogue** — le fournisseur ne publie rien qui vaille la peine d’être livré, donc les modèles viennent de chaque identifiant. C’est le cas d’Azure OpenAI et de Nous Portal (Hermes).
+Choisis un modèle précis dans la zone de saisie pour comparer les résultats, maîtriser le choix ou traiter une tâche connue. Cette sélection reste en place jusqu’à ce que tu la changes ou reviennes à Auto. L’[Arène](/fr/platform/chat/arena-mode) compare deux modèles disponibles sur le même message.
 
-Le compte à côté du badge est la liste actuelle de ce connecteur. Il ne dit rien de ce que ton organisation peut appeler, seulement de ce que le fournisseur propose.
+Les agents de projet et les étapes de workflow qui appellent un modèle utilisent leur configuration. Le sélecteur d’un agent distingue les fournisseurs, même lorsqu’ils servent le même identifiant de modèle. Choisir une entrée fixe cette combinaison fournisseur/modèle. Un échec est signalé ; la réponse ne provient pas discrètement d’un autre modèle.
 
-## Ce qui décide de la disponibilité
+## Comprendre l’origine de la liste
 
-Un modèle atteint un sélecteur après avoir franchi deux barrières, dans cet ordre.
+Ouvre **Paramètres > Fournisseurs IA** pour examiner le fournisseur et ses modèles proposés. Le nombre affiché indique les définitions disponibles chez le fournisseur. Il ne prouve ni que ton organisation dispose d’identifiants, ni qu’elle est autorisée à appeler tous ces modèles.
 
-La première, ce sont les identifiants. Un connecteur sans identifiant est un fournisseur que tu ne peux pas appeler, catalogue ou pas. Un identifiant dont les **Modèles autorisés** sont vides offre tout le catalogue de son connecteur ; un identifiant avec une liste n’offre que les modèles qui y figurent. L’union sur tous les identifiants actifs est ce que ton organisation peut techniquement joindre.
+| Source | Origine des modèles | Actualisation |
+| --- | --- | --- |
+| Catalogue intégré | Les définitions sont fournies avec Tale. | Lors d’une mise à jour de la plateforme ou du catalogue. |
+| Catalogue OpenRouter | Tale récupère la liste d’OpenRouter. | Après une récupération ou une actualisation forcée. |
+| Endpoint de modèles du fournisseur | Tale récupère la liste propre au fournisseur. | Après une récupération ou une actualisation forcée. |
+| Pas de catalogue | Les identifiants de modèles viennent de la liste autorisée de l’identifiant de connexion. | Lorsqu’un administrateur modifie cette liste. |
 
-La seconde, c’est la gouvernance. Les règles d’accès aux modèles sous [Contenu et modèles](/fr/platform/admin/governance/content-models) autorisent ou bloquent des modèles par organisation, équipe, rôle ou personne, et s’appliquent par-dessus la première. Un modèle qui franchit les identifiants mais pas la règle reste invisible pour ce périmètre, et la résolution refuse de s’y lier même si un agent l’a épinglé.
+Azure OpenAI et Nous Portal utilisent des identifiants de modèles définis dans les identifiants de connexion. Pour Azure, saisis les noms de déploiement de ta ressource, qui peuvent différer des noms publics. Sans catalogue, une liste autorisée vide ne rend aucun modèle disponible.
 
-<Note>
+## Actualiser un catalogue distant
 
-Quand un modèle attendu est absent, parcours les deux barrières dans cet ordre. Vérifie qu’un identifiant existe pour son fournisseur et qu’il est actif, regarde si la liste de cet identifiant l’exclut, puis contrôle les règles d’accès aux modèles pour le périmètre depuis lequel tu regardes. Presque tous les « modèles manquants » sont l’un de ces trois cas.
+Les Propriétaires, Admins et Développeurs peuvent choisir **Actualiser les catalogues** dans l’en-tête des paramètres. Lis le résultat de chaque fournisseur : le nombre de modèles ou l’erreur qui a empêché l’actualisation. Un échec de récupération ne signifie pas que le fournisseur ne propose aucun modèle.
 
-</Note>
+Les catalogues distants sont mis en cache pendant 24 heures, puis actualisés à la demande lorsque le cache est périmé. Le bouton force une nouvelle tentative. Si une récupération automatique échoue, Tale peut conserver le catalogue précédent ou les modèles fournis ; une actualisation forcée signale l’échec. Un nouveau modèle doit aussi respecter les règles d’accès et les identifiants disponibles. Une installation qui ne possède que des catalogues intégrés n’a aucune liste distante à récupérer.
 
-## Les fournisseurs sans catalogue livré
+## Retrouver un modèle absent
 
-Certains fournisseurs ne peuvent pas publier une liste que Tale pourrait livrer. Pour ces connecteurs, les **Modèles autorisés** d’un identifiant cessent d’être un filtre et deviennent la disponibilité elle-même : le champ accepte du texte libre, tu y saisis des ids de modèles séparés par des virgules, et ces ids sont les seuls modèles que cet identifiant peut joindre.
+Vérifie ces limites dans l’ordre, ou transmets les détails à un administrateur si tu ne peux pas modifier les réglages :
 
-<Info>
+1. Vérifie que le fournisseur possède des identifiants activés et utilisables. Une entrée de catalogue ne connecte pas un compte.
+2. Examine leur **Modèles autorisés**. Avec un catalogue, elle restreint la sélection ; sans catalogue, elle la définit.
+3. Vérifie les règles d’accès aux modèles pour l’organisation, l’équipe ou la personne dans [Contenu et modèles](/fr/platform/admin/governance/content-models).
+4. Pour un agent de projet, vérifie la compatibilité des identifiants avec le [harness](/fr/platform/agents/harnesses) choisi. Un abonnement peut imposer un environnement précis.
 
-Sur Azure OpenAI, ces ids sont les noms de déploiement que tu as choisis dans ta ressource Azure, pas les noms publics du fournisseur. Un identifiant dont la liste est vide n’y rend aucun modèle disponible, ce qui est la cause habituelle d’un connecteur Azure qui a l’air configuré et ne propose rien.
-
-</Info>
-
-## Actualiser un catalogue en ligne
-
-Les catalogues récupérés chez un fournisseur sont mis en cache et ne se rafraîchissent que sur demande. La carte **Catalogues de modèles**, en haut de **Paramètres > Fournisseurs IA**, porte un bouton **Actualiser les catalogues** qui recharge chaque source en ligne et rend une ligne par connecteur : le nombre de modèles trouvés, ou l’erreur qui l’a arrêté.
-
-Il n’y a ni synchronisation en arrière-plan ni tâche planifiée, donc un modèle publié ce matin apparaît à la prochaine actualisation et pas avant. Quand chaque connecteur de ton instance livre un catalogue intégré, il n’y a rien à récupérer et la carte le dit.
-
-## Choisir un modèle
-
-Le chat s’ouvre sur **Auto** : Tale lit chaque message et lui choisit un modèle — une heuristique légère sur la longueur, le code, le sujet et les documents joints, jamais un appel IA de plus — puis exécute exactement ce modèle et l’inscrit sur la réponse, où les détails du message le nomment. Choisis plutôt un modèle dans le menu et le choix reste le tien jusqu’à ce que tu le rendes à Auto ; épingler un modèle est le remède quand la sélection automatique est lente, chère ou mal adaptée.
-
-Partout ailleurs, le modèle est toujours nommé explicitement : sur un agent, sur toute étape de workflow qui appelle un modèle, et sur chaque requête API. Là, rien ne route à ta place — pas de sélection selon la complexité de la tâche, pas de paliers de qualité. Et nulle part — chat compris — il n’y a de bascule silencieuse : le modèle qui commence une réponse est celui qui la termine, ou tu vois l’erreur. Une exécution reste reproductible et une facture attribuable, parce que le modèle qui a tourné est enregistré, jamais deviné.
-
-<Tip>
-
-Le [mode Arena](/fr/platform/chat/arena-mode) compare deux modèles sur la même question. Choisis une question et une source vérifiables, puis juge l’exactitude et l’utilité plutôt que la longueur seule.
-
-</Tip>
-
-## Où cela s’inscrit
-
-Le catalogue est la moitié visible de la configuration des fournisseurs : ce qu’un Administrateur connecte sous [Fournisseurs IA](/fr/platform/admin/providers) est ce que tout le monde voit ici dans un sélecteur. Élargir l’ensemble revient à ajouter un identifiant ou à relâcher une liste ; le rétrécir revient à poser une liste de modèles autorisés ou une règle d’accès sous [Contenu et modèles](/fr/platform/admin/governance/content-models). Pour savoir comment le modèle se place à côté des instructions, des connaissances et des outils dans un agent, lis [Concepts d’agent](/fr/platform/agents/concepts).
+Si le modèle apparaît mais que l’appel échoue, lis la cause affichée. Des identifiants expirés, un fournisseur indisponible, une limite de dépense et un manque de sandbox sont des problèmes distincts. Actualiser le catalogue ne les résout pas tous. [Fournisseurs IA](/fr/platform/admin/providers) explique les identifiants ; [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) couvre les refus liés aux dépenses.

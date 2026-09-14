@@ -5,27 +5,27 @@ description: Définis les budgets, règles d’import, durées de rétention, co
 
 En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités ou destinataires des conversations entrantes.
 
-<Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’upload et des contrôles de rétention.">
+<Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’import et des contrôles de rétention.">
 
-![La page de gouvernance Politiques et limites montrant trois règles de budget mensuelles — une pour l’organisation entière, une par défaut pour tous les utilisateurs et une pour le rôle developer, chacune plafonnant les tokens, le coût et les requêtes — au-dessus des champs de politique d’upload pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
+![La page de gouvernance Politiques et limites montrant trois règles de budget mensuelles — une pour l’organisation entière, une par défaut pour tous les utilisateurs et une pour le rôle Développeur, chacune plafonnant les tokens, le coût et les requêtes — au-dessus des champs de politique d’import pour les types de fichiers autorisés, les tailles et le volume.](/images/platform/governance-policies-limits.webp)
 
 </Frame>
 
 ## Ajouter un budget
 
 1. Dans les règles de budget, choisis **Ajouter une règle**.
-2. Choisis la portée et sa cible : un rôle pour un groupe comme les éditeurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
+2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
 3. Sélectionne une période quotidienne, hebdomadaire ou mensuelle. Renseigne au moins une limite positive de tokens, de coût ou de requêtes. Le coût est en USD ; un champ vide ne plafonne pas cette dimension par cette règle.
 4. Définis si besoin le seuil d’alerte entre 0 et 100 pour avertir avant d’atteindre le plafond.
 5. Choisis **Confirmer**, enregistre les changements de la page et vérifie la portée, la cible, la période et les limites enregistrées.
 
-Par exemple, une règle mensuelle de rôle peut donner aux éditeurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
+Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-Les budgets concernent les nouveaux travaux facturables, dont le chat et les exécutions d’agents gérés. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/platform/admin/governance/usage-analytics).
+Les budgets concernent les nouveaux travaux facturables, dont le chat et les exécutions d’agents gérés. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
 ## Comprendre les plafonds applicables
 
-Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé de l’équipe, même si un membre a une règle personnelle plus précise. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, pas les autres actions dans l’interface.
+Pour chaque dimension, la limite personnelle vient de la règle la plus précise qui la définit : personne, équipe, rôle, puis valeur par défaut. Les plafonds de l’organisation s’ajoutent. Un budget d’équipe plafonne aussi l’usage cumulé de l’équipe, même si un membre a une règle personnelle plus précise. Les limites de clé API plafonnent séparément les requêtes authentifiées par cette clé, pas les autres actions dans l’interface.
 
 Si une requête est refusée de façon inattendue, vérifie tous les plafonds applicables et leurs périodes. Augmenter une limite personnelle ne retire pas un plafond d’organisation, d’équipe ou de clé API.
 
@@ -41,15 +41,15 @@ Dans la règle de rétention, choisis **Modifier** et configure les catégories 
 
 Vérifie les bornes minimales et maximales du déploiement avant de modifier une durée. Les changements qui demandent une revue ou un délai apparaissent comme propositions ou changements en attente. Lis leur date d’effet sans supposer une application immédiate.
 
-Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation juridique](/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
+Le délai de grâce est la fenêtre de récupération des enregistrements supprimés provisoirement pris en charge. Une valeur positive laisse du temps pour les restaurer dans la [Corbeille](/fr/platform/admin/governance/trash) ; zéro permet un nettoyage définitif immédiat. Toutes les catégories ne sont pas restaurables. Une [conservation juridique](/fr/platform/admin/governance/legal-hold) protège les données couvertes du nettoyage.
 
-Pour les déploiements autohébergés, la [configuration de rétention](/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
+Pour les déploiements autohébergés, la [configuration de rétention](/fr/self-hosted/configuration/retention) explique les contrôles opérateur et le comportement par catégorie. Ne déduis pas une garantie d’archivage d’une règle désactivée ou d’une durée affichée seule.
 
 ## Examiner les contrôles de fonctionnalités
 
 Les contrôles comprennent les limites de fenêtre de contexte par portée et le commutateur de sortie vocale pour l’organisation. Une limite de contexte détermine la quantité de contexte transmise à une réponse d’IA ; elle diffère d’un budget. Désactiver la sortie vocale empêche les membres de l’activer par leurs réglages personnels ou leurs conversations.
 
-Les commutateurs par défaut des instructions personnalisées et des souvenirs enregistrent des valeurs d’organisation. Leur présence ne signifie pas que les instructions personnelles ou la création de souvenirs sont déjà actives dans le chat. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/platform/admin/governance/guardrails).
+Les commutateurs par défaut des instructions personnalisées et des souvenirs enregistrent des valeurs d’organisation. Leur présence ne signifie pas que les instructions personnelles ou la création de souvenirs sont déjà actives dans le chat. Les instructions obligatoires de l’organisation sont un réglage séparé sous [Garde-fous](/fr/platform/admin/governance/guardrails).
 
 ## Routage des conversations
 
@@ -61,4 +61,4 @@ Les règles s’appliquent à l’arrivée d’une nouvelle conversation. Elles 
 
 ## Configurer les limites de connexion séparément
 
-Les exigences de mot de passe, limites de tentatives, délais d’inactivité de session et [règles de double facteur](/platform/admin/two-factor-authentication) se trouvent dans **Paramètres > Gouvernance > Sécurité**. Le délai d’inactivité de l’organisation peut renforcer celui du déploiement. Avec l’authentification par en-têtes de confiance, coordonne l’expiration avec le proxy ou l’IdP, qui peut authentifier le membre à nouveau.
+Les exigences de mot de passe, limites de tentatives, délais d’inactivité de session et [règles de double facteur](/fr/platform/admin/two-factor-authentication) se trouvent dans **Paramètres > Gouvernance > Sécurité**. Le délai d’inactivité de l’organisation peut renforcer celui du déploiement. Avec l’authentification par en-têtes de confiance, coordonne l’expiration avec le proxy ou l’IdP, qui peut authentifier le membre à nouveau.

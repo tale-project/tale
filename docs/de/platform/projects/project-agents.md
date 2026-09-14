@@ -1,9 +1,15 @@
 ---
-title: Projekt-Agenten
-description: Der Tab Agenten besetzt ein Projekt mit benannten Agenten — jeder mit Agent-Laufzeit, einem Modell samt gewähltem Provider, Ausrüstung und stehenden Anweisungen —, die die Aufgaben des Projekts in einer isolierten Sandbox erledigen.
+title: Projektagenten erstellen und verwalten
+description: Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis.
 ---
 
-Der Tab **Agenten** eines Projekts ist seine Crew: benannte Agenten, die du einmal konfigurierst und denen du dann Arbeit zuweist — jeder kombiniert ein Coding-[Harness](/de/platform/agents/harnesses), ein Modell, Skills und Connectors sowie stehende Anweisungen. Der Chat läuft weiter über den eingebauten Assistenten — diese Agenten sind für das Board da: Weise einem eine Aufgabe zu, und er arbeitet in einer isolierten Sandbox und meldet sich zur Prüfung zurück. Verwalten kann sie, wer das Projekt bearbeiten darf; ein Projekt fasst bis zu 50.
+Erstelle einen Projektagenten, wenn ein wiederverwendbarer Agent die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
+
+## Die erste Aufgabe vorbereiten
+
+Wähle ein kleines Ergebnis, etwa die Prüfung eines Launch-Briefings auf fehlende Freigaben. Der Agent braucht passende [Provider-Zugangsdaten](/de/platform/admin/providers) und eine verfügbare [Sandbox](/de/platform/admin/sandboxes). Eine gespeicherte Konfiguration belegt noch keinen erfolgreichen Sandbox-Lauf.
+
+Trenne dauerhafte Anweisungen von der jeweiligen Aufgabe. „Erkenne fehlende Belege und berichte über deine Prüfungen“ gehört zum Agenten. Dokument, Prüfungstermin und Abnahmekriterien gehören zur Aufgabe.
 
 <Frame caption="Der Tab Agenten — die eigenen Agenten des Projekts; jede Zeile nennt Agent-Laufzeit, Provider und Modell.">
 
@@ -11,59 +17,54 @@ Der Tab **Agenten** eines Projekts ist seine Crew: benannte Agenten, die du einm
 
 </Frame>
 
-<Note>
-
-Vor dem Start braucht der gewählte Harness passende Provider-Zugangsdaten und eine verfügbare Sandbox. Ein funktionierendes Chat-Modell belegt nicht, dass ein Coding-Harness denselben Zugang nutzen kann. Lass bei Problemen [KI-Provider](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes) von einem Administrator prüfen.
-
-</Note>
-
-## Einen Agenten anlegen
+## Den Agenten konfigurieren
 
 <Steps>
 
-<Step title="Tab öffnen und loslegen">
+<Step title="Namen und Laufzeit wählen">
 
-Öffne den Tab **Agenten** des Projekts und klicke auf **Neuer Agent**. Gib unter **Name** einen Namen, den dein Team auf Aufgabenkarten wiedererkennt, und wähle die **Agent-Laufzeit** — die Coding-CLI, auf der der Agent läuft.
-
-</Step>
-
-<Step title="Modell wählen — und damit den Provider">
-
-Suche unter **Modell** nach Modellname oder API-ID. Bieten mehrere Provider dasselbe Modell an, erscheint ein Eintrag pro Provider mit dessen Namen. Die Wahl ist exakt: Die Läufe des Agenten rufen dieses Modell über diesen Provider auf — und die Kosten landen auf dessen Zugang. Kann der gewählte Provider das Modell nicht mehr bedienen, schlägt der Lauf mit der Begründung fehl, statt still auf die Rechnung eines anderen Providers auszuweichen.
-
-Abo-Einträge — etwa ein Claude-Abo — erscheinen nur, solange die **Agent-Laufzeit** das Harness ist, das dieses Abo antreibt; ein Lauf darauf authentifiziert sich mit dem Abo des Anbieters statt mit einem API-Schlüssel der Organisation.
+Öffne den Tab **Agenten** des Projekts und wähle **Neuer Agent**. Gib unter **Name** einen erkennbaren Namen ein und wähle die **Agent-Laufzeit**, also den Coding-[Harness](/de/platform/agents/harnesses). Namen sind innerhalb des Projekts eindeutig; bis zu 50 Agenten sind möglich.
 
 </Step>
 
-<Step title="Ausrüsten und Anweisungen setzen">
+<Step title="Modell und Provider auswählen">
 
-**Skills, Connectors & Tools** bestimmen, was der Agent jenseits seines Workspace erreicht; die Liste folgt dem Team-Zugriff des Projekts, nicht deiner persönlichen Sichtbarkeit. Skills stellen Referenz-Bundles in die Sandbox, Connectors vermitteln einen verbundenen Dienst, und **Plattform-Tools** lassen den Agenten die eigenen Daten deiner Organisation lesen und schreiben — Aufgaben, Kontakte, Produkte, Dokumente und Wissen finden und lesen und, wenn du ein Schreib-Tool gibst, Aufgaben erstellen, kommentieren, zwischen Spalten verschieben, ein externes Element mit einer Aufgabe abgleichen oder ein Dokument speichern. Ein Schreib-Tool ist mit _Schreibt Daten_ markiert: Das Gewähren ist die Berechtigung, ein Agent mit `Aufgaben erstellen` legt also ohne weitere Freigabe echte Aufgaben an. Lesen und Schreiben bleiben auf das Projekt beschränkt — ein Agent sieht nie das Board eines anderen Projekts.
+Suche unter **Modell** nach Name oder API-ID. Dasselbe Modell kann pro Provider einmal erscheinen. Lies den Provider des Eintrags, bevor du ihn wählst. Damit legst du diese Kombination für künftige Läufe fest. Abonnementeinträge erscheinen nur bei kompatibler Laufzeit.
 
-**Secrets** stellen dem laufenden Agenten lesbare Umgebungsvariablen bereit. Nur Owner und Admin der Organisation dürfen diese Zuordnungen ändern. Wähle eng begrenzte, rotierbare Zugangsdaten für Dienste ohne passenden Connector. Werte werden verschlüsselt gespeichert, in der Agentenkonfiguration über ihren Namen referenziert und in den Lauf eingebunden. Mehrere Agenten können dasselbe Secret verwenden; Austausch oder Löschung betrifft dann jeden davon.
+Eine ältere Konfiguration kann ein Modell ohne festgelegten Provider enthalten. Der Dialog zeigt, welcher Provider es derzeit bereitstellen würde oder warum kein Zugang verfügbar ist. Wähle einen Eintrag, wenn du den Provider festlegen möchtest.
 
-**Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er einhalten muss.
+</Step>
+
+<Step title="Ausstattung vergeben und Anweisungen schreiben">
+
+Füge unter **Skills, Connectors & Tools** die benötigten Bundles, Dienste und Plattformoperationen hinzu. Verfügbare Skills folgen dem Team-Zugriff des Projekts, nicht nur deiner persönlichen Sichtbarkeit. Ein fehlender Skill kann deshalb eine andere Freigabe brauchen.
+
+Beachte **Schreibt Daten**, bevor du ein Plattform-Schreib-Tool vergibst. Es erlaubt echte Operationen innerhalb seiner Zugriffsregeln. Der Connector-Broker bietet Agenten nur Leseaktionen; direkte GitHub-Werkzeuge und ausdrücklich vergebene Secrets haben eigene Zugangswege.
+
+Beschreibe unter **Anweisungen** Verantwortung, Belege und Grenzen. Für den Launch-Prüfer etwa: „Lies das beigefügte Briefing. Berichte über fehlende Freigaben und widersprüchliche Termine mit der zugehörigen Textstelle. Schließe die Aufgabe nicht ab.“
+
+</Step>
+
+<Step title="Prüfen und speichern">
+
+Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsdaten der Organisation zu. Der laufende Agent kann ihre Werte lesen. Verwende deshalb eng begrenzte, austauschbare Tokens. Ändert sich ein gemeinsam genutzter Wert, betrifft das auch andere Agenten und Workflow-Nodes mit diesem Namen.
+
+Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Öffne den Agenten erneut, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
 
 </Step>
 
 </Steps>
 
-Klicke auf **Agent erstellen**. Die Zeile nennt Agent-Laufzeit, Provider, Modell und die Ausrüstungszahl — dieselbe Zusammenfassung, die dein Team beim Zuweisen sieht.
+## Arbeit zuweisen und starten
 
-## Arbeit zuweisen
+Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start.
 
-Weise dem Agenten eine Board-Aufgabe zu und klicke auf der Aufgabe auf **Agent starten**. Der Lauf arbeitet in einer isolierten Sandbox mit einem stehenden Workspace, der über die Aufgaben des Agenten hinweg bestehen bleibt, schreibt seinen Bericht als Kommentar an die Aufgabe zurück, hängt erzeugte Dateien als **Ergebnisdateien** an und parkt die Aufgabe **In Prüfung** — Agenten schließen keine Arbeit ab; das tut ein Mensch. Kommentiere die Aufgabe und erwähne den Agenten mit @, um einen laufenden Lauf zu lenken — oder den nächsten zu starten: Er liest zuerst deinen Kommentar und macht dort weiter, wo der vorige Lauf aufgehört hat. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) beschreibt die Board-Schleife von Anfang bis Ende.
+Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
 
-## Ändern oder entfernen
+Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 
-Änderungen greifen ab dem nächsten Lauf — ein laufender behält die Konfiguration, mit der er gestartet ist; erst der nächste Lauf übernimmt deine Änderungen. Löschst du einen Agenten, behalten alle Aufgaben ihre Historie; nur die Zuweisung wird leer.
+## Einen Agenten ändern oder entfernen
 
-## Chat-Assistent oder Projekt-Agent?
+Bearbeite oder lösche den Agenten über sein Zeilenmenü. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Prüfe laufende Arbeit, bevor du den zugehörigen Agenten entfernst.
 
-| Nimm…                 | wenn die Arbeit…                                                                                |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| den Chat              | ein Gespräch ist — Fragen, Entwürfe, Recherche; das erledigt der eingebaute Assistent.          |
-| einen Projekt-Agenten | eine Aufgabe ist — Repo- oder Dateiarbeit auf einem Harness, erledigt von einer stehenden Crew. |
-
-## Wo das hingehört
-
-Der Agent bündelt projektseitig, was andere Seiten erklären: Der Harness-Katalog und seine Fähigkeiten stehen unter [Harnesses](/de/platform/agents/harnesses); welche Provider und Zugänge die Modelle bedienen — hinterlegte Schlüssel über das gemessene Gateway oder Anbieter-Abos auf dem Konto des Anbieters — ist Sache von [KI-Anbieter](/de/platform/admin/providers).
+Lies bei einem Fehler die Begründung. Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell, unsichtbare Skills und fehlende Sandbox-Kapazität sind unterschiedliche Ursachen. Neue Anweisungen beheben diese Voraussetzungen nicht.

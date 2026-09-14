@@ -3,65 +3,135 @@ title: Webhooks
 description: Inbound webhook triggers — POST to a token URL and a deployed automation runs. Token handling, rotation, idempotency, and the response codes.
 ---
 
-A webhook URL lets an external system start a deployed automation by sending an HTTP POST. Use it for events from a service that can call a configured URL, such as an order notification or form submission. The secret token in the URL authorizes the delivery.
+A webhook lets an external system start a deployed automation by posting to a secret URL. It suits services that can send an order event, form submission, or other notification to a fixed destination. A `202` response confirms acceptance and gives you a run ID; it does not confirm the automation has finished.
 
-The response confirms acceptance and supplies a run ID; it does not return the automation’s completed result. Both webhook and API-key run starts are asynchronous. For a first delivery, follow [the webhook tutorial](/tutorials/developer/trigger-automation-via-webhook).
+For a guided first setup, follow [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). This reference covers the delivery contract, scope, token lifecycle, and retry behavior.
 
 ## A worked trigger
 
-Bind a webhook trigger to an automation — in the automation's editor, or with `PUT /api/v1/automations/{name}/triggers` and `{"kind": "webhook"}` — and Tale answers with the trigger URL's token, once. Then any system can start a run:
+### Prepare a deployed automation
 
-Choose the URL for the work you intend to start. For a project run, use `/api/projects/{id}/automations/webhook/{token}` as in this example. The automation must be installed in that active project, and project and token must belong to the same organization. The token authorizes the call; it cannot select an unbound project. For a non-project run, use `/api/automations/webhook/{token}` with an automation that has no project bindings. A bound automation refuses that global URL with **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED`. The `projectId` query parameter is refused with **400** on either URL. The vendor body is passed to the automation as data; it does not select the project.
+Save and deploy an automation whose tests pass. Bind a webhook in the editor, or send `PUT /api/v1/automations/{name}/triggers` with `{"kind":"webhook"}` using an authorized API key. Copy the newly issued token immediately; it is returned once.
+
+Choose the URL from the automation's scope:
+
+| Work to start | URL | Requirement |
+| --- | --- | --- |
+| Project run | `/api/projects/{id}/automations/webhook/{token}` | Active project in the token's organization, with this automation installed |
+| Organization run | `/api/automations/webhook/{token}` | Automation with no project bindings |
+
+A project-bound automation refuses the global URL with `409 AUTOMATION_PROJECT_SCOPE_REQUIRED`. Do not add a `projectId` query parameter: both URLs reject it with `400 INVALID_QUERY`. A field inside the vendor body is input data, not a way to choose the project.
+
+### Send one delivery
+
+Store the complete secret URL in `TALE_WEBHOOK_URL` using your sender's secret configuration. The following request uses a stable ID for one logical event:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
-  -H "Content-Type: application/json" \
-  -d '{ "orderId": "12345", "amount": 199.0 }'
-# → 202 { "runId": "..." }
+curl --fail-with-body --request POST "$TALE_WEBHOOK_URL" \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: order-12345-paid' \
+  --data '{"orderId":"12345","status":"paid"}'
 ```
 
-The run receives `{ "trigger": "webhook", "payload": <body> }`. Read the example’s order id as `input.payload.orderId`; a declared `inputs` schema describes this wrapper. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KiB (262,144 bytes) is rejected with **413** — the cap is counted in bytes as the body arrives, so an oversized delivery is refused rather than buffered. Poll the run like any other via `GET /api/v1/projects/{id}/runs/{runId}` with an API key, or watch it in the product. Poll a non-project delivery at `GET /api/v1/runs/{runId}` instead; a project delivery always uses its project URL and the API key holder must be able to read that project.
+The accepted response has the shape `{"runId":"..."}` with HTTP `202`. Save that ID alongside the sender's delivery ID. Tale passes the body to the automation inside this wrapper:
 
-The full response vocabulary:
+```json
+{
+  "trigger": "webhook",
+  "payload": { "orderId": "12345", "status": "paid" }
+}
+```
 
-- **202** `{ "runId": "..." }` — the run started.
-- **202** `{ "runId": "...", "duplicate": true }` — a redelivery of a delivery already accepted; `runId` is the run the first one started, and no second run exists.
-- **400** — a `projectId` query parameter (`INVALID_QUERY`), or input that does not match the automation's `inputs` schema (`AUTOMATION_INPUT_INVALID`, every problem under `data.issues`); no run starts.
-- **403** `AUTOMATION_PROJECT_FORBIDDEN` — the automation cannot run in the URL project: it does not exist, it is archived, or the automation is not installed there. The response never says which and never names the automation, so a leaked URL is not an oracle for the organization's project ids.
-- **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing. The door takes `POST` only: `GET`, `HEAD` and `OPTIONS` answer the same **404** — never a 405 and never an `Allow` header — so the verb is not an oracle either.
-- **409** — `AUTOMATION_NOT_DEPLOYED` (deploy a version whose tests pass and the same call runs), `AUTOMATION_PROJECT_SCOPE_REQUIRED` (a bound automation called through the global URL — use its project URL), or `AUTOMATION_DELIVERY_SCOPE_MISMATCH` (this delivery id was first accepted through another URL scope).
-- **413** — the body exceeds 256 KiB (262,144 bytes).
-- **429** — the sender's or the trigger's budget is spent; `Retry-After` names the wait. The budgets are below.
+Read the order as `input.payload.orderId`. If the automation declares an `inputs` schema, it must describe this wrapper. A body that is not JSON becomes text in `payload`. The body limit is 256 KiB (262,144 bytes), measured as bytes arrive; larger requests receive `413`.
+
+### Follow the result
+
+| Delivery scope | Authenticated polling route |
+| --- | --- |
+| Project | `GET /api/v1/projects/{id}/runs/{runId}` |
+| Organization | `GET /api/v1/runs/{runId}` |
+
+Poll with an API key whose holder can read that scope, or open the run in Tale. The webhook token starts deliveries; it is not a credential for reading REST results. Wait for a terminal run status before reporting that the work succeeded.
+
+### Interpret delivery responses
+
+| Status | Code/result | Recovery |
+| --- | --- | --- |
+| `202` | `runId` | Accepted; follow the run |
+| `202` | `runId`, `duplicate: true` | Already accepted; follow the original run, no new run was created |
+| `400` | `INVALID_QUERY` | Remove `projectId` from the query string |
+| `400` | `AUTOMATION_INPUT_INVALID` | Correct the wrapper/schema mismatch using `data.issues` |
+| `403` | `AUTOMATION_PROJECT_FORBIDDEN` | Check that the project is active, in the right organization, and has the automation installed |
+| `404` | Unknown, disabled, or mistyped token; also any non-POST method | Check the saved URL and trigger state |
+| `409` | `AUTOMATION_NOT_DEPLOYED` | Deploy a version whose tests pass |
+| `409` | `AUTOMATION_PROJECT_SCOPE_REQUIRED` | Use the installed project's URL |
+| `409` | `AUTOMATION_DELIVERY_SCOPE_MISMATCH` | Check the scope used for the original delivery ID |
+| `413` | Body too large | Reduce the payload below 256 KiB |
+| `429` | Sender or trigger budget exhausted | Wait at least `Retry-After` |
+
+A refused input creates no run. Project refusals deliberately do not distinguish a missing project, archived project, or missing installation, and do not reveal the automation's name. `GET`, `HEAD`, and `OPTIONS` all receive the same `404` as an invalid token, without an `Allow` header.
 
 ## The token is the credential
 
-There is no signature and no Authorization header: the token in the URL is the whole credential, so treat the URL like a password. Tale stores only a hash and compares in constant time; the plaintext exists exactly once, in the response that minted it.
+The secret in the URL authorizes delivery. This endpoint does not verify a vendor HMAC signature or use an `Authorization` header. Keep the URL out of public issue reports, shared logs, and screenshots. Tale stores its hash and uses a constant-time comparison; plaintext is disclosed only when minted.
 
-Lost or leaked the URL? Rotate it — `PUT /api/v1/automations/{name}/triggers` with `{"kind": "webhook", "rotateToken": true}` mints a fresh token and answers it once; the old URL dies immediately. Unbinding the trigger (`DELETE .../triggers`, or in the editor) revokes it entirely; the automation's versions and run history stay. Binding another kind over it does the same: a `PUT` of `{"kind": "schedule", ...}` on an automation that carries a live webhook answers **200** with `"revoked": "webhook"` beside the name, the old URL answers 404 from that moment, and binding `webhook` again later mints a different token — so read `revoked` on every bind you script, and never rebind to another kind while a partner still posts to the URL. Disabling the trigger (`"enabled": false`, or the switch in the editor) only suspends the URL: it answers the same **404** as a token that never existed, but the token is dormant, not dead — re-enabling it, including a later `PUT` that merely omits `enabled`, brings the same URL back to life. After a leak, rotate or unbind; never rely on the switch.
+| Change | Token effect |
+| --- | --- |
+| `PUT` webhook with `rotateToken: true` | New token returned once; old URL stops working immediately |
+| Delete/unbind the trigger | Token revoked; saved versions and run history remain |
+| Replace webhook with schedule/event | Token revoked; response includes `revoked: "webhook"` |
+| Bind webhook again after replacement | New token; the original does not return |
+| Set `enabled: false` | URL suspended with `404`, but token retained |
+| Re-enable, including a later `PUT` that omits `enabled` | The same suspended URL becomes active again |
+
+<Warning>
+
+After a leak, rotate or unbind the trigger. Disabling it is temporary suspension, not permanent revocation. Coordinate a token rotation with the sender and replace its stored URL before resuming deliveries.
+
+</Warning>
+
+Read `revoked` in scripted trigger changes so replacing a trigger type does not silently disconnect a partner that still uses the old URL.
 
 ## Idempotency and retries
 
-The endpoint de-duplicates deliveries because vendors may deliver more than once. Deduplication is scoped to the trigger and the project in its URL: the same delivery ID can start one run in each installed project. Tale checks the current project binding and active state before returning a cached duplicate. Two things identify a delivery:
+Deduplication applies to the trigger and the project in its URL. The same delivery ID can start one run in each installed project. Current project activity and installation are checked before Tale returns a cached duplicate.
 
-- **A delivery id you send.** The first of these headers present wins: `Idempotency-Key`, `X-Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. The id is matched by value, whichever of these headers carried it — a gateway that re-stamps a vendor's delivery id under `Idempotency-Key` is the same delivery, not a second one. A repeat with the same id inside 24 hours answers **202** with the original run and `"duplicate": true` — whatever its body says.
-- **The body itself.** Without an ID header, a byte-identical body posted to the same URL within two minutes is the same delivery. After two minutes it is a new one, so a heartbeat that posts the same body every few minutes keeps running.
+| Identity | Duplicate window | What must stay the same |
+| --- | --- | --- |
+| Delivery-ID header | 24 hours | ID value and scope; the body may differ and still counts as the same delivery |
+| No delivery-ID header | 2 minutes | Byte-identical body and URL |
 
-```bash
-curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: order-12345-paid" \
-  -d '{ "orderId": "12345", "status": "paid" }'
-# → 202 { "runId": "run_a" }
-# the same request again, however many times, for the next 24 hours:
-# → 202 { "runId": "run_a", "duplicate": true }
+For header-based identity, the first present header in this priority order wins:
+
+```text
+Idempotency-Key
+X-Idempotency-Key
+webhook-id
+X-GitHub-Delivery
+X-Gitlab-Event-UUID
+X-Shopify-Webhook-Id
+Linear-Delivery
+X-Atlassian-Webhook-Identifier
+X-Request-UUID
+I-Twilio-Idempotency-Token
+X-Webhook-Id
 ```
 
-Retry network failures and temporary **5xx** responses with bounded exponential backoff. For **429**, wait at least `Retry-After`. Keep the delivery ID unchanged so a lost response cannot create a second run within the deduplication window. Fix the cause of **4xx** responses before retrying: for example, `AUTOMATION_NOT_DEPLOYED` needs a deployed version, while `AUTOMATION_PROJECT_SCOPE_REQUIRED` needs the project URL. Any **202** means accepted; poll the returned run to learn whether it succeeded. Deduplication prevents a second run for the same delivery within its window; it does not guarantee that an external system applies every side effect exactly once.
+Header names are alternatives, not separate namespaces. Forwarding a vendor's ID as `Idempotency-Key` preserves its identity. With no ID, JSON formatting changes the body bytes and may produce a new delivery. Prefer an explicit, stable event ID whenever your sender supports one.
+
+Repeating the example request within 24 hours returns the original `runId` with `duplicate: true`. It does not rerun a failed automation. Decide separately how to recover a failed run instead of changing delivery IDs blindly.
+
+Retry network failures and temporary `5xx` responses with bounded exponential backoff. For `429`, honor `Retry-After`. Keep the ID unchanged if a response may have been lost. Correct other `4xx` causes before retrying. Deduplication prevents extra runs within its window; it does not guarantee exactly-once effects in an external service.
 
 ## Budgets
 
-Nothing authenticates a sender, so the door is budgeted twice. Each sender address — as the deployment's trusted proxies report it — gets 120 deliveries a minute with a burst of 240, charged before the token is even checked, so a flood of guessed URLs costs the door nothing past that. Each verified trigger gets 20 deliveries a minute with a burst of 40: a delivery costs a whole durable run, the same price a key-authenticated start pays. Beyond either, the door answers **429** with `Retry-After` in whole seconds and the usual error envelope; back off as the [Rate limits](/develop/rate-limits) page describes, keep the delivery id stable across attempts, and the retry reads as the duplicate it is rather than a second run.
+| Budget | Refill | Burst | Charged when |
+| --- | --- | --- | --- |
+| Sender IP, as reported by trusted proxies | 120/minute | 240 | Before token verification |
+| Verified trigger | 20/minute | 40 | For delivery admission |
+
+Either budget can cause `429` with `Retry-After` in whole seconds and the normal error envelope. A token authenticates access to the trigger, but there is no separate sender-account identity to budget. Use the [rate-limit guidance](/develop/rate-limits) and keep the delivery ID stable while backing off.
 
 ## Choose webhook or API key
 
-Use a webhook when the sender supports a fixed event URL. Use an API key when your own client also needs to discover automations, choose projects or read results. Keep either credential private. [Triggers](/platform/automations/triggers) covers setup in the product; the [API reference](/develop/api-reference) documents authenticated run starts and polling.
+Use a webhook when the sender supports a fixed event URL. Use an API key when your client must also discover automations, choose projects, or read results. [Triggers](/platform/automations/triggers) explains setup in the app; the [API reference](/develop/api-reference) describes authenticated starts and polling.

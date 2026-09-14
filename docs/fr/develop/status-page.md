@@ -45,6 +45,15 @@ Les composantes indiquent `operational` ou `outage`. Si le backend ne répond pa
 
 ## Configurer la supervision
 
+Pour un contrôle automatique, installe `jq` et fais porter le verdict par le code de sortie. Cet exemple échoue en cas d’erreur réseau, de JSON invalide ou d’état global différent de `operational` :
+
+```bash
+set -o pipefail
+curl --fail-with-body --silent --show-error --max-time 10 \
+  "$TALE_BASE_URL/status.json" | jq -e '.status == "operational"'
+```
+
+
 L’endpoint JSON ne demande aucune clé API et ne consomme pas son budget. Le résultat reste en cache cinq secondes ; les sondes de stockage se rafraîchissent séparément. Chaque lecture ne déclenche donc pas une nouvelle transaction de contrôle. Définis un délai de requête et alerte sur des échecs répétés ou un état dégradé selon les besoins du service.
 
 `/status.json` autorise les lectures depuis d’autres origines avec `Access-Control-Allow-Origin: *`. `HEAD` renvoie les en-têtes sans corps et `OPTIONS` annonce `GET, HEAD, OPTIONS`. Utilise `GET` pour examiner le verdict des composantes.
@@ -53,7 +62,7 @@ L’endpoint JSON ne demande aucune clé API et ne consomme pas son budget. Le r
 
 L’endpoint `/api/health` du serveur web de production vérifie le processus à faible coût. Il convient aux sondes de conteneur, mais ne remplace pas les contrôles de dépendances. Le serveur Vite de développement peut router ce chemin autrement et renvoyer `404` ; utilise `/status.json` pour l’application locale.
 
-Un statut sain ne vérifie ni le crédit, ni les droits, ni la disponibilité d’un modèle externe. Il n’exécute pas non plus un téléversement, une recherche, un chat ou une automation complets. Ajoute un test contrôlé de bout en bout pour l’opération dont dépend ton intégration.
+Un statut sain ne vérifie ni le crédit, ni les droits, ni la disponibilité d’un modèle externe. Il n’exécute pas non plus un téléversement, une recherche, un chat ou une automatisation complets. Ajoute un test contrôlé de bout en bout pour l’opération dont dépend ton intégration.
 
 ## Examiner un échec
 

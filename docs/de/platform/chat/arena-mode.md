@@ -1,15 +1,15 @@
 ---
-title: Arena-Modus
-description: Modell-Vergleich nebeneinander im Chat — wie er rendert, wie du die Kontrahenten wählst, wie Bewertungen in die Feedback-Analyse einfließen und wann du danach greifst.
+title: Modelle in der Arena vergleichen
+description: Sende eine Frage an zwei Modelle, beurteile beide Antworten und entscheide, wie der Chat weitergeht.
 ---
 
-Der Arena-Modus führt dasselbe Prompt parallel gegen zwei Modelle aus und fragt dich, welche Antwort besser ist. Die Bewertung fließt in die Feedback-Analyse der Org; mit der Zeit zeigen die Daten, welches Modell das Team für welche Art von Frage tatsächlich bevorzugt — getrennt vom Bauchgefühl.
+Mit **Arena-Modus** vergleichst du zwei Modelle anhand derselben Nachricht. Beide Seiten verwenden den Chat-Assistenten und denselben Ausgangskontext. Wähle eine Frage, deren Antwort du beurteilen kannst: Eine persönliche Vorliebe belegt noch keine sachliche Richtigkeit.
 
-Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war — Antworten nebeneinander zu vergleichen bricht das Patt mit Belegen statt mit Meinungen. Für gewöhnliche Arbeit reicht der reguläre Modell-Picker; der Wert der Arena sind die Bewertungen, die sie produziert, nicht die Vergleichsansicht selbst.
+## Einen Vergleich starten
 
-## Wie die Arena rendert
+Öffne einen privaten Chat, dann das **+**-Menü im Eingabebereich und wähle **Arena-Modus**. Geteilte Chats können nicht in die Arena wechseln. Wähle unter **Modell A** und **Modell B** die Modelle und sende deine Nachricht. Du darfst dasselbe Modell zweimal wählen, um Unterschiede zwischen Antworten zu untersuchen, oder zwei verschiedene Modelle vergleichen.
 
-Öffne das Plus-Menü des Chats und wähl **Arena-Modus** — der Chat bekommt zwei Modell-Picker mit den Beschriftungen **Modell A** und **Modell B**. Eine Nachricht zu senden führt beide Modelle parallel aus; der Bildschirm teilt sich, und jede Antwort streamt in ihre eigene Spalte. Sind beide fertig, erscheint unter den Spalten eine Bewertungszeile mit vier Knöpfen: **A ist besser**, **B ist besser**, **Unentschieden**, **Beide schlecht**.
+Für einen ersten Vergleich eignen sich eine kurze Quelle und ein präziser Auftrag, etwa: „Liste die drei Entscheidungen aus diesen Besprechungsnotizen auf und belege jede mit dem passenden Satz.“ Quelle, Anweisungen und gewünschtes Format bleiben für beide Seiten gleich.
 
 <Frame caption="Dasselbe Prompt, von zwei Modellen beantwortet, mit der Bewertungszeile darunter.">
 
@@ -17,33 +17,28 @@ Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war �
 
 </Frame>
 
-<Note>
+Jede Antwort erscheint in einer eigenen Spalte. Warte mit der Bewertung, bis beide abgeschlossen sind. Während eine Seite noch antwortet, bleiben die Bewertungsbuttons gesperrt. Auch die Wartezeit gehört zum Vergleich. Schlägt eine Seite fehl, lies zuerst den Fehler, bevor du das Ergebnis als Qualitätsurteil wertest.
 
-Beide Spalten laufen mit demselben Chat-Assistenten, sodass Instructions, Tools und Wissen auf beiden Seiten identisch sind und nur das Modell sich unterscheidet — genau darum geht es beim Vergleich.
+## Die Antworten beurteilen
 
-</Note>
+Prüfe die Fakten anhand der Quelle, die Einhaltung der Anweisungen, fehlende wesentliche Details und den Bearbeitungsaufwand vor der Verwendung. Eine längere oder selbstbewusst formulierte Antwort ist nicht automatisch besser.
 
-## Die Kontrahenten wählen
+| Bewertung | Wann sie passt | Der Chat geht weiter mit |
+| --- | --- | --- |
+| **A ist besser** | A ist hilfreicher oder genauer. | Spalte A. |
+| **B ist besser** | B ist hilfreicher oder genauer. | Spalte B. |
+| **Unentschieden** | Beide erfüllen den Auftrag gleich gut. | Spalte A. |
+| **Beide schlecht** | Keine Antwort ist brauchbar. | Spalte A. |
+| **Ohne Bewertung beenden** | Du möchtest den Vergleich nicht bewerten. | Spalte A, ohne Bewertung. |
 
-Die beiden Picker sind unabhängig — jedes Modell, das deine Organisation bereitstellt, ist auf jeder Seite zulässig. Dasselbe Modell auf beiden Seiten zu wählen ist erlaubt, aber die meisten Vergleiche spannen über Anbieter oder Größen. Die Instructions, das Wissen und die Tools des Assistenten gelten für beide Spalten; nur das zugrunde liegende Modell unterscheidet sich.
+Jede Auswahl beendet den Vergleich mit zwei Spalten. Die nächste Nachricht geht an den verbleibenden Chat. Aktiviere die Arena für einen neuen Vergleich erneut; bei einem Unentschieden bleiben nicht beide Spalten aktiv.
 
-## Eine Bewertung abgeben
+## Gespeichertes Feedback finden
 
-Die Bewertung ist ein einzelner Klick. **A ist besser** und **B ist besser** erklären sich selbst; **Unentschieden** ist für ungefähr gleich gute Antworten; **Beide schlecht** für den Fall, dass keine akzeptabel ist. Der Knopf, den du klickst, speichert die Bewertung und löst den Chat zur gewinnenden Spalte hin auf — die nächste Nachricht, die du sendest, geht nur an dieses Modell. **Unentschieden** oder **Beide schlecht** lässt beide Spalten für eine weitere Runde aktiv.
+Wenn beide Modelle geantwortet haben, fließt die Bewertung in die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) der Organisation ein. Administratoren können dort die Arena-Bewertungen und Modellvergleiche prüfen. **Ohne Bewertung beenden** erzeugt keine Bewertung.
 
-## Wo Bewertungen auftauchen
+Vergleiche mehrere typische Aufgaben, bevor du ein Modell beurteilst. Ein Ergebnis für kurze Zusammenfassungen sagt wenig über Code oder lange Dokumente aus. Organisationsweite Vorlieben enthalten außerdem Aufgaben anderer Personen.
 
-Bewertungen laufen unter **Arena-Urteile** in der [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) zusammen, neben einer Tabelle **Top Modell-Duelle**, die Paarungen nach Gewinnrate ordnet. Die Daten sind org-gebunden statt pro User — eine Handvoll bewusster Urteile kann also einen viel größeren Stapel Gewohnheit überwiegen, wenn jemand die Tabelle liest, um zu entscheiden, zu welchem Modell das Team greifen sollte.
+## Einen blockierten Vergleich klären
 
-## Wann du danach greifst
-
-| Nutz … wenn                                                          | Arena-Modus | Regulärer Modell-Picker |
-| -------------------------------------------------------------------- | ----------- | ----------------------- |
-| Du entscheidest, welches Modell zum Standard werden soll             | ✓           |                         |
-| Du vermutest eine Modell-Regression nach einem Upgrade               | ✓           |                         |
-| Du weißt schon, welches Modell du willst; du willst nur eine Antwort |             | ✓                       |
-| Die Anfrage ist kurz und gewöhnlich                                  |             | ✓                       |
-
-## Wo das hineinpasst
-
-Die Arena ist die leichtgewichtige Rückkopplungsschleife auf der Modellwahl. Die schwerere Oberfläche ist die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) — dort werden deine Bewertungen zu einem Diagramm, mit dem jemand später über Defaults streitet. Wenn du derjenige bist, der die Tabelle später liest, dreh vorher eine Handvoll Arena-Runden; die selbst abgegebenen Bewertungen sagen dir, ob die Rahmung der Tabelle deine Erfahrung trifft.
+Fehlt ein Modell, prüfe mit dem [Modellkatalog](/de/platform/models) Provider und Zugriffsregeln. Sind die Bewertungsbuttons noch gesperrt, müssen zuerst beide Antworten enden. Ein fehlgeschlagener Aufruf kann an Zugangsdaten, Verfügbarkeit oder Richtlinien liegen. Entscheide anhand der angezeigten Begründung, was vor einem neuen Versuch zu korrigieren ist.

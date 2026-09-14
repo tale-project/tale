@@ -3,7 +3,7 @@ title: KI-Anbieter
 description: Verbinde Anbieter-Zugangsdaten, stelle Modelle bereit und prüfe fehlende Auswahlmöglichkeiten.
 ---
 
-Verbinde einen KI-Anbieter, bevor Tale Chats oder Agents ausführen soll. Unter **Einstellungen > KI-Anbieter** verwalten Inhaber, Admins und Entwickler die Zugangsdaten ihrer Organisation. Der Anbieter bestimmt Verbindung und unterstützte Anmeldung; ein Zugangsdaten-Eintrag stellt den Zugriff deiner Organisation darauf bereit.
+Verbinde einen KI-Anbieter, bevor Tale Chats oder Agenten ausführen soll. Unter **Einstellungen > KI-Anbieter** verwalten Inhaber, Admins und Entwickler die Zugangsdaten ihrer Organisation. Der Anbieter bestimmt Verbindung und unterstützte Anmeldung; ein Zugangsdaten-Eintrag stellt den Zugriff deiner Organisation darauf bereit.
 
 <Frame caption="Jede Zeile steht für einen Zugangsdaten-Eintrag. Standard kennzeichnet den Eintrag für Aufrufe ohne ausdrückliche Auswahl.">
 
@@ -15,8 +15,8 @@ Verbinde einen KI-Anbieter, bevor Tale Chats oder Agents ausführen soll. Unter 
 
 1. Wähle **Zugangsdaten hinzufügen** und den Anbieter. Bereits konfigurierte Anbieter stehen zuerst. Du kannst sie erneut wählen, um weitere Zugangsdaten anzulegen.
 2. Wähle eine **Authentifizierungsmethode**, falls der Anbieter mehrere unterstützt.
-3. Gib einen **Name** an, der den Zweck erkennen lässt, etwa `Produktionsschlüssel` oder `Finanzteam`. Fülle die Pflichtfelder der Methode aus.
-4. Prüfe die **Erlaubte Modelle**. Hat der Anbieter einen Katalog, erlaubt eine leere Liste dessen Modelle. Ohne Katalog sind ausdrückliche Modell-IDs erforderlich.
+3. Gib unter **Name** einen Namen an, der den Zweck erkennen lässt, etwa `Produktionsschlüssel` oder `Finanzteam`. Fülle die Pflichtfelder der Methode aus.
+4. Prüfe die Liste **Erlaubte Modelle**. Hat der Anbieter einen Katalog, erlaubt eine leere Liste dessen Modelle. Ohne Katalog sind ausdrückliche Modell-IDs erforderlich.
 5. Wähle **Hinzufügen**. Prüfe den neuen Eintrag und setze ihn als Standard für den Anbieter, wenn gewöhnliche Anfragen ihn verwenden sollen.
 
 Öffne einen Chat und prüfe die Modellauswahl. Ein Modell muss über aktive Zugangsdaten erreichbar und durch die Modellzugriffsregeln der Organisation erlaubt sein. Gespeicherte Zugangsdaten allein belegen noch keinen funktionierenden Aufruf. Sende eine kurze Testnachricht mit dem gewünschten Modell.
@@ -36,7 +36,7 @@ Bei einem Abonnement-Broker legst du fest, wie Tale sich dort anmeldet, wo die A
 
 ## Azure oder einen eigenen Endpunkt einrichten
 
-Azure OpenAI benötigt eine **Endpoint-URL**, gewöhnlich `https://<resource>.openai.azure.com/openai/v1`. Jeder Zugangsdaten-Eintrag gehört zu dieser Ressource. Azure verwendet die dort konfigurierten Bereitstellungsnamen als Modell-IDs. Trage diese Namen in die **Erlaubte Modelle** ein. Ohne Katalog stellt eine leere Liste keine Modelle bereit.
+Azure OpenAI benötigt eine **Endpoint-URL**, gewöhnlich `https://<resource>.openai.azure.com/openai/v1`. Jeder Zugangsdaten-Eintrag gehört zu dieser Ressource. Azure verwendet die dort konfigurierten Bereitstellungsnamen als Modell-IDs. Trage diese Namen in die Liste **Erlaubte Modelle** ein. Ohne Katalog stellt eine leere Liste keine Modelle bereit.
 
 Verwende dokumentierte Endpunkte und Modellkennungen des Anbieters. Ein Anzeigename auf einer Produktseite muss nicht der von der API akzeptierten Kennung entsprechen.
 
@@ -44,7 +44,7 @@ Verwende dokumentierte Endpunkte und Modellkennungen des Anbieters. Ein Anzeigen
 
 Wähle **Zum Standard machen** im Zeilenmenü. Pro Anbieter gibt es einen Standard. Die Auswahl eines anderen Eintrags verschiebt die Kennzeichnung. Deaktivierte Zugangsdaten können kein Standard sein. Ohne Standard muss ein Aufrufer den gewünschten Eintrag ausdrücklich benennen.
 
-Die **Erlaubte Modelle** eines Eintrags begrenzt nur diese Zugangsdaten. Unter [Modelle](/de/platform/admin/governance/content-models) legst du anbieterübergreifend Standardmodelle und Zugriffsregeln für Personen, Teams und Rollen fest. Beide Einschränkungen gelten. Eine erweiterte Liste umgeht die andere nicht.
+Die Liste **Erlaubte Modelle** eines Eintrags begrenzt nur diese Zugangsdaten. Unter [Modelle](/de/platform/admin/governance/content-models) legst du anbieterübergreifend Standardmodelle und Zugriffsregeln für Personen, Teams und Rollen fest. Beide Einschränkungen gelten. Eine erweiterte Liste umgeht die andere nicht.
 
 **Agent-Laufzeiten** unter der Tabelle ist schreibgeschützt. Dort siehst du verfügbare Modelle und Abonnements je Laufzeit. Um diese Konfiguration zu ändern, bearbeitest du die Zugangsdaten darüber.
 

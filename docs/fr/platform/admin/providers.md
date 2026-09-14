@@ -16,7 +16,7 @@ Connecte un fournisseur IA avant de lancer des chats ou des agents dans Tale. Da
 1. Sélectionne **Ajouter des identifiants**, puis le fournisseur. Les fournisseurs déjà configurés apparaissent en premier ; les choisir à nouveau permet d’ajouter d’autres identifiants.
 2. Choisis une **Méthode d'authentification** si le fournisseur en propose plusieurs.
 3. Renseigne un **Nom** qui indique l’usage, comme `Clé de production` ou `Équipe finance`, puis les champs requis par la méthode.
-4. Vérifie la **Modèles autorisés**. Pour un fournisseur avec catalogue, une liste vide autorise les modèles du catalogue. Sans catalogue, tu dois préciser les identifiants des modèles.
+4. Vérifie la liste **Modèles autorisés**. Pour un fournisseur avec catalogue, une liste vide autorise les modèles du catalogue. Sans catalogue, tu dois préciser les identifiants des modèles.
 5. Sélectionne **Ajouter**. Vérifie la ligne créée et définis-la par défaut pour ce fournisseur si les requêtes habituelles doivent l’utiliser.
 
 Ouvre un chat et examine le sélecteur de modèle. Le modèle doit être disponible via des identifiants actifs et autorisé par les règles de l’organisation. Enregistrer des identifiants ne prouve pas que le fournisseur acceptera les requêtes : envoie un court message de test avec le modèle prévu.
@@ -36,7 +36,7 @@ Pour un courtier d’abonnement, précise l’authentification de Tale auprès d
 
 ## Configurer Azure ou une adresse propre au compte
 
-Azure OpenAI demande une **URL de l'endpoint**, généralement `https://<resource>.openai.azure.com/openai/v1`. Les identifiants appartiennent à cette ressource. Les identifiants de modèle Azure sont les noms de déploiement définis dans la ressource : saisis-les dans la **Modèles autorisés**. Sans catalogue, laisser cette liste vide ne rend aucun modèle disponible.
+Azure OpenAI demande une **URL de l'endpoint**, généralement `https://<resource>.openai.azure.com/openai/v1`. Les identifiants appartiennent à cette ressource. Les identifiants de modèle Azure sont les noms de déploiement définis dans la ressource : saisis-les dans la liste **Modèles autorisés**. Sans catalogue, laisser cette liste vide ne rend aucun modèle disponible.
 
 Utilise les adresses et identifiants documentés par le fournisseur. Le nom affiché sur une page commerciale n’est pas forcément celui que son API accepte.
 
@@ -44,7 +44,7 @@ Utilise les adresses et identifiants documentés par le fournisseur. Le nom affi
 
 Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournisseur a un seul choix par défaut ; en sélectionner un autre déplace le badge. Des identifiants désactivés ne peuvent pas devenir le choix par défaut. En son absence, l’appelant doit nommer les identifiants à utiliser.
 
-La **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
+La liste **Modèles autorisés** limite seulement les identifiants concernés. [Modèles](/fr/platform/admin/governance/content-models) définit les modèles par défaut et les règles d’accès des personnes, équipes et rôles pour tous les fournisseurs. Les deux restrictions s’appliquent : élargir une liste ne contourne pas l’autre.
 
 La section **Harnesses**, sous le tableau, est en lecture seule. Elle présente les modèles et abonnements disponibles pour chaque environnement d’exécution. Modifie les identifiants au-dessus pour changer cette configuration.
 

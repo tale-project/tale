@@ -15,7 +15,7 @@ Chat permet de poser rapidement une question sur un document, de comprendre un s
 
 Ouvre **Chat**, écris dans le champ de message et envoie. Une suggestion peut t’aider à démarrer. Indique le résultat attendu et la source pertinente : « À partir du guide d’onboarding, liste les étapes qu’un nouveau client doit terminer. Cite le guide. »
 
-Le sélecteur de modèle démarre sur **Auto**. Choisis un modèle nommé pour décider quel modèle disponible répondra, et ajuste l’effort de raisonnement lorsqu’il est pris en charge. Tu peux joindre un fichier pour poser une question sur son contenu, ou ouvrir un chat de projet pour des références récurrentes.
+Lorsque plusieurs modèles utilisables sont disponibles, le sélecteur peut démarrer sur **Auto**. Choisis un modèle nommé pour décider quel modèle disponible répondra, et ajuste l’effort de raisonnement lorsqu’il est pris en charge. Tu peux joindre un fichier pour poser une question sur son contenu, ou ouvrir un chat de projet pour des références récurrentes.
 
 <Frame caption="Les suggestions proposent une première question ; le champ de message accepte aussi la tienne.">
 

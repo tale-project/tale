@@ -1,173 +1,74 @@
 ---
-title: Troubleshooting
-description: Symptom-first index for the issues operators have actually hit on Tale instances — what the user reports, what is broken, and what to do about it.
+title: Troubleshoot a self-hosted instance
+description: Start with the failing action, inspect the right service, and recover without deleting data or masking the cause.
 ---
 
-Start with the symptom you can observe, then inspect the service that owns it. Record the time, affected URL or action, and any error code before restarting services; those details help connect browser behavior with backend logs.
+Record the time, affected organization, URL or action, and error code before restarting anything. Check whether the failure affects one item, one organization, or the whole deployment. That distinction determines whether to inspect a file, an organization connection, or shared infrastructure.
 
-Use `tale status` for the deployment state and `tale logs <service>` for the failing component. Do not reset data or replace secrets to diagnose an unexplained failure.
+For a workspace deployment, start with `tale status` and `tale logs <service> --tail 200`. In your own Compose project, use `docker compose ps` and `docker compose logs --tail=200 <service>`. Service names such as `platform` and `backend-api` differ from generated container names.
 
-## Browser sees 502 or "Bad Gateway"
+## Public URL, certificate, or sign-in fails
 
-The `tale-proxy` container reached the platform, but the platform did not reply. Either `tale-platform` is down or its health endpoint is unreachable. Check container state first:
+| Symptom | Check | Next action |
+| --- | --- | --- |
+| Connection fails or TLS warns | DNS, public ports, certificate hostname and issuer, proxy logs. | Fix the failing layer. For an internal CA, install its public root certificate on the client; `docker exec ... caddy trust` does not change the client's trust store. |
+| Proxy returns 502/503 | Identify the failing path and upstream. `/api/health` and web assets use `platform`; application requests use `backend-api`. | Inspect that service's startup error and readiness before changing proxy configuration. |
+| Sign-in returns to the login page | Browser cookie and callback requests; configured `SITE_URL`, additional origins, base path, and provider registration. | Correct the mismatched origin or callback and recreate services after environment changes. |
 
-```bash
-docker compose ps tale-platform
-docker compose logs --tail=200 tale-platform
-```
+A loading shell with empty data points first to application requests, not necessarily the web server. Inspect failed requests in the browser and `backend-api` logs. A proxy, expired session, permission refusal, and backend outage require different fixes. [TLS and domains](/self-hosted/configuration/tls-and-domains) and [Authentication](/self-hosted/configuration/authentication) cover their configuration.
 
-If the container is restarting, the logs at the bottom show the crash reason — usually a misconfigured env var (`SITE_URL` mismatch, missing `BETTER_AUTH_SECRET`) or a Postgres connection failure. Fix the env, restart, retry. If the container is healthy but the browser still sees 502, the proxy is the suspect — `docker compose restart tale-proxy` clears most of these.
+## File uploads or downloads fail
 
-## Browser sees a TLS warning
+Start by comparing the server's response with the browser's request to the presigned URL. A failure for one organization can come from its own storage connection even when the deployment-default bucket is healthy.
 
-`TLS_MODE=selfsigned` is the most common cause — the browser does not trust Caddy's internal CA on first visit. Either trust the CA on the host (`docker exec tale-proxy caddy trust`) or switch to `TLS_MODE=letsencrypt` for a real certificate. The full mode walk lives in [TLS and domains](/self-hosted/configuration/tls-and-domains).
+| Observation | Meaning and response |
+| --- | --- |
+| `object store (skipped)` at boot | The default credential pair is absent. Check `OBJECT_STORE_ACCESS_KEY` and `OBJECT_STORE_SECRET_KEY`; do not generate replacements for an existing store without coordinating its credentials. |
+| `object store (ignored)` | The file is operator-managed. Inspect `default/object-storage/connection.json`; environment reconciliation deliberately leaves it alone. |
+| `seeded` or `reconciled` | The default connection was written or updated from the environment. This does not prove every object permission or browser route works. |
+| Store probe is down | Check endpoint, connectivity, credentials, bucket existence, and the detailed backend error. |
+| Server connection test passes but browser upload fails | Check the public endpoint, certificate trust, and bucket CORS for the actual browser origin. Include `GET`, `PUT`, and `HEAD` as required by the file flow. |
 
-If the mode is already `letsencrypt`, check the proxy logs for ACME failures — DNS not resolving to this host's public IP and port 80 unreachable from the public Internet are the two common causes.
+`tale_backend_store_up` covers deployment defaults and measures reachability, not a complete upload. An object-store `403` can still produce an up value. Verify an actual controlled upload and download after fixing the connection. [Data residency](/self-hosted/configuration/data-residency) explains connection changes and file migration.
 
-## UI loads but no data appears
+## A document stays unindexed
 
-The UI shell is static assets served by `tale-platform`; everything else flows through `tale-backend-api` — the app API over HTTP and the live-update SSE stream on `/events`. When the backend cannot be reached, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
+Check the document's status and failure reason, then `backend-worker` logs. Confirm the organization's embedding model and credential, vector dimensions, knowledge-database connection, and file support. A successful upload only proves that the original file was stored.
 
-```bash
-docker compose logs --tail=200 backend-api
-```
+If the worker or a dependency was unavailable, restore it and inspect whether the job resumes or needs **Index now** in [Knowledge](/platform/knowledge/documents). For a corrupt, encrypted, or unsupported source file, correct the source before retrying. Do not delete a document as the first diagnostic step: its identity, history, and references may matter.
 
-The backend-api container is probably restarting (look for a crash in the logs) or unreachable from the proxy. Restart with `docker compose restart backend-api` — sessions are server-side and clients reconnect the SSE stream, so the restart is safe.
+## Knowledge Postgres crashes during ingestion
 
-## Every upload is refused
+Repeated `PANIC: corrupted page pointers` or `signal 6` errors can indicate a damaged BM25 index. Inspect the database logs and the automatic repair result described in [Container architecture](/self-hosted/operate/container-architecture#recognize-knowledge-index-repair). Confirm the exact corpus database; in the packaged stack it is `tale_knowledge` inside `db`, while other deployments use a separate service or external host.
 
-Not one file gets through, on any screen. S3-compatible storage is the only blob backend, so a deployment that has no usable one refuses every upload rather than falling back. The boot log says which case it is:
-
-```bash
-docker compose logs backend-api | grep 'object store'
-```
-
-| Line | What to do |
-| ---- | ---------- |
-| `object store (skipped)` | `OBJECT_STORE_ACCESS_KEY` or `OBJECT_STORE_SECRET_KEY` is missing. The process has no defaults for either; set both and restart the backend. |
-| `object store (ignored)` | The connection file is marked `"managedBy": "operator"`, so the variables do nothing. Edit `default/object-storage/connection.json` in the config volume, or remove the marker to hand the file back to the environment. |
-| `bucket … does not exist and this key may not create it` | Create the bucket yourself, or grant `s3:CreateBucket`. |
-| *no line at all* | The store matched the environment and boot had nothing to say — the configuration is fine, so look at reachability below. |
-
-Then check that the backend can actually reach the store, rather than merely being configured for one:
-
-```bash
-curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
-```
-
-`tale_backend_store_up{store="object_store"} 0` means the credentials, the endpoint, or the network path is wrong; the backend log names the failure when the gauge flips.
-
-If boot is clean and the gauge reads `1`, the failure is in the browser rather than the backend: presigned uploads go straight from the browser to the store, so an external bucket needs a CORS policy that allows your `SITE_URL` origin with `GET`, `PUT` and `HEAD`. The in-app connection test runs server-side and passes regardless, which is why this one only ever shows up as a failed upload. The browser console names it as a blocked cross-origin request.
-
-## Uploads stuck in "indexing"
-
-Document ingestion runs inside the backend worker and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the worker cannot reach the corpus database or the file itself failed to extract. Check the worker logs and the corpus database first:
-
-```bash
-docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
-docker compose ps db
-```
-
-If the logs show connection errors to the corpus database (`knowledge-db` on the network, folded into `db` on a single-host deploy), restart it (`docker compose restart db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
-
-## Knowledge database restarts on every upload
-
-Every document ingestion fails the same way: the corpus database (`knowledge-db`, folded into `db` on a single-host deploy) restarts, the backend worker loses its connection, and the next upload triggers the same restart. The server log — a file under `/var/lib/postgresql/data/log/` inside the container; `docker compose logs` only carries the entrypoint's output — names the failure each time:
-
-```bash
-docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
-```
-
-```text
-PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
-LOG:  server process (PID 4711) was terminated by signal 6: Aborted
-```
-
-The BM25 keyword index on `private_knowledge.chunks` holds a page that was never initialised, and a crash-mode stop of the database container is what leaves one behind: the server extends the index file for a write in flight, `SIGKILL` lands before the page is written, and crash recovery has no WAL to replay for it. `tale-db` images up to v0.5.7 stopped Postgres with `SIGTERM`, which Postgres reads as a *smart* shutdown — it waits for every client session to end. A client outside compose holding a connection (a host-side backend, an open `psql`) pushed the stop past the grace period, Docker killed the server, and the next start ran crash recovery. Ordinary tables and indexes survive that; `pg_search` meets the all-zero page on its next write and panics, and Postgres restarts to recover — on every upload.
-
-Confirm the index is the culprit before repairing anything. Open a session on the corpus database — both statements only read:
-
-```bash
-docker compose exec knowledge-db psql -U tale -d tale_knowledge
-```
+From an authorized SQL session on that database, this query only verifies the named index:
 
 ```sql
-select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+SELECT * FROM pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
 ```
 
-A healthy index passes every check (`passed = t`); a damaged one fails `segment_metadata_valid` or cannot be read at all. To look at the page itself, `pageinspect` prints the header of the index's last page — `0 | 0 | 0` is the never-initialised page, a healthy page reads `24 | 8184 | 8184`:
-
-```sql
-create extension if not exists pageinspect;
-select lower, upper, special
-from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
-  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
-```
-
-Then rebuild the index. It is derived from `private_knowledge.chunks`, so nothing is lost and nothing has to be re-uploaded:
+A missing function, permission error, or timeout is not the same as a confirmed corrupt index. If damage is confirmed and automatic repair did not succeed, preserve a backup and plan a database maintenance operation. Rebuilding a derived index is different from deleting document tables:
 
 ```sql
 REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
 ```
 
-Optionally rebuild the vector index as well (it exists once the first embedding has been stored) and reclaim the orphaned tail pages on the table:
+The non-concurrent command can block work. Coordinate it with your database operator, verify the index again afterward, and check ingestion recovery. Do not run speculative reindex or extension-installation commands against the wrong database. Repeated corruption warrants checking disk health and whether shutdowns are being forced past the configured grace period.
 
-```sql
-REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
-VACUUM private_knowledge.chunks;
-```
+## Chat or an automation stops
 
-Ingestion resumes on the worker's next pass. `tale-db` images newer than v0.5.7 stop Postgres with `SIGINT` — the *fast* shutdown that disconnects clients, checkpoints, and exits within seconds even while clients are attached — and `compose.yml` sets `stop_signal: SIGINT` so an older image receives the same signal. Stop the stack with `docker compose stop` or `docker compose down` and let the 60-second grace period run (the tale CLI stops containers the same way); `docker kill` and pulling the host's plug are the two paths that still end in a crash-mode stop.
+Check the run or chat error and the owning API/worker logs. A provider `429`, credential refusal, execution timeout, approval wait, and disconnected browser stream are distinct states. An approval wait needs a decision, not a service restart. A disconnected stream can hide an operation that still runs; inspect its stored result before retrying.
 
-## Chat replies stop mid-stream
+For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For harness failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
 
-The token stream from the upstream provider dropped — either the provider rate-limited, the connection timed out, or the provider's service is degraded. Check the provider's status page first; then look in the platform logs:
+## Sandbox network access is refused
 
-```bash
-docker compose logs --tail=200 tale-platform | grep -E "429|503|stream"
-```
+Inspect `sandbox-egress` and the target URL. A configured `SANDBOX_EGRESS_ALLOWLIST` must include the required hostname; private and cloud-metadata targets remain blocked. HTTPS tunnels use the supported port policy. Confirm the intended destination before broadening an allowlist, then recreate the egress service when changing its environment.
 
-A `429` is the common case. Either the org's budget is hitting the provider's rate limit, or the provider key itself is throttled. Switching the org's default model to a less-loaded provider clears the symptom while the upstream cools off.
+A healthy egress process does not prove that the remote host, DNS, certificate, or account is available. Keep the specific request error with the incident report.
 
-## Saving fails with "saving failed" toast
+## Writes fail or storage fills up
 
-The backend could not write to Postgres. Either `tale-db` is down or its disk is full:
+Check application-database connectivity, free space, connection usage, and locks. Stop avoidable growth and follow your database procedure to recover capacity. Do not delete volume contents, reset encryption keys, or assume failed writes will replay after a restart. Retry the original operation only after checking whether it persisted.
 
-```bash
-docker compose ps tale-db
-docker compose exec db df -h /var/lib/postgresql/data
-```
-
-A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `backend-api` to clear the pool.
-
-## "Run code" tool errors with "egress denied"
-
-The `tale-sandbox-egress` container is the only outbound network path for sandboxed code; if it is down or misconfigured, every outbound request from the sandbox fails closed. Check the egress container first:
-
-```bash
-docker compose ps tale-sandbox-egress
-docker compose logs --tail=100 tale-sandbox-egress
-```
-
-If the container is healthy and you have set `SANDBOX_EGRESS_ALLOWLIST`, the request hit the allowlist — extend the variable in `.env` and recreate `tale-sandbox-egress`. Without an allowlist the proxy is open at the hostname layer, so check the target instead: only port 443 is tunnelled for HTTPS, and cloud-metadata and private-range addresses are always blocked at the IP layer.
-
-## Sign-in loops back to the sign-in screen
-
-`SITE_URL` does not match what the browser actually requested. Auth cookies are scoped to the URL the request landed on; a mismatch (trailing slash, missing port, `http` vs `https`, base-path prefix) means the cookie set on the callback does not get sent on the next request.
-
-Fix `.env`:
-
-```bash
-SITE_URL=https://tale.example.com  # exactly what the user types
-```
-
-Recreate the platform container (`docker compose up -d --force-recreate tale-platform`) for the change to land in the rendered HTML.
-
-## Where to get help
-
-Self-hosted instances do not phone home, so support starts with you. The two channels:
-
-- **GitHub Issues** — bugs and reproducible problems. The [tale-project/tale](https://github.com/tale-project/tale/issues) tracker has a template that asks for the diagnostics bundle `tale diagnostics` produces.
-- **Discord** — questions, configuration debates, "is this a bug" triage. The invite lives in the repo README.
-
-Reproducible diagnostics make every channel faster. `tale diagnostics` collects sanitised logs, env vars (secrets redacted), and container health into a single archive worth attaching.
+When seeking help, include versions, sanitized errors, time range, affected scope, and reproduction steps. `tale diagnostics` collects a diagnostic bundle; inspect it before sharing because deployment details can still be sensitive. Report reproducible defects through the [project issue tracker](https://github.com/tale-project/tale/issues).

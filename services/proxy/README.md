@@ -1,58 +1,59 @@
-# @tale/proxy
+# Tale reverse proxy
 
-[Caddy](https://caddyserver.com/) reverse proxy. Single TLS-terminating entry point for Tale.
+Caddy terminates TLS and routes a deployment's public requests to the platform,
+backend and optional docs service. The entrypoint renders the checked-in
+[`Caddyfile`](Caddyfile) from the deployment environment before starting Caddy.
 
-## Overview
+## Follow a request
 
-Routes traffic to the platform (SPA + static) and the 0.5 Postgres backend, using the `platform` DNS alias for blue-green failover. TLS mode and base path are templated into the `Caddyfile` at startup by `docker-entrypoint.sh`.
+| Destination | Traffic |
+| --- | --- |
+| `platform:3000` | Frontend/static assets and the platform health endpoint |
+| `BACKEND_UPSTREAM` (default `backend-api:3005`) | Application/auth/REST APIs, events, WebDAV, SCIM, identity, webhooks and configured object-store paths |
+| `docs:3002` | Documentation when that service is included by the deployment |
+| Internal health listener on `2020` | Proxy health checks |
 
-## Interface
+The entrypoint inserts backend routes before the frontend catch-all. Read the
+rendered route list when adding an endpoint: a new machine API must reach the
+backend and retain machine-readable failure responses.
 
-Ports:
+Public ports are `80` and `443`. `/metrics/*` is token-gated; the configured
+upstreams determine which metrics endpoints are available. See the
+[operator monitoring guide](../../docs/en/self-hosted/operate/observability/prometheus-grafana.md).
 
-- `80` — HTTP (ACME challenges; redirects to HTTPS)
-- `443` — HTTPS (everything user-facing)
-- `2020` — internal `/health` for Compose / load balancers
+## Configure TLS and public paths
 
-Routes (defined in `Caddyfile`):
+- `SITE_ORIGIN`: the public origin, such as `https://tale.example.com`.
+- `TLS_MODE`: `selfsigned` for Caddy's internal CA or `letsencrypt` for public ACME.
+- `TLS_EMAIL`: contact address for ACME notifications.
+- `BASE_PATH`: an optional deployment subpath.
+- `BACKEND_UPSTREAM`: backend host and port reachable from this container.
 
-- `platform:3000` — the SPA + static assets (catch-all), `/api/health`, and `/dav/*` while WebDAV stays on the platform handler
-- `backend-api:3005` (`$BACKEND_UPSTREAM`) — the 0.5 backend: `/api/*` and the injected lanes (see below)
-- `docs:3002` — the docs site (optional; only the dev/docs compose chain ships it, so passive health-checking only)
-- `/metrics/*` (token-gated) → `platform:3000` (`/metrics/platform`, `/metrics/sla-rules`); `/metrics/backend` joins once `BACKEND_UPSTREAM` is set, and 404s before that
+For an internal CA, install the CA certificate in each client device's trust
+store after verifying its origin. Running `caddy trust` **inside the container**
+does not install trust on the host or another user's computer. Follow the
+[TLS and domains guide](../../docs/en/self-hosted/configuration/tls-and-domains.md)
+for the appropriate deployment path; do not use disabled certificate checking
+as the normal client configuration.
 
-A backend 502/503/504 answers `maintenance.html` to a browser navigation. A machine door — `/api/*`, `/scim/*`, `/http_api/*`, `/events`, `/status.json`, `/openapi.json`, `/.well-known/*` — gets the JSON envelope instead (`UPSTREAM_UNAVAILABLE`, the error's own status, `Retry-After: 5`, an `X-Request-Id` of its own and no `X-Tale-Api-Version`), and a 502 caused by an HTTP/2 body that ended before its declared `Content-Length` answers 400 `BODY_LENGTH_MISMATCH` on every path — the request was malformed, not the platform; a 502 caused by a malformed HTTP/1.1 chunked request body (a non-hexadecimal chunk size, a bare LF, a missing CRLF) answers 400 `BODY_CHUNK_MALFORMED` the same way. All three rules live in the `handle_errors` block of the `Caddyfile`.
+## Diagnose upstream failures
 
-### The 0.5 backend surface
+A backend `502`, `503` or `504` gives browser navigation a maintenance page.
+Machine routes receive a JSON error with `UPSTREAM_UNAVAILABLE`, the HTTP status,
+`Retry-After: 5` and a request ID. An HTTP/2 request whose body ends before its
+declared length instead returns `400 BODY_LENGTH_MISMATCH`.
 
-`BACKEND_UPSTREAM` (default `backend-api:3005`) is where the 0.5 backend
-lanes go. The entrypoint templates a block of `handle` directives ahead of
-the catch-all so the backend surface — `/api/auth/*`, `/api/app/*`,
-`/events`, `/api/tools/*`, `/api/connectors/*`, `/api/automations/webhook/*`,
-`/api/v1/*`, `/api/control/*`, SSO/SCIM/trusted-headers (both their native
-and `/http_api/...` aliases), `/api/cloud-import/oauth2/*`, the blob-store
-bucket path and `/dav/*` — reaches it; anything else under `/api/*` falls to
-the backend too, while `/api/health` and the SPA stay on `platform:3000`. The
-Convex fallbacks that once lived here are gone with the runtime.
+Inspect the failing upstream and its health before restarting the proxy. A
+working TLS connection proves the public listener is reachable; it does not
+prove the backend or its database is ready.
 
-## Configuration
-
-- `BACKEND_UPSTREAM` — `host:port` of the 0.5 Postgres backend (default `backend-api:3005`)
-- `TLS_MODE` — `selfsigned` (default, Caddy internal CA) or `letsencrypt`
-- `TLS_EMAIL` — Let's Encrypt notifications (recommended when using `letsencrypt`)
-- `SITE_ORIGIN` — e.g. `https://localhost`
-- `BASE_PATH` — for subpath deployments
-
-## Development
+From the repository root, with the intended Compose deployment configured:
 
 ```bash
-bun run logs         --filter=@tale/proxy   # docker compose logs -f proxy
-bun run shell        --filter=@tale/proxy   # exec into the running container
-bun run trust-certs  --filter=@tale/proxy   # caddy trust (local self-signed)
+bun run --filter @tale/proxy logs
+bun run --filter @tale/proxy docker:build
 ```
 
-## Layout
-
-- `Caddyfile` — route definitions and TLS template
-- `docker-entrypoint.sh` — substitutes `TLS_MODE` / `BASE_PATH` placeholders before launching Caddy
-- `maintenance.html` — the page a browser gets on a backend 502/503/504 (a machine door gets the JSON envelope instead — see above)
+For container inspection use `docker compose exec proxy sh` from the deployment
+directory. The workspace's legacy `trust-certs` helper runs only inside that
+container and therefore does not complete client trust setup.

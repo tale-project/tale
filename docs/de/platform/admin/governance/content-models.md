@@ -3,11 +3,11 @@ title: Modelle
 description: Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten.
 ---
 
-Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
+Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/de/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
 
-<Frame caption="Einstellungen > Richtlinien > Modelle — die Default-Modell-Regeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
+<Frame caption="Einstellungen > Richtlinien > Modelle — die Standardmodellregeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
 
-![Die Governance-Seite Modelle zeigt die Tabelle der Default-Modelle mit drei Regeln — einem Default für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt — über dem Abschnitt Modellzugriff im Modus Allowlist mit einer Regel erlaubter Modelle pro Rolle.](/images/platform/governance-content-models.webp)
+![Die Einstellungsseite Modelle zeigt die Tabelle der Standardmodelle mit drei Regeln — einem Standard für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt — über dem Abschnitt Modellzugriff im Modus Allowlist mit einer Regel erlaubter Modelle pro Rolle.](/images/platform/governance-content-models.webp)
 
 </Frame>
 
@@ -47,4 +47,4 @@ Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet 
 
 ## Eine unerwartete Auswahl erklären
 
-Prüfe Rollen und Teams der Person, die ausdrückliche Chatauswahl, den passenden Standard, die Zugriffsregel und die Modellliste der Anbieter-Zugangsdaten. Ein Katalogeintrag beweist nicht, dass die Organisation nutzbare Zugangsdaten dafür besitzt. Kosten- und Tokenlimits gelten weiterhin über [Richtlinien und Limits](/platform/admin/governance/policies-and-limits).
+Prüfe Rollen und Teams der Person, die ausdrückliche Chatauswahl, den passenden Standard, die Zugriffsregel und die Modellliste der Anbieter-Zugangsdaten. Ein Katalogeintrag beweist nicht, dass die Organisation nutzbare Zugangsdaten dafür besitzt. Kosten- und Tokenlimits gelten weiterhin über [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).

@@ -1,18 +1,35 @@
 ---
-title: Project Backlog
-description: Backlog is the board's intake status for work nobody has committed to yet — how a task lands there and how you move it forward with the same controls as every other column.
+title: Triage the project backlog
+description: Capture proposed work, decide what is ready, and move it into delivery without confusing assignment with execution.
 ---
 
-A task at **Backlog** is proposed work nobody has committed to yet. It sits in the leftmost lane of the Board and the top section of the List, with the same card, detail sheet, status picker, and assignee picker as every other status — there are no backlog-only controls. Nothing shipped fills the lane on its own in this version: [Triage GitHub issues](/platform/automations/builtin) scores issues and returns a report, and no automation syncs issues into tasks. Backlog fills when a person or an agent files a proposal.
+Use **Backlog** for proposed work the team has not committed to yet. It is a normal task status, shown first in the board and list. A proposal can already have an assignee; assignment alone does not make it active work.
 
-## How a task lands in Backlog
+## Capture a proposal
 
-Create a task and pick **Backlog** in the create form's status picker — the form defaults to **To do**. An agent can file one too: a project agent equipped with the create-tasks tool may create into **Backlog** or **To do** and nowhere else, so a proposal an agent makes never lands in a working or terminal column. The same rule holds for an automation that runs with a project's task tools.
+Open the project’s **Tasks** and create a task. Choose **Backlog** in the status picker; new tasks otherwise default to **To do**. Give the proposal a title describing the outcome and enough context for someone to decide whether to pursue it.
 
-## Moving work forward
+For example, “Check the mobile checkout error” is easier to triage with the affected page, a reproducible symptom and a screenshot than with a title alone. Leave implementation detail open until the problem is understood.
 
-Drag the card to another lane, open the detail sheet and pick a new status, or assign an owner — the same paths you use for **To do** or **In progress**. Assignment is allowed while a task sits in Backlog, so you can hand a proposal to a person or a project agent before it moves; assigning a project agent and clicking **Start agent** puts it to work, and [Task automation](/platform/projects/task-automation) covers what happens from there. Dismiss a proposal the way you close any task: set its status to **Cancelled**.
+A project agent with the task-creation tool can also create a proposal. That tool allows initial **Backlog** or **To do** status, not a working or finished status. The same boundary applies when an automation uses the project’s task tools.
 
-## Where this fits
+## Decide what happens next
 
-Backlog is the intake column between a proposal — yours, a teammate's, or an agent's — and the team committing to it. [Task automation](/platform/projects/task-automation) is the next read for the loop a task enters once it is assigned; [Built-in automations](/platform/automations/builtin) explains why the shipped GitHub pack reports instead of filing tasks.
+| Decision | Action |
+| --- | --- |
+| More information is needed | Keep **Backlog** and explain the missing information in the description or a comment. |
+| The team accepts the work | Set **To do** and choose an assignee. |
+| Work has started | Move to **In progress**. |
+| The proposal will not be pursued | Set **Cancelled**, preserving the task’s discussion. |
+
+Change status in the task detail or drag the card between board columns. These are the same controls used for other tasks; Backlog has no separate accept or reject workflow.
+
+## Hand the task to an agent
+
+Choose an agent from the same project and make the expected result explicit before clicking **Start agent**. Assigning it does not replace that start action. Use [Task automation](/platform/projects/task-automation) for prerequisites, progress and review.
+
+## Understand where proposals come from
+
+The shipped **Triage GitHub issues** automation returns a ranked report. It does not create project tasks or fill Backlog automatically. A person or an appropriately equipped agent must turn a selected issue into a task. This keeps the decision to accept work separate from the report that recommends it.
+
+[Manage project tasks](/platform/projects/tasks) covers task details, comments, dependencies and the rest of the board.

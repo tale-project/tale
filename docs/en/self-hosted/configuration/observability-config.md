@@ -13,11 +13,11 @@ docker compose logs --tail=100 backend-api backend-worker
 docker compose logs -f backend-api
 ```
 
-Stop following with `Ctrl-C`; the containers keep running. Look at `backend-api` for request and authentication failures, and `backend-worker` for background jobs, chat generation and ingestion. Use `docker compose ps` to find a container that is restarting.
+Stop following with `Ctrl-C`; the containers keep running. Look at `backend-api` for requests, authentication, and interactive chat generation; use `backend-worker` for background jobs, queued agent turns, and ingestion. Use `docker compose ps` to find a container that is restarting.
 
 `journalctl -u docker` shows the Docker daemon’s journal. With the default `json-file` driver, it does not replace container logs. If you use journald or a log aggregator, configure the Docker logging driver and collection separately. Tale does not include a log shipper. Changing a logging driver requires recreating the affected containers.
 
-## Enable authenticated metrics
+## Enable authenticated metrics {#metrics}
 
 Set a strong `METRICS_BEARER_TOKEN` in the deployment environment and apply the change by recreating the affected services through your deployment workflow. A simple container restart does not reload Compose environment values. Store the same token in your monitoring system’s secret store.
 
@@ -25,11 +25,11 @@ The proxy requires `Authorization: Bearer <token>` for these routes. Without a c
 
 | Route | Content | How to use it |
 | --- | --- | --- |
-| `/metrics/platform` | Web-tier HTTP and process metrics, response-time targets | Prometheus scrape target |
+| `/metrics/platform` | Web-tier process metrics and response-time targets | Prometheus scrape target |
 | `/metrics/backend` | Backend HTTP and process metrics, queue depth, active generations and drain state | Prometheus scrape target |
 | `/metrics/sla-rules` | Generated recording and alerting rules in YAML | Load as a Prometheus rules file |
 
-Knowledge ingestion and search run in the backend worker. Their measurements are part of the backend metrics. `BACKEND_UPSTREAM` selects the backend for a split deployment; it does not enable a separate knowledge metrics service.
+The backend serves knowledge requests and runs ingestion jobs. Its HTTP and queue metrics help detect failures and backlog; they are not dedicated measurements of retrieval or generation latency. `BACKEND_UPSTREAM` selects the backend target for a split deployment. It does not create a separate knowledge metrics service.
 
 Use a separate scrape job for each metrics route. In this example, `/run/secrets/tale_metrics_token` is a file inside the Prometheus container containing only the token. Create it through your secret-management system and grant Prometheus read access.
 
@@ -51,7 +51,7 @@ scrape_configs:
       - targets: ['tale.example.com']
 ```
 
-Do not scrape `/metrics/sla-rules` as metrics. Load its YAML through Prometheus’s rule configuration; [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) covers the full setup.
+Do not scrape `/metrics/sla-rules` as metrics. The generated rules reference latency series that need additional instrumentation; loading the file alone does not measure response-time compliance. Review them before loading through Prometheus’s rule configuration; [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) covers the full setup.
 
 ## Choose where errors go
 

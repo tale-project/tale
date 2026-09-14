@@ -1,9 +1,9 @@
 ---
-title: Developer
+title: Entwickler
 description: Erstelle Automatisierungen und verbinde Tale mit Clients, Skripten und externen Diensten.
 ---
 
-Als Developer richtest du technische Verbindungen und Automatisierungen für die Arbeit deines Teams ein. Neben Inhaltsbearbeitung hast du Zugriff auf technische Einstellungen wie Provider, Connectoren und API-Zugangsdaten. Die Mitgliederverwaltung bleibt bei Owner und Admin.
+Als Entwickler richtest du technische Verbindungen und Automatisierungen für die Arbeit deines Teams ein. Neben Inhaltsbearbeitung hast du Zugriff auf technische Einstellungen wie Provider, Connectors und API-Zugangsdaten. Die Mitgliederverwaltung bleibt bei Inhabern und Admins.
 
 ## Eine Verbindung oder einen Ablauf wählen
 

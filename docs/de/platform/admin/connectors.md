@@ -8,7 +8,7 @@ Hinterlege Connector-Zugangsdaten, damit Tale Dienste wie Postfächer, Dateiabla
 ## Ein Konto verbinden
 
 1. Wähle **Zugangsdaten hinzufügen** und den Connector. Bereits konfigurierte Connectors stehen zuerst und können weitere Zugangsdaten erhalten.
-2. Gib einen **Name** an, der beim Erstellen von Automatisierungen verständlich ist, etwa `Support-Postfach` oder `EU-Shop`.
+2. Gib unter **Name** einen Namen an, der beim Erstellen von Automatisierungen verständlich ist, etwa `Support-Postfach` oder `EU-Shop`.
 3. Fülle die angebotene Authentifizierungsmethode aus. Bei OAuth wählst du **Verbinden** und erteilst den Zugriff beim Anbieter.
 4. Schließe das Formular ab und prüfe den neuen Eintrag mit Connector, Konto oder Instanz und Status.
 
@@ -39,7 +39,7 @@ Nutze die Ersetzen-Aktion der jeweiligen Methode, etwa **API-Schlüssel ersetzen
 
 <Warning>
 
-Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agents den Zugriff. Stelle die Aufrufer vorher um und wähle bei Bedarf einen neuen Standard. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
+Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten den Zugriff. Stelle die Aufrufer vorher um und wähle bei Bedarf einen neuen Standard. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
 
 </Warning>
 

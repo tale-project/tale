@@ -5,7 +5,7 @@ description: Halte eine kurze, gemeinsame Information fest, aktualisiere sie bei
 
 Ein Wissenseintrag eignet sich für kurze Informationen, die dein Team später wiederfinden soll: Supportzeiten, Rückgabefristen oder die Zuständigkeit für einen Prozess. Jeder Eintrag besteht aus Thema und Inhalt. Für eine vollständige Richtlinie oder einen Bericht wähle ein [Dokument](/de/platform/knowledge/documents); für benannte Felder und genaue Werte nutze [strukturierte Daten](/de/platform/knowledge/structured-data).
 
-Mitglieder können Einträge lesen. Zum Erstellen, Bearbeiten und Löschen brauchst du die Rolle Editor oder höher. Einträge gehören zum gemeinsamen Wissen der Organisation. Persönliche Notizen und Informationen, die nur für ein bestimmtes Projekt gedacht sind, gehören deshalb an einen anderen Ort.
+Mitglieder können Einträge lesen. Zum Erstellen, Bearbeiten und Löschen brauchst du die Rolle Redakteur oder höher. Einträge gehören zum gemeinsamen Wissen der Organisation. Persönliche Notizen und Informationen, die nur für ein bestimmtes Projekt gedacht sind, gehören deshalb an einen anderen Ort.
 
 ## Eine Information hinzufügen
 
@@ -47,7 +47,7 @@ Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle, Index
 
 <Frame caption="Prüfe Information und Indexierungsstatus in der Tabelle, bevor du dich in einer Antwort darauf verlässt.">
 
-![Die Tabelle der Wissenseinträge zeigt drei manuelle Informationen mit Thema, Inhalt, Quelle, Indexierungsstatus und Änderungszeit.](/images/platform/knowledge-entries-list.webp)
+![Die Tabelle der Wissenseinträge zeigt manuelle Informationen mit Thema, Inhalt, Quelle, Indexierungsstatus und Änderungszeit.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

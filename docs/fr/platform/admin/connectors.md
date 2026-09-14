@@ -17,7 +17,7 @@ Le connecteur détermine les champs. Utilise les identifiants du compte externe,
 | Méthode | Informations nécessaires |
 | --- | --- |
 | Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. |
-| Token | Un token du service, comme un token d’accès personnel GitHub ou un token de bot Discord. |
+| Token | Un jeton du service, comme un token d’accès personnel GitHub ou un token de bot Discord. |
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 

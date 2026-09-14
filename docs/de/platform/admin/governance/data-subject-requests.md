@@ -5,9 +5,9 @@ description: Reiche Löschanfragen ein, verwalte Freigaben und Fristen und prüf
 
 Als Admin oder Inhaber bearbeitest du unter **Einstellungen > Richtlinien > Anfragen betroffener Personen** Löschanfragen. Tale verfolgt die Anfrage, ihre Freigabe und Wartezeit sowie das Ergebnis der Löschung. Prüfe vor der Einreichung Identität und passenden Umfang nach dem Verfahren deiner Organisation.
 
-<Frame caption="Governance > Anfragen betroffener Personen — die DSAR-Governance-Richtlinie (Cooling-off-Fenster, Vier-Augen-Freigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
+<Frame caption="Richtlinien > Anfragen betroffener Personen — die Richtlinie für Löschanfragen (Karenzzeit, Doppelfreigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
 
-![Die Governance-Seite Anfragen betroffener Personen zeigt das Cooling-off-Fenster, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer Tabelle der Löschungs-Anfragen mit einer offenen Anfrage — betroffene Person Jordan Blake, Begründungs-Code Einwilligung widerrufen, noch 24 Stunden bis zur Ausführung und 29 Tage SLA-Frist —, daneben die Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
+![Die Einstellungsseite Anfragen betroffener Personen zeigt das Karenzzeit, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer Tabelle der Löschungs-Anfragen mit einer offenen Anfrage — betroffene Person Jordan Blake, Begründungs-Code Einwilligung widerrufen, noch 24 Stunden bis zur Ausführung und 29 Tage SLA-Frist —, daneben die Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
 
 </Frame>
 
@@ -38,7 +38,7 @@ Nur der Inhaber kann diese Richtlinie ändern. Strengere Schutzmaßnahmen gelten
 | Läuft | Warte auf die Kategorieergebnisse und reiche keine doppelte Anfrage ein. |
 | Abgeschlossen | Prüfe die Anzahlen und bewahre den Beleg bei deinem Fall auf. |
 | Teilweise | Untersuche übersprungene Kategorien und Fehler. Behebe die Ursache vor einem neuen Versuch. |
-| Blockiert | Prüfe den [Legal Hold](/platform/admin/governance/legal-hold). Betroffene Daten bleiben geschützt. |
+| Blockiert | Prüfe den [Legal Hold](/de/platform/admin/governance/legal-hold). Betroffene Daten bleiben geschützt. |
 | Fehlgeschlagen | Lies die Fehlerdetails. Nutze **Erneut versuchen**, wenn verfügbar. Bei einem Watchdog-Timeout kann eine neue Anfrage nötig sein. |
 | Abgebrochen | Dieser Beleg plant keine weitere Ausführung. Reiche bei Bedarf eine neue Anfrage ein. |
 
@@ -52,4 +52,4 @@ Die Frist unterstützt die Nachverfolgung. Deine Organisation bleibt für die Pr
 
 ## Das Ergebnis prüfen
 
-Öffne die Kategorieanzahlen, Fehler und Audit-Zeitleiste des Belegs. Eine abgeschlossene Aktion, eine gesperrte Kategorie und ein fehlgeschlagener Durchlauf haben unterschiedliche Ergebnisse. Halte diese Unterschiede im Fall fest. Zugehörige Admin-Ereignisse findest du in den [Audit-Logs](/platform/admin/governance/audit-logs).
+Öffne die Kategorieanzahlen, Fehler und Audit-Zeitleiste des Belegs. Eine abgeschlossene Aktion, eine gesperrte Kategorie und ein fehlgeschlagener Durchlauf haben unterschiedliche Ergebnisse. Halte diese Unterschiede im Fall fest. Zugehörige Admin-Ereignisse findest du in den [Audit-Logs](/de/platform/admin/governance/audit-logs).

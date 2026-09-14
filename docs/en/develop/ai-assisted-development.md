@@ -1,62 +1,79 @@
 ---
-title: AI-assisted development
-description: How a coding agent edits a Tale project — the AGENTS.md and CLAUDE.md the CLI writes, the source mirror under .tale/reference/, and the org-first layout of the configuration files.
+title: Edit configuration with a coding agent
+description: Give a coding agent the right project context, distinguish templates from active configuration, and review changes before deployment.
 ---
 
-A coding agent can help edit a Tale project when it has the configuration schemas and project instructions. `tale init` supplies `AGENTS.md`, a `CLAUDE.md` pointer and a source reference under `.tale/reference/`. Use these files to keep proposed configuration aligned with the installed version.
+Use a coding agent to help edit a CLI-managed Tale configuration project. The project includes instructions, example configuration and a selected source reference. You still need to review the proposed change and verify which organizations it will affect.
 
-Review the agent’s changes and test them locally before deployment. Generated examples are a catalog; not every file is active in an organization.
+This is different from contributing to Tale’s application source. For a source checkout, start with [Contributor setup](/develop/contributor-setup) and the repository’s own `AGENTS.md`.
 
 ## A worked setup
 
-`tale init` scaffolds the project, the instruction files, and the mirror in one step. This is the whole tree it leaves behind:
+Install the [Tale CLI](/self-hosted/install/cli-install), then create a new directory for the configuration project:
 
 ```bash
-tale init my-org --no-env
-cd my-org
+tale init agent-config-example --no-env
+cd agent-config-example
 ls -a
 ```
 
+The following is an excerpt of the generated paths:
+
 ```text
-AGENTS.md  CLAUDE.md  default  .gitignore  .tale  tale.json
+AGENTS.md
+CLAUDE.md
+default/
+.gitignore
+.tale/
+tale.json
 ```
 
-`--no-env` only skips the `.env` prompt for this walk. The summary the command prints names what it seeded — one agent in the catalog, five skill bundles, one branding file — and the next steps: `tale dev` to run the instance locally, `tale deploy` when you are ready to publish.
+`--no-env` skips environment setup; it does not create a runnable deployment or generate `.env`. This is useful when you want to inspect configuration before starting containers. `tale dev` performs environment setup when you later launch locally. Review the [quickstart prerequisites](/self-hosted/install/quickstart) first.
+
+Open this directory in your coding editor. Ask the agent to read `AGENTS.md`, the relevant existing configuration and the source under `.tale/reference/` before proposing a change.
 
 ## The two instruction files
 
-`AGENTS.md` carries the guidance: the org-first layout, the naming rules for slugs and filenames, the secrets policy, and one directive that does most of the work:
+`AGENTS.md` contains Tale’s configuration guidance. `CLAUDE.md` points to that file so there is one maintained set of project instructions. The CLI also recognizes an existing `AGENT.md`, or a `CLAUDE.md` already stored under `.claude/`.
 
-> Before creating or editing any config, read the relevant schemas and implementation code in `.tale/reference/` to understand the valid structure, fields, and constraints. Use existing config files in the project as examples.
+The CLI owns the section between its `tale:begin` and `tale:end` comment markers. Put your project-specific conventions outside that section; initialization and updates preserve that surrounding content. Do not put credentials into either instruction file.
 
-`CLAUDE.md` exists because Claude Code reads `CLAUDE.md` and not `AGENTS.md`; it holds a pointer to `AGENTS.md` and nothing else, so there is one source of truth. Both files are written inside a managed block — `<!-- tale:begin -->` to `<!-- tale:end -->` — and anything you add outside the markers survives every `tale init --force` and `tale update`. The CLI writes no editor-specific rules files: no `.cursor/rules`, no `.windsurfrules`, no Copilot instructions. An agent that follows the `AGENTS.md` convention reads the file on its own; one that does not can be pointed at it by hand.
+The CLI does not generate separate Cursor, Windsurf or Copilot rule files. If an editor does not automatically load the project instructions, explicitly include them in the agent’s context. Check the actual configuration schemas rather than relying on the agent’s memory of an earlier release.
 
 ## What lives where
 
-The configuration and the mirror sit side by side under the project root. Everything under `default/` is yours to edit and commit; everything under `.tale/` is generated and ignored by git.
+| Path | How to use it |
+| --- | --- |
+| `default/agents/` | Agent configuration catalog, including the supplied coding-agent example. |
+| `default/automations/` | Automation definitions available to install or deploy. Presence on disk does not mean an automation is active. |
+| `default/skills/` | Skill bundles, including document and visual-analysis skills. Each bundle is a directory. |
+| `default/branding/` | Branding configuration and image assets for the template. |
+| `default/governance/` | Policy and retention examples. Follow the formats of the files generated by your CLI. |
+| `default/README.md` | Explains the template and automatic-install behavior of its catalog. |
+| `.tale/reference/` | Selected implementation source embedded in the CLI. Read it; changes here are replaced by regeneration. It is not a complete repository checkout. |
+| `.tale/orgs/<slug>/<domain>/` | Runtime configuration of actual organizations created in the app. |
+| `.tale/checksums.json` | Records scaffolded-file hashes so updates can distinguish your edits from generated content. |
 
-| Path                                                              | What it is                                                                                                                                                          |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default/agents/`                                                 | One YAML file per agent persona; `coding-agent.yml` ships.                                                                                                          |
-| `default/skills/`                                                 | One directory per skill bundle; `docx`, `pdf`, `pptx`, `xlsx`, and `visual-aspect-analyzer` ship.                                                                   |
-| `default/branding/`                                               | `branding.json` and an `images/` folder for uploaded assets.                                                                                                        |
-| `default/automations/`                                            | One file per automation definition — the 25 builtin automations ship, as a catalog to deploy from.                                                                    |
-| `default/governance/`                                             | Org governance policies, one `<policyType>.json` each, plus the `retention.json` bounds catalog; encrypted `*.secrets.json` sidecars are never scaffolded.            |
-| `default/README.md`                                               | Explains the tree; managed like the other scaffold files.                                                                                                           |
-| `.tale/reference/`                                                | Read-only source of the platform — `backend/` and `lib/`, including the shared schemas a config is validated against. Regenerated by `tale init` and `tale update`. |
-| `.tale/orgs/<slug>/<domain>/`                                     | Runtime configuration of the organizations created in the app; `tale deploy --override` pushes it.                                                                  |
-| `.tale/checksums.json`                                            | The hash of every scaffolded file, so `tale update` can tell your edits from its own.                                                                               |
-
-`default` is the template every new organization is seeded from — never a deployable organization itself. Real organizations are created in the app and live under `.tale/orgs/`.
+`default/` is the template for new organizations, not a deployable organization itself. Editing it does not by itself update an existing organization. The `.tale/` directory and secret sidecars are ignored by Git; public template files are intended for version control.
 
 ## Keep the mirror fresh
 
-`tale update` moves the CLI to the newest release in its line and re-syncs the project files: it rewrites the managed blocks of `AGENTS.md` and `CLAUDE.md`, regenerates `.tale/reference/`, adds scaffold files that are new, overwrites the ones you never touched, and leaves alone every file whose checksum shows you edited it — `--force` overrides that, `--dry-run` shows the plan first. Run `tale deploy` afterwards to roll the containers.
+`tale update` updates the CLI within its current release line and refreshes generated project content. It regenerates the reference, updates managed instruction sections, adds new catalog files and updates files whose checksums show no local changes. Locally changed catalog files are preserved unless you use `--force`.
+
+Use `tale update --dry-run` to inspect the proposed changes. Keep a version-controlled copy of your public configuration and protected backups of runtime configuration and secrets. Do not treat `.tale/reference/` as a place to maintain a fork. Updating the CLI does not roll running containers; follow [Upgrades](/self-hosted/operate/upgrades) when changing the deployed version.
 
 ## Cursor: config plane vs runtime plane
 
-Cursor shows up in Tale in two separate places — do not conflate them. The **config plane** is this page: `AGENTS.md`, `CLAUDE.md`, and `.tale/reference/` steer Cursor while it edits configuration on your machine. The **runtime plane** is a [project agent](/platform/projects/project-agents) whose **Agent type** is the Cursor harness: Tale runs the Cursor Agent CLI (`agent -p`) headlessly in an isolated sandbox with your `CURSOR_API_KEY` and reports back on the task, never touching your working copy. Credentials, models, and billing for that plane are covered in [Harnesses](/platform/agents/harnesses), not here.
+An editor agent working in this directory changes local configuration files. A Tale [project agent](/platform/projects/project-agents) using the Cursor harness runs work in a Tale-managed sandbox. These are separate execution contexts with separate credentials and consequences.
 
-## Where this fits
+The sandbox harness uses its configured provider account and model. Giving your editor the project instructions does not configure that account. Follow [Harnesses](/platform/agents/harnesses) for runtime setup.
 
-AI-assisted development is the editing path; `tale deploy` is the publishing path. The agent reads `AGENTS.md`, checks `.tale/reference/`, and edits files under `default/`; you review the diff, run `tale dev` to see it locally, and `tale deploy` to publish — with `--override` when the change should overwrite the configuration the containers already hold. The CLI itself, its commands and flags, is documented under [CLI install](/self-hosted/install/cli-install).
+## Review and apply a proposal
+
+1. Ask for one bounded change and name whether it belongs to the new-organization template or an existing organization.
+2. Check every changed path, schema field, slug and referenced credential. Keep secrets out of the prompt and public diff.
+3. Validate or test through the corresponding product surface. For an automation, inspect validation results and run its mock tests before deployment.
+4. Review the deployment plan and the destination organization. `tale deploy --override` can replace runtime configuration with the local copy; use it only for a deliberate, reviewed overwrite.
+5. Read back the configuration and exercise the behavior after deployment.
+
+If the agent proposes a field absent from the installed schema, stop at validation and correct the proposal. If an edit to `default/` leaves an existing organization unchanged, check the destination instead of repeatedly deploying the template.

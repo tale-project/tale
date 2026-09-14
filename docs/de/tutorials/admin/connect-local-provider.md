@@ -10,7 +10,7 @@ Ein lokaler Chatanbieter bestimmt das Ziel dieser Modellanfrage. Embeddings, Spr
 
 Lass dir Anbietername, kompatibles API-Format, Basis-URL, Modell-IDs und Anmeldemethode geben. Die Adresse muss aus den Backend-Prozessen erreichbar sein, nicht nur aus deinem Browser. Innerhalb eines Containers bezeichnet `localhost` diesen Container.
 
-Für eine selbst gehostete Installation folgt der Betreiber [Lokale Anbieterendpunkte](/self-hosted/configuration/providers#lokale-anbieterendpunkte). Private Hosts brauchen eine ausdrückliche Freigabe in der Bereitstellung. Öffentliche Endpunkte erfordern HTTPS; unterstützte private Adressen dürfen HTTP verwenden, wenn der Betreiber diese Netzwerkkonfiguration freigibt. Ein Proxyhostname umgeht die Richtlinie für private Hosts nicht.
+Für eine selbst gehostete Installation folgt der Betreiber [Lokale Anbieterendpunkte](/de/self-hosted/configuration/providers#lokale-anbieterendpunkte). Private Hosts brauchen eine ausdrückliche Freigabe in der Bereitstellung. Öffentliche Endpunkte erfordern HTTPS; unterstützte private Adressen dürfen HTTP verwenden, wenn der Betreiber diese Netzwerkkonfiguration freigibt. Ein Proxyhostname umgeht die Richtlinie für private Hosts nicht.
 
 Ollama, LM Studio und vLLM können kompatible APIs anbieten. Entscheidend sind aber die aktivierten Serverfunktionen und das Modell. Prüfe die tatsächliche Modellliste und eine unterstützte Chatanfrage, bevor du Tale einrichtest.
 
@@ -46,4 +46,4 @@ Lass den Betreiber die Anfrage im Protokoll des gewünschten Inferenzservers bes
 | Verbindungs- oder Zertifikatsfehler | Erreichbarkeit aus dem Backend, Containerhostname und TLS-Vertrauen. |
 | Modell abgewiesen oder keine Antwort | Genaue Modell-ID, Anmeldung, API-Kompatibilität und Serverkapazität. |
 
-[KI-Anbieter](/platform/admin/providers) erklärt Austausch und Standardauswahl der Zugangsdaten. Halte Endpunkt und Modell-ID in der Betriebsübergabe fest, damit ein anderer Admin diesen Test nach einer Serveränderung wiederholen kann.
+[KI-Anbieter](/de/platform/admin/providers) erklärt Austausch und Standardauswahl der Zugangsdaten. Halte Endpunkt und Modell-ID in der Betriebsübergabe fest, damit ein anderer Admin diesen Test nach einer Serveränderung wiederholen kann.

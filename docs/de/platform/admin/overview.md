@@ -13,7 +13,7 @@ In den Organisationseinstellungen legst du fest, wer Tale nutzen darf, welche Di
 
 1. [Füge Mitglieder hinzu und wähle ihre Rollen](/de/platform/admin/members-and-roles). Vergib die Rechte, die ihre Arbeit erfordert.
 2. [Erstelle Teams](/de/platform/admin/teams), wenn mehrere Personen denselben Zugang zu Projekten oder Konversationen brauchen.
-3. [Verbinde einen KI-Anbieter](/de/platform/admin/providers), damit Chats und Agents Modelle verwenden können.
+3. [Verbinde einen KI-Anbieter](/de/platform/admin/providers), damit Chats und Agenten Modelle verwenden können.
 4. [Hinterlege Zugangsdaten für Connectors](/de/platform/admin/connectors), deren Dienste deine Workflows benötigen.
 
 Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreichen die technischen Einstellungen für Integrationen, können aber keine Mitglieder verwalten und nicht den gesamten Richtlinienbereich öffnen. Persönliche Kontoeinstellungen sind davon getrennt.
@@ -33,6 +33,6 @@ Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreiche
 
 Richte [Enterprise SSO](/de/platform/admin/enterprise-sso) für deinen Identitätsanbieter und [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) zum Schutz der Konten ein. [API-Schlüssel](/de/platform/admin/api-keys) ermöglichen Software den Zugriff auf Tale.
 
-Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agents aus Administrationssicht](/de/platform/admin/agents).
+Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agenten aus Administrationssicht](/de/platform/admin/agents).
 
 Nach einem Update zeigt dir [Was gibt es Neues?](/de/platform/admin/changelog), welche Änderungen für dein Team relevant sind.

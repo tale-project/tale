@@ -5004,9 +5004,8 @@ settings:
   connectors:
     searchPlaceholder: Connectors durchsuchen
     sectionDescription:
-      Die Zugangsdaten, mit denen sich diese Organisation bei verbundenen
-      Diensten authentifiziert. Jeder Eintrag schaltet die Aktionen seines
-      Dienstes für Automationen und den Chat frei.
+      Verwalte die Zugangsdaten für Connector-Aktionen in den Workflows
+      und unterstützten Plattform-Werkzeugen deiner Organisation.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5023,8 +5022,8 @@ settings:
       actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
       connect: Verbinden
       emptyBodyOauth:
-        Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
-        Aktionen in Automationen und im Chat bereit.
+        Verbinde {connector}, damit konfigurierte Workflows und unterstützte
+        Plattform-Werkzeuge dieses Konto nutzen können.
       oauthAppMissing:
         'Für {connector} ist noch keine OAuth-App hinterlegt. Bitte einen
         Admin deiner Organisation, sie unter Einstellungen > Connectors

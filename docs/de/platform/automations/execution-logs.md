@@ -1,85 +1,51 @@
 ---
-title: Ausführungsprotokolle
-description: Wie du die Läufe einer Automatisierung liest — die Status, der Modus, was jeden gestartet hat, die Ergebnisse pro Node und die Auswirkungen, plus eine durchgespielte Fehlersuche.
+title: Automatisierungsläufe prüfen und Fehler beheben
+description: Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte Schreibvorgänge und entscheide über Stopp, Korrektur oder Neustart.
 ---
 
-Jeder Start einer Automatisierung öffnet einen Lauf, und dieser Lauf schreibt weiter an sich selbst, bis er fertig ist. Er hält fest, was ihn gestartet hat, welche Version er benutzt hat, was er bekommen hat, was jede Node erzeugt hat und alles, was er außerhalb der Plattform verändert hat. Das ist die Fläche, auf die jede andere Automatisierungsseite zeigt, wenn etwas anders lief als erwartet — es lohnt sich also, einen Lauf lesen zu können, bevor du es musst.
+Öffne eine Automatisierung und wähle unter **Läufe** einen Eintrag. Prüfe zuerst Status, Version und Modus, dann die betroffene Node. Ein erfolgreicher Testlauf belegt den simulierten Ablauf. Er beweist nicht, dass ein echtes externes Konto dieselbe Aktion akzeptiert.
 
-## Die Liste der Läufe
+## Den Laufstatus lesen
 
-Die Seite einer Automatisierung hat einen Tab **Läufe**: jeder Lauf, neueste zuerst. Jede Zeile trägt den Status des Laufs, ob es ein Test oder ein Live-Lauf war, die ausgeführte Version, den Startzeitpunkt und was ihn gestartet hat. Ein fehlgeschlagener oder wartender Lauf zeigt den Grund direkt in der Zeile statt des Starters — oft beantwortet die Liste die Frage also, ohne dass du etwas öffnen musst.
+Die Liste zeigt die neuesten Läufe zuerst. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder eine Fehler- beziehungsweise Wartebegründung. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt.
 
-Eine Automatisierung, die noch nie gelaufen ist, sagt das, statt eine leere Tabelle zu zeigen.
+| Status | Bedeutung | Nächster Schritt |
+| --- | --- | --- |
+| **In der Warteschlange** | Angenommen, wartet auf die Ausführung. | Warte und prüfe bei ausbleibendem Fortschritt die Kapazität. |
+| **Läuft** | Der Ablauf wird verarbeitet. | Beobachte den Fortschritt der Nodes. |
+| **Wartet** | Entscheidung, Antwort, Agentenarbeit oder Abfragebedingung steht aus. | Lies, worauf der Lauf wartet. |
+| **Erfolgreich** | Erreichte Nodes sind abgeschlossen und die Ausgabe liegt vor. | Prüfe Ausgabe und Auswirkungen. |
+| **Fehlgeschlagen** | Der Lauf endete mit einem unbehandelten Fehler. | Öffne die betroffene Node und lies ihren Fehler. |
+| **Gestoppt** | Der Lauf wurde abgebrochen. | Prüfe bereits ausgeführte Arbeit vor einem Neustart. |
 
-## Was jeder Status bedeutet
+Eine ausstehende Freigabe oder Frage braucht eine Person. Ein arbeitender Agent oder eine wiederholte Abfrage kann ohne Eingriff fortfahren. Eine Entscheidung oder Antwort kann auch abgelehnt werden oder ablaufen. Entscheide anhand der Begründung, nicht allein nach **Wartet**. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt die Entscheidungsfelder.
 
-| Status                   | Was er dir sagt                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| **In der Warteschlange** | Der Lauf existiert und wartet darauf, dass die Engine ihn aufnimmt                    |
-| **Läuft**                | Die Engine arbeitet sich durch die Nodes                                              |
-| **Wartet**               | Der Lauf ist geparkt — auf einen Menschen oder auf etwas, das noch unterwegs ist      |
-| **Erfolgreich**          | Jede erreichte Node ist fertig geworden und die Ausgabe wurde erzeugt                 |
-| **Fehlgeschlagen**       | Eine Node lief auf einen Fehler, und nichts war so eingestellt, dass es weitergeht    |
-| **Gestoppt**             | Jemand hat den Lauf abgebrochen; bereits Erledigtes wird nicht rückgängig gemacht     |
+## Die betroffene Node untersuchen
 
-**Wartet** wird am häufigsten falsch gelesen. Es ist kein Stillstand und kein Fehler — der Lauf hält seinen Platz und macht an genau der Node weiter, an der er stehen geblieben ist. Worauf er wartet, kommt aus zwei Familien, und nur eine davon braucht dich: Ein Lauf, der auf einer **Freigabe** oder auf einer **Frage** eines Agents parkt, wartet auf einen Menschen und bleibt dort, bis die Entscheidung gefallen oder die Frage beantwortet ist; ein Lauf, der auf einem noch arbeitenden Agent-Turn parkt oder auf einer Node, die pollt, bis ihre Bedingung gilt, wartet auf sich selbst und geht ohne jemanden weiter. Die Zeile nennt das Warten; ein Lauf, der minutenlang als _wartet_ dasteht, während ein Poll tickt, ist gesund, nicht hängen geblieben. Über die API ist dieselbe Unterscheidung das Feld `waitingFor` — `approval`, `ask`, `agent` oder `repeat` —, und „Läufe, die einen Menschen brauchen“ heißt `waitingFor` in den ersten beiden, nie der Status allein. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte.
+Wähle eine Node auf dem Canvas des Laufs. **Aufgelöste Eingabe** zeigt die Werte nach der Vorlagenauswertung, **Ausgabe** das Ergebnis des Schritts. So unterscheidest du einen falschen Verweis von einem Dienstausfall.
 
-## Testläufe und Live-Läufe
+Node-Zustände sind unter anderem **Gelaufen**, **Übersprungen**, **Fehlgeschlagen**, **Nie erreicht** und **Noch nicht erreicht**. Eine Node kann wegen einer falschen Bedingung, einer Abhängigkeit, eines anderen Zweigs oder einer Weiterlaufregel übersprungen werden. Das ist nicht immer ein Fehler.
 
-Jeder Lauf ist als das eine oder das andere markiert, und der Unterschied ist, ob die Außenwelt berührt wurde. Ein **Test**-Lauf nutzt den deterministischen Platzhalter jedes Konnektors: Es geht keine Mail raus, kein Datensatz wird geschrieben, nichts wird abgerechnet. Ein **Live**-Lauf darf all das, weshalb ihn zu starten eine Entwickler-Berechtigung braucht und weshalb jede Auswirkung festgehalten wird.
+Beispielsweise kann eine Erinnerungs-Node den Kundennamen, aber eine leere Rechnungs-ID erhalten. Prüfe die Ausgabe davor. Verwendet der Datensatz inzwischen ein anderes Feld, korrigiere den Verweis statt der Mail-Zugangsdaten. Prüfe danach die aufgelöste Eingabe in einem neuen Testlauf.
 
-Ein Testlauf sagt dir, ob Graph und Datenfluss stimmen. Nur ein Live-Lauf sagt dir, ob sich die Systeme draußen so verhalten haben, wie du dachtest.
+## Bereits erfolgte Änderungen prüfen
 
-## Einen Lauf lesen
+Die Auswirkungen protokollieren Connector-Schreibvorgänge mit Node, Connector und Eingabe. Tests verwenden festgelegte Ersatzantworten; Live-Aktionen können externe Systeme ändern. Fehlen protokollierte Auswirkungen, zeigt der Lauf das ausdrücklich an.
 
-Öffne einen Lauf, und du bekommst den Canvas der Automatisierung mit diesem Lauf darübergelegt, dazu die Eckdaten des Laufs: die Version, den Modus, wann er gestartet ist und wann er geendet hat.
+Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine frühere Nachricht oder Änderung nicht rückgängig. Ist die Zustellung entscheidend, prüfe auch den empfangenden Dienst. Die Auswirkungen bleiben beim Lauf, bis Löschung oder Aufbewahrungsregeln den Datensatz entfernen. Sie sind kein eigenständiges dauerhaftes Archiv.
 
-### Ergebnisse pro Node
+## Fortsetzung und automatische Wiederholungen verstehen
 
-Jede Box auf dem Canvas trägt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler ist damit eine Stelle im Graphen statt einer Zeile, die du suchen musst, und die Nodes dahinter zeigen offensichtlich, dass sie nie erreicht wurden.
+Der Ablauf speichert abgeschlossene Nodes als Checkpoints und setzt danach fort. Geht eine Fortsetzung verloren, kann der nicht abgeschlossene Lauf nach einer Wartefrist wieder aufgenommen werden. Ein separater neuer Lauf besitzt eigene Checkpoints und kann Schreibvorgänge wiederholen. Neu starten ist deshalb etwas anderes als den bestehenden Lauf fortzusetzen.
 
-Wähl eine Node, und das Panel zeigt, was mit ihr passiert ist: die **Aufgelöste Eingabe**, die sie tatsächlich bekommen hat, nachdem jedes Template ausgewertet war, und ihre **Ausgabe**. Die aufgelöste Eingabe ist das nützlichste Feld dieser Seite. Sie zeigt den Wert, den eine Referenz ergeben hat, statt der Referenz, die du geschrieben hast — so fällt ein Template auf, das still zu nichts aufgelöst wurde.
+Ein geeigneter Agentenfehler erlaubt nach dem ersten Versuch bis zu drei automatische Wiederholungen. Frühere Checkpoints bleiben erhalten; der Kopfbereich zeigt den Wiederholungszähler. Arbeitet ein Versuch mindestens fünfzehn Minuten, wird dieses Wiederholungsbudget erneuert. Abonnement-Pools können für einen neuen Versuch ein anderes Konto wählen.
 
-Übersprungene Nodes lohnt es sich zu lesen, statt sie zu überfliegen, denn der Grund ist verschieden: Eine Node kann durch ihre eigene Bedingung übersprungen werden, weil eine Node, von der sie abhängt, übersprungen wurde, weil sie der Sonst-Zweig einer gelaufenen Node ist, oder weil sie unter einer Einstellung fehlschlug, die den Lauf weiterlaufen lässt.
+Ein ausgeschöpftes Ausführungszeitfenster, eine abgelaufene Frage oder eine Ablehnung wegen des Budgets erhält diese Wiederholungen nicht. Jeder Versuch verbraucht eigene Ressourcen; frühere Kosten entfallen nicht. Kann ein erneuter Versuch die Ursache nicht beheben, stoppe den Lauf und korrigiere die Abhängigkeit vor dem Neustart.
 
-### Auswirkungen
+## Stoppen oder den Workflow korrigieren
 
-Ein Lauf protokolliert die Connector-Schreibvorgänge in ihrer Reihenfolge, mit der auslösenden Node, dem Connector und der übergebenen Eingabe. Hat er keine solchen Auswirkungen, zeigt die Ansicht das ausdrücklich an.
+Wähle bei einem nicht abgeschlossenen Lauf **Lauf stoppen**, wenn du ihn abbrechen möchtest. Der Abbruch verhindert weitere Arbeit an den Ausführungsgrenzen des Ablaufs. Bereits erfolgte Änderungen werden nicht zurückgesetzt.
 
-Die Liste der Auswirkungen macht einen Lauf nachträglich prüfbar. Prüfe darin die protokollierten Connector-Schreibvorgänge und ihre Eingaben. Die Einträge bleiben beim Lauf, bis Aufbewahrungsregeln oder eine Löschung ihn entfernen. Wenn die Zustellung entscheidend ist, prüfe sie zusätzlich beim empfangenden Dienst.
+Korrigiere einen Dokumentfehler im Editor an der betroffenen Eingabe oder Node und speichere eine Version mit aussagekräftiger Nachricht. Teste mit typischen Eingaben und prüfe Werte und Ausgabe, nicht nur den Erfolgsstatus. Schalte die geprüfte Version live. Zeitpläne und Webhooks verwenden danach diese Version; der ältere fehlgeschlagene Lauf dokumentiert weiterhin die alte.
 
-## Wie ein langer Lauf fortgesetzt wird
-
-Ein Live-Lauf läuft nicht in einem Zug durch. Er geht Node für Node vor, und jede abgeschlossene Node wird festgehalten, bevor die nächste beginnt. Erreicht der Lauf das Zeitfenster der Plattform, gibt er sich zurück und setzt bei der letzten abgeschlossenen Node fort. Der Ablauf setzt nach den gespeicherten Checkpoints fort. Prüfe vor einem separaten neuen Lauf die protokollierten Auswirkungen: Ein neuer Lauf hat eigene Checkpoints und kann einen Schreibvorgang wiederholen.
-
-Dieselben Checkpoints decken einen Lauf ab, dessen Fortsetzung verloren ging. Ein Lauf, der über eine Schonfrist hinaus in einem nicht abgeschlossenen Zustand liegt, wird von selbst wieder aufgenommen und setzt dort fort, wo seine Checkpoints ihn verorten — statt neu zu starten oder für immer unfertig liegen zu bleiben.
-
-## Wenn ein Agent-Schritt fehlschlägt
-
-Schlägt ein Agent-Schritt aus einem Grund fehl, an dem ein neuer Anlauf etwas ändern kann — der Anbieter hat den Aufruf abgewiesen, die Sandbox ist unter ihm gestorben, der Harness ist abgestürzt —, wiederholt der Lauf ihn von selbst: bis zu drei automatische Versuche, sofort, zusätzlich zum ursprünglichen. Alles oberhalb behält seine Checkpoints, der Lauf bleibt durchgehend live, und sein Kopf zählt die Versuche der Plattform als **Automatischer Versuch 1 von 3** — so unterscheidest du die Wiederholung der Engine von einem Neustart, den du selbst angestoßen hast. Ein Versuch, der echten Fortschritt gemacht hat — fünfzehn Minuten tatsächlicher Ausführung —, frischt das Budget auf, statt es zu verbrauchen; und bei Anbietern, die aus einem Pool von Abo-Konten bedient werden, meidet jeder neue Versuch die Konten, die gerade gescheitert sind.
-
-Zwei Fehlschläge werden nie wiederholt, weil ein frischer Versuch nicht anders enden könnte: ein Schritt, der sein ganzes Zeitfenster aufgebraucht hat, und eine Frage, die bis zu ihrem Ablauf unbeantwortet blieb. Ist das Budget verbraucht, schlägt der Lauf mit dem letzten Fehler fehl und nennt, wie viele Versuche er verbrannt hat; jeder Versuch wird einzeln abgerechnet — ein Lauf mit drei Wiederholungen hat also vier bezahlt. Ein wiederholender Lauf bleibt ein einziger Live-Lauf — **Lauf stoppen** ist der Ausweg, wenn du siehst, dass weitere Versuche nichts mehr ändern.
-
-## Eine durchgespielte Fehlersuche
-
-Die tägliche Erinnerung ging nicht raus. Öffne den Tab **Läufe** der Automatisierung: Der Lauf von heute Morgen steht da und ist **Fehlgeschlagen**, mit dem Grund in der Zeile.
-
-Öffne ihn. Der Canvas zeigt die ersten drei Nodes als gelaufen, die vierte als fehlgeschlagen und alles danach als nie erreicht — die Frage ist damit schon auf eine Box eingegrenzt. Wähl die fehlgeschlagene Node und lies ihre **Aufgelöste Eingabe**: Der Kundenname ist da, die Rechnungs-id ist ein leerer Text. Das zeigt eine Node weiter nach oben.
-
-Wähl diese Node und lies ihre Ausgabe. Sie hat einen Datensatz ohne Feld `id` zurückgegeben, weil das gelesene Feld umbenannt worden war. Das Template darauf ergab nichts, und die Node dahinter scheiterte am leeren Wert statt an irgendetwas an sich selbst.
-
-<Tip>
-
-Lies die Liste der Auswirkungen, bevor du etwas reparierst. Sie sagt dir, ob der Lauf weit genug kam, um die Außenwelt zu berühren — und davon hängt ab, ob ein erneuter Lauf harmlos ist oder erst aufgeräumt werden muss.
-
-</Tip>
-
-Korrigier die Referenz im Node-Panel, speichere eine Version mit einer Notiz, die das umbenannte Feld nennt, und drück **Testlauf**. Der Testlauf geht denselben Graphen durch, und diesmal zeigt jede Box, dass sie gelaufen ist. Schalt diese Version live, und der Zeitplan von morgen nimmt sie auf.
-
-## Einen Lauf stoppen
-
-Solange ein Lauf nicht fertig ist, kannst du ihn stoppen, und ein gestoppter Lauf ist endgültig — die Engine prüft an jeder Node-Grenze und plant die nächste nicht mehr ein. Bereits Erledigtes wird nicht zurückgenommen, weil es das nicht kann: Eine gesendete Nachricht ist gesendet. Lies die Liste der Auswirkungen, um zu sehen, wie weit er kam, bevor du entscheidest, was als Nächstes passiert.
-
-## Wo das hingehört
-
-Ein Lauf ist die Quittung, die eine Automatisierung hinterlässt: Sein Status sagt, was passiert ist, seine Ergebnisse pro Node sagen wo, seine aufgelösten Eingaben sagen warum, und seine Auswirkungen sagen, was er außerhalb der Plattform verändert hat. Kombinier diese Seite mit [Workflow-Trigger](/de/platform/automations/triggers) für die Startarten, die diese Einträge öffnen, und mit [Audit-Logs](/de/platform/admin/governance/audit-logs) für die organisationsweite Spur, wer was geändert hat.
+Ist gar kein Lauf entstanden, prüfe den [Trigger](/de/platform/automations/triggers). Ein deaktivierter Trigger, eine fehlende Live-Version oder abgelehnte Eingaben können den Start verhindert haben.

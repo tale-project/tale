@@ -3,15 +3,15 @@ title: Connectors
 description: How a connector is declared, what one of its actions promises a caller, and where your own code goes when no connector fits.
 ---
 
-A connector describes how Tale calls a particular service: permitted hosts, authentication and typed actions. Connector definitions ship with the platform, while each organization manages its own credentials. Use this reference when inspecting an action’s contract or contributing a connector.
+A connector gives Tale a reusable way to call a service. Its definition describes authentication, permitted destinations, and actions; each organization supplies its own credentials. Use this page to inspect that contract or contribute a new connector.
 
-To connect an account through the app, follow [Connector credentials](/platform/admin/connectors). To choose an existing integration, browse the [connector catalog](/platform/connectors/overview).
+If your goal is to connect an account in the app, use [Connector credentials](/platform/admin/connectors). To choose an existing integration, browse the [connector catalog](/platform/connectors/overview).
 
 ## How a connector is declared
 
-Every connector is one directory under `configs/platform/system/connectors/`, named for its slug, holding a `connector.yml` and the icon the settings page renders. The slug is the directory name, the connector's declared `name`, and the first half of the node type an automation uses to place one of its actions — `<connector>.<action>`. Fourteen vendor connectors appear in Settings today (plus a handful of platform-auth connectors that stay out of the picker).
+Definitions live in `configs/platform/system/connectors/<slug>/connector.yml`, alongside the connector's icon. The directory slug must match `name`. An automation calls an action using `<connector>.<action>`, for example `tavily.search`. Vendor connectors appear in Settings; internal connectors with platform authentication do not.
 
-The file opens with the connector's identity and its authentication contract, then lists the actions:
+This is the identity and authentication excerpt from the shipped Tavily definition. It is not a complete connector: the file also needs its action definitions.
 
 ```yaml
 name: tavily
@@ -23,43 +23,50 @@ allowedHosts:
   - api.tavily.com
 auth:
   - method: api-key
-actions:
-  - name: search
-    description: >-
-      Search the open web via Tavily. Returns top results with title, URL,
-      content snippet, and score.
-    effects: read
-    input:
-      type: object
-      required: [query]
-      properties:
-        query: { type: string, description: 'Natural-language search query.' }
-        max_results: { type: number, description: 'Max results (1-10).' }
-    output: '{ answer?: string, results: Array<{ title: string, url: string, content: string, score: number }> }'
 ```
 
-`allowedHosts` is the egress boundary — an action body that reaches anywhere else is refused rather than proxied. A connector whose API lives at a customer address instead of a vendor one adds `endpointMode: per-credential`, and each credential then carries the origin its calls are built from; Confluence and Shopify are the two shipped cases.
+### Set the destination boundary
+
+| Field | Meaning |
+| --- | --- |
+| `endpointMode: fixed` | Default. Live HTTP calls use fixed vendor URLs; `allowedHosts` contains exact hosts |
+| `endpointMode: per-credential` | Each credential supplies an HTTPS `endpointUrl`; actions read its origin as `ctx.endpoint`, without a trailing slash |
+| `allowedHosts` in per-credential mode | Host suffixes: `atlassian.net` allows its subdomains |
+| `configFields` | Non-secret per-credential values such as server host, port, region, or API version |
+
+Confluence and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
 
 <Info>
 
-Connectors are read from the platform's own tree, not from an organisation's configuration, and there is no upload path that adds one at runtime. Adding a connector is a source contribution — see [Contributor setup](/develop/contributor-setup). Reaching your own service without touching the source goes through a project agent's **Secrets** or an automation's `transform` node — the section on choosing a surface below says how.
+Adding a connector is a source contribution. The runtime reads the platform catalog, with no organization-level connector upload. Start from [Contributor setup](/develop/contributor-setup), then inspect a shipped connector with the same authentication and transport before adding yours.
 
 </Info>
 
 ## What an action declares
 
-An action is a contract, and every field of it is visible to the caller before the call happens:
+| Field | Contract for the author and caller |
+| --- | --- |
+| `name`, `description` | Stable snake_case action name and an explanation of when to use it |
+| `input` | Object JSON Schema, validated before execution; describe fields and mark required ones |
+| `output` | TypeScript-style signature describing the result; this is documentation, not a runtime output validator |
+| `effects` | `read` or `write`; writes pass through approval policy |
+| `mock` | Required deterministic JavaScript implementation; same input, same output, no network I/O |
+| `backend` | Optional live implementation: `yaml-js` with `live`, or `native` with an `impl` identifier |
+| `exampleInput` | Optional small, meaningful example for discovery and testing |
 
-- **Name and description.** The name completes the node type; the description is what an agent reads when it decides whether this action is the right one.
-- **Input.** A JSON Schema — object type, required fields, and a description per property. Automations validate a node's configuration against it, and agents fill it from the same schema.
-- **Output.** A signature describing the shape that comes back, so a workflow author knows what the next step can reference.
-- **Effects.** Either `read` or `write`. Write actions gate behind the organisation's approval policy, and a call that cannot reach an approval decision is refused rather than performed ungated.
+A connector with no live backend can run in mock mode but refuses live execution. Write actions do not run if the platform cannot obtain an approval decision. See the [approval-policy reference](/self-hosted/configuration/approvals) for rule precedence and pending decisions.
 
-Actions resolve their credential at call time: the one the caller names, or the connector's default when the caller names none. That is the seam that lets the same automation run against a different account by pointing it at a different credential name. Mail sync and inbox triage are different on purpose — `conversation.sync_mailbox` and `conversation.list_mailbox_messages` walk every active credential on the connector so every connected mailbox is covered without naming each one.
+When inspecting a result contract, read the live implementation too. For example, Tavily's search input describes `max_results`, but the shipped action caps the returned results at five. The output signature alone does not explain that bound.
+
+### Resolve the right account
+
+Credentials are selected at call time: the one named by the caller, otherwise the connector's default. Changing a default can therefore change which account a later run uses. Name the credential explicitly when the account is part of your integration's contract.
+
+Mailbox discovery has a deliberate exception: `conversation.sync_mailbox` and `conversation.list_mailbox_messages` enumerate every active credential for the connector. They cover all connected mailboxes instead of limiting themselves to the default.
 
 ## The authentication methods
 
-A connector declares the methods it accepts, and a credential is stored against exactly one of them. The four are fixed, because each one describes a different way a secret reaches the vendor.
+A connector can support several methods; a stored credential uses exactly one.
 
 | Method    | UI label            | What the credential holds                                                                        |
 | --------- | ------------------- | ------------------------------------------------------------------------------------------------ |
@@ -68,44 +75,52 @@ A connector declares the methods it accepts, and a credential is stored against 
 | `basic`   | Username & password | A username and password sent as HTTP Basic, which is also the shape a mailbox login takes.       |
 | `oauth2`  | OAuth               | An authorization-code grant: access token, refresh token, expiry, and the granted scopes.        |
 
-Secrets are encrypted at rest in a single envelope and never travel back out to a caller. A listing shows a masked preview computed when the credential was written, so reading the credential list never touches ciphertext.
+The internal `platform` method has no stored credential and cannot be combined with vendor methods. It is reserved for native platform capabilities such as task and document actions.
+
+Credential secrets are encrypted at rest. Lists return a masked preview and metadata rather than plaintext; the authorized live runtime resolves the secret when it performs the action. A successful credential save proves storage, not that the vendor accepts the credential or grants the required scopes.
 
 ## Registering an OAuth app
 
-An `oauth2` connector declares the vendor's authorize and token URLs plus the scopes it requests, and something has to supply the app those URLs authenticate against. Two places can, and the more specific one wins:
+The connector declares authorization/token URLs and requested scopes. Configure the vendor application separately, then connect an account using that application.
 
-- **Per organization** — an org admin opens **Settings > Connectors** and, under **OAuth apps**, pastes the client ID and secret from the vendor registration (plus the directory ID for a single-tenant Microsoft app; Tale then authorizes against that tenant instead of `/common`). The secret is encrypted at rest and never shown again. On a multi-org deployment this is what lets each organization bring its own vendor app.
-- **Per deployment** — environment variables named per connector as `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, with the slug upper-cased and its dashes turned into underscores. They are the deployment-wide default wherever an organization has not configured its own app.
+| Source | Precedence and configuration |
+| --- | --- |
+| Organization app | Takes precedence. An administrator supplies client ID and secret in **Settings > Connectors > OAuth apps** |
+| Deployment app | Default when no organization app is configured: `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` |
 
-Slack is the exception: its app stays environment-only (`CONNECTOR_OAUTH_SLACK_*` plus `CONNECTOR_SLACK_SIGNING_SECRET`), because inbound event verification runs before any organization is known. Register the Events Request URL on the Slack app as `${SITE_URL}${BASE_PATH}/api/connectors/slack/events`; the endpoint answers the registration handshake only once the signing secret is set, and refuses with 503 until then. A delivery is verified against the signing secret, routed to the organization whose workspace sent it, and acknowledged — nothing processes it further in this version, so connecting Slack today gives you the outbound actions, not an inbound conversation.
+In environment variable names, uppercase the slug and replace dashes with underscores. For a single-tenant Microsoft app, also configure its directory ID so authorization uses that tenant rather than `/common`. Organization app secrets are encrypted and not revealed again.
 
-Register this exact callback as an allowed redirect URI on the vendor side, built from the deployment's `SITE_URL` and any `BASE_PATH` prefix:
+### Register the callback exactly
+
+All organization OAuth connectors use this redirect URI:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 ```
 
-When `SITE_URL` is unset the consent flow refuses to start rather than guessing an origin from the request.
+Match the scheme, host, path, and absence of a trailing slash exactly. Tale refuses to begin consent when `SITE_URL` is missing; it does not infer a public callback from the incoming request. A `redirect_uri` refusal on the vendor screen usually means the registered URI differs from the one Tale sent.
 
-Personal OneDrive / Google Drive import for Knowledge is **not** an org connector — but it resolves its OAuth app the same way, and the **google-drive** app is shared between the two lanes: one Google OAuth client, with both redirect URIs registered, serves the connector and Knowledge import. See [Documents](/platform/knowledge/documents) and the cloud-import redirect under [Environment reference](/self-hosted/configuration/environment-reference).
+Personal OneDrive/Google Drive knowledge imports are a separate flow. Google Drive shares its OAuth application between connector and import, so register both redirect URIs on that Google client. Find the import callback in the [environment reference](/self-hosted/configuration/environment-reference).
 
-<Warning>
+### Configure Slack's event endpoint
 
-The redirect URI has to match byte for byte — scheme, host, path, and no trailing slash. A mismatch fails at the vendor's consent screen with a `redirect_uri` error before Tale ever sees the callback, which is the single most common reason a fresh OAuth connector will not connect.
+Slack's app is deployment-only: `CONNECTOR_OAUTH_SLACK_*` and `CONNECTOR_SLACK_SIGNING_SECRET`. Its incoming event must be verified before Tale knows the organization, so an organization app cannot supply this secret.
 
-</Warning>
+Register `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` as the Events Request URL. Without the signing secret, even the registration handshake returns `503`. With valid configuration, Tale verifies signatures and identifies the organization from the Slack workspace. The endpoint currently acknowledges events; it does not turn inbound Slack messages into conversations or automatically run an automation.
 
 ## Choosing a surface
 
-Two surfaces reach systems outside Tale, and the choice is about who owns and runs the bridge.
+| Need | Use |
+| --- | --- |
+| A supported vendor action | A shipped connector and an organization credential |
+| A reusable action missing from the catalog | A source contribution with schema, deterministic mock, live backend, and tests |
+| Project-specific calls to your own service | A project agent's **Secrets** and sandbox code, within that sandbox's network permissions |
+| Custom logic inside an automation | A `transform` node, within the runner's available capabilities and network rules |
 
-| Surface           | Reach for it when                                                                                                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Shipped connector | A connector already exists for the target system. Your work is a credential, and the vendor contract is maintained for you.               |
-| Your own code     | Nothing shipped covers the system — an internal API, a homegrown tool, a host only your network can reach. A project agent calls it from its sandbox with a **Secrets** entry; an automation calls it from a `transform` node. |
+A secret provides authentication; it does not make an unreachable private service reachable. Confirm network access from the actual sandbox or runner before designing an integration around it.
 
-Registering an external MCP server is not part of this version — Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your MCP client drives Tale. [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form; [MCP endpoint](/develop/mcp-endpoint) is the reference for the surface that does ship.
+External MCP-server registration is not available. Tale's [MCP endpoint](/develop/mcp-endpoint) lets an external client call Tale; it does not add an outbound connector to another MCP server.
 
 ## Where this fits
 
-A connector is a declared contract — hosts, authentication, and a typed action list — that ships with the platform and is fed by credentials the organisation owns. Read [Connectors](/platform/connectors/overview) for what is in the catalog, [Connector credentials](/platform/admin/connectors) for how those credentials are managed day to day, and [MCP servers](/platform/connectors/mcp-servers) for the one MCP surface this version ships.
+Test three things separately when contributing: schema validation, deterministic mock behavior, and the live vendor path. Check failure handling as well as success: missing credential, wrong scope, denied destination, invalid input, vendor refusal, and an approval wait for writes. The [contributor guide](/develop/contributor-setup) explains the local source environment; the [credential guide](/platform/admin/connectors) explains the administrator's setup.

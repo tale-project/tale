@@ -5,7 +5,7 @@ description: Crée, vérifie, renouvelle et révoque les identifiants des logici
 
 Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. La clé agit au nom de la personne qui l’a créée et suit ses permissions actuelles dans l’organisation. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**.
 
-<Frame caption="Paramètres > API > REST — là où les clés sont créées, rotées et révoquées.">
+<Frame caption="Paramètres > API > REST — là où les clés sont créées, renouvelées et révoquées.">
 
 ![La boîte de création d’une clé API permet de choisir un nom et une durée de validité avant sa génération.](/images/get-started/settings-api-keys.webp)
 

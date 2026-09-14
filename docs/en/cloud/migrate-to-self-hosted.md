@@ -5,7 +5,7 @@ description: Prepare an assisted Cloud migration, validate the destination, and 
 
 Moving from Cloud to self-hosted Tale transfers responsibility for the infrastructure to your team. Plan the move with Tale and the operator of the destination so application data, knowledge, files, configuration, and encryption keys remain consistent.
 
-This is an operator-assisted migration. The shared product does not provide the organization-wide **Export** and `/_internal/import` workflow described in older documentation. Exporting individual records through the API is not a full instance backup.
+Plan an operator-assisted transfer of the databases, files, configuration and required secrets. Individual API exports cover selected resources; they do not replace a consistent backup of the instance.
 
 ## Decide what the move must preserve
 

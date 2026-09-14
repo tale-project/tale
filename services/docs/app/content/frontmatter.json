@@ -51,8 +51,8 @@
     "slug": "develop/ai-assisted-development",
     "locale": "de",
     "frontmatter": {
-      "title": "AI-gestützte Entwicklung",
-      "description": "Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien."
+      "title": "Konfiguration mit einem Coding-Agenten bearbeiten",
+      "description": "Gib einem Coding-Agenten den passenden Projektkontext, unterscheide Vorlagen von aktiver Konfiguration und prüfe Änderungen vor dem Deployment."
     }
   },
   "de:develop/api-reference": {
@@ -60,7 +60,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "API-Referenz",
-      "description": "Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell.",
+      "description": "Rufe die REST-API auf, wähle Organisation und Projekt, lies mehrseitige Ergebnisse und behandle asynchrone Vorgänge und Fehler.",
       "i18nLintExclude": ""
     }
   },
@@ -84,8 +84,8 @@
     "slug": "develop/contributing-docker",
     "locale": "de",
     "frontmatter": {
-      "title": "Zu Docker-Images beitragen",
-      "description": "Wie du die Docker-Images von Tale für Forks, vendored Builds oder Air-gapped-Distributionen baust und erweiterst."
+      "title": "Tale-Images bauen und pflegen",
+      "description": "Wähle das passende Dockerfile, baue ein lokales Image, prüfe sein Verhalten und veröffentliche geprüfte Images in deiner Registry."
     }
   },
   "de:develop/contributor-setup": {
@@ -101,7 +101,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "MCP-Endpoint",
-      "description": "Verbinde einen MCP-Client mit Tale — ein Endpoint, 22 Tools für das Autorieren von Automatisierungen, Lauf- und Trigger-Verwaltung und die Capability-Oberfläche der Organisation.",
+      "description": "Verbinde einen MCP-Client, entdecke Tale-Tools, entwickle Automatisierungen und behandle Zugriffsprüfungen und Ausführungsergebnisse.",
       "i18nLintExclude": ""
     }
   },
@@ -117,8 +117,8 @@
     "slug": "develop/rate-limits",
     "locale": "de",
     "frontmatter": {
-      "title": "Rate-Limits",
-      "description": "REST- und MCP-Rate-Limits — die Buckets, die 429-Antwort mit ihrem Retry-After und wie du wiederholst, ohne es schlimmer zu machen."
+      "title": "Anfragelimits berücksichtigen",
+      "description": "Plane REST-, MCP- und Webhook-Aufrufe, interpretiere Retry-After und wiederhole angenommene Arbeit ohne Duplikate."
     }
   },
   "de:develop/status-page": {
@@ -134,7 +134,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "WebDAV-API",
-      "description": "Protokoll-Referenz für Tales WebDAV-Server — URL-Schema, Authentifizierung, unterstützte Methoden, Eigenschaftsliste, Sperrsemantik und Limits."
+      "description": "Verbinde einen Dateiclient, prüfe Uploads und Downloads und berücksichtige WebDAV-Zugriffsrechte, Sperren und Protokollgrenzen."
     }
   },
   "de:develop/webhooks": {
@@ -216,8 +216,8 @@
     "slug": "platform/admin/agents",
     "locale": "de",
     "frontmatter": {
-      "title": "Agenten aus Admin-Sicht",
-      "description": "Verwalte Zugriff, Anbieter, Ausstattung und Secret-Freigaben über die Projektberechtigungen und die Ressourcen der Organisation."
+      "title": "Projektagenten verwalten und prüfen",
+      "description": "Prüfe Bearbeitungsrechte, erlaubte Ressourcen und die Folgen von Secret-Zuordnungen für Agentenläufe."
     }
   },
   "de:platform/admin/api-keys": {
@@ -360,8 +360,8 @@
     "slug": "platform/admin/sandboxes",
     "locale": "de",
     "frontmatter": {
-      "title": "Sandboxes",
-      "description": "Begrenze gleichzeitige Aufgaben und vergleiche belegte Kontingente mit laufenden Sandboxes und der Host-Auslastung."
+      "title": "Sandbox-Kapazität verwalten",
+      "description": "Passe Grenzen für gleichzeitige Arbeit an, lies Infrastrukturwerte und kläre blockierte Sandbox-Starts."
     }
   },
   "de:platform/admin/teams": {
@@ -384,16 +384,16 @@
     "slug": "platform/agents/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Agenten verstehen",
-      "description": "Ein Projekt-Agent verbindet Harness, Modell, Anweisungen und Ausstattung für Aufgaben in genau einem Projekt."
+      "title": "Projektagenten verstehen",
+      "description": "Lege den Aufgabenbereich eines Agenten fest und verstehe das Zusammenspiel von Laufzeit, Modell, Anweisungen und Ausstattung."
     }
   },
   "de:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "de",
     "frontmatter": {
-      "title": "Harnesses",
-      "description": "Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen — welche Harnesses mitkommen, wo du eines wählst, woher der Zugang stammt und was die Box erreicht."
+      "title": "Eine Agent-Laufzeit wählen",
+      "description": "Stimme Harness, Zugangsdaten, Werkzeuge und Sandbox-Verhalten auf die Aufgabe ab."
     }
   },
   "de:platform/agents/skills": {
@@ -448,8 +448,8 @@
     "slug": "platform/automations/catalog",
     "locale": "de",
     "frontmatter": {
-      "title": "Automatisierungen in deine Organisation bringen",
-      "description": "Woher Automatisierungen kommen — die mitgelieferten Packs, mit denen jede Organisation startet, Entwürfe vom Canvas und hochgeladene Pakete, inklusive Zips, die ihre Skills gleich mitinstallieren."
+      "title": "Automatisierungen erstellen oder importieren",
+      "description": "Wähle einen Ausgangspunkt, importiere ein geprüftes Paket und bereite Skills, Einstellungen und Ergebnisse für den Einsatz vor."
     }
   },
   "de:platform/automations/concepts": {
@@ -457,7 +457,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungskonzepte",
-      "description": "Das Modell hinter jeder Automatisierung — ein Workflow-Dokument, eine Versionshistorie, die sich nie ändert, genau eine live geschaltete Version, die Trigger, die sie starten, und die Läufe, die sie aufzeichnet."
+      "description": "Verstehe Workflow-Schritte, gespeicherte Versionen, Bereitstellung, Trigger und den Verlauf einzelner Läufe."
     }
   },
   "de:platform/automations/editor": {
@@ -472,24 +472,24 @@
     "slug": "platform/automations/execution-logs",
     "locale": "de",
     "frontmatter": {
-      "title": "Ausführungsprotokolle",
-      "description": "Wie du die Läufe einer Automatisierung liest — die Status, der Modus, was jeden gestartet hat, die Ergebnisse pro Node und die Auswirkungen, plus eine durchgespielte Fehlersuche."
+      "title": "Automatisierungsläufe prüfen und Fehler beheben",
+      "description": "Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte Schreibvorgänge und entscheide über Stopp, Korrektur oder Neustart."
     }
   },
   "de:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "de",
     "frontmatter": {
-      "title": "Automatisierungs-Trigger",
-      "description": "Die drei Wege, auf denen eine Automatisierung von selbst startet — ein Zeitplan, ein Webhook oder ein Plattform-Ereignis — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht."
+      "title": "Automatisierungen automatisch starten",
+      "description": "Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe die Eingaben und finde die Ursache ausbleibender Starts."
     }
   },
   "de:platform/chat/arena-mode": {
     "slug": "platform/chat/arena-mode",
     "locale": "de",
     "frontmatter": {
-      "title": "Arena-Modus",
-      "description": "Modell-Vergleich nebeneinander im Chat — wie er rendert, wie du die Kontrahenten wählst, wie Bewertungen in die Feedback-Analyse einfließen und wann du danach greifst."
+      "title": "Modelle in der Arena vergleichen",
+      "description": "Sende eine Frage an zwei Modelle, beurteile beide Antworten und entscheide, wie der Chat weitergeht."
     }
   },
   "de:platform/chat/attachments": {
@@ -544,23 +544,23 @@
     "slug": "platform/connectors/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Connectors",
-      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen."
+      "title": "Tale mit externen Diensten verbinden",
+      "description": "Wähle den passenden Connector und das richtige Konto und verstehe, wo seine Lese- und Schreibaktionen ausgeführt werden."
     }
   },
   "de:platform/connectors/webdav": {
     "slug": "platform/connectors/webdav",
     "locale": "de",
     "frontmatter": {
-      "title": "WebDAV",
-      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein."
+      "title": "Tale-Dokumente über WebDAV öffnen",
+      "description": "Erzeuge ein Gerätepasswort, verbinde einen WebDAV-Client und prüfe den Zugriff auf organisationsweite Dokumente."
     }
   },
   "de:platform/developer/overview": {
     "slug": "platform/developer/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Developer",
+      "title": "Entwickler",
       "description": "Erstelle Automatisierungen und verbinde Tale mit Clients, Skripten und externen Diensten."
     }
   },
@@ -568,7 +568,7 @@
     "slug": "platform/editor/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Editor",
+      "title": "Redakteur",
       "description": "Pflege gemeinsames Wissen und erledige die Inhaltsarbeit für dein Team."
     }
   },
@@ -633,7 +633,7 @@
     "slug": "platform/member/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Member",
+      "title": "Mitglied",
       "description": "Beginne mit Chat, gemeinsamem Wissen und der Arbeit, die deine Organisation für dich bereitstellt."
     }
   },
@@ -649,16 +649,16 @@
     "slug": "platform/models",
     "locale": "de",
     "frontmatter": {
-      "title": "Modellkatalog",
-      "description": "Welche Modelle deine Organisation auswählen kann, woher die Liste jedes Anbieters stammt und was du prüfst, wenn ein erwartetes Modell in der Auswahl fehlt."
+      "title": "Ein verfügbares Modell wählen",
+      "description": "Verstehe Modellauswahl und Provider-Kataloge und finde heraus, warum ein Modell fehlt oder ein Aufruf abgelehnt wird."
     }
   },
   "de:platform/projects/backlog": {
     "slug": "platform/projects/backlog",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekt-Backlog",
-      "description": "Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat."
+      "title": "Den Projekt-Backlog sichten",
+      "description": "Sammle Arbeitsvorschläge, entscheide über ihre Aufnahme und unterscheide Zuweisung vom tatsächlichen Start."
     }
   },
   "de:platform/projects/concepts": {
@@ -689,8 +689,8 @@
     "slug": "platform/projects/project-agents",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekt-Agenten",
-      "description": "Der Tab Agenten besetzt ein Projekt mit benannten Agenten — jeder mit Agent-Laufzeit, einem Modell samt gewähltem Provider, Ausrüstung und stehenden Anweisungen —, die die Aufgaben des Projekts in einer isolierten Sandbox erledigen."
+      "title": "Projektagenten erstellen und verwalten",
+      "description": "Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis."
     }
   },
   "de:platform/projects/task-automation": {
@@ -745,8 +745,8 @@
     "slug": "self-hosted/configuration/data-residency",
     "locale": "de",
     "frontmatter": {
-      "title": "Datenresidenz",
-      "description": "Wo eine selbst gehostete Tale-Installation ihre Daten hält, wie du die Deployment-Defaults beim Deploy setzt und wie eine einzelne Organisation ihren Wissens-Korpus und ihre hochgeladenen Dateien auf eigene Infrastruktur ausrichtet — live, ohne Neustart."
+      "title": "Datenspeicher wählen und umziehen",
+      "description": "Unterscheide Bereitstellungsstandards und Organisationsspeicher, richte Verbindungen ein und plane den Umzug vorhandener Daten."
     }
   },
   "de:self-hosted/configuration/environment-reference": {
@@ -754,7 +754,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Umgebungsvariablen-Referenz",
-      "description": "Jede Umgebungsvariable, die Tale beim Boot liest, der Default und die Oberfläche im Produkt, die sie steuert. Die vollständige Operator-Referenz für `.env`.",
+      "description": "Bereitstellungsvariablen, Standardwerte, Geheimnisübergabe und die jeweils betroffenen Dienste.",
       "i18nLintExclude": ""
     }
   },
@@ -771,7 +771,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anbieter",
-      "description": "Die Operator-Seite der KI-Anbieter — die Connector-Dateien, die mit der Plattform kommen, und die reservierten Umgebungsvariablen, mit denen das Deployment die API-Schlüssel hält statt der Datenbank."
+      "description": "Konfiguriere eigene KI-Endpunkte, verstehe Anbieterdefinitionen und übergib Zugangsdaten aus der Bereitstellungsumgebung."
     }
   },
   "de:self-hosted/configuration/retention": {
@@ -795,15 +795,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "TLS und Domains",
-      "description": "Wie der Caddy-Proxy TLS terminiert — selbst signiert für Development, Let's Encrypt für Produktion, external für einen vorgelagerten Proxy — plus Custom-Domain- und Custom-Cert-Setups."
+      "description": "Wähle die Zertifikatsverwaltung, richte öffentliche Ursprünge ein und prüfe Browser- und SSO-Zugriffe nach einem Domainwechsel."
     }
   },
   "de:self-hosted/configuration/video-ingestion": {
     "slug": "self-hosted/configuration/video-ingestion",
     "locale": "de",
     "frontmatter": {
-      "title": "Video-Ingestion",
-      "description": "Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft."
+      "title": "Videotranskripte importieren",
+      "description": "Untersuche Abruffehler, konfiguriere Token-Anbieter oder Proxy und verwalte Browsersitzungen je Organisation."
     }
   },
   "de:self-hosted/index": {
@@ -820,7 +820,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Die tale-CLI installieren",
-      "description": "Die tale-CLI auf macOS, Linux oder Windows installieren — und sie gegen deine self-hosted Instanz für Deploys und Upgrades konfigurieren."
+      "description": "Installiere die tale-CLI, wähle die richtige Umgebung und finde die Befehle für Bereitstellung, Konfiguration und Wartung."
     }
   },
   "de:self-hosted/install/first-admin": {
@@ -843,8 +843,8 @@
     "slug": "self-hosted/install/own-compose",
     "locale": "de",
     "frontmatter": {
-      "title": "Compose selbst fahren",
-      "description": "Der Produktions-Compose-Vertrag — Netze, Aliase, Probes, Volumes — damit du den Stack ohne CLI selbst schreibst."
+      "title": "Compose selbst betreiben",
+      "description": "Stelle Images, Speicher, Netzwerke, Geheimnisse und Zustandsprüfungen zusammen, wenn dein Team die Orchestrierung übernimmt."
     }
   },
   "de:self-hosted/install/quickstart": {
@@ -859,24 +859,24 @@
     "slug": "self-hosted/operate/backups-and-restore",
     "locale": "de",
     "frontmatter": {
-      "title": "Backups und Restore",
-      "description": "Volume-Snapshots über `tale backup`, der automatische Pre-Migrations-Snapshot, Retention, die Off-Host-Kopie und der `tale restore`-Drill."
+      "title": "Backups und Wiederherstellung",
+      "description": "Stelle die vollständige Sicherung zusammen, kopiere CLI-Snapshots und stelle Daten mit der passenden Tale-Version wieder her."
     }
   },
   "de:self-hosted/operate/container-architecture": {
     "slug": "self-hosted/operate/container-architecture",
     "locale": "de",
     "frontmatter": {
-      "title": "Container-Architektur",
-      "description": "Welcher Container in einer laufenden Tale-Instanz welche Aufgabe besitzt, der Anfragepfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht."
+      "title": "Den betroffenen Dienst finden",
+      "description": "Ordne Anfragen, Hintergrundarbeit und Sandbox-Ausführung den richtigen Protokollen zu und erkenne automatische Indexreparaturen."
     }
   },
   "de:self-hosted/operate/observability/operations": {
     "slug": "self-hosted/operate/observability/operations",
     "locale": "de",
     "frontmatter": {
-      "title": "Operations",
-      "description": "Worauf zu alarmieren ist, welche Metriken zählen, und die Oncall-Checkliste, wenn sich eine Tale-Instanz schlecht zu benehmen anfängt."
+      "title": "Betrieb überwachen und Störungen bearbeiten",
+      "description": "Wähle aussagekräftige Signale, ordne Metriken richtig ein und untersuche Störungen, ohne wichtige Hinweise zu verlieren."
     }
   },
   "de:self-hosted/operate/observability/prometheus-grafana": {
@@ -884,15 +884,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Prometheus und Grafana",
-      "description": "Ein Copy-paste-Stack aus Prometheus und Grafana, der Tales zwei Metrics-Endpoints scrapt — plus ein Starter-Dashboard und eine erste Alert-Regel."
+      "description": "Erfasse Tale-Metriken mit einer Token-Datei, prüfe Scrape- und Alarmregeln und baue ein Dashboard aus vorhandenen Zeitreihen."
     }
   },
   "de:self-hosted/operate/observability/troubleshooting": {
     "slug": "self-hosted/operate/observability/troubleshooting",
     "locale": "de",
     "frontmatter": {
-      "title": "Troubleshooting",
-      "description": "Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben."
+      "title": "Fehler einer selbst gehosteten Instanz beheben",
+      "description": "Beginne bei der fehlerhaften Aktion, prüfe den zuständigen Dienst und stelle den Betrieb ohne vorschnelles Löschen wieder her."
     }
   },
   "de:self-hosted/operate/release-notes/format": {
@@ -939,16 +939,16 @@
     "slug": "self-hosted/operate/upgrades",
     "locale": "de",
     "frontmatter": {
-      "title": "Upgrades",
-      "description": "Wie `tale update` eine Tale-Instanz vorwärtsbewegt — die automatische CLI-/Instanz-Versions-Angleichung, das Rolling-Restart-Pattern, was vor einem Upgrade zu tun ist und die Versions-Kompatibilitäts-Story."
+      "title": "Eine Bereitstellung aktualisieren und wiederherstellen",
+      "description": "Prüfe ein Upgrade vorab, stelle mit Wiederherstellungsplan bereit und wähle bei Bedarf den richtigen Rollback-Weg."
     }
   },
   "de:self-hosted/overview": {
     "slug": "self-hosted/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Selbst gehostete Architektur",
-      "description": "Neun Container hinter einem Caddy-Proxy, ein Postgres, ein S3-kompatibler Blob-Store. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen."
+      "title": "Architektur beim Selbsthosting",
+      "description": "Verstehe Anwendungs-, Speicher- und Sandbox-Dienste, bevor du Bereitstellung und Betrieb von Tale planst."
     }
   },
   "de:tutorials/admin/connect-local-provider": {
@@ -1163,8 +1163,8 @@
     "slug": "develop/ai-assisted-development",
     "locale": "en",
     "frontmatter": {
-      "title": "AI-assisted development",
-      "description": "How a coding agent edits a Tale project — the AGENTS.md and CLAUDE.md the CLI writes, the source mirror under .tale/reference/, and the org-first layout of the configuration files."
+      "title": "Edit configuration with a coding agent",
+      "description": "Give a coding agent the right project context, distinguish templates from active configuration, and review changes before deployment."
     }
   },
   "en:develop/api-reference": {
@@ -1172,7 +1172,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "API reference",
-      "description": "How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model.",
+      "description": "Call the REST API, choose the organization and project, read paginated results, and handle asynchronous work and errors.",
       "i18nLintExclude": ""
     }
   },
@@ -1196,8 +1196,8 @@
     "slug": "develop/contributing-docker",
     "locale": "en",
     "frontmatter": {
-      "title": "Contributing to Docker images",
-      "description": "How to build and extend Tale's Docker images for forks, vendored builds, or air-gapped distributions."
+      "title": "Build and maintain Tale images",
+      "description": "Choose the correct Dockerfile, build a local image, verify its behavior and publish a reviewed image set to your registry."
     }
   },
   "en:develop/contributor-setup": {
@@ -1213,7 +1213,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "MCP endpoint",
-      "description": "Connect an MCP client to Tale — one endpoint, 22 tools covering automation authoring, run and trigger management, and the organization's capability surface.",
+      "description": "Connect an MCP client, discover Tale tools, develop automations, and handle access checks and execution results.",
       "i18nLintExclude": ""
     }
   },
@@ -1229,8 +1229,8 @@
     "slug": "develop/rate-limits",
     "locale": "en",
     "frontmatter": {
-      "title": "Rate limits",
-      "description": "REST and MCP rate limits — the buckets, the 429 response and its Retry-After, and how to retry without making things worse."
+      "title": "Handle rate limits",
+      "description": "Plan REST, MCP and webhook traffic, interpret Retry-After and retry accepted work without duplicating it."
     }
   },
   "en:develop/status-page": {
@@ -1246,7 +1246,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "WebDAV API",
-      "description": "Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits."
+      "description": "Connect a file client, verify uploads and downloads, and handle WebDAV permissions, locks, and protocol limits."
     }
   },
   "en:develop/webhooks": {
@@ -1328,8 +1328,8 @@
     "slug": "platform/admin/agents",
     "locale": "en",
     "frontmatter": {
-      "title": "Agents (admin view)",
-      "description": "Govern project-agent access, providers, equipment and secret grants through the project's permissions and the organization's resources."
+      "title": "Govern project agents",
+      "description": "Review who can change agents, which resources they can use and how secret grants affect their runs."
     }
   },
   "en:platform/admin/api-keys": {
@@ -1472,8 +1472,8 @@
     "slug": "platform/admin/sandboxes",
     "locale": "en",
     "frontmatter": {
-      "title": "Sandboxes",
-      "description": "Set concurrent workload limits and compare organization allocations with actual sandbox runtime and host capacity."
+      "title": "Manage sandbox capacity",
+      "description": "Adjust concurrent workload limits, interpret infrastructure measurements and investigate work waiting for a sandbox."
     }
   },
   "en:platform/admin/teams": {
@@ -1496,16 +1496,16 @@
     "slug": "platform/agents/concepts",
     "locale": "en",
     "frontmatter": {
-      "title": "Agent concepts",
-      "description": "A project agent combines a harness, model, instructions and equipment to work on tasks within one project."
+      "title": "Understand project agents",
+      "description": "Decide what an agent should own and how its runtime, model, instructions and equipment fit together."
     }
   },
   "en:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "en",
     "frontmatter": {
-      "title": "Harnesses",
-      "description": "Coding CLIs that run a model in an isolated sandbox — which harnesses ship, where you pick one, where the credential comes from, and what the box can reach."
+      "title": "Choose an agent runtime",
+      "description": "Match a coding harness to its credentials, tools and sandbox behavior before assigning real work."
     }
   },
   "en:platform/agents/skills": {
@@ -1560,8 +1560,8 @@
     "slug": "platform/automations/catalog",
     "locale": "en",
     "frontmatter": {
-      "title": "Add automations to your organization",
-      "description": "Where automations come from — the shipped packs every organization starts with, drafts you author on the canvas, and uploaded packages, including zips that install the skills they carry."
+      "title": "Create or import an automation",
+      "description": "Choose a starting point, import a validated package and prepare its skills, settings and deliverables before deployment."
     }
   },
   "en:platform/automations/concepts": {
@@ -1569,7 +1569,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Automation concepts",
-      "description": "The model behind every automation — one workflow document, a version history that never changes, a single deployed version, the triggers that start it, and the runs it records."
+      "description": "Understand workflow steps, saved versions, deployment, triggers, and the history of each run."
     }
   },
   "en:platform/automations/editor": {
@@ -1584,24 +1584,24 @@
     "slug": "platform/automations/execution-logs",
     "locale": "en",
     "frontmatter": {
-      "title": "Execution logs",
-      "description": "How to read an automation's runs — the statuses, the mode, what started each one, the per-node results and effects, and a worked session that finds a failure."
+      "title": "Read automation runs and recover from failures",
+      "description": "Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry."
     }
   },
   "en:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "en",
     "frontmatter": {
-      "title": "Automation triggers",
-      "description": "The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy."
+      "title": "Start automations automatically",
+      "description": "Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts."
     }
   },
   "en:platform/chat/arena-mode": {
     "slug": "platform/chat/arena-mode",
     "locale": "en",
     "frontmatter": {
-      "title": "Arena Mode",
-      "description": "Side-by-side model comparison inside Chat — how it renders, how to pick the contenders, how verdicts feed feedback analytics, and when to reach for it."
+      "title": "Compare models in Arena",
+      "description": "Send one prompt to two models, assess both replies and choose how to continue the conversation."
     }
   },
   "en:platform/chat/attachments": {
@@ -1656,16 +1656,16 @@
     "slug": "platform/connectors/overview",
     "locale": "en",
     "frontmatter": {
-      "title": "Connectors",
-      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs."
+      "title": "Connect Tale to external services",
+      "description": "Choose a connector, connect the intended account and understand where its read and write actions can run."
     }
   },
   "en:platform/connectors/webdav": {
     "slug": "platform/connectors/webdav",
     "locale": "en",
     "frontmatter": {
-      "title": "WebDAV",
-      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client."
+      "title": "Open Tale documents through WebDAV",
+      "description": "Generate a device password, connect a WebDAV client and verify file access without confusing project and organization storage."
     }
   },
   "en:platform/developer/overview": {
@@ -1761,16 +1761,16 @@
     "slug": "platform/models",
     "locale": "en",
     "frontmatter": {
-      "title": "Model catalog",
-      "description": "Which models your organisation can pick, where each provider's list comes from, and what to check when a model you expected is missing from the picker."
+      "title": "Choose an available model",
+      "description": "Understand model selection, provider catalogs and the checks that explain a missing or refused model."
     }
   },
   "en:platform/projects/backlog": {
     "slug": "platform/projects/backlog",
     "locale": "en",
     "frontmatter": {
-      "title": "Project Backlog",
-      "description": "Backlog is the board's intake status for work nobody has committed to yet — how a task lands there and how you move it forward with the same controls as every other column."
+      "title": "Triage the project backlog",
+      "description": "Capture proposed work, decide what is ready, and move it into delivery without confusing assignment with execution."
     }
   },
   "en:platform/projects/concepts": {
@@ -1801,8 +1801,8 @@
     "slug": "platform/projects/project-agents",
     "locale": "en",
     "frontmatter": {
-      "title": "Project agents",
-      "description": "The Agents tab staffs a project with named agents — each with a harness, a model served by a provider you pick, equipment, and standing instructions — that work the project's tasks in an isolated sandbox."
+      "title": "Create and manage project agents",
+      "description": "Configure a reusable worker, grant its equipment and start a task whose result you can review."
     }
   },
   "en:platform/projects/task-automation": {
@@ -1857,8 +1857,8 @@
     "slug": "self-hosted/configuration/data-residency",
     "locale": "en",
     "frontmatter": {
-      "title": "Data residency",
-      "description": "Where a self-hosted Tale deployment keeps its data, how the deployment defaults are set at deploy time, and how a single organization points its knowledge corpus and uploaded files at infrastructure of its own — live, without a restart."
+      "title": "Choose and move data stores",
+      "description": "Separate deployment defaults from organization storage, configure knowledge and file connections, and plan existing-data migration."
     }
   },
   "en:self-hosted/configuration/environment-reference": {
@@ -1866,7 +1866,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Environment reference",
-      "description": "Every environment variable Tale reads at boot, the default, and the surface in the product the variable controls. The complete operator reference for `.env`.",
+      "description": "Deployment variables, defaults, secret injection, and the services that need each setting.",
       "i18nLintExclude": ""
     }
   },
@@ -1883,7 +1883,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Providers",
-      "description": "The operator's side of AI providers — the connector files that ship with the platform, and the reserved environment variables that let a deployment hold the API keys instead of the database."
+      "description": "Configure custom AI endpoints, understand provider definitions, and supply credentials from deployment secrets."
     }
   },
   "en:self-hosted/configuration/retention": {
@@ -1907,15 +1907,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "TLS and domains",
-      "description": "How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups."
+      "description": "Choose certificate handling, configure public origins, and verify browser and identity-provider access after a domain change."
     }
   },
   "en:self-hosted/configuration/video-ingestion": {
     "slug": "self-hosted/configuration/video-ingestion",
     "locale": "en",
     "frontmatter": {
-      "title": "Video ingestion",
-      "description": "Configure how a self-hosted deployment fetches video transcripts past YouTube's bot wall — the built-in PO-token provider, an egress proxy, and the pre-warmed browser-session pool."
+      "title": "Configure video transcript ingestion",
+      "description": "Diagnose transcript retrieval, configure the token provider or proxy, and manage organization-scoped browser sessions."
     }
   },
   "en:self-hosted/index": {
@@ -1956,7 +1956,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run Compose yourself",
-      "description": "The production compose contract — networks, aliases, probes, volumes — so you can write the stack without the CLI."
+      "description": "Assemble Tale's images, stores, networks, secrets, and health probes when your team owns the orchestration."
     }
   },
   "en:self-hosted/install/quickstart": {
@@ -1972,23 +1972,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Backups and restore",
-      "description": "Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill."
+      "description": "Plan the complete recovery set, create and copy CLI snapshots, then restore data with its matching Tale version."
     }
   },
   "en:self-hosted/operate/container-architecture": {
     "slug": "self-hosted/operate/container-architecture",
     "locale": "en",
     "frontmatter": {
-      "title": "Container architecture",
-      "description": "Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like."
+      "title": "Find the service behind a failure",
+      "description": "Trace requests, background work, and sandbox execution to the right logs and understand automatic knowledge-index repair."
     }
   },
   "en:self-hosted/operate/observability/operations": {
     "slug": "self-hosted/operate/observability/operations",
     "locale": "en",
     "frontmatter": {
-      "title": "Operations",
-      "description": "What to alert on, which metrics matter, and the oncall checklist when a Tale instance starts behaving badly."
+      "title": "Monitor and respond to incidents",
+      "description": "Choose actionable health signals, understand the exported metrics, and investigate failures without losing evidence."
     }
   },
   "en:self-hosted/operate/observability/prometheus-grafana": {
@@ -1996,15 +1996,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Prometheus and Grafana",
-      "description": "A copy-paste Prometheus and Grafana stack that scrapes Tale's two metrics endpoints, plus a starter dashboard and a first alert rule."
+      "description": "Collect Tale metrics with a token file, validate scrape and alert configuration, and build a dashboard from the available series."
     }
   },
   "en:self-hosted/operate/observability/troubleshooting": {
     "slug": "self-hosted/operate/observability/troubleshooting",
     "locale": "en",
     "frontmatter": {
-      "title": "Troubleshooting",
-      "description": "Symptom-first index for the issues operators have actually hit on Tale instances — what the user reports, what is broken, and what to do about it."
+      "title": "Troubleshoot a self-hosted instance",
+      "description": "Start with the failing action, inspect the right service, and recover without deleting data or masking the cause."
     }
   },
   "en:self-hosted/operate/release-notes/format": {
@@ -2051,8 +2051,8 @@
     "slug": "self-hosted/operate/upgrades",
     "locale": "en",
     "frontmatter": {
-      "title": "Upgrades",
-      "description": "How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story."
+      "title": "Upgrade and recover a deployment",
+      "description": "Preview a workspace upgrade, deploy with a recovery plan, verify the result, and choose the correct rollback path."
     }
   },
   "en:self-hosted/overview": {
@@ -2060,7 +2060,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted architecture",
-      "description": "Nine containers behind a Caddy proxy, one Postgres, an S3-compatible blob store. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot."
+      "description": "Understand the application, storage, and sandbox services before choosing how to deploy and operate Tale."
     }
   },
   "en:tutorials/admin/connect-local-provider": {
@@ -2275,8 +2275,8 @@
     "slug": "develop/ai-assisted-development",
     "locale": "fr",
     "frontmatter": {
-      "title": "Développement assisté par IA",
-      "description": "Comment un agent de code édite un projet Tale — les fichiers AGENTS.md et CLAUDE.md que la CLI écrit, le miroir des sources sous .tale/reference/, et la disposition par organisation des fichiers de configuration."
+      "title": "Modifier la configuration avec un agent de programmation",
+      "description": "Fournis le bon contexte à un agent, distingue les modèles de la configuration active et vérifie les changements avant le déploiement."
     }
   },
   "fr:develop/api-reference": {
@@ -2284,7 +2284,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Référence API",
-      "description": "Comment appeler Tale de l'extérieur — authentification, inventaire des endpoints, pagination, les boucles asynchrones d'exécution et de tour, et le modèle d'erreur. La seule source de vérité pour la surface REST.",
+      "description": "Appeler l’API REST de Tale, choisir le périmètre d’une requête, parcourir les listes, suivre les traitements asynchrones et gérer les erreurs.",
       "i18nLintExclude": ""
     }
   },
@@ -2308,8 +2308,8 @@
     "slug": "develop/contributing-docker",
     "locale": "fr",
     "frontmatter": {
-      "title": "Contribuer aux images Docker",
-      "description": "Comment construire et étendre les images Docker de Tale pour des forks, des builds vendorisés ou des distributions air-gapped."
+      "title": "Construire et maintenir les images Tale",
+      "description": "Choisis le bon Dockerfile, construis une image locale, teste son comportement et publie des images vérifiées dans ton registre."
     }
   },
   "fr:develop/contributor-setup": {
@@ -2325,7 +2325,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Endpoint MCP",
-      "description": "Connecte un client MCP à Tale — un endpoint, 22 outils couvrant l'écriture d'automatisations, la gestion des exécutions et des déclencheurs, et la surface de capacités de l'organisation.",
+      "description": "Connecte un client MCP, découvre les outils Tale, développe des automatisations et traite les refus et les résultats.",
       "i18nLintExclude": ""
     }
   },
@@ -2341,8 +2341,8 @@
     "slug": "develop/rate-limits",
     "locale": "fr",
     "frontmatter": {
-      "title": "Limites de débit",
-      "description": "Limites de débit REST et MCP — les buckets, la réponse 429 et son Retry-After, et comment relancer sans empirer la situation."
+      "title": "Gérer les limites de requêtes",
+      "description": "Planifie les appels REST, MCP et webhook, interprète Retry-After et réessaie sans dupliquer un travail déjà accepté."
     }
   },
   "fr:develop/status-page": {
@@ -2358,7 +2358,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "API WebDAV",
-      "description": "Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites."
+      "description": "Connecte un client de fichiers, vérifie les transferts et gère les droits, les verrous et les limites du protocole WebDAV."
     }
   },
   "fr:develop/webhooks": {
@@ -2440,8 +2440,8 @@
     "slug": "platform/admin/agents",
     "locale": "fr",
     "frontmatter": {
-      "title": "Agents (vue Admin)",
-      "description": "Encadre les accès, les fournisseurs, l’équipement et les secrets des agents avec les droits du projet et les ressources de l’organisation."
+      "title": "Administrer les agents de projet",
+      "description": "Vérifie les droits de modification, les ressources autorisées et les conséquences des secrets accordés aux agents."
     }
   },
   "fr:platform/admin/api-keys": {
@@ -2584,8 +2584,8 @@
     "slug": "platform/admin/sandboxes",
     "locale": "fr",
     "frontmatter": {
-      "title": "Sandboxes",
-      "description": "Fixe les limites de travail simultané et compare les quotas occupés aux environnements actifs et aux ressources de l’hôte."
+      "title": "Gérer la capacité des sandboxes",
+      "description": "Ajuste les limites de travail simultané, interprète les mesures et examine un démarrage de sandbox bloqué."
     }
   },
   "fr:platform/admin/teams": {
@@ -2608,16 +2608,16 @@
     "slug": "platform/agents/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Comprendre les agents",
-      "description": "Un agent de projet réunit un harness, un modèle, des instructions et un équipement pour traiter les tâches d’un seul projet."
+      "title": "Comprendre les agents de projet",
+      "description": "Définis la responsabilité d’un agent et le rôle de son environnement, de son modèle, de ses instructions et de son équipement."
     }
   },
   "fr:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "fr",
     "frontmatter": {
-      "title": "Harnesses",
-      "description": "Des CLI de code qui exécutent un modèle dans une sandbox isolée — quels harnesses sont livrés, où tu en choisis un, d’où vient l’accès, et ce que la boîte peut atteindre."
+      "title": "Choisir un environnement d’agent",
+      "description": "Associe le harness aux identifiants, aux outils et au fonctionnement de la sandbox avant de confier une tâche."
     }
   },
   "fr:platform/agents/skills": {
@@ -2656,7 +2656,7 @@
     "slug": "platform/automations/assistant",
     "locale": "fr",
     "frontmatter": {
-      "title": "Choisir comment créer une automation",
+      "title": "Choisir comment créer une automatisation",
       "description": "Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP."
     }
   },
@@ -2672,8 +2672,8 @@
     "slug": "platform/automations/catalog",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ajouter des automatisations à ton organisation",
-      "description": "D’où viennent les automatisations — les packs livrés avec chaque organisation, les brouillons créés sur le canvas, et les paquets téléversés, y compris les zips qui installent les skills qu’ils embarquent."
+      "title": "Créer ou importer une automatisation",
+      "description": "Choisis un point de départ, importe un paquet validé et prépare ses skills, paramètres et livrables avant la mise en service."
     }
   },
   "fr:platform/automations/concepts": {
@@ -2681,7 +2681,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts d’automatisation",
-      "description": "Le modèle derrière chaque automatisation — un document de workflow, un historique de versions qui ne change jamais, une seule version en service, les déclencheurs qui la lancent et les exécutions qu’elle enregistre."
+      "description": "Comprends les étapes du workflow, les versions, la mise en service, les déclencheurs et l’historique des exécutions."
     }
   },
   "fr:platform/automations/editor": {
@@ -2696,24 +2696,24 @@
     "slug": "platform/automations/execution-logs",
     "locale": "fr",
     "frontmatter": {
-      "title": "Journaux d’exécution",
-      "description": "Comment lire les exécutions d’une automatisation — les statuts, le mode, ce qui a lancé chacune, les résultats par nœud et les effets, plus une séance de débogage jouée de bout en bout."
+      "title": "Examiner les exécutions et corriger les échecs",
+      "description": "Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer."
     }
   },
   "fr:platform/automations/triggers": {
     "slug": "platform/automations/triggers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencheurs d’automatisation",
-      "description": "Les trois façons dont une automatisation démarre d’elle-même — une planification, un webhook ou un événement de la plateforme — ce que chacune transporte dans l’exécution, et pourquoi aucune ne casse à la mise en service."
+      "title": "Démarrer les automatisations automatiquement",
+      "description": "Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués."
     }
   },
   "fr:platform/chat/arena-mode": {
     "slug": "platform/chat/arena-mode",
     "locale": "fr",
     "frontmatter": {
-      "title": "Mode Arène",
-      "description": "La comparaison de modèles côte à côte dans le Chat — comment elle s’affiche, comment choisir les concurrents, comment les verdicts alimentent l’analyse des retours et quand y recourir."
+      "title": "Comparer les modèles dans l’Arène",
+      "description": "Envoie une même demande à deux modèles, évalue leurs réponses et choisis comment poursuivre le chat."
     }
   },
   "fr:platform/chat/attachments": {
@@ -2768,16 +2768,16 @@
     "slug": "platform/connectors/overview",
     "locale": "fr",
     "frontmatter": {
-      "title": "Connectors",
-      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et les exécutions d’agent."
+      "title": "Connecter Tale à des services externes",
+      "description": "Choisis un connector et le bon compte, puis distingue les contextes où ses lectures et écritures sont autorisées."
     }
   },
   "fr:platform/connectors/webdav": {
     "slug": "platform/connectors/webdav",
     "locale": "fr",
     "frontmatter": {
-      "title": "WebDAV",
-      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV."
+      "title": "Ouvrir les documents Tale avec WebDAV",
+      "description": "Génère un mot de passe par appareil, connecte un client WebDAV et vérifie les documents accessibles."
     }
   },
   "fr:platform/developer/overview": {
@@ -2873,16 +2873,16 @@
     "slug": "platform/models",
     "locale": "fr",
     "frontmatter": {
-      "title": "Catalogue de modèles",
-      "description": "Quels modèles ton organisation peut choisir, d’où vient la liste de chaque fournisseur, et quoi vérifier quand un modèle attendu manque dans le sélecteur."
+      "title": "Choisir un modèle disponible",
+      "description": "Comprends la sélection et les catalogues de modèles, puis identifie pourquoi un modèle manque ou refuse un appel."
     }
   },
   "fr:platform/projects/backlog": {
     "slug": "platform/projects/backlog",
     "locale": "fr",
     "frontmatter": {
-      "title": "Backlog du projet",
-      "description": "Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé."
+      "title": "Trier le backlog du projet",
+      "description": "Recueille les propositions, décide lesquelles retenir et distingue l’affectation du démarrage du travail."
     }
   },
   "fr:platform/projects/concepts": {
@@ -2913,8 +2913,8 @@
     "slug": "platform/projects/project-agents",
     "locale": "fr",
     "frontmatter": {
-      "title": "Agents de projet",
-      "description": "L'onglet Agents dote un projet d'agents nommés — chacun avec un harness, un modèle servi par le fournisseur que tu choisis, un équipement et des instructions permanentes — qui traitent les tâches du projet dans une sandbox isolée."
+      "title": "Créer et gérer des agents de projet",
+      "description": "Configure un agent réutilisable, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat."
     }
   },
   "fr:platform/projects/task-automation": {
@@ -2969,8 +2969,8 @@
     "slug": "self-hosted/configuration/data-residency",
     "locale": "fr",
     "frontmatter": {
-      "title": "Résidence des données",
-      "description": "Où une installation Tale auto-hébergée garde ses données, comment tu fixes les défauts du déploiement au moment du déploiement, et comment une organisation pointe son corpus de connaissances et ses fichiers téléversés vers sa propre infrastructure — à chaud, sans redémarrage."
+      "title": "Choisir et déplacer les stockages",
+      "description": "Distingue les stockages par défaut de ceux d’une organisation, configure les connexions et prépare la migration des données existantes."
     }
   },
   "fr:self-hosted/configuration/environment-reference": {
@@ -2978,7 +2978,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Référence des variables d'environnement",
-      "description": "Chaque variable d'environnement que Tale lit au boot, sa valeur par défaut et la surface produit qu'elle contrôle. La référence opérateur complète pour `.env`.",
+      "description": "Variables de déploiement, valeurs par défaut, secrets et services concernés par chaque réglage.",
       "i18nLintExclude": ""
     }
   },
@@ -2995,7 +2995,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Fournisseurs",
-      "description": "Le versant opérateur des fournisseurs IA — les fichiers de connecteurs livrés avec la plateforme, et les variables d’environnement réservées qui laissent le déploiement porter les clés API à la place de la base de données."
+      "description": "Configure des endpoints IA personnalisés, comprends les définitions de fournisseurs et fournis les identifiants depuis les secrets du déploiement."
     }
   },
   "fr:self-hosted/configuration/retention": {
@@ -3019,15 +3019,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "TLS et domaines",
-      "description": "Comment le proxy Caddy termine TLS — auto-signé pour développement, Let's Encrypt pour production, externe pour un proxy amont — plus les setups domaine personnalisé et certificat personnalisé."
+      "description": "Choisis la gestion des certificats, configure les origines publiques et vérifie les accès après un changement de domaine."
     }
   },
   "fr:self-hosted/configuration/video-ingestion": {
     "slug": "self-hosted/configuration/video-ingestion",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ingestion vidéo",
-      "description": "Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube."
+      "title": "Configurer l’import de transcriptions vidéo",
+      "description": "Diagnostique la récupération, configure fournisseur de jetons ou proxy et gère les sessions de navigateur par organisation."
     }
   },
   "fr:self-hosted/index": {
@@ -3044,7 +3044,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Installer la CLI tale",
-      "description": "Installer la CLI tale sur macOS, Linux ou Windows — et la configurer contre ton instance auto-hébergée pour les déploiements et les mises à jour."
+      "description": "Installe la CLI tale, choisis le bon environnement et retrouve les commandes de déploiement, de configuration et de maintenance."
     }
   },
   "fr:self-hosted/install/first-admin": {
@@ -3067,8 +3067,8 @@
     "slug": "self-hosted/install/own-compose",
     "locale": "fr",
     "frontmatter": {
-      "title": "Écrire Compose toi-même",
-      "description": "Le contrat compose de production — réseaux, alias, sondes, volumes — pour écrire la stack sans la CLI."
+      "title": "Gérer Compose toi-même",
+      "description": "Assemble images, stockages, réseaux, secrets et sondes lorsque ton équipe prend en charge l’orchestration de Tale."
     }
   },
   "fr:self-hosted/install/quickstart": {
@@ -3083,24 +3083,24 @@
     "slug": "self-hosted/operate/backups-and-restore",
     "locale": "fr",
     "frontmatter": {
-      "title": "Backups et restauration",
-      "description": "Snapshots de volumes via `tale backup`, le snapshot automatique pré-migration, la rétention, la copie hors-hôte et le drill `tale restore`."
+      "title": "Sauvegardes et restauration",
+      "description": "Réunis les éléments nécessaires à la reprise, copie les snapshots de la CLI et restaure les données avec la bonne version de Tale."
     }
   },
   "fr:self-hosted/operate/container-architecture": {
     "slug": "self-hosted/operate/container-architecture",
     "locale": "fr",
     "frontmatter": {
-      "title": "Architecture des conteneurs",
-      "description": "Quel conteneur possède quel rôle dans une instance Tale en fonctionnement, le chemin de requête d'un message de chat, et à quoi ressemble une panne de chaque conteneur."
+      "title": "Trouver le service à l’origine d’une panne",
+      "description": "Suis les requêtes, les jobs et les exécutions sandbox vers les bons journaux et comprends la réparation automatique des index."
     }
   },
   "fr:self-hosted/operate/observability/operations": {
     "slug": "self-hosted/operate/observability/operations",
     "locale": "fr",
     "frontmatter": {
-      "title": "Opérations",
-      "description": "Sur quoi alerter, quelles métriques comptent et la checklist d'astreinte quand une instance Tale commence à mal se comporter."
+      "title": "Surveiller et traiter les incidents",
+      "description": "Choisis des signaux utiles, interprète les métriques exportées et enquête sur les pannes sans perdre les indices."
     }
   },
   "fr:self-hosted/operate/observability/prometheus-grafana": {
@@ -3108,15 +3108,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Prometheus et Grafana",
-      "description": "Un stack Prometheus et Grafana en copier-coller qui scrape les deux endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte."
+      "description": "Collecte les métriques Tale avec un fichier de jeton, valide la configuration et crée un tableau de bord à partir des séries disponibles."
     }
   },
   "fr:self-hosted/operate/observability/troubleshooting": {
     "slug": "self-hosted/operate/observability/troubleshooting",
     "locale": "fr",
     "frontmatter": {
-      "title": "Dépannage",
-      "description": "Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale."
+      "title": "Dépanner une instance auto-hébergée",
+      "description": "Pars de l’action en échec, inspecte le bon service et rétablis le fonctionnement sans supprimer les données ni masquer la cause."
     }
   },
   "fr:self-hosted/operate/release-notes/format": {
@@ -3163,8 +3163,8 @@
     "slug": "self-hosted/operate/upgrades",
     "locale": "fr",
     "frontmatter": {
-      "title": "Montées de version",
-      "description": "Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions."
+      "title": "Mettre à niveau et rétablir un déploiement",
+      "description": "Prévisualise une mise à niveau, déploie avec un plan de reprise, vérifie le résultat et choisis le retour arrière adapté."
     }
   },
   "fr:self-hosted/overview": {
@@ -3172,7 +3172,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Architecture auto-hébergée",
-      "description": "Neuf conteneurs derrière un proxy Caddy, un Postgres, un stockage d'objets compatible S3. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot."
+      "description": "Comprends les services applicatifs, le stockage et les sandbox avant de choisir comment déployer et exploiter Tale."
     }
   },
   "fr:tutorials/admin/connect-local-provider": {

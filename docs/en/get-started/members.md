@@ -7,7 +7,7 @@ Your everyday work in Tale starts with a conversation or a project. This guide h
 
 ## Know what you can access
 
-Start with a signed-in account and a working [first chat](/get-started/quickstart). Your role and project access determine what you can read or change. A Member can use the features available to that role; creating and editing shared content generally requires Editor or higher. Check [members and roles](/platform/admin/members-and-roles) when a control is missing.
+Start with a signed-in account and a working [first chat](/get-started/quickstart). Your role and project access determine what you can read or change. Members can chat and work in accessible projects. Editing organization-wide knowledge requires Editor or higher; project work follows the project’s access rules. Check [members and roles](/platform/admin/members-and-roles) when a control is missing.
 
 ## Ask a question with enough context
 

@@ -13,11 +13,11 @@ docker compose logs --tail=100 backend-api backend-worker
 docker compose logs -f backend-api
 ```
 
-Mit `Ctrl-C` beendest du die laufende Anzeige; die Container laufen weiter. Suche bei Anfrage- und Anmeldefehlern in `backend-api`, bei Hintergrundaufgaben, Chat-Antworten und Dokumentverarbeitung in `backend-worker`. `docker compose ps` zeigt dir Container, die wiederholt neu starten.
+Mit `Ctrl-C` beendest du die laufende Anzeige; die Container laufen weiter. Suche für Anfragen, Anmeldung und interaktive Chat-Antworten in `backend-api`; für Hintergrundaufgaben, eingereihte Agent-Aufrufe und Dokumentverarbeitung in `backend-worker`. `docker compose ps` zeigt dir Container, die wiederholt neu starten.
 
 `journalctl -u docker` zeigt das Journal des Docker-Daemons. Beim Standardtreiber `json-file` ersetzt es die Containerprotokolle nicht. Für journald oder eine zentrale Protokollsammlung musst du den Docker-Protokolltreiber und die Sammlung gesondert einrichten. Tale liefert keinen Dienst zur Protokollweiterleitung mit. Nach einem Treiberwechsel musst du die betroffenen Container neu erstellen.
 
-## Geschützte Messwerte aktivieren
+## Geschützte Messwerte aktivieren {#metriken}
 
 Setze einen starken `METRICS_BEARER_TOKEN` in der Bereitstellungsumgebung. Übernimm die Änderung über deinen Bereitstellungsablauf, sodass die betroffenen Dienste neu erstellt werden. Ein einfacher Containerneustart lädt die Compose-Umgebungswerte nicht neu. Hinterlege denselben Token in der Geheimnisverwaltung deines Überwachungssystems.
 
@@ -25,11 +25,11 @@ Der Proxy verlangt für diese Routen `Authorization: Bearer <token>`. Ohne konfi
 
 | Route | Inhalt | Verwendung |
 | --- | --- | --- |
-| `/metrics/platform` | HTTP- und Prozessmesswerte der Webanwendung, Zielwerte für Antwortzeiten | Prometheus-Abfrageziel |
+| `/metrics/platform` | Prozessmesswerte der Webanwendung und Zielwerte für Antwortzeiten | Prometheus-Abfrageziel |
 | `/metrics/backend` | HTTP- und Prozessmesswerte des Backends, Warteschlangen, aktive Generierungen und Entleerungsstatus | Prometheus-Abfrageziel |
 | `/metrics/sla-rules` | Generierte Aufzeichnungs- und Alarmregeln als YAML | Als Prometheus-Regeldatei laden |
 
-Wissenssuche und Dokumentverarbeitung laufen im Backend-Worker. Ihre Messwerte gehören zu den Backend-Metriken. `BACKEND_UPSTREAM` bestimmt bei einer getrennten Bereitstellung das Backend; es aktiviert keinen separaten Metrikdienst für die Wissensverarbeitung.
+Das Backend beantwortet Wissensanfragen und verarbeitet Dokumente. HTTP- und Warteschlangenmesswerte helfen, Fehler und Rückstau zu erkennen; sie messen nicht gesondert die Dauer der Suche oder Antwortgenerierung. `BACKEND_UPSTREAM` legt bei einer getrennten Bereitstellung das Backend-Ziel fest. Es entsteht dadurch kein eigener Metrikdienst für die Wissensverarbeitung.
 
 Richte pro Metrikroute einen eigenen Abfrageauftrag ein. Im Beispiel ist `/run/secrets/tale_metrics_token` eine Datei im Prometheus-Container, die ausschließlich den Token enthält. Erstelle sie über deine Geheimnisverwaltung und erlaube Prometheus den Lesezugriff.
 
@@ -51,7 +51,7 @@ scrape_configs:
       - targets: ['tale.example.com']
 ```
 
-Frage `/metrics/sla-rules` nicht als Metriken ab. Lade die YAML-Datei über die Regelkonfiguration von Prometheus. Die vollständige Einrichtung beschreibt [Prometheus und Grafana](/self-hosted/operate/observability/prometheus-grafana).
+Frage `/metrics/sla-rules` nicht als Metriken ab. Die generierten Regeln verweisen auf Zeitreihen, die zusätzliche Instrumentierung benötigen. Allein das Laden der Datei weist die Einhaltung der Antwortzeitziele nicht nach. Prüfe die Regeln, bevor du sie über die Regelkonfiguration von Prometheus lädst. Die vollständige Einrichtung beschreibt [Prometheus und Grafana](/de/self-hosted/operate/observability/prometheus-grafana).
 
 ## Ziel für Fehlerberichte wählen
 
@@ -68,4 +68,4 @@ Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerbe
 
 Tale exportiert derzeit keine OpenTelemetry-Traces über OTLP. Ein OpenTelemetry Collector kann die Prometheus-Messwerte erfassen. Aus dem Abfragen von Messwerten entstehen aber keine verteilten Traces. Dafür braucht die Anwendung zusätzlich eine entsprechende Instrumentierung.
 
-Alarmgrenzen und Reaktionsabläufe findest du unter [Betrieb](/self-hosted/operate/observability/operations). Bei einem ausgefallenen Dienst helfen die Symptomtabellen der [Fehlersuche](/self-hosted/operate/observability/troubleshooting).
+Alarmgrenzen und Reaktionsabläufe findest du unter [Betrieb](/de/self-hosted/operate/observability/operations). Bei einem ausgefallenen Dienst helfen die Symptomtabellen der [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting).

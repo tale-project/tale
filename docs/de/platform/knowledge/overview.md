@@ -26,7 +26,7 @@ Wissen ist die gemeinsame Bibliothek deiner Organisation. Dokumente, kurze Infor
 | Artikel mit Produktangaben | **Produkte** | Die Felder lassen sich gezielt nachschlagen. |
 | Referenzdateien für ein bestimmtes Vorhaben | **Wissen** im Projekt | Die Dateien bleiben im Zugriff und Chat-Kontext dieses Projekts. |
 
-Mitglieder können Inhalte innerhalb ihrer Zugriffsrechte lesen. Editor und höhere Rollen pflegen die gemeinsame Bibliothek. Der Leitfaden zu [strukturierten Daten](/de/platform/knowledge/structured-data) hilft, wenn eine Tabelle sowohl Quelldokument als auch Sammlung einzelner Datensätze sein könnte.
+Mitglieder können Inhalte innerhalb ihrer Zugriffsrechte lesen. Redakteure und höhere Rollen pflegen die gemeinsame Bibliothek. Der Leitfaden zu [strukturierten Daten](/de/platform/knowledge/structured-data) hilft, wenn eine Tabelle sowohl Quelldokument als auch Sammlung einzelner Datensätze sein könnte.
 
 ## Eine Quelle für Antworten nutzbar machen
 

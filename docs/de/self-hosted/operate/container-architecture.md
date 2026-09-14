@@ -1,83 +1,55 @@
 ---
-title: Container-Architektur
-description: Welcher Container in einer laufenden Tale-Instanz welche Aufgabe besitzt, der Anfragepfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
+title: Den betroffenen Dienst finden
+description: Ordne Anfragen, Hintergrundarbeit und Sandbox-Ausführung den richtigen Protokollen zu und erkenne automatische Indexreparaturen.
 ---
 
-Hier findest du den zuständigen Dienst für Anfragen, Jobs und dauerhafte Speicher. Anfrageweg und Fehlertabelle helfen bei der Protokollauswahl im Störungsfall. Der Installationsvertrag legt Netze, Einbindungen und Prüfungen fest.
+Grenze eine Störung anhand der Dienstzuständigkeit ein, bevor du Container änderst. Der mitgelieferte Stack fasst Anwendungs- und Wissensdatenbank in `db` zusammen; Compose aus dem Quellcode kann `knowledge-db` separat betreiben. Prüfe deinen tatsächlichen Aufbau mit `tale status` oder der Dienstübersicht deines Orchestrators.
 
-Die fertige Einzelhost-Bereitstellung führt Anwendungs- und Wissensdatenbank im Datenbankdienst zusammen. Entwicklungs-Compose kann eine getrennte Wissensdatenbank starten. Prüfe deshalb den tatsächlichen Aufbau, bevor du Container vergleichst.
+## Die ersten Protokolle auswählen
 
-## Die Container und ihre Aufgaben
+| Symptom | Hier beginnen | Danach prüfen |
+| --- | --- | --- |
+| Öffentliche URL oder TLS scheitert | `proxy` | DNS, Zertifikatszustand, öffentliche Ports und Erreichbarkeit der Zieldienste. |
+| Die Oberfläche lädt nicht | `platform`, dann `proxy` | Web-Zustand, statische Dateien und gewählte Bereitstellungsversion. |
+| Oberfläche lädt, Anmeldung oder Datenabfragen scheitern | `backend-api` | API-Zustand, Datenbankzugriff, Anfragefehler und Proxy-Routen. |
+| Jobs, geplante Automatisierungen oder Importe kommen nicht weiter | `backend-worker` | Warteschlange, Job-Fehler, Zugangsdaten und benötigte Speicher. |
+| Lesen oder Schreiben scheitert an vielen Stellen | `db` oder die externe Anwendungsdatenbank | Verbindung, Plattenplatz, Sperren und Datenbankprotokolle. |
+| Dateien lassen sich nicht hoch- oder herunterladen | `backend-api`, danach `object-store` oder externer Bucket | Aufgelöste Organisationsverbindung, Zugangsdaten, öffentlicher Endpunkt und Browser-CORS. |
+| Ein Harness startet nicht oder erreicht sein Modell nicht | `sandbox`, `sandbox-llm-gateway` | Sitzungserstellung, Gateway-Anmeldung, Modellverfügbarkeit und Laufzeit-Image. |
+| Sandbox-Netzzugriff oder Seitenrendering scheitert | `sandbox-egress`, `sandbox` | Zielhost, erlaubte Ports, Egress-Regeln und Sitzungsprotokolle. |
+| Videotranskript wird nicht abgerufen | `backend-worker`, `bgutil-provider` | Videozugriff, Extraktionsfehler, konfigurierter Proxy und Browsersitzungsstatus. |
 
-| Container                  | Aufgabe                                                                           | Crash betrifft                                                              |
-| -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `tale-proxy`               | TLS-Terminierung + Edge-Routing                                                   | Jeden Ingress — kein Client erreicht die UI                                 |
-| `tale-platform`            | Web-Tier: SPA + statische Assets, Branding, der Config-SSE-Watch                  | Browser sieht die Ladeseite; die API bedient gecachte Tabs weiter           |
-| `tale-backend-api`         | Jede Anwendungstür: App-API, Auth, der SSE-Hinweis-Stream, die Maschinentüren     | UI lädt, aber keine Daten; Anmeldung, Chat und Uploads scheitern            |
-| `tale-backend-worker`      | Job-Runner: Schedules, Agent-Turns, Ingestion, Crawling, RAG-Indexierung, Doc-Gen | Chat antwortet weiter; Hintergrund-Jobs, Automationen und Ingestion stocken |
-| `tale-db`                  | Operatives Postgres — der `tale_app`-Speicher und der `tale_knowledge`-Korpus     | Schreibvorgänge blockieren; Wissenssuche liefert leer                       |
-| `tale-object-store`        | S3-kompatibler Blob-Store (Uploads, Anhänge, generierte Medien)                   | Jeder Up-/Download scheitert; laufende Chats ohne Dateien laufen weiter     |
-| `tale-sandbox-llm-gateway` | LLM-Gateway für Harness-Turns                                                     | Harness-Turns erreichen kein Modell; Chat ist unbetroffen                   |
-| `tale-sandbox-egress`      | Netz-Egress für sandboxten Code                                                   | `Run code` scheitert mit „egress denied“; Web-Rendering scheitert           |
-| `tale-sandbox`             | Sandbox-Laufzeit + Headless-Browser für Web-Rendering und Dokumentgenerierung     | `Run code`, Web-Crawl-Rendering und Dokumentgenerierung scheitern alle      |
+Nutze logische Dienstnamen mit `tale logs <service>`. Für deinen eigenen Compose-Stack gilt `docker compose logs --tail=200 <service>`. Erzeugte Containernamen können Projekt, Farbe und Replikatnummer enthalten.
 
-Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS); der Rest ist rein intern. Der `tale-bgutil-provider`-Sidecar ist Best-Effort — sein Ausfall verschlechtert nur die YouTube-Video-Link-Ingestion.
+## Einer interaktiven Chatanfrage folgen
 
-## Der Anfragepfad
+1. Der Browser erreicht `proxy`. Webdateien gehen an `platform`, Anwendungs- und Anmeldeanfragen an `backend-api`.
+2. Die API prüft Sitzung und Organisation, ermittelt Modell und Zugangsdaten und führt den interaktiven Turn aus. Fortschritt wird in der Anwendungsdatenbank gespeichert.
+3. Der Browser liest Fortschritt über den Stream-Endpunkt des Chats. `/events` liefert Hinweise zum erneuten Laden von Daten und enthält nicht den Token-Stream.
+4. Wissenswerkzeuge verwenden die Wissensverbindung der anfragenden Organisation. Originaldateien werden über deren Speicherkonfiguration gelesen.
+5. Ein Turn mit Coding-Harness benötigt eine Sandbox-Sitzung und das Modell-Gateway. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
 
-Eine Chat-Nachricht macht einen Roundtrip durch die Container:
+Ein Worker-Ausfall hat daher einen anderen Umfang als ein API-Ausfall. Daraus folgt aber nicht, dass sämtliche Chat- oder Agentenarbeit weiterläuft. Prüfe Einstiegspunkt und Ausführungstyp des betroffenen Ablaufs. Sichere den ursprünglichen Fehler, bevor du einen Turn wiederholst, der Tokens verbrauchen oder externe Aktionen ausführen könnte.
 
-1. Browser → `tale-proxy` (TLS terminiert).
-2. `tale-proxy` → `tale-platform` für die SPA-Hülle und Assets, → `tale-backend-api` für die App-API (`/api/app/*`, `/api/auth/*`) und den `/events`-SSE-Stream.
-3. `tale-backend-api` liest die Provider-Config der Org, wählt das Modell und öffnet einen Stream zum Upstream-Provider, wobei es Tokens über die `/events`-SSE-Bahn zurückreicht.
-4. Ruft der Agent Wissen ab: das Backend führt die RAG-Suche direkt gegen die `tale_knowledge`-Datenbank von `tale-db` aus — kein separater Retrieval-Service im Pfad.
-5. Führt der Agent Code aus: `tale-backend-api` → `tale-sandbox` → `tale-sandbox-egress` für jeglichen ausgehenden Netzverkehr.
-6. Schwerere Arbeit, die ein Agent-Turn abzweigt — Dokument-Ingestion, Generierung, eine geplante Automation — nimmt `tale-backend-worker` auf, nicht die api.
+## Abhängigkeiten der Sandbox verstehen
 
-Der Hot-Path ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Schuldige fast immer der Upstream-Provider, nicht Tale; der Metrics-Endpunkt auf `tale-backend-api` zeigt die in jedem Hop verbrachte Zeit.
+`sandbox` ist ein Spawner mit Zugriff auf den Docker-Daemon des Hosts. Er erstellt vorübergehende Container aus dem festgelegten Sandbox-Runtime-Image und bindet deren Arbeitsverzeichnisse ein. Diese Sitzungen verwenden ein isoliertes Netzwerk: Webanfragen laufen über `sandbox-egress`, Modellaufrufe über den begrenzten Sitzungszugriff des Gateways.
 
-## Die Sandbox-Ebene
+Die Laufzeit stellt auch Chromium und Playwright für Seitenrendering und Dokumenterzeugung bereit. Eine funktionierende Weboberfläche beweist daher nicht, dass die Ausführungsebene funktioniert. Prüfe Image-Verfügbarkeit, Workspace-Mounts, gemeinsames Sandbox-Token und Gateway-Zugangsdaten, bevor du ein einzelnes Skript untersuchst.
 
-Sandboxte Code-Ausführung läuft in `tale-sandbox` mit `tale-sandbox-egress` als einziger Netznaht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jede Anfrage, die der sandboxte Code stellt, läuft durch `tale-sandbox-egress`, das Cloud-Metadaten- und Private-Range-Ziele auf IP-Ebene blockiert und — wenn der Operator `SANDBOX_EGRESS_ALLOWLIST` setzt — obendrauf eine Default-Deny-Hostname-Allowlist erzwingt. Ist der Egress-Container aus, scheitert sandboxter Code, der das Netz braucht, geschlossen mit „egress denied“ — kein stiller Timeout.
+Der Egress-Dienst blockiert private Adressen und Metadatenziele und kann eine Hostnamen-Freigabeliste erzwingen. Ein ausgefallener Ausgang kann Verweigerungen oder Netzwerkfehler verursachen; die genaue Meldung hängt von der Operation ab. [Härtung](/de/self-hosted/operate/security/hardening) beschreibt die Regeln, [Compose selbst betreiben](/de/self-hosted/install/own-compose) die nötigen Rechte und Mounts.
 
-Die Sandbox-Laufzeit bringt Chromium und Playwright mit, sodass das Backend sie für die Headless-Arbeit wiederverwendet, die es nicht im Prozess erledigen kann: eine JavaScript-Seite bei einem Web-Crawl rendern und generiertes HTML in ein PDF oder Bild verwandeln. Diese Jobs laufen als ephemere Sandbox-Ausführungen statt als Nutzer-Code, reiten aber auf derselben Egress- und Isolationsnaht. Die Sandbox ist der einzige Container, der halbwegs nicht vertrauenswürdigen Code ausführt (nutzergelieferte Skill-Skripte, `Run code`-Aufrufe von Agents); der Rest des Stacks führt den eigenen Code der Plattform aus.
+## Reparaturen des Wissensindex erkennen
 
-## Fehlermodi — wie der Ausfall jedes Containers aussieht
+Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumenttabellen noch lesbar sind. Das Backend prüft Wissensindizes mit `pdb.verify_index`. Ein Advisory Lock koordiniert Reparaturversuche pro Datenbank. Organisationsspezifische Datenbanken werden bei ihrer ersten Verwendung geprüft.
 
-**`tale-proxy` aus.** Der TLS-Handshake scheitert; jeder Client sieht einen Verbindungsfehler. Im Host sind die Plattform- und Backend-Container noch oben — starte zuerst den Proxy neu.
+| Ergebnis | Verhalten des Backends | Deine Reaktion |
+| --- | --- | --- |
+| Fehlerfrei | Normal weiterarbeiten. | Keine Reparatur nötig. |
+| Beschädigter Index bis `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | Direkt neu aufbauen und erneut prüfen; die Standardgrenze beträgt 1 GiB. | Mit längerem Start rechnen und das Endergebnis prüfen. |
+| Größerer beschädigter Index | Gleichzeitigen Neuaufbau im Hintergrund einplanen; betroffene Indexierung kann mit entsprechendem Grund warten. | Worker-Fortschritt und abschließende Prüfung beobachten. |
+| Reparatur scheitert oder Zustand bleibt ungeklärt | Fehler festhalten; betroffene Korpusoperationen können unverfügbar bleiben. | Ursache, Datenbankrechte und Speicherzustand vor einer manuellen Reparatur prüfen. |
 
-**`tale-platform` aus.** Der Browser bekommt die Ladeseite des Proxys statt der App-Hülle; die API läuft weiter. Bestehende Tabs mit gecachten Assets sprechen weiter mit dem Backend und merken es womöglich erst beim Neuladen.
+Reparaturen können die Audit-Aktionen `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled` oder `knowledge_index_repair_failed` und Admin-Benachrichtigungen auslösen. Ein fehlgeschlagener Neuaufbau beweist keinen Verlust der Quelldokumente. Ein erfolgreicher Neuaufbau ersetzt kein Datenbank-Backup.
 
-**`tale-backend-api` aus.** Der Browser lädt die UI-Hülle, aber nichts füllt sich, und Anmeldung, Chat und Uploads scheitern alle — das ist der Container, von dem jede Anwendungsanfrage abhängt. Ein Neustart ist sicher: Sessions sind serverseitig, Clients verbinden den SSE-Stream neu. Ein Single Point of Failure ist er nur beim Default von einer Replica; die api läuft als Replica-Set, und ein höheres `TALE_BACKEND_API_REPLICAS` stellt mehrere hinter denselben DNS-Alias ([Upgrades](/de/self-hosted/operate/upgrades)).
-
-**`tale-backend-worker` aus.** Chat antwortet weiter — die api bedient ihn —, aber geplante Automationen, Agent-Task-Läufe, Dokument-Ingestion und RAG-Indexierung stocken, bis der Worker zurück ist. Jobs sind at-least-once, also nimmt laufende Arbeit beim nächsten Durchlauf wieder auf, statt verloren zu gehen. Setz `TALE_BACKEND_WORKER_REPLICAS` hoch, wenn die Job-Queue der Flaschenhals ist ([Upgrades](/de/self-hosted/operate/upgrades)).
-
-**`tale-db` aus.** Schreibvorgänge blockieren und die Wissenssuche liefert leer; die App zeigt bei jeder Mutation „Speichern fehlgeschlagen“-Toasts. Das ist der eine Container, dessen Daten nicht ableitbar sind — starte ihn zuerst neu und bestätige, dass er gesund zurückkommt, bevor du dich um den Rest sorgst.
-
-**`tale-object-store` aus.** Jeder Upload und jeder Download einer gespeicherten Datei scheitert; Agents, die Dokumente lesen oder schreiben, geben Fehler, während Chats ohne Dateien weiterlaufen. Ein Neustart des Containers behebt es — die Blobs liegen auf dem `object-store-data`-Volume, nicht im Container.
-
-**`tale-sandbox` / `tale-sandbox-egress` aus.** `Run code`-Tool-Aufrufe geben einen Fehler, und Skill-Skripte scheitern. Weil das Backend Webseiten rendert und Dokumente über die Sandbox-Laufzeit generiert, scheitern auch ein Web-Crawl, der JavaScript-Rendering braucht, und die Dokumentgenerierung geschlossen, während die Sandbox aus ist. Agents, die nichts davon nutzen, laufen weiter.
-
-**`tale-sandbox-llm-gateway` aus.** Harness-Turns verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus dem Backend aufruft, nicht über das LLM-Gateway — ist unbetroffen.
-
-## Wenn `tale-db` nach einem Absturz zurückkommt: der Suchindex der Wissensdatenbank
-
-Ein harter Stopp von `tale-db` — Absturz, Kill, Neustart des Hosts — kann im BM25-Suchindex (pg_search) des Wissenskorpus einen genullten Block hinterlassen. Die Tabellen sind intakt, aber jeder neue Chunk, der in den Korpus geschrieben wird, bringt den Datenbankserver zum Absturz („corrupted page pointers“), der Server startet neu, und der nächste Indexierungsjob wiederholt den Zyklus. Der Index ist abgeleitete Daten, ein Neuaufbau verliert also nichts — und das Backend erledigt ihn selbst.
-
-Beim Start prüft jeder Backend-Container (api und worker) jeden BM25-Index der Wissensdatenbank mit `pdb.verify_index`, bevor er Anfragen bedient oder Jobs abarbeitet; die eigene Wissensdatenbank einer Organisation prüft das Backend genauso, sobald es sie zum ersten Mal anfasst. Ein Advisory Lock auf der Wissensdatenbank sorgt dafür, dass ein Container repariert und die anderen überspringen. Was dann passiert, hängt von der Indexgröße ab:
-
-- Bis `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` (Standard 1 GiB): Der Container baut den Index an Ort und Stelle neu auf (`REINDEX INDEX`) und prüft ihn erneut, bevor er weitermacht. Der Start verzögert sich um den Neuaufbau — bei einem kleinen Korpus Sekunden.
-- Darüber: Der Start läuft weiter, ein Hintergrundjob baut den Index neu auf, ohne Lesezugriffe zu blockieren (`REINDEX INDEX CONCURRENTLY`), und Dokumente, die währenddessen hochgeladen werden, bekommen den Grund „index rebuilding“ in ihren Indexierungsstatus, statt die Datenbank abstürzen zu lassen. Sobald der neu aufgebaute Index die Prüfung besteht, stellt das Backend sie automatisch wieder in die Warteschlange.
-
-Das Backend protokolliert die ganze Sequenz; so sieht ein reparierter Index in `docker logs tale-backend-api` aus:
-
-```text
-[knowledge] the deployment-default knowledge database: BM25 index private_knowledge.idx_pk_chunks_bm25 is unhealthy (2.9 MB) — rebuilding it now: pdb.verify_index raised: assertion `left == right` failed
-[knowledge] the deployment-default knowledge database: rebuilt BM25 index private_knowledge.idx_pk_chunks_bm25 (2.9 MB, inline, 96 ms) — re-verified healthy (4 checks)
-```
-
-Jede Reparatur — und jeder Neuaufbau, der den Index nicht gesund gemacht hat — schreibt außerdem eine Zeile ins Audit-Log (Akteur `system`; Aktion `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled` oder `knowledge_index_repair_failed`) und meldet sich in der Admin-Glocke jeder Organisation, deren Korpus in dieser Datenbank liegt. Eine Reparatur ist ein Versuch pro Index und Container-Start: Besteht der neu aufgebaute Index die Prüfung weiterhin nicht, hält das Backend an, weist Schreibzugriffe auf diesen Korpus mit einer klaren Fehlermeldung ab, und die Glocke sagt es dir — dann baust du den Index von Hand neu auf (`REINDEX INDEX private_knowledge.idx_pk_chunks_bm25` in der Datenbank `tale_knowledge`) oder stellst die Datenbank aus einem Backup wieder her. Wiederholte Reparaturen nach Neustarts deuten darauf hin, wie der Container gestoppt wird; `KNOWLEDGE_INDEX_REPAIR_DISABLED=1` schaltet die Prüfung ganz ab.
-
-## Wo das hingehört
-
-Diese Seite ist die Karte des Operators; die [Architektur-Übersicht](/de/self-hosted/overview) ist die Einführung ins selbe Bild, die [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting)-Seite ist der symptomorientierte Index, wenn etwas schiefgegangen ist. Wenn du Alert-Schwellen setzt, benennt [Betrieb](/de/self-hosted/operate/observability/operations) die Signale, die sich zu verdrahten lohnen.
+`KNOWLEDGE_INDEX_REPAIR_DISABLED=1` schaltet die automatische Prüfung ab und behebt keine Beschädigung. Wiederkehrende Schäden nach Neustarts erfordern eine Untersuchung des Herunterfahrens und des Speichers. Bevorzuge reguläres Stoppen mit der eingestellten Wartezeit statt erzwungenem Beenden. [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) enthält die lesende Indexprüfung und Hinweise zur Wiederherstellung.

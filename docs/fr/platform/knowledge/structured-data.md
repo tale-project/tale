@@ -30,6 +30,26 @@ Garde le même nom de société ou de produit dans les fiches et les fichiers as
 
 </Tip>
 
+## Créer une fiche contact
+
+Le rôle Rédacteur ou un rôle supérieur est nécessaire pour modifier les fiches de l’organisation. Ouvre **Connaissances > Contacts**, choisis **Ajouter un contact**, puis **Saisie manuelle**.
+
+1. Renseigne le **Courriel** du contact. Ajoute un **Nom** et un **Téléphone** si nécessaire.
+2. Vérifie **Langue**, dont la valeur initiale est `en`, et adapte-la à la langue du contact.
+3. Choisis **Enregistrer**. La fiche apparaît dans Contacts avec ses coordonnées et sa date d’ajout.
+
+Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
+
+## Créer une fiche produit
+
+Ouvre **Connaissances > Produits**, choisis **Ajouter un produit**, puis **Saisie manuelle**. Le formulaire comporte trois étapes.
+
+1. Dans **Bases**, saisis le **Nom du produit**. Ajoute une description et une image si elles aident à l’identifier, puis choisis **Suivant**.
+2. Dans **Prix et stock**, vérifie ensemble le **Prix** et la **Devise**. Par exemple, saisis `12.50` et sélectionne `CHF`. Changer la devise ne convertit pas le montant. Renseigne le stock et la catégorie si nécessaire, puis vérifie le **Statut**. Un nouveau produit commence comme **Brouillon**.
+3. Dans **Vérification**, relis les données et choisis **Créer**. Le tableau affiche le produit avec son prix, son statut et sa date de mise à jour.
+
+Le menu de la ligne permet de modifier un produit enregistré. Choisis des noms faciles à distinguer et vérifie le prix ainsi que la devise avant de changer le statut.
+
 ## Vérifier l’accès et l’actualité
 
 Une fiche ou un document n’est utile qu’aux personnes qui y ont accès. Vérifie les équipes associées lorsqu’un collègue ne trouve pas une information. Les fichiers d’un projet suivent les droits du projet, et non les équipes de la bibliothèque documentaire ; consulte [Fichiers du projet](/fr/platform/projects/manage-files).
@@ -38,7 +58,7 @@ Mets à jour la fiche de référence lorsqu’une donnée change. Après la rév
 
 ## Utiliser les types de fiches disponibles
 
-L’espace de connaissances propose Contacts, Produits et Sites web. **Paramètres > Gouvernance > Modèles** règle l’accès aux modèles d’AI et les choix par défaut. Cette page ne crée ni types de fiches personnalisés ni champs de base de données.
+L’espace de connaissances propose Contacts, Produits et Sites web. **Paramètres > Gouvernance > Modèles** règle l’accès aux modèles d’IA et les choix par défaut. Cette page ne crée ni types de fiches personnalisés ni champs de base de données.
 
 Si les champs disponibles ne conviennent pas, conserve les détails dans un document et rattache ton processus à la fiche appropriée. Pour importer des données par programme et connaître les champs acceptés, consulte la [référence API](/fr/develop/api-reference).
 

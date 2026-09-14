@@ -33,7 +33,7 @@ Beschreibe unter **Anweisungen** die Aufgabe, die Quellen, das Ausgabeformat und
 
 > Prüfe das an die Aufgabe angehängte Launch-Briefing. Liste fehlende Entscheidungen, unklare Zuständigkeiten und Widersprüche auf. Zitiere zu jedem Befund die betreffende Stelle. Ändere keine Dateien und kontaktiere keine externen Dienste. Fehlt das Briefing, frage danach.
 
-Gewähre nur die **Skills, Connectors & Tools** und **Geheimnisse**, die diese Aufgabe braucht. Speichere mit **Agent erstellen**. Nach dem ersten Ergebnis kannst du den Auftrag überarbeiten.
+Gewähre nur die **Skills, Connectors & Tools** und **Secrets**, die diese Aufgabe braucht. Speichere mit **Agent erstellen**. Nach dem ersten Ergebnis kannst du den Auftrag überarbeiten.
 
 </Step>
 

@@ -19,7 +19,40 @@ Tale brings AI chat, project work, knowledge, and automations into one workspace
 
 The code is MIT-licensed. Community and Enterprise include the same product features; Enterprise adds professional operation and support. See [plans and pricing](https://tale.dev/pricing) for the current offer.
 
-![A Tale project board with tasks grouped by status, from Backlog through Done.](.github/assets/readme-gallery-tasks.webp)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena displays two responses to the same prompt and the voting controls." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/chat/arena-mode"><b>Chat and Arena</b></a><br><sub>Compare two model responses side by side.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="The Website relaunch task board groups cards by status." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/projects/tasks"><b>Project tasks</b></a><br><sub>Organize work and review its progress.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="The project Agents tab lists named agents with their runtime and model." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/projects/project-agents"><b>Project agents</b></a><br><sub>Choose instructions, runtime, model and tools.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The automation editor shows connected steps and the selected node’s settings." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/automations/editor"><b>Workflow editor</b></a><br><sub>Inspect steps, test inputs and review runs.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/connectors-add-credential.webp"><img src=".github/assets/readme-gallery-connectors.webp" alt="The Add credential dialog lists available connector integrations." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/connectors/overview"><b>Connectors</b></a><br><sub>Choose the services your workspace uses.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src=".github/assets/readme-gallery-guardrails.webp" alt="The Guardrails settings page shows policy status and configuration controls." width="100%"></a>
+      <br><a href="https://tale.dev/docs/platform/admin/governance/guardrails"><b>Governance</b></a><br><sub>Review content safety and data policies.</sub>
+    </td>
+  </tr>
+</table>
+
+Select a screenshot to view it at full size. The captures show the English interface.
 
 ## Start here
 

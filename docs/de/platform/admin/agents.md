@@ -1,31 +1,38 @@
 ---
-title: Agenten aus Admin-Sicht
-description: Verwalte Zugriff, Anbieter, Ausstattung und Secret-Freigaben über die Projektberechtigungen und die Ressourcen der Organisation.
+title: Projektagenten verwalten und prüfen
+description: Prüfe Bearbeitungsrechte, erlaubte Ressourcen und die Folgen von Secret-Zuordnungen für Agentenläufe.
 ---
 
-Agenten gehören zu Projekten und unterliegen deren Berechtigungen. Als Inhaber oder Admin bestimmst du, welche Ressourcen verfügbar sind und wer die Konfiguration ändern darf. Diese Seite erklärt die Grenzen; [Projekt-Agenten](/de/platform/projects/project-agents) beschreibt die tägliche Einrichtung.
+Verwalte einen Agenten über sein Projekt und die Ressourcen der Organisation. Es gibt keine zusätzliche organisationsweite Agentenliste zum Konfigurieren. Öffne **Projekte**, wähle das Projekt und dann **Agenten**, um seine Agenten zu prüfen oder zu bearbeiten.
 
-## Die Verwaltung des Teams regeln
+## Die Bearbeitungsrechte klären
 
-Wer ein Projekt lesen darf, sieht seine Agenten. Mit Bearbeitungsrechten kannst du Agenten in einem aktiven Projekt anlegen, ändern und löschen; archivierte Projekte bleiben lesbar. Jedes Projekt fasst bis zu 50 Agenten mit innerhalb des Projekts eindeutigen Namen.
+Wer das Projekt lesen darf, sieht seine Agenten. Personen mit Bearbeitungszugriff können sie im aktiven Projekt erstellen, ändern und löschen. Archivierte Projekte bleiben lesbar. Prüfe [Mitgliederrollen](/de/platform/admin/members-and-roles) und [Team-Zugriff](/de/platform/admin/teams), wenn eine Person unerwartet Zugriff hat oder ihr der Zugriff fehlt.
 
-Eine Agenten-ID gehört zu ihrem Projekt. Auch mit Zugriff auf zwei Projekte lässt sich der Agent des einen Projekts nicht über das andere ändern. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) und [Teams](/de/platform/admin/teams) erklären die zugrunde liegenden Rechte.
+Ein Agent gehört genau einem Projekt. Seine ID und der Zugriff auf ein zweites Projekt erlauben einer Integration nicht, ihn als Agenten dieses zweiten Projekts zu verwenden. Pro Projekt sind bis zu 50 Agenten möglich, mit jeweils eindeutigen Namen.
 
-## Die verfügbaren Ressourcen steuern
+## Vor dem Start die Ressourcen prüfen
 
-- **Anbieter** stellen Modelle und Zugangsdaten für die Ausführung bereit. [Anbieter](/de/platform/admin/providers) beschreibt die verfügbaren Engines.
-- **Connectors, Skills und Tools** bestimmen, welche Dienste, Referenzen und Plattformaktionen ein Agent erreicht. Vergib die Ausstattung, die seine Aufgabe verlangt.
-- **Secret-Freigaben** geben dem Lauf die Werte benannter Organisationsgeheimnisse. Nur Inhaber oder Admins der Organisation dürfen die freigegebenen Namen ändern. Redakteure können andere Einstellungen speichern, wenn sie die vorhandenen Freigaben beibehalten.
-- **Budgets und Richtlinien** regeln Ausgaben und Aktionen organisationsweit; siehe [Richtlinien und Grenzen](/de/platform/admin/governance/policies-and-limits).
+Öffne den Bearbeitungsdialog des Agenten und prüfe das Zusammenspiel der Einstellungen, nicht nur das Modell:
 
-Geheimniswerte bleiben verschlüsselt gespeichert und fehlen in der Agentenkonfiguration, die die API zurückgibt. Beim Rotieren änderst du den Wert für alle Agenten, die auf diesen Namen verweisen.
+| Prüfung | Warum sie nötig ist | Wo du ein Problem klärst |
+| --- | --- | --- |
+| Harness, Modell und Provider | Die Zugangsdaten müssen diesen Ausführungsweg unterstützen. | [KI-Provider](/de/platform/admin/providers). |
+| Skills und ihre Freigabe | Der Team-Zugriff des Projekts bestimmt die verfügbaren Bundles. | [Skill-Bibliothek](/de/platform/workspace/skills) und Projektzugriff. |
+| Connectors und Plattform-Tools | Sie erlauben Dienste und unterstützte Datenoperationen. | [Connector-Zugangsdaten](/de/platform/admin/connectors) und Ausstattung des Agenten. |
+| Secrets | Die laufende Sitzung kann die zugeordneten Werte lesen. | **Secrets** im Agentendialog, für Inhaber und Admins. |
+| Sandbox-Kapazität und Ausgaben | Die Arbeit braucht eine verfügbare Umgebung und ein zulässiges Budget. | [Sandboxes](/de/platform/admin/sandboxes) und [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). |
 
-## Dieselben Regeln für Integrationen anwenden
+Für einen Review-Agenten können Repository-Lesezugriff und Werkzeuge zum Berichten genügen. Ein freigegebenes Schreib-Tool darf seine Operationen innerhalb der Zugriffsregeln ausführen. Eine dauerhafte Anweisung, zuerst nachzufragen, ersetzt nicht das Entfernen einer unnötigen Berechtigung.
 
-Die öffentliche API verlangt bei jeder Agentenoperation eine Projekt-ID und prüft die Projektberechtigungen des Schlüsselinhabers. API und Projektoberfläche lesen und ändern dieselben Agenten. Die [API-Referenz](/de/develop/api-reference#agenten-eines-projekts-verwalten) enthält die Routen und ein vollständiges Beispiel.
+## Secret-Änderungen gezielt vornehmen
 
-Eine Aktualisierung enthält die gesamte Konfiguration samt den Secret-Freigaben, die bleiben sollen. Lässt du die Freigaben aus, verlangst du deren Entfernung; dafür brauchst du dieselben Admin-Rechte wie beim Hinzufügen.
+Nur Inhaber und Admins dürfen Secret-Zuordnungen ändern. Ein Editor kann andere Felder bearbeiten und die vorhandenen Zuordnungen erhalten. Secret-Werte liegen verschlüsselt im Speicher der Organisation und werden nicht mit der Agentenkonfiguration zurückgegeben. Der laufende Agent erhält jedoch die ihm zugeordneten Werte.
 
-## Die Projekteinstellungen prüfen
+Verwende eng begrenzte und austauschbare Zugangsdaten. Mehrere Agenten oder Automatisierungs-Nodes können denselben Secret-Namen nutzen. Austausch oder Löschung des Werts betrifft dann jeden künftigen Lauf, der darauf verweist. Prüfe diese Verwendungen vorher.
 
-Prüfe die Projektmitgliedschaft zusammen mit Modell, Ausstattung und Secret-Freigaben des Agenten. [Agenten verstehen](/de/platform/agents/concepts) erklärt das Zusammenspiel, [Projekt-Agenten](/de/platform/projects/project-agents) die Konfiguration für Aufgaben.
+## API-Clients nach denselben Regeln prüfen
+
+Die öffentliche API liest und schreibt dieselbe Agentenliste und prüft den Projektzugriff des Schlüsselinhabers. Jede Operation enthält eine Projekt-ID. Eine Aktualisierung übergibt die vollständige Konfiguration einschließlich der Secret-Zuordnungen, die erhalten bleiben sollen. Fehlende Zuordnungen bedeuten ihre Entfernung und benötigen deshalb administrative Rechte.
+
+Das [API-Beispiel für Projektagenten](/de/develop/api-reference#agenten-eines-projekts-verwalten) beschreibt die Integration. Öffne nach einer Änderung den Agenten erneut und prüfe das gespeicherte Modell, die Ausstattung und die Zuordnungen. Gib ihm danach eine kleine Aufgabe mit einem von Menschen prüfbaren Ergebnis. [Projektagenten](/de/platform/projects/project-agents) führt durch diesen Ablauf.

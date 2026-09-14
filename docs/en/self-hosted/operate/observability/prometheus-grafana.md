@@ -1,94 +1,83 @@
 ---
 title: Prometheus and Grafana
-description: A copy-paste Prometheus and Grafana stack that scrapes Tale's two metrics endpoints, plus a starter dashboard and a first alert rule.
+description: Collect Tale metrics with a token file, validate scrape and alert configuration, and build a dashboard from the available series.
 ---
 
-Collect Tale’s Prometheus metrics in your monitoring stack and use Grafana to inspect trends. This guide separates scrape targets from generated alert rules, then gives a starting dashboard and alert.
+Use your existing Prometheus and Grafana installation when you have one. The example below runs a separate monitoring Compose project that scrapes Tale through its public proxy. It includes persistent metrics storage, a mounted token file, and two starter alerts.
 
-You need access to the deployment’s metrics token and a Prometheus server that can reach the public metrics paths. Keep the token out of public configuration and restrict access to dashboards that expose operational detail.
+## Prepare access and files
 
-## Before you start
+Set `METRICS_BEARER_TOKEN` for Tale's proxy, then apply the environment change through your deployment workflow. A container restart alone does not load changed environment values. Confirm the token-gated paths in [Observability config](/self-hosted/configuration/observability-config#metrics) before configuring a scraper.
 
-Set `METRICS_BEARER_TOKEN` in your `.env` and restart the proxy — without it the two endpoints return 401 to every request, and Prometheus will show each target as down. The endpoints, and what each one carries, are the table in [Observability config](/self-hosted/configuration/observability-config#metrics): `/metrics/platform` and `/metrics/backend` (the latter now carries the in-process RAG and crawl timings), both served by `tale-proxy` over the same hostname as the app.
+Create a separate monitoring directory with `compose.monitoring.yml`, `prometheus.yml`, `tale-alerts.yml`, and `secrets/tale-metrics-token`. Put only the token value in that secret file using your secret manager. Keep it and the monitoring `.env` out of version control, with access limited to the operator and the container that needs it.
 
-## Add Prometheus and Grafana to your stack
+In the monitoring `.env`, pin tested `PROMETHEUS_IMAGE` and `GRAFANA_IMAGE` tags and set `GRAFANA_ADMIN_PASSWORD`. Select supported releases from the projects' official [Prometheus](https://prometheus.io/download/) and [Grafana](https://grafana.com/grafana/download) distribution pages. These versions are independent of Tale's release tag.
 
-Drop these two services into a compose override next to Tale. Prometheus scrapes on an interval and stores a local TSDB; Grafana reads Prometheus and renders the dashboards. Both bind to localhost only — reach Grafana through an SSH tunnel or put it behind the same proxy with auth, never expose it raw.
+## Define the monitoring services
+
+Both interfaces bind to loopback. Reach them on the Docker host or through an SSH tunnel; a remote Docker context does not bind them to your workstation.
 
 ```yaml
-# docker-compose.metrics.yml — start with: docker compose -f docker-compose.yml -f docker-compose.metrics.yml up -d
+# compose.monitoring.yml
 services:
   prometheus:
-    image: prom/prometheus:v3.1.0
+    image: ${PROMETHEUS_IMAGE:?set a tested Prometheus image tag}
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./tale-alerts.yml:/etc/prometheus/tale-alerts.yml:ro
       - prometheus-data:/prometheus
-    ports:
-      - '127.0.0.1:9090:9090'
+    secrets: [tale_metrics_token]
+    ports: ['127.0.0.1:9090:9090']
     restart: unless-stopped
-
   grafana:
-    image: grafana/grafana:11.4.0
+    image: ${GRAFANA_IMAGE:?set a tested Grafana image tag}
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set a strong password}
       GF_USERS_ALLOW_SIGN_UP: 'false'
-    volumes:
-      - grafana-data:/var/lib/grafana
-    ports:
-      - '127.0.0.1:3001:3000'
+    volumes: ['grafana-data:/var/lib/grafana']
+    ports: ['127.0.0.1:3001:3000']
     restart: unless-stopped
-
+secrets:
+  tale_metrics_token:
+    file: ./secrets/tale-metrics-token
 volumes:
   prometheus-data:
   grafana-data:
 ```
 
-## Scrape configuration
+The secret is mounted inside Prometheus at `/run/secrets/tale_metrics_token`. Make sure your container runtime can read the source file without opening it to other users.
 
-Tale's two endpoints share one bearer token, so the scrape config is the published stanza repeated once per path. Save this as `prometheus.yml` next to the override above and substitute your host and token — Prometheus reads the token from the file, so keep it `chmod 600` and out of version control.
+## Configure collection and alerts
+
+Replace `tale.example.com` with the reachable Tale hostname, including a port when it is not 443. Add your deployment's base path to each `metrics_path` if needed. Use a trusted HTTPS certificate or configure a CA file; do not disable certificate verification to make a scrape pass.
 
 ```yaml
+# prometheus.yml
 global:
   scrape_interval: 30s
-
+rule_files:
+  - /etc/prometheus/tale-alerts.yml
 scrape_configs:
   - job_name: tale-platform
     scheme: https
     metrics_path: /metrics/platform
-    authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
+    authorization:
+      credentials_file: /run/secrets/tale_metrics_token
     static_configs:
       - targets: ['tale.example.com']
   - job_name: tale-backend
     scheme: https
     metrics_path: /metrics/backend
-    authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
+    authorization:
+      credentials_file: /run/secrets/tale_metrics_token
     static_configs:
       - targets: ['tale.example.com']
 ```
 
-Open `http://127.0.0.1:9090/targets` after start — both jobs should read **UP**. A target stuck **DOWN** with a 401 means the token in `prometheus.yml` does not match `METRICS_BEARER_TOKEN`; a connection error means the hostname or scheme is wrong.
-
-## A starter dashboard
-
-Point Grafana at Prometheus first — add a Prometheus data source at `http://prometheus:9090` (Grafana reaches it by the compose service name). Then build a dashboard from these panels; the first three use metrics that are always present, and the rest map to the signals in [Operations](/self-hosted/operate/observability/operations).
-
-| Panel           | Query                                                | Reads as                                          |
-| --------------- | ---------------------------------------------------- | ------------------------------------------------- |
-| Targets up      | `up{job=~"tale-.*"}`                                 | `1` per healthy endpoint, `0` when scraping fails |
-| Platform memory | `process_resident_memory_bytes{job="tale-platform"}` | Resident memory of the platform container         |
-| Event-loop lag  | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Spikes when the platform is saturated             |
-| Backend up      | `up{job="tale-backend"}`                             | Backend reachability — `0` is a page              |
-| Stores up       | `tale_backend_store_up`                              | `1` per reachable store, labelled `app_db`, `knowledge_db`, `object_store` |
-
-`tale_backend_store_up` is worth a panel of its own on any deployment whose stores are not containers next to the backend: it is the only signal that an external Postgres or S3 bucket stopped answering, because the backend stays healthy and keeps serving until someone tries to use the store. It is deliberately not part of `/ready`, so a flapping bucket cannot drain a colour mid-deploy.
-
-The platform endpoint carries Node's default process metrics (CPU, memory, event-loop lag, GC), which is why the concrete queries above target it. The backend endpoint exposes its own richer series, including the in-process RAG and crawl timings — open it once (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/backend`) to read the exact metric names your version exposes, then add panels for knowledge-ingestion throughput and provider error rate called out in Operations.
-
-## A first alert rule
-
-Start with the one signal that is unambiguous — a metrics target that stops responding. Add this rule file to Prometheus (mount it and reference it under `rule_files:` in `prometheus.yml`), then wire Alertmanager or Grafana alerting to your pager.
+The token comes from `credentials_file`, as supported by [Prometheus HTTP configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#http_config). A literal `${METRICS_BEARER_TOKEN}` in this YAML is not a substitution supplied by Docker Compose, because Compose mounts the file without rewriting it.
 
 ```yaml
+# tale-alerts.yml
 groups:
   - name: tale
     rules:
@@ -98,20 +87,40 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale metrics target {{ $labels.job }} is down'
-      - alert: TaleStoreUnreachable
+      - alert: TaleDefaultStoreUnreachable
         expr: tale_backend_store_up == 0
         for: 5m
         labels: { severity: page }
         annotations:
-          summary: 'Tale cannot reach its {{ $labels.store }} store'
+          summary: 'Tale cannot reach its default {{ $labels.store }} store'
 ```
 
-The second rule is what makes "knowledge-database reachability" in the signal table below pageable. Give it a longer `for` than the target-down rule: the gauge is refreshed on a cache with its own interval, so a single failed probe is not yet an outage.
+Adjust severity and waiting periods to your service requirements, and configure Alertmanager or Grafana alert delivery. A rule visible in Prometheus does not send a notification by itself. The store alert covers deployment defaults; it does not monitor organization-specific databases or buckets.
 
-The full list of what's worth paging on versus what can wait — platform 5xx rate, Postgres pool saturation, knowledge-database reachability, daily-backup-did-not-write — is the signal table in [Operations](/self-hosted/operate/observability/operations); translate each row into a rule once the matching series is on your dashboard.
+## Start and verify collection
 
-## Where this fits
+Validate the files before starting the services:
 
-This page turns the two documented metrics endpoints into a running Prometheus and Grafana stack: a compose override, a two-job scrape config, a starter dashboard, and a target-down alert you extend with the Operations thresholds. Keep both services bound to localhost and the bearer token off disk-in-the-clear, and the whole monitoring surface stays on the host with Tale.
+```bash
+docker compose -f compose.monitoring.yml config --quiet
+docker compose -f compose.monitoring.yml run --rm --entrypoint promtool \
+  prometheus check config /etc/prometheus/prometheus.yml
+docker compose -f compose.monitoring.yml up -d
+```
 
-The endpoints and the token that gate them are owned by [Observability config](/self-hosted/configuration/observability-config); the thresholds and the oncall checklist are [Operations](/self-hosted/operate/observability/operations). When a panel goes red, the symptom-to-fix lookup is [Troubleshooting](/self-hosted/operate/observability/troubleshooting).
+Open `http://127.0.0.1:9090/targets`. Both Tale jobs should show **UP**. Check the query `up{job=~"tale-.*"}` and inspect the alert rules. A `401` points to token configuration; DNS, connection, and certificate errors require checking the scraper's own network path. An **UP** target proves a successful scrape, not every application feature.
+
+Open Grafana at `http://127.0.0.1:3001` and add a Prometheus data source at `http://prometheus:9090`. That address is resolved inside the monitoring Compose network.
+
+## Build a useful first dashboard
+
+| Panel | Query | Interpretation |
+| --- | --- | --- |
+| Scrape availability | `up{job=~"tale-.*"}` | Whether each public metrics path answered the scraper. |
+| Backend memory | `process_resident_memory_bytes{job="tale-backend"}` | Memory of the API replica that answered. |
+| Backend response rate | `sum by (status) (rate(tale_backend_http_requests_total[5m]))` | Request rates grouped by response status class. |
+| Job states | `tale_backend_jobs` | Jobs by queue state; inspect sustained growth and failures. |
+| Default stores | `tale_backend_store_up` | Cached reachability for `app_db`, `knowledge_db`, and `object_store`. |
+| Deployment drain | `tale_backend_drain_active` | Whether deployment draining is refusing new turns. |
+
+Some collectors read shared database counts; others describe one process. With multiple replicas, collect per-replica process metrics through your private monitoring network and avoid double-counting shared gauges. [Operations](/self-hosted/operate/observability/operations) explains the limits of the store probes and the additional measurements required by the SLA rule template.

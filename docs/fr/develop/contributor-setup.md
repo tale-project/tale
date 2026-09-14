@@ -10,10 +10,12 @@ Utilise un clone local du [dépôt Tale](https://github.com/tale-project/tale). 
 
 | Prérequis | Rôle | Vérification |
 | --- | --- | --- |
-| Bun 1.3 ou plus récent | Workspaces, dépendances, Vite et scripts de développement | `bun --version` |
+| Version de Bun fixée dans le `package.json` à la racine | Workspaces, dépendances, Vite et scripts de développement | `bun --version` |
 | Node.js 22.21.1 ou plus récent dans la branche 22.x | Backend de l’application ; l’image utilise 22.21.1 | `node --version` |
 | Docker avec Compose | Bases applicative et documentaire, stockage objet et services sandbox | `docker info` et `docker compose version` |
 | Ports locaux libres | Application sur 3000, backend sur 3005 | `bun run setup:check` |
+
+Le dépôt fixe la version du gestionnaire de paquets. Utilise-la pour reproduire un problème ou modifier le lockfile ; la vérification de démarrage ne contrôle qu’une version minimale.
 
 La vérification préalable contrôle Bun et les deux ports. Vérifie Node et Docker séparément : un résultat positif ne les valide pas. Le premier démarrage nécessite aussi un accès réseau pour télécharger les dépendances et les images. Un fournisseur de modèles est nécessaire pour obtenir de vraies réponses AI, mais pas pour te connecter et explorer l’application.
 

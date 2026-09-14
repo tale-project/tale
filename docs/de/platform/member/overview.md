@@ -1,9 +1,9 @@
 ---
-title: Member
+title: Mitglied
 description: Beginne mit Chat, gemeinsamem Wissen und der Arbeit, die deine Organisation für dich bereitstellt.
 ---
 
-Als Member stellst du Fragen im Chat und liest die Wissens- und Projektinhalte, die für dich freigegeben sind. Einrichtung und Team-Mitgliedschaften bestimmen, welche Ressourcen du siehst. Außerdem kannst du deine Kontoeinstellungen pflegen und wiederverwendbare Skills erstellen.
+Als Mitglied stellst du Fragen im Chat und liest die Wissens- und Projektinhalte, die für dich freigegeben sind. Einrichtung und Team-Mitgliedschaften bestimmen, welche Ressourcen du siehst. Außerdem kannst du deine Kontoeinstellungen pflegen und wiederverwendbare Skills erstellen.
 
 ## In den Tag starten
 
@@ -37,4 +37,4 @@ Bearbeite dein Profil und verstehe gespeicherte Einstellungen und Chat-Verwaltun
 
 ## Wenn eine Aktion fehlt
 
-Member lesen die gemeinsame Bibliothek; Editor und höhere Rollen pflegen ihre Inhalte. Automatisierungen und technische Einrichtung brauchen Developer- oder Administratorrechte. Lass dir den nötigen Zugriff für deine Aufgabe geben. Eine sichtbare Ressource ist nicht automatisch bearbeitbar. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Unterschiede.
+Mitglieder lesen die gemeinsame Bibliothek; Redakteure und höhere Rollen pflegen ihre Inhalte. Automatisierungen und technische Einrichtung brauchen Entwickler- oder Administratorrechte. Lass dir den nötigen Zugriff für deine Aufgabe geben. Eine sichtbare Ressource ist nicht automatisch bearbeitbar. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Unterschiede.

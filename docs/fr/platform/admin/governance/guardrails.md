@@ -49,4 +49,4 @@ Les instructions personnalisées de l’organisation sont ajoutées avant celles
 
 Les événements récents affichent les 50 dernières détections, blocages et erreurs fournisseur. Filtre par couche ou résultat et examine la catégorie, la direction et la date. Le texte brut détecté n’est pas conservé dans ces événements : la ligne explique la détection sans reproduire la valeur sensible.
 
-Si une règle est trop large, ajuste sa catégorie ou ses motifs et répète les tests fictifs. Si une détection manque, vérifie l’activation de la couche, de la catégorie et de la direction voulue. L’historique dépend de la [règle de rétention](/platform/admin/governance/policies-and-limits) des événements de filtre de chat ; ne suppose pas une durée d’archivage fixe.
+Si une règle est trop large, ajuste sa catégorie ou ses motifs et répète les tests fictifs. Si une détection manque, vérifie l’activation de la couche, de la catégorie et de la direction voulue. L’historique dépend de la [règle de rétention](/fr/platform/admin/governance/policies-and-limits) des événements de filtre de chat ; ne suppose pas une durée d’archivage fixe.

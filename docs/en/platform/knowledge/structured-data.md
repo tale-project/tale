@@ -30,6 +30,26 @@ Use the same recognizable company or product name in record titles and supportin
 
 </Tip>
 
+## Create a contact
+
+You need an Editor role or higher to maintain organization records. Open **Knowledge > Contacts**, choose **Add contact**, then **Manual entry**.
+
+1. Enter the contact’s **Email**. Add a **Name** and **Phone** if useful.
+2. Check **Locale**, which starts as `en`, and set the language appropriate to the contact.
+3. Choose **Save**. The new row appears in Contacts with its details and added date.
+
+If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate. Saving a contact creates a record; it does not send that person an email.
+
+## Create a product
+
+Open **Knowledge > Products**, choose **Add product**, then **Manual entry**. The form has three stages.
+
+1. Under **Basics**, enter a **Product name**. Add a description and image if they help someone identify the product, then choose **Next**.
+2. Under **Pricing & inventory**, set **Price** and **Currency** together. For example, enter `12.50` and select `CHF`; changing the currency does not convert the amount. Add stock and category when relevant, and check **Status**. A new product starts as **Draft**.
+3. Under **Review**, check the details and choose **Create**. The product appears in the table with its price, status, and updated date.
+
+Use the row menu to edit a saved product. Keep product names distinct so teammates can identify the right record, and review the price and currency before changing its status.
+
 ## Keep access and freshness in view
 
 A record or document is useful only to people who can access it. Check its team scope when a teammate cannot find it. Project files follow project access rather than the document library’s team tags; see [Project files](/platform/projects/manage-files).

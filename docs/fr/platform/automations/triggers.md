@@ -1,99 +1,102 @@
 ---
-title: Déclencheurs d’automatisation
-description: Les trois façons dont une automatisation démarre d’elle-même — une planification, un webhook ou un événement de la plateforme — ce que chacune transporte dans l’exécution, et pourquoi aucune ne casse à la mise en service.
+title: Démarrer les automatisations automatiquement
+description: Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués.
 ---
 
-Un déclencheur, c’est ce qui lance une automatisation quand personne ne clique nulle part. Il en existe exactement trois sortes, l’ensemble est fermé, et une automatisation porte un seul déclencheur à la fois — en lier une autre sorte remplace celui qu’elle a, et remplacer un webhook par une planification ou un événement révoque l’URL du webhook sur-le-champ (l’enregistrement le dit, et aucune liaison webhook ultérieure ne ramène cette URL). Le plus utile à savoir sur un déclencheur : il se rattache au **nom** de l’automatisation et non à une version. C’est pour cela que mettre une nouvelle version en service n’invalide jamais une URL de webhook dont dépend un système externe, et ne fait jamais disparaître une planification.
+Le panneau **Déclencheur** d’une automatisation définit quand elle démarre seule. Chaque déclencheur utilise la version en service en mode réel. Avant de l’activer, teste le workflow avec les données qu’il recevra et vérifie que ses actions externes sont prêtes.
 
-Chaque déclencheur lance la version en service et s’exécute en mode réel : une automatisation sans version en service ne peut donc pas être lancée par l’un d’eux. Chaque déclencheur porte un interrupteur et tient deux registres qui lui sont propres : la dernière exécution qu’il a lancée, et la dernière fois qu’il est arrivé à échéance sans rien lancer — avec la raison, pour qu’une automatisation qui ne tourne pas te dise pourquoi.
+## Choisir le mode de démarrage
 
-## Les trois sortes
+| Type de déclencheur | Usage | Données transmises à l’exécution |
+| --- | --- | --- |
+| **Planification** | Travail périodique à une heure locale ou à intervalles réguliers. | `{ trigger: "schedule", firedAt: "…" }` |
+| **Webhook** | Réception d’une livraison d’un autre système. | `{ trigger: "webhook", payload: … }` |
+| **Événement de la plateforme** | Un événement nommé dans l’organisation. | `{ trigger: "event", event: "…", payload: … }` |
 
-| Sorte      | Lance l’automatisation quand…                                   |
-| ---------- | --------------------------------------------------------------- |
-| `schedule` | une expression cron arrive à échéance dans un fuseau IANA nommé |
-| `webhook`  | un système externe poste sur une URL protégée par un token      |
-| `event`    | un événement nommé de la plateforme se produit                  |
+Une automatisation possède un seul déclencheur configuré à la fois. Changer son type remplace la liaison précédente. Remplacer un webhook révoque immédiatement son URL ; en recréer un plus tard ne restitue pas ces identifiants.
 
-Un démarrage programmatique n’exige aucun déclencheur. Pour un projet, le client appelle `POST /api/v1/projects/{id}/automations/{name}/runs`. Une automatisation sans liaison peut aussi démarrer sans projet via `POST /api/v1/automations/{name}/runs`. La clé API et les droits sur le projet autorisent l’opération. L’outil MCP `start_run` offre un autre accès ; la [référence API](/fr/develop/api-reference) précise les règles.
+Un client API ou MCP peut aussi démarrer sans déclencheur configuré. Sa clé API et ses droits sur le projet autorisent l’appel, et il fournit directement les données du workflow. Consulte la [référence API](/fr/develop/api-reference).
 
-## Planifications
+## Définir un horaire
 
-Une planification porte une expression cron à cinq champs et le fuseau IANA dans lequel elle est lue. Les champs sont la minute, l’heure, le jour du mois, le mois et le jour de la semaine, et chacun accepte un `*`, un nombre, une plage, un pas, ou une liste de ceux-ci séparée par des virgules.
+<Steps>
+
+<Step title="Ouvrir les paramètres du déclencheur">
+
+Ouvre l’automatisation et son panneau **Déclencheur**. Sous **Type de déclencheur**, choisis **Planification**. Laisse **Actif** désactivé tant que le workflow ne doit pas démarrer seul.
+
+</Step>
+
+<Step title="Saisir l’horaire">
+
+Renseigne **Cron** et le **Fuseau horaire**. Les cinq champs représentent minute, heure, jour du mois, mois et jour de la semaine. Choisis un fuseau IANA comme `Europe/Zurich` pour suivre les heures locales. Sans indication, UTC s’applique.
+
+</Step>
+
+<Step title="Vérifier et enregistrer">
+
+Examine la prochaine occurrence affichée pour l’expression valide, puis enregistre les paramètres. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
+
+</Step>
+
+</Steps>
 
 ```text
 */15 * * * *     toutes les quinze minutes
-0 9 * * 1-5      09:00 en semaine
-0 6 1 * *        06:00 le premier du mois
-30 8 1 * 1       08:30 le 1er et chaque lundi
+0 9 * * 1-5      à 09:00 du lundi au vendredi
+0 6 1 * *        à 06:00 le premier du mois
+30 8 1 * 1       à 08:30 le premier du mois et chaque lundi
 ```
 
-Le jour de la semaine va de 0 à 7, où 0 comme 7 désignent le dimanche. Quand tu restreins à la fois le jour du mois **et** le jour de la semaine, un jour correspondant à l’un ou à l’autre déclenche — la règle même de crontab, et celle qui fait que le dernier exemple se lit comme il se comporte.
+Les champs acceptent `*`, nombres, plages, pas et listes séparées par des virgules. 0 et 7 désignent le dimanche. Si le jour du mois et celui de la semaine sont tous deux limités, l’un ou l’autre suffit. Le dernier exemple tourne donc chaque lundi ainsi que le premier de chaque mois.
 
-Le fuseau est résolu en heure locale : une planification écrite pour 09:00 dans `Europe/Zurich` reste à 09:00 au passage à l’heure d’été, au lieu de dériver d’une heure deux fois par an. Une planification qui ne nomme aucun fuseau est lue en UTC.
+L’heure locale suit les changements saisonniers du fuseau. Un horaire zurichois à 09:00 reste à 09:00 sur place. La résolution est d’une minute. Les occurrences manquées pendant une panne ne sont pas rejouées ; le travail reprend à la suivante. Une date de calendrier impossible est refusée à l’enregistrement.
 
-La résolution est d’une minute, et une planification est un battement de cœur, pas une file d’attente : après une panne, l’automatisation repart à sa prochaine échéance au lieu de rejouer celles qu’elle a manquées. Un cron qui nomme une date qu’aucun calendrier n’a — `0 0 30 2 *`, ou le 31 dans un mois de trente jours — est refusé à l’enregistrement, si bien qu’une planification qui se lie est une planification qui arrivera à échéance. Si une expression enregistrée se révèle malgré tout illisible (un fuseau horaire que la plateforme ne connaît plus, par exemple), le planificateur l’ignore plutôt que d’arrêter les autres planifications de la plateforme, note le saut sur le déclencheur comme `unusable_cron` et la laisse tranquille jusqu’à ce que tu la modifies. La date de dernier déclenchement d’une planification ne bouge que lorsqu’une exécution a réellement démarré ; une planification qui arrive à échéance sans rien en service note `not_deployed` à la place, et une dont la version en service refuse l’entrée de l’exécution note `start_refused` — lis le déclencheur et tu sais lequel.
+## Recevoir un webhook
 
-## Webhooks
+Choisis **Webhook**, puis enregistre pour générer les identifiants. Copie l’URL complète dès son apparition : le jeton n’est montré qu’une fois et seul son hash est conservé. Le panneau fournit une URL d’organisation et un modèle d’URL de projet. Utilise cette dernière pour un projet actif auquel l’automatisation est liée. Une automatisation liée à des projets ne peut pas utiliser l’URL réservée aux exécutions sans projet.
 
-Un webhook est une URL entrante protégée par un token. Sa création engendre le token et l’affiche une seule fois ; seul son empreinte est stockée, de sorte que la plateforme peut vérifier un appelant sans jamais pouvoir reconstituer l’URL. Tout système qui y poste lance une exécution, et le corps de la requête devient la charge utile de l’exécution.
+Envoie une petite charge utile à l’URL. Le JSON devient `payload` à l’intérieur de l’entrée, et non directement ses champs de premier niveau. Les autres contenus passent comme texte. La limite est de 256 KiB ; téléverse les grands documents séparément. Une requête acceptée renvoie l’identifiant de l’exécution sans attendre sa fin.
 
-```bash
-curl -X POST "https://<ton-hote-tale>/api/projects/<projectId>/automations/webhook/<token>" \
-  -H 'Content-Type: application/json' \
-  -d '{"invoiceId": "inv-1"}'
+Ainsi, le corps `{ "invoiceId": "inv-1" }` parvient au workflow sous cette forme :
+
+```json
+{
+  "trigger": "webhook",
+  "payload": { "invoiceId": "inv-1" }
+}
 ```
 
-Un appel réussi est accepté immédiatement et répond avec l’id de l’exécution lancée : l’appelant n’attend donc jamais que l’automatisation se termine. Un corps qui n’est pas du JSON est transmis tel quel en texte plutôt que refusé, car certains fournisseurs postent des charges utiles en formulaire ou en texte brut. Les corps sont plafonnés à 256 Kio (262 144 octets) : un webhook reçoit une charge utile, pas un téléversement.
-
-Les livraisons sont idempotentes, parce que chaque fournisseur livre au moins une fois — une réponse lente, une connexion coupée ou quelqu’un qui clique sur _renvoyer_ expédie la même livraison une seconde fois. Une requête qui nomme sa livraison (`Idempotency-Key`, le `webhook-id` des Standard Webhooks, `X-GitHub-Delivery` et les autres en-têtes courants des fournisseurs) reste connue pendant 24 heures : une répétition avec le même identifiant répond avec l’exécution que la première a lancée, marquée `duplicate: true`, au lieu d’en lancer une seconde. Une requête sans identifiant est reconnue à son corps — un corps identique à l’octet, posté sur la même URL en moins de deux minutes, est la même livraison. Des livraisons distinctes s’exécutent chacune ; si tes charges utiles peuvent légitimement se répéter en moins de deux minutes, envoie un identifiant. [Webhooks](/fr/develop/webhooks) donne la liste complète des en-têtes et les formes de réponse.
-
-L’URL de l’exemple nomme le projet de l’exécution. L’automatisation doit y être installée, le projet actif et dans la même organisation que le token. Ce token ne permet pas de choisir un autre projet : un projet où elle ne peut pas tourner — un qui n’existe pas, qui est archivé, ou où l’automatisation n’est pas installée — répond **403** `AUTOMATION_PROJECT_FORBIDDEN`, un seul refus pour les trois, pour qu’une URL fuitée ne puisse pas sonder tes ids de projet. Sans aucune liaison, `/api/automations/webhook/{token}` démarre une exécution sans projet ; une automatisation liée y répond **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED` — utilise son URL de projet. Le paramètre de requête `projectId` répond **400** `INVALID_QUERY`. Les identifiants de livraison et la déduplication par corps s’appliquent séparément à chaque URL de projet. Suis une livraison de projet via `/api/v1/projects/{id}/runs/{runId}` avec une clé API qui peut lire ce projet.
-
-Deux refus valent la peine d’être reconnus. Un token inconnu et le token d’un déclencheur éteint répondent volontairement de la même manière, pour que personne ne puisse sonder la plateforme afin de savoir quels tokens existent. Une automatisation sans version en service répond plutôt par un conflit, ce qui te dit que l’URL va bien et que c’est la mise en service qui manque.
+Fournis un identifiant de livraison, par exemple `Idempotency-Key` ou un en-tête pris en charge de l’expéditeur. Le même identifiant renvoie l’exécution initiale pendant 24 heures. Sans identifiant, un corps identique envoyé à la même URL dans les deux minutes est considéré comme un doublon. Utilise des identifiants distincts si des contenus identiques correspondent à des travaux séparés. [Webhooks](/fr/develop/webhooks) détaille en-têtes, chemins de projet, erreurs et réponses.
 
 <Warning>
 
-Le token dans l’URL est l’identifiant. Quiconque détient l’URL peut lancer l’automatisation. Conserve-la comme un mot de passe, transmets-la par un canal sûr, et supprime le déclencheur pour la révoquer — le token ne se récupère pas ensuite.
+L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transmets qu’au système expéditeur. **Renouveler le token** produit un remplacement et invalide l’ancienne URL. Retirer ou remplacer le déclencheur la révoque également. Mets l’expéditeur à jour après un renouvellement.
 
 </Warning>
 
-## Événements
+## Réagir à un événement de la plateforme
 
-Un déclencheur d’événement nomme un événement de la plateforme et se déclenche dès que cet événement se produit dans l’organisation. La charge utile de l’événement devient l’entrée de l’exécution, ce qui en fait la sorte vers laquelle se tourner quand le travail de l’automatisation est de réagir à quelque chose que la plateforme vient de faire elle-même.
+Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Les événements produits par une exécution d’automatisation ne déclenchent pas d’autres départs : le workflow ne peut ainsi se relancer sans fin par ses propres changements.
 
-<Note>
+Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Le panneau ne permet pas de définir des données d’entrée arbitraires enregistrées.
 
-Un événement émis par l’exécution d’une automatisation ne déclenche jamais de déclencheur. Une automatisation qui écrit un enregistrement, lequel émet un événement, lequel lance la même automatisation, serait une boucle sans fin qu’aucune limite par exécution ne peut arrêter — la plateforme refuse donc dès la distribution.
+## Comprendre l’absence de démarrage
 
-</Note>
+Vérifie d’abord **Actif**, la version en service et le dernier déclenchement. Lis ensuite le motif éventuellement enregistré :
 
-## Ce que chaque sorte transporte dans l’exécution
+| Motif ou symptôme | Vérification |
+| --- | --- |
+| `not_deployed` | Mets une version testée en service. Un brouillon enregistré ne suffit pas. |
+| `start_refused` | Compare le schéma de la version active à l’enveloppe du déclencheur et corrige l’erreur de validation ou de démarrage indiquée. |
+| `unusable_cron` | Corrige l’expression ou le fuseau, puis enregistre. Les autres horaires continuent pendant que celui-ci est ignoré. |
+| Identifiant du webhook refusé | Vérifie l’URL actuelle et l’activation. Les jetons inconnus et désactivés reçoivent volontairement le même refus. |
+| Exécution présente, mais inachevée | Ouvre les [journaux d’exécution](/fr/platform/automations/execution-logs). Le démarrage a réussi ; le problème se trouve dans le workflow. |
 
-Un déclencheur ajoute son type et ses données à l’entrée de l’exécution. Adapte le schéma d’entrée au déclencheur choisi : une automatisation ne possède toujours qu’un seul déclencheur configuré à la fois.
+La date du dernier déclenchement avance lorsqu’une exécution démarre réellement. Un déclencheur arrivé à échéance mais incapable de démarrer enregistre plutôt un départ ignoré. Tu peux ainsi le distinguer d’un workflow démarré puis tombé en échec.
 
-| Sorte      | L’entrée de l’exécution                                                |
-| ---------- | ---------------------------------------------------------------------- |
-| `schedule` | La sorte de déclencheur et l’échéance pour laquelle il s’est déclenché |
-| `webhook`  | La sorte de déclencheur et le corps posté en charge utile              |
-| `event`    | La sorte de déclencheur, le nom de l’événement et sa charge utile      |
+## Suspendre ou remplacer le déclencheur
 
-Une exécution démarrée par l'API porte exactement l'`input` envoyé par l'appelant.
+Désactive **Actif** et enregistre pour suspendre les départs en conservant configuration et historique. Réactive-le pour reprendre. **Retirer le déclencheur** supprime la liaison et rend l’URL d’un webhook inutilisable.
 
-Déclare la forme attendue dans le schéma `inputs` du document, et la référence qui la lit est vérifiée avant même que l’automatisation ne s’exécute.
-
-## La mise en service ne les dérange pas
-
-Le déclencheur configuré reste en place à chaque mise en service ou retour arrière, car il nomme l’automatisation et non une version précise. Publie une URL de webhook auprès d’un partenaire, mets onze versions de plus en service, reviens deux fois en arrière : cette URL continue de fonctionner et atteint chaque fois ce qui est en service à ce moment-là.
-
-L’inverse est vrai aussi : ajouter, modifier ou retirer un déclencheur ne change rien au document ni à ses versions. Déclencheurs et versions sont deux choses indépendantes à propos de la même automatisation.
-
-## En éteindre un sans le perdre
-
-Chaque déclencheur a un interrupteur, et l’éteindre est la façon d’empêcher une automatisation de se lancer sans rien abandonner. Une planification éteinte n’arrive plus à échéance, une URL de webhook éteinte n’est plus honorée, et un déclencheur d’événement éteint ne correspond plus — tandis que la ligne, sa configuration et tout l’historique des exécutions de l’automatisation restent exactement où ils étaient. Rallume-le et il repart.
-
-Supprimer un déclencheur est la version définitive du même geste, et pour un webhook c’est aussi la façon de révoquer l’URL. Prends l’interrupteur quand tu veux une pause, et la suppression quand tu veux que l’identifiant disparaisse.
-
-## Où cela s’inscrit
-
-Trois sortes, un seul comportement : chacune lance la version en service en mode réel, chacune retient la dernière exécution qu’elle a lancée et la dernière fois qu’elle est arrivée à échéance sans en lancer, et chacune se met en pause sans être perdue — et aucune ne se soucie du nombre de mises en service depuis. [Concepts d’automatisation](/fr/platform/automations/concepts) explique pourquoi le rattachement au nom rend cela vrai ; [Journaux d’exécution](/fr/platform/automations/execution-logs) montre les exécutions que tes déclencheurs ont produites et laquelle a lancé chacune.
+Le déclencheur appartient au nom de l’automatisation, pas à une version. Un déploiement ou un retour à une version précédente conserve l’horaire ou l’URL et change la version utilisée par les prochains départs. Modifier le déclencheur ne crée pas de version du workflow. Vérifie donc aussi ses paramètres lorsqu’un déploiement change les données attendues.

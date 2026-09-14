@@ -30,6 +30,26 @@ Verwende in Datensätzen und zugehörigen Dateien denselben eindeutigen Firmen- 
 
 </Tip>
 
+## Einen Kontakt anlegen
+
+Zum Pflegen der Organisationsdatensätze brauchst du die Rolle Redakteur oder höher. Öffne **Wissen > Kontakte**, wähle **Kontakt hinzufügen** und anschließend **Manuelle Eingabe**.
+
+1. Trage die **E-Mail**-Adresse des Kontakts ein. Ergänze bei Bedarf **Name** und **Telefon**.
+2. Prüfe **Sprache**. Das Feld ist mit `en` vorbelegt; passe es an die Sprache des Kontakts an.
+3. Wähle **Speichern**. Der Kontakt erscheint mit seinen Angaben und dem Erstellungsdatum in der Tabelle.
+
+Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
+
+## Ein Produkt anlegen
+
+Öffne **Wissen > Produkte**, wähle **Produkt hinzufügen** und anschließend **Manuelle Eingabe**. Das Formular führt dich durch drei Schritte.
+
+1. Gib im Schritt **Grundlagen** unter **Produktname** einen Namen ein. Ergänze bei Bedarf eine Beschreibung und ein Bild, damit das Produkt eindeutig erkennbar ist. Wähle **Weiter**.
+2. Prüfe unter **Preis & Bestand** immer **Preis** und **Währung** zusammen. Trage beispielsweise `12.50` ein und wähle `CHF`. Eine andere Währung rechnet den Betrag nicht um. Ergänze bei Bedarf Bestand und Kategorie und prüfe den **Status**. Ein neues Produkt beginnt als **Entwurf**.
+3. Prüfe unter **Überprüfen** die Angaben und wähle **Erstellen**. Die Tabelle zeigt das Produkt mit Preis, Status und Änderungsdatum.
+
+Gespeicherte Produkte bearbeitest du über das Zeilenmenü. Verwende unterscheidbare Produktnamen und kontrolliere Preis und Währung, bevor du den Status änderst.
+
 ## Zugriff und Aktualität prüfen
 
 Ein Datensatz oder Dokument hilft nur Personen, die darauf zugreifen dürfen. Prüfe die Team-Zuordnung, wenn jemand einen Eintrag nicht findet. Bei Projektdateien gilt der Projektzugriff statt der Team-Zuordnung der Dokumentbibliothek; siehe [Projektdateien](/de/platform/projects/manage-files).
@@ -38,7 +58,7 @@ Ein Datensatz oder Dokument hilft nur Personen, die darauf zugreifen dürfen. Pr
 
 ## Mit den vorhandenen Datentypen arbeiten
 
-Der Wissensbereich bietet Kontakte, Produkte und Websites. **Einstellungen > Governance > Modelle** steuert den Zugriff auf AI-Modelle und deren Vorauswahl. Dort legst du keine eigenen Datentypen oder Datenbankfelder an.
+Der Wissensbereich bietet Kontakte, Produkte und Websites. **Einstellungen > Richtlinien > Modelle** steuert den Zugriff auf KI-Modelle und deren Vorauswahl. Dort legst du keine eigenen Datentypen oder Datenbankfelder an.
 
 Passen die vorhandenen Felder nicht zu deinem Inhalt, halte die Details in einem Dokument fest und ordne den Ablauf dem passenden Datensatz zu. Welche Felder sich programmatisch importieren lassen, steht in der [API-Referenz](/de/develop/api-reference).
 

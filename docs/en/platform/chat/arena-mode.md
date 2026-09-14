@@ -1,15 +1,15 @@
 ---
-title: Arena Mode
-description: Side-by-side model comparison inside Chat — how it renders, how to pick the contenders, how verdicts feed feedback analytics, and when to reach for it.
+title: Compare models in Arena
+description: Send one prompt to two models, assess both replies and choose how to continue the conversation.
 ---
 
-Arena Mode runs the same prompt against two models at once and asks you which reply is better. The verdict feeds the org's feedback analytics; over time, the data tells which model the team actually prefers for which kind of question, separate from anyone's gut feel.
+Use **Arena Mode** to compare two models on the same prompt. Both sides use the chat assistant and the same starting context. Choose a question you can evaluate: preference alone cannot establish that an answer is correct.
 
-Reach for Arena when picking a model has been a debate rather than a decision — comparing replies side by side breaks the deadlock with evidence rather than opinions. For ordinary work the regular model picker is enough; Arena's value is the verdicts it produces, not the comparison view itself.
+## Start a comparison
 
-## How Arena renders
+Open a private chat, open the composer’s **+** menu and select **Arena Mode**. Shared chats cannot enter Arena. Choose the models under **Model A** and **Model B**, then send your prompt. You may choose the same model twice to compare variation, or two different models to compare their behavior.
 
-Open the chat's plus menu and pick **Arena Mode** — the chat sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, a verdict row appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
+For a useful first comparison, give both sides a short source and a precise request, such as “List the three decisions in these meeting notes and cite the sentence supporting each.” Keep the source, instructions and requested format the same.
 
 <Frame caption="The same prompt answered by two models, with the verdict row beneath.">
 
@@ -17,33 +17,28 @@ Open the chat's plus menu and pick **Arena Mode** — the chat sprouts two model
 
 </Frame>
 
-<Note>
+Each reply appears in its own column. Wait until both have finished before selecting a verdict; the controls stay unavailable while either side is answering. A slow reply is still part of the comparison. If a side fails, inspect its error before treating the result as a quality judgment.
 
-Both columns run the same chat assistant, so the instructions, tools, and knowledge on each side are identical and only the model differs — which is the whole point of the comparison.
+## Judge the replies
 
-</Note>
+Check factual accuracy against the source, whether the reply followed the instructions, whether essential details are missing, and how much editing you would need before using it. A longer or more confident response is not necessarily better.
 
-## Picking the contenders
+| Verdict | Use it when | Conversation continues with |
+| --- | --- | --- |
+| **A is better** | A is more useful or accurate. | Column A. |
+| **B is better** | B is more useful or accurate. | Column B. |
+| **Tie** | Both meet the request equally well. | Column A. |
+| **Both bad** | Neither is acceptable. | Column A. |
+| **Exit without verdict** | You do not want to record a comparison. | Column A, without a verdict. |
 
-The two pickers are independent — any model your organisation makes available is fair game on each side. Picking the same model on both sides is allowed, but most comparisons span vendors or sizes. The assistant's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
+Every choice ends the two-column comparison. The next message goes to the remaining conversation. To compare again, enable Arena again; a tie does not keep both columns active.
 
-## Casting a verdict
+## Find the recorded feedback
 
-The verdict is single-click. **A is better** and **B is better** are self-explanatory; **Tie** is for when both replies are roughly equally good; **Both bad** is for when neither is acceptable. The button you click records the verdict and resolves the chat to the winning column — the next message you send goes to that model only. Picking **Tie** or **Both bad** leaves both columns active for one more round.
+When both models have produced replies, a verdict contributes to the organization’s [Feedback analytics](/platform/admin/governance/feedback-analytics). Administrators can inspect **Arena verdicts** and model matchups there. Exiting without a verdict does not add a rating.
 
-## Where verdicts surface
+Use several representative questions before drawing a conclusion about a model. A result for a short summary may not predict its performance on code or long documents, and organization-wide preferences include other people’s tasks.
 
-Verdicts roll up into [Feedback analytics](/platform/admin/governance/feedback-analytics) under **Arena verdicts**, alongside a **Top Model Matchups** table that ranks pairings by win rate. The data is org-scoped rather than per-user, so a handful of deliberate verdicts can outweigh a much larger pile of habit when someone reads the table to decide which model the team should reach for.
+## Resolve a blocked comparison
 
-## When to reach for it
-
-| Use … when                                                 | Arena Mode | Regular model picker |
-| ---------------------------------------------------------- | ---------- | -------------------- |
-| You are deciding which model to default to                 | ✓          |                      |
-| You suspect a model regression after an upgrade            | ✓          |                      |
-| You already know which model you want and need a reply now |            | ✓                    |
-| The query is short and ordinary                            |            | ✓                    |
-
-## Where this fits
-
-Arena is the lightweight feedback loop on top of model choice. The heavier surface is [Feedback analytics](/platform/admin/governance/feedback-analytics) — that is where the verdicts you cast become a chart someone uses to argue about defaults. If you are the one who will read the chart later, run a handful of Arena rounds before reading the chart; the verdicts you cast yourself will tell you whether the table's framing matches your experience.
+If a model is absent, check its provider and access rules through the [model catalog](/platform/models). If the verdict buttons remain disabled, wait for both generations to end. A failed request may reflect credentials, availability or policy rather than answer quality; use its displayed reason to decide what to fix before retrying.

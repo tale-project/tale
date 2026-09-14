@@ -5148,8 +5148,8 @@ settings:
   connectors:
     searchPlaceholder: Search connectors
     sectionDescription:
-      The credentials this organization authenticates connected services with.
-      Each one unlocks that service's actions for automations and chat.
+      Manage the credentials this organization uses for connector actions
+      in workflows and supported platform tools.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5166,8 +5166,8 @@ settings:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       connect: Connect
       emptyBodyOauth:
-        Connect {connector} to grant Tale access, and its actions become
-        available to automations and chat.
+        Connect {connector} so configured workflows and supported platform
+        tools can use this account.
       oauthAppMissing:
         '{connector} has no OAuth app to connect against yet. Ask an
         organization admin to configure one under Settings > Connectors.'

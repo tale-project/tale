@@ -9,4 +9,10 @@ bun run --filter @tale/{{kebabCase name}} typecheck
 bun run --filter @tale/{{kebabCase name}} test
 ```
 
-Stack: Vite · TanStack Router · React 19 · Tailwind v4 (extends `@tale/ui/tailwind-preset`) · framer-motion · Zod · Vitest.
+The app uses Vite, React, TanStack Router, and the shared `@tale/ui` stylesheet and components.
+Run commands from the repository root after installing dependencies. Use `app/` for routes and
+components, and keep every shipped locale under `messages/` aligned.
+
+For UI changes, check keyboard access, focus, and narrow layouts in the browser. Follow the
+[manual test guide](tests/manual/readme.md) and the repository's design and translation contracts.
+Run the workspace lint and type checks as well as tests before submitting a change.

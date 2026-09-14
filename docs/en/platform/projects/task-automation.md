@@ -40,7 +40,7 @@ For an automation-owned task, mention the owning automation to request another r
 
 | State or symptom | What to do |
 | --- | --- |
-| Waiting for a sandbox slot | The organization has reached concurrent capacity. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
+| Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | The run remains failed | Read the error and resolve its cause, then use **Retry** to continue the conversation. Deleted agents and time-limit failures need intervention. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |

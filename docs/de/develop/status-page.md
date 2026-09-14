@@ -45,6 +45,15 @@ Komponenten melden `operational` oder `outage`. Antwortet das Backend nicht, lä
 
 ## Eine Überwachung einrichten
 
+Für eine automatisierte Prüfung benötigst du `jq`. Lass das Prüfergebnis den Exit-Status bestimmen: Das Beispiel schlägt bei Netzwerkfehlern, ungültigem JSON oder jedem Gesamtzustand außer `operational` fehl.
+
+```bash
+set -o pipefail
+curl --fail-with-body --silent --show-error --max-time 10 \
+  "$TALE_BASE_URL/status.json" | jq -e '.status == "operational"'
+```
+
+
 Der JSON-Endpunkt braucht keinen API-Schlüssel und verbraucht kein Schlüsselbudget. Sein Ergebnis bleibt fünf Sekunden zwischengespeichert. Speicherprüfungen im Backend werden separat aktualisiert; jede Abfrage startet deshalb nicht sofort einen neuen Speichertest. Setze eine Zeitüberschreitung und alarmiere nach deinem Betriebsbedarf bei wiederholten Fehlern oder einem eingeschränkten Zustand.
 
 `/status.json` erlaubt ursprungsübergreifende Lesezugriffe mit `Access-Control-Allow-Origin: *`. `HEAD` liefert Kopfzeilen ohne Inhalt, `OPTIONS` nennt `GET, HEAD, OPTIONS`. Verwende `GET`, wenn die Überwachung die Komponenten auswerten soll.

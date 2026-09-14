@@ -47,7 +47,7 @@ Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source, le
 
 <Frame caption="Le tableau permet de vérifier l’information et son indexation avant de s’appuyer dessus dans une réponse.">
 
-![Le tableau des entrées de connaissances présente trois informations manuelles avec sujet, contenu, source, statut d’indexation et date de mise à jour.](/images/platform/knowledge-entries-list.webp)
+![Le tableau des entrées de connaissances présente des informations manuelles avec sujet, contenu, source, statut d’indexation et date de mise à jour.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

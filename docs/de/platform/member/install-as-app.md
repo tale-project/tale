@@ -30,7 +30,7 @@ Benachrichtigungen hängen weiterhin von Browser, Betriebssystem, erteilter Bere
 
 Verwende **Deinstallieren** oder **App löschen** im Browser beziehungsweise Betriebssystem. Ein Symbol aus dem macOS-Dock zu entfernen, löscht nur die Verknüpfung. In Chrome nutzt du das Menü der installierten App oder `chrome://apps`. Das Löschen ihrer Browserdaten kann dich zusätzlich abmelden.
 
-Eine Deinstallation löscht weder dein Tale-Konto noch die Organisation oder serverseitig gespeicherte Dokumente. Kontoänderungen beschreibt [Profil und Konto](/platform/member/preferences). Melde dich auf einem gemeinsam genutzten Gerät sowohl in der App als auch in verwendeten Browserfenstern ab.
+Eine Deinstallation löscht weder dein Tale-Konto noch die Organisation oder serverseitig gespeicherte Dokumente. Kontoänderungen beschreibt [Profil und Konto](/de/platform/member/preferences). Melde dich auf einem gemeinsam genutzten Gerät sowohl in der App als auch in verwendeten Browserfenstern ab.
 
 ## Wenn die Installation fehlt
 

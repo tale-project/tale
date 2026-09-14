@@ -1,139 +1,93 @@
 ---
 title: TLS and domains
-description: How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups.
+description: Choose certificate handling, configure public origins, and verify browser and identity-provider access after a domain change.
 ---
 
-Choose the public hostname and where TLS terminates before inviting users or configuring SSO. Tale can use a local self-signed certificate, obtain a public certificate through the proxy, or sit behind a proxy you already operate.
+Choose the URL users will open and the service that terminates TLS before configuring sign-in or inviting people. Tale's Caddy proxy can use its internal certificate authority, obtain public certificates, or serve HTTP behind your own TLS proxy.
 
-Use the matching setup below, then verify the actual browser URL and certificate. A working container health check does not confirm public DNS or certificate trust.
+## Choose a TLS mode
 
-## Self-signed (default)
+| `TLS_MODE` | Use it when | What you operate |
+| --- | --- | --- |
+| `selfsigned` | Developing locally or using a private environment whose clients trust your CA. | Install Caddy's root certificate in each client trust store. |
+| `letsencrypt` | Serving a public hostname through Tale's proxy. | Public DNS, reachable ports 80/443, and persistent Caddy certificate storage. |
+| `external` | A load balancer or reverse proxy already handles TLS. | The upstream certificate, trusted forwarding, and the private HTTP connection to Tale. |
 
-`TLS_MODE=selfsigned` runs Caddy with a certificate it generates from its internal CA. The browser warns the first time, and the host needs to trust the cert to suppress the warning — that is intended for local development:
+Keep `SITE_URL` as the public URL and `HOST` as its hostname. Applying new environment values requires recreating the affected services. With the workspace CLI, use the deployment workflow and include `--stop` when the proxy must be recreated; inspect the preview and allow for downtime. With your own Compose file, the service is `proxy`, not the generated container name.
+
+## Trust a private development certificate
+
+`TLS_MODE=selfsigned` makes Caddy issue certificates from its internal CA. A browser warning means that client does not trust the issuing CA or the hostname does not match; check both.
+
+Copy the **public root certificate** from the running proxy container. Set `TALE_PROXY_CONTAINER` to the actual container name from your deployment:
 
 ```bash
-docker exec tale-proxy caddy trust
+docker cp "$TALE_PROXY_CONTAINER:/data/caddy/pki/authorities/local/root.crt" ./tale-local-root.crt
 ```
 
-The trust command imports Caddy's CA into the system trust store on the host running the docker daemon. Other machines on the network still see the warning unless they import the CA too. Production never uses this mode.
+Verify that the certificate came from your own instance, then install it using the operating system's or browser's trusted-certificate settings on each client that needs access. Do not distribute the CA's private key. Running `caddy trust` through `docker exec` affects the container's trust store, not your workstation's. See [Caddy's local HTTPS guidance](https://caddyserver.com/docs/automatic-https#local-https) for the trust boundary.
 
-## Let's Encrypt
+## Obtain a public certificate
 
-`TLS_MODE=letsencrypt` lets Caddy issue and renew a real public certificate. Three prerequisites must hold or the issuance loop fails:
-
-- The hostname in `HOST` and `SITE_URL` resolves to the host's public IP from the public Internet.
-- Ports 80 and 443 are reachable from the public Internet (port 80 carries the ACME HTTP-01 challenge).
-- `TLS_EMAIL` is set to a mailbox you read — Let's Encrypt warns there before expiry.
+1. Point the hostname's public DNS records at the intended host. Check both A and AAAA records when IPv6 is configured.
+2. Make ports 80 and 443 reachable at that proxy, and preserve its `caddy-data` volume across replacements.
+3. Configure the public URL and certificate mode:
 
 ```bash
-# .env
-TLS_MODE=letsencrypt
-TLS_EMAIL=ops@yourdomain.com
-```
-
-The first boot blocks for about a minute while the ACME challenge runs. After that, renewals are automatic 30 days before expiry; failures land in `docker compose logs proxy`.
-
-## External proxy
-
-`TLS_MODE=external` makes Caddy serve plain HTTP on the inside, and you front it with your own reverse proxy that terminates TLS upstream. Pick this when:
-
-- You already run a CDN or load balancer that handles certificates.
-- You want to terminate TLS once at the edge of your VPC and run everything internal as plaintext.
-- Your compliance posture requires a specific certificate authority that Caddy does not support.
-
-```bash
-# .env
-TLS_MODE=external
-SITE_URL=https://tale.yourdomain.com  # the URL your users hit
-```
-
-The upstream proxy needs `X-Forwarded-Proto: https` set on every request so Tale generates correct redirects and absolute URLs. Without it, sign-in links land on `http://` and the auth cookie's `Secure` flag rejects them.
-
-## Custom domain
-
-The domain itself is just `HOST` and `SITE_URL`. The same Caddyfile inside `tale-proxy` reads both at boot. Change them, recreate the proxy container (`docker compose up -d --force-recreate tale-proxy`), and the new domain is live within seconds. Let's Encrypt re-issues for the new name on the next request that hits the new hostname.
-
-```bash
-# .env
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
+TLS_MODE=letsencrypt
+TLS_EMAIL=ops@example.com
 ```
 
-Subpath deployments — Tale behind `https://example.com/app/` — set `BASE_PATH=/app` in addition. The reverse proxy upstream of Caddy strips nothing; Tale handles the prefix itself.
+4. Apply the configuration, inspect `tale logs proxy`, and open the public URL from another machine. Check the hostname and certificate chain in the browser.
 
-## Several domains at once
+Caddy handles issuance and renewal. DNS, firewall, ACME, and storage problems can delay or prevent them, so monitor certificate expiry and proxy errors rather than assuming a fixed issuance time. `TLS_EMAIL` provides the ACME contact address; it is not a substitute for expiry monitoring. [Caddy's automatic HTTPS requirements](https://caddyserver.com/docs/automatic-https) describe the public network prerequisites.
 
-One deployment can answer on more than one domain — an apex and a vanity domain, a partner's
-white-label host, a legacy name kept alive after a rename. List the extra origins in
-`ADDITIONAL_SITE_URLS`, comma- or whitespace-separated, and keep `SITE_URL` as the canonical one:
+## Use an upstream TLS proxy or custom certificate
+
+Set `TLS_MODE=external` when another proxy terminates TLS, while keeping the browser-facing HTTPS URL:
 
 ```bash
-# .env
+HOST=tale.example.com
+SITE_URL=https://tale.example.com
+TLS_MODE=external
+```
+
+Tale's Caddy instance serves HTTP inside this arrangement. Keep that hop private, preserve the intended host, and configure forwarded client information only through trusted proxies. Verify sign-in callbacks, secure cookies, uploads, and streaming through the complete path. A custom certificate installed on the upstream proxy is independent of Tale's TLS mode.
+
+If you maintain a custom Tale proxy image and Caddyfile instead, mount your certificate and private key read-only and configure Caddy's `tls <cert-file> <key-file>` directive yourself. Merely mounting the files or setting `TLS_MODE=external` does not make Caddy load them. The custom configuration must retain Tale's routes, health behavior, and metrics protection.
+
+## Change the public domain or base path
+
+Update `HOST` and `SITE_URL` together, plus any browser-facing storage endpoint and identity-provider callback registrations that use the old origin. Recreate the affected application and proxy services, then test sign-in, an existing file download, an upload, and a live-updating page at the new URL.
+
+For a subpath such as `https://example.com/app`, also set `BASE_PATH=/app`. Keep that prefix on requests sent to Tale's proxy: its generated routing strips the prefix internally. Check absolute links and callbacks rather than verifying only the home page. Keep the old domain available during a planned transition if users still need its existing links or sessions.
+
+## Serve several domains {#several-domains-at-once}
+
+List additional bare origins in `ADDITIONAL_SITE_URLS`, separated by commas or whitespace:
+
+```bash
 HOST=tale.example.com
 SITE_URL=https://tale.example.com
 ADDITIONAL_SITE_URLS=https://tale.partner.example,https://app.example.org
 ```
 
-Each entry is a bare origin — scheme, host, optional port, no path. Caddy serves every one of
-them from the same site block and, under `TLS_MODE=letsencrypt`, obtains a certificate per name.
-Point each domain's DNS at this host; a domain whose DNS lands later is retried until its
-certificate is issued, so the domains do not all have to be ready on the same day.
+An origin has a scheme, host, and optional port, but no path. Caddy serves the listed origins and requests their public certificates in `letsencrypt` mode. Configure DNS and reachability for each. These origins are separate entry points, with cookies scoped to the domain where the user signs in.
 
-Every listed domain is a complete entry point rather than a redirect: a visitor who signs in on
-one stays on it, and the links the app builds — sign-in callbacks, connector consent flows,
-audio and download URLs — keep them there, because the session cookie lives on that domain and
-nowhere else.
+Tale accepts only configured origins when deriving browser-facing URLs; an unrecognized host falls back to `SITE_URL`. Do not use that fallback as a domain-configuration shortcut.
 
-<Warning>
+### Keep canonical settings stable
 
-A domain not in this list is never honoured, even if a request arrives carrying its `Host`
-header: unrecognised hosts fall back to the canonical `SITE_URL`. That is what stops a forged
-`Host` from pointing a sign-in callback at someone else's server.
+| Setting | Why the canonical domain matters |
+| --- | --- |
+| E-mail links and notifications | Background work has no browser origin to use. |
+| SAML SP entity ID | The identity provider identifies one stable service provider. |
+| SCIM resource locations | Directory synchronization needs stable resource URLs. |
+| Passkeys | Credentials are bound to a relying-party domain and do not transfer automatically between domains. |
+| Public object-storage endpoint | Presigned URLs use its configured origin; review it when changing domains. |
 
-</Warning>
+### Register every provider callback
 
-### What stays on the canonical domain
-
-`SITE_URL` remains the single answer wherever a deployment can only have one, so leave it
-pointing at your primary domain:
-
-| Stays canonical                | Why                                                                        |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| E-mail links and notifications | Sent without a browser request, so there is no domain to infer.            |
-| SAML SP entityID               | The identity provider knows the service provider by one stable identifier. |
-| SCIM `meta.location`           | Resource URLs must stay stable across directory syncs.                     |
-| Passkeys                       | WebAuthn binds a credential to one domain; one registered on the canonical host is not offered on the others. |
-| `OBJECT_STORE_PUBLIC_ENDPOINT` | Defaults to `SITE_URL`; presigned URLs are signed against that origin.     |
-
-### Register each domain with your identity and OAuth providers
-
-A sign-in that starts on `tale.partner.example` comes back to `tale.partner.example`, so that
-domain's own callback URL must be registered with the provider. The product shows the exact list
-per domain, so you never have to assemble the URLs by hand:
-
-- **Settings > Enterprise SSO** lists the redirect (OIDC) and ACS (SAML) URL for every domain.
-  The SAML metadata document advertises one `AssertionConsumerService` per domain, so importing
-  it registers them all at once.
-- **Settings > Connectors > OAuth apps** lists every domain's connector and cloud-import
-  redirect URI.
-
-## Bring-your-own certificate
-
-For an internal CA or a wildcard cert you already own, mount the cert and key into `tale-proxy` and add a `tls` directive to the Caddyfile:
-
-```yaml
-# compose.yml override
-services:
-  proxy:
-    volumes:
-      - ./certs/fullchain.pem:/etc/tale/cert.pem:ro
-      - ./certs/privkey.pem:/etc/tale/key.pem:ro
-    environment:
-      TLS_MODE: external # bypasses Caddy's auto-issuance
-```
-
-Then either pre-build a `tale-proxy` image with the custom Caddyfile, or front Tale with your own reverse proxy and stick with `TLS_MODE=external` — both paths are supported and the second is simpler.
-
-## Where this fits
-
-The three modes cover the three deployment shapes most teams hit; the env-var rows live in [Environment reference](/self-hosted/configuration/environment-reference#tls). If you are setting up a fresh production host right now, the [quickstart](/self-hosted/install/quickstart) is `tale deploy`; this page is the cert modes.
+Open **Settings > Enterprise SSO** to copy each domain's OIDC redirect or SAML ACS URL. SAML metadata includes the configured ACS entries. For connector consent, use the per-domain redirect URLs under **Settings > Connectors > OAuth apps**. Register the required URLs with each provider and test a fresh sign-in from every supported origin.

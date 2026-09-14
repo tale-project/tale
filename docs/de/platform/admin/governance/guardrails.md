@@ -5,9 +5,9 @@ description: Richte Chatfilter, den Schutz personenbezogener Daten und Moderatio
 
 Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Guardrails**, wie Chattexte vor und nach einem Modellaufruf geprüft werden. Aktivierte Schichten laufen in dieser Reihenfolge: Inhaltssicherheit, Erkennung personenbezogener Daten und externe Moderation. Beginne mit einer klaren Regel und prüfe ihre Wirkung, bevor du sie ausweitest.
 
-<Frame caption="Governance > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
+<Frame caption="Richtlinien > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
 
-![Die Governance-Seite Guardrails zeigt drei Status-Karten — Inhaltssicherheit aus, PII-Erkennung aus, Moderations-Anbieter nicht konfiguriert — über dem Feed der letzten Ereignisse, der noch keine meldet, und den benutzerdefinierten Anweisungen der Organisation.](/images/platform/governance-guardrails.webp)
+![Die Einstellungsseite Guardrails zeigt drei Status-Karten — Inhaltssicherheit aus, PII-Erkennung aus, Moderations-Anbieter nicht konfiguriert — über dem Feed der letzten Ereignisse, der noch keine meldet, und den benutzerdefinierten Anweisungen der Organisation.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 
@@ -49,4 +49,4 @@ Benutzerdefinierte Organisationsanweisungen werden vor den Agentenanweisungen ei
 
 Die aktuellen Ereignisse zeigen die letzten 50 Erkennungen, Blockierungen und Anbieterfehler. Filtere nach Schicht oder Ergebnis und prüfe Kategorie, Richtung und Zeitpunkt. Der erkannte Originaltext wird in diesen Ereignissen nicht gespeichert. Eine Zeile erklärt den Treffer, ohne seinen sensiblen Inhalt wiederzugeben.
 
-Ist eine Regel zu weit gefasst, passe Kategorie oder Muster an und wiederhole die Tests. Fehlt ein Treffer, prüfe, ob Schicht, Kategorie und gewünschte Richtung aktiv sind. Die Historie hängt von der [Aufbewahrungsrichtlinie](/platform/admin/governance/policies-and-limits) für Chat-Filterereignisse ab. Gehe nicht von einer festen Archivdauer aus.
+Ist eine Regel zu weit gefasst, passe Kategorie oder Muster an und wiederhole die Tests. Fehlt ein Treffer, prüfe, ob Schicht, Kategorie und gewünschte Richtung aktiv sind. Die Historie hängt von der [Aufbewahrungsrichtlinie](/de/platform/admin/governance/policies-and-limits) für Chat-Filterereignisse ab. Gehe nicht von einer festen Archivdauer aus.

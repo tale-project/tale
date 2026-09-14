@@ -5,9 +5,9 @@ description: Préserve les données d’une personne ou de l’organisation, reg
 
 Une conservation juridique préserve les données couvertes pendant qu’un dossier est ouvert. Les admins et propriétaires gèrent ces gels dans **Paramètres > Gouvernance > Conservation légale**. Place le gel tant que les données existent : il ne récupère pas les enregistrements déjà supprimés définitivement.
 
-<Frame caption="Gouvernance > Conservation légale — le tableau des holds actifs avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
+<Frame caption="Gouvernance > Conservation légale — le tableau des conservations actives avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
 
-![La page de gouvernance Conservation légale montrant un hold actif — de type Utilisateur sur marta.vogel, placé par Alex Rivera au titre de l’affaire Northstar contract — à côté d’un bouton Placer une conservation légale, au-dessus des deux files de demandes de levée, Approbation en attente et Approuvées, qui n’affichent aucune demande.](/images/platform/governance-legal-hold.webp)
+![La page de gouvernance Conservation légale montrant une conservation active — de type Utilisateur sur marta.vogel, placée par Alex Rivera au titre de l’affaire Northstar contract — à côté d’un bouton Placer une conservation légale, au-dessus des deux files de demandes de levée, Approbation en attente et Approuvées, qui n’affichent aucune demande.](/images/platform/governance-legal-hold.webp)
 
 </Frame>
 
@@ -43,4 +43,4 @@ Si une suppression échoue, examine le gel concerné au lieu de répéter l’ac
 
 ## Examiner les demandes liées
 
-Consulte [Demandes des personnes concernées](/platform/admin/governance/data-subject-requests) pour examiner un reçu d’effacement bloqué par un gel, et les [journaux d’audit](/platform/admin/governance/audit-logs) pour les actions enregistrées. La [règle de rétention](/platform/admin/governance/policies-and-limits) détermine le nettoyage normal lorsque la conservation ne s’applique plus.
+Consulte [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) pour examiner un reçu d’effacement bloqué par un gel, et les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les actions enregistrées. La [règle de rétention](/fr/platform/admin/governance/policies-and-limits) détermine le nettoyage normal lorsque la conservation ne s’applique plus.

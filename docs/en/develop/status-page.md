@@ -45,6 +45,15 @@ Component entries report `operational` or `outage`. If the backend cannot answer
 
 ## Configure a monitor
 
+For an automated health check, install `jq` and make the verdict affect the command’s exit status. This example fails on a network error, invalid JSON, or any overall state other than `operational`:
+
+```bash
+set -o pipefail
+curl --fail-with-body --silent --show-error --max-time 10 \
+  "$TALE_BASE_URL/status.json" | jq -e '.status == "operational"'
+```
+
+
 The JSON endpoint requires no API key and does not consume an API-key budget. Its result is cached for five seconds; backend store probes refresh separately, so it is a recent summary rather than a fresh storage transaction per poll. Set a request timeout and alert on repeated failures or a non-operational body according to your service needs.
 
 `/status.json` allows cross-origin reads with `Access-Control-Allow-Origin: *`. `HEAD` returns headers without the body and `OPTIONS` advertises `GET, HEAD, OPTIONS`. Use `GET` when your monitor must inspect the component verdict.

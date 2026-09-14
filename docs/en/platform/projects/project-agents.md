@@ -1,9 +1,15 @@
 ---
-title: Project agents
-description: The Agents tab staffs a project with named agents — each with a harness, a model served by a provider you pick, equipment, and standing instructions — that work the project's tasks in an isolated sandbox.
+title: Create and manage project agents
+description: Configure a reusable worker, grant its equipment and start a task whose result you can review.
 ---
 
-A project's **Agents** tab is its crew: named agents you configure once and then assign work to, each combining a coding [harness](/platform/agents/harnesses), a model, skills and connectors, and standing instructions. Chat keeps running the built-in assistant — these agents exist for the board: assign one a task and it works in an isolated sandbox, then reports back for your review. Anyone with project edit access can manage them; a project holds up to 50.
+Create a project agent when you want a reusable worker for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. You need project edit access; the project must be active. Only Owners and Admins can change secret grants.
+
+## Prepare the first task
+
+Choose a small outcome, such as reviewing a launch brief for missing approvals. The agent needs compatible [provider credentials](/platform/admin/providers) and an available [sandbox](/platform/admin/sandboxes). It can be configured without proving that a sandbox run will succeed.
+
+Separate reusable instructions from the task. “Identify missing evidence and report the checks you performed” belongs on the agent. The document, review date and acceptance criteria belong on the task.
 
 <Frame caption="The Agents tab — the project's own agents, each row naming its harness, serving provider, and model.">
 
@@ -11,59 +17,54 @@ A project's **Agents** tab is its crew: named agents you configure once and then
 
 </Frame>
 
-<Note>
-
-Before starting work, the chosen harness needs compatible provider credentials and an available sandbox. A model that answers in Chat does not establish that a coding harness can use the same credential. Ask an administrator to check [AI providers](/platform/admin/providers) and [Sandboxes](/platform/admin/sandboxes) if creation or a run is blocked.
-
-</Note>
-
-## Create an agent
+## Configure the agent
 
 <Steps>
 
-<Step title="Open the tab and start one">
+<Step title="Name it and choose the runtime">
 
-Open the project's **Agents** tab and click **New agent**. Give it a **Name** your team will recognize on task cards, and pick the **Agent type** — the coding harness the agent runs on.
-
-</Step>
-
-<Step title="Pick the model — and with it, the provider">
-
-The **Model** list is searchable by model name or API ID, and a model served by more than one provider appears once per provider, with the serving provider named under each entry. The pick is exact: the agent's runs call that model through that provider — and the spend lands on that provider's credential. When the picked provider can no longer serve the model, the run fails with the reason instead of quietly switching to another provider's bill.
-
-Subscription-served entries — a Claude subscription, say — appear only while the **Agent type** is the harness that subscription drives, and a run on one authenticates with the vendor subscription instead of an organization API key.
+Open the project’s **Agents** tab and select **New agent**. Give it a recognizable **Name**, then choose **Agent type**, the coding [harness](/platform/agents/harnesses). Names are unique within the project; a project supports up to 50 agents.
 
 </Step>
 
-<Step title="Equip it and set its instructions">
+<Step title="Choose the model and provider">
 
-**Skills, connectors & tools** decide what the agent can reach beyond its workspace; the list follows the project's team access, not your personal visibility. Skills stage reference bundles into the sandbox; connectors broker a connected service; **platform tools** let the agent read and write your organization's own data — find and read tasks, contacts, products, documents, and knowledge, and (when you grant a write tool) create tasks, comment, move them between columns, sync an external item to a task, or save a document. A write tool is marked _Writes data_: granting it is the authorization, so an agent equipped with `Create tasks` files real tasks with no further approval. Reads and writes both stay scoped to the project — an agent never sees another project's board.
+Search **Model** by name or API ID. The same model can appear once per provider; read the provider on the entry before selecting it. Selecting an entry pins that pair for future runs. Subscription entries appear only for a compatible runtime.
 
-**Secrets** give a running agent environment variables it can read. Only an organization Owner or Admin can change these grants. Choose narrowly scoped, rotatable credentials for services that cannot be reached through a connector. Values are stored encrypted, referenced by name in the agent configuration, and injected into its run. A shared secret can be reused by several agents, so rotation or deletion affects each one.
+An older configuration may name a model without a pinned provider. The dialog reports which provider currently resolves it, or why none can serve it. Select an entry if you want to pin that choice.
 
-**Instructions** ride along on every run as a standing instruction — what this agent owns, how it should work, and the boundaries it must respect.
+</Step>
+
+<Step title="Grant equipment and write instructions">
+
+Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change.
+
+Read the **Writes data** label before granting a platform write tool: it authorizes real operations within that tool’s access rules. Connector broker actions available to agents are read-only; direct GitHub tooling or explicit secrets use separate access paths.
+
+Write **Instructions** that define responsibility, evidence and boundaries. For the launch reviewer: “Read the supplied brief. Report missing approvals and conflicting dates with the source passage. Do not mark the task complete.”
+
+</Step>
+
+<Step title="Review and save">
+
+If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes.
+
+Select **Create agent**. Check the new row’s runtime, provider and model, then reopen it if you need to inspect the saved equipment or instructions.
 
 </Step>
 
 </Steps>
 
-Click **Create agent**. The row lists the harness, the serving provider, the model, and the equipped count — the same summary teammates see when they assign it work.
+## Assign and start work
 
-## Put it to work
+Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting.
 
-Assign a board task to the agent and click **Start agent** on the task. The run works in an isolated sandbox with a standing workspace that persists across the agent's tasks, posts its report back as a task comment, attaches produced files as deliverables, and parks the task **In review** — agents never complete work; a person does. Comment on the task and @mention the agent to steer a live run, or to start the next one — it reads your comment first and continues where the previous run left off. [Task automation](/platform/projects/task-automation) covers the board loop end to end.
+The agent’s report appears in task comments and collected files appear as deliverables. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
 
-## Change or remove one
+[Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 
-Edits apply from the next run — a live run keeps the configuration it started with, so a mid-run edit never swaps the engine underneath it. Deleting an agent keeps every task's history; only the assignee slot empties.
+## Update or remove an agent
 
-## Chat assistant or project agent?
+Use the agent’s row actions to edit or delete it. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. Review current work before removing the worker it belongs to.
 
-| Use…            | when the work is…                                                                 |
-| --------------- | --------------------------------------------------------------------------------- |
-| Chat            | a conversation — questions, drafts, retrieval; the built-in assistant handles it. |
-| A project agent | a task — repo or file work on a harness, done by a standing, configured crew.     |
-
-## Where this fits
-
-The agent is the project-side package of choices other pages explain: the harness catalog and its capabilities live in [Harnesses](/platform/agents/harnesses), and which providers and credentials serve the models — stored keys on the metered gateway, or vendor subscriptions on the vendor's own account — is the [Providers](/platform/admin/providers) surface.
+If creation or execution fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model, a skill visibility issue or unavailable sandbox capacity. Changing instructions does not fix those dependencies.

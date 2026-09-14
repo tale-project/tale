@@ -13,11 +13,11 @@ docker compose logs --tail=100 backend-api backend-worker
 docker compose logs -f backend-api
 ```
 
-Appuie sur `Ctrl-C` pour arrêter le suivi ; les conteneurs continuent de fonctionner. Consulte `backend-api` pour les erreurs de requête et de connexion, et `backend-worker` pour les tâches de fond, les réponses du chat et l’importation des documents. `docker compose ps` permet de repérer un conteneur qui redémarre en boucle.
+Appuie sur `Ctrl-C` pour arrêter le suivi ; les conteneurs continuent de fonctionner. Consulte `backend-api` pour les requêtes, la connexion et les réponses du chat interactif ; utilise `backend-worker` pour les tâches de fond, les appels d’agent mis en file et l’importation des documents. `docker compose ps` permet de repérer un conteneur qui redémarre en boucle.
 
 `journalctl -u docker` affiche le journal du démon Docker. Avec le pilote par défaut `json-file`, il ne remplace pas les journaux des conteneurs. Pour utiliser journald ou centraliser les journaux, configure séparément le pilote Docker et leur collecte. Tale ne fournit pas d’agent de collecte. Un changement de pilote exige de recréer les conteneurs concernés.
 
-## Activer les métriques protégées
+## Activer les métriques protégées {#metriques}
 
 Définis un `METRICS_BEARER_TOKEN` robuste dans l’environnement du déploiement. Applique la modification avec ta procédure habituelle afin de recréer les services concernés. Un simple redémarrage de conteneur ne recharge pas les variables d’environnement de Compose. Enregistre le même jeton dans le gestionnaire de secrets de ton système de supervision.
 
@@ -25,11 +25,11 @@ Le proxy exige `Authorization: Bearer <token>` pour ces routes. Sans jeton confi
 
 | Route | Contenu | Utilisation |
 | --- | --- | --- |
-| `/metrics/platform` | Métriques HTTP et système de l’application web, objectifs de temps de réponse | Cible de collecte Prometheus |
+| `/metrics/platform` | Métriques du processus web et objectifs de temps de réponse | Cible de collecte Prometheus |
 | `/metrics/backend` | Métriques HTTP et système du backend, files d’attente, générations actives et état d’arrêt progressif | Cible de collecte Prometheus |
 | `/metrics/sla-rules` | Règles d’enregistrement et d’alerte générées en YAML | Fichier de règles Prometheus |
 
-La recherche et l’importation des connaissances s’exécutent dans le processus de traitement du backend. Leurs mesures font partie des métriques du backend. `BACKEND_UPSTREAM` choisit le backend dans un déploiement séparé ; cette variable n’active pas un autre service de métriques pour les connaissances.
+Le backend traite les recherches de connaissances et les tâches d’importation. Ses métriques HTTP et de file d’attente aident à repérer les erreurs et les retards ; elles ne mesurent pas séparément la durée de la recherche ou de la génération. `BACKEND_UPSTREAM` désigne la cible backend d’un déploiement séparé. Cette variable ne crée pas de service de métriques propre aux connaissances.
 
 Crée une tâche de collecte par route. Dans cet exemple, `/run/secrets/tale_metrics_token` est un fichier du conteneur Prometheus qui contient uniquement le jeton. Crée-le avec ton gestionnaire de secrets et autorise Prometheus à le lire.
 
@@ -51,7 +51,7 @@ scrape_configs:
       - targets: ['tale.example.com']
 ```
 
-Ne collecte pas `/metrics/sla-rules` comme des métriques. Charge ce YAML dans la configuration des règles de Prometheus. La page [Prometheus et Grafana](/self-hosted/operate/observability/prometheus-grafana) détaille l’installation complète.
+Ne collecte pas `/metrics/sla-rules` comme des métriques. Les règles générées utilisent des séries de latence qui nécessitent une instrumentation supplémentaire. Charger le fichier ne suffit pas à mesurer le respect des objectifs de réponse. Examine les règles avant de les charger dans Prometheus. La page [Prometheus et Grafana](/fr/self-hosted/operate/observability/prometheus-grafana) détaille l’installation complète.
 
 ## Choisir la destination des erreurs
 
@@ -68,4 +68,4 @@ Le taux d’échantillonnage concerne les traces de performance du navigateur. L
 
 Tale n’exporte actuellement pas de traces OpenTelemetry par OTLP. Un OpenTelemetry Collector peut collecter les métriques Prometheus, mais cette collecte ne produit pas de traces distribuées. L’export de traces de bout en bout exige aussi une instrumentation de l’application.
 
-Pour les seuils d’alerte et les procédures d’intervention, consulte [Exploitation](/self-hosted/operate/observability/operations). Si un service échoue, utilise les tableaux de symptômes du [Dépannage](/self-hosted/operate/observability/troubleshooting).
+Pour les seuils d’alerte et les procédures d’intervention, consulte [Exploitation](/fr/self-hosted/operate/observability/operations). Si un service échoue, utilise les tableaux de symptômes du [Dépannage](/fr/self-hosted/operate/observability/troubleshooting).

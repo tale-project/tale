@@ -2,9 +2,11 @@
 title: Compose-Dateien für Beiträge
 description: Einen Entwicklungsablauf wählen und verstehen, wie die Compose-Erweiterungen des Repositorys zusammenwirken.
 ---
-Nutze die Compose-Dateien des Repositorys, um Tale aus dem Quellcode zu entwickeln oder zu testen. Im üblichen lokalen Ablauf [laufen App und Backend direkt auf dem Rechner, ihre Abhängigkeiten in Docker](/develop/contributor-setup). Wähle den folgenden Containerablauf, wenn deine Änderung die Entwicklungsimages prüfen soll.
+Nutze die Compose-Dateien des Repositorys, um Tale aus dem Quellcode zu entwickeln oder zu testen. Im üblichen lokalen Ablauf [laufen App und Backend direkt auf dem Rechner, ihre Abhängigkeiten in Docker](/de/develop/contributor-setup). Wähle den folgenden Containerablauf, wenn deine Änderung die Entwicklungsimages prüfen soll.
 
-Paketierte selbst gehostete Installationen verwenden den von der CLI erzeugten Stack aus dem [Schnellstart](/self-hosted/install/quickstart). Die Erweiterungsdateien im Quellbaum enthalten Entwicklungsports und Verzeichniseinbindungen. Prüfe sie, bevor du einen Host öffentlich erreichbar machst.
+Paketierte selbst gehostete Installationen verwenden den von der CLI erzeugten Stack aus dem [Schnellstart](/de/self-hosted/install/quickstart). Die Erweiterungsdateien im Quellbaum enthalten Entwicklungsports und Verzeichniseinbindungen. Prüfe sie, bevor du einen Host öffentlich erreichbar machst.
+
+Wähle einen Ablauf für die zu prüfende Änderung. Native Entwicklung und Container-Frontend auf demselben Port führen zu einem Konflikt, nicht zu zwei isolierten Instanzen.
 
 ## Die Containerentwicklung starten
 
@@ -33,7 +35,7 @@ Mit `Ctrl-C` beendest du die laufende Protokollanzeige. `bun run docker:dev:down
 | `compose.web.test.yml` | Containertests der Marketingseite. |
 | `compose.test.mock.yml` | Integrationskonfiguration mit simulierten Diensten. |
 
-Lies vor dem direkten Aufruf einer Testerweiterung das zugehörige Skript. Es kann Images, Ports und Testdaten vorbereiten. Die passenden Prüfungen beschreibt [An Docker arbeiten](/develop/contributing-docker).
+Lies vor dem direkten Aufruf einer Testerweiterung das zugehörige Skript. Es kann Images, Ports und Testdaten vorbereiten. Die passenden Prüfungen beschreibt [An Docker arbeiten](/de/develop/contributing-docker).
 
 ## Die Zusammenführung prüfen
 
@@ -49,7 +51,7 @@ Der Befehl prüft die statischen Dateien. `docker:dev` ergänzt seine erzeugte U
 
 Der Quellcode-Stack trennt `backend-api` und `backend-worker`. Die API verarbeitet Anwendungsanfragen und Anmeldung; der Worker führt Aufgaben, Modellaufrufe und Wissensverarbeitung aus. `platform` stellt die Webanwendung bereit. `proxy` verteilt Anfragen; `db`, `knowledge-db` und `object-store` speichern Anwendungsdaten, Wissen und Dateien.
 
-`sandbox`, `sandbox-egress` und `sandbox-llm-gateway` ermöglichen isolierte Ausführung samt Netzwerk- und Modellzugriff. Der Quellcode-Stack enthält außerdem den Hilfsdienst zur Videoverarbeitung. Die Produktivtopologie kann abweichen: Der generierte Einzelhost-Stack kombiniert Anwendungs- und Wissensdatenbank. Zuständigkeiten erklärt [Containerarchitektur](/self-hosted/operate/container-architecture), die Konfiguration die [Umgebungsreferenz](/self-hosted/configuration/environment-reference).
+`sandbox`, `sandbox-egress` und `sandbox-llm-gateway` ermöglichen isolierte Ausführung samt Netzwerk- und Modellzugriff. Der Quellcode-Stack enthält außerdem den Hilfsdienst zur Videoverarbeitung. Die Produktivtopologie kann abweichen: Der generierte Einzelhost-Stack kombiniert Anwendungs- und Wissensdatenbank. Zuständigkeiten erklärt [Containerarchitektur](/de/self-hosted/operate/container-architecture), die Konfiguration die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
 ## Den ersten Fehler eingrenzen
 

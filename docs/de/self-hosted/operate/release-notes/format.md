@@ -24,14 +24,14 @@ Prüfe ein Release in dieser Reihenfolge. Überschriften und Detailtiefe können
 | Bekannte Probleme | Sind die Einschränkungen akzeptabel und die Übergangslösungen praktikabel? |
 | Neuerungen und vollständige Änderungsliste | Welche Funktionen und Korrekturen sollten deine Benutzer kennen? |
 
-Tale ist ein fortlaufend aktualisiertes 0.x-Projekt. Auch Patch-Releases können additive Migrationen und Verhaltensänderungen enthalten. Sicherheitskorrekturen erscheinen in der neuesten Version, ohne Rückportierung auf ältere Versionen. Massgeblich ist die [Sicherheitsrichtlinie](https://github.com/tale-project/tale/security/policy).
+Tale ist ein fortlaufend aktualisiertes 0.x-Projekt. Auch Patch-Releases können additive Migrationen und Verhaltensänderungen enthalten. Sicherheitskorrekturen erscheinen in der neuesten Version, ohne Rückportierung auf ältere Versionen. Maßgeblich ist die [Sicherheitsrichtlinie](https://github.com/tale-project/tale/security/policy).
 
 ## Die Änderung vorbereiten
 
 1. Notiere Ausgangs- und Zielversion sowie die genauen Quell-Referenzen bei verwalteten Deployments.
 2. Lies die dazwischenliegenden Release-Hinweise. Achte auf Konfiguration, Anmeldung, Datenspeicherung und Integrationen.
 3. Plane Backup, Wiederherstellung und Wartungsfenster anhand der [Upgrade-Anleitung](/de/self-hosted/operate/upgrades).
-4. Erprobe das Ziel in einer getrennten Umgebung mit deinen wichtigen Abläufen, einschliesslich API-Clients und Freigaberegeln.
+4. Erprobe das Ziel in einer getrennten Umgebung mit deinen wichtigen Abläufen, einschließlich API-Clients und Freigaberegeln.
 5. Prüfe nach dem Deployment den Systemzustand und wiederhole diese Abläufe. Bewahre die Release-Hinweise beim Deployment-Protokoll auf.
 
-Ein erfolgreich heruntergeladenes Image belegt nicht, dass die Anwendung nach einer Migration funktioniert. Prüfe die laufende Plattform, bevor du das Upgrade abschliesst. Unter [Sicherheitsmeldungen](/de/self-hosted/operate/security/advisories) erfährst du, wie du eine Schwachstelle bewertest und meldest.
+Ein erfolgreich heruntergeladenes Image belegt nicht, dass die Anwendung nach einer Migration funktioniert. Prüfe die laufende Plattform, bevor du das Upgrade abschließt. Unter [Sicherheitsmeldungen](/de/self-hosted/operate/security/advisories) erfährst du, wie du eine Schwachstelle bewertest und meldest.

@@ -70,4 +70,4 @@ Pendant ce délai, les membres voient un rappel. Une fois le délai écoulé, Ta
 
 Vérifie d’abord l’identité de la personne selon la procédure de récupération de ton organisation. Ouvre ensuite **Paramètres > Membres**, modifie le membre et choisis **Réinitialiser le double facteur**. La confirmation efface la configuration de son application et met fin à toutes ses sessions actives. La personne peut se reconnecter et configurer une nouvelle application. Si le double facteur est obligatoire, elle doit terminer cette configuration avant de continuer.
 
-Pour un passkey perdu, supprime plutôt cet identifiant dans la section **Passkeys** de la fenêtre du membre. Cette suppression par un admin ferme aussi toutes les sessions du membre. Consulte les actions de récupération dans les [journaux d’audit](/platform/admin/governance/audit-logs).
+Pour un passkey perdu, supprime plutôt cet identifiant dans la section **Passkeys** de la fenêtre du membre. Cette suppression par un admin ferme aussi toutes les sessions du membre. Consulte les actions de récupération dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs).

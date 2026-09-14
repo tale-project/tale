@@ -1,90 +1,75 @@
 ---
-title: Video-Ingestion
-description: Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft.
+title: Videotranskripte importieren
+description: Untersuche Abruffehler, konfiguriere Token-Anbieter oder Proxy und verwalte Browsersitzungen je Organisation.
 ---
 
-Liest Tale einen Videolink ein, ruft es das Transkript des Videos mit `yt-dlp` ab. Video-Plattformen — YouTube am aggressivsten — fordern Anfragen von Rechenzentrums- und Server-IPs mit einer „Bist du ein Mensch?"-Abfrage heraus, sodass eine frische, selbst gehostete Bereitstellung auf einer Cloud-VM beim Einlesen scheitern kann, wo ein Laptop an einem Heimanschluss durchkäme. Diese Seite behandelt die drei Ebenen, die Tale mitbringt, um daran vorbeizukommen — von der, die keine Konfiguration braucht, bis zu der, die am meisten verlangt.
+Tale verwendet `yt-dlp`, um Inhalte für den Import von Videolinks abzurufen. Ob das gelingt, hängt vom Video, verfügbaren Untertiteln oder Extraktionsweg und den Zugriffsprüfungen der Plattform ab. Ein Video kann auf deinem Laptop abspielen und trotzdem Netzwerk oder Sitzung des Servers zurückweisen.
 
-<Info>
+Diese Betriebsanleitung behandelt den Transkriptabruf. Beginne mit einem öffentlichen Video, auf das du zugreifen kannst, und lies den Importfehler, bevor du Zugangsdaten ergänzt oder den Netzausgang änderst.
 
-Verwaltete **Cloud**-Bereitstellungen führen diese Maßnahmen für dich aus — diese Seite richtet sich an Betreiber, die Tale auf eigener Infrastruktur betreiben.
+## Die fehlerhafte Phase eingrenzen
 
-</Info>
+| Beobachtung | Zuerst prüfen |
+| --- | --- |
+| Ein Video scheitert | Unterstützung der URL, Verfügbarkeit des Inhalts und brauchbare Transkript- oder Audioquelle. |
+| Viele Videos scheitern von einem Host | Extraktionsfehler im Worker, Antworten der Quellplattform und Netzwerkweg dieses Hosts. |
+| Abruf gelingt, Wissenssuche scheitert | Embedding-Konfiguration der Organisation und Indexierungsstatus. |
+| Fehler nach einer zunächst funktionierenden Sitzung | Ablauf, Zustand des Quellkontos und Abkühlung oder Stilllegung im Pool. |
 
-## Ebene 1 — der PO-Token-Provider (Standard, keine Konfiguration)
+Lies `tale logs backend-worker --tail 200` und den Fehlergrund des Eintrags. Halte URL und Fehlerkategorie fest. Entferne vor dem Teilen Cookies, signierte URLs und Zugangsdaten aus Diagnosen. Ein erneuter Versuch kann bei vorübergehenden Fehlern helfen; gleichbleibende Verweigerungen erfordern eine Untersuchung.
 
-Die wirksamste Einzelmaßnahme ist ein **Proof-of-Origin-(PO-)Token**: ein signierter Wert, der eine Anfrage so aussehen lässt, als käme sie aus einer echten Browser-Session. Tale bringt einen fertig verdrahteten Token-Provider mit — das `yt-dlp`-Plugin ist ins Image eingebacken, und ein `bgutil-provider`-Sidecar liefert die Tokens über das interne Netz. Keine Umgebungsvariable ist nötig; ein frisches `docker compose up` oder `tale deploy` hat ihn am Laufen.
+## Mitgelieferten Token-Anbieter prüfen
 
-Du kannst `yt-dlp` mit `VIDEO_INGEST_POT_PROVIDER_URL` auf einen Provider auf einem anderen Host verweisen oder mit `VIDEO_INGEST_PO_TOKEN` ein manuell erstelltes Token übergeben — beides ist in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) dokumentiert. Ein ausgefallenes Sidecar bricht den Stack nie: Das Einlesen fällt auf kein Token zurück, genau so, als gäbe es die Ebene nicht.
+Das Platform-Image enthält das Token-Plugin. Die mitgelieferte Bereitstellung startet `bgutil-provider` im internen Netzwerk unter `http://bgutil-provider:4416`. Der Dienst liefert Proof-of-Origin-Tokens für unterstützte Extraktionsanfragen. Er gewährt keinen Zugriff auf private Inhalte und garantiert keine Annahme durch die Quellplattform.
 
-## Ebene 2 — ein Egress-Proxy
+Prüfe `tale logs bgutil-provider` und die Erreichbarkeit vom Worker. Der Sidecar ist optional für den Start des Kernsystems: Sein Ausfall blockiert die Bereitstellung nicht, kann den Transkriptabruf aber beeinträchtigen.
 
-Reicht das Token allein nicht — manche IP-Bereiche sind ohnehin markiert —, leite den Abruf über einen **Egress-Proxy** auf einer IP, der die Plattform vertraut. Residential- und ISP-gehostete Proxys funktionieren am besten; Rechenzentrums- und kommerzielle Proxys sind oft genauso markiert wie der Server selbst.
+`VIDEO_INGEST_POT_PROVIDER_URL` wählt einen anderen Anbieterendpunkt. `VIDEO_INGEST_PO_TOKEN` übergibt ein manuell beschafftes Token. Bewahre Tokens in deiner Geheimniskonfiguration auf. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt auch Extraktions-Client und Plugin-Optionen. Ändere sie passend zum beobachteten Fehler.
 
-Setz `VIDEO_INGEST_PROXY_URL` auf die Proxy-URL. Ein `socks5h://`-Schema löst DNS am Proxy auf (die sicherste Wahl); `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h` werden alle akzeptiert. Der Wert darf Zugangsdaten enthalten — Tale entfernt sie aus jeder Log-Zeile.
+## Einen Egress-Proxy konfigurieren
 
-```bash .env
-VIDEO_INGEST_PROXY_URL=socks5h://user:pass@residential.example:1080
-```
-
-Der Proxy gilt für jede Phase eines Abrufs — Metadaten, Untertitel und Audio —, sodass das gesamte Einlesen einen vertrauenswürdigen Ausgangspfad teilt.
-
-## Ebene 3 — der vorgewärmte Browser-Session-Pool
-
-Die stärkste Maßnahme präsentiert Cookies aus einer **echten Browser-Session, die die Bot-Abfrage bereits bestanden hat**. Tale hält einen Pool solcher Sessions, nach Domain geschlüsselt, und gibt jedem Abruf eine davon, sodass die Plattform einen wiederkehrenden Besucher statt eines erstmaligen Servers sieht.
-
-Sessions werden verschlüsselt gespeichert (der Cookie-Jar wird mit dem `ENCRYPTION_SECRET_HEX` der Bereitstellung versiegelt) und werden nie an vom Agent ausgeführten Code weitergegeben — sie leben nur in der serverseitigen Abruf-Ebene. Eine Session, die blockiert zu werden beginnt, wird automatisch abgekühlt und dann stillgelegt, und abgelaufene Sessions werden planmäßig aufgeräumt.
-
-Den Pool zu füllen ist ein fortgeschrittener, händischer Schritt, und er läuft über die [REST-API](/de/develop/api-reference) — ein Formular dafür gibt es im Produkt nicht. Erfasse einen Netscape-Cookie-Jar aus einem Browser, der die Abfrage für die Zielplattform gelöst hat, und importier ihn dann für die Domain dieser Plattform:
+Nutze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe über einen freigegebenen Proxy laufen sollen. Metadaten, Untertitel und Audio verwenden diesen Weg. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: <org-slug>" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
-        '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
-# → 201 { "sessionId": "..." }
+VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Der Import ist der heikelste Schreibzugriff der Bereitstellung und deshalb doppelt abgesichert: Der Schlüssel muss einem Administrator der Organisation gehören, und dessen E-Mail-Adresse muss auf der Allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` stehen — derselben Liste, die Schreibzugriffe auf die Deployment-Konfigurationsdatei (`deployment.yml`) absichert, beschrieben in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference). Alle anderen bekommen **403** mit einem `code`, der die verweigernde Hürde nennt. Gehört der Nutzer des Schlüssels mehreren Organisationen an, musst du mit `X-Organization-Slug` sagen, in welche importiert wird — ohne den Header antwortet der Schreibzugriff mit **400**; bei nur einer Mitgliedschaft kannst du den Header weglassen. `GET /api/v1/browser-sessions` listet den Pool mit Status, Ablauf und Fehlschlagzähler jeder Session — nie die Cookies selbst. Eine Session lebt 14 Tage, sofern `ttlMs` nichts anderes sagt, und nur das Einlesen von Videolinks schöpft aus dem Pool.
+Ergänze erforderliche Zugangsdaten über deine Geheimnisverwaltung. Eine ungültige URL oder ein nicht unterstütztes Schema wird mit Warnung ignoriert. Prüfe deshalb die übernommene Konfiguration und einen echten Abruf. Erstelle den Worker nach Änderungen seiner Umgebung neu. Ein Neustart des bestehenden Containers liest eine geänderte `.env` nicht ein.
 
-<Warning>
+Ein anderer Netzwerkweg garantiert keinen Zugriff. Prüfe, ob Proxy und Quellkonto für die benötigten Inhalte verwendet werden dürfen. Bleibt die Quelle unerreichbar, importiere ein bereits vorliegendes Transkript als [Wissensdokument](/de/platform/knowledge/documents).
 
-Konto-Cookies schalten gesperrte Inhalte frei, setzen das Konto aber aufs Spiel, wenn die Plattform automatisierte Nutzung markiert. Nutze bevorzugt Cookies aus einem Wegwerf- oder eigens angelegten Konto und checke einen Cookie-Jar niemals in die Versionsverwaltung ein.
+## Eine berechtigte Browsersitzung importieren
 
-</Warning>
+Der Server kann Cookies aus einem nach **Organisation und Domain** getrennten Sitzungspool beziehen. Er verschlüsselt Cookie-Dateien mit `ENCRYPTION_SECRET_HEX` und gibt sie in Listen nicht zurück. Der Pool gehört zum serverseitigen Videoimport und exportiert keine Cookies an Agentenskripte.
 
-## Welche Ebene brauche ich?
+Es gibt kein Importformular in der Anwendung. Der REST-Schreibzugriff braucht einen Schlüssel eines Organisationsadministrators, dessen Konto auf `TALE_DEPLOYMENT_CONFIG_ADMINS` steht. Der Schlüssel muss zudem die Zielorganisation auflösen können. `GET /api/v1/me` zeigt dafür `capabilities.deploymentEditor`. Gib die Organisation mit `X-Organization-Slug` ausdrücklich an, besonders bei mehreren Mitgliedschaften.
 
-<CardGroup cols="2">
+1. Exportiere eine Cookie-Datei im Netscape-Format aus einer berechtigten Browsersitzung für die Quelldomain. Behandle sie wie Kontozugangsdaten und halte sie aus der Versionsverwaltung heraus.
+2. Setze `TALE_URL`, `TALE_API_KEY` und `TALE_ORG_SLUG` für Instanz und Organisation. Beschränke den Lesezugriff auf `cookies.txt` auf das Betreiberkonto.
+3. Importiere die Datei, ohne ihren Inhalt als Befehlsargument zu übergeben:
 
-<Card title="Gerade deployt, einige Videos schlagen fehl" icon="circle-play">
+```bash
+jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
+  '{domain: $domain, cookiesJar: $cookiesJar, label: "operator-managed session"}' |
+  curl --fail-with-body -sS -X POST "$TALE_URL/api/v1/browser-sessions/import" \
+    -H "Authorization: Bearer $TALE_API_KEY" \
+    -H "X-Organization-Slug: $TALE_ORG_SLUG" \
+    -H 'Content-Type: application/json' \
+    --data-binary @-
+```
 
-Ebene 1 ist bereits aktiv. Versuch es erneut — viele Blockaden sind vorübergehend. Geh nur zu Ebene 2 über, wenn die Fehler anhalten.
+Ein erfolgreicher Import liefert HTTP 201 mit `sessionId`. Ungültige Daten führen zur Validierungsverweigerung, fehlende Rechte zu 403. Kläre die genannte Schranke, statt nur für den Aufruf eine weitergehende Rolle zu vergeben.
 
-</Card>
+## Sitzungen prüfen und widerrufen
 
-<Card title="Die meisten Videos schlagen auf diesem Host fehl" icon="globe">
+```bash
+curl --fail-with-body -sS "$TALE_URL/api/v1/browser-sessions" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
+```
 
-Die IP der Bereitstellung ist wahrscheinlich markiert. Ergänze einen Egress-Proxy (Ebene 2) auf einer Residential-IP.
+Die Liste zeigt Metadaten wie Status, Ablauf und Fehlerzahl. Die Standardlaufzeit beträgt 14 Tage. Beim Import ist ein positives `ttlMs` bis 180 Tage möglich. Cookies der Quelle können früher ablaufen; ein noch gültiger Pool-Eintrag beweist keine funktionierende Kontositzung.
 
-</Card>
+Ein blockierter Abruf lässt eine Sitzung abkühlen. Wiederholte Blockaden können sie stilllegen; ein geplanter Lauf bereinigt abgekühlte oder abgelaufene Einträge. Ein späterer Versuch kann eine andere gesunde Sitzung derselben Organisation und Domain verwenden. Ohne passende Sitzung kann der Abruf mit den anderen konfigurierten Optionen fortfahren.
 
-<Card title="Eine bestimmte Plattform blockiert dich weiterhin" icon="key-round">
-
-Wärme eine Browser-Session für diese Plattform vor (Ebene 3), damit der Abruf Cookies vorzeigt, die die Bot-Abfrage bestanden haben.
-
-</Card>
-
-<Card title="Vollständige Variablenreferenz" icon="settings">
-
-Jeder `VIDEO_INGEST_*`-Regler, mit Standardwerten, steht in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
-
-</Card>
-
-</CardGroup>
-
-## Eine ehrliche Erwartung
-
-Keine dieser Ebenen kann das Einlesen gegen eine Plattform garantieren, die aktiv daran arbeitet, automatisierten Zugriff von beliebigen IPs zu blockieren. Zusammen bringen sie das Einlesen überall dort zum Erfolg, wo dein Ausgang vertrauenswürdig ist, und jede Bereitstellung hat einen unterstützten Weg zu eskalieren. Blockiert eine Plattform deinen Server hart, lässt sich das Transkript trotzdem von Hand hereinholen — füg es in ein [Wissen](/de/platform/knowledge/documents)-Dokument ein.
+Widerrufe eine importierte Sitzung mit `DELETE /api/v1/browser-sessions/<sessionId>` und demselben Organisationsumfang sowie den erforderlichen Schreibrechten. Prüfe die ID zuvor in der Liste. Widerrufe oder erneuere auch die Sitzung beim Quellkonto, wenn ihre Cookies offengelegt wurden. Teste zuletzt ein kontrolliertes Video und prüfe Transkript sowie Indexierung. Der Cookie-Import allein belegt keinen erfolgreichen Videoimport.

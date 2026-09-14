@@ -3,7 +3,7 @@ title: Mitgelieferte Automatisierungen
 description: Wähle einen Mail- oder GitHub-Workflow und prüfe vor dem Live-Schalten seine Eingaben, Verbindungen und Schreibvorgänge.
 ---
 
-Tale enthält acht Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen und zwei für GitHub. Jedes beginnt mit Version 1, einem Zeitplan und **Nicht live**. Nutze sie als Ausgangspunkt. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Owner, Admin oder Entwickler eine Version live schaltet.
+Tale enthält acht Automatisierungspakete: drei für die Postfach-Synchronisierung, drei für Zusammenfassungen und zwei für GitHub. Jedes beginnt mit Version 1, einem Zeitplan und **Nicht live**. Nutze sie als Ausgangspunkt. Prüfe Eingaben, Modell, Verbindungen und Schreibvorgänge, bevor ein Inhaber, Admin oder Entwickler eine Version live schaltet.
 
 <Frame caption="Der Automatisierungskatalog zeigt Paketnamen, Versionszahlen und Live-Status.">
 
@@ -43,7 +43,7 @@ Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbunde
 
 **GitHub-Issues sichten** liest offene Issues, bewertet ihre Umsetzbarkeit und Priorität und liefert eine sortierte Auswahl mit Begründungen. Der Workflow schreibt nichts nach GitHub und erstellt keine Projektaufgaben. Standardmäßig verarbeitet er höchstens 50 Issues pro Lauf.
 
-**GitHub-Pull-Requests prüfen** liest die Diffs offener Pull Requests und veröffentlicht die Ergebnisse als Review-Kommentare. Standardmäßig verarbeitet er höchstens 10 Pull Requests pro Lauf. Er genehmigt und merged keinen Pull Request. Prüfe vor einem Live-Lauf das Ziel-Repository: Ein erneuter Lauf kann weitere Kommentare hinzufügen.
+**GitHub-Pull-Requests prüfen** liest die Diffs offener Pull Requests und veröffentlicht die Ergebnisse als Review-Kommentare. Standardmäßig verarbeitet er höchstens 10 Pull Requests pro Lauf. Er genehmigt keinen Pull Request und führt ihn nicht zusammen. Prüfe vor einem Live-Lauf das Ziel-Repository: Ein erneuter Lauf kann weitere Kommentare hinzufügen.
 
 | Automatisierung | Benötigter Connector | Mitgelieferter Zeitplan | Schreibvorgänge |
 | --- | --- | --- | --- |

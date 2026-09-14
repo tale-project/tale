@@ -1,6 +1,6 @@
 ---
 title: Die tale-CLI installieren
-description: Die tale-CLI auf macOS, Linux oder Windows installieren — und sie gegen deine self-hosted Instanz für Deploys und Upgrades konfigurieren.
+description: Installiere die tale-CLI, wähle die richtige Umgebung und finde die Befehle für Bereitstellung, Konfiguration und Wartung.
 ---
 
 Mit der `tale`-CLI installierst und betreibst du Tale und stellst neue Versionen bereit. Installiere sie dort, wo du deine Betriebsbefehle ausführen möchtest. Danach hilft dir der [lokale Schnellstart](/de/self-hosted/install/quickstart) oder der unten beschriebene Deployment-Ablauf weiter.
@@ -17,7 +17,7 @@ Du brauchst:
 
 Der Installer lädt die ausführbare Datei von GitHub herunter. Dafür braucht er Zugriff auf `raw.githubusercontent.com`, `api.github.com`, `github.com` und die Download-Ziele, auf die GitHub weiterleitet.
 
-## Schritt 1 — install-cli.sh oder install-cli.ps1 ausführen
+## install-cli.sh oder install-cli.ps1 ausführen
 
 Auf macOS oder Linux:
 
@@ -31,7 +31,7 @@ Auf Windows PowerShell:
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Der Unix-Installer wählt die Datei für dein Betriebssystem und deine CPU. Er ersetzt standardmässig eine vorhandene `tale`-Datei im `PATH` oder installiert sie unter `/usr/local/bin`. Nur wenn das Verzeichnis sonst nicht beschreibbar ist, fordert er `sudo` an. Unter Windows nutzt der Installer standardmässig `%LOCALAPPDATA%\Programs\tale` und ergänzt den `PATH` deines Benutzers.
+Der Unix-Installer wählt die Datei für dein Betriebssystem und deine CPU. Er ersetzt standardmäßig eine vorhandene `tale`-Datei im `PATH` oder installiert sie unter `/usr/local/bin`. Nur wenn das Verzeichnis sonst nicht beschreibbar ist, fordert er `sudo` an. Unter Windows nutzt der Installer standardmäßig `%LOCALAPPDATA%\Programs\tale` und ergänzt den `PATH` deines Benutzers.
 
 Fertige Binärdateien gibt es für macOS mit Apple Silicon oder Intel, Linux mit x86_64 oder arm64 sowie Windows x64. Windows ARM benötigt die x64-Emulation. Bei einer nicht unterstützten Unix-Architektur verweist der Installer auf den Build aus dem Quellcode.
 
@@ -43,7 +43,7 @@ Mit `VERSION` legst du eine Release-Version fest, mit `INSTALL_DIR` ein anderes 
 | Linux   | `scripts/install-cli.sh`  |
 | Windows | `scripts/install-cli.ps1` |
 
-## Schritt 2 — Verifizieren
+## Verifizieren
 
 ```bash
 tale --version
@@ -51,7 +51,7 @@ tale --version
 
 Die CLI zeigt die installierte Version. Falls der Befehl nicht gefunden wird, prüfe das Zielverzeichnis in der Installer-Ausgabe und ergänze es im `PATH`. Öffne unter Windows nach der Installation ein neues Terminal. Schlägt der Download fehl, prüfe die oben genannten Netzwerkziele. Mit der optionalen Umgebungsvariable `GITHUB_TOKEN` authentifizierst du die Release-Abfrage, falls GitHub anonyme API-Anfragen begrenzt.
 
-## Schritt 3 — Konfiguration prüfen
+## Konfiguration prüfen
 
 Nutze für Container-Befehle den Workspace, den du mit `tale init` im [Schnellstart](/de/self-hosted/install/quickstart) erstellt hast. Die CLI sucht im aktuellen Verzeichnis und seinen Eltern nach `tale.json`. Prüfe das gewählte Projekt, bevor du es veränderst:
 
@@ -59,17 +59,17 @@ Nutze für Container-Befehle den Workspace, den du mit `tale init` im [Schnellst
 tale config show
 ```
 
-Konfigurations-Releases und [verwaltete Deployments](#verwaltete-deployments) wählen Quellen und Ziele explizit und gleichen sich nicht an einen benachbarten Workspace an. `config show` behält sein bisheriges Verhalten für lokale Projekte.
+Konfigurations-Releases und [verwaltete Deployments](#managed-deployments) wählen Quellen und Ziele explizit und gleichen sich nicht an einen benachbarten Workspace an. `config show` behält sein bisheriges Verhalten für lokale Projekte.
 
 Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Ändere `HOST` dort oder übergib `--host` an `tale dev` / `tale deploy`. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
 
-## Schritt 4 — tale deploy ausführen
+## tale deploy ausführen
 
 ```bash
 tale deploy
 ```
 
-Ohne `--bundle` stellt `tale deploy` die Version der CLI bereit: Es lädt deren Images, startet betroffene Container in der vorgesehenen Reihenfolge und führt Schema-Migrationen aus. Wähle eine andere Workspace-Version vorher mit `tale update`. Für getrennt festgelegte Runtime- und Client-Quell-Commits nutze [Verwaltete Deployments](#verwaltete-deployments).
+Ohne `--bundle` stellt `tale deploy` die Version der CLI bereit: Es lädt deren Images, startet betroffene Container in der vorgesehenen Reihenfolge und führt Schema-Migrationen aus. Wähle eine andere Workspace-Version vorher mit `tale update`. Für getrennt festgelegte Runtime- und Client-Quell-Commits nutze [Verwaltete Deployments](#managed-deployments).
 
 ## Befehlsreferenz
 
@@ -77,10 +77,10 @@ Die CLI gruppiert ihre Befehle danach, was du gerade tust — genau wie `tale --
 
 - Ein positionales Argument in `[eckigen Klammern]` ist **optional**, eines in `<spitzen Klammern>` ist **erforderlich**.
 - Pflichtoptionen für Konfigurations-Releases sind ausdrücklich benannt; andere Flags sind optional, sofern die Befehlshilfe sie nicht als erforderlich markiert.
-- Ein Flag der Form `--flag <wert>` **erfordert einen Wert**, wenn du es nutzt (z. B. `--port 8443`); ein blosses Flag wie `--detach` ist ein boolescher Schalter.
+- Ein Flag der Form `--flag <wert>` **erfordert einen Wert**, wenn du es nutzt (z. B. `--port 8443`); ein bloßes Flag wie `--detach` ist ein boolescher Schalter.
 - **Standardwerte** stehen in Klammern hinter der Beschreibung. Kein Standard bedeutet, das Flag ist aus oder der Wert wird aus `.env` / Kontext aufgelöst.
 
-Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten Version aus.
+Führe `tale <befehl> --help` für die maßgebliche Liste deiner installierten Version aus.
 
 **Globale Flags** funktionieren bei jedem Befehl:
 
@@ -107,7 +107,7 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `--host <hostname>` — Host-Alias für den Proxy (Standard `localhost`).
 - `-y, --yes` — nicht-interaktiv: Abfragen automatisch akzeptieren (z. B. Docker installieren oder starten).
 
-`tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version. Beim ersten Deploy fragt es nach deiner Produktiv-Domain und der Let's-Encrypt-E-Mail (oder übergib `--host`).
+`tale deploy` — die aktuelle CLI-Version bereitstellen und Anwendungsrollen per Blue-Green-Verfahren ersetzen. Gemeinsame Ausführungsdienste werden direkt ersetzt; Datenbank und Proxy brauchen dafür `--stop`. Beim ersten Deployment fragt die CLI nach Produktiv-Domain und TLS-E-Mail, soweit nicht vorgegeben. Lies vor Änderungen einer bestehenden Installation [Upgrades](/de/self-hosted/operate/upgrades).
 
 - `--stop` — auch die stop-gebundene Schicht (`db`, `proxy`) aktualisieren — sie wird neu erstellt, also nimm eine kurze Ausfallzeit in Kauf; ohne das Flag bleiben laufende `db`/`proxy` unangetastet.
 - `-s, --services <list>` — nur diese kommagetrennten Dienste aktualisieren (Standard: alle rotierbaren Dienste).
@@ -119,9 +119,11 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--dry-run` — Vorschau ohne Änderungen.
 
-### Verwaltete Deployments
+### Verwaltete Deployments {#managed-deployments}
 
 Nutze eine geprüfte Deployment-Deklaration, wenn Runtime und Client-Konfigurationen exakten Quell-Commits folgen sollen. Deine Deployment-Automatisierung wählt Ziel, Zugangsdaten und Referenzen und ruft die Tale-CLI auf. Die CLI beschafft Quellen, ermittelt und prüft Image-Digests, bereitet den Transfer vor, erhält unterstützten Bestandszustand, erstellt erforderliche Wiederherstellungssnapshots, rollt den Stack aus, provisioniert die native Instanz und prüft die Konfiguration. Diese Deployment-Logik bleibt in Tale.
+
+#### Laufzeit und Quellstände vorbereiten
 
 Führe die Vorbereitung unter Linux mit einer kompilierten CLI aus einem sauberen, committeten Tale-Checkout aus. Die Architektur muss zum Ziel passen: `linux/amd64` oder `linux/arm64`. Dasselbe Binary reist für die lokale Provisionierung im Backend mit. Die Vorbereitung braucht Git und Docker zur Quellen- und Image-Prüfung. Anwenden läuft auf dem Ziel mit dessen lokalem Docker-Daemon, erhaltenem Zustandsverzeichnis und Umgebung. Vollständiger CLI-Commit, Runtime-Quell-Commit und Quell-Commit der Client-Konfiguration sind getrennte Referenzen.
 
@@ -179,6 +181,8 @@ Setze optional `runtime.containerPrefix`, etwa `north-desk-prod`, um die Umgebun
 }
 ```
 
+#### Bundle vorbereiten, prüfen und anwenden
+
 Setze `TALE_DEPLOY_SPEC` auf die JSON-Datei, `TALE_DEPLOY_BUNDLE` auf ein neues absolutes Ausgabeverzeichnis und `TALE_CLI_COMMIT` auf den vollständigen Commit des Binaries. `DEPLOYMENT_COMMIT` ist ein optionaler Herkunftsvermerk für die Orchestrierung; lass die zugehörigen Flags bei Nichtgebrauch weg. Bereite vor und prüfe, übertrage das vollständige Verzeichnis und führe Vorschau und Deployment auf dem Ziel mit derselben festgelegten CLI aus.
 
 ```bash
@@ -205,6 +209,8 @@ tale --json --yes deploy --bundle "$TALE_DEPLOY_BUNDLE" \
 
 `deploy verify-bundle` prüft vollständiges Inventar und Datei-Hashes ohne Zielkontakt. `deploy --bundle --dry-run` prüft Konfigurationsartefakte und Zielbedingungen, ohne Änderungen anzuwenden. Verwaltete Deployments akzeptieren keine Workspace-Optionen wie `--services`, `--host` oder `--override-all`. Sie rollen den Stack unter Erhalt seines Zustands mit Zustands- und Herkunftsprüfungen aus. Das oben beschriebene Blue-Green-Verhalten des Workspace ist ein eigener Ablauf.
 
+#### Native Identität bereitstellen
+
 `deploy provision [--bundle <directory>]` ist die lokale Backend-Phase des Bundle-Deployments. Sie liest höchstens 64 KiB privates JSON von stdin, weist das lokale Konto und die ausgewählte Organisation nach und meldet die Sitzung vor der Erfolgsmeldung ab. Die Felder umfassen `origin`, `email`, `password`, `slug`, `name`, `ssoEnabled`, optionale Entra-Zugangsdaten und `nativeClients`. Standardmäßig bleibt das bestehende Konto erforderlich. Explizites `identity.bootstrap: "fresh"` erlaubt die Anlage des ersten lokalen Kontos und der Organisation. Ein Bundle bindet diese Wahl und die vorbereiteten Konfigurationen vor nativen Änderungen. `deploy provision` verweigert Workspace-Flags und `--dry-run`; nutze lesende Bundle- und Konfigurationsprüfungen. Die optionalen Erwartungen `--cli-ref` und `--deployment-ref` erfordern `--bundle` und greifen vor der Anmeldung.
 
 Für einen neuen Hostnamen einer bestehenden verwalteten Bereitstellung setzt du `origin` auf die neue Adresse und `identity.migrateOriginFrom: "https://old.example.org"` auf die genaue bisherige HTTPS-Origin. Behalte `bootstrap: "fresh"`, Konto, Organisation und die Schlüssel der verwalteten Clients bei. Die Migration erfordert abgeschlossene Journale für Bootstrap, deklarierte E-Mail-Bestätigung und verwaltete Clients. Sie authentifiziert das bestehende Konto und prüft die Client-Zugangsdaten, bevor sie die Origin-Bindungen aktualisiert. Fehlende, ausstehende oder fremde Journale stoppen das Deployment. Ein erneuter Lauf akzeptiert abgeschlossene Journale mit einer der beiden deklarierten Origins und setzt eine unterbrochene Migration ohne neue IDs oder Secrets fort. Entferne nach dem Bereitschaftsbeleg `migrateOriginFrom` aus künftigen Deployments und exportiere die Client-Konfiguration für den neuen Issuer. Für den Rückweg nach einer abgeschlossenen Migration tauschst du die beiden Origins ausdrücklich und durchläufst dieselben Prüfungen. Bei deklarierter nativer Konfiguration benötigt die Migration zusätzlich deren abgeschlossenen Beleg, behält Organisations-ID und Slug bei und prüft jede Ressource über den üblichen Plan und das anschließende Auslesen. Ein am neuen Origin unterbrochener Konfigurationsschreibvorgang setzt den exakt gespeicherten ausstehenden Plan fort; ein ausstehender Beleg am alten Origin blockiert die Migration.
@@ -215,10 +221,12 @@ Ersetze für ein neues Ziel `projectId` einer Konfiguration durch `project: { "k
 
 Jeder native Client wählt eine bestehende `clientId` oder explizites `managed: true`. Vor der nativen Anlage speichert die CLI eine private Absicht; danach liefert sie nur einen privaten Übergabepfad und SHA für die Zugangsdaten. Wiederholungen erhalten IDs, Sicherheitsrichtlinie und Secrets. Unklare Annahme ohne passendes natives Objekt stoppt. Bei bestehenden Clients lassen sich nur Anzeigename und HTTPS-Callback-URLs angleichen. Auf unterstützten 0.5-Backends verwenden nötige Anlagen oder Änderungen feste backendlokale Auth-Adapter, deren Verbindungen anschließend schließen. Es entstehen keine öffentliche Registrierungs- oder Update-Route, frei wählbaren Modulpfade oder Secret-Rotationen.
 
+#### Zugangsdaten nativer Clients exportieren
+
 Um Zugangsdaten eines verwalteten Clients an eine separate Anwendung zu übergeben, setze `NATIVE_CLIENT_KEY` auf den deklarierten Schlüssel und `PRIVATE_EXPORT_DIRECTORY` auf einen neuen privaten Ausgabeordner. Dessen übergeordneter Ordner muss bereits deinem Konto gehören, Modus `0700` haben und unter vertrauenswürdigen Verzeichnissen liegen. Exportiere aus demselben freigegebenen Deployment, ohne Backend-Pfade oder Containernamen auszuwerten:
 
 ```bash
-tale --json deploy export-client --bundle "$DEPLOYMENT_BUNDLE" \
+tale --json deploy export-client --bundle "$TALE_DEPLOY_BUNDLE" \
   --client "$NATIVE_CLIENT_KEY" --output "$PRIVATE_EXPORT_DIRECTORY" \
   --env-prefix TALE_OIDC --cli-ref "$TALE_CLI_COMMIT" \
   --deployment-ref "$DEPLOYMENT_COMMIT"
@@ -355,7 +363,7 @@ Verwaltete Deployments aktivieren auch eine deklarierte `deployment`-Ressource, 
 - `-c, --color <color>` — eine bestimmte Deployment-Farbe ansprechen (`blue` oder `green`).
 - `--raw` — die rohe, ungefilterte Log-Ausgabe streamen (keine Klassifizierung).
 
-`tale backup` — Snapshot aller Daten-Volumes in das Projekt-Backups-Volume. Keine Argumente.
+`tale backup` — unterstützte, vorhandene Projekt-Volumes sichern. Keine Argumente. Externe Datenbanken und Buckets brauchen eigene Backups; siehe [Sicherungsumfang](/de/self-hosted/operate/backups-and-restore).
 
 `tale restore [snapshot-id]` — einen Snapshot wiederherstellen; ohne ID werden die verfügbaren Snapshots aufgelistet.
 
@@ -423,6 +431,8 @@ Konfigurationsbefehle haben kein `--dry-run`: Nutze `stage`, `verify --rebuild` 
 
 `tale auth reset-owner` — die Zugangsdaten des Owner-Kontos zurücksetzen.
 
+Führe den Befehl bei einer manuellen Wiederherstellung ohne Flags im interaktiven Terminal aus. So gibst du das Passwort verdeckt ein, ohne es in Shell-Verlauf oder Argumenten abzulegen. Die Rücksetzung macht bestehende Sitzungen ungültig.
+
 - `-e, --email <email>` — eine neue Owner-E-Mail-Adresse setzen.
 - `-p, --password <password>` — ein neues Owner-Passwort setzen.
 
@@ -433,6 +443,4 @@ Konfigurationsbefehle haben kein `--dry-run`: Nutze `stage`, `verify --rebuild` 
 - **Installer scheitert auf macOS, weil das Binary nicht ausführbar ist.** Verweigert das frisch installierte Binary den Start (z. B. weil Gatekeeper es beendet), bricht der Installer mit Hinweisen zur Behebung ab, statt Erfolg zu melden — folg ihnen und lauf den Installer erneut.
 - **`tale` nach der Installation auf Linux nicht gefunden.** Der Installer legt das Binary in `/usr/local/bin` ab; verifizier, dass das Verzeichnis im `PATH` des Users ist (`echo $PATH`).
 
-## Wo das eingesetzt wird
-
-Sobald die CLI verdrahtet ist, schrumpft die tägliche Oberfläche des Betreibers auf eine Handvoll Subbefehle. Welche Seiten du als Nächstes liest, hängt davon ab, wozu du gekommen bist — [Upgrades](/de/self-hosted/operate/upgrades) für Versionsbumps, [Backups und Restore](/de/self-hosted/operate/backups-and-restore) für Snapshot-Übungen, [Container-Architektur](/de/self-hosted/operate/container-architecture) dafür, was die CLI beim Deploy restartet.
+Für den laufenden Betrieb helfen [Upgrades](/de/self-hosted/operate/upgrades), [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) und [Container-Architektur](/de/self-hosted/operate/container-architecture).
