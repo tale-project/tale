@@ -53,6 +53,12 @@ import {
   traceFrom,
   whenSkippedFrom,
 } from './checkpoints';
+import {
+  agentFailureCodeOf,
+  NodeFailure,
+  runFailureCodeOf,
+  type RunFailureCode,
+} from './failure';
 import { RUN_HEARTBEAT_INTERVAL_MS } from './liveness';
 import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
@@ -257,7 +263,8 @@ function automationApprovalGate(
           }),
         };
       }
-      throw new Error(
+      throw new NodeFailure(
+        'approval_rejected',
         `approval for "${request.nodeType}" was rejected — the run cannot perform it`,
       );
     },
@@ -321,6 +328,9 @@ type WalkResult =
       nodeId?: string;
       message: string;
       hint?: string;
+      /** The stable cause (`Run.failureCode`): named by the site that can
+       * tell, or classified from the error by the stepper's catch. */
+      code: RunFailureCode;
       /** The failing node's trace entry. A hard failure is deliberately NOT
        * checkpointed — a resumed run must not step over it as though it had
        * been handled — so its trace travels with the result instead. */
@@ -422,7 +432,8 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       });
       if (node.outputSchema !== undefined) {
         if (!('data' in reply)) {
-          throw new Error(
+          throw new NodeFailure(
+            'llm_output_invalid',
             'the llm call returned plain text for a node with outputSchema — structured output was required',
           );
         }
@@ -562,7 +573,9 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     },
   );
   if (result.status !== 'ok') {
-    throw new Error(result.message);
+    // A coded `ConnectorError` used to lose its code in the stepper's catch;
+    // the run now says a connector, not the author's code, failed.
+    throw new NodeFailure('connector_error', result.message);
   }
   if (result.effects === 'write') {
     effects.push({ node: node.id, connector: node.type, input: resolved });
@@ -598,6 +611,7 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
   if (!ordered) {
     return {
       kind: 'failed',
+      code: 'node_error',
       message: 'circular reference between nodes (see validate_automation)',
     };
   }
@@ -649,6 +663,7 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
   } catch (error) {
     return {
       kind: 'failed',
+      code: 'node_error',
       message: `failed to evaluate automation "output": ${error instanceof Error ? error.message : String(error)}`,
     };
   }
@@ -672,6 +687,8 @@ type StepOutcome =
   | {
       kind: 'failed';
       nodeId: string;
+      /** The stable cause (`Run.failureCode`), read off the caught error. */
+      code: RunFailureCode;
       message: string;
       hint?: string;
       trace: NodeTrace;
@@ -831,7 +848,8 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 
       checkpoints.executions++;
       if (checkpoints.executions > DEFAULT_MAX_NODE_EXECUTIONS) {
-        throw new Error(
+        throw new NodeFailure(
+          'execution_limit',
           `run exceeded the ${DEFAULT_MAX_NODE_EXECUTIONS}-execution guard — a forEach over a huge array or a runaway repeat; split the automation`,
         );
       }
@@ -934,6 +952,11 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
       kind: 'failed',
       nodeId: node.id,
       message,
+      // The one catch every node failure funnels through: a site that could
+      // tell its cause threw a `NodeFailure`; anything else is classified the
+      // way the chat surface classifies a provider failure, else the
+      // author's own `node_error`.
+      code: runFailureCodeOf(error),
       ...(hint !== undefined && { hint }),
       trace,
     };
@@ -1070,7 +1093,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     }
     checkpoints.executions++;
     if (checkpoints.executions > DEFAULT_MAX_NODE_EXECUTIONS) {
-      throw new Error(
+      throw new NodeFailure(
+        'execution_limit',
         `run exceeded the ${DEFAULT_MAX_NODE_EXECUTIONS}-execution guard — a forEach over a huge array or a runaway repeat; split the automation`,
       );
     }
@@ -1224,7 +1248,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
       );
     }
-    throw new Error(
+    // The settle's own code (`turn_crashed`, `deadline`, `budget_exceeded`,
+    // …) used to be dropped here, so the run said only "the agent turn
+    // failed" — it is the run's `failureCode` now.
+    throw new NodeFailure(
+      agentFailureCodeOf(settled.failureCode),
       attempt > 0 ? `${reason} (after ${attempt + 1} attempts)` : reason,
     );
   }
@@ -1333,6 +1361,7 @@ async function stepClaimedRun(
           runId: args.runId,
           epoch,
           status: 'failed',
+          failureCode: 'automation_deleted',
           trace: [],
           effects: [],
           detail: 'the automation was deleted while this run was in flight',
@@ -1429,6 +1458,7 @@ async function stepClaimedRun(
           detail: result.nodeId
             ? `${result.nodeId}: ${result.message}`
             : result.message,
+          failureCode: result.code,
         }),
         executions: checkpoints.executions,
       },

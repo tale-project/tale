@@ -260,18 +260,32 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   /** Recheck the fresh task and active project in the same transaction as
-   * the mutex-protected start; also used by intake after its task commits. */
+   * the mutex-protected start; also used by intake after its task commits.
+   *
+   * READ COMMITTED, not serializable: the guard in `startWorkflowForTaskInTx`
+   * takes an advisory lock and then reads the live runs, and a read-committed
+   * statement takes a fresh snapshot — so once a racing door commits its run,
+   * this probe sees it and answers `already_running`. Under SERIALIZABLE the
+   * transaction's snapshot froze at its first statement, before the lock, so
+   * concurrent starts each read "no live run" and began separate billable
+   * runs (2026-09-14 evaluation, g5-1). The task reload stays inside the
+   * transaction, so a task moved or archived between the door's preflight and
+   * the start is still caught; the one-live-run index (`0102`) is the durable
+   * backstop under any isolation. */
   const startTaskWorkflow = async (
     auth: ProjectAuthContext,
     projectId: string,
     taskId: string,
     workflowSlug: string,
-  ): Promise<Awaited<ReturnType<typeof startWorkflowForTaskInTx>>> =>
-    transactSerializable(deps.sql, async (tx) => {
+  ): Promise<Awaited<ReturnType<typeof startWorkflowForTaskInTx>>> => {
+    // postgres.js's begin result conditionally unwraps arrays; hold the
+    // nullable result outside that conditional return type.
+    let outcome: Awaited<ReturnType<typeof startWorkflowForTaskInTx>> = null;
+    await deps.sql.begin('isolation level read committed', async (tx) => {
       const task = await loadVisibleTask(tx, auth, projectId, taskId, {
         write: true,
       });
-      return startWorkflowForTaskInTx(tx, {
+      outcome = await startWorkflowForTaskInTx(tx, {
         organizationId: auth.organizationId,
         task,
         workflowSlug,
@@ -279,6 +293,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         startedVia: 'api-key',
       });
     });
+    return outcome;
+  };
 
   app.post('/projects/:id/tasks', async (c) => {
     const body = await parseBody(c, taskIntakeBody);
