@@ -328,6 +328,20 @@
 			import edge_json_refusal
 			respond `{"error":"The request body ended before the declared Content-Length was reached — send exactly the bytes the header declares (a length past the route's cap is refused by the platform's 413 instead)","code":"BODY_LENGTH_MISMATCH","requestId":"{http.request.uuid}"}` 400
 		}
+		# A 502 the CLIENT caused, the HTTP/1.1 twin: a chunked request body
+		# whose framing is malformed ("ZZZZ" as a chunk size, a bare LF, a
+		# missing CRLF) makes Go's chunked reader fail the body read with one
+		# of the sentences below, the round trip fails, and the caller was told
+		# "a deployment may be rolling; retry with backoff" for a request that
+		# can never succeed (2026-09-14 evaluation, g8-1). None of these
+		# sentences can name an upstream fault at 502 time — a response-body
+		# framing error surfaces only after the round trip — so they are a
+		# safe 400. Substrings, never anchored; never echoed.
+		@badChunk expression `{http.error.status_code} == 502 && {http.error.message}.matches("invalid byte in chunk length|empty hex number for chunk length|http chunk length too large|malformed chunked encoding|chunked encoding contains too much non-data|chunked line ends with bare LF|invalid CR in chunked line|header line too long")`
+		handle @badChunk {
+			import edge_json_refusal
+			respond `{"error":"The request body's chunked encoding is malformed — each chunk is a hexadecimal size line, its bytes and CRLF, ended by a zero-size chunk; send a well-formed body or declare a Content-Length","code":"BODY_CHUNK_MALFORMED","requestId":"{http.request.uuid}"}` 400
+		}
 		# The machine doors: every lane the entrypoint injects plus the
 		# platform's keyless JSON doors (/api/health, /status.json,
 		# /openapi.json). Judged on the PATH alone — no Accept sniffing — so
