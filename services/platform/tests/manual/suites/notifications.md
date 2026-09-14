@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 24 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 25 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -155,6 +155,8 @@ their own action, so a single account cannot generate those rows.
 > The **Upgraded to v{version}** changelog release toast is **not** a bell
 > notification — it belongs to the app shell and is covered in
 > [navigation.md](navigation.md) (its NAV-F12), which owns the changelog.
+
+- [ ] `NOTIF-F15` · **Read a connected application's notification mirror** → with a configured read-only notification integration and matching verified member, trigger a personal agent question and an organization alert visible to that member. Both copies open the same subject as the Tale bell. Read or dismiss a copy in the connected app: the Tale row stays unchanged. A removed or disabled member receives no new export; a different organization or ordinary member API key cannot export another recipient's feed.
 
 ## Boundary & error tests
 

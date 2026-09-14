@@ -815,6 +815,85 @@ const orgSlugHeaderParam = {
 
 export function buildSpec(): Json {
   const paths: Record<string, Json> = {};
+  paths['/api/v1/notifications/sync'] = {
+    get: {
+      tags: ['Notifications'],
+      operationId: 'listNotificationsForSync',
+      summary: 'Read a member’s notifications for one-way mirroring',
+      security: sec,
+      description:
+        'Organization owners and administrators may export the personal and organization streams of an active, verified member identified by email. Security visibility follows the recipient’s role. Missing, disabled, unverified or ambiguous recipients return an empty completed page. Walk both streams completely before retracting missing destination rows; failed scans must preserve the previous mirror. This endpoint never marks Tale notifications read. Source ids are stable and org-prefixed; version changes with content or read state. Paths use the same destinations as the Tale bell, relative to the configured browser origin (which may require ZeroTier), never the machine transport URL. Text uses the requested locale or the organization default, with English fallback; titles and bodies are bounded to 500 and 8000 characters.',
+      parameters: [
+        orgSlugHeaderParam,
+        ...paginationParams(100, 100),
+        {
+          ...queryParam(
+            'recipientEmail',
+            'Verified email of the intended recipient',
+          ),
+          required: true,
+          schema: { type: 'string', format: 'email', maxLength: 320 },
+        },
+        {
+          ...queryParam(
+            'stream',
+            'Walk each stream independently with its own cursor',
+          ),
+          required: true,
+          schema: { type: 'string', enum: ['personal', 'organization'] },
+        },
+        {
+          ...queryParam('locale', 'Defaults to the organization’s language'),
+          schema: { type: 'string', enum: ['en', 'de', 'fr'] },
+        },
+      ],
+      responses: {
+        ...standardErrors,
+        '403': errorResponse(
+          'Only organization owners and administrators may export (`ROLE_FORBIDDEN`)',
+        ),
+        '200': jsonResponse('One page of the recipient’s stream', {
+          type: 'object',
+          [PAGINATION]: 'keyset',
+          required: ['recipientId', 'page', 'isDone', 'continueCursor'],
+          properties: {
+            recipientId: { type: ['string', 'null'] },
+            isDone: bool,
+            continueCursor: { type: 'string' },
+            page: {
+              type: 'array',
+              maxItems: 100,
+              items: {
+                type: 'object',
+                required: [
+                  'id',
+                  'version',
+                  'title',
+                  'body',
+                  'path',
+                  'createdAt',
+                  'read',
+                ],
+                properties: {
+                  id: { type: 'string' },
+                  version: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+                  title: { type: 'string', maxLength: 500 },
+                  body: { type: 'string', maxLength: 8000 },
+                  path: {
+                    type: 'string',
+                    description:
+                      'Organization-scoped /dashboard/ path with encoded entity ids and query parameters',
+                  },
+                  createdAt: { type: 'integer', minimum: 0 },
+                  read: bool,
+                },
+              },
+            },
+          },
+        }),
+      },
+    },
+  };
 
   /** The tenant header — the one door rule, strict on every call. */
   const conversationOrg = orgSlugHeaderParam;
@@ -5817,6 +5896,11 @@ curl -H "Authorization: Bearer <api-key>" \\
         name: 'Conversations',
         description:
           'Mirroring external conversations into Inbox — versioned snapshots, reply claims, delivery receipts and staged uploads.',
+      },
+      {
+        name: 'Notifications',
+        description:
+          'Read-only, recipient-scoped notification exports for connected applications.',
       },
     ],
     paths,
