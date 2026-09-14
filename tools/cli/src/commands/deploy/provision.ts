@@ -82,6 +82,7 @@ export function verifyProvisionIdentity(
     identity.name !== input.name ||
     identity.ssoEnabled !== input.ssoEnabled ||
     identity.bootstrap !== input.bootstrap ||
+    identity.migrateOriginFrom !== input.migrateOriginFrom ||
     identity.emailVerification !== input.emailVerification ||
     (typeof identity.email === 'string' &&
       identity.email.toLowerCase() !== input.email.toLowerCase()) ||

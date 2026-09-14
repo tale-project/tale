@@ -9,6 +9,7 @@ import {
 } from './native-client';
 import {
   provisionStatePath,
+  admitsProvisionOrigin,
   readProvisionStateProof,
   writeProvisionState,
 } from './provision-state';
@@ -44,6 +45,7 @@ export interface EmailAttestationInput {
   email: string;
   headers: Headers;
   stateDirectory: string;
+  migrateOriginFrom?: string;
 }
 export type EmailAttestation = (
   input: EmailAttestationInput,
@@ -79,6 +81,7 @@ export function createBackendEmailAttestation(
         userId: identifier,
         email: z.email(),
         stateDirectory: z.string().min(1),
+        migrateOriginFrom: nativeOriginSchema.optional(),
       })
       .safeParse(input);
     if (!selected.success || !(input.headers instanceof Headers))
@@ -137,6 +140,8 @@ export function createBackendEmailAttestation(
           'email-attestation.json',
         );
         const retained = readProvisionStateProof(file, stateSchema);
+        if (input.migrateOriginFrom && !retained)
+          throw new Error('Origin migration requires retained attestation');
         let pendingDigest = retained?.sha256;
         const target = {
           method: 'operator-attested' as const,
@@ -146,7 +151,11 @@ export function createBackendEmailAttestation(
         };
         if (
           retained &&
-          (retained.value.origin !== target.origin ||
+          (!admitsProvisionOrigin(
+            retained.value,
+            target.origin,
+            input.migrateOriginFrom,
+          ) ||
             retained.value.userId !== target.userId ||
             retained.value.email !== email)
         )
@@ -257,15 +266,24 @@ export function createBackendEmailAttestation(
         if (
           !current ||
           current.sha256 !== pendingDigest ||
-          current.value.origin !== target.origin ||
+          !admitsProvisionOrigin(
+            current.value,
+            target.origin,
+            input.migrateOriginFrom,
+          ) ||
           current.value.userId !== target.userId ||
           current.value.email !== email
         )
           throw new Error('Attestation intent changed');
         const receipt =
-          current.value.phase === 'ready'
+          current.value.phase === 'ready' &&
+          current.value.origin === target.origin
             ? { path: file, sha256: current.sha256 }
-            : writeProvisionState(file, { ...current.value, phase: 'ready' });
+            : writeProvisionState(file, {
+                ...current.value,
+                phase: 'ready',
+                origin: target.origin,
+              });
         proof = emailAttestationProofSchema.parse({
           method: target.method,
           userId: input.userId,

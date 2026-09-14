@@ -11,6 +11,8 @@ import {
   PRIVATE_INPUT_LIMIT,
   type InstanceOptions,
 } from './identity';
+import { intentSchema } from './native-client';
+import { provisionStatePath, writeProvisionState } from './provision-state';
 
 const INPUT = {
   email: 'operator@example.org',
@@ -49,6 +51,7 @@ interface Call {
   cookie: string;
 }
 interface FixtureOptions {
+  nativeClients?: unknown[];
   loginStatus?: number;
   signupStatus?: number;
   challenge?: boolean;
@@ -170,6 +173,8 @@ function fixture(options: FixtureOptions = {}) {
         return Response.json(
           options.discovery ?? { enabled: connection.enabled, multiple: false },
         );
+      if (path === '/api/app/identity/clients?orgId=org-example')
+        return Response.json({ clients: options.nativeClients ?? [] });
       if (path === '/api/auth/sign-out')
         return Response.json(
           { success: !options.cleanupFailure },
@@ -356,9 +361,356 @@ describe('reviewed deployment identity admission', () => {
 });
 
 describe('native instance provisioning over real local HTTP', () => {
+  const testPosix = test.skipIf(process.platform === 'win32');
+  testPosix(
+    'origin migration preflights every retained binding and resumes partially migrated journals',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-origin-migration-all-'),
+      );
+      const oldOrigin = 'https://old.example.org';
+      const client = intentSchema.parse({
+        schemaVersion: 1,
+        phase: 'ready',
+        origin: oldOrigin,
+        organizationId: 'org-example',
+        operatorUserId: 'native-user',
+        credentials: {
+          clientId: 'retained-client',
+          clientSecret: 'a'.repeat(43),
+        },
+        body: {
+          client_name: PORTAL.name,
+          software_id: PORTAL.key,
+          redirect_uris: PORTAL.redirectUris,
+          scope: 'openid profile email tale:organization',
+          grant_types: ['authorization_code'],
+          response_types: ['code'],
+          token_endpoint_auth_method: 'client_secret_post',
+          type: 'web',
+          require_pkce: true,
+          skip_consent: false,
+          metadata: { taleOrganizationId: 'org-example' },
+        },
+      });
+      const attestation = {
+        schemaVersion: 1,
+        phase: 'ready',
+        origin: oldOrigin,
+        method: 'operator-attested',
+        userId: 'native-user',
+        email: INPUT.email,
+      };
+      const bootstrap = {
+        schemaVersion: 1,
+        phase: 'ready',
+        origin: oldOrigin,
+        email: INPUT.email,
+        slug: INPUT.slug,
+        name: INPUT.name,
+        userId: 'native-user',
+        organizationId: 'org-example',
+        emailVerification: 'operator-attested',
+      };
+      const input = {
+        ...INPUT,
+        ssoEnabled: false,
+        bootstrap: 'fresh',
+        emailVerification: 'operator-attested',
+        migrateOriginFrom: oldOrigin,
+        nativeClients: [
+          {
+            key: PORTAL.key,
+            name: PORTAL.name,
+            managed: true,
+            redirectUris: PORTAL.redirectUris,
+          },
+        ],
+      };
+      const bootstrapFile = provisionStatePath(
+        stateDirectory,
+        'bootstrap.json',
+        true,
+      );
+      const clientFile = join(
+        stateDirectory,
+        `private/client-${PORTAL.key}.json`,
+      );
+      const attestationFile = join(
+        stateDirectory,
+        'private/email-attestation.json',
+      );
+      try {
+        writeProvisionState(bootstrapFile, bootstrap);
+        writeProvisionState(clientFile, client);
+        writeProvisionState(attestationFile, attestation);
+        await withFixture(
+          {
+            connection: ABSENT,
+            nativeClients: [
+              {
+                ...client.body,
+                client_id: client.credentials.clientId,
+                disabled: false,
+                taleOrganizationId: client.organizationId,
+              },
+            ],
+          },
+          async (f) => {
+            const options: InstanceOptions = {
+              stateDirectory,
+              fetchImpl: f.fetchImpl,
+              managedClients: {
+                create: async () => {
+                  throw Error('Migration cannot create a client');
+                },
+                verify: async (credentials) => {
+                  expect(credentials).toEqual(client.credentials);
+                },
+              },
+              emailAttestation: async (args) => {
+                expect(args.migrateOriginFrom).toBe(oldOrigin);
+                return {
+                  method: 'operator-attested',
+                  userId: args.userId,
+                  email: args.email,
+                  emailVerified: true,
+                  receipt: writeProvisionState(attestationFile, {
+                    ...attestation,
+                    origin: INPUT.origin,
+                  }),
+                };
+              },
+            };
+            for (const change of [
+              { origin: 'https://foreign.example.org' },
+              { phase: 'pending' },
+              { organizationId: 'foreign-org' },
+              { operatorUserId: 'foreign-user' },
+              { body: { ...client.body, software_id: 'foreign-key' } },
+              {
+                body: {
+                  ...client.body,
+                  metadata: { taleOrganizationId: 'foreign-org' },
+                },
+              },
+            ]) {
+              writeProvisionState(clientFile, { ...client, ...change });
+              await expect(configureInstance(input, options)).rejects.toThrow(
+                'retained native clients',
+              );
+              expect(f.calls).toHaveLength(0);
+            }
+            writeProvisionState(clientFile, client);
+            for (const change of [
+              { origin: 'https://foreign.example.org' },
+              { phase: 'pending' },
+              { userId: 'foreign-user' },
+              { email: 'foreign@example.org' },
+            ]) {
+              writeProvisionState(attestationFile, {
+                ...attestation,
+                ...change,
+              });
+              await expect(configureInstance(input, options)).rejects.toThrow(
+                'retained operator attestation',
+              );
+              expect(f.calls).toHaveLength(0);
+            }
+            writeProvisionState(attestationFile, attestation);
+            await expect(
+              configureInstance(input, {
+                ...options,
+                provision: async () => {
+                  throw Error('late failure');
+                },
+              }),
+            ).rejects.toThrow('provisioning failed');
+            expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toEqual(
+              bootstrap,
+            );
+            expect(JSON.parse(readFileSync(clientFile, 'utf8'))).toEqual({
+              ...client,
+              origin: INPUT.origin,
+            });
+            expect(JSON.parse(readFileSync(attestationFile, 'utf8'))).toEqual({
+              ...attestation,
+              origin: INPUT.origin,
+            });
+            const result = await configureInstance(input, options);
+            expect(result).toMatchObject({
+              userId: bootstrap.userId,
+              organizationId: bootstrap.organizationId,
+            });
+            expect(result.nativeClients[0]?.clientId).toBe(
+              client.credentials.clientId,
+            );
+            expect(JSON.parse(readFileSync(bootstrapFile, 'utf8'))).toEqual({
+              ...bootstrap,
+              origin: INPUT.origin,
+            });
+            expect(
+              f.calls.some((call) =>
+                /sign-up|organization\/create/.test(call.path),
+              ),
+            ).toBe(false);
+            expect(writes(f.calls)).toHaveLength(0);
+            // Reread must also refuse an identity swapped after preflight.
+            writeProvisionState(bootstrapFile, bootstrap);
+            await expect(
+              configureInstance(input, {
+                ...options,
+                provision: async () => {
+                  writeProvisionState(bootstrapFile, {
+                    ...bootstrap,
+                    userId: 'foreign-user',
+                  });
+                },
+              }),
+            ).rejects.toThrow('changed during origin migration');
+            expect(JSON.parse(readFileSync(bootstrapFile, 'utf8')).userId).toBe(
+              'foreign-user',
+            );
+          },
+        );
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
   // Only fresh bootstrap needs the POSIX intent store. The public managed
   // command refuses Windows; exact-ID HTTP and preflight tests remain portable.
-  const testPosix = test.skipIf(process.platform === 'win32');
+
+  testPosix(
+    'origin migration preserves the existing user and organization and replays without writes',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-origin-migration-'),
+      );
+      const input = {
+        ...INPUT,
+        bootstrap: 'fresh' as const,
+        ssoEnabled: false,
+      };
+      try {
+        await withFixture({ connection: ABSENT }, async (f) => {
+          const options = { stateDirectory, fetchImpl: f.fetchImpl };
+          const first = await configureInstance(input, options);
+          const file = join(stateDirectory, 'private/bootstrap.json');
+          const before = JSON.parse(readFileSync(file, 'utf8'));
+          const old = { ...before, origin: 'https://old.example.org' };
+          writeProvisionState(file, old);
+          for (const migrateOriginFrom of [
+            undefined,
+            'https://wrong.example.org',
+          ]) {
+            f.calls.length = 0;
+            await expect(
+              configureInstance({ ...input, migrateOriginFrom }, options),
+            ).rejects.toThrow('intent differs');
+            expect(f.calls).toHaveLength(0);
+          }
+          writeProvisionState(file, { ...old, phase: 'pending' });
+          await expect(
+            configureInstance(
+              { ...input, migrateOriginFrom: old.origin },
+              options,
+            ),
+          ).rejects.toThrow('intent differs');
+          writeProvisionState(file, old);
+          const target = { ...input, migrateOriginFrom: old.origin };
+          // A failure after authentication retains the source journal for replay.
+          await expect(
+            configureInstance(target, {
+              ...options,
+              provision: async () => {
+                throw Error('synthetic failure');
+              },
+            }),
+          ).rejects.toThrow('provisioning failed');
+          expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(old);
+          f.calls.length = 0;
+          expect(await configureInstance(target, options)).toEqual(first);
+          expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(before);
+          expect(
+            f.calls.some((call) =>
+              /sign-up|organization\/create/.test(call.path),
+            ),
+          ).toBe(false);
+          expect(writes(f.calls)).toHaveLength(0);
+          const bytes = readFileSync(file);
+          await configureInstance(target, options);
+          expect(readFileSync(file)).toEqual(bytes);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  testPosix(
+    'origin migration refuses incomplete identity or missing client journals before authentication',
+    async () => {
+      const stateDirectory = mkdtempSync(
+        join(tmpdir(), 'tale-origin-migration-refusal-'),
+      );
+      const input = {
+        ...INPUT,
+        bootstrap: 'fresh' as const,
+        ssoEnabled: false,
+      };
+      try {
+        await withFixture({ connection: ABSENT }, async (f) => {
+          const options = { stateDirectory, fetchImpl: f.fetchImpl };
+          const target = {
+            ...input,
+            migrateOriginFrom: 'https://old.example.org',
+          };
+          await expect(configureInstance(target, options)).rejects.toThrow(
+            'completed retained identity',
+          );
+          expect(f.calls).toHaveLength(0);
+          await configureInstance(input, options);
+          const file = join(stateDirectory, 'private/bootstrap.json');
+          const before = JSON.parse(readFileSync(file, 'utf8'));
+          writeProvisionState(file, {
+            ...before,
+            origin: target.migrateOriginFrom,
+          });
+          f.calls.length = 0;
+          const client = {
+            key: PORTAL.key,
+            name: PORTAL.name,
+            redirectUris: PORTAL.redirectUris,
+            managed: true,
+          };
+          await expect(
+            configureInstance({ ...target, nativeClients: [client] }, options),
+          ).rejects.toThrow('retained native clients');
+          expect(f.calls).toHaveLength(0);
+          writeProvisionState(file, {
+            ...before,
+            origin: target.migrateOriginFrom,
+            emailVerification: 'operator-attested',
+          });
+          await expect(
+            configureInstance(
+              { ...target, emailVerification: 'operator-attested' },
+              {
+                ...options,
+                emailAttestation: async () => {
+                  throw Error('Must not be called');
+                },
+              },
+            ),
+          ).rejects.toThrow('retained operator attestation');
+          expect(f.calls).toHaveLength(0);
+        });
+      } finally {
+        rmSync(stateDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 
   testPosix(
     'explicit fresh local bootstrap creates its account/org once and retains native identities across replay',
@@ -570,16 +922,22 @@ describe('native instance provisioning over real local HTTP', () => {
       managed: true as const,
     };
     bundle.spec.identity!.bootstrap = 'fresh';
+    bundle.spec.identity!.migrateOriginFrom = 'https://old.example.org';
     bundle.spec.identity!.nativeClients = [managed];
     const input = parsePrivateInstanceJson(
       JSON.stringify({
         ...INPUT,
         ssoEnabled: false,
         bootstrap: 'fresh',
+        migrateOriginFrom: 'https://old.example.org',
         nativeClients: [managed],
       }),
     );
     expect(() => verifyProvisionIdentity(bundle, input)).not.toThrow();
+    for (const migrateOriginFrom of [undefined, 'https://wrong.example.org'])
+      expect(() =>
+        verifyProvisionIdentity(bundle, { ...input, migrateOriginFrom }),
+      ).toThrow('differs');
     expect(() =>
       verifyProvisionIdentity(bundle, { ...input, nativeClients: [PORTAL] }),
     ).toThrow('differs');

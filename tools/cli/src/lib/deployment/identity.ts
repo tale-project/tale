@@ -8,11 +8,13 @@ import {
 } from '../../utils/fail';
 import {
   emailAttestationProofSchema,
+  stateSchema as emailAttestationStateSchema,
   type EmailAttestation,
   type EmailAttestationProof,
 } from './email-attestation';
 import {
   nativeClientsSchema,
+  intentSchema as nativeClientIntentSchema,
   nativeOriginSchema,
   reconcileNativeClients,
   type NativeClientContext,
@@ -22,6 +24,7 @@ import {
 } from './native-client';
 import {
   provisionStatePath,
+  admitsProvisionOrigin,
   readProvisionState,
   writeProvisionState,
 } from './provision-state';
@@ -34,6 +37,7 @@ const identifier = z.string().min(1).max(256);
 const inputSchema = z
   .strictObject({
     bootstrap: z.literal('fresh').optional(),
+    migrateOriginFrom: nativeOriginSchema.optional(),
     emailVerification: z.literal('operator-attested').optional(),
     origin: nativeOriginSchema,
     email: z.email().max(254),
@@ -54,6 +58,11 @@ const inputSchema = z
     nativeClients: nativeClientsSchema.default([]),
   })
   .refine((input) => !input.emailVerification || input.bootstrap === 'fresh')
+  .refine(
+    (input) =>
+      !input.migrateOriginFrom ||
+      (input.bootstrap === 'fresh' && input.migrateOriginFrom !== input.origin),
+  )
   .refine(
     (input) =>
       !input.ssoEnabled ||
@@ -185,7 +194,11 @@ export async function configureInstance(
     const existing = readProvisionState(file, bootstrapSchema);
     if (
       existing &&
-      (existing.origin !== input.origin ||
+      (!admitsProvisionOrigin(
+        existing,
+        input.origin,
+        input.migrateOriginFrom,
+      ) ||
         existing.email !== input.email.toLowerCase() ||
         existing.slug !== input.slug ||
         existing.name !== input.name ||
@@ -194,6 +207,56 @@ export async function configureInstance(
       throw preconditionError(
         'Fresh bootstrap intent differs from the configured identity.',
       );
+    if (input.migrateOriginFrom) {
+      if (!existing?.userId || !existing.organizationId)
+        throw preconditionError(
+          'Origin migration requires a completed retained identity.',
+        );
+      if (input.emailVerification) {
+        const attestation = readProvisionState(
+          provisionStatePath(options.stateDirectory, 'email-attestation.json'),
+          emailAttestationStateSchema,
+        );
+        if (
+          !attestation ||
+          !admitsProvisionOrigin(
+            attestation,
+            input.origin,
+            input.migrateOriginFrom,
+          ) ||
+          attestation.userId !== existing.userId ||
+          attestation.email !== existing.email
+        )
+          throw preconditionError(
+            'Origin migration requires the retained operator attestation.',
+          );
+      }
+      for (const client of input.nativeClients) {
+        if (!client.managed) continue;
+        const retained = readProvisionState(
+          provisionStatePath(
+            options.stateDirectory,
+            `client-${client.key}.json`,
+          ),
+          nativeClientIntentSchema,
+        );
+        if (
+          !retained ||
+          !admitsProvisionOrigin(
+            retained,
+            input.origin,
+            input.migrateOriginFrom,
+          ) ||
+          retained.organizationId !== existing.organizationId ||
+          retained.operatorUserId !== existing.userId ||
+          retained.body.software_id !== client.key ||
+          retained.body.metadata.taleOrganizationId !== existing.organizationId
+        )
+          throw preconditionError(
+            'Origin migration requires the retained native clients.',
+          );
+      }
+    }
     const intent =
       existing ??
       bootstrapSchema.parse({
@@ -393,6 +456,9 @@ export async function configureInstance(
           email: input.email,
           headers: headers(),
           stateDirectory: options.stateDirectory,
+          ...(input.migrateOriginFrom
+            ? { migrateOriginFrom: input.migrateOriginFrom }
+            : {}),
         }),
       );
       if (
@@ -566,6 +632,9 @@ export async function configureInstance(
     const context: ProvisionContext = {
       baseUrl: API_URL,
       origin: input.origin,
+      ...(input.migrateOriginFrom
+        ? { migrateOriginFrom: input.migrateOriginFrom }
+        : {}),
       organization,
       user: { id: verifiedSession.user.id },
       request,
@@ -596,13 +665,27 @@ export async function configureInstance(
       nativeClients,
       ...(emailVerification ? { emailVerification } : {}),
     };
-    if (bootstrap && bootstrap.intent.phase !== 'ready')
+    if (
+      bootstrap &&
+      (bootstrap.intent.phase !== 'ready' ||
+        bootstrap.intent.origin !== input.origin)
+    ) {
+      if (
+        input.migrateOriginFrom &&
+        JSON.stringify(readProvisionState(bootstrap.file, bootstrapSchema)) !==
+          JSON.stringify(bootstrap.intent)
+      )
+        throw preconditionError(
+          'Retained bootstrap changed during origin migration.',
+        );
       writeProvisionState(bootstrap.file, {
         ...bootstrap.intent,
+        origin: input.origin,
         phase: 'ready',
         userId: result.userId,
         organizationId: result.organizationId,
       });
+    }
   } catch (error) {
     failure =
       error instanceof CliError
