@@ -23,9 +23,8 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 /**
- * Skeleton-aware Input. Always wraps the real field in a `<SkeletonBox>`: idle,
- * the box is `display: contents` and adds nothing; inside a
- * `<Skeletonize loading>` it masks the field with an overlay at its exact size.
+ * Skeleton-aware Input. Masks the real field in place, retaining its
+ * dimensions, radius and flex/grid position while loading.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
@@ -36,8 +35,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     // reaches pointer and keyboard users) while `readOnly` blocks edits.
     const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
     return (
-      <SkeletonBox fullWidth>
-        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+      <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+        <SkeletonBox asChild>
           <input
             ref={ref}
             type={type}
@@ -58,8 +57,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             )}
             {...props}
           />
-        </DisabledReasonTooltip>
-      </SkeletonBox>
+        </SkeletonBox>
+      </DisabledReasonTooltip>
     );
   },
 );

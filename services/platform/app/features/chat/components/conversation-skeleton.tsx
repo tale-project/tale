@@ -1,17 +1,22 @@
 import { Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import { cn } from '@/lib/utils/cn';
+
+import {
+  CHAT_MESSAGE_COLUMN_CLASS,
+  CHAT_USER_BUBBLE_CLASS,
+  CHAT_USER_MESSAGE_CLASS,
+} from '../lib/layout';
 
 /**
  * Masked stand-in for an open conversation while its messages are on their
  * way — message-shaped, in place, per the design system's "skeletons mask in
  * place, never a bare spinner where a skeleton fits". Mirrors MessageThread's
- * geometry (centered `max-w-3xl` column, role label over body lines, list
- * gap) so the loaded conversation is a mask swap, not a re-layout. Two
- * exchanges only: enough to read as "a conversation is coming" without
- * pretending to know its length.
+ * geometry: right-aligned user bubbles, full-width assistant prose, and the
+ * same column insets and message gap. The history's length and text widths
+ * remain unknown until it arrives.
  */
 export function ConversationSkeleton({
   label,
@@ -25,38 +30,38 @@ export function ConversationSkeleton({
     <Skeletonize
       loading
       label={label}
-      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <Stack gap={5} className="mx-auto w-full max-w-3xl px-4 py-6">
-        <Exchange roleWidth="w-8" lineWidths={['46%']} />
-        <Exchange roleWidth="w-16" lineWidths={['92%', '86%', '58%']} />
-        <Exchange roleWidth="w-8" lineWidths={['34%']} />
+      <Stack gap={3} className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}>
+        <UserMessageSkeleton width="w-64" />
+        <div className="w-full min-w-0 text-sm">
+          <SkeletonText lines={3} />
+          <div className="mt-1 h-7" />
+        </div>
+        <UserMessageSkeleton width="w-48" />
       </Stack>
     </Skeletonize>
   );
 }
 
-/** One masked message: the uppercase role label line, then its body lines. */
-function Exchange({
-  roleWidth,
-  lineWidths,
-}: {
-  roleWidth: string;
-  lineWidths: readonly string[];
-}) {
+/** The hover actions keep their space even while a user's bubble is masked. */
+function UserMessageSkeleton({ width }: { width: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <SkeletonBox>
-        <div className={cn('h-3', roleWidth)} />
-      </SkeletonBox>
-      {lineWidths.map((width, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <div key={i} style={{ width }}>
-          <SkeletonBox fullWidth>
-            <div className="h-3.5" />
-          </SkeletonBox>
-        </div>
-      ))}
+    <div className="flex min-w-0 flex-col items-end">
+      <div className={CHAT_USER_MESSAGE_CLASS}>
+        <SkeletonBox asChild>
+          <div
+            className={cn(
+              CHAT_USER_BUBBLE_CLASS,
+              'max-w-full text-sm leading-relaxed',
+              width,
+            )}
+          >
+            <SkeletonText />
+          </div>
+        </SkeletonBox>
+        <div className="mt-1 h-6" />
+      </div>
     </div>
   );
 }

@@ -32,9 +32,8 @@ export interface CheckboxProps extends ComponentPropsWithoutRef<
 }
 
 /**
- * Skeleton-aware Checkbox. Always wraps the real control in a `<SkeletonBox>`:
- * idle, the box is `display: contents`; inside a `<Skeletonize loading>` it
- * masks the control with an overlay at its exact size.
+ * Skeleton-aware Checkbox. Masks the real field in place, retaining its
+ * dimensions, radius and flex/grid position while loading.
  */
 export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
   (
@@ -53,8 +52,8 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
       event.stopPropagation();
     };
     return (
-      <SkeletonBox>
-        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+      <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+        <SkeletonBox asChild>
           <CheckboxPrimitive.Root
             ref={ref}
             disabled={softDisabled ? undefined : disabled}
@@ -80,8 +79,8 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
               <Minus className="minus hidden h-3 w-3" aria-hidden />
             </CheckboxPrimitive.Indicator>
           </CheckboxPrimitive.Root>
-        </DisabledReasonTooltip>
-      </SkeletonBox>
+        </SkeletonBox>
+      </DisabledReasonTooltip>
     );
   },
 );

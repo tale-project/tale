@@ -79,7 +79,10 @@ blue-tinted `#030712`), driven by the `.dark` class + tokens.
   `Card` variant, never a hand-rolled `div`.
 - **Skeletons mask in place** — wrap the real component in `Skeletonize`/`SkeletonBox`
   ([`feedback/skeleton-context.tsx`](../../packages/ui/src/components/feedback/skeleton-context.tsx)); no
-  whole-tree swaps.
+  whole-tree swaps. Use `SkeletonBox asChild` on a real control or flex/grid item so its own size,
+  baseline and border radius remain authoritative. Keep the wrapper mounted in both loading states;
+  mask the control surface and preserve known labels and descriptions. Scalar values use the stable
+  default wrapper; `fullWidth` is for wrapped text, while an `asChild` control owns its own width.
 - **Toasts** top-right, 5s auto-dismiss (errors persist). **Tooltips** hover-only (~200/100ms), never
   on click. **Modals** use a backdrop blur. Hover fill is gray-100 light / gray-800 dark.
 - **Accessibility is WCAG 2.1 AA** — the form text hierarchy (label → description → hint → error) and

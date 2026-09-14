@@ -24,7 +24,7 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
       accessorKey: 'name',
       header: tTables('headers.product'),
       size: 400,
-      meta: { skeleton: { type: 'avatar-text' } },
+      meta: { skeleton: { type: 'avatar-text', lines: 1 } },
       cell: ({ row }) => (
         <HStack gap={3}>
           <ProductImage
@@ -50,7 +50,7 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
         </span>
       ),
       size: 80,
-      meta: { headerLabel: tTables('headers.stock') },
+      meta: { headerLabel: tTables('headers.stock'), align: 'right' },
       cell: ({ row }) => (
         <span
           className={`block text-right text-xs ${
@@ -69,7 +69,7 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
         </span>
       ),
       size: 100,
-      meta: { headerLabel: tTables('headers.price') },
+      meta: { headerLabel: tTables('headers.price'), align: 'right' },
       cell: ({ row }) => (
         <span className="text-muted-foreground block text-right text-xs">
           {row.original.price !== undefined
@@ -92,6 +92,7 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
       accessorKey: 'status',
       header: tTables('headers.status'),
       size: 110,
+      meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
       cell: ({ row }) =>
         row.original.status ? (
           <ProductStatusBadge status={row.original.status} />

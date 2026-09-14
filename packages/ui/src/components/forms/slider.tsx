@@ -10,7 +10,8 @@ import {
 } from 'react';
 
 import { cn } from '../../lib/cn';
-import { SkeletonBox } from '../feedback/skeleton';
+import { SkeletonBox, SkeletonCircle } from '../feedback/skeleton';
+import { useSkeleton } from '../feedback/skeleton-context';
 import {
   DisabledReasonTooltip,
   hasDisabledReason,
@@ -136,6 +137,7 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
     },
     ref,
   ) => {
+    const loading = useSkeleton();
     const [showLabel, setShowLabel] = useState(false);
     const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -171,7 +173,11 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
     const fillWidth = thumbOffsetLeft(clampedPct);
 
     return (
-      <div className="relative w-full">
+      <div
+        className="relative w-full"
+        aria-hidden={loading || undefined}
+        inert={loading || undefined}
+      >
         {valueLabel !== undefined ? (
           <div
             aria-hidden
@@ -181,6 +187,7 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
               showLabel
                 ? 'translate-y-0 opacity-100'
                 : 'translate-y-1 opacity-0',
+              loading && 'invisible',
             )}
             style={{ left: thumbOffsetLeft(clampedPct) }}
           >
@@ -189,20 +196,28 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
         ) : null}
 
         <div className="relative flex h-5 w-full items-center">
+          <SkeletonBox asChild>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-border-base)]"
+            />
+          </SkeletonBox>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-border-base)]"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)]"
+            className={cn(
+              'pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)]',
+              loading && 'invisible',
+            )}
             style={{ width: fillWidth }}
           />
 
           {ticks !== undefined && range > 0 ? (
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-1/2 z-[5] -translate-y-1/2"
+              className={cn(
+                'pointer-events-none absolute inset-x-0 top-1/2 z-[5] -translate-y-1/2',
+                loading && 'invisible',
+              )}
             >
               {ticks.map((tick) => {
                 const tickPct = clampPct(((tick - min) / range) * 100);
@@ -222,6 +237,15 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
               })}
             </div>
           ) : null}
+
+          <SkeletonCircle asChild>
+            <span
+              aria-hidden
+              hidden={!loading}
+              className="pointer-events-none absolute top-1/2 z-10 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ left: thumbOffsetLeft(clampedPct) }}
+            />
+          </SkeletonCircle>
 
           <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
             <input
@@ -274,6 +298,7 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
                 inputClasses,
                 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
                 className,
+                loading && 'invisible',
               )}
               {...rest}
             />
@@ -286,16 +311,10 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
 SliderBase.displayName = 'SliderBase';
 
 /**
- * Skeleton-aware Slider. Always wraps the real control in a `<SkeletonBox>`
- * (`SliderBase` is kept separate only because it owns hooks): idle, the box is
- * `display: contents`; inside a `<Skeletonize loading>` it masks the control
- * with an overlay at its exact size.
+ * Skeleton-aware Slider. Track and thumb masks use the real control geometry,
+ * while its native input stays mounted and determines the layout in both states.
  */
 export const Slider = forwardRef<HTMLInputElement, SliderProps>(
-  (props, ref) => (
-    <SkeletonBox fullWidth>
-      <SliderBase {...props} ref={ref} />
-    </SkeletonBox>
-  ),
+  (props, ref) => <SliderBase {...props} ref={ref} />,
 );
 Slider.displayName = 'Slider';

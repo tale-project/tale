@@ -2,7 +2,6 @@
 
 import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import * as React from 'react';
 
@@ -37,7 +36,7 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   wrapperClassName?: string;
 }
 
-// Plain control — the real textarea field. No skeleton logic of its own.
+// Keep the textarea's native dimensions and value while its surface is masked.
 const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
     {
@@ -127,29 +126,31 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             }
           : {})}
       >
-        <textarea
-          id={id}
-          className={cn(
-            'bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-            fillHeight && 'min-h-0 flex-1 resize-none',
-            hasError && 'border-destructive focus-visible:ring-destructive',
-            showShake && 'animate-shake',
-            className,
-          )}
-          ref={(node) => {
-            innerRef.current = node;
-            if (typeof ref === 'function') {
-              ref(node);
-            } else if (ref) {
-              ref.current = node;
-            }
-          }}
-          required={required}
-          aria-invalid={hasError || undefined}
-          aria-describedby={describedBy}
-          aria-errormessage={hasError ? errorId : undefined}
-          {...props}
-        />
+        <SkeletonBox asChild>
+          <textarea
+            id={id}
+            className={cn(
+              'bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+              fillHeight && 'min-h-0 flex-1 resize-none',
+              hasError && 'border-destructive focus-visible:ring-destructive',
+              showShake && 'animate-shake',
+              className,
+            )}
+            ref={(node) => {
+              innerRef.current = node;
+              if (typeof ref === 'function') {
+                ref(node);
+              } else if (ref) {
+                ref.current = node;
+              }
+            }}
+            required={required}
+            aria-invalid={hasError || undefined}
+            aria-describedby={describedBy}
+            aria-errormessage={hasError ? errorId : undefined}
+            {...props}
+          />
+        </SkeletonBox>
         {counterMax !== undefined && (
           <p
             className={cn(
@@ -166,23 +167,6 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 TextareaBase.displayName = 'TextareaBase';
 
-/**
- * Skeleton-aware Textarea. Inside a `<Skeletonize loading>` it masks the plain
- * control by rendering it inside a `<SkeletonBox>` — the real field is laid out
- * invisibly to set the exact height (incl. `rows`), with a pulse overlay on
- * top, so the skeleton can never drift from the live control.
- */
-export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  (props, ref) => {
-    const loading = useSkeleton();
-    if (loading) {
-      return (
-        <SkeletonBox>
-          <TextareaBase {...props} ref={ref} />
-        </SkeletonBox>
-      );
-    }
-    return <TextareaBase {...props} ref={ref} />;
-  },
-);
+// Keep the same control tree while its own surface is masked.
+export const Textarea = TextareaBase;
 Textarea.displayName = 'Textarea';

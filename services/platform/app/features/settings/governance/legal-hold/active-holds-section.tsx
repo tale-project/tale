@@ -171,7 +171,11 @@ export function ActiveHoldsSection({
       {
         id: 'actions',
         header: t('legalHold.columns.actions'),
-        meta: { isAction: true, align: 'right' as const },
+        meta: {
+          isAction: true,
+          align: 'right' as const,
+          skeleton: { actionSize: 'sm' },
+        },
         cell: ({ row }) => (
           <Row gap={0} align="stretch" justify="end">
             <IconButton

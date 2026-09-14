@@ -50,11 +50,7 @@ export interface BadgeProps
   children: React.ReactNode;
 }
 
-/**
- * Skeleton-aware Badge. Always wraps the real badge in a `<SkeletonBox>`: idle,
- * the box is `display: contents`; inside a `<Skeletonize loading>` it masks the
- * badge with an overlay at its exact footprint.
- */
+/** Masks the real badge surface while loading, preserving its exact footprint. */
 export function Badge({
   className,
   variant,
@@ -64,7 +60,7 @@ export function Badge({
   ...props
 }: BadgeProps) {
   return (
-    <SkeletonBox>
+    <SkeletonBox asChild>
       <div
         title={typeof children === 'string' ? children : undefined}
         className={cn(badgeVariants({ variant }), className)}

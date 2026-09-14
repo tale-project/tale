@@ -1,6 +1,8 @@
 'use client';
 
 import { IconButton } from '@tale/ui/icon-button';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Reorder, useDragControls, type DragControls } from 'framer-motion';
 import { ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
 import { type ReactNode, useCallback } from 'react';
@@ -70,24 +72,27 @@ function ReorderListRow<T extends ReorderItem>({
   removeLabel,
 }: ReorderListRowProps<T>) {
   const dragControls = useDragControls();
+  const loading = useSkeleton();
 
   return (
     <Reorder.Item
       value={item}
       dragListener={false}
       dragControls={dragControls}
-      drag={!readonlyOrder}
+      drag={!readonlyOrder && !loading}
       className="flex items-center gap-2"
     >
       {!readonlyOrder && (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground shrink-0 cursor-grab touch-none rounded p-1 active:cursor-grabbing"
-          aria-label={dragHandleLabel}
-          onPointerDown={(e) => dragControls.start(e)}
-        >
-          <GripVertical className="size-4" />
-        </button>
+        <SkeletonBox asChild>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground shrink-0 cursor-grab touch-none rounded p-1 active:cursor-grabbing"
+            aria-label={dragHandleLabel}
+            onPointerDown={(e) => dragControls.start(e)}
+          >
+            <GripVertical className="size-4" />
+          </button>
+        </SkeletonBox>
       )}
 
       <div className="min-w-0 flex-1">

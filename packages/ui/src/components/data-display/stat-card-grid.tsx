@@ -102,13 +102,13 @@ export function StatCard({
           valueClassName,
         )}
       >
-        {loading ? (
-          <SkeletonBox>
-            <span className={cn('my-0.5 inline-block h-7', loadingWidth)} />
-          </SkeletonBox>
-        ) : (
-          value
-        )}
+        <SkeletonBox asChild>
+          <span
+            className={cn('inline-block max-w-full', loading && loadingWidth)}
+          >
+            {value ?? '\u00a0'}
+          </span>
+        </SkeletonBox>
       </Text>
       {children}
     </div>

@@ -145,7 +145,7 @@ type ButtonBaseProps = ButtonOwnProps & {
   softDisabled?: boolean;
 };
 
-// Plain control — the real button. No skeleton/tooltip logic of its own.
+// Real control and its mask. Tooltip composition lives in Button below.
 const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
   (
     {
@@ -231,37 +231,37 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
     );
 
     return (
-      <Comp
-        className={cn(
-          buttonVariants({ variant, size, className }),
-          fullWidth && 'w-full',
-        )}
-        ref={ref}
-        disabled={soft ? undefined : isDisabled || undefined}
-        aria-busy={isLoading || undefined}
-        aria-disabled={isDisabled || undefined}
-        // A soft-disabled button keeps emitting events to surface its tooltip,
-        // so inside a <form> it would otherwise act as an implicit submit
-        // button. Activation is already blocked by `blockActivation`, but
-        // defaulting `type` to "button" is robust defense-in-depth; an explicit
-        // caller `type` always wins.
-        type={soft ? (type ?? 'button') : type}
-        onClick={soft ? blockActivation : onClick}
-        onKeyDown={soft ? blockActivation : onKeyDown}
-        {...props}
-      >
-        {content}
-      </Comp>
+      <SkeletonBox asChild>
+        <Comp
+          className={cn(
+            buttonVariants({ variant, size, className }),
+            fullWidth && 'w-full',
+          )}
+          ref={ref}
+          disabled={soft ? undefined : isDisabled || undefined}
+          aria-busy={isLoading || undefined}
+          aria-disabled={isDisabled || undefined}
+          // A soft-disabled button keeps emitting events to surface its tooltip,
+          // so inside a <form> it would otherwise act as an implicit submit
+          // button. Activation is already blocked by `blockActivation`, but
+          // defaulting `type` to "button" is robust defense-in-depth; an explicit
+          // caller `type` always wins.
+          type={soft ? (type ?? 'button') : type}
+          onClick={soft ? blockActivation : onClick}
+          onKeyDown={soft ? blockActivation : onKeyDown}
+          {...props}
+        >
+          {content}
+        </Comp>
+      </SkeletonBox>
     );
   },
 );
 ButtonBase.displayName = 'ButtonBase';
 
 /**
- * Skeleton-aware Button. Always wraps the real button in a `<SkeletonBox>`
- * (`ButtonBase` stays separate only to keep the markup tidy): idle, the box is
- * `display: contents`; inside a `<Skeletonize loading>` it masks the button
- * with an overlay at its exact size.
+ * Skeleton-aware Button. ButtonBase masks the real button surface with
+ * asChild, retaining its responsive width, flex sizing and corner radius.
  */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -302,9 +302,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       />
     );
     // The tooltip Trigger must wrap the REAL button (`ButtonBase` forwards its
-    // ref + props), never the `SkeletonBox` span — a plain span drops the
-    // Trigger's injected handlers/ref, leaving the tooltip permanently shut.
-    // So the Trigger goes inside and `SkeletonBox` wraps the whole thing.
+    // ref + props). Its asChild skeleton forwards those to the same control,
+    // so loading never changes tooltip ownership or the button's DOM identity.
     // No tooltip when `asChild` — the button is then a Radix `Slot` (typically
     // another overlay's trigger), and wrapping a Slot in a tooltip trigger
     // breaks that composition.
@@ -322,7 +321,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </TooltipPrimitive.Portal>
         </TooltipPrimitive.Root>
       );
-    return <SkeletonBox fullWidth={props.fullWidth}>{withTooltip}</SkeletonBox>;
+    return withTooltip;
   },
 );
 Button.displayName = 'Button';

@@ -1,6 +1,7 @@
 'use client';
 
 import { VStack } from '@tale/ui/layout';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { Plus, Upload, X } from 'lucide-react';
@@ -242,64 +243,68 @@ export function ImageUploadField({
   return (
     <VStack gap={1} align="start">
       <div className="relative">
-        <button
-          type="button"
-          onClick={handleClick}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          disabled={isUploading}
-          className={cn(
-            'group border-border ring-offset-background bg-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border shadow-xs transition-all duration-150',
-            'hover:border-border-strong hover:bg-bg-elevated',
-            'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-            'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',
-            sizeClasses,
-            isDragging && 'border-accent-base ring-accent-base ring-1',
-            isUploading && 'cursor-wait opacity-60',
-          )}
-          aria-label={ariaLabel}
-        >
-          {isUploading ? (
-            <Spinner className="size-4" />
-          ) : displayUrl ? (
-            <>
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt=""
-                  className="pointer-events-none size-full object-contain"
-                  width={48}
-                  height={48}
-                />
-              ) : (
-                <Image
-                  src={displayUrl}
-                  alt=""
-                  className="pointer-events-none size-full object-contain"
-                  width={48}
-                  height={48}
-                />
-              )}
-              <span className="bg-foreground/60 pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
-                <Upload className="text-background size-4 shrink-0" />
-              </span>
-            </>
-          ) : (
-            <Plus className="text-muted-foreground group-hover:text-foreground pointer-events-none size-4 shrink-0 transition-colors duration-150 motion-reduce:transition-none" />
-          )}
-        </button>
-        {displayUrl && !isUploading && onRemove && (
+        <SkeletonBox asChild>
           <button
             type="button"
-            onClick={handleRemove}
-            className="bg-foreground text-background ring-offset-background focus-visible:ring-ring absolute -top-1 -right-1 flex size-4 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:scale-100"
-            aria-label={t('branding.removeImageAria', {
-              label: label ?? t('branding.imageFallback'),
-            })}
+            onClick={handleClick}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            disabled={isUploading}
+            className={cn(
+              'group border-border ring-offset-background bg-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border shadow-xs transition-all duration-150',
+              'hover:border-border-strong hover:bg-bg-elevated',
+              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+              'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',
+              sizeClasses,
+              isDragging && 'border-accent-base ring-accent-base ring-1',
+              isUploading && 'cursor-wait opacity-60',
+            )}
+            aria-label={ariaLabel}
           >
-            <X className="size-2.5" />
+            {isUploading ? (
+              <Spinner className="size-4" />
+            ) : displayUrl ? (
+              <>
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt=""
+                    className="pointer-events-none size-full object-contain"
+                    width={48}
+                    height={48}
+                  />
+                ) : (
+                  <Image
+                    src={displayUrl}
+                    alt=""
+                    className="pointer-events-none size-full object-contain"
+                    width={48}
+                    height={48}
+                  />
+                )}
+                <span className="bg-foreground/60 pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
+                  <Upload className="text-background size-4 shrink-0" />
+                </span>
+              </>
+            ) : (
+              <Plus className="text-muted-foreground group-hover:text-foreground pointer-events-none size-4 shrink-0 transition-colors duration-150 motion-reduce:transition-none" />
+            )}
           </button>
+        </SkeletonBox>
+        {displayUrl && !isUploading && onRemove && (
+          <SkeletonBox asChild>
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="bg-foreground text-background ring-offset-background focus-visible:ring-ring absolute -top-1 -right-1 flex size-4 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:scale-100"
+              aria-label={t('branding.removeImageAria', {
+                label: label ?? t('branding.imageFallback'),
+              })}
+            >
+              <X className="size-2.5" />
+            </button>
+          </SkeletonBox>
         )}
       </div>
       {label && (

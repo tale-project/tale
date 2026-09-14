@@ -114,6 +114,7 @@ export function RequestsListSection({
       {
         accessorKey: 'targetUserName',
         header: t('dataSubjectRequests.columns.target'),
+        meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => (
           <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetUserName}>

@@ -32,6 +32,7 @@ export function SharePointSitesTable({
       {
         id: 'name',
         header: tTables('headers.name'),
+        meta: { skeleton: { type: 'avatar-text', lines: 2 } },
         cell: ({ row }) => {
           const site = row.original;
           return (

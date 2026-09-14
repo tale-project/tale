@@ -3,7 +3,6 @@
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Circle } from 'lucide-react';
 import type { ComponentRef, ComponentPropsWithoutRef, ReactNode } from 'react';
 import { forwardRef, useId } from 'react';
@@ -122,8 +121,7 @@ interface RadioGroupItemProps extends ComponentPropsWithoutRef<
   description?: ReactNode;
 }
 
-// Plain control — the real radio (+ optional label/description). No skeleton
-// logic of its own.
+// The layout stays mounted; only the control surface is masked while loading.
 const RadioGroupItemBase = forwardRef<
   ComponentRef<typeof RadioGroupPrimitive.Item>,
   RadioGroupItemProps
@@ -132,23 +130,25 @@ const RadioGroupItemBase = forwardRef<
   const id = providedId ?? generatedId;
 
   const radio = (
-    <RadioGroupPrimitive.Item
-      ref={ref}
-      id={id}
-      className={cn(
-        'border-primary ring-offset-background focus-visible:ring-ring aspect-square size-4 shrink-0 rounded-full border text-(--color-accent-base) transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-(--color-accent-base)',
-        description && 'mt-0.5',
-        className,
-      )}
-      {...props}
-    >
-      <RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-        <Circle
-          className="h-2.5 w-2.5 fill-current text-current"
-          aria-hidden="true"
-        />
-      </RadioGroupPrimitive.Indicator>
-    </RadioGroupPrimitive.Item>
+    <SkeletonBox asChild>
+      <RadioGroupPrimitive.Item
+        ref={ref}
+        id={id}
+        className={cn(
+          'border-primary ring-offset-background focus-visible:ring-ring aspect-square size-4 shrink-0 rounded-full border text-(--color-accent-base) transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-(--color-accent-base)',
+          description && 'mt-0.5',
+          className,
+        )}
+        {...props}
+      >
+        <RadioGroupPrimitive.Indicator className="flex items-center justify-center">
+          <Circle
+            className="h-2.5 w-2.5 fill-current text-current"
+            aria-hidden="true"
+          />
+        </RadioGroupPrimitive.Indicator>
+      </RadioGroupPrimitive.Item>
+    </SkeletonBox>
   );
 
   if (!label) {
@@ -181,24 +181,6 @@ const RadioGroupItemBase = forwardRef<
 });
 RadioGroupItemBase.displayName = 'RadioGroupItemBase';
 
-/**
- * Skeleton-aware RadioGroupItem. Inside a `<Skeletonize loading>` it masks the
- * plain control by rendering it inside a `<SkeletonBox>` — laid out invisibly
- * to set the exact size, pulse overlay on top — so the skeleton can never
- * drift.
- */
-export const RadioGroupItem = forwardRef<
-  ComponentRef<typeof RadioGroupPrimitive.Item>,
-  RadioGroupItemProps
->((props, ref) => {
-  const loading = useSkeleton();
-  if (loading) {
-    return (
-      <SkeletonBox>
-        <RadioGroupItemBase {...props} ref={ref} />
-      </SkeletonBox>
-    );
-  }
-  return <RadioGroupItemBase {...props} ref={ref} />;
-});
+// Keep the same control tree while its own surface is masked.
+export const RadioGroupItem = RadioGroupItemBase;
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;

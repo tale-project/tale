@@ -1,35 +1,19 @@
-import { SkeletonText } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
+import { ProjectAgentsSkeleton } from '@/app/features/projects/components/project-tab-skeletons';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 // Skeletonized layout frame shown while the tab's JS chunk loads, so the
 // content frame doesn't go blank between navigation and chunk-ready. The real
 // tab (with its own data-loading mask) takes over once the chunk resolves.
-function AgentsChunkFallback() {
-  return (
-    <ContentArea variant="narrow" gap={6}>
-      <Skeletonize loading>
-        <StickySectionHeader
-          title={<SkeletonText lines={1} />}
-          description={<SkeletonText lines={1} />}
-        />
-        <SkeletonText lines={3} />
-      </Skeletonize>
-    </ContentArea>
-  );
-}
 
 const ProjectAgentsTab = lazyComponent(
   () =>
     import('@/app/features/projects/components/project-agents-tab').then(
       (mod) => ({ default: mod.ProjectAgentsTab }),
     ),
-  { loading: () => <AgentsChunkFallback /> },
+  { loading: () => <ProjectAgentsSkeleton /> },
 );
 
 export const Route = createFileRoute(

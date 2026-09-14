@@ -29,7 +29,7 @@ const DocumentPreviewPDF = lazyComponent(
       default: m.DocumentPreviewPDF,
     })),
   {
-    loading: () => <PreviewPaneSkeleton />,
+    loading: () => <PreviewPaneSkeleton kind="pdf" />,
   },
 );
 const DocumentPreviewDocx = lazyComponent(
@@ -56,7 +56,7 @@ const DocumentPreviewXlsx = lazyComponent(
       default: m.DocumentPreviewXlsx,
     })),
   {
-    loading: () => <PreviewPaneSkeleton />,
+    loading: () => <PreviewPaneSkeleton kind="spreadsheet" />,
   },
 );
 const DocumentPreviewText = lazyComponent(
@@ -65,7 +65,7 @@ const DocumentPreviewText = lazyComponent(
       default: m.DocumentPreviewText,
     })),
   {
-    loading: () => <PreviewPaneSkeleton />,
+    loading: () => <PreviewPaneSkeleton kind="text" />,
   },
 );
 const DocumentPreviewMarkdown = lazyComponent(
@@ -74,7 +74,7 @@ const DocumentPreviewMarkdown = lazyComponent(
       default: m.DocumentPreviewMarkdown,
     })),
   {
-    loading: () => <PreviewPaneSkeleton />,
+    loading: () => <PreviewPaneSkeleton kind="markdown" />,
   },
 );
 const DocumentPreviewImage = lazyComponent(
@@ -83,7 +83,7 @@ const DocumentPreviewImage = lazyComponent(
       default: m.DocumentPreviewImage,
     })),
   {
-    loading: () => <PreviewPaneSkeleton />,
+    loading: () => <PreviewPaneSkeleton kind="image" />,
   },
 );
 

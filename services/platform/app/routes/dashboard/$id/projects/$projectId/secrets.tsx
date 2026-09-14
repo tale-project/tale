@@ -1,9 +1,6 @@
-import { SkeletonText } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
+import { ProjectSecretsSkeleton } from '@/app/features/projects/components/project-secrets-layout';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -11,26 +8,13 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 // content frame doesn't go blank between navigation and chunk-ready. It mirrors
 // the real tab's shell — same content measure, same sticky header — so nothing
 // shifts when the chunk resolves and takes over with its own data mask.
-function SecretsChunkFallback() {
-  return (
-    <ContentArea variant="narrow" gap={6}>
-      <Skeletonize loading>
-        <StickySectionHeader
-          title={<SkeletonText lines={1} />}
-          description={<SkeletonText lines={1} />}
-        />
-        <SkeletonText lines={3} />
-      </Skeletonize>
-    </ContentArea>
-  );
-}
 
 const ProjectSecretsTab = lazyComponent(
   () =>
     import('@/app/features/projects/components/project-secrets-tab').then(
       (mod) => ({ default: mod.ProjectSecretsTab }),
     ),
-  { loading: () => <SecretsChunkFallback /> },
+  { loading: () => <ProjectSecretsSkeleton /> },
 );
 
 export const Route = createFileRoute(

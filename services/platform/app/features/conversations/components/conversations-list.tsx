@@ -3,7 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
 import { Center, HStack, Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { decode } from 'he';
@@ -219,13 +219,11 @@ const ConversationRow = memo(function ConversationRow({
       />
       <div className="pointer-events-none relative z-10 flex items-start gap-2.5">
         <Row gap={0} className="pointer-events-auto mt-0.5">
-          <SkeletonBox>
-            <Checkbox
-              checked={isChecked}
-              onCheckedChange={handleCheckboxChange}
-              aria-label={tDialogs ? tDialogs('selectConversation') : ''}
-            />
-          </SkeletonBox>
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={handleCheckboxChange}
+            aria-label={tDialogs ? tDialogs('selectConversation') : ''}
+          />
         </Row>
 
         <div className="min-w-0 flex-1">
@@ -310,9 +308,9 @@ const ConversationRow = memo(function ConversationRow({
                   );
                 })()
               : placeholderIndex % 3 === 0 && (
-                  <SkeletonBox>
-                    <div className="h-5 w-16 rounded-full" />
-                  </SkeletonBox>
+                  <SkeletonCircle asChild>
+                    <div className="h-6.5 w-16 rounded-full" />
+                  </SkeletonCircle>
                 )}
 
             {conversation
@@ -332,9 +330,9 @@ const ConversationRow = memo(function ConversationRow({
                   );
                 })()
               : placeholderIndex % 2 === 0 && (
-                  <SkeletonBox>
-                    <div className="h-5 w-20 rounded-full" />
-                  </SkeletonBox>
+                  <SkeletonCircle asChild>
+                    <div className="h-6.5 w-20 rounded-full" />
+                  </SkeletonCircle>
                 )}
           </HStack>
         </div>
