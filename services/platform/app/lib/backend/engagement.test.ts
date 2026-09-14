@@ -108,3 +108,47 @@ describe.each([
     });
   });
 });
+
+describe('website creation dates', () => {
+  const wireRow = {
+    id: 'website-1',
+    domain: 'example.com',
+    createdAt: 1789383600000,
+    lastScannedAt: 1789387200000,
+    crawledPageCount: 12,
+  };
+  const wirePage = {
+    page: [wireRow],
+    isDone: false,
+    continueCursor: '1789383600000:website-1',
+  };
+  const expectedRow = {
+    ...wireRow,
+    _id: wireRow.id,
+    _creationTime: wireRow.createdAt,
+  };
+
+  it('reads the app page envelope and supplies Created for whole-list consumers', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(wirePage)),
+    );
+    const adapter = engagementReadAdapters['websites/queries:listWebsites']?.(
+      {},
+      ctx,
+    );
+    expect(await adapter?.queryFn()).toEqual([expectedRow]);
+  });
+
+  it('supplies Created without changing scan time or the opaque website cursor', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(wirePage)),
+    );
+    const adapter = engagementPaginatedAdapters[
+      'websites/queries:listWebsitesPaginated'
+    ]?.({}, ctx);
+    expect(await adapter?.fetchPage(null, 20)).toEqual({
+      ...wirePage,
+      page: [expectedRow],
+    });
+  });
+});
