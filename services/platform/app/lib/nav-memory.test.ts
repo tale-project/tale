@@ -324,3 +324,38 @@ describe('installNavMemory', () => {
     });
   });
 });
+
+describe('unavailable browser storage', () => {
+  it.each(['sessionStorage', 'localStorage'] as const)(
+    'keeps the other storage area usable when the %s getter throws',
+    (blocked) => {
+      recordNavLocation(ORG, 'projects/p1/tasks/board');
+      vi.spyOn(window, blocked, 'get').mockImplementation(() => {
+        throw new DOMException('Storage is disabled', 'SecurityError');
+      });
+
+      expect(readNavTarget(ORG, 'projects')?.path).toBe(
+        'projects/p1/tasks/board',
+      );
+      expect(() => recordNavLocation(ORG, 'automations/a1')).not.toThrow();
+      expect(readNavTarget(ORG, 'automations')?.path).toBe('automations/a1');
+      expect(() => clearNavSection(ORG, 'projects')).not.toThrow();
+      expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+      expect(() => clearNavMemory()).not.toThrow();
+      expect(readNavTarget(ORG, 'automations')).toBeUndefined();
+    },
+  );
+
+  it('falls back without interrupting navigation or sign-out when both getters throw', () => {
+    for (const area of ['sessionStorage', 'localStorage'] as const) {
+      vi.spyOn(window, area, 'get').mockImplementation(() => {
+        throw new DOMException('Storage is disabled', 'SecurityError');
+      });
+    }
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+    expect(() => recordNavLocation(ORG, 'projects/p1')).not.toThrow();
+    expect(() => clearNavSection(ORG, 'projects')).not.toThrow();
+    expect(() => clearNavMemory(ORG)).not.toThrow();
+    expect(() => clearNavMemory()).not.toThrow();
+  });
+});
