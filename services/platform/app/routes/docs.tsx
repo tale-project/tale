@@ -1,11 +1,15 @@
+import { buttonVariants } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { Stack } from '@tale/ui/layout';
+import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
+import { BookOpen, FileJson } from 'lucide-react';
 import { lazy, useMemo } from 'react';
 
+import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 import 'swagger-ui-react/swagger-ui.css';
@@ -61,6 +65,37 @@ function SwaggerSkeleton() {
   );
 }
 
+/**
+ * The rendered reference is one of three developer surfaces; the other two
+ * (the prose guides on the docs site and the raw OpenAPI document Swagger
+ * renders) were only reachable by knowing their URLs (2026-09-14
+ * evaluation, g9-2).
+ */
+export function DeveloperSurfaces() {
+  const { t } = useT('settings');
+  const linkClass = buttonVariants({ variant: 'secondary', size: 'sm' });
+  return (
+    <nav
+      aria-label={t('apiDocs.openDocs')}
+      className="mx-auto flex max-w-[1400px] flex-wrap gap-2 px-4 pt-6"
+    >
+      <a
+        href={`${TALE_DOCS_URL}/develop/api-reference`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkClass}
+      >
+        <BookOpen className="mr-2 size-4" />
+        {t('apiDocs.guides')}
+      </a>
+      <a href="/openapi.json" className={linkClass}>
+        <FileJson className="mr-2 size-4" />
+        {t('apiDocs.openapiDocument')}
+      </a>
+    </nav>
+  );
+}
+
 function ApiDocsPage() {
   const swaggerConfig = useMemo(
     () => ({
@@ -103,6 +138,7 @@ function ApiDocsPage() {
       className="bg-background h-dvh overflow-y-auto"
       onClickCapture={handleClick}
     >
+      <DeveloperSurfaces />
       <main className="swagger-ui-standalone">
         <SuspenseBoundary fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />

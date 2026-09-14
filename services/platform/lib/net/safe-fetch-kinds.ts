@@ -17,6 +17,11 @@ export const SAFE_FETCH_ERROR_KINDS = [
   'response_too_large',
   'response_too_small',
   'network_error',
+  // The TLS handshake failed — an expired, self-signed, untrusted or
+  // wrong-host certificate: permanent until the operator renews it, and
+  // named as such rather than folded into `network_error` (2026-09-14
+  // evaluation, g4-4).
+  'tls_error',
   'timeout',
   'aborted',
 ] as const;

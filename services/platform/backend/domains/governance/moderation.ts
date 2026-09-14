@@ -202,6 +202,8 @@ function classifySafeFetchError(error: SafeFetchError): ModerationErrorClass {
     case 'unsupported_protocol':
     case 'insecure_public_http':
     case 'private_ip':
+    // A certificate the operator has to fix, not a blip to retry.
+    case 'tls_error':
       return 'config';
     case 'response_too_large':
     case 'response_too_small':

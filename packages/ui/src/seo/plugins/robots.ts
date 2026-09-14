@@ -31,6 +31,7 @@ export const robotsPlugin: ArtifactPlugin = {
         sitemaps,
         disallow: ctx.robots?.disallow,
         extraDisallow: ctx.robots?.extraDisallow,
+        allow: ctx.robots?.allow,
         userAgent: ctx.robots?.userAgent,
       }),
       contentType: CONTENT_TYPES.txt,

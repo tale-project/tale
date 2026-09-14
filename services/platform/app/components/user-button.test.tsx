@@ -1,3 +1,4 @@
+import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -353,10 +354,7 @@ describe('UserButton', () => {
       });
       expect(documentation).toBeInTheDocument();
       const documentationLink = documentation.closest('a');
-      expect(documentationLink).toHaveAttribute(
-        'href',
-        'https://tale.dev/docs',
-      );
+      expect(documentationLink).toHaveAttribute('href', TALE_DOCS_URL);
       expect(documentationLink).toHaveAttribute('target', '_blank');
       expect(documentationLink).toHaveAttribute('rel', 'noopener noreferrer');
       expect(

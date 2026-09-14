@@ -87,6 +87,10 @@ export interface ImportFilesDependencies {
     contentHash?: string;
     /** The stored metadata — read for the sync binding it may carry. */
     metadata?: Record<string, unknown> | null;
+    /** The hub folder the document sits in (`null` at the root); a sync
+     *  import moves an adopted document into its selected folder when the
+     *  two differ. Absent when the caller does not track placement. */
+    folderId?: string | null;
   } | null>;
   createDocument: (args: {
     organizationId: string;
@@ -143,6 +147,17 @@ export interface ImportFilesDependencies {
   bindDocumentToSync?: (args: {
     documentId: Id<'documents'>;
     metadata: Record<string, unknown>;
+  }) => Promise<void>;
+  /**
+   * Re-file a document the sync adopted UNCHANGED into the folder its
+   * selection names — the folder is created on the new/changed path only,
+   * so a file that was already in the hub (an earlier one-time import at
+   * the root, a directly picked file) used to stay where it was, and a
+   * folder whose every file was adopted never existed at all.
+   */
+  setDocumentFolder?: (args: {
+    documentId: Id<'documents'>;
+    folderId: Id<'folders'>;
   }) => Promise<void>;
   /** Create-or-reactivate the sync config for a selected item ("Sync import"
    *  only). Returns the config id so imported documents can point back at it. */
@@ -243,8 +258,42 @@ export async function importFiles(
           : args.organizationId,
       });
       if (configId) configIdByItemId.set(target.itemId, configId);
+      // The sync root exists from the moment the config does — the row a
+      // person stops the sync from — even when every file below it is
+      // adopted unchanged and the per-file lane never creates a folder.
+      if (target.itemType === 'folder' && deps.getOrCreateFolderPath) {
+        try {
+          await deps.getOrCreateFolderPath(
+            args.organizationId,
+            (target.itemPath || target.itemName).split('/'),
+            args.userId,
+            args.teamId,
+          );
+        } catch (error) {
+          console.warn(
+            `[importFiles] could not create the sync root for "${target.itemName}":`,
+            error,
+          );
+        }
+      }
     }
   }
+
+  /** The hub folder the item's path names — created on demand — or
+   *  `undefined` when the path has no folder part. */
+  const intendedFolderId = async (
+    item: ImportItem,
+  ): Promise<Id<'folders'> | undefined> => {
+    if (!deps.getOrCreateFolderPath || !item.relativePath) return undefined;
+    const segments = item.relativePath.split('/').slice(0, -1);
+    if (segments.length === 0) return undefined;
+    return deps.getOrCreateFolderPath(
+      args.organizationId,
+      segments,
+      args.userId,
+      args.teamId,
+    );
+  };
 
   for (const item of args.items) {
     try {
@@ -301,6 +350,23 @@ export async function importFiles(
               ...selectionOf(item),
             },
           });
+        }
+        // A sync import files the document where its selection says, even
+        // when the bytes did not change: the folder row is what the person
+        // stops the sync from. Only INTO a folder — a path without a folder
+        // part keeps a manual move, the way the changed path does.
+        if (syncConfigId !== undefined && deps.setDocumentFolder) {
+          const folderId = await intendedFolderId(item);
+          if (
+            folderId !== undefined &&
+            existingDoc.folderId !== undefined &&
+            existingDoc.folderId !== folderId
+          ) {
+            await deps.setDocumentFolder({
+              documentId: existingDoc._id,
+              folderId,
+            });
+          }
         }
         await deps.scheduleHubDocumentRagIndexing?.(existingDoc._id);
         results.push({
@@ -359,18 +425,7 @@ export async function importFiles(
           : {}),
       };
 
-      let folderId: Id<'folders'> | undefined;
-      if (deps.getOrCreateFolderPath && item.relativePath) {
-        const segments = item.relativePath.split('/').slice(0, -1);
-        if (segments.length > 0) {
-          folderId = await deps.getOrCreateFolderPath(
-            args.organizationId,
-            segments,
-            args.userId,
-            args.teamId,
-          );
-        }
-      }
+      const folderId = await intendedFolderId(item);
 
       let documentId: Id<'documents'>;
 

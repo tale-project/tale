@@ -1277,12 +1277,23 @@ describe('POST …/messages — Idempotency-Key', () => {
     ).toBe(false);
   });
 
-  it('reads a blank key as no key', async () => {
+  // A blank key used to be read as "no key" and accepted the send unkeyed
+  // (2026-09-14 evaluation, g5-2); it is refused now, and nothing is queued.
+  it('refuses a blank key with 400 INVALID_HEADER, sending nothing', async () => {
     const { sql, queries } = fakeSql();
     const res = await keyedSend(sql, '   ');
-    expect(res.status).toBe(202);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_HEADER',
+      data: {
+        issues: [{ path: 'Idempotency-Key', message: 'must not be blank' }],
+      },
+    });
     expect(
       queries.some((q) => q.text.includes('app.chat_send_idempotency')),
+    ).toBe(false);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.chat_messages')),
     ).toBe(false);
   });
 });

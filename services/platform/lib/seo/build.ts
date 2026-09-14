@@ -61,8 +61,14 @@ export function platformOptionalPages(): OptionalPage[] {
 }
 
 export function platformRobots(): RobotsConfig {
-  // Authenticated surface — block crawlers entirely.
-  return { extraDisallow: ['/'] };
+  // Authenticated surface — block crawlers from the app, but keep the
+  // public developer pages reachable: the API reference, the OpenAPI
+  // document, the LLM indexes and the status page are what a prospective
+  // integrator (or a search engine) is handed.
+  return {
+    extraDisallow: ['/'],
+    allow: ['/docs', '/openapi.json', '/llms.txt', '/llms-full.txt', '/status'],
+  };
 }
 
 export const platformSiteUrl = TALE_SITE_URL;

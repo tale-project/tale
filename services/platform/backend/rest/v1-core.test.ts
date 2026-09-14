@@ -11,6 +11,7 @@ import {
   getKnowledgeEntryVersions,
 } from '../domains/knowledge_entries/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
+import { entityTagOf } from '../lib/conditional-get.ts';
 import {
   mintCursorFor,
   parseKeysetCursor,
@@ -241,15 +242,24 @@ describe('GET /me capabilities', () => {
 
   it('is false while the key holder is not on the allowlist', async () => {
     delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
-    expect((await me()).capabilities).toEqual({ deploymentEditor: false });
+    expect((await me()).capabilities).toEqual({
+      deploymentEditor: false,
+      developer: true,
+    });
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
-    expect((await me()).capabilities).toEqual({ deploymentEditor: false });
+    expect((await me()).capabilities).toEqual({
+      deploymentEditor: false,
+      developer: true,
+    });
   });
 
   it('is true once the allowlist names the key holder (case-insensitively)', async () => {
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS =
       'ops@example.com, USER@example.com';
-    expect((await me()).capabilities).toEqual({ deploymentEditor: true });
+    expect((await me()).capabilities).toEqual({
+      deploymentEditor: true,
+      developer: true,
+    });
   });
 });
 
@@ -521,6 +531,46 @@ describe('PATCH /documents/:id', () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: 'DOCUMENT_STALE' });
   });
+
+  // `If-Match` is the HTTP form of the same guard (2026-09-14 evaluation,
+  // g8-5): the tag the GET answered must still name the representation —
+  // strongly compared, so a weak tag never matches — else 412 with the
+  // current tag beside it and nothing written.
+  it('refuses a stale If-Match with 412 PRECONDITION_FAILED naming the current tag, writing nothing', async () => {
+    const { updateDocument } = await import('../domains/documents/service.ts');
+    const app = mount(fakeSql([]).sql);
+    const read = await app.request('http://localhost/documents/doc-hub');
+    expect(read.status).toBe(200);
+    const current = entityTagOf(new TextEncoder().encode(await read.text()));
+    const writesBefore = vi.mocked(updateDocument).mock.calls.length;
+    for (const header of ['"someone-elses"', `W/${current}`]) {
+      const res = await app.request('http://localhost/documents/doc-hub', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'if-match': header },
+        body: JSON.stringify({ title: 'Renamed' }),
+      });
+      expect(res.status, header).toBe(412);
+      expect(await res.json()).toMatchObject({
+        code: 'PRECONDITION_FAILED',
+        data: { etag: current },
+      });
+    }
+    expect(vi.mocked(updateDocument).mock.calls.length).toBe(writesBefore);
+  });
+
+  it('applies a PATCH whose If-Match names the current representation, or any (*)', async () => {
+    const app = mount(fakeSql([]).sql);
+    const read = await app.request('http://localhost/documents/doc-hub');
+    const current = entityTagOf(new TextEncoder().encode(await read.text()));
+    for (const header of [current, `"other", ${current}`, '*']) {
+      const res = await app.request('http://localhost/documents/doc-hub', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'if-match': header },
+        body: JSON.stringify({ title: 'Renamed' }),
+      });
+      expect(res.status, header).toBe(200);
+    }
+  });
 });
 
 /**
@@ -650,7 +700,12 @@ describe('knowledge-entry writes over the knowledge:mutate budget', () => {
       });
       expect(res.status).toBe(429);
       expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
-      expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+      expect(await res.json()).toMatchObject({
+        code: 'RATE_LIMITED',
+        error: expect.stringMatching(
+          /^Too many requests — retry after \d+ ms$/,
+        ),
+      });
       const charge = queries.find((q) =>
         q.text.includes('INSERT INTO app.rate_limits'),
       );

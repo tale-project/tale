@@ -49,6 +49,7 @@ import {
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
+  robotsHeaderForbidsIndexing,
   siteHosts,
   stripBoilerplate,
 } from '../../../lib/knowledge/crawl-parse';
@@ -381,30 +382,78 @@ export async function scanWebsiteImpl(
         );
       }
 
-      await sql.unsafe(
-        `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
-            SET status = 'completed', last_scanned_at = NOW(), error = NULL,
-                updated_at = NOW(),
-                page_count = (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
-                               WHERE u.domain = websites.domain AND u.status <> 'deleted')
-          WHERE domain = $1`,
+      // A scan that attempted pages and stored NONE is not "a successful
+      // scan": it lands on the documented `error` state with the reason —
+      // the site used to read `active` with `crawledPageCount 1,
+      // failedPageCount 1` (a domain that does not resolve, an expired
+      // certificate), so the obvious health check was wrong (2026-09-14
+      // evaluation, g4-5). `last_scanned_at` is stamped either way — the
+      // scan did end — and an errored scan takes the failure cadence.
+      const [tally] = await sql.unsafe<
+        {
+          stored: string;
+          attempted: string;
+          failed: string;
+          kind: string | null;
+        }[]
+      >(
+        `SELECT
+            count(*) FILTER (WHERE u.status = 'active')::text AS stored,
+            count(*) FILTER (WHERE u.last_crawled_at IS NOT NULL)::text AS attempted,
+            count(*) FILTER (WHERE u.fail_count > 0)::text AS failed,
+            (SELECT u2.last_error_kind FROM ${PUBLIC_WEB_SCHEMA}.website_urls u2
+              WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.fail_count > 0
+              GROUP BY u2.last_error_kind ORDER BY count(*) DESC LIMIT 1) AS kind
+           FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+          WHERE u.domain = $1 AND u.status <> 'deleted'`,
         [args.domain],
       );
-      console.log(`[crawl] ${args.domain}: scan finished`);
-      // The scan completed, so the site leaves the failure-retry cadence and
-      // returns to its own interval. Best-effort: a hiccup here must not
-      // flip a finished scan into the error path.
-      await ctx
-        .runMutation(internal.websites.internal_mutations.clearScanFailures, {
-          organizationId: args.organizationId,
-          domain: args.domain,
-        })
-        .catch((clearError: unknown) => {
-          console.warn(
-            `[crawl] ${args.domain}: could not clear the failure bookkeeping:`,
-            clearError instanceof Error ? clearError.message : clearError,
-          );
+      const stored = Number(tally?.stored ?? '0');
+      const attempted = Number(tally?.attempted ?? '0');
+      const failedPages = Number(tally?.failed ?? '0');
+      if (stored === 0 && attempted > 0) {
+        const reason = `No page could be stored: ${failedPages} of ${attempted} attempted pages failed${tally?.kind ? ` (${tally.kind})` : ''}`;
+        await sql.unsafe(
+          `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
+              SET status = 'error', last_scanned_at = NOW(), error = $2,
+                  updated_at = NOW(),
+                  page_count = (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+                                 WHERE u.domain = websites.domain AND u.status <> 'deleted')
+            WHERE domain = $1`,
+          [args.domain, reason.slice(0, 1000)],
+        );
+        console.warn(
+          `[crawl] ${args.domain}: scan finished with nothing stored — ${reason}`,
+        );
+        await recordFailureOnWebsiteRow(ctx, identity, new Error(reason), {
+          corpusUnreachable: false,
         });
+      } else {
+        await sql.unsafe(
+          `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
+              SET status = 'completed', last_scanned_at = NOW(), error = NULL,
+                  updated_at = NOW(),
+                  page_count = (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+                                 WHERE u.domain = websites.domain AND u.status <> 'deleted')
+            WHERE domain = $1`,
+          [args.domain],
+        );
+        console.log(`[crawl] ${args.domain}: scan finished`);
+        // The scan completed, so the site leaves the failure-retry cadence
+        // and returns to its own interval. Best-effort: a hiccup here must
+        // not flip a finished scan into the error path.
+        await ctx
+          .runMutation(internal.websites.internal_mutations.clearScanFailures, {
+            organizationId: args.organizationId,
+            domain: args.domain,
+          })
+          .catch((clearError: unknown) => {
+            console.warn(
+              `[crawl] ${args.domain}: could not clear the failure bookkeeping:`,
+              clearError instanceof Error ? clearError.message : clearError,
+            );
+          });
+      }
     } catch (error) {
       if (isConnectionFailure(error)) {
         // The corpus database dropped away mid-scan. Recording the failure
@@ -798,14 +847,34 @@ async function fetchAndStorePage(
     });
     return 'failed';
   }
+  // The origin's own wish, in the HTTP form (`X-Robots-Tag: noindex` — the
+  // only way a site can say so for a non-HTML resource such as a PDF): an
+  // honest terminal reason on the row, nothing stored. The crawler reads
+  // robots.txt at discovery; it used to ignore this directive entirely
+  // (2026-09-14 evaluation, g4-10).
+  if (robotsHeaderForbidsIndexing(response.headers.get('x-robots-tag'))) {
+    await recordPageFailure(sql, domain, page.url, {
+      kind: 'robots_noindex',
+      message:
+        'The origin asked not to index this page (X-Robots-Tag: noindex)',
+    });
+    return 'failed';
+  }
   const contentType = response.headers.get('content-type') ?? '';
   const dispatch = classifyContentType(contentType);
   if (dispatch.kind === 'skip') {
     // Not something this lane can turn into text (an image, a feed, a
-    // binary download) — remember we looked so the scan moves on, but
-    // store nothing.
-    await markPageVisited(sql, domain, page.url);
-    return 'unchanged';
+    // binary download). Recorded as a failure with its own kind — the scan
+    // moves on, `discovered` stays honest ("every attempt failed"), and the
+    // 5-strike rule stops re-probing a JSON endpoint on a whole-site crawl.
+    // It used to clear the row silently, so a URL the crawler had looked at
+    // and rejected read exactly like one never fetched (2026-09-14
+    // evaluation, g4-3).
+    await recordPageFailure(sql, domain, page.url, {
+      kind: 'unsupported_content',
+      message: `The page answered ${contentType === '' ? 'no content type' : `"${contentType}"`}, which the crawler cannot turn into text (HTML, plain text, PDF, DOCX, XLSX, PPTX, ODT)`,
+    });
+    return 'failed';
   }
   if (dispatch.kind === 'html') {
     // Content comes from the rendered DOM, not this probe body — the page
@@ -941,23 +1010,6 @@ async function admitRenderedLinks(
     // the count above); unchanged live rows report zero.
     tracked += await admitUrls(sql, domain, [normalized], { listed: false });
   }
-}
-
-/** Remember that the scan looked at a URL without storing content for it
- * (a binary this lane cannot turn into text) — a successful attempt, so the
- * failure record goes too. */
-async function markPageVisited(
-  sql: Sql,
-  domain: string,
-  url: string,
-): Promise<void> {
-  await sql.unsafe(
-    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET last_crawled_at = NOW(), fail_count = 0,
-            last_error = NULL, last_error_kind = NULL, last_error_at = NULL
-      WHERE domain = $1 AND url = $2`,
-    [domain, url],
-  );
 }
 
 /** What a failed attempt leaves on the row: its kind (the vocabulary the

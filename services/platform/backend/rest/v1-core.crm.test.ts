@@ -130,7 +130,7 @@ describe('GET /me', () => {
       ],
       // A plain org admin is no instance admin: the deployment editor stays
       // closed (the capability's own cases live in v1-core.test.ts).
-      capabilities: { deploymentEditor: false },
+      capabilities: { deploymentEditor: false, developer: true },
       // The key that made the request, by the id the door stashed — its
       // expiry as epoch milliseconds (the key's own cases live in
       // v1-core.test.ts).
@@ -212,11 +212,76 @@ describe('contact bodies', () => {
     expect(patched.status).toBe(400);
     expect(vi.mocked(updateContact)).not.toHaveBeenCalled();
 
+    // A row the schema refuses fails ALONE: the operation documents per-row
+    // independence, and one bad row used to 400 the whole batch with
+    // nothing created (2026-09-14 evaluation, g7-2). The refusal keeps the
+    // single create's field-named shape, with paths relative to the row.
+    vi.mocked(bulkCreateContacts).mockClear();
     const bulk = await send('/contacts/bulk', 'POST', {
       contacts: [{ email: 'a@example.com', colour: 'blue' }],
     });
-    expect(bulk.status).toBe(400);
-    expect(await bulk.json()).toMatchObject({ code: 'INVALID_BODY' });
+    expect(bulk.status).toBe(201);
+    expect(await bulk.json()).toEqual({
+      success: 0,
+      failed: 1,
+      created: [],
+      errors: [
+        {
+          index: 0,
+          error: 'invalid row: "colour" is not a field a contact row takes',
+          errorCode: 'INVALID_BODY',
+          issues: [
+            { path: 'colour', message: 'is not a field a contact row takes' },
+          ],
+          contact: { email: 'a@example.com', colour: 'blue' },
+        },
+      ],
+    });
+    // The valid rows (none here) still go to the domain's own lane.
+    expect(vi.mocked(bulkCreateContacts).mock.calls.at(-1)?.[2]).toEqual([]);
+  });
+
+  it('lands the valid rows of a mixed batch and reports each refused row at its own index', async () => {
+    // The domain answers by position in the VALID list; the door maps it
+    // back to the caller's indexes so `created[].index` names rows as sent.
+    vi.mocked(bulkCreateContacts).mockResolvedValueOnce({
+      success: 2,
+      failed: 0,
+      created: [
+        { index: 0, id: 'c-a' },
+        { index: 1, id: 'c-c' },
+      ],
+      errors: [],
+    });
+    const bulk = await send('/contacts/bulk', 'POST', {
+      contacts: [
+        { name: 'A', email: 'a@example.com' },
+        { name: 'B', email: 'not-an-email' },
+        { name: 'C', email: 'c@example.com' },
+      ],
+    });
+    expect(bulk.status).toBe(201);
+    const body: unknown = await bulk.json();
+    expect(body).toMatchObject({
+      success: 2,
+      failed: 1,
+      created: [
+        { index: 0, id: 'c-a' },
+        { index: 2, id: 'c-c' },
+      ],
+      errors: [
+        {
+          index: 1,
+          errorCode: 'INVALID_BODY',
+          issues: [{ path: 'email', message: 'must be an email address' }],
+          contact: { name: 'B', email: 'not-an-email' },
+        },
+      ],
+    });
+    expect(vi.mocked(bulkCreateContacts).mock.calls.at(-1)?.[2]).toEqual([
+      { name: 'A', email: 'a@example.com' },
+      { name: 'C', email: 'c@example.com' },
+    ]);
   });
 
   it('refuses an empty bulk batch by name instead of answering 201 for nothing', async () => {
@@ -487,6 +552,43 @@ describe('normalization and the typed product fields', () => {
     ).toEqual([
       { path: 'imageUrl', message: 'must be an absolute http(s) URL' },
     ]);
+  });
+
+  /**
+   * The host is held to the crawl-target rule by name — the websites
+   * surface refused every one of these while `imageUrl` stored them verbatim
+   * (2026-09-14 evaluation, g2-1): a stored URL is a server-side request
+   * the day a feature renders a product image, so the metadata endpoint,
+   * loopback, link-local, RFC1918/CGNAT, a private suffix and a single-label
+   * name are refused at the door, without a DNS lookup.
+   */
+  it.each([
+    'http://169.254.169.254/latest/meta-data/',
+    'http://metadata.google.internal/',
+    'http://127.0.0.1:6379/',
+    'http://[::1]/w.png',
+    'http://10.0.0.5/w.png',
+    'http://192.168.1.10/w.png',
+    'http://100.64.0.1/w.png',
+    'http://2130706433/w.png',
+    'https://pim.corp/w.png',
+    'https://intranet/w.png',
+  ])('refuses imageUrl %j as a private or metadata host', async (imageUrl) => {
+    const issues = await refused('/products', 'POST', {
+      name: 'Widget',
+      imageUrl,
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toBe('imageUrl');
+    expect(issues[0]?.message).toMatch(/^must name a public host — /);
+  });
+
+  it('still stores a public http(s) imageUrl', async () => {
+    const res = await send('/products', 'POST', {
+      name: 'Widget',
+      imageUrl: 'https://cdn.example/w.png',
+    });
+    expect(res.status).toBe(201);
   });
 });
 

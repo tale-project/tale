@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
+import { clearNavMemory } from '@/app/lib/nav-memory';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
 
@@ -23,6 +24,9 @@ function useConvexAuthUser() {
     // the next load can't hydrate the shell for the signed-out account
     // (#2386).
     clearMemberContextCache();
+    // Where the signed-out account had been inside each section is theirs,
+    // not the next account's, on a shared machine.
+    clearNavMemory();
   };
 
   return {

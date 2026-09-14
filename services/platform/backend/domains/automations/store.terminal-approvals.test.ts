@@ -107,7 +107,7 @@ describe('the terminal doors withdraw the run’s open approvals', () => {
       'org_1',
       'run_1',
     );
-    expect(result).toEqual({ cancelled: true });
+    expect(result).toEqual({ cancelled: true, status: 'cancelled' });
     expectWithdrawal(fake.statements);
   });
 

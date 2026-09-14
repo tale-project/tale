@@ -9,6 +9,7 @@ import {
   taskWorkflowSubjectInput,
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
+import { isUniqueViolation } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -600,7 +601,18 @@ export async function startWorkflowForTask(
 }
 
 /** Start inside the caller's transaction so a REST project/task scope
- * check and the run insertion share the same authorization boundary. */
+ * check and the run insertion share the same authorization boundary.
+ *
+ * Three layers keep one live run per (automation, task): the advisory lock
+ * serialises racing doors, the live-run probe answers `alreadyRunning` on the
+ * fast path, and the `automation_runs_one_live_per_task` unique index is the
+ * guarantee neither of the first two can give alone — a check-then-act probe
+ * cannot see a commit its snapshot predates, so under a frozen (SERIALIZABLE)
+ * snapshot several racers each read "no live run". When the index catches the
+ * loser's insert it surfaces as a plain unique violation (reconciled here by
+ * re-reading the winner) or, under SERIALIZABLE, as a serialization failure
+ * that retries the whole transaction; either way the loser ends on
+ * `alreadyRunning`, never a second billable run. */
 export async function startWorkflowForTaskInTx(
   tx: TransactionSql,
   args: StartWorkflowForTaskArgs,
@@ -610,16 +622,20 @@ export async function startWorkflowForTaskInTx(
       hashtext(${taskWorkflowStartLockKey(args.organizationId, args.workflowSlug, args.task.id)})
     )
   `;
-  const live = await tx<{ id: string }[]>`
-    SELECT id FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
-      AND project_id = ${args.task.projectId}
-      AND status IN ('queued', 'running', 'waiting')
-      AND input->'task'->>'id' = ${args.task.id}
-    ORDER BY started_at_ms DESC LIMIT 1
-  `;
-  if (live[0] !== undefined) {
-    return { runId: live[0].id, alreadyRunning: true };
+  const liveRun = async (): Promise<string | undefined> => {
+    const rows = await tx<{ id: string }[]>`
+      SELECT id FROM app.automation_runs
+      WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
+        AND project_id = ${args.task.projectId}
+        AND status IN ('queued', 'running', 'waiting')
+        AND input->'task'->>'id' = ${args.task.id}
+      ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    return rows[0]?.id;
+  };
+  const existing = await liveRun();
+  if (existing !== undefined) {
+    return { runId: existing, alreadyRunning: true };
   }
   const input = taskWorkflowSubjectInput({
     _id: args.task.id,
@@ -636,14 +652,34 @@ export async function startWorkflowForTaskInTx(
       ? { externalUrl: args.task.externalUrl }
       : {}),
   });
-  const started = await beginRunInTx(tx, {
-    organizationId: args.organizationId,
-    name: args.workflowSlug,
-    input,
-    mode: 'live',
-    startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
-    projectId: args.task.projectId,
-  });
+  let started: { runId: string; version: number } | null;
+  try {
+    // A savepoint so the unique-index conflict rolls back the insert alone
+    // and the re-read below runs in the same (still-live) transaction.
+    started = await tx.savepoint((sp) =>
+      beginRunInTx(sp, {
+        organizationId: args.organizationId,
+        name: args.workflowSlug,
+        input,
+        mode: 'live',
+        startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
+        projectId: args.task.projectId,
+      }),
+    );
+  } catch (error) {
+    // The one-live-run index caught a racer whose probe missed the winner.
+    // Re-read it (a fresh statement sees the committed row) and answer it as
+    // the live run — exactly what the probe would have, had it seen it. A
+    // serialization failure is not a unique violation; it propagates so the
+    // serializable wrapper retries the whole transaction.
+    if (isUniqueViolation(error)) {
+      const winner = await liveRun();
+      if (winner !== undefined) {
+        return { runId: winner, alreadyRunning: true };
+      }
+    }
+    throw error;
+  }
   if (started === null) {
     console.warn(
       '[task-workflow] start skipped — no deployed automation named',

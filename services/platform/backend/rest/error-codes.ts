@@ -28,6 +28,9 @@ export const REST_ERROR_CODES = [
   'AUTOMATION_VERSION_UNKNOWN',
   'BLOB_NOT_FOUND',
   // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
+  // by a handler: an HTTP/1.1 chunked body whose framing is malformed.
+  'BODY_CHUNK_MALFORMED',
+  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
   // by a handler: an HTTP/2 body that ended before its declared length.
   'BODY_LENGTH_MISMATCH',
   'BODY_TOO_LARGE',
@@ -48,6 +51,7 @@ export const REST_ERROR_CODES = [
   'CONTACT_STALE',
   'CONVERSATION_CLOSED',
   'CONVERSATION_CONTACT_CONFLICT',
+  'CONVERSATION_CONTACT_TRASHED',
   'CONVERSATION_SNAPSHOT_CONFLICT',
   'CONVERSATION_SOURCE_NOT_FOUND',
   'DELIVERY_NOT_FOUND',
@@ -103,6 +107,9 @@ export const REST_ERROR_CODES = [
   'ORG_FORBIDDEN',
   'ORG_SLUG_INVALID',
   'ORG_SLUG_REQUIRED',
+  // RFC 9110 §13.1.1: an `If-Match` the current representation does not
+  // strongly match (the document PATCH); `data.etag` names the current tag.
+  'PRECONDITION_FAILED',
   'PRODUCT_NOT_FOUND',
   'PRODUCT_STALE',
   'PROJECT_AGENT_CONNECTOR_UNKNOWN',

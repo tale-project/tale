@@ -64,6 +64,31 @@ describe('resolveFileType', () => {
     expect(resolveFileType('photo.jpg', 'image/jpeg')).toBe('image/jpeg');
   });
 
+  // The extension decides whenever it maps to a known type: a declared type
+  // that is known but disagrees used to win, so a `.txt` bound as
+  // `image/png` was stored and served as PNG while the indexer read it as
+  // text (2026-09-14 evaluation, g3-3). The declared type is a hint for an
+  // extension the map does not know, never a substitute.
+  it('lets a mapped extension win over a known but disagreeing declared type', () => {
+    expect(resolveFileType('probe.txt', 'image/png')).toBe('text/plain');
+    expect(resolveFileType('report.pdf', 'text/plain')).toBe(PDF_MIME);
+    expect(resolveFileType('data.csv', 'application/vnd.ms-excel')).toBe(
+      'text/csv',
+    );
+    expect(resolveFileType('config.json', 'text/plain')).toBe(
+      'application/json',
+    );
+    expect(resolveFileType('deploy.yml', 'text/plain')).toBe(
+      'application/x-yaml',
+    );
+  });
+
+  it('keeps a known declared type for an extension the map does not know', () => {
+    expect(resolveFileType('archive.unknownext', 'image/png')).toBe(
+      'image/png',
+    );
+  });
+
   it('resolves .docx with empty MIME type', () => {
     expect(resolveFileType('contract.docx', '')).toBe(DOCX_MIME);
   });

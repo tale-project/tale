@@ -127,15 +127,6 @@ default means deleting the override and fixing what surfaces:
   pages behind `?cursor=` + `?limit=` on each, with the family flipped to `keyset` in
   `services/platform/scripts/openapi/spec.ts` so the envelope-family guard in
   `scripts/openapi/spec.test.ts` holds the new shape.
-- **No single-file read on `/api/v1/projects/{id}/files`** — a project file's metadata
-  (`fileName`, `folderId`, `size`, `indexing`) is readable only as a row of the folder listing
-  (`GET /projects/{id}/files?folderId=`), so a poller waiting for one file's `indexing` after
-  `POST …/files/{documentId}/retry-indexing` walks the listing (2026-09, round e; the
-  `OBJECT_STORE_UNAVAILABLE` register row used to name a `GET …/files/{documentId}` that never
-  existed). Paying it down means a `GET /api/v1/projects/{id}/files/{documentId}` answering the
-  `ProjectFile` row through the shared `loadProjectFile` load in
-  `services/platform/backend/rest/v1-projects.ts`, with its spec operation, an `ETag` + 304 like
-  every JSON read, and a `FILE_NOT_FOUND` register row.
 - **An identical zip upload rewrites the bundle** — `POST /api/app/skills/upload` (the app's
   bundle upload) stages and swaps every file and snapshots the superseded `SKILL.md` into the
   history trail even when the zip is byte-identical to the stored bundle, so `updatedAt` moves and
@@ -171,3 +162,108 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
+- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
+  node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
+  parses no usage and writes no ledger row), and an `agent` node's cents settle on
+  `app.sandbox_session_ops` under the automation's name and user, never on the run
+  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`); the stepper drops the
+  agent settle's `usage` when it records the node. A `usage` that read `0` for every `llm` node
+  would be a fabricated figure, so the surface says a run carries none (2026-09, round g).
+  Paying it down means (1) parsing usage in `parseChatReply` and booking it through
+  `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
+  `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
+- **Approvals and asks have no REST twins** — a run parked on `waitingFor: approval` or `ask`
+  can only be decided in the app (`backend/domains/approvals/routes.ts`,
+  `backend/domains/automations/routes.ts` `…/ask`, `…/asks/:askId/answer`); over REST the
+  `detail` (`approval:<approvalId>`) names something no door takes (2026-09, round g). Paying
+  it down means, beside cancel in `services/platform/backend/rest/v1-automations.ts` in both
+  scopes: `GET {run}/ask` → `{ask: PendingAsk|null}`, `POST {run}/asks/{askId}` `{answer}`
+  (with `runId` added to `answerAsk`'s locked read so ownership rides the lock),
+  `GET {run}/approvals/{approvalId}` (a `connector_operation` card whose `metadata.runId`
+  matches, else 404) and `POST {run}/approvals/{approvalId}` `{decision, comments?}` →
+  `decideApproval`; membership for an org run, project write access for a project run, no
+  developer capability, `rest:execute` charged; `ApprovalError`'s generic codes re-coded at the
+  door; five registry codes, schemas, docs and a contract bump.
+- **A task cannot be archived or deleted over REST** — `Task.archivedAt` says "this door has
+  no verb for it": the app's `POST /api/app/tasks/:taskId/archive` (`archiveTask`, editor) and
+  `DELETE /api/app/tasks/:taskId` (`deleteTask`, owner/admin — the recursive retire in
+  `backend/domains/tasks/retire.ts` cancels live runs, deletes the discussion thread,
+  withdraws pending reviews, releases blob refs) have no twins in
+  `services/platform/backend/rest/v1-tasks.ts` (2026-09, round g). Paying it down means
+  `PATCH …/tasks/{taskId}` `{archived}` (the thread/project idiom, 200 `{task}`, no-op when
+  already there) and `DELETE …/tasks/{taskId}` → 204 with the cascade named in its
+  description, gated by `loadVisibleTask(tx, auth, projectId, taskId, {write: true})` first so
+  `assertTaskWritable`'s `RBAC_FORBIDDEN`/`TASK_FORBIDDEN` never leak, the `archivedAt`
+  sentences rewritten, and a contract bump.
+- **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
+  `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
+  `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take
+  `{trigger: "webhook", payload}` at the top level (2026-09, round g). Paying it down means an
+  additive `inputsAcceptDelivery` on the bind: compile the deployed version's `inputs` with the
+  stepper's own `compileSchemaCached` key, check `{trigger: 'webhook', payload: {}}`, and
+  judge only issues at `trigger`/`payload` or a top-level `is required` (requirements inside
+  `payload.*` are not judged); absent without a schema or a deployment.
+- **An exhausted `repeatUntil` is only a trace note** — a `repeat` node that spends its
+  `maxRepeats` budget without its condition becoming true finishes the run `success` with the
+  last pass's output and a free-text `trace[].note`; nothing structured says the loop gave up
+  (2026-09, round g). Paying it down means `repeat: {passes, maxRepeats, satisfied}` on
+  `NodeTrace` (`lib/engine/core/types.ts`, set in `backend/core/automations/stepper.ts` beside
+  the note and mirrored in the in-memory executor) and a derived `repeatsExhausted: true` on
+  `Run`/`RunSummary` (present only when true) in `toRunDetail`/`toRunSummary`; no migration.
+- **The crawler's clocks and knobs are not on the wire** — `Website` carries no
+  `scanStartedAt` (the chain argument is never persisted), a `<meta name="robots"
+  content="noindex">` tag is not honoured (only the `X-Robots-Tag` header is), and the ceilings
+  the docs now state (10,000 URLs, 200 five-minute links, 25 MB / 30 s per page, five strikes)
+  are constants with no page cap, path filter, wall-clock cap or stop verb of the caller's
+  (2026-09, round g). Paying it down means a `scan_started_at` column on the corpus website row
+  (set in `claimScan`) surfaced as `Website.scanStartedAt`, a `robotsMetaNoindex(html)` check in
+  the render flush ahead of `storePageText` (kind `robots_noindex`, as the header path), and
+  optional `maxPages` / `includePaths` on `WebsiteInput` honoured by admission.
+- **Website search has no dense leg and its substring fallback is silent** —
+  `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
+  database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
+  nothing on the wire saying so (2026-09, round g). Paying it down means `diagnostics: {leg:
+  'keyword' | 'substring'}` on the response, and a `websiteId` filter on
+  `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
+  search stack.
+- **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
+  one-live-run-per-task invariant (the `automation_runs_one_live_per_task` partial index and
+  the in-transaction probe in `backend/domains/tasks/external-ref.ts`), so a retry while the
+  run lives answers `already_running` with its `runId`, but a retry after it finished starts
+  another run (2026-09, round g). Paying it down means `beginRunIdempotentInTx` behind
+  `readIdempotencyKey(c)` with a door-specific request hash over `{taskId, workflowSlug}` —
+  the default hash covers the task's `title` and `status`, which the workflow itself moves, so
+  an honest retry would otherwise answer 409 `IDEMPOTENCY_KEY_REUSED`.
+- **No queue position on a queued send** — the generation poll answers `queued` with no
+  count of the accepted sends ahead; the deployment-wide queue is one `pg-boss` queue worked in
+  batches of `WORKER_CONCURRENCY` (2026-09, round g). Paying it down means `queuedAhead` from
+  `count(*) … WHERE generation_queued_since_ms < ${thread.queuedSince}` on
+  `app.thread_metadata` behind a partial index (create-migration skill), an additive field on
+  the poll and a contract bump; no ETA — batch waves times a turn's own length make any figure
+  dishonest.
+- **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
+  now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
+  failures ("Invalid or corrupt file" in `backend/core/lib/knowledge/extraction/{ooxml,pptx,
+  xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
+  times (2026-09, round g). Paying it down means wrapping those throws in
+  `ExtractionError('malformed')` the way `pdf.ts` does.
+- **No `/.well-known/security.txt`** — nothing serves RFC 9116's disclosure channel; the path
+  falls to the SPA tier's JSON 404 while the contact exists only in `.github/SECURITY.md`
+  (2026-09, round g). Paying it down means an env-gated route in `server.ts` ahead of the SPA
+  fallback (`SECURITY_CONTACT` = `mailto:`/`https:`/`tel:`, optional `SECURITY_POLICY_URL`,
+  `Expires` under a year, `Canonical`), its `.env.example` block and environment-reference row,
+  a `server.test.ts` case each way, and the operator's decision on the contact.
+- **No changelog feed** — `tale.dev/changelog` prerenders a build-time snapshot and swaps in
+  `/api/releases` after hydration, so `curl` and LLM readers see the image's release; there is
+  no Atom/RSS render and a failing runtime refresh is only a `console.warn` (2026-09, round g).
+  Paying it down means `<link rel="alternate">` to `/api/releases` on the page plus an llms.txt
+  entry, `releasesFetchedAt`/`source` in the web health status reported through
+  `monitoring.capture` when the last good fetch is older than six hours, and optionally a
+  `/changelog.atom` render of the same list.
+- **No SDK, collection or per-code table** — `openapi.json` is the generator-ready contract
+  and the error registry (`backend/rest/error-codes.ts`) publishes names only: no per-code
+  description or status map exists, so a generated table would be a bare list (2026-09,
+  round g). The reference now gives the keyless `jq` recipe over the enum. Paying it down means
+  a `{status, description}` map beside each registry entry, rendered into the reference by a
+  docs build step with a guard test that every backticked `UPPER_SNAKE` token in
+  `docs/en/develop/api-reference.md` is in the registry.

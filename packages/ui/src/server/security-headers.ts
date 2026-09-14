@@ -77,8 +77,11 @@ export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
   // Deny the hardware/payment features these content sites never use. Clipboard
   // is deliberately omitted so it keeps its default `self` allowlist (the docs
   // copy-to-clipboard buttons need it).
+  // `bluetooth` is deliberately absent: an experimental directive most
+  // engines do not register, it only produced "Unrecognized feature"
+  // console warnings (2026-09-14 evaluation, g9-5b).
   permissionsPolicy:
-    'camera=(), microphone=(), geolocation=(), usb=(), payment=(), bluetooth=(), midi=(), hid=(), serial=()',
+    'camera=(), microphone=(), geolocation=(), usb=(), payment=(), midi=(), hid=(), serial=()',
   // Content sites open no cross-origin popups and load every subresource
   // same-origin, so the strict cross-origin isolation headers are safe here
   // (unlike the platform app, which needs OAuth popups + cross-host branding

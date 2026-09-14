@@ -18677,6 +18677,59 @@ async function checkRunProvenance(
       raced.filter((outcome) => outcome?.alreadyRunning === false).length === 1,
     `runs=${racedLive.length} (want 1), outcomes=${JSON.stringify(raced.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
   );
+
+  // The REST door's own shape: the start ran inside a SERIALIZABLE
+  // transaction whose snapshot froze before the live-run probe, so the
+  // advisory lock alone could not stop concurrent starts — each probe read a
+  // snapshot that predated the others' inserts (2026-09-14 evaluation, g5-1).
+  // The `automation_runs_one_live_per_task` index (0102) is the backstop: a
+  // loser's insert conflicts, surfaces as a serialization failure, and the
+  // transactSerializable retry's fresh snapshot then reads the winner and
+  // answers `alreadyRunning`. Exactly one run must survive.
+  const { startWorkflowForTaskInTx } =
+    await import('./domains/tasks/external-ref.ts');
+  const frozenRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Frozen-snapshot start task', 'todo', 'b3',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const frozenTask = await loadRacedTask(sql, frozenRows[0]?.id ?? '', orgId);
+  const startFrozen = () =>
+    transactSerializable(sql, (tx) =>
+      startWorkflowForTaskInTx(tx, {
+        organizationId: orgId,
+        task: frozenTask,
+        workflowSlug: automationName,
+        startedByUserId: userId,
+        startedVia: 'api-key',
+      }),
+    );
+  const frozen = await Promise.all([
+    startFrozen(),
+    startFrozen(),
+    startFrozen(),
+    startFrozen(),
+    startFrozen(),
+    startFrozen(),
+  ]);
+  const frozenLive = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+      AND input->'task'->>'id' = ${frozenTask.id}
+  `;
+  record(
+    'automations: concurrent SERIALIZABLE starts land exactly one run (index backstop)',
+    frozenLive.length === 1 &&
+      frozen.every((outcome) => outcome?.runId === frozenLive[0]?.id) &&
+      frozen.filter((outcome) => outcome?.alreadyRunning === false).length ===
+        1,
+    `runs=${frozenLive.length} (want 1), outcomes=${JSON.stringify(frozen.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
+  );
   // The refusal is the caller's answer now, not a laundered "not started"
   // — and the queue's retry ladder sees a transient failure at all. On a
   // task with NO live run: the guard answers an existing run before the
@@ -27635,6 +27688,28 @@ async function checkOneDriveSync(
       browseBody.data.success &&
       (browseBody.data.items?.length ?? 0) === 2;
 
+    // q1 is already in the hub — a one-time import at the root, the way a
+    // person brings a single file in before deciding to sync its folder.
+    // The folder sync below must ADOPT it (unchanged bytes) and still file
+    // it under the sync folder; it used to stay at the root, and a folder
+    // whose every file was adopted never got its folder row (2026-09-14).
+    const rootImport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'one-time',
+          items: [
+            {
+              id: 'f-q1',
+              name: 'q1.txt',
+              size: 5,
+              relativePath: 'q1.txt',
+              isDirectlySelected: true,
+            },
+          ],
+        })
+      ).json(),
+    );
+    const q1AtRoot = await docsByExternalId('f-q1');
     const importResponse = await post('/import', {
       importType: 'sync',
       items: [
@@ -27688,9 +27763,16 @@ async function checkOneDriveSync(
     record(
       'onedrive sync import (grant token, reused pipeline, substrate)',
       browseOk &&
+        rootImport.success &&
+        rootImport.data.successCount === 1 &&
+        q1AtRoot.length === 1 &&
+        q1AtRoot[0]?.folderPath === null &&
         imported.success &&
         imported.data.success &&
-        imported.data.successCount === 3 &&
+        imported.data.successCount === 2 &&
+        imported.data.skippedCount === 1 &&
+        q1AfterImport.length === 1 &&
+        q1AfterImport[0]?.id === q1AtRoot[0]?.id &&
         folderConfig?.status === 'active' &&
         folderConfig.itemType === 'folder' &&
         notesConfig?.status === 'active' &&
@@ -27702,7 +27784,7 @@ async function checkOneDriveSync(
         hubFolders.length === 2 &&
         Number(ragDispatched[0]?.count ?? '0') === 3 &&
         graphAuth.includes('Bearer graph-grant-token'),
-      `browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
+      `root=${rootImport.success ? `${rootImport.data.successCount}ok` : 'ERR'} q1AtRoot=${q1AtRoot[0]?.folderPath ?? 'null'} adopted=${q1AfterImport[0]?.id === q1AtRoot[0]?.id} browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
     );
 
     // 2. Idle re-sync: unchanged hashes skip, nothing is pruned or rewritten.
@@ -28840,11 +28922,16 @@ async function checkWebsitesCrawl(
   // The URL-list domain of step 4 — served by the same fake so the listed
   // page really indexes (and can really 404 and come back).
   const LIST_DOMAIN = 'itest-list.example';
+  // Every answer from this host is a 503: the scan-end verdict lane
+  // (2026-09-14 evaluation, g4-5).
+  const DOWN_DOMAIN = 'itest-down.example';
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
     LIST_DOMAIN,
     `www.${LIST_DOMAIN}`,
+    DOWN_DOMAIN,
+    `www.${DOWN_DOMAIN}`,
   ]);
   const site = new Map<
     string,
@@ -28888,6 +28975,12 @@ async function checkWebsitesCrawl(
           ? input.toString()
           : input.url;
     const url = new URL(raw);
+    if (url.hostname === DOWN_DOMAIN || url.hostname === `www.${DOWN_DOMAIN}`) {
+      return new Response('down', {
+        status: 503,
+        headers: { 'content-type': 'text/plain' },
+      });
+    }
     if (FAKE_HOSTS.has(url.hostname)) {
       const page = site.get(url.pathname);
       if (!page) return new Response('gone', { status: 404 });
@@ -29568,11 +29661,138 @@ async function checkWebsitesCrawl(
           loopbackHits === 0,
         `relist=${reListed.status}/200 afterRelist=fail ${afterReList[0]?.failCount ?? '?'}/1 kind=${afterReList[0]?.kind ?? '?'}, revived=${revived[0]?.status ?? 'MISSING'}/active fail=${revived[0]?.failCount ?? '?'}/0 error=${revived[0]?.lastError ?? 'null'}/null kind=${revived[0]?.kind ?? 'null'}/null chunks=${revived[0]?.chunks ?? '0'}>=1, row failed=${listRowAfter?.failedPageCount}/0, loopbackHits=${loopbackHits}/0`,
       );
+
+      // 4e. Round g, g4-3 / g4-10: a listed page the crawler LOOKED at and
+      //     deliberately stored nothing for — a JSON endpoint, and a page
+      //     whose origin answers `X-Robots-Tag: noindex` — used to clear
+      //     its row silently, so it read exactly like one nobody had
+      //     fetched. Now each is a failure with its own kind, the site
+      //     counts them, and the site itself stays active (one page stored).
+      const jsonPath = '/data.json';
+      const noindexPath = '/keep-out.txt';
+      const jsonUrl = `https://${LIST_DOMAIN}${jsonPath}`;
+      const noindexUrl = `https://${LIST_DOMAIN}${noindexPath}`;
+      site.set(jsonPath, {
+        body: '{"alpha": 1, "beta": [2, 3]}',
+        type: 'application/json',
+      });
+      site.set(noindexPath, {
+        body: 'A listed page with enough words to index that asks every crawler, through its header, to keep it out of the index.',
+        type: 'text/plain',
+        headers: { 'x-robots-tag': 'noindex' },
+      });
+      const listSkipped = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl, jsonUrl, noindexUrl],
+        },
+      });
+      await drainCrawlJobs();
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const skippedPages = z
+        .object({ pages: z.array(failurePage) })
+        .loose()
+        .safeParse(await (await v1(`/websites/${listWebsiteId}/pages`)).json());
+      const jsonPage = skippedPages.success
+        ? skippedPages.data.pages.find((page) => page.url === jsonUrl)
+        : undefined;
+      const noindexPage = skippedPages.success
+        ? skippedPages.data.pages.find((page) => page.url === noindexUrl)
+        : undefined;
+      const noindexChunks = await pool<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM public_web.chunks
+        WHERE domain = ${LIST_DOMAIN} AND url = ${noindexUrl}
+      `;
+      const listRowSkipped = await websites.getWebsite(sql, listWebsiteId);
+      record(
+        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex)',
+        listSkipped.status === 200 &&
+          jsonPage !== undefined &&
+          jsonPage.status === 'discovered' &&
+          !jsonPage.indexed &&
+          jsonPage.wordCount === 0 &&
+          jsonPage.failCount === 1 &&
+          jsonPage.lastErrorKind === 'unsupported_content' &&
+          (jsonPage.lastError ?? '').includes('application/json') &&
+          noindexPage !== undefined &&
+          noindexPage.status === 'discovered' &&
+          !noindexPage.indexed &&
+          noindexPage.failCount === 1 &&
+          noindexPage.lastErrorKind === 'robots_noindex' &&
+          Number(noindexChunks[0]?.count ?? '-1') === 0 &&
+          listRowSkipped?.status === 'active' &&
+          listRowSkipped.failedPageCount === 2 &&
+          listRowSkipped.crawledPageCount === 4,
+        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/2 attempted=${listRowSkipped?.crawledPageCount}/4`,
+      );
     } finally {
       await new Promise<void>((resolve) => {
         loopback.close(() => resolve());
       });
     }
+
+    // 4f. Round g, g4-5: a site whose every page failed is not "a successful
+    //     scan". The homepage is always admitted, its 503 is one attempted
+    //     page and nothing stored, so the scan ends on the documented
+    //     `error` state with the reason — the site used to read `active`
+    //     with `crawledPageCount 1, failedPageCount 1`.
+    const downCreated = z.looseObject({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: { domain: DOWN_DOMAIN, scanInterval: '1d' },
+        })
+      ).json(),
+    );
+    const downId = downCreated.success ? downCreated.data.id : '';
+    await drainCrawlJobs();
+    await websites.runWebsitesScan(sql, {
+      domain: DOWN_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOWN_DOMAIN });
+    const downRow = await websites.getWebsite(sql, downId);
+    const downMeta = downRow?.metadata ?? {};
+    const downReason =
+      typeof downMeta.lastSyncError === 'string' ? downMeta.lastSyncError : '';
+    const downCorpus = await pool<{ status: string; error: string | null }[]>`
+      SELECT status, error FROM public_web.websites WHERE domain = ${DOWN_DOMAIN}
+    `;
+    const downPages = z
+      .object({ pages: z.array(failurePage) })
+      .loose()
+      .safeParse(await (await v1(`/websites/${downId}/pages`)).json());
+    const downHome = downPages.success
+      ? downPages.data.pages.find(
+          (page) => page.url === `https://${DOWN_DOMAIN}/`,
+        )
+      : undefined;
+    const downFiltered = z
+      .object({ page: z.array(z.object({ id: z.string() })) })
+      .loose()
+      .safeParse(await (await v1('/websites?status=error')).json());
+    const downBadFilter = await v1('/websites?status=broken');
+    const downDeleted = await v1(`/websites/${downId}`, { method: 'DELETE' });
+    record(
+      'websites scan end: a site whose every page failed reads error with the reason, never active',
+      downCreated.success &&
+        downRow?.status === 'error' &&
+        downReason.startsWith('No page could be stored: 1 of 1') &&
+        downCorpus[0]?.status === 'error' &&
+        (downCorpus[0].error ?? '').includes('http_error') &&
+        downHome !== undefined &&
+        downHome.status === 'discovered' &&
+        downHome.lastErrorKind === 'http_error' &&
+        downRow.crawledPageCount === 1 &&
+        downRow.failedPageCount === 1 &&
+        downFiltered.success &&
+        downFiltered.data.page.some((row) => row.id === downId) &&
+        downBadFilter.status === 400 &&
+        downDeleted.status === 204,
+      `created=${downCreated.success} row=${downRow?.status}/error reason=${downReason} corpus=${downCorpus[0]?.status}/error (${downCorpus[0]?.error}) home=${downHome ? `${downHome.status}/${downHome.lastErrorKind}` : 'MISSING'} (want discovered/http_error) counts=${downRow?.crawledPageCount}/1 ${downRow?.failedPageCount}/1 filter=${downFiltered.success ? downFiltered.data.page.some((row) => row.id === downId) : 'ERR'} badFilter=${downBadFilter.status}/400 delete=${downDeleted.status}/204`,
+    );
 
     const restList = z
       .object({ page: z.array(z.object({ id: z.string() })) })

@@ -65,6 +65,9 @@ export interface RobotsConfig {
   extraSitemaps?: readonly string[];
   disallow?: readonly string[];
   extraDisallow?: readonly string[];
+  /** Explicit `Allow:` carve-outs of a blanket `Disallow: /` — the public
+   * developer pages of an otherwise authenticated host. */
+  allow?: readonly string[];
   userAgent?: string;
 }
 

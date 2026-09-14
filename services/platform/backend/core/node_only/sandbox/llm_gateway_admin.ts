@@ -35,6 +35,12 @@
 
 import { createHash } from 'node:crypto';
 
+import { isPrivateIp } from '@tale/shared/net/private-ip';
+
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../../lib/net/host-policy';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
@@ -699,6 +705,25 @@ function providerFingerprint(p: ProviderProvision): string {
     .digest('hex');
 }
 
+/**
+ * Whether this upstream is the self-hosted kind the gateway would refuse:
+ * a private/loopback host AND the operator opt-in that admitted it. Both
+ * halves matter — without the opt-in the provider is inert anyway, so the
+ * gateway keeps its own guard rather than trusting a config file alone.
+ */
+function privateBaseUrl(baseUrl: string): boolean {
+  if (!privateProviderHostsAllowed()) return false;
+  try {
+    const host = new URL(baseUrl).hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, '')
+      .replace(/\.$/, '');
+    return isPrivateIp(host);
+  } catch {
+    return false;
+  }
+}
+
 /** True when a provider cannot be provisioned at all: a custom upstream with
  * no base URL — the gateway requires `network_config.base_url` for it, so
  * there is nothing to point it at. Warn + skip. */
@@ -839,6 +864,17 @@ async function ensureProviderConfig(
       default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
       stream_idle_timeout_in_seconds: STREAM_IDLE_TIMEOUT_SECONDS,
       ...(baseUrl ? { base_url: baseUrl } : {}),
+      // A self-hosted upstream lives on a private address, and the gateway
+      // refuses one by default ("Invalid base URL: private IP addresses are
+      // not allowed") — it resolves the host first, so a LAN hostname is
+      // refused too and TLS makes no difference. Lift that guard for exactly
+      // the providers the operator already admitted with
+      // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1, the same knob that lets the
+      // provider file name a private host and lets a request reach it. A
+      // deployment without the opt-in keeps the gateway's default refusal.
+      ...(baseUrl && privateBaseUrl(baseUrl)
+        ? { allow_private_network: true }
+        : {}),
       ...(Object.keys(attribution).length > 0
         ? { extra_headers: attribution }
         : {}),
@@ -942,6 +978,12 @@ async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
 ): Promise<void> {
+  // The private-network opt-in never admits cloud metadata endpoints.
+  // Apply the same host policy as direct provider calls before gateway I/O
+  // or a memo hit can authorize a session with an existing upstream key.
+  if (!isStandardGatewayProvider(p.name) && p.baseUrl) {
+    checkProviderHostPolicy(p.baseUrl);
+  }
   const memoKey = `${organizationId}:${p.name}`;
   const existing =
     (await listProviderKeys(p.name)).find(

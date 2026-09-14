@@ -36,6 +36,7 @@ function row(overrides: Partial<RunRow> = {}): RunRow {
     trace: null,
     effects: null,
     detail: 'agent:review',
+    failureCode: null,
     claimEpoch: 2,
     chainSeq: 4,
     startedAt: 1_789_190_000_000,
@@ -109,6 +110,24 @@ describe('toRunSummary', () => {
     expect(summary).not.toHaveProperty('waitingFor');
     expect(summary.detail).toBe('the model returned no text content');
     expect(summary.finishedAt).toBe(1_789_190_060_000);
+  });
+
+  // The stable cause rides beside the sentence on a failed run, and is
+  // absent — not null — everywhere else (2026-09-14 evaluation, g5-3).
+  it('carries failureCode on a failed run and omits it otherwise', () => {
+    const failed = toRunSummary(
+      row({
+        status: 'failed',
+        detail: 'llm: credit exhausted',
+        failureCode: 'credit_exhausted',
+        finishedAt: 1_789_190_060_000,
+      }),
+    );
+    expect(failed.failureCode).toBe('credit_exhausted');
+    const ok = toRunSummary(
+      row({ status: 'success', detail: null, finishedAt: 1 }),
+    );
+    expect(ok).not.toHaveProperty('failureCode');
   });
 });
 

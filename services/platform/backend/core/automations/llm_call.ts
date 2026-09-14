@@ -33,6 +33,7 @@ import {
 import type { ActionCtx } from '../lib/ctx';
 import { walkDirectServing } from '../lib/providers/agent_serving';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
+import { NodeFailure } from './failure';
 
 /** What one llm node asks for — the engine seam's shape, minus nothing. */
 export interface AutomationLlmRequest {
@@ -131,7 +132,10 @@ export function extractJsonValue(reply: string): unknown {
       if (sliced !== MISS) return sliced;
     }
   }
-  throw new Error('nothing in the reply parses as a JSON value');
+  throw new NodeFailure(
+    'llm_output_invalid',
+    'nothing in the reply parses as a JSON value',
+  );
 }
 
 /** Null when the value satisfies the schema, else a compact account of the
@@ -216,14 +220,15 @@ export function automationLlmCall(
     try {
       value = extractJsonValue(reply.content);
     } catch (error) {
-      throw new Error(
+      throw new NodeFailure(
+        'llm_output_invalid',
         `the model's reply is not the JSON its outputSchema requires: ${describe(error)}`,
-        { cause: error },
       );
     }
     const violations = schemaViolations(request.outputSchema, value);
     if (violations !== null) {
-      throw new Error(
+      throw new NodeFailure(
+        'llm_output_invalid',
         `the model's reply does not satisfy the node's outputSchema: ${violations}`,
       );
     }

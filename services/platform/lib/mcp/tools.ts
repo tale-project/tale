@@ -219,22 +219,27 @@ function object(
   };
 }
 
-/** `minLength: 1` on every string the engine would otherwise refuse as
- * "missing" (`INVALID_PARAMS`, a blank `name`, `runId` or `query`): the
- * transport holds a call to the schema `tools/list` advertised, so a blank
- * is the same `-32602` a missing field gets, and no dispatch refusal code
- * for a malformed argument ever reaches an MCP client — exactly what the
- * MCP page promises. */
+/**
+ * A string argument that must carry something: `minLength: 1` refuses the
+ * empty string and `pattern: '\S'` refuses whitespace alone, so a blank is
+ * the same `-32602` a missing field gets. The transport holds a call to the
+ * schema `tools/list` advertised, so no dispatch refusal code for a
+ * malformed argument — and no confident empty result for an empty question
+ * — ever reaches an MCP client: exactly what the MCP page promises. The
+ * previous round guarded `search_catalog.query` only; a whitespace `name`
+ * reached the engine as "AUTOMATION_NOT_FOUND" and a blank `get_knowledge`
+ * query answered `passages: []` as success (2026-09-14 evaluation, g9-2).
+ */
+const NON_BLANK = { type: 'string', minLength: 1, pattern: '\\S' } as const;
+
 const AUTOMATION_NAME: Record<string, unknown> = {
-  type: 'string',
-  minLength: 1,
+  ...NON_BLANK,
   description:
     'The automation name — a "/"-separated path, e.g. "billing/dunning-reminder".',
 };
 
 const RUN_ID: Record<string, unknown> = {
-  type: 'string',
-  minLength: 1,
+  ...NON_BLANK,
   description: 'The run handle start_run and list_runs return.',
 };
 
@@ -300,7 +305,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     {
       automation: AUTOMATION_DOCUMENT,
       message: {
-        type: 'string',
+        ...NON_BLANK,
         description: 'Why this version — shown in the version history.',
       },
     },
@@ -309,11 +314,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
   search_catalog: object(
     {
       query: {
-        type: 'string',
-        // The engine trims the query: whitespace alone is as missing as
-        // an empty string, and the schema says so first.
-        minLength: 1,
-        pattern: '\\S',
+        ...NON_BLANK,
         description:
           'Capability keywords — verbs and objects, e.g. "send email".',
       },
@@ -363,7 +364,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
           'Run this exact version instead of the deployed one. Rarely needed.',
       },
       projectId: {
-        type: 'string',
+        ...NON_BLANK,
         description:
           'The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.',
       },
@@ -412,7 +413,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
   search_capabilities: object(
     {
       query: {
-        type: 'string',
+        ...NON_BLANK,
         description: 'What you want to do, in the words a person would use.',
       },
       limit: {
@@ -426,7 +427,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
   invoke_capability: object(
     {
       id: {
-        type: 'string',
+        ...NON_BLANK,
         description:
           'The capability id from search_capabilities, e.g. "automation.billing/dunning-reminder".',
       },
@@ -435,7 +436,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
           "Arguments — any JSON value the capability's own input schema accepts; the surface validates them.",
       },
       credential: {
-        type: 'string',
+        ...NON_BLANK,
         description:
           "Which stored credential to act as. Omit to use the organization's default.",
       },
@@ -445,7 +446,7 @@ const CAPABILITY_TOOL_SCHEMAS: Record<
   get_knowledge: object(
     {
       query: {
-        type: 'string',
+        ...NON_BLANK,
         description: 'What to look for, in the words a person would use.',
       },
       limit: {

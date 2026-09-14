@@ -4,14 +4,15 @@ import {
   classifyContentType,
   documentNameForUrl,
   extractLinks,
-  normalizeListedUrl,
   isDisallowed,
   isSitemapIndex,
   metaDescription,
   normalizeCandidateUrl,
+  normalizeListedUrl,
   paragraphsForHashing,
   parseRobots,
   parseSitemapLocs,
+  robotsHeaderForbidsIndexing,
   siteHosts,
   stripBoilerplate,
 } from './crawl-parse';
@@ -120,6 +121,29 @@ describe('extractLinks', () => {
 });
 
 describe('normalizeCandidateUrl', () => {
+  // A registration names a hostname, never a port: a same-host link to a
+  // non-standard port is another service (2026-09-14 evaluation, g4-6).
+  it('drops a same-host link that names a port', () => {
+    const portHosts = new Set(['info.cern.ch']);
+    expect(
+      normalizeCandidateUrl(
+        'http://info.cern.ch:8001/cedar.cic.net:210/usenet-addresses?',
+        'https://info.cern.ch/',
+        portHosts,
+      ),
+    ).toBeNull();
+    expect(
+      normalizeCandidateUrl(
+        '/hypertext/WWW/TheProject.html',
+        'https://info.cern.ch/',
+        portHosts,
+      ),
+    ).toBe('https://info.cern.ch/hypertext/WWW/TheProject.html');
+    expect(
+      normalizeListedUrl('https://info.cern.ch:8443/admin', portHosts),
+    ).toBeNull();
+  });
+
   const hosts = siteHosts('www.example.com');
 
   it('resolves relative links, drops fragments, keeps queries', () => {
@@ -320,5 +344,25 @@ describe('metaDescription', () => {
     expect(
       metaDescription(`<meta content="Reversed" name="description">`),
     ).toBe('Reversed');
+  });
+});
+
+describe('robotsHeaderForbidsIndexing', () => {
+  it('honours noindex and none, in any case, under any agent prefix', () => {
+    expect(robotsHeaderForbidsIndexing('noindex')).toBe(true);
+    expect(robotsHeaderForbidsIndexing('NOINDEX, nofollow')).toBe(true);
+    expect(robotsHeaderForbidsIndexing('none')).toBe(true);
+    expect(robotsHeaderForbidsIndexing('*: noindex')).toBe(true);
+    expect(
+      robotsHeaderForbidsIndexing('googlebot: nofollow, tale: noindex'),
+    ).toBe(true);
+  });
+
+  it('lets an absent header and every other directive through', () => {
+    expect(robotsHeaderForbidsIndexing(null)).toBe(false);
+    expect(robotsHeaderForbidsIndexing('')).toBe(false);
+    expect(robotsHeaderForbidsIndexing('nofollow, noarchive')).toBe(false);
+    expect(robotsHeaderForbidsIndexing('index, follow')).toBe(false);
+    expect(robotsHeaderForbidsIndexing('max-snippet:0')).toBe(false);
   });
 });

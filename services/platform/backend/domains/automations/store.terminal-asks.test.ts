@@ -99,6 +99,7 @@ describe('terminal doors close pending asks', () => {
     const fake = fakeTx('waiting');
     await expect(cancelRunInTx(fake.tx, 'org_1', 'run_1')).resolves.toEqual({
       cancelled: true,
+      status: 'cancelled',
     });
 
     const { closed, dismissed } = askClosure(fake.statements);

@@ -18,7 +18,7 @@ Der erste Zug ist ein API-Schlüssel. Ihn trägt jeder Skript-Aufruf; ohne ihn a
 Erzeuge einen Schlüssel im [API-Schlüssel](/de/platform/admin/api-keys)-Panel und kopiere, was es zeigt — Tale zeigt ihn einmal und nie wieder. Leg ihn für den Rest dieses Walks als Umgebungsvariable ab:
 
 ```bash
-export TALE_API_KEY="tale_..."
+export TALE_API_KEY="<api-key>"
 export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```

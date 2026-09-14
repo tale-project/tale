@@ -591,7 +591,12 @@ export interface PgSyncImportDeps {
     _id: never;
     contentHash?: string;
     metadata?: Record<string, unknown> | null;
+    folderId: string | null;
   } | null>;
+  setDocumentFolder: (args: {
+    documentId: string;
+    folderId: string;
+  }) => Promise<void>;
   createDocument: (args: {
     organizationId: string;
     title: string;
@@ -781,9 +786,12 @@ export function createSyncImportDeps(
           id: string;
           contentHash: string | null;
           metadata: Record<string, unknown> | null;
+          folderId: string | null;
         }[]
       >`
-        SELECT id, content_hash AS "contentHash", metadata FROM app.documents
+        SELECT id, content_hash AS "contentHash", metadata,
+               folder_id AS "folderId"
+        FROM app.documents
         WHERE org_id = ${findArgs.organizationId}
           AND external_item_id = ${findArgs.externalItemId}
         ORDER BY created_at_ms ASC
@@ -796,7 +804,25 @@ export function createSyncImportDeps(
         _id: row.id as never,
         ...(row.contentHash !== null ? { contentHash: row.contentHash } : {}),
         metadata: row.metadata,
+        folderId: row.folderId,
       };
+    },
+    // An adopted-unchanged document moves into the folder its sync names;
+    // the corpus stamp follows so a folder-scoped search finds it there.
+    setDocumentFolder: async ({ documentId, folderId }) => {
+      const folderPath = await buildHubFolderPath(
+        sql,
+        organizationId,
+        folderId,
+      );
+      await sql`
+        UPDATE app.documents SET
+          folder_id = ${folderId},
+          folder_path = ${folderPath},
+          updated_at_ms = ${Date.now()}
+        WHERE id = ${documentId} AND org_id = ${organizationId}
+      `;
+      await syncRagDocumentScope(sql, organizationId, documentId);
     },
     createDocument: async (createArgs) => {
       const now = Date.now();

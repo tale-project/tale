@@ -108,6 +108,7 @@ const runRow = {
   trace: [{ node: 'shape' }],
   effects: [],
   detail: null,
+  failureCode: null,
   claimEpoch: 1,
   chainSeq: 0,
   startedAt: 1_700_000_000_000,
@@ -412,10 +413,20 @@ describe('Idempotency-Key on a run start', () => {
     });
   });
 
-  it('reads a blank header as no key', async () => {
+  // A blank header used to be read as "no key" and started a fresh run —
+  // three retries carrying `"   "` billed three runs (2026-09-14 evaluation,
+  // g5-2). It is refused before the lookup now; nothing starts.
+  it('refuses a blank header with 400 INVALID_HEADER, starting nothing', async () => {
     const res = await start({ 'Idempotency-Key': '   ' });
-    expect(res.status).toBe(202);
-    expect(beginRun).toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid header: "Idempotency-Key" must not be blank',
+      code: 'INVALID_HEADER',
+      data: {
+        issues: [{ path: 'Idempotency-Key', message: 'must not be blank' }],
+      },
+    });
+    expect(beginRun).not.toHaveBeenCalled();
     expect(beginRunIdempotent).not.toHaveBeenCalled();
   });
 

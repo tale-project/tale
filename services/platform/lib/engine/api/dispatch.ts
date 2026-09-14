@@ -94,6 +94,10 @@ export interface RunSummary {
   mode: string;
   startedBy: string;
   detail?: string;
+  /** Why a `failed` run failed, as a stable code to branch on — `detail`
+   * carries the sentence, which is not contractual. Present only when
+   * `status` is `failed` and the run failed on a build that records it. */
+  failureCode?: string;
   /** What a `waiting` run is parked on — `approval` (a person's decision),
    * `ask` (a question a person has to answer), `agent` (an agent turn
    * still running), `repeat` (a node polling until its condition holds).

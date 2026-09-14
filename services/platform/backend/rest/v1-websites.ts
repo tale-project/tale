@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { SCAN_INTERVAL_VALUES } from '../core/websites/types.ts';
+import {
+  SCAN_INTERVAL_VALUES,
+  WEBSITE_STATUS_VALUES,
+} from '../core/websites/types.ts';
 import {
   deregisterAndDeleteWebsite,
   fetchWebsitePages,
@@ -160,7 +163,11 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/websites', async (c) => {
     const query = readQuery(c, {
       ...PAGE_QUERY,
-      status: queryFilter(32).optional(),
+      // The closed set the row carries: an unknown value answers 400
+      // `INVALID_QUERY` naming it, the way the knowledge-entry list does —
+      // not an empty page that reads as "no websites in that state"
+      // (2026-09-14 evaluation, g4-7).
+      status: z.enum(WEBSITE_STATUS_VALUES).optional(),
       scanInterval: queryFilter(16).optional(),
     });
     if (query instanceof Response) return query;

@@ -274,6 +274,9 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   txt: MIME_TYPES.PLAIN,
   md: MIME_TYPES.MARKDOWN,
   mdx: MIME_TYPES.MARKDOWN,
+  json: MIME_TYPES.JSON,
+  yaml: MIME_TYPES.YAML,
+  yml: MIME_TYPES.YAML,
 };
 
 const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
@@ -314,23 +317,31 @@ const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
 );
 
 /**
- * Resolve the correct MIME type for a file, falling back to extension-based
- * lookup when the browser reports a generic or empty MIME type.
+ * Resolve the correct MIME type for a file: the file name's extension decides
+ * whenever it maps to a known type, and the declared (browser or caller)
+ * MIME type is only a hint for an extension the map does not know.
  *
  * Browsers may report `.docx` as `application/zip`, `application/octet-stream`,
- * or empty string instead of the correct Office XML MIME type.
+ * or empty string instead of the correct Office XML MIME type; a Windows
+ * client reports `.csv` as `application/vnd.ms-excel`; a REST caller can
+ * declare anything. A KNOWN but wrong declared type used to win — a `.txt`
+ * bound as `image/png` was stored and served as PNG while the indexer, which
+ * keys on the extension, read it as text — so the stored `mimeType` and the
+ * download's `Content-Type` described the caller's claim, not the bytes
+ * (2026-09-14 evaluation, g3-3). The upload allowlist keys on the extension
+ * too, so the two halves of the pipeline now agree.
  */
 export function resolveFileType(fileName: string, browserMime: string): string {
   // Audio/video classification is byte-driven (see `detectMediaMime`). This
   // function never returns audio/* or video/* — browser MIME and extension
   // are both unreliable for media (browsers report .ts as video/mp2t).
   const mime = isAudioOrVideo(browserMime) ? '' : browserMime;
-  if (mime && KNOWN_MIME_TYPES.has(mime)) return mime;
   const ext = extractExtension(fileName);
   if (ext) {
     const resolved = EXTENSION_TO_MIME[ext];
     if (resolved) return resolved;
   }
+  if (mime && KNOWN_MIME_TYPES.has(mime)) return mime;
   return mime;
 }
 

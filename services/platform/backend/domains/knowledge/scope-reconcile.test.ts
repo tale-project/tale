@@ -26,7 +26,8 @@ vi.mock('../folders/paths.ts', async (importOriginal) => ({
   folderTreePaths,
 }));
 
-const { reconcileDocumentScopeStamps } = await import('./service.ts');
+const { reconcileDocumentScopeStamps, syncRagDocumentScopes } =
+  await import('./service.ts');
 
 interface DocRow {
   id: string;
@@ -329,5 +330,84 @@ describe('reconcileDocumentScopeStamps', () => {
 
     expect(sent[0]?.[0]).toBe('acme');
     expect(getKnowledgePoolForOrg).toHaveBeenCalledWith('acme');
+  });
+});
+
+/**
+ * `syncRagDocumentScopes` reads a KNOWN set of ids (a project detach) and
+ * re-stamps their corpus scope off the current rows — the batch twin of the
+ * reconcile page, deriving the same intended stamp. It resolves the org slug
+ * itself (the reconcile is handed it), so this harness answers that read too.
+ */
+function fakeSqlByIds(rows: DocRow[]): Sql & { reads: string[] } {
+  const reads: string[] = [];
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join(' ');
+    reads.push(text);
+    if (text.includes('FROM "organization"')) {
+      // requireOrgSlug → resolveOrgSlug
+      return Promise.resolve([{ slug: 'acme' }]);
+    }
+    // The document read: WHERE id = ANY($ids). The last value is the id
+    // array; answer the rows whose id is in it.
+    const ids = values.find((value): value is string[] => Array.isArray(value));
+    const wanted = new Set(ids ?? []);
+    return Promise.resolve(rows.filter((row) => wanted.has(row.id)));
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the batch sync issues only these two tagged reads
+  return Object.assign(sql, { reads }) as unknown as Sql & { reads: string[] };
+}
+
+describe('syncRagDocumentScopes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    folderTreePaths.mockResolvedValue(new Map<string, string>());
+  });
+
+  it('does not touch the corpus for an empty id set', async () => {
+    const { pool, sent } = fakePool(0);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagDocumentScopes(fakeSqlByIds([]), 'org-9', []);
+
+    expect(sent).toEqual([]);
+    expect(getKnowledgePoolForOrg).not.toHaveBeenCalled();
+  });
+
+  it('re-stamps a detached document to the hub (project_id NULL)', async () => {
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    // The document row AFTER a detach: project_id is already NULL on the app
+    // row; the corpus row still carries the dead id, and this is what heals it.
+    await syncRagDocumentScopes(
+      fakeSqlByIds([doc({ id: 'doc-1', fileRef: 'blob:f1', projectId: null })]),
+      'org-9',
+      ['doc-1'],
+    );
+
+    const param = sent[0]?.[1] as JsonParameter;
+    expect(param.type).toBe(3802);
+    expect((param.value as Array<Record<string, unknown>>)[0]).toEqual({
+      file_id: 'blob:f1',
+      team_ids: null,
+      team_id: null,
+      project_id: null,
+      folder_path: null,
+    });
+  });
+
+  it('reads only the ids it was given', async () => {
+    const { pool } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+    const sql = fakeSqlByIds([
+      doc({ id: 'doc-1', fileRef: 'blob:f1' }),
+      doc({ id: 'doc-2', fileRef: 'blob:f2' }),
+    ]);
+
+    await syncRagDocumentScopes(sql, 'org-9', ['doc-2']);
+
+    // The document read binds the id array, not a keyset cursor.
+    expect(sql.reads.some((text) => text.includes('id = ANY'))).toBe(true);
   });
 });

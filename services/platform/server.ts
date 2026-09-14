@@ -604,7 +604,11 @@ export function createApp(
         clipboardRead: ['self'],
         usb: [],
         payment: [],
-        bluetooth: [],
+        // `bluetooth` is an experimental directive most engines do not
+        // register: Chrome on Linux and Firefox logged "Unrecognized
+        // feature: 'bluetooth'" on every page load — the only console noise
+        // an otherwise clean page produced (2026-09-14 evaluation, g9-5b).
+        // No script here calls Web Bluetooth, and `script-src 'self'` holds.
         midi: [],
         hid: [],
         serial: [],
@@ -971,10 +975,13 @@ export function createApp(
     // discovery paths a protocol client probes (an MCP client looking for
     // OAuth resource metadata) are the same kind of question: a machine
     // asked, and an HTML shell is not an answer it can read.
+    // A doubled leading slash is the same question (`//api/v1/me`): the
+    // edge merges slashes for its own matching but proxies the raw URI.
+    const asked = pathname.replace(/^\/{2,}/, '/');
     if (
-      pathname === '/api' ||
-      pathname.startsWith('/api/') ||
-      pathname.startsWith('/.well-known/')
+      asked === '/api' ||
+      asked.startsWith('/api/') ||
+      asked.startsWith('/.well-known/')
     ) {
       return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
     }

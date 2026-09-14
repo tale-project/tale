@@ -20,6 +20,7 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
+import { readNavTarget, type NavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 
 export interface MobileBottomNavProps {
@@ -35,6 +36,10 @@ interface PrimaryTab {
   activePrefix: string;
   /** Optional CASL gate. */
   gate?: () => boolean;
+  /** Which nav-memory section this destination owns. */
+  section?: NavSection;
+  /** Search applied when tapped while already active (chat: a fresh chat). */
+  reentrySearch?: Record<string, unknown>;
 }
 
 interface OverflowItem {
@@ -46,6 +51,41 @@ interface OverflowItem {
   /** Optional override for the default `activePrefix` startsWith check. */
   isActive?: (pathname: string) => boolean;
   gate?: () => boolean;
+  section?: NavSection;
+  reentrySearch?: Record<string, unknown>;
+}
+
+/**
+ * Where a bottom-nav destination goes. Mirrors the desktop rail: tapping a
+ * section you are already in returns you to its default entry; tapping one you
+ * are not in restores the place you last had open there.
+ */
+function resolveNavTarget(
+  organizationId: string,
+  entry: Pick<PrimaryTab, 'to' | 'section' | 'reentrySearch'>,
+  active: boolean,
+): {
+  to: string;
+  search?: Record<string, unknown>;
+  state?: { navRestore: true };
+} {
+  const remembered =
+    active || entry.section === undefined
+      ? undefined
+      : readNavTarget(organizationId, entry.section);
+  if (remembered !== undefined) {
+    return {
+      to: `/dashboard/${organizationId}/${remembered.path}`,
+      ...(remembered.search !== undefined ? { search: remembered.search } : {}),
+      state: { navRestore: true },
+    };
+  }
+  return {
+    to: entry.to,
+    ...(active && entry.reentrySearch !== undefined
+      ? { search: entry.reentrySearch }
+      : {}),
+  };
 }
 
 /**
@@ -87,6 +127,8 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: MessageCircle,
         to: `/dashboard/${organizationId}/chat`,
         activePrefix: `/dashboard/${organizationId}/chat`,
+        section: 'chat',
+        reentrySearch: { new: true },
       },
       {
         key: 'projects',
@@ -94,6 +136,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: Folder,
         to: `/dashboard/${organizationId}/projects`,
         activePrefix: `/dashboard/${organizationId}/projects`,
+        section: 'projects',
         gate: () => ability.can('read', 'projects'),
       },
       {
@@ -102,6 +145,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: Inbox,
         to: `/dashboard/${organizationId}/conversations`,
         activePrefix: `/dashboard/${organizationId}/conversations`,
+        section: 'conversations',
         gate: () => hasInboxAutomation,
       },
     ],
@@ -123,6 +167,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: BrainIcon,
         to: `/dashboard/${organizationId}/documents`,
         activePrefix: `/dashboard/${organizationId}/documents`,
+        section: 'knowledge',
       },
       {
         key: 'automations',
@@ -130,6 +175,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: Workflow,
         to: `/dashboard/${organizationId}/automations`,
         activePrefix: `/dashboard/${organizationId}/automations`,
+        section: 'automations',
       },
       {
         key: 'settings',
@@ -137,6 +183,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: SettingsIcon,
         to: `/dashboard/${organizationId}/settings`,
         activePrefix: `/dashboard/${organizationId}/settings`,
+        section: 'settings',
       },
     ],
     [organizationId, tNav],
@@ -161,7 +208,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
           active,
           accentColor: active && accentColor ? accentColor : undefined,
           onSelect: () => {
-            void navigate({ to: tab.to });
+            void navigate(resolveNavTarget(organizationId, tab, active));
           },
         };
       });
@@ -175,7 +222,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
     });
     return primary;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isPathActive closes over `pathname`, which is the trigger
-  }, [tabs, pathname, navigate, accentColor, moreActive, tNav]);
+  }, [tabs, pathname, navigate, accentColor, moreActive, tNav, organizationId]);
 
   return (
     <>
@@ -203,7 +250,9 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
                   type="button"
                   onClick={() => {
                     setMoreOpen(false);
-                    void navigate({ to: item.to });
+                    void navigate(
+                      resolveNavTarget(organizationId, item, active),
+                    );
                   }}
                   className={cn(
                     'group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors',

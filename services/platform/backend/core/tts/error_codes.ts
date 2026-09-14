@@ -201,6 +201,7 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
       case 'timeout':
         return { code: 'TIMEOUT' };
       case 'network_error':
+      case 'tls_error':
         return { code: 'PROVIDER_ERROR' };
     }
   }

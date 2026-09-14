@@ -301,8 +301,14 @@ export function assertCanCreateProjects(auth: ProjectAuthContext): void {
 // Field validation (0.4-faithful)
 // ---------------------------------------------------------------------------
 
+/** The name in its ONE canonical form — trimmed AND NFC-normalized, the rule
+ * every other user-visible name on this surface follows (a folder name, a
+ * bound file name, the project's own `externalItemId`). It was the odd one
+ * out, stored byte-for-byte: two glyph-identical names in NFC and NFD
+ * compared unequal and sorted apart (2026-09-14 evaluation, g3-8). One site
+ * serves both the app and the REST door. */
 function validateName(name: string): string {
-  const trimmed = name.trim();
+  const trimmed = canonicalExternalKey(name);
   if (trimmed.length === 0) {
     throw new ProjectError(
       'PROJECT_NAME_INVALID',
@@ -763,30 +769,39 @@ export async function updateProjectIdentity(
   const newState: Record<string, unknown> = {};
   const sets: string[] = [];
   const values: (string | null)[] = [];
+  // A field already at its value is not a change: it is left out of the
+  // statement, so a body that changes nothing writes nothing and leaves
+  // `updatedAt` alone (the document door's rule). A mirror re-pushing the
+  // source record's identity on every sync — the use this operation names —
+  // used to churn `updatedAt` on every pass (2026-09-14 evaluation, g3-7).
   if (args.name !== undefined) {
     const name = validateName(args.name);
-    sets.push('name');
-    values.push(name);
-    previousState.name = project.name;
-    newState.name = name;
+    if (name !== project.name) {
+      sets.push('name');
+      values.push(name);
+      previousState.name = project.name;
+      newState.name = name;
+    }
   }
   if (args.description !== undefined) {
     const desc =
       args.description === null
         ? undefined
         : validateDescription(args.description);
-    sets.push('description');
-    values.push(desc ?? null);
-    previousState.description = project.description;
-    newState.description = desc ?? null;
+    if ((desc ?? null) !== (project.description ?? null)) {
+      sets.push('description');
+      values.push(desc ?? null);
+      previousState.description = project.description;
+      newState.description = desc ?? null;
+    }
   }
-  if (args.icon !== undefined) {
+  if (args.icon !== undefined && args.icon !== (project.icon ?? null)) {
     sets.push('icon');
     values.push(args.icon);
     previousState.icon = project.icon;
     newState.icon = args.icon;
   }
-  if (args.color !== undefined) {
+  if (args.color !== undefined && args.color !== (project.color ?? null)) {
     sets.push('color');
     values.push(args.color);
     previousState.color = project.color;
@@ -1184,6 +1199,15 @@ export interface DeleteProjectResult {
   detachedThreadCount: number;
   cascadedDocCount: number;
   cascadedThreadCount: number;
+  /**
+   * The documents `detach` released to the hub. Their corpus rows still
+   * carry the dead project id until the caller re-stamps them
+   * (`syncRagDocumentScopes`) after this transaction commits — a scope-only
+   * move never re-embeds, so nothing else heals it and a released document
+   * stays unfindable while reporting `completed`. Empty for a cascade (its
+   * documents expire, and the retrieval re-check drops an expired row).
+   */
+  detachedDocIds: string[];
 }
 
 /**
@@ -1253,6 +1277,7 @@ export async function deleteProject(
     detachedThreadCount: 0,
     cascadedDocCount: 0,
     cascadedThreadCount: 0,
+    detachedDocIds: [],
   };
   const now = Date.now();
 
@@ -1289,6 +1314,10 @@ export async function deleteProject(
       RETURNING id
     `;
     counts.detachedDocCount = detachedDocs.length;
+    // Their corpus rows still carry the dead project id; the caller
+    // re-stamps them after this commits (a scope-only move never re-embeds,
+    // so nothing else heals it — see `syncRagDocumentScopes`).
+    counts.detachedDocIds = detachedDocs.map((doc) => doc.id);
   }
 
   const detachedThreads = await tx<{ threadId: string }[]>`

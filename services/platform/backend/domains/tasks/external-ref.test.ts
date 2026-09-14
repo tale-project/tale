@@ -62,6 +62,11 @@ function fakeDb(answer: (text: string, values: unknown[]) => unknown[]): {
   const tx = Object.assign(tag, {
     json: (value: unknown) => value,
     unsafe: (text: string): unknown => text,
+    // postgres.js `savepoint(cb)` runs the callback on a savepoint-scoped
+    // handle and rethrows on error; the stand-in is its own scope.
+    savepoint: (cb: (sql: TransactionSql) => unknown): Promise<unknown> =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stand-in serves as its own savepoint handle
+      Promise.resolve(cb(tx as unknown as TransactionSql)),
   });
   const sql = Object.assign(tx, {
     begin: (callback: (tx: TransactionSql) => unknown) =>

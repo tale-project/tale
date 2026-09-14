@@ -18,7 +18,7 @@ Le premier geste est une clé API. C'est elle que chaque appel de script transpo
 Crée une clé dans le panneau [Clés API](/fr/platform/admin/api-keys) et copie ce qu'il montre — Tale l'affiche une fois et jamais plus. Range-la en variable d'environnement pour le reste de cette marche :
 
 ```bash
-export TALE_API_KEY="tale_..."
+export TALE_API_KEY="<api-key>"
 export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```

@@ -174,12 +174,12 @@ describe('updateContact — the clearing rule', () => {
     expect(values[UPDATE.notes]).toBe('hi');
   });
 
-  it('keeps every column on an empty patch', async () => {
-    const values = await update({});
+  it('keeps every other column on a one-field patch', async () => {
+    const values = await update({ phone: '+1 555 0100' });
     expect(values.slice(0, 10)).toEqual([
       'Ann',
       'ann@example.invalid',
-      '+1 555',
+      '+1 555 0100',
       'crm-1',
       'api_import',
       'en',
@@ -229,5 +229,48 @@ describe('updateContact — a contact keeps an identity', () => {
       },
     );
     expect(values[UPDATE.notes]).toBe('still reachable');
+  });
+});
+
+describe('updateContact — a patch that changes nothing', () => {
+  // A no-op used to move `updatedAt`, write an audit row and raise
+  // `contact.updated` — so a mirror's retry spent another client's
+  // `expectedUpdatedAt` (2026-09-14 evaluation, g3-7).
+  it('writes nothing, audits nothing and emits nothing when every field is already at its value', async () => {
+    const { sql, statements } = recordingSql(rowAnswer());
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateContact(sql as never, scope, 'c-1', {
+      name: 'Ann',
+      email: 'ann@example.invalid',
+      tags: ['vip'],
+      address: { city: 'Paris', zip: '75001' },
+      metadata: { f: 1 },
+      expectedUpdatedAt: 1,
+    });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.contacts')),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitEvent).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a stale expectedUpdatedAt ahead of the short-circuit', async () => {
+    const { sql, statements } = recordingSql(rowAnswer());
+    await expect(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+      updateContact(sql as never, scope, 'c-1', {
+        name: 'Ann',
+        expectedUpdatedAt: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'CONTACT_STALE' });
+    expect(
+      statements.some((s) => s.text.startsWith('UPDATE app.contacts')),
+    ).toBe(false);
+  });
+
+  it('writes once a single field differs', async () => {
+    const values = await update({ notes: 'changed' });
+    expect(values[UPDATE.notes]).toBe('changed');
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
   });
 });

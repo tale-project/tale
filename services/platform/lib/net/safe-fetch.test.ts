@@ -316,6 +316,63 @@ describe('lib/net/safe-fetch resolution guard', () => {
     });
   });
 
+  // A `fetch` rejection under Node/undici is a bare `TypeError('fetch
+  // failed')` with the cause on `error.cause`; the refusal used to repeat
+  // the wrapper's text ("fetch failed: fetch failed") and file an expired
+  // certificate as a transient `network_error` (2026-09-14 eval, g4-4).
+  it('names a certificate failure as tls_error, with the cause code', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('certificate has expired'), {
+          code: 'CERT_HAS_EXPIRED',
+        }),
+      }),
+    );
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'tls_error',
+      message:
+        'TLS handshake failed: certificate has expired (CERT_HAS_EXPIRED)',
+    });
+  });
+
+  it('names the underlying cause of any other connection failure', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(
+          new Error('connect ECONNREFUSED 93.184.216.34:8001'),
+          {
+            code: 'ECONNREFUSED',
+          },
+        ),
+      }),
+    );
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'network_error',
+      message:
+        'Connection failed: connect ECONNREFUSED 93.184.216.34:8001 (ECONNREFUSED)',
+    });
+  });
+
+  it('reads a code carried on the error itself (the Bun shape)', async () => {
+    answering({
+      'site.example.com': [{ address: '93.184.216.34', family: 4 }],
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      Object.assign(new Error('unable to verify the first certificate'), {
+        code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      }),
+    );
+    await expect(safeFetch(`${ORIGIN}/`)).rejects.toMatchObject({
+      kind: 'tls_error',
+    });
+  });
+
   it('checks every redirect hop, and refuses a plaintext hop on an https-only lane', async () => {
     answering({
       'site.example.com': [{ address: '93.184.216.34', family: 4 }],

@@ -17,7 +17,7 @@ curl -sS https://your-host.example.com/status.json
 #                     { "id": "object-store", "status": "operational" } ] }
 ```
 
-Poll it from your monitor at the cadence you poll everything else; it costs no API budget and needs no key, and the verdict is cached for five seconds, so a tight poll does not turn into a probe storm. The HTML page at `/status` is the same verdict for a person. `GET /api/health` is the cheaper liveness probe the container health check uses — `{"status":"ok","version":"<build>"}`, no sign-in — and the one to use when all you need is "the process answers".
+Poll it from your monitor at the cadence you poll everything else; it costs no API budget and needs no key, and the verdict is cached for five seconds, so a tight poll does not turn into a probe storm. The HTML page at `/status` is the same verdict for a person. `GET /api/health` is the cheaper liveness probe the container health check uses — `{"status":"ok","version":"<build>"}`, no sign-in — and the one to use when all you need is "the process answers". `/health` on the same origin is the edge's own liveness — the proxy answers `OK` itself, so it stays green while the platform restarts — and a path no route owns (`/healthz`, say) answers the app shell with **200**; point a monitor at `/status.json` or `/api/health`, never at an arbitrary path.
 
 The JSON answers `Access-Control-Allow-Origin: *`, so a browser dashboard can poll it directly without a proxy; `OPTIONS` on either door answers **204** with `Allow: GET, HEAD, OPTIONS`, and `HEAD` answers the headers alone — `Content-Length` included, the length the `GET` would carry, on these two doors as on `/api/health` and `/openapi.json`. The HTML page carries no CORS header — a person opens it directly.
 
