@@ -50,7 +50,12 @@ const registerSchema = z.object({
   fileName: z.string().min(1).max(512),
   contentType: z.string().min(1).max(255),
   threadId: z.string().max(200).optional(),
-  source: z.string().max(100).optional(),
+  // Only the dedicated image intake can vouch for inspected product bytes.
+  source: z
+    .string()
+    .max(100)
+    .refine((value) => value !== 'product-image')
+    .optional(),
   /** Opt out of indexing for a surface that only needs the bytes (the 0.4
    * `skipRagIndexing`). Write-once true — a later save never clears it. */
   skipRagIndexing: z.boolean().optional(),

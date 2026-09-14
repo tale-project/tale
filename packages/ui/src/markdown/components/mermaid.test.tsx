@@ -1,9 +1,19 @@
 import { waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
+import { initServiceI18n } from '../../i18n/init-service';
+import { uiMessages } from '../../i18n/messages';
 import { Mermaid, sanitizeMermaidSvg } from './mermaid';
+
+beforeAll(() => {
+  initServiceI18n({
+    bundles: { en: {}, de: {}, fr: {} },
+    regional: {},
+    packages: [uiMessages],
+  });
+});
 
 /**
  * Regression for the mermaid follow-up to #2662: `Mermaid` injects the

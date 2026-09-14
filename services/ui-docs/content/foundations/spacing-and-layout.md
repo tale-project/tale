@@ -1,121 +1,85 @@
 ---
 title: Spacing and layout
-description: One control height, one gap scale, one bordered surface, and the containers that hold a page together.
+description: Align controls, choose shared containers, and keep content usable when the available width changes.
 ---
 
-The layout rules are short and deliberately strict, because most visual
-inconsistency in an app is not colour — it is a control that is two pixels
-taller than its neighbour and a gap that nobody chose.
+Build layout from the shared spacing scale and containers. Consistent control heights and section gaps make related fields and actions easier to scan; responsive behavior still depends on how the full page is composed.
 
-By the end of this page you will know the one control height, the gap steps you
-may use, and which container a given page belongs in.
-
-## One control height
+## Align ordinary controls
 
 <Demo name="foundations/control-heights" />
 
-`h-9` is the height of every control: buttons, inputs, selects, date pickers,
-the search trigger. `h-8` is the single smaller variant, for dense bars and
-toolbars. There is deliberately **no large size** — a page's primary call to
-action is the same height as the field above it.
+The ordinary app control height is 36px (`h-9`). Buttons also offer a 32px (`h-8`) dense variant; their icon-sized counterparts are square. Input has no size axis. Match neighboring controls through these APIs rather than assigning individual pixel heights.
 
-| Size | Button | Icon button |
-| --- | --- | --- |
-| default | `h-9 px-4` | `size-9` |
-| `sm` | `h-8 px-3 text-xs` | `size-8` |
+The primary app header row is 52px (`h-13`). Other primitives, such as text-style link buttons and multiline fields, have different footprints. Do not force a multiline control into the single-line height.
 
-Chrome rows have their own fixed height: the page header strip and the tab
-strip are **`h-13` (52px)**, which is also what the rail's logo row uses, so
-the two bottom borders meet as one line across the viewport.
-
-## The gap scale
-
-`Stack`, `Row` and `Grid` take a `gap` from a named scale rather than an
-arbitrary class. Pick a step; never write `gap-[14px]`.
-
-| Step | Use it for |
-| --- | --- |
-| `2` | Inside a field group — label, control, hint |
-| `4` | Inside a section. The default, and usually right |
-| `6` | Loose grouping in a wide section |
-| `8` | Between sections — the settings page rhythm |
-
-`0`, `1`, `3`, `5`, `10` and `12` exist; `5`, `10` and `12` are legacy steps
-kept for old code. Reach for them only when you are matching a file that
-already uses them.
+## Use a deliberate gap scale
 
 ```tsx
 import { Grid, Row, Stack } from '@tale/ui/layout';
 
-<Stack gap={8}>
-  <Stack gap={4}>
-    <Row gap={2}>{/* … */}</Row>
-  </Stack>
-</Stack>;
+export function SectionLayout() {
+  return (
+    <Stack as="section" gap={8}>
+      <Row gap={2} wrap>{/* Related actions */}</Row>
+      <Grid cols={1} md={2} gap={4}>{/* Two responsive groups */}</Grid>
+    </Stack>
+  );
+}
 ```
 
-All three are polymorphic: pass `as="section"` (or `asChild`) instead of
-wrapping them in another element just to get the right tag.
+| Gap | Typical use |
+| --- | --- |
+| `2` | Tightly related items or field content. |
+| `4` | Items within a section; the layout primitives' default. |
+| `6` | A more open group. |
+| `8` | Separation between sections. |
 
-## Radius
+The full scale is `0`, `1`, `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. Prefer the recommended steps for new app layouts; `5`, `10`, and `12` remain for existing compositions. `Stack`, `Row`, and `Grid` accept a semantic `as` element or `asChild` for one child. Choose one, rather than combining them.
 
-| Token | Value | Where |
-| --- | --- | --- |
-| `rounded-sm` | 6px | Focus targets, small chips |
-| `rounded-md` | 8px | Dense controls (`sm` buttons, nav rows) |
-| `rounded-lg` | 8px | Buttons, inputs, the default card |
-| `rounded-xl` | 16px | Cards that want to read as a panel |
+`Row` does not wrap by default. Enable `wrap` for action groups that should form another line; give flexible text children `min-w-0` where truncation or wrapping must work. `Grid` accepts `sm`, `md`, `lg`, and `xl` column overrides.
 
-## `Card` is the one bordered surface
+## Choose the content measure
 
-Every card-like surface in the product — a catalog tile, a settings panel, a
-kanban task, a stat cell — is a `Card` with a different padding. A hand-rolled
-`rounded-lg border bg-background p-4` is the thing this component exists to
-prevent.
+| Container | Use |
+| --- | --- |
+| `ContentArea` with `page` | Normal application content; shared padding and gaps. |
+| `ContentArea` with `narrow` | Centered configuration column, capped at `max-w-3xl`, with settings field layout. |
+| `ContentArea` with `panel` | Content inside a secondary panel. |
+| `NarrowContainer` | A centered form column capped at 544px. |
+| `Container` | Generic width-constrained content, with `md`, `lg`, `xl`, or `full` sizing. |
+
+`ContentArea` defaults to `page` and `gap={6}`. Its narrow variant also declares the `FieldShell` row layout: stacked labels on small screens and a shared control column from `sm`. It includes bottom clearance for mobile floating actions; avoid replacing that clearance with ad hoc padding.
+
+## Use Card for a bordered object
 
 ```tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@tale/ui/card';
 
-<Card padding="md">
-  <CardHeader>
-    <CardTitle>Members</CardTitle>
-  </CardHeader>
-  <CardContent>{/* … */}</CardContent>
-</Card>;
+export function MemberCard() {
+  return (
+    <Card padding="md" className="space-y-4">
+      <CardHeader><CardTitle>Members</CardTitle></CardHeader>
+      <CardContent>Three members have access.</CardContent>
+    </Card>
+  );
+}
 ```
 
-| Prop | Values | Default |
-| --- | --- | --- |
-| `padding` | `none` `sm` (12px) `md` (16px) `lg` (20px) `xl` (24px) | `xl` |
-| `radius` | `lg` `xl` | `lg` |
-| `shadow` | `none` `sm` `md` | `none` |
-| `interactive` | hover border lift plus a focus ring | `false` |
-| `asChild` | render as the child element (`button`, `a`, `Link`) | `false` |
+This example assumes the card sits under an `h2` section because `CardTitle` is an `h3`. Card owns its padding; the header and content slots do not add their own padding.
 
-Pair `interactive` with `asChild` so the card **is** the interactive node — the
-focus ring only renders on the focused element, so a ring on a `div` wrapping a
-link never appears.
+| Option | Values and default |
+| --- | --- |
+| `padding` | `none`, `sm` (12px), `md` (16px), `lg` (20px), `xl` (24px); default `xl`. |
+| `radius` | `lg` (normally 8px) or `xl` (16px); default `lg`. |
+| `shadow` | `none`, `sm`, `md`; default `none`. |
+| `interactive` | Hover/focus styling; default `false`. |
+| `asChild` | Merge the frame onto one child element; default `false`. |
 
-## Containers
+`interactive` does not turn a `div` into a keyboard-operable control. For a linked or clickable card, compose it onto a real anchor, router link, or button with `asChild` and an appropriate name.
 
-| Component | Width | Use it for |
-| --- | --- | --- |
-| `Container` | `max-w-7xl` by default (`md`/`lg`/`xl`/`full`) | A generic page frame |
-| `NarrowContainer` | `max-w-136` (544px) | A form or a single-column config page |
-| `ContentArea` | `page` / `narrow` (`max-w-3xl`) / `panel` | The body of an app page |
-| `Section` | vertical rhythm, `sm`/`md`/`lg` | A marketing-style band |
+The shared radius tokens are `rounded-sm` 6px, `rounded-md` 8px, `rounded-lg` from the normal 8px radius variable, and `rounded-xl` 16px. Prefer component variants over rebuilding their edge and fill styles manually.
 
-`ContentArea variant="narrow"` is the settings measure. It also declares the
-**row field layout** — label on the left, control on the right from `sm` up —
-so every field on the page lines up without a single layout class at the call
-site. That is the mechanism the
-[settings page pattern](/docs/patterns/settings-page) is built on.
+## Check the whole layout
 
-The main column is width-capped rather than full-bleed, and a secondary panel
-**resizes** the main column rather than floating over it.
-
-## Where to go next
-
-[Icons](/docs/foundations/icons) finishes the visual baseline, and
-[App shell](/docs/components/app-shell) shows these containers assembled into a
-real page.
+Test a long title, longer translated labels, an open side panel, and a phone width. Keep wide tables and code scrollable inside their containers rather than forcing the entire page sideways. Check that fixed actions leave the final field reachable. Use [App shell](/docs/components/app-shell) for page composition and [Settings page](/docs/patterns/settings-page) for draft/save behavior.

@@ -1,18 +1,15 @@
-# Platform DB migrations (`db` service)
+# Platform-role dbmate directory
 
-dbmate migration set for the **platform** role of the Postgres image (the `db`
-service). Applied by `docker-entrypoint.sh` when `TALE_DB_ROLE=platform`.
+The application database is migrated by the platform backend from
+[`services/platform/backend/db/migrations/`](../../../platform/backend/db/migrations/).
+Add application tables, indexes and data migrations there using the
+[create-migration skill](../../../../.agents/skills/create-migration/SKILL.md).
 
-**This directory is intentionally empty.** The 0.5 application database
-(`tale_app`) is owned and migrated by the platform backend, which applies its
-own numbered `.sql` migrations from `services/platform/backend/db/migrations/`
-at boot — not by dbmate. Put a timestamped `*.sql` here only if the platform
-Postgres ever needs a raw-SQL migration outside the backend's reach
-(extensions, roles, grants beyond `init-scripts/`).
+This dbmate directory is intentionally empty. `TALE_DB_ROLE=platform` selects it,
+and the image excludes Markdown files, so this step currently applies no SQL.
+Database/role/extension bootstrap belongs to the image's idempotent infrastructure
+scripts; do not create a competing application migration stream here.
 
-The knowledge-corpus migrations live in the sibling [`../knowledge-db/`](../knowledge-db/)
-(applied when `TALE_DB_ROLE=knowledge`).
-
-> This README is excluded from the image (`*.md` in `Dockerfile.dockerignore`),
-> so the `db/` directory ships empty and the platform-role migration step is a
-> no-op until a real migration lands here.
+Knowledge-corpus migrations live in [`../knowledge-db/`](../knowledge-db/) and
+run for `TALE_DB_ROLE=knowledge`. See the [database README](../../README.md) for
+role selection, readiness and migration ownership.

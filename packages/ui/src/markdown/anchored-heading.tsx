@@ -2,6 +2,8 @@ import { Check, Link as LinkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Children, cloneElement, isValidElement, useState } from 'react';
 
+import { useT } from '../i18n/client';
+
 interface ChildrenContainer {
   children?: ReactNode;
 }
@@ -105,6 +107,7 @@ export function AnchoredHeading({
   className,
   children,
 }: AnchoredHeadingProps) {
+  const { t } = useT('markdownCopy');
   const explicit = extractExplicitId(children);
   const renderedChildren = explicit.children;
   const id = explicit.id ?? slugifyHeading(renderedChildren);
@@ -132,7 +135,7 @@ export function AnchoredHeading({
       <button
         type="button"
         onClick={handleCopy}
-        aria-label={copied ? 'Link copied' : 'Copy link to this section'}
+        aria-label={copied ? t('linkCopied') : t('copyLink')}
         aria-live="polite"
         // Hidden until hover/focus so the chrome stays calm on touch devices.
         // `print:hidden` keeps printed pages free of the affordance.

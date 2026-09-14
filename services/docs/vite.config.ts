@@ -5,6 +5,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { reloadDocsContent } from './lib/content/reload-content';
 import { createDocsArtifactsServer } from './lib/seo/artifacts-server';
 
 // Constructed synchronously at config load — the `docs/` walk is deferred to
@@ -140,6 +141,7 @@ export default defineConfig({
     ],
   },
   plugins: [
+    reloadDocsContent(),
     yamlImports(),
     tanstackRouter(),
     viteReact(),

@@ -1,55 +1,76 @@
 ---
 title: MCP endpoint
-description: Connect an MCP client to Tale — one endpoint, 22 tools covering automation authoring, run and trigger management, and the organization's capability surface.
+description: Connect an MCP client, discover Tale tools, develop automations, and handle access checks and execution results.
 i18nLintExclude:
   - terminology-loanword
 ---
 
-Tale is itself an MCP server. Point any MCP client — an agent harness, an IDE, your own SDK loop — at one endpoint and it can author and operate automations, search what the organization can do, invoke a capability, and retrieve knowledge, with the same API key the REST surface takes. Where REST is the connector seam for your code, the MCP endpoint is the seam for _models_: every tool answers text a model can read and act on.
+Connect an MCP client when an agent needs to discover Tale's tools, retrieve knowledge, or build and run automations. The connection uses the same API key and organization scope as [REST](/develop/api-reference). Tale is the server in this connection: your external client calls Tale.
 
-Read this to connect a client and understand the tool inventory. The grammar for authoring automations is deliberately not duplicated here — the endpoint teaches it itself through `get_docs`.
+Start with `initialize`, inspect `tools/list`, then call `get_docs` before writing an automation. The deployment supplies its own supported grammar, so the client does not need to invent node types or configuration fields.
 
 ## Connect a client
 
-The endpoint speaks MCP protocol `2025-06-18`, or `2025-03-26` when the client proposes it, as JSON-RPC over HTTPS — plain JSON responses, no SSE stream. Send one message per request, or a JSON-RPC batch of at most 20 messages: it is answered as an array, a batch of notifications alone answers 202, and every tool call in a batch beyond the first draws from the same request budget as a request of its own — a call the budget refuses inside a batch answers JSON-RPC error `-32000` with `data.retryAfterMs` in its own slot of the array (the HTTP status stays **200**, with no `Retry-After` header), where a single message over budget is refused at the door with the REST **429**. Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one) — keys are the only credential this endpoint takes: there is no OAuth discovery here, so a client that insists on the MCP authorization flow finds a JSON **404** at the discovery URLs and must be configured with the headers below. A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a slug that names no organization answers **404** `ORG_SLUG_INVALID`, one the key holder is no member of **403** `ORG_FORBIDDEN`; a single-organization key may omit the header. Send the revision the `initialize` result negotiated in the `MCP-Protocol-Version` header of later requests — never the one you proposed — because an unknown header value answers **400**.
+### Prepare the connection
 
-```json
-// POST https://your-host.example.com/api/v1/mcp
-// Authorization: Bearer <api-key>
-// X-Organization-Slug: acme
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2025-06-18",
-    "capabilities": {},
-    "clientInfo": { "name": "my-client", "version": "1.0.0" }
-  }
-}
+Create an [API key](/platform/admin/api-keys) and keep it in your client's secret configuration. The app's **Settings > API > MCP** page shows the endpoint, organization slug, and a copyable discovery request.
+
+| Setting | Value |
+| --- | --- |
+| Endpoint | `https://your-host.example.com/api/v1/mcp` |
+| Transport | HTTPS POST with JSON-RPC; plain JSON responses |
+| Authorization | `Authorization: Bearer <api-key>` |
+| Organization | `X-Organization-Slug: <slug>` |
+| Protocol revisions | `2025-06-18`, or `2025-03-26` when proposed by the client |
+
+Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly.
+
+Always send the organization header in reusable integrations. It is optional only when the key holder has one organization. With several memberships, omitting it returns `400 ORG_SLUG_REQUIRED`; an unknown slug returns `404 ORG_SLUG_INVALID`, and a non-member organization returns `403 ORG_FORBIDDEN`.
+
+### Initialize and retrieve the authoring reference
+
+The examples assume `TALE_URL`, `TALE_API_KEY`, and `TALE_ORG_SLUG` are already set in your environment. `TALE_URL` is the application origin, without `/api/v1`.
+
+```bash
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docs-client","version":"1.0.0"}}}'
 ```
 
-The server identifies as `tale-platform`. In a client that takes a config block, the two headers are all you need — this shape is verified with clients that take a `headers` block; a stdio-only host needs a remote bridge such as `mcp-remote` in front of the URL:
+The response identifies the server as `tale-platform`. Read `result.protocolVersion` and send that negotiated value as `MCP-Protocol-Version` on later calls. The next example uses `2025-06-18`; replace it if your initialization negotiated the older revision. An unsupported header value returns `400`.
 
-```json
-{
-  "mcpServers": {
-    "tale": {
-      "url": "https://your-host.example.com/api/v1/mcp",
-      "headers": {
-        "Authorization": "Bearer <api-key>",
-        "X-Organization-Slug": "acme"
-      }
-    }
-  }
-}
+```bash
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2025-06-18' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
 
-`tools/list` returns the full inventory; any verb but `POST` answers **405** with an `Allow: POST, OPTIONS` header (an `OPTIONS` answers **204** with the same list, key or no key) — there is no event stream to subscribe to and no session to delete — and the endpoint sends no CORS headers: it is for server-side clients, never for a browser page holding a key. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
+A successful `get_docs` result contains the automation reference as text and has no error flag set. To inspect tool schemas instead, send `method: "tools/list"`. The current inventory has 22 tools. Keep the JSON-RPC `id` so a client can match a result to its request.
+
+### Transport and batches
+
+| Request | Response behavior |
+| --- | --- |
+| One JSON-RPC message | One JSON-RPC result or error |
+| Batch of up to 20 messages | An array of responses; notifications have no response entry |
+| Notifications only | HTTP `202` |
+| `OPTIONS` | HTTP `204`, `Allow: POST, OPTIONS`; no key required |
+| Any other HTTP method | HTTP `405`, `Allow: POST, OPTIONS` |
+
+Every additional tool call in a batch consumes the same request budget as a separate call. If a batch exhausts its budget, the refused entry is JSON-RPC `-32000` with `data.retryAfterMs`; the enclosing HTTP response remains `200` and has no `Retry-After`. A single request rejected at the HTTP boundary gets REST `429`. Handle both cases using the [rate-limit guidance](/develop/rate-limits).
+
+The endpoint supplies no CORS headers for browser key use. Keep the API key on a trusted server or in the MCP client's credential store.
 
 ## The tools
 
-Twenty-two tools, in three groups, each with a real JSON schema the endpoint holds a call to — arguments that do not match answer JSON-RPC error `-32602` naming the field, never a silently empty result. The four tools that take a whole automation document — validate, run, test, save — declare their call envelope (`automation`, plus `input`, `mode` or `message` where they apply) and leave the document itself open: its grammar is what `get_docs` teaches, and the engine validates it in band. Every tool also carries the four MCP `annotations` — `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` — so a host can key an "always allow" decision on them: the reads are `readOnlyHint: true`; `save_automation` writes without destroying; `deploy_automation`, `set_trigger`, `delete_trigger` and `cancel_run` replace or remove what exists; `run_deployed`, `start_run` and `invoke_capability` execute live against real backends (`openWorldHint: true`); `run_automation` and `test_automation` execute against the mocks. Hints, not guarantees — the role check below is still the backstop.
+`tools/list` is the source for each tool's input schema. Missing, mistyped, blank, or unexpected arguments receive JSON-RPC `-32602` before execution. The document passed to `validate_automation`, `run_automation`, `test_automation`, or `save_automation` is intentionally an open envelope: `get_docs` explains its grammar, and the engine validates its contents.
+
+Tools also expose `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`. Hosts can use these annotations to explain a call, but they do not grant permission or guarantee safety. Reads are marked read-only; saving writes a version; deployment and trigger changes can replace existing state; live runs can contact real services.
 
 ### Authoring
 
@@ -66,6 +87,8 @@ Twenty-two tools, in three groups, each with a real JSON schema the endpoint hol
 | `list_automations`    | The organization's automations with their latest and deployed versions and the projects each is installed in (`projectIds`). |
 | `deploy_automation`   | Promote one saved version to be the live version.          |
 
+Use the authoring loop in this order: read the grammar and catalog, validate the document, run it against mocks, run its acceptance tests, save a version, then deploy that version. A successful mock run verifies the simulated path; it does not prove vendor credentials, network access, or real effects.
+
 ### Run & trigger management
 
 | Tool             | What it does                                                                                                   |
@@ -80,9 +103,13 @@ Twenty-two tools, in three groups, each with a real JSON schema the endpoint hol
 | `delete_trigger` | Unbind an automation's trigger; its versions and run history stay.                                             |
 | `set_trigger`    | Bind what starts the automation (schedule/webhook/event).                                                      |
 
-Pick `run_deployed` when the automation is quick and you want one call with the answer in it — it waits up to 30 seconds for the run, then hands you the `runId` instead of a half-finished result. Pick `start_run` when the run may take minutes — it returns a `runId` immediately, and `get_run` polls it. Both run live on the same durable runner, so both authorize, execute and record the run identically. `run_automation` is the authoring loop's tool: it runs an unsaved document against the deterministic mocks, and `mode: "live"` answers a refusal that points you at `run_deployed` — an unsaved document has no live lane.
+| Choose | When |
+| --- | --- |
+| `run_automation` | Try an unsaved document against deterministic mocks; `mode: "live"` is refused |
+| `run_deployed` | Run the saved deployment live and wait up to 30 seconds; poll the returned `runId` if it continues |
+| `start_run` | Start the saved deployment in the background and poll `get_run` |
 
-`start_run` also takes an optional `projectId` — the project the run operates in, so its task and document tools act there. Omit it for an organization-wide run, or, when the automation is bound to a single project, that one. A bound automation accepts only a project it is bound to. The handle it returns names the `projectId` the run got, and `list_automations` shows each automation's `projectIds`, so a client never has to guess which project URL reads the run back on the REST side.
+Both deployed-run tools use the durable runner with the same authorization and execution records. `start_run` accepts an optional `projectId`. A project-bound automation must run in a project where it is installed; a sole binding can be selected automatically. With no bindings, omission means organization scope. Read `projectIds` from `list_automations` and the actual `projectId` from the returned handle rather than guessing a REST polling URL.
 
 ### Capabilities & knowledge
 
@@ -92,17 +119,34 @@ Pick `run_deployed` when the automation is quick and you want one call with the 
 | `invoke_capability`   | Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running. |
 | `get_knowledge`       | Retrieve passages from the organization's knowledge — its documents and its crawled web pages.                      |
 
-In this version the registry holds the organization's deployed automations — `invoke_capability` on one is the same act as `run_deployed`. Builtin tools, connector actions, skills, and external MCP servers are not part of this registry; an id that is not a deployed automation answers a readable refusal, not an error. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
+The capability registry currently contains deployed automations. It does not include builtin tools, connector actions, skills, or external MCP servers. Invoking a deployed automation is the same live operation as `run_deployed`. If approval is needed, a `pending` result lets the client explain that a person must decide before execution continues.
 
 ## What the key may do
 
-The key proves who is calling; the key holder's role decides what the call may do, exactly as in the product:
+| Operation | Required access |
+| --- | --- |
+| Reads, validation, mock runs and acceptance tests, capability search, knowledge retrieval | Organization membership, plus the resource's normal access rules |
+| Save, deploy, set/delete a trigger, cancel a run, or execute live | Developer capability, plus the resource's normal access rules |
 
-- **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
-- **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
+The key identifies its holder; it does not expand that person's role or project access. Live `invoke_capability` calls also pass through the execution checks.
 
-A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "code": "...", "hint": "..."}`, where `code` is the stable value to branch on and `hint` what to do — so the calling model can adjust instead of crashing, and the result carries `isError: true` so a generic client can tell it from success without parsing the text. The codes the tools themselves mint are `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID` (the document fails validation where a valid one is needed), `AUTOMATION_TESTS_FAILING` (the deploy gate), `LIVE_MODE_UNAVAILABLE`, `NOT_SUPPORTED` (the host keeps no runs, versions or triggers); a call whose arguments miss the tool’s schema — a missing, blank or mistyped field, a key the tool does not take — or that names a tool the list does not carry never reaches a tool: it is the JSON-RPC error `-32602` above (an unknown method `-32601`), with no `code` to branch on; a refusal the platform raises underneath — a name another owner holds, a run input the automation's `inputs` schema refuses, a key without the developer capability on a tool that needs it (`FORBIDDEN_DEVELOPER_SETTINGS`) — comes through with its own `code`, its `hint` and, where it has one, its `data` (the schema problems, for instance) unchanged. `list_versions`, `list_runs` and `list_triggers` refuse an unknown automation name with `AUTOMATION_NOT_FOUND` exactly as `get_automation` does, never with an empty list. That convention holds everywhere: a document that fails validation where a tool needs a valid one (`save_automation`, `deploy_automation`, `run_automation`, `test_automation`), missing deployments, role refusals and a knowledge base that could not be searched all come back as data with the flag set, exactly like a call that threw. `validate_automation` is the one tool whose job is the verdict itself: it answers `{ "valid": false, "errors": [...] }` as an ordinary result — read `valid`, the flag stays off. A capability that answers `pending` — a memory saved for a human's approval — is an outcome, not a failure, and keeps `isError` false; a `refused` capability (an unknown id, arguments its schema rejects, no deployment) is a failure and carries the flag.
+Read `GET /api/v1/me` before configuring privileged tools: `capabilities.developer` reports the current role gate, while `deploymentEditor` is a separate operator allowlist and does not authorize MCP authoring. The MCP tool-error envelope below still applies; a REST capability check does not change JSON-RPC error handling.
+
+### Distinguish a transport error from a refused tool
+
+| Result | How to handle it |
+| --- | --- |
+| JSON-RPC `-32601` | Correct the unknown method |
+| JSON-RPC `-32602` | Correct the tool name or arguments using `tools/list` |
+| Tool result with `isError: true` | Read its text payload's stable `code`, explanatory `error`, and actionable `hint`; `data` may contain field problems |
+| `validate_automation` with `valid: false` | Normal validation result; inspect `errors`, even though `isError` remains false |
+| Capability result `pending` | Normal approval outcome; do not treat it as completion or retry it as a failure |
+| Capability result `refused` | Error result; correct the stated cause |
+
+Tool refusal codes include `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE`, and `NOT_SUPPORTED`. The latter means the host does not support that run/version/trigger operation. Platform errors retain their own code, hint, and optional data; for example, missing developer access returns `FORBIDDEN_DEVELOPER_SETTINGS`.
+
+An unknown automation name is an error even for `list_versions`, `list_runs`, and `list_triggers`; an empty list means an existing automation has no matching items. Invalid documents passed to tools that need a valid one, search failures, and missing deployments set `isError: true`. Only the validation tool reports an invalid document as its ordinary verdict.
 
 ## Where this fits
 
-The MCP endpoint and the [REST API](/develop/api-reference) are one surface with two dialects — same key, same organization scoping, same run objects (`start_run` here and `POST .../runs` there produce the same durable run). Tale does not connect to MCP servers of its own in this version — the endpoint is its one MCP surface, and the direction is always inward: your client drives Tale.
+REST and MCP share keys, organization scoping, and durable run objects. Use REST when you want explicit HTTP routes; use MCP when your client understands tool discovery and calls. Tale does not register or call external MCP servers through this endpoint.

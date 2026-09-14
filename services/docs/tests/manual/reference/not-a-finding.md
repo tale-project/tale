@@ -15,10 +15,12 @@ with the shared manual-test shape; the guides it replaced had no such list.
 
 ## Out of scope
 
-- **The static gate owns content correctness.** Links, images, videos, nav
+- **The static gate owns structural correctness.** Links, images, videos, nav
   entries, redirects, locale mirrors, frontmatter and page structure are
   validated at build time — a round that re-checks them by hand is spending its
   afternoon on what a spec already holds ([`automation.md`](automation.md)).
+  Accuracy, useful explanations, native prose and the readability of rendered
+  content still require review.
 
 ## Product quirks
 

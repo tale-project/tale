@@ -1,5 +1,34 @@
 languageSwitcher:
   ariaLabel: Sprache wechseln
+markdownCallout:
+  note: Hinweis
+  tip: Tipp
+  info: Info
+  warning: Warnung
+  danger: Vorsicht
+  check: Erfolg
+markdownCodeGroup:
+  examples: Codebeispiele
+  tab: 'Tab {number}'
+markdownDiagram:
+  preparingLabel: Mermaid-Diagramm wird vorbereitet
+  preparing: Diagramm wird vorbereitet…
+  failedLabel: Mermaid-Diagramm konnte nicht dargestellt werden
+  failed: Diagramm konnte nicht dargestellt werden
+  showSource: Quelltext anzeigen
+  hideSource: Quelltext ausblenden
+  zoomOut: Verkleinern
+  zoomIn: Vergrößern
+  reset: Zoom und Position zurücksetzen
+  openFullscreen: Vollbild öffnen
+  exitFullscreen: Vollbild beenden
+  label: Mermaid-Diagramm
+  fullscreenLabel: Mermaid-Diagramm im Vollbild
+markdownCopy:
+  copyLink: Link zu diesem Abschnitt kopieren
+  linkCopied: Link kopiert
+  copyCode: Code kopieren
+  codeCopied: Kopiert
 markdownImage:
   zoom: Bild vergrößern
   close: Schließen

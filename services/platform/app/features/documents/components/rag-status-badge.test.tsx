@@ -136,6 +136,61 @@ describe('RagStatusBadge', () => {
       ).not.toBeInTheDocument();
     });
 
+    it.each([
+      'empty',
+      'malformed',
+      'not_text',
+      'unsupported_type',
+      'image_no_vision',
+    ])(
+      'uses the localized %s cause without leaking the raw English explanation',
+      (errorCode) => {
+        render(
+          <RagStatusBadge
+            status="unsupported"
+            errorCode={errorCode}
+            error="Raw English backend explanation"
+            documentId="doc-1"
+          />,
+        );
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'documents.rag.dialog.unsupported.title',
+          }),
+        );
+        expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+          `documents.rag.dialog.unsupported.reasons.${errorCode}`,
+        );
+        expect(
+          screen.queryByText('Raw English backend explanation'),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'documents.rag.retryIndexing' }),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    it.each(['future_code', 'constructor', 'toString'])(
+      'preserves a diagnostic for the unknown unsupported code %s',
+      (errorCode) => {
+        const error = 'A future extractor could not read this file.';
+        render(
+          <RagStatusBadge
+            status="unsupported"
+            errorCode={errorCode}
+            error={error}
+          />,
+        );
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'documents.rag.dialog.unsupported.title',
+          }),
+        );
+        expect(screen.getByRole('dialog')).toHaveAccessibleDescription(error);
+        expect(screen.getAllByText(error)).toHaveLength(1);
+      },
+    );
+
     it('still offers a retry button for the transient failed status', () => {
       render(
         <RagStatusBadge status="failed" error="boom" documentId="doc-1" />,

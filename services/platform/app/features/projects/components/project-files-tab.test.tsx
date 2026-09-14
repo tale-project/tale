@@ -23,7 +23,13 @@ type DocFixture = {
   extension?: string;
   folderId?: string;
   indexed?: boolean;
-  ragStatus: 'queued' | 'running' | 'completed' | 'failed' | null;
+  ragStatus:
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'unsupported'
+    | null;
   createdBy?: string;
   sourceProvider?: string;
   record?: {
@@ -288,6 +294,28 @@ describe('ProjectFilesTab', () => {
       screen.getByRole('button', { name: 'Index now' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry indexing' })).toBeNull();
+  });
+
+  it('labels terminal indexing failures and does not offer a useless retry', () => {
+    documentsFixture = [
+      makeDoc({ title: 'Empty notes.txt', ragStatus: 'unsupported' }),
+    ];
+    renderTab();
+
+    const row = screen.getByRole('treeitem', { name: 'Empty notes.txt' });
+    expect(within(row).getByText('Not supported')).toHaveAttribute(
+      'title',
+      'These file contents cannot be indexed. Upload a readable text version or a supported document with extractable text.',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Retry indexing' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Index now' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Preview file' }),
+    ).toBeInTheDocument();
   });
 
   it('shows no preview affordance for a row without a stored file', async () => {

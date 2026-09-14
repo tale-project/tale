@@ -1,11 +1,9 @@
 ---
 title: Teams
-description: Teams are named groups of members that share access to documents, projects, skills, and conversations.
+description: Group people for shared resource access and conversation assignment.
 ---
 
-A team is a named group of members that shares access to documents, projects, skills, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
-
-This page is the reference for what a team owns, how membership works, and how the team boundary interacts with the role-based permissions documented under [Members and roles](/platform/admin/members-and-roles). Read it once when you stand up the org's teams; come back when you reorganise.
+Use teams when several people need access to the same work. A person's role controls what they may do; team membership helps determine which projects, documents, skills, and conversations they can reach. Owners and Admins manage teams under **Settings > Teams**.
 
 <Frame caption="Settings > Teams — every team the org has, with its member count, beside the Create team action.">
 
@@ -13,39 +11,49 @@ This page is the reference for what a team owns, how membership works, and how t
 
 </Frame>
 
-## What a team owns
+## Create a team
 
-A team holds membership and a set of resources scoped to it. The resources are:
+1. Select **Create team** and enter a **Team name**, such as `Customer support`.
+2. Select the organization's members who should join. If you select nobody, Tale adds you to the team.
+3. Select **Create team**. Check the new row and its member count in the list.
 
-- **Documents and folders** — a document or folder scoped to a team is visible and editable only by that team's members. Org-wide documents stay visible to everyone with the right role.
-- **Projects** — a project can be assigned to a team, and shared with further teams; the teams' members inherit project access without being added one by one.
-- **Skills** — a skill saved with team visibility appears only to those teams' members; the skill library's tabs split **Organization**, **Teams**, and **Personal**.
-- **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Visibility follows that assignment: a team queue is visible to that team's members, a person assignment to that person, and admins and owners see everything. True unassigned conversations (no person, no team) stay with admins for triage — pair with [Conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing) so inbound lands in a team on arrival.
+Choose a name that people will recognize in access and assignment pickers. The form accepts up to 80 characters. Creating the team does not automatically assign every existing project or conversation to it; choose the team on the resources it should share.
 
-A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
+## Change membership or the name
 
-## Creating a team
+Open a team's row to inspect its members. The row menu offers **View**, **Edit**, and **Delete**. Use **Edit** to change the name or membership, then save your changes and check the member count.
 
-Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and tick its first members in the checklist — leave it empty and you are added automatically, since a team must keep at least one member. The name appears everywhere the team shows up: pickers, badges, team-scoped document access, and the project assignment field.
+A person can belong to more than one team. Their access can come from several teams or from a direct assignment, so removing them from one team does not necessarily remove all access to a resource. Review those other routes when withdrawing access.
 
-The team's row carries the day-to-day actions: **Members** manages who is in the team, **Edit team** renames it, **Delete team** retires it. What a team can reach follows from where the team is picked — a document's access scope, a project's assignment, a skill's visibility.
+<Tip>
 
-## Adding and removing members
+Rename an existing team when its purpose changes but the same people should retain access. Deleting and recreating it creates a different team and changes existing resource assignments.
 
-Open the team's row and click **Add members**. The picker lists the org's members; checking one adds them to the team. A member can belong to multiple teams; their access is the union of every team they are in plus their role's org-wide reach. Removing a member from a team strips the team-scoped visibility on the next request; in-flight chats finish, but the next thread does not see the team's resources.
+</Tip>
 
-## Team versus role
+## Apply a team to work
 
-The role decides what a person can do; the team decides what they can do it to. A Member-role user in the Support team can read the support team's documents but cannot edit them; an Editor-role user in the Support team can read and write them but cannot see Sales's. Teams never grant capabilities the role lacks; roles never widen visibility past the team scope.
+| Resource | How teams matter |
+| --- | --- |
+| Projects | A project can belong to one team and be shared with additional teams. |
+| Documents and folders | Team access limits which members can read the content, alongside role checks. |
+| Skills | Team visibility makes a skill available to the selected teams. |
+| Conversations | Assignment to a team places work in that team's queue. |
 
-When you need a permission decision the existing roles and teams cannot express, the next lever is a governance policy — see [Members and roles](/platform/admin/members-and-roles) for how policies attach to roles, and the governance section for the policy fields themselves.
+Team membership does not grant actions that a role forbids. An Editor and a Member in the same team can have different editing rights. Owners and Admins retain administration access; do not use a team as a way to hide work from administrators.
 
-## Deleting a team
+For inbound conversations, [routing rules](/platform/admin/governance/policies-and-limits#conversation-routing) can select the team when the conversation arrives. Without a person or team assignment, the conversation stays in administrator triage.
 
-Click the team's row, then **Delete team**. Deletion is hard-stop — the team is gone, all its members are removed from it, and they lose the team-scoped slice of their access. There is no undo. Reach for delete when a team is genuinely retired, not when it is reorganising.
+## Retire a team carefully
 
-What the team scoped is re-homed, not stranded: a project it owned passes to the first team it was shared with, or becomes organization-wide when there is none; a folder or document keeps its other teams; a conversation queued on the team goes back to unassigned. Nothing gets wider than the deleted team already allowed.
+Before deleting a team, review the projects it owns, shared documents, conversation queue, and imports scoped to it. Reassign work that must remain restricted, then choose **Delete** from the row menu and review the confirmation.
 
-## Where this fits
+<Warning>
 
-Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Skill library](/platform/workspace/skills) for how a shared instruction reaches everyone, [Connectors (admin view)](/platform/admin/connectors) for the credentials a team's automations call, and [Projects](/platform/projects/overview) for project-to-team assignment.
+Deleting a team cannot be undone. A project it owns passes to its first remaining shared team; if none remains, the project becomes organization-wide. Review access before deletion, because this can make a project available to more people.
+
+</Warning>
+
+Documents and folders lose the deleted team from their access list and retain any other teams. A conversation loses its team assignment; if no person is assigned either, it returns to administrator triage. Imported-file configurations also lose that team scope. Deleting a team does not delete its members' accounts.
+
+Teams synchronized through [enterprise SSO or SCIM](/platform/admin/enterprise-sso) also depend on the identity provider's provisioning rules. Check that source before making a local change you expect to persist.

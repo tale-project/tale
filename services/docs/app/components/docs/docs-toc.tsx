@@ -117,12 +117,16 @@ function TocRow({
 
 function TocList({ entries }: DocsTocProps) {
   const activeId = useActiveHeading(entries);
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     const el = document.getElementById(id);
     if (!el) return;
     e.preventDefault();
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.scrollIntoView({
+      behavior: reducedMotion ? 'instant' : 'smooth',
+      block: 'start',
+    });
     if (history.replaceState) history.replaceState(null, '', `#${id}`);
   };
 

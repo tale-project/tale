@@ -68,6 +68,28 @@ describe('ProductEditDialog', () => {
     vi.clearAllMocks();
   });
 
+  it('persists removing the image as an explicit null', async () => {
+    const { user } = render(
+      <ProductEditDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        product={{ ...PRODUCT, imageUrl: 'https://images.example/product.png' }}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'products.edit.removeImage' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    await waitFor(() =>
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ imageUrl: null }),
+        expect.anything(),
+      ),
+    );
+  });
+
   it('sets a name field error when update rejects with DUPLICATE_PRODUCT_NAME', async () => {
     mockMutate.mockImplementation((_args, opts) => {
       opts.onError(new AppError({ code: 'DUPLICATE_PRODUCT_NAME' }));

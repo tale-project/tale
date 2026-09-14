@@ -1,32 +1,35 @@
 ---
 title: Feedback analytics
-description: Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model.
+description: Compare chat ratings and arena verdicts, read comments, and investigate changes in answer quality.
 ---
 
-Feedback analytics is the dashboard that turns the per-message thumbs and the arena verdicts into trend lines. Members leave the feedback inline in chat; this page aggregates it by assistant, by model, and over time so the regression in last week's voice change is visible as a number, not a hunch. Admins and Owners read this page when a model swap looks like a downgrade, when one assistant is underperforming the others, or when leadership wants the rough quality posture of every assistant in the org.
+Use **Settings > Metrics > Feedback** as an Admin or Owner to review the feedback members submit in chat. Ratings tell you what people judged useful; their comments help explain why.
 
-## A worked drill-down
+## Find the feedback you need
 
-Open **Settings > Metrics > Feedback** and the default view is the org-wide sentiment across the last 7 days — widen the period when the window is quiet. **Top Assistants by feedback** shows the helpful ratio per assistant with its volume, so the assistants members actually use stand out; filter to one and the sentiment trend and recent comments narrow with it. **Top Models by feedback** is the same data sliced on the model that produced each rated reply.
+Choose a period, then narrow by feedback type, assistant, or model. The available windows are 1, 7, 30, and 90 days, plus all time; the initial view uses 7 days. Selecting an assistant or model in a breakdown filters the view. Clear the filter chips to broaden it again.
 
-## The two signals
+Use **Comments only** to focus on written explanations. If no feedback appears, check the period and filters before concluding that nobody has rated a reply. Feedback is voluntary; an unrated answer is neither a positive nor a negative vote.
 
-**Thumbs feedback** is the per-message signal — a thumb up or thumb down on any assistant reply. The thumb carries an optional free-text comment; the comment is per row and never aggregated into the ratio. Members can change their thumb or withdraw it entirely; the numbers reflect the latest state.
+## Keep the signals separate
 
-**Arena verdicts** is the per-comparison signal — when a member runs two models side by side in [arena mode](/platform/chat/arena-mode), the verdict lands here. The summary counts decisive votes, ties, and both-bad calls; **Top model matchups** keeps the per-pair head-to-head score, because an "A wins" only means something against the model it beat.
+| Signal | What it tells you |
+| --- | --- |
+| Thumbs up/down | Whether a member found a particular reply helpful. An optional comment provides context. |
+| Arena verdict | Which answer a member preferred in a specific pair, or whether the pair tied or both were bad. |
 
-## Breakdowns
+Members can change or withdraw a rating. The dashboard reflects the current state, not a permanent count of every click. [Arena mode](/platform/chat/arena-mode) explains how members compare two answers.
 
-The dashboard slices by three dimensions:
+## Compare results fairly
 
-- **Assistant** — every assistant with rated replies gets its own row with helpful and not-helpful counts and the resulting sentiment.
-- **Model** — every model that produced a rated reply contributes; arena pairs stay head-to-head in the matchups table.
-- **Time** — the sentiment-over-time chart follows the selected window, from a day to 90 days. Past 50,000 entries in a window the page shows partial results and asks you to narrow.
+Read the number of ratings alongside the helpful ratio. One positive vote is weaker evidence than repeated feedback across the tasks a model actually handles. Compare similar periods and tasks before attributing a change to a model or an assistant configuration.
 
-## Free-text comments
+Use the assistant and model tables to locate the change, the trend to find its timing, and **Recent feedback** to read comments. For arena results, compare the same model pairing; a win against one model does not establish superiority over every model.
 
-Comments are surfaced in the **Recent feedback** list under the aggregated numbers. Filter with **Comments only** to hide bare thumbs, and by type to separate chat thumbs from arena verdicts. Comments are subject to the same retention policy as the conversations they belong to; if a thread is purged or trashed, its comments go with it.
+<Tip>
+Pair this review with [usage analytics](/platform/admin/governance/usage-analytics). A model can cost less per request while requiring more retries to produce a useful answer.
+</Tip>
 
-## Where this fits
+## Understand partial results
 
-Feedback analytics is the pulse on every agent in the org — the place a regression in voice or model behaviour shows up before someone reports it. The companion is [usage analytics](/platform/admin/governance/usage-analytics) — the same agents and models, sliced by spend and token volume instead of quality.
+Large windows can reach the aggregation limit of 50,000 entries. If Tale shows a partial-results notice, narrow the period before drawing conclusions. Retention and deletion also affect which ratings and comments remain available; this view is not a permanent archive of member feedback.

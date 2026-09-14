@@ -1,31 +1,38 @@
 ---
-title: Agents (admin view)
-description: Govern project-agent access, providers, equipment and secret grants through the project's permissions and the organization's resources.
+title: Govern project agents
+description: Review who can change agents, which resources they can use and how secret grants affect their runs.
 ---
 
-Agents belong to projects, and their management follows project permissions. As an Owner or Admin, you control the resources they may use and who can change their configuration. This page explains those boundaries; [Project agents](/platform/projects/project-agents) covers the day-to-day setup.
+Govern an agent through its project and the organization resources it uses. There is no separate organization-wide agent roster to configure: open **Projects**, select the project, then **Agents** to inspect or edit its workers.
 
-## Decide who can manage the roster
+## Establish who can change the agent
 
-Project readers can see its agents. People with project edit access can create, update and delete agents in an active project; archived projects remain readable. Each project holds up to 50 agents with names unique inside that project.
+Anyone who can read the project can see its agents. People with project edit access may create, update or delete agents while the project is active. Archived projects remain readable. Review [members’ roles](/platform/admin/members-and-roles) and [team access](/platform/admin/teams) when the wrong person can or cannot manage a roster.
 
-An agent ID belongs to its project. Access to two projects does not let someone use one project's agent ID to change a record through the other project. [Members and roles](/platform/admin/members-and-roles) and [Teams](/platform/admin/teams) explain the access rules behind the roster.
+An agent belongs to one project. Neither its ID nor access to a second project lets an integration use it as that second project’s agent. Projects allow up to 50 agents, with names unique inside each project.
 
-## Control the resources agents use
+## Review the resources before work starts
 
-- **Providers** supply the models and credentials for execution. Manage the available engines through [Providers](/platform/admin/providers).
-- **Connectors, skills and tools** determine which services, reference material and platform operations an agent can reach. Grant only the equipment its work needs.
-- **Secret grants** give a run the values of named organization secrets. Only an organization Owner or Admin can change the granted names. An editor can save other configuration while preserving the existing grants.
-- **Budgets and policies** govern spending and actions across the organization; see [Policies and limits](/platform/admin/governance/policies-and-limits).
+Open the agent’s edit dialog and review the combination, rather than checking the model alone:
 
-Secret values are stored encrypted and are never returned with the agent configuration. Rotating a secret changes the organization-owned value used by agents that reference its name.
+| Check | Why it matters | Where to resolve a problem |
+| --- | --- | --- |
+| Harness, model and provider | The credential must support that execution path. | [AI providers](/platform/admin/providers). |
+| Skills and their sharing | The project’s team scope determines which bundles can be equipped. | [Skill library](/platform/workspace/skills) and project access. |
+| Connectors and platform tools | They grant access to services and supported data operations. | [Connector credentials](/platform/admin/connectors) and the agent’s equipment. |
+| Secrets | The running session can read the granted values. | The agent’s **Secrets** controls, available to Owners and Admins. |
+| Sandbox capacity and spending | Work needs an available environment and an allowed budget. | [Sandboxes](/platform/admin/sandboxes) and [Policies and limits](/platform/admin/governance/policies-and-limits). |
 
-## Apply the same rules to integrations
+For a review agent, repository read access and reporting tools may be enough. Granting a write tool authorizes its operations within its access rules; a standing instruction to ask first is not a substitute for removing an unnecessary grant.
 
-The public API requires a project ID for every agent operation and applies the key holder's project permissions. It reads and writes the same roster as the project interface. The [API reference](/develop/api-reference#manage-a-projects-agents) provides the routes and a complete example.
+## Handle secret changes deliberately
 
-An update supplies the full configuration, including secret grants that should remain. Omitting those grants asks to clear them, which requires the same administrative permission as adding a grant.
+Only an Owner or Admin can change secret grants. An editor can update other fields while preserving the existing grants. Secret values are encrypted in organization storage and are not returned with the agent configuration, but a running agent receives the values it is granted.
 
-## Review the project's setup
+Use narrowly scoped, replaceable credentials. A secret name may be shared by several agents or automation nodes, so rotating or deleting its organization value affects every future run that refers to it. Review those uses before changing it.
 
-Review the project membership together with the agent's model, equipment and secret grants. [Agent concepts](/platform/agents/concepts) explains how those choices fit together, and [Project agents](/platform/projects/project-agents) covers the configuration used for tasks.
+## Apply the same review to API clients
+
+The public API reads and writes the same project roster and applies the key holder’s project permissions. Every operation includes a project ID. An update provides the full configuration, including secret grants to retain; omitting them requests their removal and therefore requires administrative permission.
+
+Use the [project-agent API example](/develop/api-reference#manage-a-projects-agents) for integration details. After a configuration change, reopen the agent to check the saved model, equipment and grants, then give it a small task with an outcome a person can review. [Project agents](/platform/projects/project-agents) covers that workflow.

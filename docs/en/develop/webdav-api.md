@@ -1,136 +1,183 @@
 ---
 title: WebDAV API
-description: Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits.
+description: Connect a file client, verify uploads and downloads, and handle WebDAV permissions, locks, and protocol limits.
 ---
 
-Tale exposes the document store under `/dav/<orgSlug>/` as a read-write WebDAV Class 2 endpoint (RFC 4918). This page is the protocol reference — the wire-level surface a client implementer or a third-party tool needs to integrate. For the end-user setup guide and per-client instructions, see [Platform > Connectors > WebDAV](/platform/connectors/webdav).
+Use WebDAV when a file client needs folders, downloads, uploads, and edit locks over HTTP. This endpoint exposes the organization's Document Hub; project files are outside its tree. For Finder, File Explorer, or another existing client, start with [Connect with WebDAV](/platform/connectors/webdav).
 
-The credential is human-minted: an app-password a person creates under **Settings > WebDAV**. Nothing on the API mints one, and an API key is not accepted on this surface — every method but `OPTIONS` answers `401` to it — so a scripted trial, a CI smoke test or an onboarding runbook needs a person to mint the password first and hand it to the client.
+This reference is for client implementers. First verify one authenticated listing, then a small upload. A successful `207` listing proves access; a successful upload followed by the same downloaded bytes proves the complete storage path.
 
 ## URL scheme
 
-```text
-/dav/<orgSlug>/documents/<path>      R/W  active documents tree
-/dav/<orgSlug>/.trash/<path>         R/O  trashed documents (soft-delete view)
-/dav/<orgSlug>/                      R/O  collection containing the two above
-```
+| Path | Access | Contents |
+| --- | --- | --- |
+| `/dav/<orgSlug>/documents/<path>` | Read and write | Active Document Hub documents and folders |
+| `/dav/<orgSlug>/.trash/<path>` | Read only | Trashed documents |
+| `/dav/<orgSlug>/` | Read only | The two collections above |
 
-Segments are URL-encoded. The server rejects segments containing `/`, `\`, NUL, or the relative names `.` and `..`. Each segment must be 1–255 bytes. The `orgSlug` matches `[a-zA-Z0-9_-]{1,64}`.
+Encode each path segment separately. The parser normalizes Unicode to NFC and trims leading and trailing whitespace. It rejects empty names, `.` and `..`, `/`, `\`, control characters, and names longer than 255 UTF-16 code units. This is a character-length check, not a 255-byte limit. Organization slugs match `[a-zA-Z0-9_-]{1,64}`.
 
-Trailing-slash policy follows WebDAV convention: collections (folders) are referenced with a trailing slash, resources (files) without. Many clients normalise on the fly; the server accepts both forms on lookup and emits the canonical form in PROPFIND responses.
+Use a trailing slash for folders and none for files. Listings return canonical URLs. Follow the returned `href` when addressing an existing item; do not reconstruct it from its display name, particularly when sibling documents share a title.
 
 ## Authentication
 
-HTTP Basic only. The username field can be any non-empty value — the app-password itself is the actual credential, and the server does not match the username against your account record. Using your Tale account email is the convention for audit clarity, and clients that prefill from the keychain expect an email-shaped string, but the auth decision is made on the password alone. The password is an **app-password** generated under Settings > WebDAV. The user's main account password is not accepted on this endpoint.
+Generate an app password in **Settings > WebDAV** using an account with access to developer settings. The complete password appears once. Give each client its own label so you can revoke its access independently.
 
-```http
-Authorization: Basic <base64(email-or-anything:app-password)>
+| Credential field | Value |
+| --- | --- |
+| HTTP scheme | Basic |
+| Username | Your account email; the server accepts any non-empty username |
+| Password | The generated WebDAV app password |
+| Organization | The slug in the URL, checked against current membership |
+
+The app password identifies the user. Neither an account password nor a REST API key is accepted. A valid password does not bypass organization membership: losing membership causes `403`. `OPTIONS` alone is available without authentication.
+
+### Verify a listing
+
+Set your deployment URL and email below. Each `curl --user` command prompts for the app password, keeping it out of the command itself and shell history.
+
+```bash
+export TALE_DAV_URL="https://your-host.example.com/dav/acme/documents"
+export TALE_DAV_USER="you@example.com"
+
+curl --user "$TALE_DAV_USER" --request PROPFIND \
+  --header 'Depth: 1' "$TALE_DAV_URL/"
 ```
 
-App-passwords are hashed with HMAC-SHA256 keyed by the server's `WEBDAV_APP_PASSWORD_HMAC_KEY` deployment secret. The key is derived deterministically from `INSTANCE_SECRET` by the platform entrypoint (prod) and `server.ts` (dev), so operators do not mint it manually; setting it explicitly in `.env` overrides the derived value. Lookup narrows by the password's first four characters (stored alongside the hash for indexed lookup) and verifies with a constant-time HMAC comparison.
+Expect `207 Multi-Status` with XML containing the collection and its immediate children. An empty folder still has a response for the collection itself. Do not parse the XML as JSON or treat every status inside a `207` as success.
 
-Every authenticated request also verifies the requesting user is an active member of the organisation in the URL — a stale row (membership removed after app-password issue) is rejected with `403`.
+### Verify a write and download
 
-`OPTIONS` is the only method allowed without authentication; clients use it to probe DAV capability before signing in.
+Choose a new folder name to avoid overwriting existing work. These commands create one folder, upload a small text file, and download it:
+
+```bash
+curl --user "$TALE_DAV_USER" --request MKCOL "$TALE_DAV_URL/Client%20test/"
+printf 'Hello from WebDAV.\n' > webdav-test.txt
+curl --user "$TALE_DAV_USER" --upload-file webdav-test.txt \
+  --header 'Content-Type: text/plain' "$TALE_DAV_URL/Client%20test/webdav-test.txt"
+curl --user "$TALE_DAV_USER" "$TALE_DAV_URL/Client%20test/webdav-test.txt"
+```
+
+Expect `201` for the new folder, `201` for the new file, and the text `Hello from WebDAV.` on download. Uploading to an existing file returns `204` and replaces its content. The file also appears in the Document Hub without a separate synchronization operation.
 
 ## Methods
 
-| Method     | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Auth         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| OPTIONS    | Advertise capabilities. Returns `DAV: 1, 2`, `Microsoft-Server-WebDAV-Extensions: 1` for Windows compatibility, and an `Allow` that names what the target itself accepts (RFC 9110 §10.2.1): the documents tree advertises every method below; a `.trash` file `OPTIONS, GET, HEAD, PROPFIND`; the `.trash` collection and the org root `OPTIONS, PROPFIND`, so a mount of either presents as read-only before the first write fails. A path that does not parse still advertises the full set, so a client can detect DAV support before it has org context. | Anonymous OK |
-| PROPFIND   | List a resource (Depth 0) or a collection's immediate children (Depth 1). The property list emitted is documented below. **Depth: infinity is rejected with 403** to prevent unbounded responses.                                                                                                                                                                                                                                                                                                                                                             | Required     |
-| PROPPATCH  | Returns 207 success per-property without storing values. Dead properties are not persisted in v1; PROPPATCH succeeds optimistically for client compatibility.                                                                                                                                                                                                                                                                                                                                                                                                 | Required     |
-| GET / HEAD | Stream the document blob. Sets `Content-Type`, `Content-Length`, `ETag`, and `Last-Modified`. GET on a collection returns 405.                                                                                                                                                                                                                                                                                                                                                                                                                                | Required     |
-| PUT        | Create or replace a document. New blob is stored in the object store; the document row picks up `sourceProvider: "webdav"`. Returns 201 on create, 204 on overwrite. Requires `Content-Length`; a chunked body is refused with 411.                                                                                                                                                                                                                                                                                                                           | Required     |
-| DELETE     | Soft-delete a document (sets `lifecycleStatus: "trashed"`) or a folder (cascades trash on contained documents, hard-deletes the folder rows). Returns 204.                                                                                                                                                                                                                                                                                                                                                                                                    | Required     |
-| MKCOL      | Create a folder under an existing parent. Empty body only. Returns 201, 405 if the target exists, or 409 if the parent does not.                                                                                                                                                                                                                                                                                                                                                                                                                              | Required     |
-| MOVE       | Rename or relocate. Atomic for documents. For folders, updates the `parentId` of the moved folder. Honours `Overwrite: T/F` and `If` headers. Returns 201 (new destination) or 204 (overwrite).                                                                                                                                                                                                                                                                                                                                                               | Required     |
-| COPY       | Server-side copy. Document copies reuse the same stored object. Folder copies recurse. Honours `Overwrite` and `If`.                                                                                                                                                                                                                                                                                                                                                                                                                                          | Required     |
-| LOCK       | Class 2 exclusive or shared write-lock. Timeout from `Timeout: Second-N` header, capped at 3600. Refresh by re-sending LOCK with `If: (<opaquelocktoken:...>)` and an empty body.                                                                                                                                                                                                                                                                                                                                                                             | Required     |
-| UNLOCK     | Release a lock by its token. Only the lock owner can release. Returns 204.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Required     |
+All methods except `OPTIONS` require the app password.
 
-`HEAD` shares its handler with `GET` minus the body.
+| Method | Purpose | Successful response |
+| --- | --- | --- |
+| `OPTIONS` | Discover capabilities and the target's allowed methods | `200`, `DAV: 1, 2`, `Allow` |
+| `PROPFIND` | Read properties; use `Depth: 0` for the target or `Depth: 1` for its immediate children | `207` XML |
+| `PROPPATCH` | Submit property changes; see persistence limitations below | `207`, with a status per property |
+| `GET`, `HEAD` | Download a file or read its headers | `200`; conditional and range requests can change the status |
+| `PUT` | Create or replace a file | `201` new, `204` replacement |
+| `DELETE` | Move documents to trash; recursively trash folder contents and remove folder rows | `204` |
+| `MKCOL` | Create a folder whose parent already exists | `201` |
+| `MOVE` | Rename or relocate a document or folder | `201` new destination, `204` replacement |
+| `COPY` | Copy a document or folder tree on the server; file copies share stored bytes | `201` new destination, `204` replacement |
+| `LOCK` | Acquire or refresh a write lock | `200`, with a lock token |
+| `UNLOCK` | Release a lock owned by the requesting user | `204` |
+
+`GET` on a folder is `405`; use `PROPFIND`. An omitted `Depth` defaults to `1`; `Depth: infinity` is `403`. `MKCOL` takes an empty body. `PUT` requires `Content-Length`: use a known-size file rather than chunked transfer.
+
+`MOVE` and `COPY` use `Destination` and honor `Overwrite: T/F` and `If`. Keep the destination on the same host and in the same organization. A missing destination parent is `409`; `Overwrite: F` onto an existing item is `412`. Moving a document is atomic; moving a folder changes its parent. Destructive operations also respect legal holds and document record restrictions.
+
+The `Allow` header describes the target: the documents tree advertises the methods above, a trash file advertises `OPTIONS, GET, HEAD, PROPFIND`, and the trash collection and organization root advertise `OPTIONS, PROPFIND`. Capability probes on a path that cannot yet be parsed still advertise the full method set. Windows discovery also receives `MS-Author-Via: DAV` and `Microsoft-Server-WebDAV-Extensions: 1`.
 
 ## Properties
 
-PROPFIND returns these live properties for every resource:
+| DAV property | Meaning |
+| --- | --- |
+| `resourcetype` | `<collection/>` for folders; empty for files |
+| `displayname` | Folder name or document title |
+| `getlastmodified` | RFC 1123 timestamp; source modification time, falling back to creation time |
+| `creationdate` | Creation time in ISO 8601 |
+| `getcontenttype` | File MIME type |
+| `getcontentlength` | File size in bytes |
+| `getetag` | The same validator returned by `GET` and `HEAD` |
+| `supportedlock` | Exclusive write-lock support |
+| `lockdiscovery` | Active lock information when available |
 
-- `resourcetype` — `<collection/>` on folders, empty on documents.
-- `displayname` — the folder name or document title.
-- `getlastmodified` — RFC 1123 timestamp. Documents use `sourceModifiedAt` if set, otherwise the document row creation time.
-- `creationdate` — ISO 8601 of the row creation time.
-- `getcontenttype` — documents only; the MIME type the document was uploaded with.
-- `getcontentlength` — documents only; bytes.
-- `getetag` — documents only; the content hash if known, otherwise the document id.
-- `supportedlock` — advertises exclusive write-lock support.
-- `lockdiscovery` — present on resources with active locks.
+File-only properties do not apply to collections. An ETag is a quoted content hash when one exists, otherwise a weak validator based on size and modification time, such as `W/"42-1789373842855"`. Preserve the quotes and `W/` marker; do not substitute the document ID or infer byte equality from a weak validator. `GET` supports conditional requests and byte ranges.
 
-Dead properties are not stored. PROPPATCH echoes 200 for a dead property set on its own, but setting a live/protected property returns a per-property 403 (`cannot-modify-protected-property`), and any dead properties in the same request are then reported as 424 Failed Dependency (RFC 4918 §9.2 atomicity). No value is ever persisted.
+<Warning>
+
+Custom properties are not persisted. A `PROPPATCH` containing only dead properties reports per-property `200` for client compatibility, but a later read does not return those values. A protected live property gets `403`; dead properties in that same request get `424 Failed Dependency`. Do not use these properties to store business metadata.
+
+</Warning>
 
 ## Lock semantics
 
-Locks live in their own Postgres table (`app.webdav_locks`), keyed by `(organizationId, resourcePath)`. Wire form is `opaquelocktoken:<uuid>`. The server:
+Use an exclusive write lock and retain its `opaquelocktoken:<uuid>` token. The advertised lock support is exclusive; although the parser accepts a shared scope, the backing store permits only one live lock at a resource. Do not build a shared-editing workflow around shared locks.
 
-- Caps timeout at 3600 seconds. Requests for longer windows are clamped silently.
-- Treats `LOCK` with an `If: (<opaquelocktoken:UUID>)` header and an empty body as a refresh — the existing lock's expiry is bumped.
-- Returns `412 Precondition Failed` on a refresh when the supplied token is unknown.
-- Returns `423 Locked` on `PUT / DELETE / MOVE / COPY / MKCOL / PROPPATCH` against a locked path when the request lacks a matching `If` header.
-- Returns `412 Precondition Failed` when the supplied `If` token does not match the live lock.
-- Expires locks lazily — the lookup query returns null for expired rows and schedules a fire-and-forget delete.
-- Hard-deletes every lock owned by an app-password when that app-password is revoked.
+| Client action | Required behavior |
+| --- | --- |
+| Acquire | Send `LOCK` with an XML write-lock body and `Timeout: Second-N` |
+| Write while locked | Include `If: (<opaquelocktoken:...>)` |
+| Refresh | Send an empty `LOCK` body with the same `If` token |
+| Release | Send `UNLOCK` with `Lock-Token: <opaquelocktoken:...>` as the owning user |
 
-`UNLOCK` requires both a valid `Lock-Token` header and the requesting user to be the lock owner.
+Timeouts are clamped to 1–3600 seconds. Refresh before expiry if an edit takes longer. A missing token on a protected write gives `423`; a mismatched token or an unknown refresh token gives `412`. Locks can cover descendant paths, so a parent lock can block a write below it.
+
+Locks are stored in Postgres and expire lazily. Expired rows do not protect a resource even before cleanup removes them. Revoking an app password deletes its locks immediately. This is also a recovery path for a client that disappeared while holding a lock; it disconnects every mount using that password.
 
 ## Status codes
 
-- `200` — OPTIONS, GET, HEAD, LOCK, LOCK refresh, PROPPATCH (per-property)
-- `201` — PUT create, MKCOL, MOVE/COPY to a new destination
-- `204` — DELETE, UNLOCK, PUT overwrite, MOVE/COPY overwrite
-- `207` — PROPFIND, PROPPATCH (multi-status envelope)
-- `400` — malformed `Destination` / `If` / `Lock-Token` / `Timeout` header
-- `401` — missing or invalid Basic auth
-- `403` — Depth: infinity rejected; .trash write attempt; root delete/move; wrong app-password owner on UNLOCK; user not a member of the org; MOVE/COPY onto itself or into its own subtree; cross-org `Destination`
-- `404` — resource not found
-- `405` — GET on a collection; PUT to a collection path; MKCOL on existing path; root MKCOL
-- `409` — MKCOL, MOVE, or COPY when the destination parent does not exist
-- `411` — PUT without `Content-Length` (chunked transfer is not supported: the body goes to a presigned object-store URL that needs the length up front)
-- `412` — `If` token mismatch; `If-Match` / `If-None-Match` precondition failed; MOVE/COPY with `Overwrite: F` onto an existing destination
-- `413` — PUT body over the size cap, or an XML request body (PROPFIND / PROPPATCH / MKCOL / LOCK) over 64 KB
-- `415` — MKCOL with non-empty XML body (extended MKCOL not implemented)
-- `423` — write attempted on a locked path without matching `If`
-- `502` — cross-host `Destination`; object-store fetch failed
-- `503` — LOCK count cap exceeded for the app-password (with `Retry-After`)
-- `507` — folder subtree too large to delete, move, or copy in a single request
+| Status | Meaning and next action |
+| --- | --- |
+| `200`, `201`, `204` | Successful read, creation, or update; see the method table |
+| `207` | Inspect each resource/property result in the XML envelope |
+| `400` | Correct a malformed `Destination`, `If`, `Lock-Token`, or `Timeout` header |
+| `401` | Supply a valid, unrevoked app password using Basic authentication |
+| `403` | Check membership, read-only namespace, legal hold/record rules, depth, ownership, and destination scope |
+| `404` | Check the returned `href`, organization slug, and resource existence |
+| `405` | Check the target's `Allow`; folders cannot be downloaded or overwritten as files |
+| `409` | Create the destination parent first |
+| `411` | Send `Content-Length` for `PUT` |
+| `412` | Re-read the resource or lock state; check `If`, `If-Match`, `If-None-Match`, and `Overwrite` |
+| `413` | Reduce the file or XML body size, or review the operator's upload limit |
+| `415` | Send an empty `MKCOL` body; extended MKCOL is unsupported |
+| `423` | Obtain the matching lock token or wait for/release the lock |
+| `502` | Check cross-host destinations and object-store connectivity |
+| `503` | Release unused locks for this password and honor `Retry-After` |
+| `507` | Split a folder-tree operation into smaller operations |
+
+Do not retry every refusal automatically. A missing parent or an invalid credential needs a correction; a lock conflict needs coordination with the other editor.
 
 ## Compliance
 
-- DAV Class **1** (basic): full.
-- DAV Class **2** (locking): full, with the lazy-expiry behaviour described above.
-- DAV Class **3** (calendaring, contacts, search, ACL): not implemented.
+The endpoint advertises `DAV: 1, 2`. Treat the methods and limitations on this page as the implementation contract; the advertisement is not a promise that every optional WebDAV feature works. In particular, dead properties do not persist and shared editing locks are not available. Calendar, contact, search, and ACL extensions are not provided.
 
-The server advertises `DAV: 1, 2` in the OPTIONS response.
+For wire syntax, consult [RFC 4918](https://www.rfc-editor.org/rfc/rfc4918). DAV compliance class 3 is a revision-compliance category, not a name for calendar or contact extensions.
 
 ## Limits
 
-- `Depth: infinity` on PROPFIND is rejected with `403`.
-- `Timeout: Second-N` on LOCK is clamped to `[1, 3600]`.
-- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the platform server. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable. The body is streamed to a presigned S3 URL with backpressure, so a large upload does not buffer in platform memory. Because that URL needs the length up front, a PUT without `Content-Length` (chunked transfer) is refused with `411`.
-- XML request bodies (PROPFIND / PROPPATCH / MKCOL / LOCK) are capped at **64 KB** (`413` once exceeded) — these envelopes are tiny by design.
-- App-passwords are hashed with HMAC-SHA256; the secret never appears in any response after the create call.
-- `lastUsedAt` is patched at most once per minute per app-password to avoid write storms on busy mounts.
+| Boundary | Limit or behavior |
+| --- | --- |
+| Recursive listing | `Depth: infinity` refused; walk one level at a time |
+| Lock duration | 1–3600 seconds |
+| Active locks | 200 per app password |
+| Upload size | 5 GB by default; `WEBDAV_MAX_PUT_BYTES` sets the byte cap |
+| XML bodies | 64 KiB for `PROPFIND`, `PROPPATCH`, `MKCOL`, and `LOCK` |
+| Password creation | Up to 50 active app passwords per user in an organization |
+| Usage timestamp | Updated at most once per minute per password |
+
+Uploads stream to the object store with backpressure. The server needs the length before it can create the upload request; chunked uploads receive `411`. Folder operations have bounded traversal budgets and can return `507`; splitting a large tree is preferable to repeatedly submitting the same oversized operation.
 
 ## Network requirements
 
-The WebDAV endpoint runs inside the platform Hono server (`platform:3000` in compose). Caddy routes `/dav/*` to it via the default fallback — no extra configuration is required. The handler talks to Postgres directly through the backend's own database connection; there is no separate service to reach.
+The backend serves `/dav/*`; the platform proxy exposes it on the same public host as Tale. In local development, Vite forwards `/dav` from port 3000 to the backend, so clients can use the normal local application origin. There is no separate WebDAV service to deploy.
 
-For dev (`bun run dev`), Vite proxies `/dav` to the backend, so `curl` and clients can hit `http://localhost:3000/dav/<orgSlug>/...` against a running dev server without rebuilding.
+A listing can succeed while a download or upload fails: listings require the database, whereas file bytes also require a working object store. Test both paths after changing proxy or storage configuration. Keep the proxy's body cap consistent with `WEBDAV_MAX_PUT_BYTES`.
 
 ## Security
 
-WebDAV ships the app-password on every request as an HTTP Basic header — there is no session, no token refresh, just the raw credential replayed on every PROPFIND, PUT, LOCK, and so on. Only mount the endpoint over HTTPS; running it over plain HTTP leaks the password to anyone on the wire, and revoking the row is the only way to recover. Never put the app-password into the URL itself (the `https://user:pass@host/...` shorthand) — most clients log URLs in shell history, crash reports, and proxy access logs, where the credential would survive long after the mount was unmounted. Let the WebDAV client store the password in the OS keychain (macOS Keychain, Windows Credential Manager, GNOME Keyring) and surface it through the standard credential prompt instead.
+Use HTTPS for remote mounts. Basic authentication sends the app password on every request; Base64 is encoding, not encryption. Plain HTTP is suitable only for a controlled localhost test. Store credentials in the client's password prompt or operating-system keychain, never in a URL such as `https://user:password@host/`.
 
-The server enforces TLS at the reverse proxy layer in production deploys; dev mode over plain HTTP is only intended for `localhost` testing. Audit logs record every authenticated request with the prefix of the password used, so a leaked credential can be traced and revoked without rotating the rest of the device fleet.
+The backend stores HMAC-SHA256 hashes and a four-character lookup prefix, then verifies the hash in constant time. `WEBDAV_APP_PASSWORD_HMAC_KEY` is derived from `INSTANCE_SECRET` by the platform startup configuration unless explicitly set. Keep these deployment secrets stable and backed up; changing the HMAC key invalidates existing passwords.
+
+The password list exposes its label, prefix, creation time, and last-use time. Use those to identify and revoke a lost device's credential. Last use is throttled metadata, not a complete per-request audit trail.
 
 ## Where this fits
 
-WebDAV is the mount-protocol surface of the same document store the [REST API reference](/develop/api-reference) drives for bulk import and search — both routes write into the table the [Document Hub](/platform/knowledge/documents) reads from, so a file created through Finder appears in the web UI without any sync step. The protocol is the right pick when a user wants their documents to feel like a local folder; the REST API is the right pick when a script or agent wants byte-level control over what gets written and when. RFC 4918 is the wire-level authority for everything on this page.
+Use [REST](/develop/api-reference) for project-scoped imports, explicit IDs, and search. Use WebDAV for Document Hub file clients that expect paths and locks. Both work with Tale documents, but WebDAV does not expose the project's file tree or every REST operation.

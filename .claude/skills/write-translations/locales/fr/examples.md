@@ -1,49 +1,39 @@
-# FR — examples
+# French edits
 
-## Positive — a correct translation that doesn't translate one thing
+These illustrate language choices, not verified UI workflows or product guarantees.
 
-**English source.** _Open a pull request from your feature branch. The CI pipeline runs against the head of the branch; the merge into `main` is gated on green._
+## Keep the condition clear
 
-**French target.** _Ouvre une Pull Request depuis ton feature branch. Le pipeline CI s'exécute contre la tête du branch ; le merge dans `main` reste bloqué tant que le pipeline n'est pas vert._
+English: “Review the changes before you run the command.”
 
-**Why this works.** `Pull Request`, `feature branch`, `pipeline`, `CI`, `merge`, `branch` stay English (Git-domain + bucket-2 loanwords). `tu` form (`ton`, `Ouvre`). NBSP before `;`. `s'exécute` uses typographic apostrophe. No `Vous`, no `Découvrez`, no `N'hésite pas à`.
+French: “Vérifie les modifications avant d’exécuter la commande.”
 
-## Positive — concept page opening
+The French sentence keeps the order and informal instruction without translating each English
+word separately.
 
-**English source.** _An agent is a bundle of four things: instructions, knowledge, tools, and a model._
+## Use native explanatory syntax
 
-**French target.** _Un agent est un ensemble de quatre éléments : des instructions, une base de connaissances, des tools et un modèle._
+Weak: “La configuration de gestion de l’accès des membres de l’organisation.”
 
-**Why this works.** `agent`, `tools`, `modèle` — `tools` stays English (bucket 2), `modèle` translates. `base de connaissances` (translate-bucket compound, whole translation). NBSP before `:`. `tu`-implicit (no `vous`).
+Better, as a task: “Choisis qui peut accéder à l’organisation.”
 
-## Positive — UI walkthrough, effect-first
+The revision works when the intended meaning is choosing access. It is not a license to replace a
+specific permission model with a broader claim; verify the intended scope first.
 
-**English source.** _To restrict an agent's knowledge to one folder, open the agent's **Knowledge** tab and pick the folder under **Sources**._
+## Preserve identifiers
 
-**French target.** _Pour restreindre les connaissances d'un agent à un dossier, ouvre l'onglet **Base de connaissances** de l'agent et choisis le dossier sous **Sources**._
+English: “Set `TALE_CONFIG_DIR` to the directory that contains the configuration.”
 
-**Why this works.** Effect-first phrasing. UI labels (`Base de connaissances`, `Sources`) match what the shipped UI displays in French — pulled from `services/platform/messages/fr.yml`. `tu` form (`ouvre`, `choisis`). `l’onglet`, `d’un`, `l’agent` — typographic apostrophes.
+French: “Définis `TALE_CONFIG_DIR` sur le dossier qui contient la configuration.”
 
-## Drift → target #1 — marketing softener
+The identifier stays exact. The explanation uses French words and grammar. Verify the actual
+configuration behavior before using the example as a product instruction.
 
-**Drift.** _Découvrez notre puissante fonctionnalité de Knowledge Base, simplement clé en main._
+## Address the reader consistently
 
-**Target.** _Ouvre la **Base de connaissances**. Elle indexe automatiquement les documents que tu charges et les rend disponibles aux agents en 30 secondes._
+Weak: “Vous pouvez vérifier votre configuration.”
 
-**Why.** The drift stacks four softeners (`Découvrez`, `puissante`, `simplement`, `clé en main`) onto a half-compound (`Knowledge Base`). The target uses the imperative, names the concrete behaviour (30-second indexing), and uses the shipped UI label.
+Better instruction: “Vérifie ta configuration.”
 
-## Drift → target #2 — `vous`-slip
-
-**Drift.** _Vous pouvez configurer le webhook depuis votre tableau de bord._
-
-**Target.** _Configure le webhook depuis ton tableau de bord._
-
-**Why.** Imperative replaces the modal verb construction; `tu` form (`ton`) replaces formal `votre`. Shorter and direct.
-
-## Drift → target #3 — nominal stacking
-
-**Drift.** _Une solution clé en main pour la gestion documentaire intégrée multilingue._
-
-**Target.** _Une solution qui gère les documents dans plusieurs langues._
-
-**Why.** The drift stacks five nominal phrases (`solution` + `gestion` + `documentaire` + `intégrée` + `multilingue`). The target uses a relative clause that reads native. `clé en main` is also a marketing softener; gone.
+If the action is optional, a natural “Tu peux…” sentence is also valid. An imperative should not
+accidentally turn an optional capability into a requirement.

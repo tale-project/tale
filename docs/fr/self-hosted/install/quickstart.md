@@ -1,24 +1,18 @@
 ---
-title: Démarrage rapide auto-hébergé
-description: Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l’assistant de configuration fait de toi le Propriétaire.
+title: Démarrer ta première instance auto-hébergée
+description: Installe la CLI, démarre un projet Tale local et vérifie une première réponse de modèle.
 ---
+Démarre Tale localement avec la CLI, crée le premier compte propriétaire et teste un chat. La CLI prépare le projet et les conteneurs. Tu conserves la configuration et les données persistantes sur l’infrastructure que tu contrôles.
 
-C’est le chemin le plus rapide vers un Tale qui tourne : installe la CLI `tale`, puis deux commandes. Le résultat est ta propre organisation sur ta propre machine, joignable dans le navigateur. Le même répertoire de projet est l’unité — `tale dev` sur un laptop, `tale deploy` quand l’hôte a un nom public.
+## Préparer la machine locale
 
-## Avant de commencer
+Utilise une machine capable d’exécuter Docker avec Compose et disposant d’espace pour les images et les données. La CLI peut aider à installer ou démarrer Docker s’il manque. Le téléchargement initial des images nécessite un accès réseau et peut être long sur une connexion lente.
 
-Il ne te faut rien pour démarrer, et une chose avant qu’un agent puisse répondre :
+Un agent a besoin d’identifiants de fournisseur valides avant de répondre. Tu peux les ajouter après la création du compte. Garde cette première instance privée pendant la création du propriétaire.
 
-- **Docker** — mais la CLI le provisionne pour toi : s’il manque, `tale dev` propose de l’installer ou de le démarrer avant toute autre chose. Si tu fais déjà tourner [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+), ou Docker Engine plus le plugin Compose sous Linux, la CLI s’en sert.
-- Une **[clé API OpenRouter](https://openrouter.ai)** (ou n’importe quel fournisseur compatible OpenAI) pour que les agents aient un modèle à qui parler. Tu n’en as pas besoin pour `tale init` — tu l’ajoutes dans l’app après l’inscription, dans l’assistant de configuration ou sous **Paramètres > Fournisseurs IA**, et tu peux changer de fournisseur plus tard.
+## Installer la CLI
 
-## De zéro à connecté
-
-<Steps>
-
-<Step title="Installe la CLI">
-
-L’installateur détecte ton OS, dépose le binaire `tale` sur ton `PATH`, et c’est la seule étape qui touche ton système — il demande `sudo` quand le répertoire d’installation (par défaut `/usr/local/bin`) n’est pas accessible en écriture.
+Choisis l’installateur adapté à ton système :
 
 <Tabs>
 
@@ -40,89 +34,51 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 </Tabs>
 
-<Check>
+Exécute `tale --version`, dans un nouveau terminal si nécessaire. Si la commande manque, vérifie le répertoire affiché par l’installateur et ajoute-le au `PATH`. Le [guide CLI](/fr/self-hosted/install/cli-install) couvre les versions fixées et l’accès à Docker à distance.
 
-`tale --version` qui imprime un numéro de version confirme que le binaire a atterri sur ton `PATH`.
+## Initialiser et démarrer
 
-</Check>
-
-</Step>
-
-<Step title="Crée un projet">
+Crée un nouveau répertoire de projet et démarre son environnement local :
 
 ```bash
 tale init my-project
 cd my-project
-```
-
-`tale init` échafaude un répertoire de projet, génère chaque secret de sécurité et écrit le `.env`, de sorte qu’il n’y a rien à éditer à la main. Les valeurs par défaut sont localhost et un certificat auto-signé ; le domaine de production se choisit plus tard, à `tale deploy`. La seule question qu’il pose est de savoir si les agents peuvent lancer `docker` / `docker compose` dans leurs sandboxes — le défaut est non, car l’activer fait tourner un Docker interne privilégié ; une installation mono-utilisateur peut dire oui, un opérateur multi-tenant installe plutôt Sysbox. Il ne demande pas de clé API ; celle-ci est collectée dans l’app une fois que tu es connecté. Il dépose aussi des agents, workflows, connectors, fournisseurs, skills et branding d’exemple sous `default/`, et écrit `AGENTS.md` (plus un pointeur `CLAUDE.md`) afin qu’un éditeur IA puisse construire des configurations en pleine connaissance du schéma. L’essentiel de cette arborescence est un catalogue, pas une configuration active : sur une nouvelle organisation, seules les entrées marquées `autoInstall` sont actives — le `default/README.md` généré explique la différence.
-
-</Step>
-
-<Step title="Démarre Tale">
-
-```bash
 tale dev
 ```
 
-Si Docker manque, `tale dev` propose d’abord de l’installer ou de le démarrer. Le premier passage récupère ensuite plusieurs gigaoctets d’images et construit le graphe de conteneurs — la CLI affiche la progression du pull image par image et continue d’attendre ; sur un réseau lent, ça peut prendre des dizaines de minutes. Dès que la stack se signale prête (`Tale is running — open https://localhost`), `tale dev` ouvre ton navigateur automatiquement. S’il ne peut pas, il imprime l’URL à visiter.
+`tale init` écrit la configuration et génère les secrets. Garde `.env` privé et conserve-le avec le projet. Examine la question sur Docker dans les sandboxes avant de l’activer : Docker imbriqué avec privilèges modifie les exigences d’isolation de l’hôte.
+
+`tale dev` démarre les services Docker nécessaires et attend leur disponibilité. Ouvre ensuite l’URL qu’il affiche. L’adresse locale par défaut utilise un certificat autosigné ; vérifie qu’il s’agit bien de ta propre instance avant d’accepter l’avertissement du navigateur.
 
 <Note>
 
-Ton navigateur affiche un avertissement de certificat pour le certificat local auto-signé. C’est attendu — accepte-le pour continuer.
+Le répertoire généré `default/` contient des exemples de catalogue et des entrées installées automatiquement. Modifier un exemple ne change pas forcément une organisation existante. Lis son `README.md` avant de compter sur le rechargement de configuration.
 
 </Note>
 
-Ta configuration sous `default/` est montée dans l’instance en marche, donc les modifications d’agents, de workflows et d’connectors rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale dev --detach` pour la laisser tourner en arrière-plan).
+Laisse `tale dev` tourner pendant l’utilisation. `Ctrl-C` arrête l’exécution au premier plan ; `tale dev --detach` démarre en arrière-plan. Arrêter les conteneurs ne supprime pas leurs données persistantes.
 
-</Step>
+## Créer le propriétaire et tester une réponse
 
-<Step title="Crée ton compte">
+Sur une instance vide, termine la création du compte et de l’organisation. Vérifie le rôle **Propriétaire** sous **Paramètres > Membres** avec [Premier compte propriétaire](/fr/self-hosted/install/first-admin).
 
-Sur une instance vide, il n’y a pas de page d’inscription à chercher : la première visite atterrit dans l’assistant de configuration unique, qui crée ton compte, te connecte, fait de toi le **Propriétaire** et nomme ton **Organisation**. Tu atterris dans le dashboard — aucune clé admin en jeu, et rien à verrouiller ensuite, car tous ceux qui te suivent arrivent par invitation.
+Connecte un fournisseur pendant la configuration ou sous **Paramètres > Fournisseurs IA**, puis suis [Créer ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Un identifiant enregistré ne suffit pas : envoie un message et examine la réponse terminée pour vérifier le fournisseur, le modèle et l’exécution.
 
-<Note>
+## Résoudre les problèmes de démarrage
 
-[Premier admin](/fr/self-hosted/install/first-admin) couvre l’assistant en détail et comment les coéquipiers arrivent.
+| Symptôme | Action suivante |
+| --- | --- |
+| `tale` est introuvable | Vérifie le répertoire d’installation et le `PATH` du terminal. |
+| Docker ne démarre pas | Ouvre Docker Desktop ou démarre le daemon, puis réessaie. |
+| Une image se télécharge lentement ou échoue | Lis le nom de l’image et l’erreur réseau ; vérifie le registre et l’espace disque. |
+| Le port HTTPS est occupé | Identifie le processus ou utilise `tale dev --port 8443`. Seul le port HTTPS change. |
+| Un conteneur redémarre en boucle | Lis `tale status` et `tale logs <service>`, puis corrige la cause signalée. |
+| L’application s’ouvre sans réponse du modèle | Vérifie les identifiants et le modèle, puis les logs backend et sandbox. |
 
-</Note>
+Le spawner sandbox utilise `127.0.0.1:8003`. Changer uniquement le port HTTPS n’isole donc pas deux projets locaux.
 
-</Step>
+## Préparer la production
 
-<Step title="Ajoute un modèle et publie un agent">
+`tale deploy` applique la configuration du projet sur l’hôte Docker choisi. Prépare DNS, TLS, sauvegardes et contrôles d’accès avant d’inviter l’équipe. Réutiliser le répertoire du projet ne transfère pas automatiquement les bases ou les fichiers vers un autre hôte.
 
-Tu as maintenant une organisation vide. Deux gestes t’amènent à quelque chose d’utile : ajoute ta clé OpenRouter — l’assistant de configuration la demande juste après la création du compte propriétaire, et **Paramètres > Fournisseurs IA** la prend à tout moment — puis [construis ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Une confirmation sur la ligne du fournisseur signifie que la clé fonctionne.
-
-<Check>
-
-Un nouveau chat qui répond à un message est la preuve de bout en bout : fournisseur, modèle et agent fonctionnent tous. À partir d’ici, la doc [Plateforme](/fr/platform) est la référence canonique de chaque fonctionnalité, identique à Cloud.
-
-</Check>
-
-</Step>
-
-</Steps>
-
-## Le même projet, du vrai trafic
-
-Le même répertoire devient la production avec `tale deploy`. Le premier déploiement demande le hostname public et une boîte Let's Encrypt. L’hôte a besoin de [Docker Engine](https://docs.docker.com/engine/install/), d’un enregistrement DNS A et des ports 80/443 joignables depuis l’internet. Les modes de certificat vivent dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains). Une fois l’URL en place, [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) et [Durcissement](/fr/self-hosted/operate/security/hardening) figurent au calendrier.
-
-```bash
-tale deploy
-tale status
-```
-
-## Écrire Compose toi-même ?
-
-La CLI enveloppe Docker Compose pour que tu n’aies pas à le faire. Quand tu ne peux pas faire tourner la CLI, [Écrire Compose toi-même](/fr/self-hosted/install/own-compose) est le contrat — y compris ce que Kubernetes doit encore faire.
-
-## Dépannage
-
-- **`tale` introuvable après l’installation.** L’installateur nomme le répertoire de destination dans sa sortie ; assure-toi que ce répertoire est sur ton `PATH` (sous Linux, c’est généralement `/usr/local/bin`).
-- **`tale dev` se termine sur un conflit de port.** Lis l’erreur compose pour voir quel port est pris. Si c’est 443, un autre service lie HTTPS sur l’hôte — libère-le, ou déplace Tale avec `tale dev --port 8443` (l’option ne déplace que le port HTTPS). Le spawner de sandbox lie toujours `127.0.0.1:8003` et ne peut pas être déplacé ; deux projets Tale en dev ne peuvent donc pas tourner en même temps sur une machine.
-- **Docker ne tourne pas.** `tale dev` propose de le démarrer (ou de l’installer) — accepte l’invite, ou démarre Docker Desktop toi-même (`sudo systemctl start docker` sous Linux) et réessaie.
-- **Un conteneur crash-loope au premier démarrage.** Presque toujours un secret manquant — relance `tale dev`, qui relance la configuration d’environnement, ou inspecte les logs avec `tale logs platform`.
-
-## Où ça s’utilise
-
-Tu as maintenant une instance Tale qui fonctionne. [Installer la CLI tale](/fr/self-hosted/install/cli-install) prépare la CLI à déployer et mettre à jour une instance distante depuis ta machine de travail.
+Lis [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains), [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) et [Renforcement](/fr/self-hosted/operate/security/hardening). Pour une installation gérée directement par ton équipe, utilise [Exécuter ton propre Compose](/fr/self-hosted/install/own-compose).

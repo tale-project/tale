@@ -142,6 +142,9 @@ async function policyRequirement(
     sql,
     args.organizationId,
     'approval_policy',
+    // Invalid or unavailable configuration must not erase an organization's
+    // restrictions and fall back to allowing platform-internal writes.
+    { strict: true },
   );
   return resolveApprovalRequirement({
     connector: args.connector,

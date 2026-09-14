@@ -1,61 +1,52 @@
 # @tale/ui
 
-The Tale design system for the **app language** — the React components, hooks,
-tokens, i18n glue and markdown pipeline the platform, the docs and every
-Tale-project repository build on. The marketing language lives next door in
-`@tale/marketing-ui`.
+Shared React components, hooks, tokens, translations, and Markdown rendering for Tale’s app
+interfaces. Consumers import explicit `@tale/ui/<subpath>` exports; their application build
+compiles the TypeScript source. Marketing pages use the additional
+[`@tale/marketing-ui`](../marketing-ui/README.md) layer.
+
+## Find an existing component
+
+Start with the [design contract](../../design/docs/README.md) and the
+[design-system guides](../../services/ui-docs/content/README.md). The
+[`package.json` exports map](package.json) defines the public imports; component sources, tests,
+and stories live together under `src/components/<family>/`.
+
+| Need | Example imports |
+| --- | --- |
+| Controls and forms | `button`, `icon-button`, `input`, `select`, `checkbox`, `use-form`, `field-shell` |
+| Tables and values | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer` |
+| Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
+| Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `query-state` |
+| Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
+| Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
+
+Browse interactive stories locally:
 
 ```bash
-bun run --filter @tale/ui typecheck
-bun run --filter @tale/ui lint
-bun run --filter @tale/ui test          # jsdom component tests + the catalog gates
-bun run --filter @tale/ui test:browser  # real-Chromium component tests
-bun run --filter @tale/ui storybook     # http://localhost:6006
+bun run --filter @tale/ui storybook # http://localhost:6006
 ```
 
-## What is inside
+Reusable components take state and events through props or a small context. Organization
+branding, permissions, backend queries, and other business behavior belong in the consuming
+service’s wrappers. Use the shared tokens, control sizes, and interaction patterns instead of
+copying a service component into a second location.
 
-Source-consumed — no build step; consumers import `@tale/ui/<subpath>` straight
-from `src/` (the `exports` map in `package.json` is the public surface, one
-subpath per module).
+## Use it in an application
 
-| Area                       | Subpaths (examples)                                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Primitives & typography    | `button`, `icon-button`, `image`, `heading`, `text`, `badge`                                                              |
-| Forms                      | `input`, `textarea`, `select`, `checkbox`, `radio-group`, `switch`, `date-range-picker`, `file-upload`, `use-form`, `field-shell` |
-| Data display & tables      | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer`, `document-icon`, `labeled-value`  |
-| Layout & navigation        | `layout`, `card`, `adaptive-header`, `page-layout`, `sticky-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation`  |
-| Overlays & dialogs         | `tooltip`, `popover`, `dropdown-menu`, `sheet`, `dialog/dialog`, `dialog/form-dialog`, `dialog/delete-dialog`             |
-| Feedback                   | `toaster` + `use-toast`, `skeleton`, `spinner`, `alert`, `query-state`, `error-boundaries/*`                              |
-| Editors & flows            | `editor` (save/cancel controllers, dirty blocker), `wizard/*`, `filters/*`, `catalog/*`, `metrics/*`, `flow/*`            |
-| Foundations                | `globals.css` (tokens + base), `cn`, `format`, `date`, `theme`, `accent-color`, `icons/*`                                 |
-| i18n                       | `i18n/init-service`, `i18n/messages` (the catalog every component reads), `i18n/client` (`useT`), `i18n/tests`            |
-| Markdown, SEO, server, PWA | `markdown/*`, `seo/*`, `server`, `monitoring/*`, `pwa/*`, `vite/yaml`, `storybook/*`                                      |
-
-Rules of the house — [`design/docs/`](../../design/docs/) is the contract:
-
-- **Tokens only.** Every colour resolves through a semantic utility mapped in
-  `src/globals.css` (`bg-bg-base`, `text-fg-muted`, `border-border-base`, the
-  HSL `bg-background` / `text-foreground` family); never a raw hex or grey.
-- **One control height** (`h-9`; `sm` is `h-8`), Inter only, Lucide only,
-  `Card` is the one bordered surface, skeletons mask in place.
-- **Strings ship in the catalog.** A component calls `useT('<namespace>')`
-  and the key lives in `src/i18n/messages/{en,de,fr}.yml` (+ `de-CH.yml`
-  overrides). `src/i18n/messages.test.ts` fails on a missing or orphan key.
-- **Business logic stays in the service.** A component takes what it needs
-  through props or a small context (`ErrorScopeProvider`, `AccentColorProvider`)
-  — never an org id, an ability or a backend query of its own.
-
-## Using it inside this monorepo
-
-Every workspace already depends on it (`"@tale/ui": "workspace:*"`):
+Frontend workspaces depend on `"@tale/ui": "workspace:*"`. Import the modules you need:
 
 ```tsx
 import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 ```
 
-and mounts the shared providers once:
+Import `@tale/ui/globals.css` from the application stylesheet. It supplies Tailwind v4, the
+shared tokens, and the package’s Tailwind source paths. The package also exports
+`@tale/ui/tailwind-preset` for consumers that use a Tailwind configuration.
+
+Merge `uiMessages` into the service’s i18n initialization, then mount `AppShell` around the app.
+This excerpt assumes the service has loaded its own `bundles`, `regional`, and `global` catalogs:
 
 ```tsx
 import { AppShell } from '@tale/ui/app-shell';
@@ -65,70 +56,67 @@ import { uiMessages } from '@tale/ui/i18n/messages';
 const i18n = initServiceI18n({ bundles, regional, global, packages: [uiMessages] });
 
 <AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
-  <RouterProvider router={router} />
+  <Application />
 </AppShell>;
 ```
 
-Stylesheet: the service's `globals.css` is one line, `@import '@tale/ui/globals.css';`.
+Use `locale={{ mode: 'client' }}` for a saved browser preference. URL-driven services such as
+web and docs omit it and mount `LocaleSync` with the route’s locale. `theme` enables the shared
+provider with its system preference default. Routing, authentication, and query providers
+remain the host’s responsibility.
 
-## Using it from another repository
+## Install from another repository
 
-The package is published as a root-level snapshot branch and tag of this
-repository (Bun cannot install a git subdirectory), so a consumer pins it with
-a GitHub URL:
+The [package publishing workflow](../../.github/workflows/publish-packages.yml) exports each
+package as a repository-root snapshot. Install the `dist/ui` branch with
+`github:tale-project/tale#dist/ui`, or select a published `ui-v<version>` tag for a reproducible
+release. These are Git dependencies, not npm registry releases. Install the required peers
+`react`, `react-dom`, and `tailwindcss` as well; see `peerDependencies` in `package.json`.
 
-```json
-{
-  "dependencies": {
-    "@tale/ui": "github:tale-project/tale#dist/ui",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "tailwindcss": "4.2.2"
-  }
-}
+The consuming build must process TypeScript, React JSX, CSS, and YAML. Tale uses Vite and
+Tailwind v4 under Bun, with TypeScript `moduleResolution: "bundler"` and `jsx: "react-jsx"`.
+Register the YAML plugin in the consumer’s Vite configuration:
+
+```ts
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import { yamlImports } from '@tale/ui/vite/yaml';
+
+export default defineConfig({ plugins: [yamlImports(), react()] });
 ```
 
-Pin a release instead of the moving branch with `#ui-v<version>` (the tags the
-`publish-packages` workflow cuts on every Tale release) — Bun caches a git
-dependency by ref, so a moving branch only advances after
-`bun install --force` (or `bun pm cache rm`), while a tag is reproducible.
-Requirements on the consumer side:
+Run that build with `bun --bun vite build` and import `@tale/ui/globals.css` in the application
+stylesheet. Optional PWA and Storybook imports need the corresponding optional peers listed in
+`package.json`; a component consumer does not need to install the entire Storybook stack.
 
-- **Vite + Tailwind v4, run through Bun** (the package ships TypeScript
-  source, not a build — Node refuses to strip types under `node_modules`, so
-  `vite.config.ts` must load under Bun: `bun --bun vite build`, exactly the
-  scripts every Tale service uses). Register the YAML catalog loader and the
-  package's stylesheet:
+## Keep labels and documentation with their component
 
-  ```ts
-  // vite.config.ts
-  import { yamlImports } from '@tale/ui/vite/yaml';
-  export default defineConfig({ plugins: [yamlImports(), react()] });
-  ```
+Shared labels belong in `src/i18n/messages/{en,de,fr}.yml`, with sparse Swiss German overrides
+in `de-CH.yml`. The host merges package catalogs beneath its own keys, so a service override can
+hide a shared correction. Check the rendered label as well as key and ICU parity, following the
+[translation skill](../../.agents/skills/write-translations/SKILL.md).
 
-  ```css
-  /* globals.css */
-  @import '@tale/ui/globals.css';
-  ```
+The [Markdown registry](src/markdown/components/registry.tsx) defines the common docs components.
+Pass that registry to `Markdown` when rendering documentation components. Keep `<Frame>` tags
+on their own lines, separated from their contents by blank lines. The renderer protects the
+tag from HTML’s obsolete `frame` element so the figure and caption survive parsing; code
+examples remain literal.
+Product documentation follows the [product docs contract](../../docs/AGENTS.md); component
+examples follow the [design-system docs contract](../../services/ui-docs/content/README.md).
+Keep prop names, defaults, imports, and keyboard behavior aligned with the actual component.
 
-- **TypeScript** with `moduleResolution: "bundler"` and `jsx: "react-jsx"` —
-  the same `tsconfig` family every Tale-project repository extends.
-- **Peers**: `react`, `react-dom`, `tailwindcss`; `vite`/`vite-plugin-pwa`
-  only for the PWA plugin, the `storybook` family only for the shared Storybook
-  config.
+## Validate a change
 
-The package's own `dependencies` are complete (a guard test fails when a source
-import is undeclared), so nothing else needs installing.
+From the repository root:
 
-## Layout
-
+```bash
+bun run --filter @tale/ui typecheck
+bun run --filter @tale/ui lint
+bun run --filter @tale/ui test
+bun run --filter @tale/ui test:browser
 ```
-src/
-  components/<family>/   one folder per component family (+ tests + stories)
-  hooks/                 use-toast, use-copy, use-is-mobile, use-resize-observer, …
-  lib/                   cn, format, date, structural-equal, string, …
-  i18n/                  init glue, the catalog (messages/*.yml), the test framework
-  markdown/  seo/  server/  monitoring/  pwa/  theme/  icons/  storybook/  vite/
-  testing/               helpers consumers' tests may import (@tale/ui/testing/*)
-tests/                   vitest setup + the render / a11y utilities of this package
-```
+
+The unit project includes component, catalog, and dependency checks. The browser
+project exercises controls in Chromium. Run relevant stories and then verify the consuming app’s
+real workflow, including keyboard access, accessible names, focus, loading, disabled states, and
+error recovery. Follow the [repository contract](../../.agents/repo.md) for the remaining gates.

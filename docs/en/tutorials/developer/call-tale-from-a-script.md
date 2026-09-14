@@ -1,114 +1,135 @@
 ---
 title: Call Tale from a script
-description: Mint an API key and call the Tale REST API from a bash or Python script — the smallest end-to-end path from terminal to an assistant reply.
+description: Create an API key, choose an available model and print a completed assistant reply with Python.
 ---
+Send one message to Tale and print its reply in your terminal. This tutorial creates a personal chat thread, checks each HTTP response and waits for the assistant to finish. It uses Python 3’s standard library and curl; no Python package installation is needed.
 
-Calling Tale from a script is the path you reach for when you want a value back from the platform without opening the UI. The Tale API speaks JSON over HTTPS and accepts a bearer token in the `Authorization` header; from there, every endpoint group is a normal REST call. This walk takes you from "I want to script Tale" to an assistant reply printed in your terminal in one sitting.
+## Prepare access
 
-You need a Developer role (to mint API keys), the URL of your Tale instance, and a shell with `curl` and Python. The full API surface lives in the [API reference](/develop/api-reference); this page is the smallest end-to-end walk through it.
+You need a reachable Tale instance, permission to create an API key, your organization’s slug and a directly callable model. Admins and Developers can create keys. A model listed by Tale can still fail if the provider account has no credit or does not include that model.
 
-## Before you begin
+Open **Settings > API > REST**, choose **Create API key**, enter a name such as `Reporting script` and choose an expiration. Choose **Create key** and copy the secret shown once. Load it into `TALE_API_KEY` through your secret manager or a private shell environment; do not put it in the Python file or commit it.
 
-Confirm three things. Your instance is reachable on HTTPS — open `https://your-host.example.com` and check the dashboard loads. Your role is at least Developer — [API keys](/platform/admin/api-keys) are managed by Admin and Developer roles. You know a model your organization has configured — the API never auto-selects one, so every chat call names its model explicitly.
+<Frame caption="Give the key a recognizable purpose so you can revoke it without disrupting another integration.">
 
-## Step 1 — Mint an API key
+![The Create API key dialog asks for a descriptive name and an expiry before a key is generated.](/images/get-started/settings-api-keys.webp)
 
-The first move is creating an API key. The key is what every script call carries; without it the API returns 401, and you cannot read the key back after creation.
+</Frame>
 
-Create a key in the [API keys](/platform/admin/api-keys) panel and copy what it shows — Tale displays it once and never again. Store it as an environment variable for the rest of this walk:
+Set the non-secret connection values below. Use the slug, not the organization ID; send the header on every request so the script stays explicit if your account joins another organization.
 
 ```bash
-export TALE_API_KEY="<api-key>"
 export TALE_BASE_URL="https://your-host.example.com"
-export TALE_ORG_SLUG="<org-slug>"
+export TALE_ORG_SLUG="your-org-slug"
+export TALE_MODEL="model-id-from-the-catalog"
 ```
 
-The key acts as you in the organization selected by `TALE_ORG_SLUG`; your membership and role determine what it may do. When you belong to several organizations, the organization header is required on every request, reads included — without it the API answers `400` with `"code": "ORG_SLUG_REQUIRED"` and lists the slugs you may send. Store the key like a password.
+## Find a model you can call
 
-## Step 2 — Smoke-test with curl
-
-The smallest end-to-end check is listing the organization's automations. If this works, auth, networking, and the API are all good; if it fails, the failure mode tells you which one is broken.
+List the models available to this key holder:
 
 ```bash
-curl -sS --compressed "$TALE_BASE_URL/api/v1/automations" \
+curl --fail-with-body --silent --show-error "$TALE_BASE_URL/api/v1/models" \
   -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
 ```
 
-A 200 with a `{ "automations": [...] }` body confirms the round-trip. A 401 means the key is wrong; anything else means the instance is unreachable or the path is mistyped.
+A `200` response contains a `models` array. Set `TALE_MODEL` to an entry’s `id`. If the same ID appears under several providers, also set `TALE_PROVIDER` to the chosen `providerSlug`. An empty array means there is no directly callable model for this account; ask an admin to check credentials and model access.
 
-## Step 3 — Ask a model and read the reply
+## Send and wait for one reply
 
-Chat over the API is asynchronous: post a message, poll while the turn runs in the background, then read the reply. This example creates a personal thread with no project. For project chat, set `threads_url` to `f"{base}/api/v1/projects/{os.environ['TALE_PROJECT_ID']}/threads"`; all subsequent calls keep that scope, with no `projectId` in the body. You need read access to that active project, even as a Member.
+Save this as `tale-chat.py`, then run `python3 tale-chat.py` in the environment configured above. The script creates data in your personal chat history and may incur model usage charges.
 
 ```python
-import os, time, requests
+import json
+import os
+import time
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
-base = os.environ["TALE_BASE_URL"]
-auth = {
+base = os.environ["TALE_BASE_URL"].rstrip("/")
+headers = {
     "Authorization": f"Bearer {os.environ['TALE_API_KEY']}",
     "X-Organization-Slug": os.environ["TALE_ORG_SLUG"],
+    "Content-Type": "application/json",
 }
-threads_url = f"{base}/api/v1/threads"
 
-# 1. A thread of your own
-thread = requests.post(threads_url, headers=auth, json={}, timeout=30).json()
-thread_url = f"{threads_url}/{thread['id']}"
+def request(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = Request(f"{base}/api/v1{path}", data=data, headers=headers, method=method)
+    try:
+        with urlopen(req, timeout=30) as response:
+            raw = response.read()
+            return json.loads(raw) if raw else None
+    except HTTPError as error:
+        detail = error.read().decode(errors="replace")
+        raise SystemExit(f"HTTP {error.code}: {detail}") from error
 
-# 2. Send a message — name a model your org has configured. The 202 names
-#    the reply before the model has said a word: keep its id.
-sent = requests.post(
-    f"{thread_url}/messages",
-    headers=auth,
-    json={"content": "In one sentence: what is Tale?", "model": "<your-model>"},
-    timeout=30,
-)
-sent.raise_for_status()
-reply_id = sent.json()["messageId"]
+models = request("GET", "/models")["models"]
+model_id = os.environ["TALE_MODEL"]
+provider = os.environ.get("TALE_PROVIDER")
+candidates = [m for m in models if m["id"] == model_id
+              and (not provider or m["providerSlug"] == provider)]
+if len(candidates) != 1:
+    raise SystemExit("Choose one available model/provider pair from GET /api/v1/models")
 
-# 3. Poll until idle. A turn has no fixed deadline, so bound the loop
-#    yourself and stop a turn you gave up on.
+thread = request("POST", "/threads", {})
+path = f"/threads/{thread['id']}"
+sent = request("POST", f"{path}/messages", {
+    "content": "In one sentence: what is Tale?",
+    "model": candidates[0]["id"],
+    "providerSlug": candidates[0]["providerSlug"],
+})
+reply_id = sent["messageId"]
 deadline = time.monotonic() + 600
 while True:
-    poll = requests.get(f"{thread_url}/generation", headers=auth, timeout=30).json()
-    if poll["status"] == "idle":
+    generation = request("GET", f"{path}/generation")
+    if generation["status"] == "idle":
         break
-    if time.monotonic() > deadline:
-        requests.delete(f"{thread_url}/generation", headers=auth, timeout=30)
-        raise SystemExit("the turn did not settle in time")
+    if time.monotonic() >= deadline:
+        request("DELETE", f"{path}/generation")
+        raise SystemExit("Stopped the turn after the local 10-minute deadline")
     time.sleep(2)
-if poll.get("lastMessageId") != reply_id:
-    raise SystemExit("the turn never ran — check the thread's scope and your access")
 
-# 4. Read the reply by its id and check how it settled before trusting it
-reply = requests.get(f"{thread_url}/messages/{reply_id}", headers=auth, timeout=30).json()
+if generation.get("lastMessageId") != reply_id:
+    raise SystemExit("The accepted turn did not finish in this thread scope")
+reply = request("GET", f"{path}/messages/{reply_id}")
 if reply["status"] != "complete":
-    raise SystemExit(f"turn {reply['status']}: {reply.get('error', '')} {reply.get('errorCode', '')}")
-print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
+    raise SystemExit(f"Turn {reply['status']}: {reply.get('errorCode', '')} {reply.get('error', '')}")
+if reply.get("finishReason") == "length":
+    raise SystemExit("The reply reached its output limit; inspect it before using it")
+text = "".join(part["text"] for part in reply["parts"] if part.get("type") == "text")
+if not text:
+    raise SystemExit("The turn completed without a text answer")
+print(text)
 ```
 
-The send answers **202** before the work finishes and names the reply: `messageId` is the assistant message the answer lands in, and the poll answers `idle` with `lastMessageId` once that turn has settled. Read the message by its id and check `status` before you print anything: `complete` carries the text, `failed` carries `error` and `errorCode` (a model the provider's plan does not cover, an exhausted balance — a listed model can still fail), and `cancelled` whatever had streamed before a stop. A turn has no fixed deadline, so the loop bounds itself and cancels a turn it gave up on with `DELETE .../generation`. If you lose access or move the thread before the queued turn opens, the worker refuses it and the poll settles `idle` without your id; see the [API reference](/develop/api-reference) for the scope rules.
+The message endpoint returns `202` with `messageId` before generation finishes. The generation endpoint becoming `idle` means the turn has settled, not necessarily succeeded. The script then reads that specific assistant message and checks its status, output limit and text before printing.
 
-## Step 4 — Start an automation run
+<Tip>
 
-Choose an active project you can edit and an automation deployed for it, then set `TALE_PROJECT_ID` below. This example uses `billing/dunning`; names containing `/` use `__` in URLs, so it becomes `billing__dunning`. The start and poll both name the same project:
+Keep the thread ID when extending this into an integration. Send later messages to the same thread to preserve conversation context; creating a thread on every invocation starts a new conversation.
 
-```bash
-export TALE_PROJECT_ID="<projectId>"
-RUN=$(curl -sS --compressed -X POST "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/billing__dunning/runs" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" \
-  -H "Content-Type: application/json" -d '{ "input": {} }' | jq -r .runId)
+</Tip>
 
-curl -sS --compressed "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$RUN?fields=status,finishedAt" \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq .status
-```
+## Diagnose a failed request
 
-A live run needs your Developer role and project edit access. `{"mode": "mock"}` uses deterministic mocks but still requires project edit access. A 409 means no deployed version is available for this call. An automation with bindings must include the chosen project; install it there first if needed. The [API reference](/develop/api-reference) covers installation and non-project runs.
+| Result | Next action |
+| --- | --- |
+| `401` | Check whether the key expired, was revoked or was copied incorrectly. |
+| `400` with `ORG_SLUG_REQUIRED` | Supply the intended organization slug. |
+| `403` | Check the key holder’s membership and permissions. |
+| No model candidate | Read `/models` again and select an exact ID/provider pair. |
+| `429` | Honor `Retry-After`; see [Rate limits](/develop/rate-limits). |
+| Message status `failed` | Inspect `errorCode`; fix the provider account or model configuration before retrying. |
+| Network timeout | Check the instance and the existing thread before submitting another message. |
 
-## Where this fits
+A timed-out POST may already have been accepted. Do not blindly send it again: inspect the thread’s generation state and messages first.
 
-A script is the path you take when the data plane is JSON, not a screen — cron jobs, CI checks, internal portals. The API key carries your role, and anything that starts real work answers 202 and hands you something to poll.
+The ten-minute deadline belongs to this example, not to the server. A queued turn may be waiting behind other clients, and reasoning can keep a model active before any answer text appears. The script does not automatically repeat a failed send. For unattended retries, persist an `Idempotency-Key` of 1–255 printable ASCII characters with the request body, reuse both after a lost response, and honor `Retry-After` on `429`. See [safe message retries](/develop/api-reference#retry-a-send-safely).
 
-For inbound triggers — a third-party system POSTing into a Tale automation — see [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). For a model-driven client instead of a script, the [MCP endpoint](/develop/mcp-endpoint) exposes the same platform as tools. For the full endpoint inventory and error model, the [API reference](/develop/api-reference) is the single source of truth.
+## Extend the integration
+
+For project-scoped conversations, use `/api/v1/projects/{id}/threads` consistently for creation, messages, generation and reads. You need access to the active project; adding `projectId` to a personal-thread request does not switch its scope.
+
+The [API reference](/develop/api-reference) covers project access, message parts and automation runs. To start work when an external event arrives, continue with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).

@@ -1,66 +1,34 @@
 ---
-title: Develop
-description: Develop covers the API-consumer surface — REST API, the MCP endpoint, webhooks, connectors, AI-assisted development workflow, status page, rate limits.
+title: Build with Tale
+description: Connect another system to Tale, automate a workflow, or contribute to the application source.
 ---
 
-Develop is the section for integrators and contributors — anyone wiring Tale into another system, building on top of the API, or shipping a change to the source. The pages here describe the external surface (REST, webhooks, the MCP endpoint) and the contributor workflow.
+Use these guides when writing a client, connecting an external system, or changing Tale itself. Start with the smallest working request, then add the authentication, scope, and recovery handling your integration needs.
 
-If you are inside the product as a Developer-role user (staffing project agents, building automations), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
+## Choose a development task
 
-Prefer to watch first? The bonus episode walks the developer surface — keys, APIs, webhooks, harnesses — in two minutes.
+| What you want to build | Start here |
+| --- | --- |
+| A script that sends a message and reads the reply | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) |
+| A client for projects, tasks, files, or other resources | [API reference](/develop/api-reference) |
+| A connection from an MCP client | [MCP endpoint](/develop/mcp-endpoint) |
+| An automation triggered by another system | [Webhooks](/develop/webhooks) |
+| A filesystem client for documents | [WebDAV API](/develop/webdav-api) |
+| A new connector | [Connector development](/develop/connectors) |
+| A change to Tale's application code | [Contributor setup](/develop/contributor-setup) |
+
+## Make the first request reliable
+
+Choose the credential with the surface: REST and MCP use API keys, WebDAV uses an app password, and a webhook uses a secret trigger URL. These credentials are not interchangeable.
+
+Create a separate API key for each integration, send it only to the intended instance, and keep it out of source control. [Make your first API request](/get-started/developers) explains instance URLs and organization scope. For a long-running operation, distinguish the accepted request from its eventual result: poll the resource or run and handle a failed outcome.
+
+Read the [rate limits](/develop/rate-limits) before adding retries. Check [instance availability](/develop/status-page) when troubleshooting a connection. The API reference describes the error envelope and the generated specification for the current checkout.
+
+## Build inside the platform
+
+For agents, projects, and the automation editor, use the [Developer guide](/platform/developer/overview). [AI-assisted development](/develop/ai-assisted-development) explains how to combine authoring tools with validation and review.
 
 <Video src="/videos/en/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/en/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/en/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08)">
 
 </Video>
-
-## Pages in this section
-
-<CardGroup cols="2">
-
-<Card title="API reference" icon="code" href="/develop/api-reference">
-
-Endpoints, authentication, pagination, error model, versioning.
-
-</Card>
-
-<Card title="MCP endpoint" icon="network" href="/develop/mcp-endpoint">
-
-Point an MCP client at Tale — one inbound endpoint, twenty-two tools for authoring and running automations.
-
-</Card>
-
-<Card title="Webhooks" icon="webhook" href="/develop/webhooks">
-
-Inbound webhook triggers (you → Tale), token handling, idempotency, retries.
-
-</Card>
-
-<Card title="AI-assisted development" icon="sparkles" href="/develop/ai-assisted-development">
-
-Using Tale agents to author Tale workflows, the `.agents/` skill files.
-
-</Card>
-
-<Card title="Connectors" icon="plug" href="/develop/connectors">
-
-Third-party connectors from a developer perspective.
-
-</Card>
-
-<Card title="Status page" icon="activity" href="/develop/status-page">
-
-Cloud incident reporting, self-hosted metrics pointers.
-
-</Card>
-
-<Card title="Rate limits" icon="gauge" href="/develop/rate-limits">
-
-Per-key, per-IP, per-org limits and how to interpret 429s.
-
-</Card>
-
-</CardGroup>
-
-## Where this fits
-
-Develop is the smallest section because most users never need it; the audience is concentrated in two roles (in-product Developer, out-of-product contributor) but it is load-bearing for both. If you are wiring something external to Tale, [API reference](/develop/api-reference) is the first read; if you are contributing to the source, [Contributor setup](/develop/contributor-setup) and [Contributing to Docker images](/develop/contributing-docker) are.

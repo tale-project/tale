@@ -7,6 +7,9 @@ import {
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 
+import { navGroupTrail } from '@/lib/content/nav';
+import { useT } from '@/lib/i18n/client';
+
 import { createDocsSearchSource } from './source';
 
 interface SearchDialogProps {
@@ -38,6 +41,7 @@ export function SearchDialog({
   sectionLabel,
 }: SearchDialogProps) {
   const navigate = useNavigate();
+  const { t: tNav } = useT('nav');
 
   const source = useMemo(
     () => createDocsSearchSource({ locale, baseUrl }),
@@ -45,8 +49,16 @@ export function SearchDialog({
   );
 
   const getBreadcrumb = useCallback(
-    (result: SearchResult) => urlToBreadcrumb(result.href, sectionLabel),
-    [sectionLabel],
+    (result: SearchResult) => {
+      // Index IDs carry locale:slug, independent of the deployment base URL.
+      // Reuse the sidebar's hierarchy, including groups without an index page.
+      const slug = result.id.slice(result.id.indexOf(':') + 1);
+      const groups = navGroupTrail(slug);
+      return groups.length > 0
+        ? groups.map((key) => tNav(key.replace(/^nav\./, '')))
+        : urlToBreadcrumb(result.href, sectionLabel);
+    },
+    [sectionLabel, tNav],
   );
 
   const onSelect = useCallback(

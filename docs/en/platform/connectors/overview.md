@@ -1,78 +1,39 @@
 ---
-title: Connectors
-description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs.
+title: Connect Tale to external services
+description: Choose a connector, connect the intended account and understand where its read and write actions can run.
 ---
 
-A connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one waits in the **Add credential** catalog under **Settings > Connectors** for its first credential.
-
-Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
+Use a connector when Tale needs to read or change data in an external service. The connector defines supported actions; a credential authorizes the account those actions use. A Developer, Admin or Owner manages credentials under **Settings > Connectors**.
 
 <Video src="/videos/en/tutorials/ep7-connectors/ep7-connectors.en.mp4" poster="/videos/en/tutorials/ep7-connectors/ep7-connectors.en.webp" captions="/videos/en/tutorials/ep7-connectors/ep7-connectors.en.vtt" lang="en" title="Episode 7 — Connectors & the outside world" caption="Episode 7 — Connectors & the outside world (2:30)">
 
 </Video>
 
-## What a connector is
+## Choose the connection for the task
 
-There is nothing to install. Every connector arrives with the platform, which is why the catalog looks the same in every organisation and why an upgrade keeps it current without anyone maintaining it. A connector is a definition: a display name and a one-line description, the category tags it belongs to, the authentication methods it accepts, and the list of actions it can perform against the vendor.
+| Connector | Typical use | Authentication |
+| --- | --- | --- |
+| Confluence | Import Confluence Cloud pages into knowledge. | Username and password/token pair. |
+| Discord | Work with messages and channels. | Token. |
+| GitHub | Read or manage repositories, issues and pull requests. | Token. |
+| Gmail | Read, send and organize mail. | OAuth. |
+| Google Drive | Import files into knowledge. | OAuth. |
+| IMAP / SMTP Mailbox | Read or send mail through a private mail service. | Username and password. |
+| Microsoft Outlook | Work with mail, calendars and contacts. | OAuth. |
+| Shopify | Work with products, customers and orders. | API key. |
+| Slack | Work with messages and channels. | OAuth. |
+| Tavily | Search the web and extract pages. | API key. |
+| Microsoft Teams | Work with messages and channels. | OAuth. |
+| Twilio | Send SMS and make voice calls. | Username and password/token pair. |
+| WebDAV Files | Read, write and list the organization’s WebDAV files. | Username and password. |
 
-Because the definition is shared, the only thing your organisation decides is which accounts Tale may act as. That decision is a credential, and it is the whole of setup.
+The deployed catalog’s cards show the current actions and authentication methods. These definitions arrive with the platform; adding an account does not install arbitrary new connector code.
 
-## The connectors that ship
+Knowledge imports use the [document indexing pipeline](/platform/knowledge/documents). OneDrive and SharePoint use the import flow in **Knowledge > Documents**, with per-user consent, rather than a separate organization connector. Mounting Tale’s documents on your own device is the other direction; use [WebDAV](/platform/connectors/webdav).
 
-Thirteen connectors ship, each tagged with the category it belongs to — Knowledge, Messaging, Email, Developer, Commerce, Search, or Files. **Sign-in** is the authentication method the connector accepts, which decides what the credential form asks for; **Actions** is how many operations it exposes, the same count its card in the **Add credential** catalog shows.
+## Add the intended account
 
-| Connector               | What connecting it buys you                                                                                 | Sign-in             | Actions |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
-| **Confluence**          | Import Confluence Cloud pages into Tale's knowledge base.                                                   | Username & password | 2       |
-| **Discord**             | Post messages and manage channels in your Discord server.                                                   | Token               | 8       |
-| **GitHub**              | Manage repositories, issues, and pull requests on GitHub.                                                   | Token               | 19      |
-| **Gmail**               | Read, send, and organize email in Gmail.                                                                    | OAuth               | 9       |
-| **Google Drive**        | Import files from Google Drive into Tale's knowledge base.                                                  | OAuth               | 2       |
-| **IMAP / SMTP Mailbox** | Connect a private IMAP + SMTP mail server to Conversations — no Gmail or Outlook account required.          | Username & password | 3       |
-| **Microsoft Outlook**   | Manage Outlook mail, calendar, and contacts.                                                                | OAuth               | 10      |
-| **Shopify**             | Sync products, customers, and orders from your Shopify store.                                               | API key             | 9       |
-| **Slack**               | Send messages and interact with channels in Slack.                                                          | OAuth               | 7       |
-| **Tavily**              | Real-time web search and page extraction for AI research.                                                   | API key             | 2       |
-| **Microsoft Teams**     | Send messages and manage channels in Microsoft Teams.                                                       | OAuth               | 9       |
-| **Twilio**              | Send SMS and make voice calls with Twilio.                                                                  | Username & password | 7       |
-| **WebDAV Files**        | Read, write, and list files in the organisation's WebDAV store — the same files the `/dav` endpoint serves. | Username & password | 4       |
-
-Pages and files pulled in through Confluence or Google Drive run through the same indexing pipeline as a direct upload, and answers cite them back to the source — see [Documents](/platform/knowledge/documents). OneDrive and SharePoint import from Knowledge → Documents (per-user authorization), not as an org connector. The WebDAV connector is the write side of the same store your devices mount as a network drive, covered in [WebDAV](/platform/connectors/webdav).
-
-## Credentials on a connector
-
-A connector holds as many credentials as your organisation needs. One Slack workspace per business unit, one Shopify store per market, one mailbox per support queue — each is a separate row under the connector, with its own secret and its own state. That is what lets a single automation library serve several teams without any of them borrowing another's account.
-
-Each credential carries four things:
-
-- **Name** — the name an action uses to pick this credential. Write it for whoever reads the automation months from now: `Support inbox`, `EU store`, `Release bot`.
-- **Authentication method** — **API key**, **Token**, **Username & password**, or **OAuth**, chosen from what the connector accepts.
-- **Default** — one credential per connector can hold this. An automation node — or an agent's call through the broker — that names no credential uses the default.
-- **State** — a credential is either in use or **Disabled**. Disabling keeps the row and its configuration but stops anything calling through it.
-
-Leave a connector without a default and it still works for callers that name a credential outright, but a caller that names none has nothing to fall back on. The connector's section says as much, and the fix is to promote one of the existing credentials.
-
-<Note>
-
-Confluence and Shopify have no single vendor host — the API lives at your own Atlassian site or your own `myshopify.com` store. Both therefore ask each credential for an **Instance URL**, and their section carries the line _Each credential names its own instance_. Point Confluence at the address you open Confluence at, and Shopify at the store's admin origin rather than its storefront domain.
-
-</Note>
-
-## Connecting one
-
-Where you start depends on what the connector accepts. Token-shaped connectors open a form and take the secret directly; OAuth connectors send you to the vendor's consent screen and return with the credential already filled in. Both paths end in the same place — a named row under the connector.
-
-<Steps>
-
-<Step title="Open Settings > Connectors">
-
-The page is the table of credentials your organisation already holds — one row per credential with its name, its connector, and its authentication method. On a fresh organisation the table is empty; the shipped catalog waits behind **Add credential**.
-
-</Step>
-
-<Step title="Pick the connector">
-
-**Add credential** opens the catalog: connectors you already hold a credential for come first, the rest follow with their category tags and action counts, and search narrows the list. Picking one moves you to the setup step.
+Select **Add credential**, search for the service and choose its card. Connectors with existing credentials appear first, but you can add another account for the same service. The form asks for the authentication that connector supports.
 
 <Frame caption="Add credential opens on the catalog — the thirteen shipped connectors, with the ones you already hold a credential for listed first.">
 
@@ -80,40 +41,28 @@ The page is the table of credentials your organisation already holds — one row
 
 </Frame>
 
-</Step>
+Give the credential a name that identifies its purpose, such as `Support inbox` or `Release bot`. Use the external service’s credentials, not a Tale API key. For OAuth, complete the provider consent flow and check the returned account. If consent cannot start, an administrator may need to configure its OAuth app first.
 
-<Step title="Add the credential">
+Confluence and Shopify require an **Instance URL** per credential. Use the Atlassian site origin or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
 
-A connector that takes a key, a token, or a username and password shows its form and takes the secret directly. An OAuth connector offers **Connect** instead, which runs the vendor's consent flow and binds the result to a new row.
+## Choose which account an action uses
 
-</Step>
+An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist.
 
-<Step title="Name it, and make it the default">
+For example, two support mailboxes are two credential rows. Choose names that distinguish them and inspect a workflow’s resolved input before running it live. A default is a fallback for selection, not proof that every job should use that account. Mailbox operations designed to inspect all active accounts are a separate case.
 
-Give the credential a name your automations can point at, and promote it if it should be the one used when nobody names a credential. The connector's actions become available to automations — and, on the read side, to project agents — as soon as the row exists.
+Disabling a credential retains its configuration but stops use through it. Replacing its secret updates the account connection used by existing references. Check dependent workflows before disabling, deleting or changing the default.
 
-</Step>
+## Understand reads and writes
 
-</Steps>
+Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
 
-The per-method detail — what each form asks for, how to replace a secret, what happens when an authorization expires — lives on [Connector credentials](/platform/admin/connectors).
+Equipped project agents receive supported read actions through Tale’s connector broker. It keeps those connector credentials outside the sandbox and returns results. The broker refuses connector writes. Direct GitHub tooling or explicit agent secrets use separate paths and must be reviewed separately.
 
-## Actions in automations and agent runs
+Adding a credential does not add arbitrary tools to the ordinary Chat assistant. Use [automations](/platform/automations/editor) for a defined connector workflow and [project agents](/platform/projects/project-agents) for sandbox work.
 
-Every action a connector declares has a name, a description, an input schema, an output signature, and a declared effect of `read` or `write`. Automations place an action as a node in the workflow editor; a project agent reaches the read actions from its sandbox through a broker that runs them with the stored credential and hands back only the result. Chat reaches none of them — the chat assistant's tools are fixed and read-only. Either way the call resolves a credential first — the one the caller names, or the connector's default — and fails clearly when neither exists.
+## When the service is missing
 
-<Warning>
+An equipped agent can use a narrowly scoped secret to call a service from its sandbox. A `transform` node only reshapes data and cannot make an external API request. Review the permissions and expected effects before choosing a direct integration.
 
-Write actions change something in the other system: a message posted, an issue opened, an SMS sent. They run only from an automation, and they gate behind your organisation's approval policy, so the run parks and a person releases the call on the run's detail page. Read [Configure approvals](/platform/approvals/configure) before pointing an automation at one.
-
-</Warning>
-
-## When no connector fits
-
-Thirteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. Registering your own MCP server for agents to call is not part of this version — what bridges that gap is your own code in one of two places. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — and calls the service straight from its sandbox. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes, on a schedule or a webhook.
-
-The one MCP surface Tale ships points the other way: your MCP client connects to Tale under **Settings > API > MCP**, as [MCP servers](/platform/connectors/mcp-servers) explains.
-
-## Where this fits
-
-Connectors are how Tale reaches the systems your work already lives in, and credentials are how you decide which accounts it may act as. From here, [Connector credentials](/platform/admin/connectors) is the operations side — adding, replacing, disabling, and reconnecting the rows under each connector. [Project agents](/platform/projects/project-agents) shows how a connector's actions arrive in an agent's equipment, [Configure approvals](/platform/approvals/configure) holds the write ones, and [MCP servers](/platform/connectors/mcp-servers) says what replaced outbound MCP servers in this version.
+If the external application needs to call Tale, use the [REST API](/develop/api-reference) or [MCP endpoint](/develop/mcp-endpoint). [MCP and custom integrations](/platform/connectors/mcp-servers) explains that distinction.

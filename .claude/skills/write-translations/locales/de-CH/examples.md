@@ -1,19 +1,22 @@
-# de-CH — examples
+# Swiss German edits
 
-Two override examples. For everything else, read [DE examples](../de/examples.md) and apply the spelling/currency overrides below.
+These examples change presentation while preserving the fact.
 
-## Override #1 — `ß → ss`
+## Spelling
 
-**DE base.** _Klicke auf **Schließen**, um die Sitzung zu beenden. Der Standardmäßig aktivierte Schutz greift, wenn die Anfrage größer als 10 MB ist._
+DE: “Prüfe die Größe der Datei.”
 
-**de-CH override.** _Klicke auf **Schliessen**, um die Sitzung zu beenden. Der Standardmässig aktivierte Schutz greift, wenn die Anfrage grösser als 10 MB ist._
+de-CH: “Prüfe die Grösse der Datei.”
 
-**Why.** Every sharp-s is `ss`. The rest is identical to DE.
+Use `ss` in written Swiss Standard German. Code, filenames, and exact catalog labels keep their
+specified bytes.
 
-## Override #2 — currency + numbers
+## Numbers and currency
 
-**DE base.** _Der Plan kostet 100 € pro Monat. Bis zu 1.000 Anfragen sind enthalten._
+DE: “Der Beispielbetrag ist 1.000 USD.”
 
-**de-CH override.** _Der Plan kostet CHF 100 pro Monat. Bis zu 1'000 Anfragen sind enthalten._
+de-CH: “Der Beispielbetrag ist 1'000 USD.”
 
-**Why.** `CHF` prefix (with NBSP), apostrophe thousands separator. The decimal would also be a period if the example had one (`2.5` not `2,5`).
+The thousands separator changes. Both sentences describe one thousand US dollars. It would be
+wrong to replace USD with CHF. Use the docs currency-check exception with an explanation when a
+locale heuristic rejects the factual currency.

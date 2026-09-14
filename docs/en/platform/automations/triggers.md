@@ -1,25 +1,45 @@
 ---
-title: Automation triggers
-description: The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy.
+title: Start automations automatically
+description: Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts.
 ---
 
-A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation carries one trigger at a time — binding a different kind replaces the one it has, and replacing a webhook with a schedule or an event revokes the webhook's URL on the spot (the save says so, and no later webhook bind brings that URL back). The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
+Use the automation’s **Trigger** panel when work should start on a schedule or in response to an event. Every trigger starts the deployed version in live mode. Before enabling one, test the workflow with the input shape it will receive and check that its external actions are ready.
 
-Every trigger fires against the automation's deployed version and runs in live mode, so an automation with no deployment cannot be started by one. Each trigger carries an on-off switch and keeps two records of its own: the last run it started, and the last time it came due and started nothing — with the reason, so an automation that is not running tells you why.
+## Choose how the automation starts
 
-## The three kinds
+| Trigger type | Use it for | Input passed to the run |
+| --- | --- | --- |
+| **Schedule** | Periodic work at a local time or regular interval. | `{ trigger: "schedule", firedAt: "…" }` |
+| **Webhook** | A delivery from another system. | `{ trigger: "webhook", payload: … }` |
+| **Platform event** | A named event inside the organization. | `{ trigger: "event", event: "…", payload: … }` |
 
-| Kind       | Starts the automation when …                         |
-| ---------- | ---------------------------------------------------- |
-| `schedule` | A cron expression comes due in a named IANA timezone |
-| `webhook`  | An external system posts to a token-guarded URL      |
-| `event`    | A named platform event happens                       |
+An automation has one configured trigger at a time. Changing its type replaces the previous binding. Replacing a webhook revokes its URL immediately; configuring another webhook later does not recover that credential.
 
-A programmatic start needs no trigger: an API client starts project work with `POST /api/v1/projects/{id}/automations/{name}/runs`. An automation without project bindings can also start without a project at `POST /api/v1/automations/{name}/runs`. The caller's API key and project permissions authorize the operation; the MCP `start_run` tool provides another entry point. See the [API reference](/develop/api-reference).
+An API or MCP client can also start work without a configured trigger. Its API key and project permissions authorize the request, and it sends the workflow’s input directly. See the [API reference](/develop/api-reference).
 
-## Schedules
+## Set a schedule
 
-A schedule carries a five-field cron expression and the IANA timezone it is read in. The fields are minute, hour, day of month, month, and day of week, and each accepts a `*`, a number, a range, a step, or a comma-separated list of those.
+<Steps>
+
+<Step title="Open the trigger settings">
+
+Open the automation and its **Trigger** panel. Choose **Schedule** under **Trigger type**. Keep **Enabled** off while preparing a workflow that should not start yet.
+
+</Step>
+
+<Step title="Enter the timing">
+
+Fill **Cron** and choose **Timezone**. A cron expression has five fields: minute, hour, day of month, month and day of week. Use an IANA timezone such as `Europe/Zurich` when local business hours matter; an unspecified timezone means UTC.
+
+</Step>
+
+<Step title="Check and save">
+
+Review the next occurrence shown for a valid expression, then save the settings. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, enable the trigger and save. Check the next started run under **Runs**.
+
+</Step>
+
+</Steps>
 
 ```text
 */15 * * * *     every fifteen minutes
@@ -28,72 +48,55 @@ A schedule carries a five-field cron expression and the IANA timezone it is read
 30 8 1 * 1       08:30 on the 1st and on every Monday
 ```
 
-Day of week runs 0 to 7 with both 0 and 7 meaning Sunday. When you restrict both day of month **and** day of week, a day matching either one fires — the same rule crontab uses, which is what makes the last example read the way it behaves.
+Fields support `*`, numbers, ranges, steps and comma-separated lists. Both 0 and 7 mean Sunday. If both day-of-month and weekday are restricted, either match is enough; the last example runs on Mondays as well as the first day of each month.
 
-The timezone is resolved as wall-clock time, so a schedule written for 09:00 in `Europe/Zurich` stays at 09:00 across a daylight-saving change instead of drifting an hour twice a year. A schedule that names no timezone is read in UTC.
+Local time follows the timezone’s daylight-saving rules. A 09:00 Zurich schedule stays at 09:00 locally. Timing has one-minute resolution. Missed occurrences during an outage are not replayed; work resumes at the next occurrence. Impossible calendar dates are rejected when saving.
 
-Resolution is one minute, and a schedule is a heartbeat rather than a queue: after an outage the automation resumes at its next occurrence instead of replaying the ones it missed. A cron that names a date no calendar has — `0 0 30 2 *`, or the 31st in a month with thirty days — is refused when you save it, so a schedule that binds is one that will come due. Should a saved expression still turn out unreadable (a time zone the platform no longer knows, say), the scheduler skips it rather than stopping the platform's other schedules, records the skip on the trigger as `unusable_cron`, and leaves it alone until you edit it. A schedule's last-fired time moves only when a run actually started; a schedule that comes due with nothing deployed records `not_deployed` instead, and one whose deployed version refuses the run's input records `start_refused` — read the trigger and you know which.
+## Receive a webhook
 
-## Webhooks
+Choose **Webhook**, then save to generate the credential. Copy the full URL when it appears: the token is shown once and only its hash is stored. The panel supplies an organization URL and a project URL pattern. Use the project URL for an active project in which the automation is installed; an automation with project bindings cannot run through the organization-only URL.
 
-A webhook is an inbound URL guarded by a token. Creating one mints the token and shows it once; only its hash is stored, so the platform can verify a caller without ever being able to reproduce the URL. Any system that posts to it starts a run, and the request body becomes the run's payload.
+Post a small payload to the URL. JSON becomes `payload` inside the input wrapper, not the workflow’s top-level input. Other request bodies pass through as text. The limit is 256 KiB; upload large documents separately. An accepted request returns a run ID without waiting for completion.
 
-```bash
-curl -X POST "https://<your-tale-host>/api/projects/<projectId>/automations/webhook/<token>" \
-  -H 'Content-Type: application/json' \
-  -d '{"invoiceId": "inv-1"}'
+For example, a posted `{ "invoiceId": "inv-1" }` reaches the workflow as:
+
+```json
+{
+  "trigger": "webhook",
+  "payload": { "invoiceId": "inv-1" }
+}
 ```
 
-A successful call is accepted immediately and answers with the id of the run it started, so the caller never waits for the automation to finish. A body that is not JSON is handed through as text rather than refused, because some vendors post form or plain-text payloads. Bodies are capped at 256 KiB (262,144 bytes) — a webhook takes a payload, not an upload.
-
-Deliveries are idempotent, because every vendor delivers at least once — a slow response, a dropped connection, or someone pressing _redeliver_ sends the same delivery again. A request that names its delivery (`Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, and the other common vendor headers) is remembered for 24 hours: a repeat with the same id answers with the run the first one started, flagged `duplicate: true`, instead of starting another. A request without an id is recognised by its body — a byte-identical body posted to the same URL within two minutes is the same delivery. Distinct deliveries each run; if your payloads can legitimately repeat inside two minutes, send an id. [Webhooks](/develop/webhooks) has the full header list and the response shapes.
-
-The example URL names the project that will receive the run. The automation must be installed in that active project, in the token's organization. The token cannot select any other project: a project it cannot run in — one that does not exist, is archived, or where the automation is not installed — answers **403** `AUTOMATION_PROJECT_FORBIDDEN`, one refusal for all three so a leaked URL cannot probe your project ids. For an automation with no project bindings, `/api/automations/webhook/{token}` starts a non-project run; a bound automation answers **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED` there — use its project URL. A `projectId` query parameter answers **400** `INVALID_QUERY`. Delivery IDs and body deduplication apply separately to each project URL. Poll a project delivery through `/api/v1/projects/{id}/runs/{runId}` with an API key that can read the project.
-
-Two refusals are worth recognising. An unknown token and a token belonging to a switched-off trigger both answer the same way, deliberately, so that nobody can probe the platform for which tokens exist. An automation with no deployed version answers with a conflict instead, which tells you the URL is fine and the deployment is missing.
+Use a delivery ID, such as `Idempotency-Key` or the sender’s supported delivery header. Repeating that ID within 24 hours returns the original run. Without an ID, an identical body on the same URL within two minutes is treated as a duplicate. Send distinct IDs if identical payloads represent separate work. [Webhooks](/develop/webhooks) lists supported headers, project routes, errors and response formats.
 
 <Warning>
 
-The token in the URL is the credential. Anyone holding the URL can start the automation, so store it the way you store a password, hand it out over a secure channel, and delete the trigger to revoke it — there is no way to recover the token afterwards.
+The URL authorizes a run. Store it as a credential and share it only with the sending system. **Rotate token** generates a replacement and invalidates the old URL; removing or replacing the trigger also revokes it. Update the sender after a rotation.
 
 </Warning>
 
-## Events
+## React to a platform event
 
-An event trigger names a platform event and fires whenever that event happens in the organization. The event's payload becomes the run's input, which makes this the kind to reach for when the automation's job is to react to something the platform itself just did.
+Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. Events raised by automation runs do not fire triggers, preventing a workflow from repeatedly starting itself through its own changes.
 
-<Note>
+A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger panel does not provide arbitrary saved input fields.
 
-An event raised by an automation's own run never fires triggers. An automation that writes a record, which raises an event, which starts the same automation, is an unbounded loop that no per-run limit can stop, so the platform refuses at the point of dispatch instead.
+## Diagnose a missing start
 
-</Note>
+First check **Enabled**, the deployed version and the last-fired information. Then inspect any recorded skip reason:
 
-## What each kind carries into the run
+| Reason or symptom | What to check |
+| --- | --- |
+| `not_deployed` | Deploy a tested version. A saved draft is insufficient. |
+| `start_refused` | Compare the deployed input schema with the trigger’s actual wrapper and resolve the reported validation or start error. |
+| `unusable_cron` | Correct the expression or timezone and save it again. Other schedules continue while this one is skipped. |
+| Webhook credential refused | Check the current URL and enabled state. Unknown and disabled tokens intentionally receive the same refusal. |
+| Run exists but did not finish | Open [execution logs](/platform/automations/execution-logs); the start succeeded and the issue is inside the run. |
 
-The input an automation receives says which kind started it, so a single document can serve more than one trigger and branch on the difference.
+The last-fired timestamp advances when a run actually starts. A due trigger that cannot start work records a skip instead. This separates a broken schedule from a workflow that started and later failed.
 
-| Kind       | The run's input                                           |
-| ---------- | --------------------------------------------------------- |
-| `schedule` | The trigger kind and the occurrence time it fired for     |
-| `webhook`  | The trigger kind and the posted body as the payload       |
-| `event`    | The trigger kind, the event name, and the event's payload |
+## Pause or replace the trigger
 
-An API-started run carries exactly the `input` the caller sent.
+Turn off **Enabled** and save to pause starts while retaining the configuration and run history. Re-enable it to resume. **Remove trigger** deletes the binding; for a webhook, its URL becomes unusable.
 
-Declare the shape you expect in the document's `inputs` schema and the reference to it validates before the automation ever runs.
-
-## Deploying does not disturb them
-
-Because a trigger names the automation rather than a version, the whole set survives every deploy and every rollback. Publish a webhook URL to a partner, deploy eleven more versions, roll back twice, and that URL keeps working and keeps hitting whatever is live at the time.
-
-The same holds in the other direction: adding, editing, or removing a trigger changes nothing about the document or its versions. Triggers and versions are two independent things about the same automation.
-
-## Turning one off without losing it
-
-Every trigger has an enabled flag, and switching it off is the way to stop an automation firing without giving anything up. A disabled schedule stops coming due, a disabled webhook URL stops being honoured, and a disabled event trigger stops matching — while the row, its configuration, and the automation's whole run history stay exactly where they were. Switch it back on and it resumes.
-
-Deleting a trigger is the permanent version of the same thing, and for a webhook it is also how you revoke the URL. Reach for the switch when you want a pause and for deletion when you want the credential gone.
-
-## Where this fits
-
-Three kinds, one behaviour: each starts the deployed version in live mode, each records the last run it started and the last time it came due without one, and each can be paused without being lost — and none of them care how many times you have deployed since. [Automation concepts](/platform/automations/concepts) explains why binding to the name is what makes that true; [Execution logs](/platform/automations/execution-logs) shows the runs your triggers produced and which one started each.
+Triggers belong to the automation’s name, not a version. Deploying or rolling back keeps the same schedule or URL and changes which version future starts execute. Editing a trigger does not create a workflow version, so review trigger settings alongside any deployment that changes expected inputs.

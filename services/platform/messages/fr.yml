@@ -360,9 +360,7 @@ auth:
     loginButton: Se connecter
     continueWithSso: Continuer avec SSO
     ssoTitle: Se connecter avec SSO
-    ssoDescription:
-      Saisis l’adresse e-mail de ton organisation — elle détermine la
-      connexion à utiliser.
+    ssoDescription: Choisis ton organisation pour continuer vers son fournisseur d’identité.
     ssoOrgListLabel: Organisations
     ssoBackToLogin: Retour à la connexion
     ssoNoOrganizations:
@@ -621,6 +619,12 @@ automations:
       réelle lance la version en service.
     runLiveTitle: Exécuter en réel ?
     runLiveBody: Lance la version déployée pour de vrai — des e-mails partent, des données changent. L’automatisation ne se relancera pas automatiquement.
+    runInput:
+      label: Données de l’exécution (JSON)
+      description: 'Données pour la version enregistrée {version}. Elles ne modifient pas l’automatisation.'
+      schema: Schéma des données
+      invalid: 'Les données ne respectent pas le schéma. Vérifie ces champs : {paths}.'
+      mockDescription: Teste la version enregistrée avec des réponses simulées. Aucune action externe n’est exécutée.
     runScope:
       label: Portée du projet
       orgWide: Toute l’organisation
@@ -2354,12 +2358,16 @@ documents:
             Demande à un administrateur de ton organisation d'en configurer
             un, puis relance l'indexation.
       unsupported:
-        title: Format non pris en charge
+        title: Indexation impossible
         description:
-          Ce type de fichier n'a pas d'extracteur de texte, il ne peut donc
-          pas être indexé pour la recherche RAG. Convertis-le dans un format
-          pris en charge (PDF, DOCX, TXT, …) puis retélécharge-le pour le rendre
-          consultable.
+          Le contenu de ce fichier ne peut pas être indexé. Importe une version
+          texte lisible ou un document pris en charge dont le texte peut être extrait.
+        reasons:
+          unsupported_type: Aucun extracteur de texte ne prend en charge ce type de fichier.
+          image_no_vision: L’indexation des connaissances n’extrait pas de texte des images.
+          empty: Le fichier ne contient aucun texte à indexer. Il est vide, composé uniquement d’espaces, ou issu d’un scan sans couche de texte.
+          not_text: Le fichier contient des données binaires plutôt que du texte lisible. Exporte-le en texte UTF-8.
+          malformed: Le fichier ne peut pas être lu dans le format indiqué. Il peut être endommagé ou protégé par mot de passe.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive
@@ -4403,14 +4411,10 @@ personalization:
       overridingOrgDefault: Remplace la valeur par défaut de l'organisation ({state}).
     customInstructionsToggle:
       label: Instructions personnalisées
-      description:
-        Quand activées, l'assistant ajoute tes instructions personnalisées
-        en tête de chaque réponse.
+      description: "Enregistre les préférences de ton compte. Le chat n’utilise pas ces instructions actuellement. Pour les chats de projet, utilise les instructions du projet."
     memoriesToggle:
       label: Souvenirs
-      description:
-        Quand activés, l'assistant peut enregistrer et réutiliser les faits
-        que tu approuves à ton sujet d'une conversation à l'autre.
+      description: "Gère les souvenirs enregistrés de ton compte. L’assistant de chat n’enregistre ni ne récupère automatiquement de souvenirs actuellement."
     customInstructions:
       title: Instructions personnalisées
       placeholder:
@@ -4418,9 +4422,7 @@ personalization:
         pour le code.
     memories:
       title: Souvenirs enregistrés
-      empty:
-        Les souvenirs apparaissent ici après que l'assistant en propose et que tu
-        les enregistres.
+      empty: "Aucun souvenir enregistré."
       delete: Supprimer
       deleteLabel: 'Supprimer le souvenir : {content}'
     pending:
@@ -4747,7 +4749,7 @@ skills:
     license: Licence
     recommendedPython: Python recommandé
     recommendedNode: Node recommandé
-    disableModelInvocation: Skill masqué au modèle — invocation explicite uniquement.
+    disableModelInvocation: Demande un usage explicite de ce skill ; ne restreint pas l'accès.
     unknownKeys: '{count, plural, one {# entrée frontmatter supplémentaire
       conservée} other {# entrées frontmatter supplémentaires conservées}}'
     sharingHeading: Partage
@@ -5094,9 +5096,8 @@ settings:
   connectors:
     searchPlaceholder: Rechercher des connectors
     sectionDescription:
-      Les identifiants avec lesquels cette organisation s'authentifie auprès
-      des services connectés. Chacun ouvre les actions de son service aux
-      automatisations et au chat.
+      Gère les identifiants que ton organisation utilise pour les actions
+      des connectors dans les workflows et les outils compatibles de la plateforme.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:
@@ -5113,8 +5114,8 @@ settings:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       connect: Connecter
       emptyBodyOauth:
-        Connecte {connector} pour accorder l'accès à Tale, et ses actions
-        deviennent disponibles dans les automatisations et le chat.
+        Connecte {connector} pour que les workflows configurés et les outils
+        compatibles de la plateforme puissent utiliser ce compte.
       oauthAppMissing:
         "{connector} n'a pas encore d'app OAuth pour se connecter. Demande à
         un admin de ton organisation de la configurer dans Paramètres >
@@ -5407,11 +5408,7 @@ settings:
           Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft
           Graph GroupMember.Read.All sous Autorisations d'API et accordez le
           consentement administrateur.
-        s8: Pour la synchronisation de documents OneDrive/SharePoint, ajoute les
-          autorisations Microsoft Graph Files.Read et Sites.Read.All sous
-          Autorisations d'API et accorde le consentement administrateur. Si tu
-          veux uniquement la connexion, retire ces deux scopes du champ Scopes
-          ci-dessus.
+        s8: L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas Files.Read ou Sites.Read.All aux scopes SSO pour la connexion. Configure l’accès à l’import dans les paramètres des apps OAuth des connecteurs.
       google:
         intro:
           Créez un client OAuth dans la console Google Cloud, puis saisissez ses
@@ -5666,13 +5663,8 @@ settings:
       resultValidTitle: Chaîne vérifiée
       resultValidBody: '{count, plural, one {# entrée vérifiée} other {# entrées
         vérifiées}} — aucune altération détectée.'
-      truncatedNote:
-        Seules les {count} premières entrées ont été vérifiées. Relance
-        la vérification pour poursuivre le long de la chaîne.
-      unsignedScrubNote: "{count, plural, one {# entrée a été validée via un
-        enregistrement d'effacement non signé} other {# entrées ont été validées
-        via des enregistrements d'effacement non signés}}. Vérifie ta clé de
-        signature d'audit."
+      truncatedNote: "Seules les {count} premières entrées ont été vérifiées. Demande à l’opérateur de ton installation de vérifier la suite."
+      unsignedScrubNote: "{count, plural, one {# entrée effacée n’a pas de demande d’effacement correspondante} other {# entrées effacées n’ont pas de demande d’effacement correspondante}}. Examine les demandes d’effacement avant de te fier à cet historique."
       brokenTitle: Intégrité de la chaîne rompue
       brokenBody: La chaîne de hachage ne correspond pas à l'entrée ci-dessous.
         Conserve cette preuve avant toute modification.
@@ -6567,7 +6559,7 @@ tasks:
     addDescription: Ajouter une description…
     noDescription: Aucune description.
     moreFields: Autres champs
-    parentCloseGuard: Terminez toutes les sous-tâches avant de clôturer cette tâche.
+    parentCloseGuard: Termine toutes les sous-tâches avant de clôturer cette tâche.
     dependencies: Dépendances
     blockedBy: Bloqué par
     blocks: Bloque
@@ -6824,9 +6816,7 @@ twoFactor:
       configuration de l'authentification à double facteur.
     disablePromptDescription: Confirme ton mot de passe pour désactiver
       l'authentification à double facteur.
-    disableEnforcedWarning: Votre organisation exige l'authentification à double
-      facteur. Si vous la désactivez, vous devrez la reconfigurer à votre
-      prochaine connexion.
+    disableEnforcedWarning: Ton organisation exige l'authentification à double facteur. Si tu la désactives, tu devras la reconfigurer à ta prochaine connexion.
     regeneratePromptDescription: Confirme ton mot de passe. Générer de nouveaux
       codes invalide tous les codes de secours précédents.
   passkeys:
@@ -7130,7 +7120,7 @@ projects:
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier
-    folderDeleteHeld: Un fichier de ce dossier est sous conservation légale — levez-la d'abord.
+    folderDeleteHeld: Un fichier de ce dossier est sous conservation légale — lève-la d'abord.
     folderDeleteAction: Supprimer le dossier
     folderDeleteConfirm:
       Supprimer « {folder} » et tout son contenu ? Les fichiers

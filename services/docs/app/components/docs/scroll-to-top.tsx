@@ -1,5 +1,6 @@
 import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -18,6 +19,7 @@ const SCROLL_THRESHOLD_PX = 600;
  */
 export function ScrollToTop() {
   const { t } = useT('docs');
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -38,7 +40,12 @@ export function ScrollToTop() {
       aria-label={t('backToTop')}
       aria-hidden={!visible}
       tabIndex={visible ? 0 : -1}
-      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      onClick={() =>
+        window.scrollTo({
+          top: 0,
+          behavior: reducedMotion ? 'instant' : 'smooth',
+        })
+      }
       className={cn(
         'fixed right-6 bottom-6 z-30 rounded-full transition-opacity duration-200 motion-reduce:transition-none print:hidden',
         visible ? 'opacity-100' : 'pointer-events-none opacity-0',

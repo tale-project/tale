@@ -1,6 +1,6 @@
 import type { TocEntry } from '@tale/ui/markdown/extract-toc';
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 
@@ -43,4 +43,39 @@ describe('DocsToc', () => {
     const { container } = render(<DocsToc entries={ENTRIES} />);
     await checkAccessibility(container);
   });
+});
+
+describe('outline motion preference', () => {
+  it.each([false, true])(
+    'uses the current reduced-motion preference: %s',
+    (reduced) => {
+      const matchMedia = vi
+        .spyOn(window, 'matchMedia')
+        .mockImplementation((query) => ({
+          matches: reduced,
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(() => true),
+        }));
+      render(
+        <>
+          <DocsToc entries={ENTRIES} />
+          <h2 id="sizes">Target section</h2>
+        </>,
+      );
+      const target = screen.getByRole('heading', { name: 'Target section' });
+      const scroll = vi.spyOn(target, 'scrollIntoView').mockClear();
+      fireEvent.click(screen.getByRole('link', { name: 'Sizes' }));
+      expect(scroll).toHaveBeenCalledWith({
+        behavior: reduced ? 'instant' : 'smooth',
+        block: 'start',
+      });
+      scroll.mockRestore();
+      matchMedia.mockRestore();
+    },
+  );
 });

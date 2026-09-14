@@ -129,6 +129,31 @@ describe('AuditIntegrityPanel', () => {
     expect(
       screen.getByText(/Only the first 1000 entries were checked/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Ask your deployment operator to verify the remaining range/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('directs an uncovered scrub finding to erasure records', () => {
+    state.verify = {
+      data: {
+        valid: true,
+        verifiedCount: 42,
+        checkpointsVerified: 0,
+        truncated: false,
+        unsignedScrubCount: 2,
+      },
+      isPending: false,
+      isError: false,
+      mutate: vi.fn(),
+    };
+    renderPanel();
+    expect(
+      screen.getByText(/2 scrubbed entries have no matching erasure request/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/signing key/)).not.toBeInTheDocument();
   });
 
   it('renders broken-chain details and wires the open-row button', async () => {

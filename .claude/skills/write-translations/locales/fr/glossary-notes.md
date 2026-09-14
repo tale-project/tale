@@ -1,15 +1,11 @@
-# FR — glossary notes
+# French terminology context
 
-Locale-specific term notes that exceed the glossary's `_note` field.
+French usage varies by region and surface. When choosing between terms such as `courriel` and
+`e-mail`, inspect the current glossary and catalog context; do not copy a stale table from this
+skill. A visible label follows the shipped message, while ordinary prose needs natural wording.
 
-## `e-mail` vs `Courriel`
+Bold is sufficient for a named UI control. Do not add guillemets inside the bold text if the
+control does not contain them: adding punctuation makes an exact label look different.
 
-French has two acceptable forms: `Courriel` (formal/Canadian) and `e-mail` (conversational/European French). Tale's marketing site uses `e-mail`; the docs use `Courriel`. The glossary entry for `Email` uses `Courriel` for terminology checks; reviewers accept `e-mail` in conversational marketing prose.
-
-## `Engineering` as job-title
-
-In job-title context (`Engineering team`, `VP of Engineering`), the English form is conventional. Bucket-3 translation (`Ingénierie`) applies in prose; the glossary entry has `_note` flagging the job-title carve-out.
-
-## Quoted UI labels in prose
-
-When a French page references the shipped UI label and the label is itself a French translation, both `« »` quotation and bold should be applied per house style: `Ouvre l'onglet **« Base de connaissances »**`. Reviewers catch ambiguous cases.
+Resolve an English loanword according to its meaning and audience. Retaining a Git identifier does
+not justify English word order or an unexplained noun chain in a French sentence.

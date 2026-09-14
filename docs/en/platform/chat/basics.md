@@ -1,101 +1,75 @@
 ---
-title: Chat basics
-description: What happens between hitting send and the reply landing — the composer's choices, what the model is given, the three retrieval tools, and how to read the thought timeline and sources.
+title: Ask questions in chat
+description: Send a message, choose a model, check the answer’s sources, and keep a useful conversation.
 ---
 
-This page is the mental model for everything in the Chat tab. It names the parts of the composer, traces a message from key-press to streamed reply, says exactly what the model is handed and what it may call along the way, and shows how to read what came back. Read it once and the rest of the chat pages are variations on the same flow.
+Use chat to ask questions, understand a document, or investigate information in Tale. The assistant can search accessible knowledge and read public pages. Start with a specific question, then use follow-up messages to narrow the answer.
 
-<Frame caption="The Chat tab with a streamed reply above the composer.">
+<Frame caption="The conversation keeps your question, the assistant’s steps, and its reply together.">
 
-![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)
-
-</Frame>
-
-## The composer
-
-The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu holds the model choice — **Auto**, the default, lets Tale pick a model per message, or you name one — and, for a named model that exposes it, the reasoning effort. That is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Add photos & files** and, on chats that can host one, **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) is the speaker toggle beside the microphone, and the microphone dictates into the field.
-
-While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
-
-### Attachments
-
-Drag files from your desktop anywhere onto the composer — an overlay says **Drop files here to upload** while you hover — paste a screenshot straight into the message field, or pick files through the `+` menu's **Add photos & files**. Chat takes images, documents (PDF, Office, OpenDocument, CSV), text-based files, and audio/video. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Everything else stages as a named chip that tracks its processing: the organisation's transcription model turns audio and video into text, and documents are indexed for retrieval. Sending never waits on a progress bar — a message sent while files still process parks above the composer and goes out by itself the moment everything is ready; its ✕ abandons the queued send and puts the text back. Up to ten files ride one message.
-
-Paste a video link (YouTube, Vimeo, Bilibili and friends) and it becomes a chip too: Tale fetches the captions — or extracts and transcribes the audio when there are none — in the background, and the transcript rides your message exactly like an uploaded recording. Only a failed video chip holds the send, because waiting on it would never end: retry it or remove it, everything else queues.
-
-A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Audio never reaches the chat model as bytes: the model receives the transcript as text while your bubble keeps the words you typed (and the audio chip). A document's content reaches the assistant through its knowledge tools — the turn tells it which files are attached and it reads them with `rag_fetch`, so expect a retrieval step before the answer. A format with no text extractor (legacy Office files like `.doc`) still attaches, but the assistant only sees its name and will say so rather than guess.
-
-Documents dropped here stay private to this conversation — they never join the organisation's [Knowledge](/platform/knowledge/overview) library, and no other chat or teammate can retrieve them. Staged files belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same attachments — transcripts and document access are rebuilt for the model from the stored files. Work that produces files belongs to a task. Speaking into the microphone is a separate path — see [Voice mode](/platform/chat/voice-mode).
-
-<Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
-
-![The chat composer with its plus menu, model picker showing Auto, microphone button, and send button.](/images/platform/chat-composer.webp)
+![A chat about onboarding feedback shows the question and an assistant reply with three themes in a table.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## Picking a model
+## Send your first message
 
-The picker opens on **Auto**: for every message, Tale reads what you wrote — length, code, subject matter — and picks a model for it from the same list the picker shows, favouring a light model for a quick question and a strong one for hard or sensitive ground. A document attachment raises the floor: a message that carries a file to read never goes to the lightest model, however short the question. No second AI decides this (it is a plain heuristic on the message), and there is no silent failover: the model that starts your reply is the one that answers it, and the message details name it. Once a message carries images, only models that can see them are considered; if none can, the send says so instead of guessing.
+Open **Chat**. It may reopen a recent conversation. Choose **New chat**, or choose **Chat** again while it is active, to begin a new subject. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
 
-Prefer to decide yourself? Pick any model from the list — the picker lists the models the organisation holds an active, directly-usable credential for; a model that could only run inside a vendor's own tooling is not offered here. A named pick is yours until you hand it back to Auto, and either choice sticks as the default for your next chats. Auto appears only when there is a real choice to make — with a single usable model the picker simply names it.
+For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 
-For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it. Left on **Default**, a model that can answer without extended reasoning does exactly that — pick a level when you want it to think longer. On Auto the effort section stays out of the menu: how hard a model thinks is paired with _which_ model, so pin one to set it.
+While the reply streams, the send control becomes a stop control. Stopping keeps the text already received, which may end mid-sentence. Use a follow-up message to clarify the question or ask for missing detail.
 
-## What the model is given
+## Choose a model when the choice matters
 
-The prompt is assembled in one fixed order, and the list is short by design: the organisation's mandatory instructions, the assistant's built-in guide, the rules for handling untrusted content, one short line of documentation per tool, then the current timestamp with the response-language directive, then the full message history — including every tool call and result, exactly as they happened.
+The model picker starts on **Auto** when several usable models are available. Auto selects a model for each message from your organization’s available models; organization rules can set a default or restrict the choices. The details under a reply identify the model that actually answered.
 
-Nothing else is added. There is no personalisation blob, no memories slipped in behind your back, no automatic knowledge retrieval, and no automatic web context. Everything the model learns beyond its instructions, it learns by calling a tool — which means it shows up in the transcript, attributable and refusable.
+Pick a named model when you need consistent comparisons or know which model the work requires. Your choice stays selected until you change it. If that model supports adjustable reasoning, the picker also offers an effort setting. More reasoning can take longer; it is not a substitute for checking the answer.
 
-<Info>
+<Frame caption="The model picker sits beside the attachment menu and voice controls.">
 
-When the conversation outgrows the model's context window, the oldest messages are dropped and a visible notice takes their place. They are not summarised: a summary is a second model call that can invent the history it was meant to preserve, and dropping messages is lossy in a way you can see.
+![The chat composer contains the plus menu, an Auto model picker, a microphone, and the send button.](/images/platform/chat-composer.webp)
 
-</Info>
+</Frame>
 
-## The three tools
+If no models are available, ask an admin to check active provider credentials and model access. [Models](/platform/models) explains how the catalog is built.
 
-The assistant carries exactly three tools, all read-only retrieval — this is the boundary that keeps chat a conversation rather than a workbench.
+## Give the assistant the right sources
 
-| Tool         | What it reaches                                                                                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | The organisation's knowledge and its work — documents, knowledge entries, crawled website pages, products, contacts, websites, tasks and projects, and the inbox's conversations — scoped to where the chat lives (below) |
-| `rag_fetch`  | The full detail behind a ref — a document by its file id, a crawled page by its URL, or a task by the ref a search returned                                                     |
-| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch`                                                |
+Choose the conversation’s location before asking about files:
 
-**Where the tools look is decided by where the chat lives, not by the assistant.** A document lives in exactly one place — the organisation's knowledge hub or one project, never both. Who sees a hub document is decided by its team tags: no tags means every member, tags mean the members of any listed team, and admins get no bypass. Who sees a project file is decided by project access alone — an org-wide project means every member, a team project its owning and shared teams, and owners and admins see every project; a project file never carries team tags. A chat started inside a project sees that project's files plus the hub as you see it, and its board is that project's; the organisation chat sees the hub only, and every board you can read. Every chat also sees its own attachments and the email attachments of conversations you may read. Trashed and expired files are invisible everywhere; an archived project keeps its files readable, labelled as archived. The boundary holds on the server: a project chat never reaches into another project, and a question about a project's files in the organisation chat is answered from the project's own chat — asking there lists the project's files beside the hub's, each marked with where it lives and whether it is indexed.
+| Where you ask | Files the assistant can retrieve |
+| --- | --- |
+| The organization’s chat | Knowledge-library documents you can access and this chat’s own attachments. |
+| A chat inside a project | That project’s files, Knowledge-library documents you can access, and the chat’s own attachments. |
+| A shared chat link | A read-only snapshot; viewers cannot ask follow-up questions there. |
 
-Asking about the board is a search, not a different feature. "What's open on the launch project?" reaches the same `rag_search` — it reads the tasks and projects you can see, filtered to your own access, and the assistant answers from them instead of suggesting an external tracker. A task result carries its title, status and project; `rag_fetch` on its ref adds the full description, comments, subtasks and blockers.
+Project chat also receives the project’s standing instructions. File access is enforced by Tale, so asking a project chat to read a different project does not grant access. Trashed or expired files are not searchable.
 
-Browsing is the same tool with its second verb. "List the tasks in review" or "show our contacts" runs `rag_search` as an explicit listing rather than a text match: one kind per call, the current board without archived rows, and a page of at most twenty at a time. The assistant is told when a page is not the whole set, so it fetches the next page or says which part it saw — it never presents twenty rows as everything.
+Use [attachments](/platform/chat/attachments) for material needed in this conversation, [project files](/platform/projects/manage-files) for recurring project work, and [Knowledge](/platform/knowledge/overview) for shared reference material. The assistant retrieves content when it needs it; uploading a document does not mean every answer has read it.
 
-A search is honest about what it covered: the result names every source it searched and says which were unavailable — an organisation without an embedding model configured, for example, gets "documents and crawled pages can't be searched yet" rather than a silent empty list, and the assistant relays that instead of guessing around it.
+## Check what the assistant used
 
-There is deliberately nothing else — no code execution, no file writing, no connectors, no sub-agents. Those capabilities live on tasks and inside automations, where there is an owner, a review step, and an audit trail sized for them.
+Above the reply, the timeline shows search and reading steps. A failed step explains what could not be read; it is useful evidence when an answer is incomplete. Expand the thinking section when one is available, but judge factual claims against sources rather than the fluency of that explanation.
 
-## Asking for a deliverable
+**Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-Ask the assistant for a presentation, a translated document, or any other artifact and it will not half-build one inline: it gives you the short version if one is useful, then tells you to create a task and assign it to an agent. A task has an owner, produces a reviewable result, and only a person marks it done — none of which a chat reply can offer. Translating a sentence you pasted is chat work; translating a file is task work.
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, and accessible tasks. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, or produce file deliverables; assign that work to a [project task](/platform/projects/tasks).
 
-## Reading the reply
+## Continue, copy, or keep the conversation
 
-The reply streams in as it is generated. Above it, the thought timeline records what the assistant did, in order:
+Use the reply toolbar to copy an answer, give feedback, inspect its details, or fork a conversation at that point. A fork lets you try another direction while preserving the earlier exchange.
 
-- A collapsible **"Thought for _n_ s"** line carries the model's reasoning — click to expand the prose.
-- Each tool call is a step row — _Searching the workspace for "…"_, _Listing tasks_, _Reading example.com_, _Reading lead-verify.txt_ — with a spinner while it runs and a warning with the reason when it fails. A document step names the file even when the read fails, and the reason says what stands in the way: a file uploaded without indexing, one still being indexed, one whose indexing failed. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
+Find earlier chats in the sidebar. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 
-Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
+Very long conversations may exceed the model’s context window. Tale displays a notice when older messages are omitted. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.
 
-The toolbar under a settled reply copies the text, shows token counts and timings (**Send → first words** from Send; **Start → done** and **Start → first token** from when the server begins the reply), records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
+## Improve an incomplete answer
 
-## Conversations versus chats
+| Problem | Try this |
+| --- | --- |
+| The answer is too broad | Ask one question, name the audience, and specify the desired length or format. |
+| A file was not used | Check the chat’s project, the file’s indexing status, and the retrieval steps. Name the file explicitly. |
+| Search reports an unavailable source | Ask an admin to check the named service or embedding configuration; an empty result is not proof the information does not exist. |
+| A reply stops with an error | Read its error, check the selected model, and retry after the cause is resolved. Tale does not silently switch providers. |
 
-Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads` and the URL carries `threads/$threadId`; the docs follow the UI and say "chat" in body prose. The contact-channel inbox an installed email automation adds is a different surface: a conversation there is a contact thread, not a chat — see [Built-in automations](/platform/automations/builtin) for that sense of the word.
-
-## History and search
-
-The chat history sidebar lists every chat you can resume in this org, newest first, with your pinned chats floating on top and project-filed chats under their folders; selecting one opens the full transcript. Searching there filters by title, and full-text search across message bodies is a per-chat operation rather than an org-wide one. Renaming a chat sets a custom title that overrides the generated one. Deleting a chat moves it into [Trash](/platform/admin/governance/trash), where retention sweeps it after the grace window.
-
-## Where this fits
-
-Chat basics is the page the rest of this section refines: [Arena Mode](/platform/chat/arena-mode) runs one prompt through two models side by side, [Voice mode](/platform/chat/voice-mode) covers speaking instead of typing, and [Shared chats](/platform/chat/shared-threads) covers publishing a transcript to the org. If your question turned into work — something with a deliverable at the end — [Agent concepts](/platform/agents/concepts) is the next read: agents do on tasks everything chat deliberately leaves out.
+For a guided example with source checking, follow [Chat effectively](/tutorials/member/chat-effectively).

@@ -1,9 +1,9 @@
 ---
-title: Content and models
-description: Model-level controls — which models are allowed per role or team, and the default model each user group lands on.
+title: Models
+description: Set default models, restrict model access, and choose the model that reads images for text-only agents.
 ---
 
-Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role) with a default-model rule the resolver applies when no explicit choice has overridden it. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.
+Use **Settings > Governance > Models** as an Admin or Owner to choose the models members start with and the models they may use. Defaults guide a choice; access rules enforce a restriction. Configure [provider credentials](/platform/admin/providers) first so the intended models are available.
 
 <Frame caption="Settings > Governance > Models — the per-scope default-model rules, with the model-access allowlist below them and the vision model further down.">
 
@@ -11,32 +11,40 @@ Content and models is the surface where you decide which LLMs the people in your
 
 </Frame>
 
-## A worked default
+## Set a default model
 
-To set the default model for the Editor role, open **Settings > Governance > Models** and click **Add rule** under **Default models**. Pick **Role** as the scope, **Editor** as the target, then pick the provider and model. Save and the next chat any Editor starts without an explicit model choice lands on the rule's model. More specific scopes win — a team rule beats a role rule beats the org default.
+1. Under **Default models**, select **Add rule**.
+2. Choose **Default** for the baseline, **Role** for a role, or **Team** for a team. Select the target when needed.
+3. Choose a provider and model, then **Confirm**. Save the page's pending changes in the header.
+4. Start a chat as a member of the target group with its model on **Auto**, and check the resolved model.
 
-## The two layers
+The default is used when there is no explicit model choice. A team rule takes precedence over a role rule, followed by the baseline default. A default does not prevent someone from selecting another permitted model.
 
-**Model access** is the allowlist or blocklist that gates which models a scope can use at all. A model not on the allowlist is refused at request time — the turn comes back with a refusal naming the policy, even if an agent has it pinned. Reach for the allowlist when a regulator names the approved models; reach for the blocklist when a single model should be off-limits everywhere else.
+## Restrict model access
 
-**Default models** is the resolver rule that picks the model when nothing else has — no explicit pick, no per-conversation override. The default applies when a chat runs on **Auto**: the resolver takes the governance default ahead of the automatic pick, and when the default itself is denied by model access, it skips it and auto-picks a model the caller is permitted to use.
+Under **Model access**, choose the mode and add rules for the users, teams, roles, or default scope you want to cover.
 
-## Scopes and precedence
+| Mode | Effect for a matching rule |
+| --- | --- |
+| **Allowlist** | Only listed allowed models may be used; a blocked model remains denied. |
+| **Blocklist** | Models are permitted unless listed as blocked. |
 
-Both layers carry a scope: the whole org, a team, or a role. The resolver evaluates from narrowest to widest — a team rule wins over a role rule wins over the org default. The model access layer composes with the default-model layer; the default the resolver picks must also pass the access check, otherwise the resolver skips it and auto-picks a model the caller is permitted to use.
+Access resolves user rules before team rules, then role rules, then the default. Multiple matching team rules combine their lists; an explicit block still wins for that model. If no rule matches, the policy does not restrict that user. Add a baseline rule when you intend to cover everyone.
 
-## Allowlist and blocklist warnings
+Access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
 
-The default-models editor surfaces a warning when a rule names a model the allowlist for the same scope does not permit, or when the blocklist for the same scope blocks it. The warning does not block saving — the resolver skips the denied default at request time — but it flags the mismatch so you can fix one or the other.
+<Tip>
+Test both cases after changing access: an allowed model should work and a denied model should be refused for the affected member. Testing only as the admin does not prove a role-specific rule.
+</Tip>
 
-## The model that reads images
+## Choose the image-reading model
 
-Not every model can see. When a text-only model runs an agent that opens a screenshot, a scanned invoice, or a rendered slide, Tale hands that image to a second model and gives the agent the transcription back. That happens through the gateway, so no provider key ever reaches the sandbox, and a model that already reads images skips the detour entirely.
+A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that transcribes it. An agent whose own model reads images does not use this fallback.
 
-**Vision model** decides which model does that reading. Leave it on **Automatic** and Tale picks for you, preferring a recommended vision model and falling back to the cheapest one your credentials reach. The line under the picker always names the model currently doing the job and why it was chosen, so the answer to "which model is reading our images" is never a guess.
+Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 
-Pin a model when you want that choice to stop moving. Automatic reads a live provider catalog, so the cheapest reachable model changes as providers publish new listings — a pin holds the lane on the model you tested. Only models that can actually transcribe are offered: media generators and free-tier lanes are filtered out, because both accept an image and then refuse the request. If a pinned model later stops being reachable — the credential rotated, the allowlist narrowed, the provider dropped it — Tale logs that and falls back to Automatic rather than leaving your agents unable to read at all.
+Pin a model if you need a stable choice. The picker offers models suitable for transcription. If a pin later becomes unavailable, Tale falls back to automatic selection. Review the current choice after rotating credentials or changing model availability.
 
-## Where this fits
+## Diagnose an unexpected choice
 
-Content and models is the gate every chat and every agent passes through at request time. Pairing model access with default models lets you ship a tight compliance posture without forcing every agent author to remember which model is approved this quarter. The companion is the [policies and limits](/platform/admin/governance/policies-and-limits) page — it covers the cost and request caps that apply on top of the model choices made here.
+Check the member's roles and teams, the explicit chat selection, the matching default, the access rule, and the provider credential's model list. A model appearing in a catalog does not establish that the organization has usable credentials for it. Spending and token caps still apply through [Policies and limits](/platform/admin/governance/policies-and-limits).

@@ -1,78 +1,39 @@
 ---
-title: Connectors
-description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen.
+title: Tale mit externen Diensten verbinden
+description: Wähle den passenden Connector und das richtige Konto und verstehe, wo seine Lese- und Schreibaktionen ausgeführt werden.
 ---
 
-Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon wartet im Katalog hinter **Zugangsdaten hinzufügen** unter **Einstellungen > Connectors** auf seinen ersten Eintrag.
-
-Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
+Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ändern soll. Der Connector definiert die unterstützten Aktionen. Mit den Zugangsdaten greift Tale auf das gewählte Konto zu. Entwickler, Admins und Inhaber verwalten sie unter **Einstellungen > Connectors**.
 
 <Video src="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.mp4" poster="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.webp" captions="/videos/de/tutorials/ep7-connectors/ep7-connectors.de.vtt" lang="de" title="Episode 7 — Connectors & die Außenwelt" caption="Episode 7 — Connectors & die Außenwelt (2:52)">
 
 </Video>
 
-## Was ein Connector ist
+## Die Verbindung nach der Aufgabe wählen
 
-Es gibt nichts zu installieren. Jeder Connector kommt mit der Plattform, deshalb sieht der Katalog in jeder Organisation gleich aus und deshalb hält ein Upgrade ihn aktuell, ohne dass jemand ihn pflegt. Ein Connector ist eine Definition: ein Anzeigename mit einer Zeile Beschreibung, die Kategorien, zu denen er gehört, die Authentifizierungsmethoden, die er akzeptiert, und die Liste der Aktionen, die er beim Anbieter ausführen kann.
+| Connector | Typischer Einsatz | Anmeldung |
+| --- | --- | --- |
+| Confluence | Confluence-Cloud-Seiten ins Wissen importieren. | Benutzername mit Passwort oder Token. |
+| Discord | Mit Nachrichten und Kanälen arbeiten. | Token. |
+| GitHub | Repositorys, Issues und Pull Requests lesen oder verwalten. | Token. |
+| Gmail | E-Mails lesen, senden und organisieren. | OAuth. |
+| Google Drive | Dateien ins Wissen importieren. | OAuth. |
+| IMAP / SMTP Mailbox | E-Mails über einen eigenen Maildienst lesen oder senden. | Benutzername und Passwort. |
+| Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten. | OAuth. |
+| Shopify | Mit Produkten, Kunden und Bestellungen arbeiten. | API-Schlüssel. |
+| Slack | Mit Nachrichten und Kanälen arbeiten. | OAuth. |
+| Tavily | Im Web suchen und Seiten auslesen. | API-Schlüssel. |
+| Microsoft Teams | Mit Nachrichten und Kanälen arbeiten. | OAuth. |
+| Twilio | SMS senden und Sprachanrufe starten. | Benutzername mit Passwort oder Token. |
+| WebDAV Files | WebDAV-Dateien der Organisation lesen, schreiben und auflisten. | Benutzername und Passwort. |
 
-Weil diese Definition für alle gilt, entscheidet deine Organisation nur eines: als welche Konten Tale handeln darf. Diese Entscheidung sind die Zugangsdaten, und mehr Einrichtung gibt es nicht.
+Die Karten des installierten Katalogs zeigen die aktuellen Aktionen und Anmeldemethoden. Diese Definitionen kommen mit der Plattform. Ein weiteres Konto installiert keinen beliebigen neuen Connector-Code.
 
-## Die mitgelieferten Connectoren
+Wissensimporte verwenden die [Dokumentenindexierung](/de/platform/knowledge/documents). OneDrive und SharePoint nutzen den Import unter **Wissen > Dokumente** mit persönlicher Zustimmung statt eines separaten Organisations-Connectors. Soll dein Gerät Tale-Dokumente als Laufwerk öffnen, ist die Richtung umgekehrt: Dafür dient [WebDAV](/de/platform/connectors/webdav).
 
-Dreizehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er gehört — Knowledge, Messaging, Email, Developer, Commerce, Search oder Files. **Anmeldung** ist die Authentifizierungsmethode, die der Connector akzeptiert; sie bestimmt, wonach das Formular fragt. **Aktionen** ist die Anzahl der Operationen, die er anbietet — dieselbe Zahl, die seine Karte im Katalog hinter **Zugangsdaten hinzufügen** zeigt.
+## Das gewünschte Konto hinzufügen
 
-| Connector               | Was dir das Verbinden bringt                                                                                   | Anmeldung               | Aktionen |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | -------- |
-| **Confluence**          | Confluence-Cloud-Seiten in die Wissensdatenbank von Tale importieren.                                          | Benutzername & Passwort | 2        |
-| **Discord**             | Nachrichten posten und Kanäle im eigenen Discord-Server verwalten.                                             | Token                   | 8        |
-| **GitHub**              | Repositories, Issues und Pull Requests auf GitHub verwalten.                                                   | Token                   | 19       |
-| **Gmail**               | E-Mails in Gmail lesen, senden und sortieren.                                                                  | OAuth                   | 9        |
-| **Google Drive**        | Dateien aus Google Drive in die Wissensdatenbank von Tale importieren.                                         | OAuth                   | 2        |
-| **IMAP / SMTP Mailbox** | Einen eigenen IMAP- und SMTP-Mailserver an Conversations anbinden — ohne Gmail- oder Outlook-Konto.            | Benutzername & Passwort | 3        |
-| **Microsoft Outlook**   | Outlook-Mail, -Kalender und -Kontakte verwalten.                                                               | OAuth                   | 10       |
-| **Shopify**             | Produkte, Kunden und Bestellungen aus dem eigenen Shopify-Shop abgleichen.                                     | API-Schlüssel           | 9        |
-| **Slack**               | Nachrichten senden und mit Kanälen in Slack arbeiten.                                                          | OAuth                   | 7        |
-| **Tavily**              | Websuche und Seitenextraktion in Echtzeit für KI-Recherche.                                                    | API-Schlüssel           | 2        |
-| **Microsoft Teams**     | Nachrichten senden und Kanäle in Microsoft Teams verwalten.                                                    | OAuth                   | 9        |
-| **Twilio**              | SMS verschicken und Sprachanrufe über Twilio führen.                                                           | Benutzername & Passwort | 7        |
-| **WebDAV Files**        | Dateien im WebDAV-Speicher der Organisation lesen, schreiben und auflisten — dieselben, die `/dav` ausliefert. | Benutzername & Passwort | 4        |
-
-Seiten und Dateien, die über Confluence oder Google Drive hereinkommen, laufen durch dieselbe Indexierung wie ein direkter Upload, und Antworten zitieren sie zurück auf die Quelle — siehe [Dokumente](/de/platform/knowledge/documents). OneDrive- und SharePoint-Import läuft über Wissen → Dokumente (pro Benutzer autorisiert), nicht als Org-Connector. Der WebDAV-Connector ist die Schreibseite desselben Speichers, den deine Geräte als Netzlaufwerk einbinden; das beschreibt [WebDAV](/de/platform/connectors/webdav).
-
-## Zugangsdaten an einem Connector
-
-Ein Connector hält so viele Zugangsdaten, wie deine Organisation braucht. Ein Slack-Workspace pro Geschäftsbereich, ein Shopify-Shop pro Markt, ein Postfach pro Support-Warteschlange — jeder davon ist eine eigene Zeile unter dem Connector, mit eigenem Secret und eigenem Zustand. Genau das lässt eine gemeinsame Automations-Bibliothek mehrere Teams bedienen, ohne dass eines das Konto eines anderen mitbenutzt.
-
-Jeder Eintrag trägt vier Dinge:
-
-- **Name** — unter diesem Namen wählt eine Aktion diesen Eintrag aus. Schreib ihn für die Person, die in einem halben Jahr die Automation liest: `Support-Postfach`, `Shop EU`, `Release-Bot`.
-- **Authentifizierungsmethode** — **API-Schlüssel**, **Token**, **Benutzername & Passwort** oder **OAuth**, ausgewählt aus dem, was der Connector akzeptiert.
-- **Standard** — ein Eintrag pro Connector kann das sein. Ein Automations-Node — oder der Aufruf eines Agents über den Broker — ohne eigene Angabe nutzt ihn.
-- **Zustand** — ein Eintrag ist entweder im Einsatz oder **Deaktiviert**. Deaktivieren behält die Zeile samt Konfiguration, verhindert aber jeden Aufruf darüber.
-
-Ohne Standard funktioniert ein Connector weiterhin für alle Aufrufer, die einen Eintrag benennen — wer keinen benennt, hat jedoch nichts, worauf er zurückfallen kann. Der Abschnitt des Connectors sagt das, und die Lösung ist, einen der vorhandenen Einträge zum Standard zu machen.
-
-<Note>
-
-Confluence und Shopify haben keinen einheitlichen Anbieter-Host — die API liegt auf deiner eigenen Atlassian-Site oder in deinem eigenen `myshopify.com`-Shop. Beide fragen deshalb pro Eintrag nach einer **Instanz-URL**, und ihr Abschnitt trägt die Zeile _Jeder Eintrag nennt seine eigene Instanz._ Richte Confluence auf die Adresse, unter der du Confluence öffnest, und Shopify auf die Admin-Adresse des Shops statt auf die Storefront-Domain.
-
-</Note>
-
-## Einen Connector verbinden
-
-Wo du anfängst, hängt davon ab, was der Connector akzeptiert. Connectoren mit Token oder Schlüssel öffnen ein Formular und nehmen das Secret direkt entgegen; OAuth-Connectoren schicken dich auf den Freigabe-Dialog des Anbieters und kommen mit einem fertig ausgefüllten Eintrag zurück. Beide Wege enden am selben Punkt — einer benannten Zeile unter dem Connector.
-
-<Steps>
-
-<Step title="Einstellungen > Connectors öffnen">
-
-Die Seite ist die Tabelle der Zugangsdaten, die deine Organisation schon hält — eine Zeile pro Eintrag mit Name, Connector und Authentifizierungsmethode. In einer frischen Organisation ist sie leer; der mitgelieferte Katalog wartet hinter **Zugangsdaten hinzufügen**.
-
-</Step>
-
-<Step title="Connector auswählen">
-
-**Zugangsdaten hinzufügen** öffnet den Katalog: Connectoren, für die du schon Zugangsdaten hältst, stehen vorn, die übrigen folgen mit ihren Kategorien und Aktionszahlen, und die Suche grenzt die Liste ein. Wählst du einen aus, geht es weiter zur Einrichtung.
+Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Bereits eingerichtete Connectors erscheinen zuerst. Trotzdem kannst du für denselben Dienst ein weiteres Konto hinzufügen. Das Formular fragt nach der vom Connector unterstützten Anmeldung.
 
 <Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die dreizehn mitgelieferten Connectoren, die mit vorhandenen Zugangsdaten zuerst.">
 
@@ -80,40 +41,28 @@ Die Seite ist die Tabelle der Zugangsdaten, die deine Organisation schon hält �
 
 </Frame>
 
-</Step>
+Gib dem Eintrag einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Schließe bei OAuth die Zustimmung beim Provider ab und prüfe das zurückgemeldete Konto. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
 
-<Step title="Zugangsdaten hinzufügen">
+Confluence und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
 
-Ein Connector, der einen Schlüssel, ein Token oder Benutzername und Passwort entgegennimmt, zeigt sein Formular und nimmt das Secret direkt an. Ein OAuth-Connector bietet stattdessen **Verbinden** an: Der Freigabe-Flow des Anbieters läuft durch, und aus dem Ergebnis entsteht eine neue Zeile.
+## Das Konto für eine Aktion bestimmen
 
-</Step>
+Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind.
 
-<Step title="Benennen und zum Standard machen">
+Zwei Support-Postfächer sind beispielsweise zwei Einträge. Vergib unterscheidbare Namen und prüfe die aufgelöste Eingabe eines Workflows vor dem Live-Lauf. Der Standard wird verwendet, wenn die Aktion keinen bestimmten Eintrag nennt. Postfachoperationen, die alle aktiven Konten auslesen, sind ein eigener Fall.
 
-Gib dem Eintrag einen Namen, auf den deine Automationen zeigen können, und mache ihn zum Standard, wenn er greifen soll, sobald niemand einen Eintrag benennt. Die Aktionen des Connectors stehen Automationen — und lesend auch Projekt-Agenten — zur Verfügung, sobald die Zeile existiert.
+Das Deaktivieren erhält die Konfiguration, verhindert aber ihre Nutzung. Der Austausch eines Secrets erneuert den Zugang hinter bestehenden Verweisen. Prüfe abhängige Workflows, bevor du einen Eintrag deaktivierst, löschst oder den Standard änderst.
 
-</Step>
+## Lesen und Schreiben unterscheiden
 
-</Steps>
+Automatisierungen verwenden Connector-Aktionen als Workflow-Nodes. Jede Aktion definiert Eingabeschema, Ausgabe und Lese- oder Schreibwirkung. Testläufe simulieren die Antworten. Ein Live-Schreibvorgang kann Nachrichten senden oder externe Daten ändern und unterliegt der Freigaberichtlinie der Organisation.
 
-Die Details pro Methode — wonach jedes Formular fragt, wie du ein Secret ersetzt, was bei einer abgelaufenen Autorisierung passiert — stehen unter [Zugangsdaten für Connectors](/de/platform/admin/connectors).
+Projektagenten mit konfigurierten Connectors erhalten deren unterstützte Leseaktionen über Tales Connector-Broker. Er hält diese Zugangsdaten außerhalb der Sandbox und gibt Ergebnisse zurück. Connector-Schreibaktionen lehnt er ab. Direkte GitHub-Werkzeuge und explizite Agent-Secrets nutzen andere Wege und brauchen eine eigene Prüfung.
 
-## Aktionen in Automationen und Agent-Läufen
+Ein neuer Zugang erweitert nicht beliebig die Tools des gewöhnlichen Chat-Assistenten. Nutze [Automatisierungen](/de/platform/automations/editor) für einen definierten Connector-Ablauf und [Projektagenten](/de/platform/projects/project-agents) für Sandbox-Arbeit.
 
-Jede Aktion, die ein Connector deklariert, hat einen Namen, eine Beschreibung, ein Eingabe-Schema, eine Ausgabe-Signatur und einen deklarierten Effekt: `read` oder `write`. Automationen setzen eine Aktion als Node in den Workflow-Editor; ein Projekt-Agent erreicht die lesenden Aktionen aus seiner Sandbox über einen Broker, der sie mit den hinterlegten Zugangsdaten ausführt und nur das Ergebnis zurückgibt. Der Chat erreicht keine davon — die Tools des Chat-Assistenten sind fest und nur lesend. In beiden Fällen löst der Aufruf zuerst die Zugangsdaten auf — den benannten Eintrag oder den Standard des Connectors — und scheitert mit klarer Meldung, wenn es beides nicht gibt.
+## Wenn der Dienst fehlt
 
-<Warning>
+Ein Projektagent kann aus seiner Sandbox auf einen Dienst zugreifen, wenn sein Harness dafür geeignete Werkzeuge und ein ausdrücklich freigegebenes Secret erhält. Eine `transform`-Node formt nur Daten um und ruft keine externe API auf. Prüfe Berechtigungen und erwartete Auswirkungen vor einer direkten Integration.
 
-Schreibende Aktionen verändern etwas im anderen System: eine gepostete Nachricht, ein angelegtes Issue, eine verschickte SMS. Sie laufen nur aus einer Automation, und sie laufen über die Genehmigungsrichtlinie deiner Organisation: Der Lauf parkt, und eine Person gibt den Aufruf auf der Detailseite des Laufs frei. Lies [Genehmigungen konfigurieren](/de/platform/approvals/configure), bevor du eine Automation darauf ansetzt.
-
-</Warning>
-
-## Wenn kein Connector passt
-
-Dreizehn Connectoren decken die Systeme ab, zu denen die meisten Teams greifen — und sie decken keine interne API ab, kein selbstgebautes Tool und keinen Anbieter, für den niemand einen Connector geschrieben hat. Einen eigenen MCP-Server zu registrieren, den Agenten aufrufen, gibt es in dieser Version nicht — die Lücke schließt dein eigener Code an einer von zwei Stellen. Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt **Secrets** — einen API-Schlüssel, den er als Umgebungsvariable bekommt — und ruft den Dienst direkt aus seiner Sandbox auf. Eine [Automatisierung](/de/platform/automations/catalog) ruft Connector-Aktionen auf und führt dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook.
-
-Die einzige MCP-Oberfläche, die Tale mitbringt, zeigt in die Gegenrichtung: Dein MCP-Client verbindet sich unter **Einstellungen > API > MCP** mit Tale, wie [MCP-Server](/de/platform/connectors/mcp-servers) erklärt.
-
-## Wo das hingehört
-
-Connectoren sind der Weg, auf dem Tale die Systeme erreicht, in denen deine Arbeit ohnehin stattfindet; Zugangsdaten sind die Entscheidung darüber, als welche Konten Tale dabei handelt. Von hier aus zeigt [Zugangsdaten für Connectors](/de/platform/admin/connectors) die Betriebsseite — Einträge anlegen, ersetzen, deaktivieren und neu verbinden. [Projekt-Agenten](/de/platform/projects/project-agents) zeigt, wie die Aktionen eines Connectors in der Ausrüstung eines Agents ankommen, [Genehmigungen konfigurieren](/de/platform/approvals/configure) hält die schreibenden zurück, und [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was in dieser Version an die Stelle ausgehender MCP-Server getreten ist.
+Soll die externe Anwendung Tale aufrufen, nutze die [REST-API](/de/develop/api-reference) oder den [MCP-Endpunkt](/de/develop/mcp-endpoint). [MCP und eigene Integrationen](/de/platform/connectors/mcp-servers) erklärt diese Unterscheidung.

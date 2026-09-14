@@ -1,9 +1,9 @@
 ---
 title: Guardrails
-description: The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model.
+description: Configure chat content filters, personal-data protection, and moderation, then review detections and errors.
 ---
 
-Guardrails is the surface where you configure the three filter layers Tale runs on every chat message in your organisation. Each message passes through content safety (word lists and admin regex), then PII detection (built-in patterns plus custom), then an optional external moderation provider — in that fixed order, on the way in and on the way out. Admins and Owners read this page when a regulator names a content rule, when a leak warrants a tighter policy, or when an agent's replies need to be sanitised before they leave the model.
+Use **Settings > Governance > Guardrails** as an Admin or Owner to control how chat text is checked before and after a model call. Enabled layers run in order: content safety, personal-data detection, then external moderation. Start with one clear rule and verify its effect before broadening the policy.
 
 <Frame caption="Governance > Guardrails — the three filter-layer status cards (content safety, PII detection, moderation provider) above the recent-events log.">
 
@@ -11,30 +11,42 @@ Guardrails is the surface where you configure the three filter layers Tale runs 
 
 </Frame>
 
-## A worked layering
+## Add a content rule
 
-To configure the layers, open **Settings > Governance > Guardrails**. The overview shows three status cards, one per layer — content safety, PII detection, moderation — and each layer's editor sits further down the same page, where you pick whether the layer runs on input, on output, or both, and what it does on a match. The org's mandatory custom instructions live here too — they constrain every agent, so they sit with the other content controls. The recent-events table under the overview shows the last 50 detections, blocks, and provider errors with their layer, direction, and match category.
+1. Under **Content safety**, choose whether to check **User input**, **Model output**, or both.
+2. Select **Add category**, give it a recognizable **Label**, and choose its **Mode**.
+3. Add the words or phrases to detect, one per line. You can import a text list; review it before applying it.
+4. Save the category, enable the intended category and layer, then save the page's pending changes.
+5. Test with synthetic text containing a match and with ordinary text that should pass. Check **Recent events** and the visible chat outcome.
 
-## Content safety
+| Mode | What happens on a match |
+| --- | --- |
+| **Flag** | Records the detection and allows the message. Useful while tuning a rule. |
+| **Mask** | Replaces matched text with the configured placeholder. |
+| **Block** | Refuses the message. |
 
-Content safety is the layer you own. Define one or more categories — hate speech, profanity, a custom regex for an internal codename — and pick a mode per category: **block** refuses the message, **mask** replaces matches with a placeholder, **flag** records the detection without changing the message. Block wins over mask wins over flag when more than one category matches.
+When several categories match, block takes precedence over mask, then flag. Word matching ignores case. Check variants and false positives that matter for your languages; one successful test does not establish complete coverage.
 
-The layer's word lists and patterns never leave the deployment. Matched text is not stored — only the category, the direction (input or output), and the count of matches end up in the audit event.
+## Protect personal data
 
-## PII detection
+**PII protection** detects configured patterns such as email addresses, phone numbers, and identifiers. Select the relevant built-in types and any custom patterns, then choose the intended behavior.
 
-PII detection ships with patterns for emails, phones, government IDs, payment numbers, and a long tail of regional formats. Add custom patterns if your regulator names a format the built-ins miss. Pick a mode — block, mask with a placeholder, or tokenize, which swaps PII for indexed tokens on the way in and restores them in the model's reply. Mask is the typical choice when the model has been given access to records that include PII it should not echo back.
+Masking removes matched values from the text sent onward. Blocking refuses a match. Tokenization replaces detected values with indexed tokens for the model and restores them in its reply. Tokenization is therefore useful for processing with reduced exposure, but it is not a promise that the final reply will contain no personal data.
 
-## Moderation provider
+Test the formats you actually use with synthetic values. Pattern detection can miss unusual formats and can flag ordinary text. Check input and output separately.
 
-The moderation layer is an external classifier — OpenAI Moderation, Azure Content Safety, Perspective API, or a custom HTTP endpoint. Configure the provider's endpoint, an API key, and the category-to-action mapping (each provider returns its own taxonomy; the mapping decides which categories block, mask, or flag). The layer is optional — leave it disabled and only the first two layers run.
+## Add external moderation
 
-The provider sits on the network egress path. Failures are configurable per direction: fail-open lets the message through, fail-closed refuses it. The recent-events view shows provider errors, HTTP statuses, and circuit-open events when the layer is rate-limited.
+The moderation layer sends text to a configured classifier, such as OpenAI, Azure, Perspective, or a custom endpoint. Configure its credentials, categories, and actions, and choose the directions it should inspect.
 
-## Recent events
+Decide what should happen if the provider is unavailable: fail-open allows the message, while fail-closed refuses it. Review provider errors and circuit-open events when unexpected refusals or unfiltered messages occur. Enabling this layer introduces another service that processes the text; use the provider and endpoint approved for your organization.
 
-Every detection, block, and provider error lands in the recent-events table — kept for 90 days by default, adjustable on the retention policy page. Filter by layer or by kind; each row carries the matched categories, the actor, and the timestamp. Raw matched text is never stored — the events are a tuning surface, not a content archive.
+## Set organization instructions
 
-## Where this fits
+**Custom instructions** adds organization instructions ahead of agent instructions. Members cannot edit this organization policy. Use it for shared behavior and terminology; use access rules and filters for restrictions that must be enforced independently of a model following prose instructions.
 
-Guardrails is the runtime filter between the user and the model in both directions. Pair it with [content and models](/platform/admin/governance/content-models) so an approved model is also subject to the approved content rules. The companion is the [audit log](/platform/admin/governance/audit-logs) — every block and every mask the guardrail layers apply lands there as a permanent record.
+## Review and tune
+
+**Recent events** shows the latest 50 detections, blocks, and provider errors. Filter by layer or outcome and inspect category, direction, and time. Raw matched text is not stored in these events, so a row explains the detection without reproducing the sensitive match.
+
+If a rule is too broad, adjust its category or patterns and repeat the synthetic tests. If a detection is absent, check that the layer, category, and intended direction are enabled. Event history depends on the chat-filter-event [retention policy](/platform/admin/governance/policies-and-limits); do not assume a fixed archive duration.

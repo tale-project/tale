@@ -1,62 +1,79 @@
 ---
-title: AI-gestützte Entwicklung
-description: Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien.
+title: Konfiguration mit einem Coding-Agenten bearbeiten
+description: Gib einem Coding-Agenten den passenden Projektkontext, unterscheide Vorlagen von aktiver Konfiguration und prüfe Änderungen vor dem Deployment.
 ---
 
-Ein Tale-Projekt ist ein Verzeichnis aus reinen Konfigurationsdateien — Agenten, Skills, Branding, Provider, Connectors —, angelegt pro Organisation, und diese Struktur bearbeitet sich gut mit einem Coding-Agenten, sobald er die Regeln kennt. Die CLI schreibt dir diese Regeln: eine `AGENTS.md` im Projekt-Root mit der vollständigen Anleitung, eine `CLAUDE.md`, die darauf verweist, und einen schreibgeschützten Spiegel des Plattform-Quellcodes unter `.tale/reference/`, den beide Dateien den Agenten lesen lassen, bevor er eine Config anfasst.
+Ein Coding-Agent kann dir helfen, ein mit der CLI verwaltetes Tale-Konfigurationsprojekt zu bearbeiten. Das Projekt enthält Anweisungen, Konfigurationsbeispiele und ausgewählten Quellcode als Referenz. Prüfe den Vorschlag trotzdem selbst und kläre, welche Organisationen er betrifft.
 
-Lies das, wenn du ein Tale-Projekt mit Claude Code oder einem anderen Agenten ändern willst, der `AGENTS.md` liest, ohne die Konfiguration von Hand zu tippen. Komm zurück, wenn der Agent Felder erfindet — die Lösung ist fast immer, ihn `.tale/reference/` noch einmal lesen zu lassen oder den Spiegel mit `tale update` aufzufrischen.
+Änderungen am Tale-Anwendungsquellcode folgen einem anderen Ablauf. Beginne dafür mit [Entwicklungsumgebung einrichten](/de/develop/contributor-setup) und der `AGENTS.md` des Repositorys.
 
-## Ein durchgespieltes Setup
+## Eine Arbeitsumgebung anlegen
 
-`tale init` legt Projekt, Anleitungsdateien und Spiegel in einem Schritt an. Das ist der gesamte Baum, den es hinterlässt:
+Installiere die [Tale-CLI](/de/self-hosted/install/cli-install) und lege das Konfigurationsprojekt in einem neuen Verzeichnis an:
 
 ```bash
-tale init my-org --no-env
-cd my-org
+tale init agent-config-example --no-env
+cd agent-config-example
 ls -a
 ```
 
+Dieser Auszug zeigt die erzeugten Pfade:
+
 ```text
-AGENTS.md  CLAUDE.md  default  .gitignore  .tale  tale.json
+AGENTS.md
+CLAUDE.md
+default/
+.gitignore
+.tale/
+tale.json
 ```
 
-`--no-env` überspringt für diesen Durchlauf nur die `.env`-Abfrage. Die Zusammenfassung, die der Befehl ausgibt, nennt, was er gesät hat — einen Agenten im Katalog, fünf Skill-Bundles, eine Branding-Datei — und die nächsten Schritte: `tale dev` startet die Instanz lokal, `tale deploy` veröffentlicht sie, wenn du bereit bist.
+`--no-env` überspringt die Umgebungseinrichtung. Der Aufruf erzeugt weder eine betriebsbereite Installation noch eine `.env`. So kannst du die Konfiguration zunächst ohne Container prüfen. Wenn du später `tale dev` ausführst, richtet die CLI die lokale Umgebung ein. Prüfe vorher die [Voraussetzungen des Schnellstarts](/de/self-hosted/install/quickstart).
 
-## Die zwei Anleitungsdateien
+Öffne das Verzeichnis in deinem Editor. Lass den Agenten zuerst `AGENTS.md`, passende vorhandene Konfigurationen und den Quellcode unter `.tale/reference/` lesen.
 
-`AGENTS.md` trägt die Anleitung: die org-first-Struktur, die Benennungsregeln für Slugs und Dateinamen, den Umgang mit Secrets und eine Direktive, die den größten Teil der Arbeit erledigt:
+## Die beiden Anweisungsdateien
 
-> Before creating or editing any config, read the relevant schemas and implementation code in `.tale/reference/` to understand the valid structure, fields, and constraints. Use existing config files in the project as examples.
+`AGENTS.md` enthält die Tale-Konfigurationshinweise. `CLAUDE.md` verweist darauf, damit nur ein gemeinsamer Anweisungstext gepflegt werden muss. Die CLI erkennt auch eine vorhandene `AGENT.md` oder eine `CLAUDE.md` unter `.claude/`.
 
-`CLAUDE.md` gibt es, weil Claude Code `CLAUDE.md` liest und nicht `AGENTS.md`; sie enthält einen Verweis auf `AGENTS.md` und sonst nichts, damit es eine einzige Quelle der Wahrheit gibt. Beide Dateien werden in einem verwalteten Block geschrieben — von `<!-- tale:begin -->` bis `<!-- tale:end -->` —, und alles, was du außerhalb der Marker ergänzt, überlebt jedes `tale init --force` und jedes `tale update`. Editor-spezifische Regeldateien schreibt die CLI nicht: keine `.cursor/rules`, keine `.windsurfrules`, keine Copilot-Anweisungen. Ein Agent, der der `AGENTS.md`-Konvention folgt, liest die Datei von selbst; einen, der das nicht tut, zeigst du von Hand darauf.
+Die CLI verwaltet den Abschnitt zwischen den Kommentar-Markierungen `tale:begin` und `tale:end`. Ergänze eigene Projektregeln außerhalb dieses Abschnitts; Initialisierung und Updates erhalten diesen umgebenden Text. Zugangsdaten gehören in keine der beiden Dateien.
 
-## Was wo liegt
+Die CLI erzeugt keine getrennten Regeln für Cursor, Windsurf oder Copilot. Falls dein Editor die Projektanweisungen nicht automatisch lädt, füge sie ausdrücklich zum Kontext hinzu. Prüfe die tatsächlichen Konfigurationsschemata, statt dich auf das Wissen des Agenten über ältere Releases zu verlassen.
 
-Konfiguration und Spiegel liegen nebeneinander unter dem Projekt-Root. Alles unter `default/` gehört dir — bearbeiten und committen; alles unter `.tale/` ist generiert und von git ignoriert.
+## Die Verzeichnisse unterscheiden
 
-| Pfad                                                              | Was es ist                                                                                                                                                                                    |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default/agents/`                                                 | Eine YAML-Datei pro Agent-Persona; `coding-agent.yml` kommt mit.                                                                                                                              |
-| `default/skills/`                                                 | Ein Verzeichnis pro Skill-Bundle; `docx`, `pdf`, `pptx`, `xlsx` und `visual-aspect-analyzer` kommen mit.                                                                                      |
-| `default/branding/`                                               | `branding.json` und ein Ordner `images/` für hochgeladene Assets.                                                                                                                             |
-| `default/automations/`                                            | Eine Datei pro Automatisierung — die 25 mitgelieferten Automatisierungen kommen als Katalog mit, aus dem du deployst.                                                                          |
-| `default/governance/`                                             | Governance-Richtlinien der Organisation, je eine `<policyType>.json`, dazu der Grenzwert-Katalog `retention.json`; verschlüsselte `*.secrets.json`-Sidecars werden nie angelegt.                 |
-| `default/README.md`                                               | Erklärt den Baum; verwaltet wie die anderen Gerüstdateien.                                                                                                                                    |
-| `.tale/reference/`                                                | Schreibgeschützter Quellcode der Plattform — `backend/` und `lib/`, inklusive der gemeinsamen Schemas, gegen die eine Config validiert wird. Neu erzeugt durch `tale init` und `tale update`. |
-| `.tale/orgs/<slug>/<domain>/`                                     | Laufzeit-Konfiguration der Organisationen, die in der App entstehen; `tale deploy --override` schiebt sie hoch.                                                                               |
-| `.tale/checksums.json`                                            | Der Hash jeder Gerüstdatei, damit `tale update` deine Änderungen von seinen eigenen unterscheiden kann.                                                                                       |
+| Pfad | Verwendung |
+| --- | --- |
+| `default/agents/` | Agentenkatalog mit dem mitgelieferten Beispiel für einen Coding-Agenten. |
+| `default/automations/` | Automatisierungen, die installiert oder bereitgestellt werden können. Eine Datei auf dem Datenträger ist noch keine aktive Automatisierung. |
+| `default/skills/` | Skill-Bundles für Dokumente und visuelle Analysen; jedes Bundle liegt in einem Verzeichnis. |
+| `default/branding/` | Branding-Konfiguration und Bilddateien der Vorlage. |
+| `default/governance/` | Beispiele für Richtlinien und Aufbewahrung. Halte dich an die Dateiformate deiner installierten CLI. |
+| `default/README.md` | Erläutert die Vorlage und welche Katalogeinträge automatisch installiert werden. |
+| `.tale/reference/` | Ausgewählter Quellcode, den die CLI mitliefert. Nutze ihn zum Lesen; die nächste Generierung ersetzt Änderungen. Er ist kein vollständiger Repository-Checkout. |
+| `.tale/orgs/<slug>/<domain>/` | Laufzeitkonfiguration tatsächlich in der App angelegter Organisationen. |
+| `.tale/checksums.json` | Prüfsummen der erzeugten Dateien, anhand derer Updates lokale Änderungen erkennen. |
 
-`default` ist die Vorlage, aus der jede neue Organisation gesät wird — nie selbst eine deploybare Organisation. Echte Organisationen entstehen in der App und liegen unter `.tale/orgs/`.
+`default/` ist die Vorlage für neue Organisationen, keine selbst bereitstellbare Organisation. Eine Änderung daran aktualisiert eine vorhandene Organisation nicht automatisch. Git ignoriert `.tale/` und die Geheimnisdateien; öffentliche Vorlagendateien gehören in die Versionsverwaltung.
 
-## Den Spiegel frisch halten
+## Die Referenz aktuell halten
 
-`tale update` hebt die CLI auf das neueste Release ihrer Linie und synchronisiert die Projektdateien nach: Es schreibt die verwalteten Blöcke von `AGENTS.md` und `CLAUDE.md` neu, erzeugt `.tale/reference/` frisch, ergänzt neue Gerüstdateien, überschreibt die, die du nie angefasst hast, und lässt jede Datei in Ruhe, deren Prüfsumme deine Änderung zeigt — `--force` setzt das außer Kraft, `--dry-run` zeigt vorher den Plan. Danach rollst du die Container mit `tale deploy`.
+`tale update` aktualisiert die CLI innerhalb ihrer Release-Reihe und erneuert erzeugte Projektinhalte. Es erstellt die Referenz neu, aktualisiert verwaltete Anweisungsabschnitte, ergänzt neue Katalogdateien und ersetzt unveränderte Dateien anhand ihrer Prüfsummen. Lokal bearbeitete Katalogdateien bleiben erhalten, solange du nicht `--force` verwendest.
 
-## Cursor: Config-Ebene vs. Runtime-Ebene
+Prüfe geplante Änderungen mit `tale update --dry-run`. Halte öffentliche Konfiguration unter Versionsverwaltung und sichere Laufzeitkonfiguration sowie Geheimnisse geschützt. Pflege einen eigenen Fork nicht in `.tale/reference/`. Ein CLI-Update ersetzt keine laufenden Container. Für die bereitgestellte Version gilt die [Upgrade-Anleitung](/de/self-hosted/operate/upgrades).
 
-Cursor taucht in Tale an zwei getrennten Stellen auf — verwechsle sie nicht. Die **Config-Ebene** ist diese Seite: `AGENTS.md`, `CLAUDE.md` und `.tale/reference/` steuern Cursor, während es auf deinem Rechner Konfiguration bearbeitet. Die **Runtime-Ebene** ist ein [Projekt-Agent](/de/platform/projects/project-agents), dessen **Agent-Laufzeit** das Cursor-Harness ist: Tale führt die Cursor Agent CLI (`agent -p`) headless in einer isolierten Sandbox mit deinem `CURSOR_API_KEY` aus und meldet sich auf der Aufgabe zurück, ohne deine Arbeitskopie zu berühren. Credentials, Modelle und Abrechnung dieser Ebene stehen in [Harnesses](/de/platform/agents/harnesses), nicht hier.
+## Cursor beim Bearbeiten und bei der Ausführung
 
-## Wo das hingehört
+Ein Editor-Agent in diesem Verzeichnis ändert lokale Konfigurationsdateien. Ein Tale-[Projektagent](/de/platform/projects/project-agents) mit Cursor-Harness arbeitet dagegen in einer von Tale verwalteten Sandbox. Beide Kontexte haben eigene Zugangsdaten und unterschiedliche Auswirkungen.
 
-AI-gestützte Entwicklung ist der Bearbeitungspfad; `tale deploy` ist der Veröffentlichungspfad. Der Agent liest `AGENTS.md`, prüft `.tale/reference/` und bearbeitet Dateien unter `default/`; du prüfst den Diff, siehst dir das Ergebnis mit `tale dev` lokal an und veröffentlichst mit `tale deploy` — mit `--override`, wenn die Änderung die Konfiguration überschreiben soll, die die Container bereits halten. Die CLI selbst, ihre Befehle und Flags, ist unter [Die tale-CLI installieren](/de/self-hosted/install/cli-install) dokumentiert.
+Der Sandbox-Harness nutzt sein konfiguriertes Anbieterkonto und Modell. Die Projektanweisungen im Editor richten dieses Konto nicht ein. Den Laufzeitaufbau erklären die [Harnesses](/de/platform/agents/harnesses).
+
+## Einen Vorschlag prüfen und anwenden
+
+1. Begrenze den Auftrag auf eine konkrete Änderung. Benenne, ob sie die Vorlage für neue Organisationen oder eine vorhandene Organisation betrifft.
+2. Prüfe jeden geänderten Pfad, Schemawert, Slug und Zugangsdatenverweis. Halte Geheimnisse aus Prompt und öffentlichem Diff heraus.
+3. Validiere oder teste über die passende Produktoberfläche. Prüfe bei einer Automatisierung die Validierung und ihre Mock-Tests vor dem Deployment.
+4. Kontrolliere Deployment-Plan und Zielorganisation. `tale deploy --override` kann Laufzeitkonfiguration durch die lokale Kopie ersetzen; nutze es nur für ein bewusst geprüftes Überschreiben.
+5. Lies die gespeicherte Konfiguration zurück und teste das Verhalten nach dem Deployment.
+
+Schlägt der Agent ein Feld vor, das im installierten Schema fehlt, korrigiere den Vorschlag vor der Bereitstellung. Bleibt eine vorhandene Organisation nach einer Änderung an `default/` unverändert, prüfe das Ziel, statt die Vorlage wiederholt bereitzustellen.

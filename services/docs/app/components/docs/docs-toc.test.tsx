@@ -1,5 +1,6 @@
 import type { TocEntry } from '@tale/ui/markdown/extract-toc';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -17,9 +18,9 @@ const ENTRIES: TocEntry[] = [
  * is `aria-hidden`, so a role query only ever finds the live one. jsdom has no
  * `matchMedia`, so each suite pins the width its copy belongs to.
  */
-function mockRailWidth(isRail: boolean) {
+function mockRailWidth(isRail: boolean, reducedMotion = false) {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: isRail,
+    matches: query.includes('prefers-reduced-motion') ? reducedMotion : isRail,
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
@@ -44,6 +45,28 @@ describe('DocsToc', () => {
       within(rail).getByRole('link', { name: 'Install the CLI' }),
     ).toHaveAttribute('href', '#install-the-cli');
   });
+
+  it.each([true, false])(
+    'honors reduced motion (%s) when jumping to a heading',
+    async (reducedMotion) => {
+      mockRailWidth(true, reducedMotion);
+      const scroll = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <>
+          <h2 id="before-you-begin">Section target</h2>
+          <DocsToc entries={ENTRIES} />
+        </>,
+      );
+      const heading = screen.getByRole('heading', { name: 'Section target' });
+      heading.scrollIntoView = scroll;
+      await user.click(screen.getByRole('link', { name: 'Before you begin' }));
+      expect(scroll).toHaveBeenCalledWith({
+        behavior: reducedMotion ? 'instant' : 'smooth',
+        block: 'start',
+      });
+    },
+  );
 
   it('renders nothing when the page has no headings', () => {
     const { container } = render(<DocsToc entries={[]} />);

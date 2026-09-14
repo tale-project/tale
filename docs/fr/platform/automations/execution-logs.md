@@ -1,85 +1,53 @@
 ---
-title: Journaux d’exécution
-description: Comment lire les exécutions d’une automatisation — les statuts, le mode, ce qui a lancé chacune, les résultats par nœud et les effets, plus une séance de débogage jouée de bout en bout.
+title: Examiner les exécutions et corriger les échecs
+description: Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer.
 ---
 
-Chaque lancement d’une automatisation ouvre une exécution, et cette exécution continue de s’écrire elle-même jusqu’à ce qu’elle se termine. Elle enregistre ce qui l’a lancée, la version qu’elle a utilisée, ce qu’elle a reçu, ce que chaque nœud a produit et tout ce qu’elle a changé hors de la plateforme. C’est la surface vers laquelle pointe chaque autre page d’automatisation quand quelque chose ne s’est pas passé comme prévu : autant savoir en lire une avant d’en avoir besoin.
+Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une ligne pour comprendre ce qui s’est passé. Commence par le statut, la version et le mode, puis examine le nœud concerné. Un essai réussi prouve le déroulement simulé, pas l’acceptation de la même action par un compte externe réel.
 
-## La liste des exécutions
+## Lire l’état de l’exécution
 
-La page d’une automatisation a un onglet **Exécutions** : chaque exécution, la plus récente en premier. Chaque ligne porte le statut de l’exécution, s’il s’agissait d’un essai ou d’une exécution réelle, la version employée, l’heure de départ et ce qui l’a lancée. Une exécution en échec ou en attente affiche la raison sur la ligne même plutôt que son lanceur : la liste répond donc souvent à la question sans qu’il faille ouvrir quoi que ce soit.
+L’onglet **Exécutions** présente les 50 dernières exécutions, de la plus récente à la plus ancienne. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
 
-Une automatisation qui ne s’est jamais exécutée le dit, au lieu d’afficher un tableau vide.
+| Statut | Signification | Suite à donner |
+| --- | --- | --- |
+| **En file d’attente** | Acceptée, en attente d’exécution. | Attendre, puis examiner la capacité si rien ne progresse. |
+| **En cours** | Le moteur traite le workflow. | Suivre les nœuds. |
+| **En attente** | Une décision, une réponse, un agent ou une condition reste attendu. | Lire ce qui manque. |
+| **Réussie** | Les nœuds atteints ont terminé et la sortie est produite. | Examiner sortie et effets. |
+| **En échec** | L’exécution s’est terminée sur un échec non traité. | Ouvrir le nœud concerné et lire l’erreur. |
+| **Arrêtée** | L’exécution a été annulée. | Vérifier le travail déjà fait avant de relancer. |
 
-## Ce que dit chaque statut
+Une approbation ou une question attend une personne ; un agent au travail ou une interrogation répétée peut poursuivre seul. Une décision ou une réponse peut aussi être refusée ou expirer. Utilise la cause affichée, pas le seul statut **En attente**, pour décider d’intervenir. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique les commandes de décision.
 
-| Statut                | Ce qu’il t’apprend                                                             |
-| --------------------- | ------------------------------------------------------------------------------ |
-| **En file d’attente** | L’exécution existe et attend que le moteur la prenne en charge                 |
-| **En cours**          | Le moteur avance à travers les nœuds                                           |
-| **En attente**        | L’exécution est garée — sur une personne, ou sur quelque chose encore en cours |
-| **Réussie**           | Chaque nœud atteint est allé au bout et la sortie a été produite               |
-| **En échec**          | Un nœud a levé une erreur et rien n’était réglé pour continuer au-delà         |
-| **Arrêtée**           | Quelqu’un a annulé l’exécution ; ce qui était déjà fait n’est pas défait       |
+## Examiner le nœud concerné
 
-**En attente** est le statut le plus mal lu. Ce n’est ni un blocage ni un échec : l’exécution garde sa place et repartira du nœud où elle s’est arrêtée. Ce qu’elle attend vient de deux familles, et une seule a besoin de toi : une exécution garée sur une **approbation** ou sur une **question** posée par un agent attend une personne, et y reste jusqu’à ce que la décision soit prise ou la question répondue ; une exécution garée sur un tour d’agent encore au travail, ou sur un nœud qui interroge jusqu’à ce que sa condition tienne, s’attend elle-même et repart sans personne. La ligne nomme l’attente, si bien qu’une exécution qui affiche _en attente_ pendant des minutes, le temps qu’un sondage tourne, est saine, pas bloquée. Par l’API, la même distinction est le champ `waitingFor` — `approval`, `ask`, `agent` ou `repeat` — et « les exécutions qui ont besoin d’un humain », c’est `waitingFor` dans les deux premiers, jamais le seul statut. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre ces portes.
+Sélectionne un nœud sur le canvas de l’exécution. **Entrée résolue** montre les valeurs après évaluation des expressions, et **Sortie** le résultat de l’étape. Ces champs distinguent une mauvaise référence d’une défaillance du service.
 
-## Essais et exécutions réelles
+Les états comprennent **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint** et **Pas encore atteint**. Une condition fausse, une dépendance, une branche alternative ou une règle de poursuite après erreur peut expliquer un nœud ignoré. Ce n’est pas toujours un problème.
 
-Chaque exécution est marquée comme l’un ou l’autre, et la différence tient à ce que le monde extérieur ait été touché ou non. Un **essai** utilise la valeur déterministe de chaque connecteur : aucun courrier ne part, aucun enregistrement n’est écrit, rien n’est facturé. Une exécution **réelle** peut faire les trois, et c’est pourquoi en lancer une demande un droit de développeur et pourquoi chacun de ses effets est enregistré.
+Par exemple, un rappel peut recevoir le nom du client mais un identifiant de facture vide. Examine la sortie précédente. Si le champ a été renommé, corrige la référence plutôt que les identifiants de messagerie. Vérifie ensuite l’entrée résolue dans un nouvel essai.
 
-Lire un essai te dit si le graphe et le flux de données sont justes. Seule une exécution réelle te dit si les systèmes extérieurs se sont comportés comme tu le pensais.
+Une application qui lit l’[API des exécutions](/fr/develop/api-reference) reçoit aussi `failureCode` lorsqu’une cause a été attribuée à l’échec. Par exemple, `approval_rejected` indique qu’une personne a refusé l’opération, tandis que `llm_output_invalid` signale une réponse du modèle qui ne respecte pas la structure attendue. Les anciens échecs peuvent ne pas avoir de code. Celui-ci aide à orienter le diagnostic ; il ne garantit ni qu’une relance est sans risque, ni qu’elle réussira.
 
-## Lire une exécution
+## Vérifier les changements déjà effectués
 
-Ouvre une exécution et tu obtiens le canvas de l’automatisation avec cette exécution peinte dessus, plus les faits propres à l’exécution autour : la version, le mode, l’heure de départ et l’heure de fin.
+La liste des effets enregistre les écritures des connectors avec leur nœud, leur connector et leurs données. Les essais utilisent des réponses simulées ; les actions réelles peuvent modifier des systèmes externes. L’exécution indique explicitement l’absence d’effets enregistrés.
 
-### Résultats par nœud
+Lis cette liste avant de recommencer. Un échec ultérieur n’annule ni un message déjà envoyé ni une mise à jour déjà effectuée. Si la livraison compte, vérifie aussi le service destinataire. Les effets restent liés à l’exécution jusqu’à son retrait par suppression ou conservation ; ils ne constituent pas une archive permanente distincte.
 
-Chaque boîte du canvas porte le statut que l’exécution lui a donné — **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, ou **Pas encore atteint** tant que l’exécution continue. Un échec est donc une position dans le graphe plutôt qu’une ligne à chercher, et les nœuds en aval montrent clairement qu’ils n’ont jamais été atteints.
+## Comprendre les reprises et nouvelles tentatives
 
-Sélectionne un nœud et le panneau montre ce qui lui est arrivé : l’**Entrée résolue** qu’il a réellement reçue une fois tous les templates évalués, et sa **Sortie**. L’entrée résolue est le champ le plus utile de cette page. Elle montre la valeur qu’une référence a produite plutôt que la référence que tu as écrite, et c’est ainsi qu’on attrape un template qui s’est résolu en silence vers rien.
+Le moteur enregistre les nœuds terminés comme points de reprise et continue après eux. Une exécution inachevée dont la continuation a été perdue peut être reprise après un délai. Une nouvelle exécution distincte possède ses propres points de reprise et peut répéter des écritures. Relancer n’est donc pas reprendre l’exécution existante.
 
-Les nœuds ignorés méritent d’être lus plutôt que survolés, car la raison diffère : un nœud peut être ignoré par sa propre condition, parce qu’un nœud dont il dépend a été ignoré, parce qu’il est la branche « sinon » d’un nœud qui s’est exécuté, ou parce qu’il a échoué sous un réglage qui laisse l’exécution continuer.
+Un échec d’agent admissible permet jusqu’à trois nouvelles tentatives automatiques après la première. Les points de reprise précédents restent acquis et l’en-tête affiche le compteur. Une tentative qui travaille au moins quinze minutes renouvelle ce budget de tentatives. Un pool d’abonnements peut choisir un autre compte pour la suivante.
 
-### Effets
+L’épuisement de la fenêtre totale d’exécution, l’expiration d’une question ou un refus lié au budget ne bénéficie pas de ces reprises. Chaque tentative consomme ses propres ressources ; les coûts antérieurs ne disparaissent pas. Si recommencer ne peut pas résoudre la cause, arrête l’exécution et corrige la dépendance avant de relancer.
 
-Une exécution conserve aussi la liste ordonnée de tout ce qu’elle a changé hors de la plateforme — chaque entrée nommant le nœud responsable, l’connector appelée et l’entrée avec laquelle elle a été appelée. Une exécution qui n’a rien changé hors de la plateforme le dit explicitement, et c’est une vraie réponse plutôt qu’une section vide.
+## Arrêter ou corriger le workflow
 
-La liste des effets est ce qui rend une exécution vérifiable après coup. Quand quelqu’un demande si un message est vraiment parti, c’est cette liste qui répond, et elle reste attachée à l’exécution en permanence.
+Choisis **Arrêter l’exécution** pour annuler une exécution inachevée. Le moteur empêche la poursuite aux limites de ses étapes ; il n’annule pas les effets déjà produits. Si l’exécution se termine avant de recevoir l’annulation, elle conserve son résultat final.
 
-## Pourquoi une longue exécution ne se répète pas
+Pour corriger le document, reviens à l’éditeur, modifie l’entrée ou le nœud concerné et enregistre une version avec un message utile. Fais un essai avec des données représentatives et lis les valeurs et la sortie, au-delà du statut de réussite. Mets la version vérifiée en service. Les prochains démarrages planifiés ou par webhook l’utiliseront ; l’ancien échec reste le journal de l’ancienne version.
 
-Une exécution réelle ne se déroule pas d’un seul tenant. Elle avance nœud par nœud, et chaque nœud terminé est enregistré comme point de reprise avant que le suivant ne commence : quand l’exécution atteint la fenêtre de temps de la plateforme, elle se rend la main et repart du dernier nœud terminé. Un nœud déjà exécuté n’est jamais atteint une seconde fois, et c’est ce qui empêche une exécution interrompue d’envoyer deux fois le même message.
-
-Ces mêmes points de reprise couvrent une exécution dont la continuation a été perdue. Une exécution restée dans un état non terminal au-delà d’un délai de grâce est reprise automatiquement et continue là où ses points de reprise la situent, plutôt que de redémarrer ou de rester inachevée pour toujours.
-
-## Quand une étape agent échoue
-
-Quand une étape agent échoue pour une raison qu’une nouvelle tentative peut changer — le fournisseur a refusé l’appel, la sandbox est morte sous elle, le harness s’est écrasé — l’exécution la retente d’elle-même : jusqu’à trois tentatives automatiques, immédiates, en plus de la tentative d’origine. Tout ce qui est en amont garde ses points de reprise, l’exécution reste vivante tout du long, et son en-tête compte les tentatives de la plateforme — **Tentative automatique 1 sur 3** — pour distinguer la relance du moteur d’une relance que tu aurais lancée toi-même. Une tentative qui a réellement progressé — quinze minutes d’exécution effective — recharge le budget au lieu de le dépenser ; et chez les fournisseurs servis par un pool de comptes d’abonnement, chaque nouvelle tentative évite les comptes qui viennent d’échouer.
-
-Deux échecs ne sont jamais retentés, parce qu’une tentative fraîche ne pourrait pas finir autrement : une étape qui a épuisé toute sa fenêtre de temps, et une question restée sans réponse jusqu’à son expiration. Une fois le budget épuisé, l’exécution échoue avec la dernière erreur et dit combien de tentatives elle a brûlées ; chaque tentative est facturée séparément — une exécution qui a retenté trois fois en a payé quatre. Une exécution qui retente reste une seule exécution réelle — **Arrêter l’exécution** est la porte de sortie quand tu vois que les tentatives ne changeront plus rien.
-
-## Une séance de débogage jouée de bout en bout
-
-La relance quotidienne n’est pas partie. Ouvre l’onglet **Exécutions** de l’automatisation : celle de ce matin est là et elle est **En échec**, avec sa raison sur la ligne.
-
-Ouvre-la. Le canvas montre les trois premiers nœuds comme exécutés, le quatrième en échec, et tout ce qui suit comme jamais atteint : la question est déjà réduite à une boîte. Sélectionne le nœud en échec et lis son **Entrée résolue** : le nom du client est là, l’id de facture est une chaîne vide. Cela renvoie un nœud plus haut.
-
-Sélectionne ce nœud en amont et lis sa sortie. Il a retourné un enregistrement sans champ `id`, parce que le champ qu’il lisait avait été renommé. Le template qui le référençait s’est résolu vers rien, et le nœud en aval a échoué sur la valeur vide plutôt que sur quoi que ce soit qui lui soit propre.
-
-<Tip>
-
-Lis la liste des effets avant de corriger quoi que ce soit. Elle te dit si l’exécution est allée assez loin pour toucher le monde extérieur, ce qui décide si relancer est sans risque ou demande d’abord un nettoyage.
-
-</Tip>
-
-Corrige la référence dans le panneau du nœud, enregistre une version avec une note nommant le champ renommé, et appuie sur **Essai**. L’essai parcourt le même graphe et cette fois chaque boîte apparaît comme exécutée. Mets cette version en service, et la planification de demain la reprendra.
-
-## Arrêter une exécution
-
-Tant qu’une exécution n’est pas terminée, tu peux l’arrêter, et une exécution arrêtée est définitive : le moteur vérifie à chaque frontière de nœud et cesse de planifier le suivant. Ce qui a déjà été fait n’est pas annulé, parce que cela ne peut pas l’être : un message envoyé est envoyé. Lis la liste des effets pour voir jusqu’où elle est allée avant de décider de la suite.
-
-## Où cela s’inscrit
-
-Une exécution est le reçu que laisse une automatisation : son statut dit ce qui s’est passé, ses résultats par nœud disent où, ses entrées résolues disent pourquoi, et ses effets disent ce qu’elle a changé hors de la plateforme. Associe cette page à [Déclencheurs de workflow](/fr/platform/automations/triggers) pour les sortes de lancement qui ouvrent ces enregistrements, et aux [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour la trace, à l’échelle de l’organisation, de qui a changé quoi.
+Si aucune exécution n’a démarré, examine le [déclencheur](/fr/platform/automations/triggers). Sa désactivation, une mise en service manquante ou des données refusées peuvent expliquer l’absence totale d’exécution.

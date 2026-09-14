@@ -1,57 +1,34 @@
-# FR — drift catalogue
+# French review patterns
 
-Named marketing-drift patterns. Regex forms in [`packages/ui/src/i18n/tests/locales/fr/voice.ts`](../../../../../packages/ui/src/i18n/tests/locales/fr/voice.ts). Reviewers cover the rest.
+Read in context. The actual configured patterns live in
+[voice data](../../../../../packages/ui/src/i18n/tests/locales/fr/voice.ts) and
+[terminology data](../../../../../packages/ui/src/i18n/tests/locales/fr/terminology.ts).
 
-## 1. Marketing softeners
+## Marketing language
 
-**Pattern.** Closed list of words that assert quality the page should demonstrate.
+Invitations such as “Découvre” and “N’hésite pas à” often delay the useful instruction. Replace
+promotional language with the action or a verified result. Do not invent indexing times, model
+capabilities, or certifications to make the revision sound concrete.
 
-**Examples.** `Découvre`, `Découvrez`, `N'hésite pas à`, `N'hésitez pas à`, `tout simplement`, `il te suffit de`, `il vous suffit de`, `simplement`, `facilement`, `en toute simplicité`, `puissant`, `puissante`, `clé en main`, `Profite de`, `Profitez de`, `Bénéficie de`, `Bénéficiez de`, `s'il te plaît`, `s'il vous plaît`.
+## English-shaped sentences
 
-**Target.** Strike. Demonstrate the quality instead. Caught by `voice-strikes`.
+Check noun chains, ambiguous pronouns, literal metaphors, and unexplained English words. Rewrite
+with ordinary French verbs or relative clauses while keeping conditions and scope intact. A
+loanword can be correct; English word order around it may still be wrong.
 
-## 2. Stacked nominal phrases
+## Address and modality
 
-**Pattern.** Three or more nominal phrases chained by `de`.
+Use `tu` and its possessives for Tale's reader. Distinguish an optional “Tu peux…” from a required
+imperative; making every sentence verb-first can change the source meaning.
 
-**Example drift.** _Une solution clé en main pour la gestion documentaire intégrée multilingue._
+## Typography and labels
 
-**Target.** Relative clause: _Une solution qui gère les documents dans plusieurs langues._
+Docs prose uses typographic apostrophes and configured nonbreaking spaces. Code and exact UI
+labels preserve their own syntax. Apply [CONVENTIONS.md](../../CONVENTIONS.md) according to the
+surface instead of replacing every apostrophe in a file.
 
-**Why.** French prose prefers relative clauses (`qui`, `que`) over stacked nominal phrases for readability. Stacked phrases mark translation from a noun-heavy English source.
+## Adding a guard
 
-**Not regex-enforced** — reviewers catch.
-
-## 3. Vous-slips
-
-**Pattern.** `vous`, `votre`, `vos` (and their capitalised forms) mid-sentence.
-
-**Target.** `tu`, `ton`/`ta`/`tes`. Use the imperative where possible.
-
-**Why.** Tale is `tu` uniformly; `vous` puts distance between the product and the reader. Caught by `pronouns-formal`.
-
-## 4. Calques
-
-Subtle English idioms rendered literally in French. Reviewers catch these; no regex denylist today.
-
-| Drift                                        | Target                               |
-| -------------------------------------------- | ------------------------------------ |
-| `boucle` (for "loop, as in in-the-loop")     | `informé`, `tenu au courant`         |
-| `posture de confiance` (for "trust posture") | name the actual certifications       |
-| `expérience utilisateur fluide et intuitive` | name what the experience consists of |
-
-## 5. Half-translated compounds
-
-Covered in [`../../BUCKETS.md`](../../BUCKETS.md) § "FR half-compounds" and enforced by `terminology-half-compound`. The mapping is regex-based in [`packages/ui/src/i18n/tests/locales/fr/terminology.ts`](../../../../../packages/ui/src/i18n/tests/locales/fr/terminology.ts).
-
-## 6. NBSP miscues
-
-Caught by `style-nbsp`. French requires NBSP before `:;!?%»` and after `«`. Regular space in these positions fires the check.
-
-## 7. Apostrophe miscues
-
-Caught by `style-apostrophes`. French prose uses typographic `’` between letters (`l’équipe`, `c’est`). ASCII `'` in prose fires the check; message values stay ASCII — `style-apostrophes` checks prose only, never the message file.
-
-## When you find a new pattern
-
-Document the drift here with one paragraph, one example, and one target. If it has a regex form, add to [`packages/ui/src/i18n/tests/locales/fr/voice.ts`](../../../../../packages/ui/src/i18n/tests/locales/fr/voice.ts) under `STRIKES`. Add a planted fixture under [`packages/ui/src/i18n/tests/locales/fr/planted/voice-strikes/`](../../../../../packages/ui/src/i18n/tests/locales/fr/planted/voice-strikes/).
+A recurring pattern needs real examples and counterexamples. Add a narrowly scoped check only
+when it reliably distinguishes them, with positive and negative fixtures. Native fluency and
+factual equivalence still require review.

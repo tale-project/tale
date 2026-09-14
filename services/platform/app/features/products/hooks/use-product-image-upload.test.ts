@@ -26,27 +26,28 @@ describe('useProductImageUpload', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uploads to storage and resolves a public URL', async () => {
+  it('uploads through the product image lane and keeps its stable authorized URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
-    query.mockResolvedValue('https://files.example/pic.png');
+    const imageUrl = '/api/app/products/images/file-1?orgId=org-1';
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ storageId: 'storage123' }),
+      json: async () => ({ imageUrl }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     const { result } = renderHook(() => useProductImageUpload());
     const url = await result.current.uploadImage(file());
 
-    expect(url).toBe('https://files.example/pic.png');
-    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(url).toBe(imageUrl);
+    expect(mutation).toHaveBeenCalledWith(
+      'products/mutations:generateImageUploadUrl',
+      {},
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       'https://upload.example/post',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(query).toHaveBeenCalledWith(expect.anything(), {
-      fileId: 'storage123',
-    });
+    expect(query).not.toHaveBeenCalled();
   });
 
   it('throws when the upload POST fails', async () => {
@@ -61,7 +62,7 @@ describe('useProductImageUpload', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('throws when the response has no storageId', async () => {
+  it('throws when the response has no stable image URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(
       'fetch',

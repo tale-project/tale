@@ -1,32 +1,39 @@
 ---
-title: Genehmigungskonzepte
-description: Eine Genehmigung ist ein geparkter Schritt in einem laufenden Automatisierungslauf — ein Connector-Schreibzugriff, der auf der Detailseite des Laufs wartet, bis ein Mensch ihn freigibt oder ablehnt. Diese Seite benennt, was eine auslöst, welche Entscheidung sie bietet und was sie hinterlässt.
+title: Freigaben für Aktionen verstehen
+description: Erfahre, warum ein Connector-Schreibzugriff wartet, was Freigeben oder Ablehnen bewirkt und wo du das Ergebnis prüfst.
 ---
 
-Eine Genehmigung ist die Naht zwischen der Initiative einer Automatisierung und deinem Urteil. Erreicht ein Live-Lauf einen Connector-Schreibzugriff, den die Richtlinie deiner Organisation abfängt — Mail senden, eine Nachricht posten, ein Issue öffnen —, läuft der Schritt nicht: Der Lauf parkt, und seine Detailseite zeigt eine Karte mit der Operation und der exakten Eingabe, mit der der Schritt aufrufen würde, bis ein Mensch entscheidet. Solange die Karte aussteht, geht nichts hinaus, und ein abgelehnter Schritt lässt den Lauf fehlschlagen, statt hinter deinem Rücken einen neuen Versuch zu starten.
+Mit einer Freigabe prüfst du einen geplanten Connector-Schreibzugriff, bevor er ausgeführt wird. Eine Automation kann zum Beispiel eine E-Mail vorbereiten und dann warten, bis du Empfänger und Inhalt vor dem Versand geprüft hast.
 
-Diese Seite ist das Denkmodell — was eine Genehmigung auslöst, wo sie erscheint und was eine Entscheidung hinterlässt. Wo die Anforderung deklariert wird, steht auf [Genehmigungen konfigurieren](/de/platform/approvals/configure); der andere Ort, an dem ein Lauf auf einen Menschen wartet — die Frage, die eine Agent-Node mitten im Lauf stellt —, steht auf [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
+## Wann ein Schreibzugriff wartet
 
-## Was eine Genehmigung auslöst
+Ein Live-Lauf pausiert, sobald er einen Connector-Schreibzugriff erreicht, für den die Richtlinie der Organisation eine Freigabe verlangt. Standardmäßig brauchen Schreibzugriffe auf externe Systeme eine Freigabe; Schreibzugriffe über interne, durch die Plattform authentifizierte Connectors nicht. Die Organisation kann diese Regel für einen Connector oder eine einzelne Aktion ändern. Mehr dazu unter [Freigaben konfigurieren](/de/platform/approvals/configure).
 
-Genau eines: ein **Connector-Schreibzugriff in einem Live-Lauf**, für den die Genehmigungsrichtlinie eine Entscheidung verlangt. Die Standardgrenze ist, ob der Schreibzugriff deinen Mandanten verlässt — Mail, Slack, GitHub und WebDAV fragen; eine verschobene Aufgabe oder ein auf Tales eigener Oberfläche abgelegtes Dokument nicht —, und `governance/approval-policy.yml` verschiebt diese Grenze pro Connector oder pro Aktion. Lesezugriffe fragen nie. Testläufe fragen ebenfalls nie: Im Mock-Modus liefern Connectors Platzhalter, und nichts außerhalb der Plattform wird berührt.
+Lesezugriffe verlangen keine Freigabe. Ein **Testlauf** nutzt simulierte Connectors: Er führt den externen Schreibzugriff nicht aus und zeigt dessen Live-Freigabekarte nicht. Ein bestandener Test belegt nicht, dass die geplante Live-Aktion angemessen ist.
 
-Nichts sonst erzeugt in dieser Version eine Genehmigungskarte. Der Chat-Assistent kann nirgends schreiben — seine drei Tools suchen und laden —, also gibt es keine Karte im Chat; die Connector-Aufrufe eines Projekt-Agents laufen nur lesend über seinen Broker, ein Aufgabenlauf erreicht das Tor also nie; und es gibt kein Genehmigungs-Flag pro Tool auf einem MCP-Server, weil ausgehende MCP-Server nicht Teil dieser Version sind.
+## Die geplante Aktion prüfen
 
-## Die Entscheidung auf der Karte
+Öffne die [Laufliste](/de/platform/automations/execution-logs) der Automation und wähle den Lauf mit dem Status **Wartet**. Die Freigabekarte nennt die Aktion, etwa `imap-smtp.send`, und den anfragenden Knoten. **Der Schritt würde aufrufen mit** zeigt die genauen Eingaben.
 
-Öffne den Lauf — aus der Liste der Läufe der Automatisierung, wo er als **Wartet** steht —, und die Karte liest sich **Wartet auf deine Freigabe**, nennt die Operation als `<connector>.<aktion>` und die Node, die sie angefragt hat, und zeigt die Eingabe unter **Der Schritt würde aufrufen mit**. Zwei Entscheidungen: **Freigeben** lässt den geparkten Schritt beim nächsten Poll handeln, und der Lauf setzt fort; **Ablehnen** lässt den Schritt fehlschlagen und stoppt den Lauf. Einen dritten Weg gibt es nicht — du kannst die Parameter nicht bearbeiten und die Automatisierung nicht bitten, den Aufruf zu überarbeiten; ein falscher Aufruf wird abgelehnt, und die Definition wird auf dem Canvas korrigiert.
+Vergleiche Ziel, Empfänger, Inhalt und Kennungen mit der beabsichtigten Aufgabe. Prüfe auch sensible Angaben in den Eingaben, bevor du entscheidest:
+
+- **Freigeben** erlaubt die Ausführung dieser Aktion, sobald der Lauf fortgesetzt wird.
+- **Ablehnen** verhindert die Aktion; der Schritt und der Lauf schlagen fehl.
+
+Auf der Karte kannst du die Aktion nicht bearbeiten. Ist eine Eingabe falsch, lehne sie ab, korrigiere den Workflow oder seine Eingaben und starte einen neuen Lauf.
 
 <Note>
 
-Genehmigungen haben in dieser Version keinen Posteingang. Die Karte lebt auf der Detailseite des Laufs, und wer diese Seite öffnen kann, entscheidet — es gibt kein Routing an einen Genehmiger-Pool und keine persönliche Warteschlange. Die eine Entscheidung, die einen Admin verlangt, ist die zweite Unterschrift unter einer Löschanfrage, behandelt in [Anfragen betroffener Personen](/de/platform/admin/governance/data-subject-requests).
+Organisationsmitglieder können über Connector-Aktionen entscheiden. Diese Karten werden keiner bestimmten prüfenden Person oder Gruppe zugewiesen; die Entscheidung erfolgt in den Laufdetails. Für andere Prüfverfahren können strengere Berechtigungen gelten.
 
 </Note>
 
-## Zustände und die Spur
+## Das Ergebnis prüfen
 
-Eine Karte wandert von ausstehend zu in Ausführung, wenn sie freigegeben wird — der Schritt handelt beim nächsten Poll, und der Datensatz landet bei abgeschlossen — oder zu abgelehnt. Die Entscheidung gehört zu der Operation, für die sie erbeten wurde: Eine danach gelockerte Richtlinie gibt eine bereits wartende Karte nicht frei, und ein Lauf, der dieselbe Operation erneut erreicht, liest dieselbe Antwort, statt zweimal zu fragen. Jede Entscheidung landet im [Audit-Log](/de/platform/admin/governance/audit-logs) mit Akteur und Zeitstempel, und der Lauf behält das Ergebnis in seinen eigenen Details. Eine entschiedene Karte lässt sich nicht wieder öffnen — ein abgelehnter Lauf ist vorbei, und der neue Versuch ist ein frischer Lauf.
+Eine Freigabe erlaubt die Ausführung, garantiert aber nicht, dass der Connector erfolgreich ist. Prüfe nach der Fortsetzung den Laufstatus, das Knotenergebnis und die Auswirkungen. Ein abgelehnter Lauf nennt die Ablehnung als Fehlergrund. Das [Audit-Protokoll](/de/platform/admin/governance/audit-logs) hält die Entscheidung und die handelnde Person fest.
 
-## Wo das hingehört
+Eine ausstehende Freigabe bleibt offen, wenn die Richtlinie gelockert wird. Dieselbe Aktion im selben Lauf behält ihre gespeicherte Entscheidung; ein neuer Lauf wird erneut bewertet. Ein beendeter oder abgebrochener Lauf kann eine noch offene Freigabe nicht mehr für seinen Schreibzugriff nutzen.
 
-Genehmigungen sind der Weg, auf dem eine Automatisierung fremde Systeme erreicht, ohne allein zu handeln: Der Schreibzugriff wartet, ein Mensch liest den exakten Aufruf, und das Protokoll sagt, wer was erlaubt hat. Lies [Genehmigungen konfigurieren](/de/platform/approvals/configure), um zu sehen, wo die Grenze zwischen Fragen und Nicht-Fragen verläuft, und [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) für den anderen Ort, an dem ein Lauf auf einen Menschen wartet.
+## Freigabe und Rückfrage unterscheiden
+
+Ein Agent-Knoten kann auch pausieren, weil er Informationen von einer Person braucht. Deine Antwort liefert eine Eingabe; sie gibt keinen Connector-Schreibzugriff frei. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt beide Abläufe. Für Aufgabenprüfungen, kontrollierte Dokumente und Löschanträge gelten eigene [Prüfregeln](/de/platform/approvals/configure).

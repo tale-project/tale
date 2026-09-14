@@ -1,40 +1,45 @@
 ---
-title: Skills auf Agenten
-description: Wie ein Skill aus der Bibliothek einen Agenten erreicht — die Agenten eines Projekts ausrüsten, wessen Sichtbarkeit zählt und wie ein Bundle in einer Sandbox-Sitzung landet.
+title: Agenten mit Skills ausrüsten
+description: Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automationsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung.
 ---
 
-Ein Agent kommt an einen Skill nur heran, wenn er ausgerüstet ist — und ausgerüstet wird aus der [Skill-Bibliothek](/de/platform/workspace/skills) der Organisation. Diese Seite handelt von den Oberflächen, die daraus wählen: den Agenten eines Projekts und den Agent-Knoten einer Automation. Eine Regel entscheidet, was sie wählen dürfen: **Es zählt die Sichtbarkeit des Projekts selbst, nie die des Mitglieds, das konfiguriert.**
+Rüste einen Agenten mit einem Skill aus, wenn er ein wiederverwendbares Vorgehen oder Referenzmaterial aus der [Skill-Bibliothek](/de/platform/workspace/skills) der Organisation braucht. Die Bibliothek speichert das Bundle; die Ausrüstung des Agenten bestimmt, welche Bundles seinen Läufen zur Verfügung stehen.
 
-## Was Ausrüsten entscheidet
+## Einen Skill für die Aufgabe wählen
 
-Ein ausgerüsteter Skill wird dem Modell über seine Beschreibung angeboten. Hält das Modell diese Beschreibung für relevant für deine Anfrage, liest es den Body der `SKILL.md` und öffnet einzelne Bundle-Dateien, wo der Body auf sie verweist. Nichts wird ausgeführt, nichts vorab eingefügt — ein Skill kostet nur in den Zügen Kontext, in denen das Modell wirklich zu ihm greift.
+Ein hilfreicher Skill erklärt, wann er gebraucht wird, wie die Arbeit abläuft und woran ein gutes Ergebnis erkennbar ist. Rüste zum Beispiel den Agenten für Release Notes mit dem passenden Skill aus. Gib ihm einige Änderungen und prüfe, ob sein Ergebnis dem erwarteten Format entspricht.
 
-Ein Bundle mit `disable-model-invocation: true` im Frontmatter verhält sich anders: Es bleibt ausgerüstet und lesbar, aber das Modell darf nicht ungefragt danach greifen; es wartet auf einen Zug, in dem es jemand beim Namen nennt.
+Das Bundle enthält `SKILL.md` und kann Referenzen, Dateien oder Skripte mitbringen. Beim Import werden diese Dateien nicht ausgeführt. Nach dem Ausrüsten können die Anweisungen jedoch einen Coding-Agenten mit Shell oder anderen Werkzeugen dazu anleiten, ein enthaltenes Skript auszuführen. Prüfe daher das gesamte Bundle vor der Verwendung. Ein Skill bildet keine zusätzliche Berechtigungsgrenze.
 
-## Die Agenten eines Projekts ausrüsten
+## Einen Projekt-Agenten ausrüsten
 
-Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt seine eigene Ausrüstung, gewählt im Ausrüstungsmenü im Dialog des Agenten. Die Liste dort folgt der Sichtbarkeit des **Projekts**, nicht deiner: organisationsweite Skills plus Team-Skills, die mit einem der Teams des Projekts geteilt sind. Ein organisationsweites Projekt sieht nur Organisations-Skills, und niemandes alte private Skills tauchen auf — ein Projekt-Agent läuft für jedes Mitglied des Projekts, seine Ausrüstung darf also nie etwas einschmuggeln, das nur seine Autorin sehen könnte.
+Öffne den [Projekt-Agenten](/de/platform/projects/project-agents) und wähle die benötigten Skills in seiner Ausrüstung. Die Liste richtet sich nach dem Zugriff des Projekts, auch wenn du persönlich mehr Skills lesen kannst:
 
-Dieselbe Regel gilt zur Laufzeit. Ein Task-Lauf lädt die Skills des Agenten als das Projekt; eine Automation auf Organisationsebene als die Organisation. Ein Skill, der für diese Sicht unsichtbar wird, lässt den Lauf mit seinem Namen fehlschlagen, statt still ohne ihn zu laufen — bewusst gewählte Ausrüstung, die stumm fehlt, ist schlimmer als ein fehlgeschlagener Lauf.
+| Projektzugriff | Verfügbare Skills |
+| --- | --- |
+| Organisationsweites Projekt | Organisationsweite Skills |
+| Mit Teams geteiltes Projekt | Organisationsweite Skills sowie Team-Skills, die mit mindestens einem Team des Projekts geteilt sind |
 
-## Skills in einer Sandbox-Sitzung
+Alte private Skills können nicht für einen Projekt-Agenten ausgewählt werden. Dieselbe Zugriffsregel wird beim Start einer Aufgabe geprüft. Die Auswahl eines Skills gewährt dem Projekt keinen dauerhaften Zugriff darauf.
 
-Läuft ein Zug in einer Sandbox, kommen ausgerüstete Bundles nicht über einen Tool-Aufruf an. Sie werden als Dateien in die Sitzung geladen, im Layout, das die Laufzeit ohnehin kennt — das Harness findet sie so, wie es einen Skill auf jeder Maschine fände, auf der es arbeitet.
+## Skills in einer Automation verwenden
 
-Für Kollisionen gilt eine Regel: Das Repository gewinnt. Liefert das ausgecheckte Repository einen Skill unter demselben Slug wie einer, den Tale laden würde, hält Tale seine Kopie zurück, und die Version des Repositories steht. Ein Repository kann immer überschreiben, was die Plattform dem Agenten sonst beibringen würde, und die Sitzung hält nie zwei Bundles mit demselben Namen.
+Die Agent-Knoten einer Automation geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.
 
-## Skill oder Instruktionen
+Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit und gibt dem Agenten die Pfade zu ihren `SKILL.md`-Anweisungen. Unterstützende Dateien liegen daneben. Wähle die Ausrüstung gezielt und sage dem Agenten, welches Vorgehen für die Aufgabe wichtig ist. Dass ein Skill verfügbar ist, belegt noch nicht, dass das Ergebnis seinen Anweisungen folgt.
 
-| Nimm … wenn                                                 | Skill | Agent-Instruktionen |
-| ----------------------------------------------------------- | ----- | ------------------- |
-| Das Muster wiederholt sich über mehrere Agenten             | ✓     |                     |
-| Das Verhalten braucht Referenzdateien neben der Prosa       | ✓     |                     |
-| Das Verhalten ist die Stimme genau dieses einen Agenten     |       | ✓                   |
-| Eine Änderung soll alle erreichen, die das Verhalten nutzen | ✓     |                     |
-| Die Instruktionen des Agenten passen noch auf einen Schirm  |       | ✓                   |
+## Fehlende oder geänderte Skills prüfen
 
-Instruktionen sind die richtige Form für den eigenen Charakter eines Agenten. Ein Skill ist die richtige Form, sobald dasselbe Verhalten beim zweiten und dritten Agenten auftaucht und es dich etwas kostet, ihre Instruktionen im Gleichschritt zu halten.
+Fehlt ein benötigter Skill oder ist er nicht mehr mit dem Ausführungsbereich geteilt, schlägt die Bereitstellung fehl und nennt den nicht verfügbaren Skill. Prüfe Slug, Sichtbarkeit, Projektteams sowie mögliche Löschungen oder Ersetzungen. Stelle den vorgesehenen Zugriff wieder her oder entferne die veraltete Ausrüstung, bevor du es erneut versuchst.
 
-## Wo das hingehört
+Änderungen an einem geteilten Bundle wirken sich auf spätere Bereitstellungen aus. Prüfe Ersetzungen und teste den Agenten nach größeren Änderungen mit einer bekannten Eingabe. Verlasse dich nicht darauf, dass ein gleichnamiger Skill im Repository das ausgerüstete Bundle überschreibt.
 
-Ausrüsten ist die schmale Hälfte der Skills: Die Bibliothek entscheidet, was existiert und wer es sieht; der Agenten-Dialog eines Projekts und die Agent-Knoten einer Automation entscheiden, wo es genutzt wird — immer durch die Sichtbarkeit des Projekts oder der Organisation selbst. Halte Ausrüstungslisten kurz, ersetze ein Bundle lieber, statt es zu klonen, und lass ein Repository überschreiben, was die Plattform laden würde, wenn ein Agent in einem arbeitet. Die andere Hälfte der Geschichte — eine `SKILL.md` schreiben, einen Ordner hochladen, ein Bundle teilen — ist die [Skill-Bibliothek](/de/platform/workspace/skills).
+## Skills oder Agent-Anweisungen wählen
+
+| In einen Skill gehört, was… | In die Agent-Anweisungen gehört, was… |
+| --- | --- |
+| mehrere Agenten als gemeinsames Vorgehen nutzen. | die Rolle oder den Stil dieses Agenten festlegt. |
+| Referenzdateien oder Skripte benötigt. | eine kurze, beständige Regel für diesen Agenten ist. |
+| zentral gepflegt werden soll. | erklärt, wie dieser Agent seine ausgerüsteten Skills verwenden soll. |
+
+Die [Anleitung zur Skill-Bibliothek](/de/platform/workspace/skills) erklärt, wie du Bundles erstellst, importierst, bearbeitest und teilst.

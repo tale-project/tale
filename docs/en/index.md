@@ -1,97 +1,51 @@
 ---
 title: Tale documentation
-description: Tale is the orchestrator for AI agents. Start with the quickstart, follow the get-started journey for your role, or jump into the feature reference.
+description: Learn to use Tale, build project agents, connect applications, and operate an instance.
 kind: index
 ---
 
-You chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage contact conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
+Tale brings conversations, projects, knowledge, and automations into one workspace. Start with the task you want to complete; you do not need to understand every feature first.
 
-Every feature, API, and role is identical across the two editions; the only difference is who runs the stack. Start with the quickstart, then follow the journey that matches your role.
-
-<CardGroup cols="1">
-
-<Card title="Quickstart — your first agent answer in 5 minutes" icon="zap" href="/get-started/quickstart">
-
-From a running instance to a working chat reply, on Cloud or your own machine.
-
-</Card>
-
-</CardGroup>
-
-## Pick your journey
-
-Four day-one journeys, one per role. Each takes about 15 minutes and ends with something working.
+## Get started
 
 <CardGroup cols="2">
 
-<Card title="I use Tale" icon="message-circle" href="/get-started/members">
+<Card title="Send your first message" icon="message-circle" href="/get-started/quickstart">
 
-Your first chat, your first document, your first project — the member's first day.
-
-</Card>
-
-<Card title="I build agents" icon="bot" href="/get-started/editors">
-
-Create a project agent and watch it work a board task — the editor's first day.
+Sign in, choose a model, and get an answer.
 
 </Card>
 
-<Card title="I integrate with Tale" icon="code" href="/get-started/developers">
+<Card title="Use Tale with your team" icon="users" href="/get-started/members">
 
-Mint an API key and make your first authenticated request — the developer's first day.
-
-</Card>
-
-<Card title="I run the workspace" icon="shield" href="/get-started/admins">
-
-Set up the workspace, invite the team, connect a provider — the admin's first day.
+Find your chats, work with sources, and join a project.
 
 </Card>
 
-</CardGroup>
+<Card title="Build a project agent" icon="bot" href="/get-started/editors">
 
-## Pick your edition
-
-<CardGroup cols="2">
-
-<Card title="Cloud" icon="cloud" href="/cloud">
-
-Tale operates the stack — pick this when running infrastructure is not where the team should spend its hours.
+Give an agent a clear job and review its first result.
 
 </Card>
 
-<Card title="Self-hosted" icon="server" href="/self-hosted">
+<Card title="Set up a workspace" icon="shield" href="/get-started/admins">
 
-Install Tale on your own VPC, on-premises hardware, or in an air-gapped environment.
+Connect providers, add people, and choose their access.
 
 </Card>
 
 </CardGroup>
 
-## Go deeper
+## Find the right guide
 
-<CardGroup cols="3">
+- **[Do a complete task](/tutorials/overview)** — Guided examples for members, builders, and administrators.
+- **[Look up a product feature](/platform)** — Controls, permissions, expected behavior, and troubleshooting.
+- **[Connect another system](/develop/overview)** — REST API, MCP, WebDAV, and webhooks.
+- **[Run Tale yourself](/self-hosted)** — Installation, configuration, backups, and upgrades.
+- **[Use managed hosting](/cloud)** — Cloud onboarding, commercial terms, and operational responsibilities.
 
-<Card title="Platform" icon="layout-dashboard" href="/platform">
+## How to use these docs
 
-The canonical feature reference, identical for Cloud and self-hosted.
+The same product guides apply to Cloud and self-hosted instances. What you see depends on your role and which providers and services your administrator has configured. If a control is missing, start with [members and roles](/platform/admin/members-and-roles).
 
-</Card>
-
-<Card title="Tutorials" icon="route" href="/tutorials/overview">
-
-Role-indexed walks from "I want to do X" to a working result.
-
-</Card>
-
-<Card title="Develop" icon="terminal" href="/develop/overview">
-
-REST API, webhooks, connectors, contributor workflows.
-
-</Card>
-
-</CardGroup>
-
-## Where this fits
-
-Once you have walked a get-started journey, the rest of the docs sit one click away: [Platform](/platform) is the canonical reference for every user-visible feature, and [Tutorials](/tutorials/overview) go deeper on complete tasks. Source, issues, and release announcements live at [GitHub](https://github.com/tale-project/tale).
+Instructions use the labels shown in the app. Screenshots illustrate the English interface; German and French pages use the labels from their respective interfaces. For a first visit, follow [the quickstart](/get-started/quickstart).

@@ -9,47 +9,39 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 
 type Tone = 'note' | 'tip' | 'info' | 'warning' | 'danger' | 'check';
 
-const TONE_CONFIG: Record<
-  Tone,
-  { icon: LucideIcon; label: string; className: string }
-> = {
+const TONE_CONFIG: Record<Tone, { icon: LucideIcon; className: string }> = {
   note: {
     icon: StickyNote,
-    label: 'Note',
     className:
       'border-border-base bg-bg-elevated/50 text-fg-base [&_svg]:text-fg-muted',
   },
   tip: {
     icon: Lightbulb,
-    label: 'Tip',
     className:
       'border-emerald-500/30 bg-emerald-500/[0.06] text-fg-base [&_svg]:text-emerald-600 dark:[&_svg]:text-emerald-400',
   },
   info: {
     icon: Info,
-    label: 'Info',
     className:
       'border-sky-500/30 bg-sky-500/[0.06] text-fg-base [&_svg]:text-sky-600 dark:[&_svg]:text-sky-400',
   },
   warning: {
     icon: AlertTriangle,
-    label: 'Warning',
     className:
       'border-amber-500/40 bg-amber-500/[0.06] text-fg-base [&_svg]:text-amber-600 dark:[&_svg]:text-amber-400',
   },
   danger: {
     icon: OctagonAlert,
-    label: 'Caution',
     className:
       'border-red-500/40 bg-red-500/[0.06] text-fg-base [&_svg]:text-red-600 dark:[&_svg]:text-red-400',
   },
   check: {
     icon: CheckCircle2,
-    label: 'Success',
     className:
       'border-emerald-500/30 bg-emerald-500/[0.06] text-fg-base [&_svg]:text-emerald-600 dark:[&_svg]:text-emerald-400',
   },
@@ -62,12 +54,21 @@ interface CalloutProps {
 }
 
 export function Callout({ tone, children, className }: CalloutProps) {
+  const { t } = useT('markdownCallout');
+  const labels: Record<Tone, string> = {
+    note: t('note'),
+    tip: t('tip'),
+    info: t('info'),
+    warning: t('warning'),
+    danger: t('danger'),
+    check: t('check'),
+  };
   const config = TONE_CONFIG[tone];
   const Icon = config.icon;
   return (
     <aside
       role="note"
-      aria-label={config.label}
+      aria-label={labels[tone]}
       className={cn(
         // Force foreground colour onto descendants so embedded markdown
         // (paragraphs, links, inline code) doesn't fall back to the muted

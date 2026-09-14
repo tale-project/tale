@@ -1,60 +1,55 @@
 ---
-title: Your first day using Tale
-description: The member journey — chat with an agent, give the workspace a document to know, and find your way around projects and chat history.
+title: Use Tale with your team
+description: Find your conversations, choose where to put information, and work in a project.
 ---
 
-This journey is for everyone who uses Tale rather than configures it. In fifteen minutes you chat with an agent, add a document the whole workspace can draw on, and learn where shared work lives — the three moves that cover most days.
+Your everyday work in Tale starts with a conversation or a project. This guide helps you find the right place for a question, a document, and work you want to share with your team.
 
-You need a signed-in account on a workspace where chat already answers — that is the [quickstart](/get-started/quickstart). Chatting and browsing work with the **Member** role; the two write moves below (uploading a document, moving a task) need **Editor** or higher — if a button is missing for you, that is the role boundary, not a broken workspace.
+## Know what you can access
 
-<Steps>
+Start with a signed-in account and a working [first chat](/get-started/quickstart). Your role and project access determine what you can read or change. Members can chat and work in accessible projects. Editing organization-wide knowledge requires Editor or higher; project work follows the project’s access rules. Check [members and roles](/platform/admin/members-and-roles) when a control is missing.
 
-<Step title="Chat with an agent">
+## Ask a question with enough context
 
-You already sent a first message in the quickstart — this time watch what the agent does with it. Click **New chat**, ask something from your actual work, and expand the collapsible tool-call boxes above the reply: they show what the agent read or ran before answering.
+Open **Chat** and select **New chat**. Describe the task, provide the information needed, and say what the result should look like. For example, paste meeting notes and ask for decisions, owners, and open questions.
 
-When the answer should come from a document, upload it under **Knowledge** first — the assistant searches the organisation's documents and cites what it used. The next step covers that upload.
+Read the result before using it. When the answer cites a source, open it and check that it supports the claim. A fluent answer is not evidence that the model used the correct document. [Chat effectively](/tutorials/member/chat-effectively) shows how to improve an answer with follow-up questions.
 
-</Step>
+## Put information in the right place
 
-<Step title="Give the workspace a document">
+| You want to… | Use… |
+| --- | --- |
+| Discuss a file in this conversation | A [chat attachment](/platform/chat/attachments) |
+| Keep source material with a project | The project’s [Knowledge tab](/platform/projects/manage-files) |
+| Make approved material available as organization knowledge | [Knowledge documents](/platform/knowledge/documents) |
+| Maintain a short reusable article | A [knowledge entry](/platform/knowledge/knowledge-entries) |
 
-Knowledge persists across every chat and cites itself in the answers. To make a document available to every agent and teammate, open **Knowledge > Documents** and click **Upload documents**, then **From your device**, pick the file, and click **Upload**. The document appears in the table and is indexed in the background — once indexed, agents cite it in their answers. The upload menu appears for Editors and up; with the Member role you read and search the library, and hand the file to an Editor to add.
+Choose the intended audience before uploading. Organization knowledge and a project’s files have different access boundaries. Uploading a file and making it searchable are separate stages; wait for indexing before testing retrieval.
 
-<Frame caption="The Documents table after a few uploads.">
+<Frame caption="The Documents list shows uploaded files and their indexing state. This view filters files to indexed uploads.">
 
-![The Knowledge Documents table listing three uploaded text files and the knowledge entries' markdown documents with their indexing status.](/images/get-started/documents-list.webp)
-
-</Frame>
-
-<Check>
-
-Ask a new chat a question only your document can answer. A reply citing the document proves the index works end to end.
-
-</Check>
-
-</Step>
-
-<Step title="Find the team's work in Projects">
-
-Open **Projects** in the sidebar. A project bundles everything about one effort — tasks on a board, shared files, project chats, and its own agents. Open a project and switch between **Board** and **List** on the Tasks tab; with edit access (Editor and up) you drag a task between columns to update its status, and the card staying in its new column after a reload means the change persisted for everyone.
-
-<Frame caption="A project's task board — drag cards between columns.">
-
-![A project task board titled Website relaunch with seven task cards spread one or two per column across Backlog, To do, In progress, In review, Done, and Cancelled.](/images/platform/projects-task-board.webp)
+![The Documents table lists source files with their indexing status.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-</Step>
+If you cannot add a shared source, ask someone with edit access. Include the intended audience and where the file should live.
 
-<Step title="Find your way back">
+## Work in a project
 
-Chats never disappear silently. Click **Show chats** above the chat to open the history sidebar — every chat you can resume in this workspace, newest first. Renaming a chat gives it a title that survives; deleting one moves it to the workspace trash rather than destroying it.
+Open **Projects** and select a project you can access. Use **Tasks** to see the work, **Knowledge** for project files, and **Chats** for conversations. Project chats remain personal until shared with the project.
 
-</Step>
+<Frame caption="A board groups work by status; each card opens the task details.">
 
-</Steps>
+![A project task board groups task cards into Backlog, To do, In progress, In review, Done, and Cancelled.](/images/platform/projects-task-board.webp)
 
-## Where you are now
+</Frame>
 
-You can chat, feed the workspace knowledge, and navigate shared work — the member's daily loop. The natural next reads are [Chat basics](/platform/chat/basics) for the mental model behind the chat, and [Use projects](/tutorials/member/use-projects) for a deeper project walkthrough. When you are ready to build an agent of your own, switch to the [editor journey](/get-started/editors).
+Open a task to read its description, assignee, and discussion. If you have edit access, update the task and reload it to check the saved result. Follow [manage project tasks](/platform/projects/tasks) for ordinary task work and [use projects](/tutorials/member/use-projects) for a complete example.
+
+## Return to your work
+
+Choosing **Projects** or **Knowledge** from another section returns you to the place you last visited. Choose the already active section again to return to its list. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
+
+The chat sidebar keeps your conversation history. Use **Show chats** when it is hidden, then reopen the conversation. Use a new chat for a new subject and share a project conversation deliberately when teammates need it.
+
+Your language and theme are available from **Manage account**. The [preferences guide](/platform/member/preferences) explains the other account settings and which features use them.

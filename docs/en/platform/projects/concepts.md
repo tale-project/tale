@@ -1,48 +1,52 @@
 ---
 title: Project concepts
-description: A project bundles chats, files, instructions, and tasks into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat.
+description: Understand what a project shares, what stays personal, and when to move recurring work into one.
 ---
 
-A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same working surfaces across many chats and many people. This page hands you the mental model — read it before you create your first project, and come back when you are deciding whether a growing chat should be promoted into one.
+Use a project when several questions or tasks depend on the same reference material. A project brings together files, instructions, chats, a task board, and task agents. A one-off question can stay in Chat; a launch, customer handover, or ongoing investigation usually benefits from a project.
 
-<Frame caption="The General tab — the project's identity, its standing instructions, and sharing below them.">
+## What the project keeps together
 
-![The General tab of the Website relaunch project showing the name and description fields, the filled-in Instructions editor that every chat in the project starts from, and the Sharing section heading below, with Save and Discard in the tab strip.](/images/platform/project-general-tab.webp)
+| Area | What belongs here |
+| --- | --- |
+| **General** | Name, description, standing instructions, and sharing settings. |
+| **Chats** | Your project conversations and the conversations explicitly shared with the project. |
+| **Knowledge** | Reference files organized into folders and scoped to this project. |
+| **Tasks** | Work with an owner, status, comments, and a result to review. |
+| **Agents** | Named agents configured to work on tasks. |
+
+Project chat starts with the saved project instructions. It can search this project's files together with the organization's accessible knowledge. This gives later conversations a common starting point without copying a brief into every message. Other projects' files are outside that search scope.
+
+<Frame caption="General holds the project instructions and sharing controls. Save after changing the fields.">
+
+![The General page of Website relaunch shows the name, description, Instructions editor, Sharing section, and Save and Discard controls.](/images/platform/project-general-tab.webp)
 
 </Frame>
 
-## What a project owns
+## Create an identity people can recognize
 
-**Chats** started inside the project carry its context automatically — its standing instructions, and a tool scope of this project's files plus the organization's knowledge hub, never another project's. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see. Moving a shared chat to another project — or out of its project — ends the share, so a new audience never inherits it silently: switch **Share with project** back on if the new project's members should read it.
+**Create project** asks for a name and a **Project key**, with an optional description. The key becomes the prefix of task IDs such as `WR-1` and cannot change after creation. Choose a short, durable abbreviation.
 
-**Instructions** are context that applies to every chat in the project — the framing, constraints, and vocabulary of the work — so nobody re-pastes them per chat.
+You can revise the name, description, icon, color, and instructions on **General** later. Use **Save** to apply field edits or **Discard** to abandon them. For a complete walkthrough, follow [Use projects](/tutorials/member/use-projects).
 
-**Files** on the **Knowledge** tab are reference material every chat in the project can draw on, held in a folder tree you upload into once rather than re-attaching per chat. They stay scoped to this project — they never surface in the org-wide library or in `@` pickers outside it, and the organization chat outside a project does not reach them at all; who may see them follows from project access, not from team tags — see [Manage files](/platform/projects/manage-files).
+Write instructions for recurring context: what this work covers, which sources take precedence, and how to handle missing information. Put a one-time request in a chat or task description. Project instructions should not become a log of every past decision.
 
-**Tasks** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), with comment threads on every task for the decisions around it.
+## Check who can open it
 
-**Agents** is the project's crew: named agents, each with a harness, a model on a provider you pick, equipment, and standing instructions, ready to take tasks off the board ([Project agents](/platform/projects/project-agents)).
+New projects default to **Org-wide** access. On **General**, choose an owning team to restrict access and add other teams when collaboration requires it. Organization administrators retain access. Sharing is based on teams rather than individual invitations.
 
-## Creating and identity
+Project files follow project access. They do not appear as ordinary library documents, and a team tag on a library file does not make that file a project attachment. [Manage files](/platform/projects/manage-files) explains moving documents and how removing a file from a project can widen its audience.
 
-**Create project** asks for a name and a **Project key** — the prefix for task IDs like `WR-1`. The key is fixed; it cannot be changed after the project is created. Description, owning team, icon, and color are editable later on the **General** tab, where the unified **Save** and **Discard** buttons sit in the tab strip.
+## Keep personal and shared chats distinct
 
-## Sharing model
+A chat inside a project starts as your own conversation. Other project members do not see it simply because they can open the project. **Chats** separates **Your chats** from **Shared with project**; use **Share with project** when the conversation is ready for colleagues.
 
-Sharing is by team, not by individual invitation. A project defaults to **Org-wide**; picking an owning team scopes it to that team, and additional teams can be added on the General tab. Org admins always have access. Renaming, archiving, and deleting live in the row menu on the projects list — deleting asks what happens to the content: detach the files and chats (they become library documents and personal chats) or delete them too.
+Read the messages before sharing, including any sensitive information the answer quotes. Moving a shared chat to a different project, or out of the project, ends its project share. Share it again deliberately if the new audience should read it.
 
-## When to reach for it
+Use **Move to project…** in a chat's actions when an existing conversation belongs with this work. Organization-wide snapshot links are a separate option, described in [Share a chat](/platform/chat/shared-threads).
 
-| Use … when                                    | Project | Stand-alone chat |
-| --------------------------------------------- | ------- | ---------------- |
-| The same files apply across many chats        | ✓       |                  |
-| The same instructions apply across many chats | ✓       |                  |
-| Multiple people work the same body of work    | ✓       |                  |
-| The work has tasks, owners, and decisions     | ✓       |                  |
-| The question is one-shot                      |         | ✓                |
+## Turn discussion into work
 
-A stand-alone chat is the right shape for exploring an answer once. The moment the context should outlive the chat, move it — the chat's **Move to project…** action carries an existing chat into a project.
+Create a [task](/platform/projects/tasks) when a decision needs an owner or a result. A teammate can complete it manually, or a configured [project agent](/platform/projects/project-agents) can work on it. Keep the acceptance criteria in the description so the reviewer can judge the result.
 
-## Where this fits
-
-Projects are the seam where chats, knowledge, and task automation meet. The natural next read is [Use projects](/tutorials/member/use-projects), which walks a fresh project end to end; the per-tab pages in this section go deeper on [files](/platform/projects/manage-files) and [agents and models](/platform/projects/project-agents).
+Archive a finished project when you want it out of the active list. Before deleting, read the choice about its contents: detaching leaves files in the library and chats as personal conversations; deleting the contents removes them too. Detaching files can widen access, so choose according to what should remain available.

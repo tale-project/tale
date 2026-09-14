@@ -1,98 +1,62 @@
 ---
 title: Settings page
-description: Label-left fields on one measure, and a save bar that only appears when something changed.
+description: Align configuration fields and connect Save, Discard, validation, and unsaved-change protection.
 ---
 
-A settings page is a column of fields and a way to commit them. Two decisions
-carry the whole pattern: the page declares its field layout once instead of per
-field, and the save affordance is driven by dirty state rather than always
-sitting there.
+A settings page needs a clear distinction between the saved configuration and the current draft. Align related fields with `ContentArea variant="narrow"`, then make Save, Discard, and navigation behavior reflect that distinction.
 
-By the end of this page you will be able to build a settings surface where
-every control lines up and the reader can never lose an edit silently.
-
-## The whole thing
+## Try the draft and saved states
 
 <Demo name="patterns/settings-page" />
 
-Change a value and watch the bar wake up.
+Change **Workspace name**, then choose **Save**. The example adopts that value as its new saved baseline and disables the actions. Edit again and choose **Discard** to return to that baseline.
 
-## One measure, declared once
+This example saves only in memory. Reloading restores the sample values. The region and digest controls demonstrate form layout; they do not change data residency or schedule emails. The bar stays visible while its status and button availability change.
 
-```tsx
-<ContentArea variant="narrow">
-  <Input label="Workspace name" description="…" value={name} onChange={…} />
-  <Select label="Data region" options={regions} value={region} onValueChange={…} />
-  <Switch label="Weekly digest" description="…" checked={digest} onCheckedChange={…} />
-</ContentArea>
-```
-
-`ContentArea variant="narrow"` does two things at once: it caps the column at
-`max-w-3xl`, the settings measure, and it declares the **row field layout**.
-`FieldShell` — which `Input`, `Select`, `Switch` and the rest render through —
-reads that from the container and switches to label-left, control-right from
-`sm` up, pinning every control to the same 20rem column.
-
-You never set that per field. If one control is misaligned, it is because it
-bypassed `FieldShell`, not because it needs its own class.
-
-**Settings pages carry no page title.** The rail or the tab already named the
-page; a title inside the body would be a second `h1` and a wasted row.
-
-## Group with section headers, not with cards
-
-A settings page is a list of fields, not a grid of panels. Group related fields
-under a `FormSection` heading and separate groups with the section rhythm
-(`gap-8`). Reach for a `Card` only when a group genuinely is a separate object —
-a connected provider, a key, a device.
-
-Keep a group's heading at the right depth: the page has no `h1` of its own, so
-section headings start at `h2`.
-
-## The save bar
-
-The bar belongs to the editor, and it appears because something is dirty. That
-is the contract `EditorGroup` implements for real screens:
+## Align fields through the container
 
 ```tsx
-import { EditorGroup } from '@tale/ui/editor/editor-group';
-import { useFormEditor } from '@tale/ui/editor/use-form-editor';
+import { ContentArea } from '@tale/ui/content-area';
+import { Input } from '@tale/ui/input';
+
+export function SettingsLayoutExample() {
+  return (
+    <ContentArea variant="narrow">
+      <Input label="Workspace name" defaultValue="Northwind Trading" />
+      <Input label="Support email" type="email" placeholder="help@example.com" />
+    </ContentArea>
+  );
+}
 ```
 
-An editor controller (`useFormEditor`, `useJsonConfigEditor`) owns the draft,
-reports whether it is dirty, and exposes `save` and `cancel`. `EditorGroup`
-composes several controllers into one bar, so a page with three independent
-sections still has a single Save.
+This layout-only example has uncontrolled fields; use an editor controller for a persisted form. The narrow container caps content at `max-w-3xl` and declares the shared field layout. `FieldShell` stacks labels and controls on small screens and places them beside one another from `sm`, with a consistent control column.
 
-Three rules hold whichever controller you use:
+If a field does not align, first check whether it uses `FieldShell`. Use `wideControl` deliberately for content that needs the available width. Group related settings with `FormSection`; reserve cards for distinct objects such as a connected account, rather than wrapping every input in a separate panel.
 
-1. **Save is disabled until something changed.** An always-enabled Save teaches
-   the reader that pressing it is free, which is wrong the one time it is not.
-2. **Discard is as reachable as Save.** They are a pair.
-3. **Leaving with unsaved changes is blocked.** The dirty blocker is what turns
-   an accidental navigation into a question instead of a loss.
+The surrounding page header supplies the `h1`. Do not repeat it in the settings body, and do not assume a navigation label replaces a page heading. Begin settings section headings at the appropriate level beneath the page title.
 
-Surface success with a [toast](/docs/components/toast), and a field-level
-failure with the field's own `errorMessage` — not with a toast that disappears
-before the reader finds which field it meant.
+## Connect a real editor
 
-## Tabs on a settings page
+`useFormEditor` adapts React Hook Form to the shared editor contract. It accepts server `data`, optional initial `defaultValues` and a validation schema, plus an asynchronous `save` callback. The returned controller exposes the form, status, `save`, `reset`, `submit`, and `dirtyKeys`.
 
-When a settings area has several pages, the strip is
-[`TabNavigation`](/docs/components/tabs-and-navigation), not `Tabs` — each tab
-is a route, so a deep link and the back button keep working. Pass the editor's
-`dirtyKeys` to it and an unsaved tab grows a dot, which is how a reader finds
-the edit they left behind.
+| Integration | Why it matters |
+| --- | --- |
+| Keep server data separate from the draft | A failed request must not erase the person's edit. |
+| Wire native form submission to `editor.submit` | This updates the saved baseline after success; calling the persistence callback directly bypasses that step. |
+| Use `EditorActions` with the controller | Save/Discard availability follows dirty, valid, loading, and saving state. |
+| Register related sections through `EditorGroup` | Their controllers contribute to one active-editor action area. The group does not draw a bar on its own. |
+| Map server field errors where possible | Show repairable errors beside the relevant field rather than only in a disappearing toast. |
 
-## What to avoid
+For nested configuration objects that do not suit flat form paths, inspect `useJsonConfigEditor` before introducing another editor mechanism. Import controllers from `@tale/ui/editor/*`.
 
-- Per-field layout classes. The container already decided.
-- A page title inside the body.
-- A Save button that is always enabled.
-- A card around every single field, which turns a column of settings into a
-  wall of boxes.
+## Protect edits when leaving
 
-## Where to go next
+Mount `DirtyBlockerProvider` within the router tree and register the editor's dirty state. `useFormEditor` performs its dirty-source registration; the provider supplies the navigation decision and before-unload handling. Without the surrounding provider, a controller cannot provide a complete leave-page warning.
 
-[App shell](/docs/components/app-shell) covers the chrome these pages sit in,
-and [Input](/docs/components/input) covers the fields themselves.
+For route-based settings tabs, use [`TabNavigation`](/docs/components/tabs-and-navigation). Pass the controller's `dirtyKeys` set and configure corresponding keys on the affected items. The dot indicates unsaved content; it is separate from the blocker that asks before leaving.
+
+The form editor reports `hasRemoteUpdate` when upstream data changes while a draft is dirty. Give the person a visible way to understand and resolve that situation. Do not silently overwrite a local draft with a fresh server response.
+
+## Verify a real save workflow
+
+Test Save success, validation failure, server failure, Discard, and navigation away with a draft. After a successful save, reload and confirm the backend value persists. After a failed save, confirm the draft remains. The local example above demonstrates state transitions, but only your host integration can prove persistence, authorization, and unsaved-change protection.

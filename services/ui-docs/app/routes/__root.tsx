@@ -1,5 +1,6 @@
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import { ThemeAssets } from '@tale/ui/theme/assets';
+import { Toaster } from '@tale/ui/toaster';
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 
 /**
@@ -15,6 +16,7 @@ function RootLayout() {
       <LocaleSync locale="en" htmlLang="en" />
       <ThemeAssets />
       <Outlet />
+      <Toaster />
     </>
   );
 }

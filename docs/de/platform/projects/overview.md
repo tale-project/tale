@@ -1,62 +1,48 @@
 ---
 title: Projekte
-description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt.
+description: Halte Referenzmaterial, Gespräche und Aufgaben eines Teams für ein gemeinsames Vorhaben zusammen.
 ---
 
-Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen und das Aufgaben-Board —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kontakt, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.
-
-Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Projekt — samt einer Aufgabe, die ein Agent vor der Kamera übernimmt.
+Ein Projekt vereint Dateien, Anweisungen, Gespräche und Aufgaben für ein Vorhaben. Nutze es, wenn Kontext über einen einzelnen Chat hinaus erhalten bleiben soll oder ein Ergebnis Zuständigkeit und Prüfung braucht. Mit [Projekte nutzen](/de/tutorials/member/use-projects) erstellst du ein Projekt und stellst eine Frage zu seiner Referenzdatei.
 
 <Video src="/videos/de/tutorials/ep6-projects/ep6-projects.de.mp4" poster="/videos/de/tutorials/ep6-projects/ep6-projects.de.webp" captions="/videos/de/tutorials/ep6-projects/ep6-projects.de.vtt" lang="de" title="Episode 6 — Projekte mit KI" caption="Episode 6 — Projekte mit KI (2:47)">
 
 </Video>
 
-<Frame caption="Das Aufgaben-Board eines Projekts — einer der fünf Tabs, die jedes Projekt trägt.">
+<Frame caption="Die Aufgabenübersicht zeigt Vorschläge, laufende Arbeit und Ergebnisse zur Prüfung nebeneinander.">
 
-![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über die Spalten Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
+![Website relaunch zeigt Aufgabenkarten in Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## Die Teile eines Projekts
-
-Jedes Projekt öffnet auf **Aufgaben** (dem Board), danach dieselbe Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum) und **Agenten** (die eigenen Agenten des Projekts) — dazu **Automatisierungen**, sobald eine an das Projekt gebunden ist, und **Umgebung** für Projekt-Admins. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
-
-## Seiten in diesem Bereich
+## Den nächsten Schritt finden
 
 <CardGroup cols="2">
 
-<Card title="Projekt-Konzepte" icon="compass" href="/de/platform/projects/concepts">
-
-Das mentale Modell — was ein Projekt besitzt, wann es einen Einzel-Chat schlägt und wie die Freigabe funktioniert.
-
+<Card title="Projektzugriff verstehen" icon="compass" href="/de/platform/projects/concepts">
+Erfahre, was das Projekt teilt, welche Chats persönlich bleiben und wie Teams den Zugriff bestimmen.
 </Card>
 
-<Card title="Dateien verwalten" icon="folder-open" href="/de/platform/projects/manage-files">
-
-Der Wissen-Tab — Dateien in Ordner hochladen, der Index-Status und wie Projektdateien auf das Projekt begrenzt bleiben.
-
+<Card title="Referenzdateien verwalten" icon="folder-open" href="/de/platform/projects/manage-files">
+Lade Dateien hoch, ordne sie, prüfe die Indexierung und verwalte gelenkte Revisionen.
 </Card>
 
-<Card title="Projekt-Agenten" icon="bot" href="/de/platform/projects/project-agents">
-
-Die eigenen Agenten des Projekts — Agent-Laufzeit, Modell samt Provider, Ausrüstung und stehende Anweisungen — und wie Aufgaben sie an die Arbeit schicken.
-
+<Card title="Aufgaben erstellen und verfolgen" icon="list-checks" href="/de/platform/projects/tasks">
+Lege Zuständigkeit, Prüfung, Termine und Abnahmekriterien fest und verfolge den Fortschritt.
 </Card>
 
-<Card title="Aufgaben-Automatisierung" icon="workflow" href="/de/platform/projects/task-automation">
-
-Board-Aufgaben an Agenten übergeben — die Ausführungsschleife, das Review-Gate und die Leitplanken.
-
+<Card title="Einen Projektagenten einrichten" icon="bot" href="/de/platform/projects/project-agents">
+Wähle Harness, Modell, Tools und Anweisungen für einen Agenten, der Aufgaben übernimmt.
 </Card>
 
-<Card title="Backlog" icon="gauge" href="/de/platform/projects/backlog">
+<Card title="Agentenarbeit starten und prüfen" icon="workflow" href="/de/platform/projects/task-automation">
+Starte eine Aufgabe, prüfe das Ergebnis, fordere Nacharbeit an und behebe fehlgeschlagene Läufe.
+</Card>
 
-Vorgeschlagene Aufgaben, die eine Automatisierung oder ein Teammitglied hereinsynchronisiert hat — mit Starten aufs Board holen oder mit Schließen abhaken.
-
+<Card title="Vorgeschlagene Arbeit sichten" icon="gauge" href="/de/platform/projects/backlog">
+Prüfe Ideen im Backlog, bevor du sie in die geplante Arbeit des Teams übernimmst.
 </Card>
 
 </CardGroup>
 
-## Wo das hingehört
-
-Projekte liegen in der Sidebar neben dem Chat, und die Übergabe ist natürlich: Eine Frage beginnt im Chat, erweist sich als größer als ein Chat und zieht in ein Projekt um — die Chat-Aktion **In Projekt verschieben…** trägt einen bestehenden Chat hinüber. Wenn Projekte neu für dich sind, starte mit den [Projekt-Konzepten](/de/platform/projects/concepts) für das Modell und geh dann [Projekte nutzen](/de/tutorials/member/use-projects) an einem frischen Projekt von Anfang bis Ende durch.
+**Allgemein**, **Chats**, **Wissen** und **Agenten** ergänzen die Aufgabenansichten. Eine zugeordnete Automatisierung fügt **Automatisierungen** hinzu; Projektadministratoren können die **Umgebung** konfigurieren. Installierte Apps können weitere Tabs ergänzen. Für den Einstieg mit Dateien, Chats und Aufgaben sind sie nicht nötig.

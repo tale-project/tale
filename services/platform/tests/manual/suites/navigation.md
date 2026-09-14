@@ -48,8 +48,7 @@ is hidden when the org has no teams.
   (`projects.title`), **Knowledge** (`navigation.knowledge`), **Automations**
   (`navigation.automations`), **Inbox** (`conversations.title`, gated on inbox
   availability), **Settings** (`navigation.userSettings`) → Each click commits
-  that section's DEFAULT entry: `/chat`, `/projects`, `/documents` (Knowledge
-  expands sub-items Documents/Knowledge entries/Websites/Products/Contacts),
+  that section's DEFAULT entry: `/chat`, `/projects`, `/documents` (Knowledge exposes Documents/Knowledge entries/Websites/Products/Contacts),
   `/automations`, `/conversations` (which forwards to `/conversations/open`),
   and for **Settings** the role's default landing (`/settings/organization`
   for the seeded **owner** — see Scope & routes). The clicked rail item gets
@@ -94,8 +93,13 @@ is hidden when the org has no teams.
   older releases on GitHub ↗** link (`changelog.viewer.viewAllOnGitHub`).
   Online with newer releases: release entries render and the range filters
   (`?from=&to=`) narrow them.
-- [ ] `NAV-F9` · **Render-only page** — Visit `/docs` (Swagger) → `/docs`
-  mounts `main.swagger-ui-standalone`. No console/page error.
+- [ ] `NAV-F9` · **API reference and developer links** — Visit `/docs` → The
+  Swagger reference renders the running instance’s contract. Above it,
+  **Developer guides** (`settings.apiDocs.guides`) opens the public API guide
+  in a new tab; **OpenAPI document (JSON)** (`settings.apiDocs.openapiDocument`)
+  opens the same instance’s raw contract in the current tab. Tab through both
+  links and repeat at phone width → Both labels remain readable and keyboard
+  reachable; no page error.
 - [ ] `NAV-F10` · **DataTable behaviours** — On a list with a DataTable (e.g.
   Knowledge → Documents), use the search/filter; paginate
   (`common.aria.previousPage` / `common.aria.nextPage`); **Select all**
@@ -104,12 +108,10 @@ is hidden when the org has no teams.
   change the visible page; the bulk action affects only the selected rows;
   **reload** to confirm the delete persisted.
 - [ ] `NAV-F11` · **User-menu Documentation link** — Open the user/avatar menu
-  (bottom-left); in the help group find **Documentation**
-  (`auth.userButton.documentation`, BookOpen icon) → The **Documentation**
-  item is an external link to `https://tale.dev/docs` opening in a new tab
-  (`target="_blank"`, `rel="noopener noreferrer"`); the old **Help &
-  feedback** item (formerly a HelpCircle item linking to the contact page) is
-  **gone**.
+  and find **Documentation** (`auth.userButton.documentation`) → It links to
+  the public documentation at `https://docs.tale.dev` in a new tab with
+  `target="_blank"` and `rel="noopener noreferrer"`. The API reference is a
+  separate surface, reached from the API settings.
 - [ ] `NAV-F12` · **Changelog release toast** — Env-gated (the forcing
   mechanism is unverified — check live): sign in on a deployment whose version
   is **newer** than the account's last-toasted version (e.g. first session

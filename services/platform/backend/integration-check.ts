@@ -55,6 +55,7 @@ import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -49086,6 +49087,17 @@ async function main(): Promise<void> {
             authCtx,
             `itest-${orgSuffix}`,
           ),
+      ],
+      [
+        'checkKnowledgeEntryIndexing',
+        async () => {
+          await checkKnowledgeEntryIndexing(sql);
+          record(
+            'knowledge entries: indexing status, errors, pagination and tenant isolation',
+            true,
+            'real Postgres, fixtures rolled back',
+          );
+        },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
       [

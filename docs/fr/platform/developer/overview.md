@@ -1,42 +1,40 @@
 ---
 title: Développeur
-description: Développeur est la surface développeur en-app — clés API pour l’API REST, l’endpoint MCP et les identifiants de connector avec lesquels une personne de rôle Développeur branche Tale à du code externe.
+description: Crée des automatisations et connecte Tale à tes clients, scripts et services externes.
 ---
 
-Développeur est la surface en-app pour les personnes qui branchent Tale au reste de leur pile. Elle regroupe les leviers qui laissent du code externe parler à Tale et Tale atteindre l’extérieur : les clés API pour la surface REST, l’endpoint MCP auquel les clients MCP se connectent, et les identifiants de connector derrière ce que les agents et les automatisations peuvent appeler. Les personnes de rôle Développeur voient ces paramètres ; les Membres et les Éditeurs ne les voient pas.
+En tant que Développeur, tu configures les connexions techniques et automatisations qui soutiennent le travail de l’équipe. Tu peux modifier les contenus et accéder aux réglages techniques : fournisseurs, connecteurs et identifiants API. La gestion des membres reste réservée aux Propriétaires et Admins.
 
-Cette vue d’ensemble nomme ce que couvre chaque page et pointe vers la référence plus complète. Qui a le rôle Développeur atterrit en général ici le premier jour, crée les identifiants nécessaires et revient quand la pile grandit — faire tourner une clé, pointer un nouveau client MCP vers l’endpoint, connecter un service de plus.
-
-## Ce que couvre Développeur
-
-La surface Développeur se tient à côté du reste des paramètres de l’organisation, mais pour un public plus étroit. Elle suppose que tu sais ce qu’est une API REST, à quoi ressemble un webhook et ce que fait un client MCP — les pages ne réexpliquent pas les concepts ; elles montrent comment Tale les expose. Deux leviers de la version précédente ne font pas partie de celle-ci : enregistrer des serveurs MCP externes et définir des outils personnalisés. Ton propre code atteint un agent par les **Secrets** d’un agent de projet ou les nœuds d’une automatisation — [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le premier ; [Agents de projet](/fr/platform/projects/project-agents) parcourt la boîte de dialogue où vit désormais le second.
-
-La même surface ne diffère entre les onglets Cloud et Auto-hébergé que par la forme du déploiement ; l’interface est identique. Le versant fichiers de configuration — variables d’environnement et fichiers de fournisseurs — vit un onglet plus loin, dans la documentation Auto-hébergé.
-
-## Pages de cette section
+## Choisir une connexion ou un processus
 
 <CardGroup cols="2">
 
-<Card title="Clés API" icon="key" href="/fr/platform/admin/api-keys">
+<Card title="Créer une clé API" icon="key" href="/fr/platform/admin/api-keys">
 
-Brancher un script, une tâche cron ou un service interne à l’API REST de Tale. Partagée avec Admin sous **Paramètres > API > REST**.
-
-</Card>
-
-<Card title="Endpoint MCP" icon="network" href="/fr/develop/mcp-endpoint">
-
-Pointer un client MCP vers Tale — l’URL de l’endpoint, l’inventaire des outils et une requête à copier se trouvent sous **Paramètres > API > MCP**.
+Autorise un script ou service à appeler Tale et prévois la rotation et la révocation.
 
 </Card>
 
-<Card title="Identifiants de connector" icon="plug" href="/fr/platform/admin/connectors">
+<Card title="Connecter un client MCP" icon="network" href="/fr/develop/mcp-endpoint">
 
-Ajouter, désigner par défaut, désactiver et reconnecter les identifiants avec lesquels les connectors livrés agissent — ce que les agents et les automatisations atteignent hors de Tale.
+Permets à un client externe de découvrir et d’utiliser les outils exposés par Tale.
+
+</Card>
+
+<Card title="Connecter un service externe" icon="plug" href="/fr/platform/admin/connectors">
+
+Ajoute des identifiants, choisis ceux par défaut et renouvelle une autorisation expirée.
+
+</Card>
+
+<Card title="Créer une automatisation" icon="workflow" href="/fr/platform/automations/catalog">
+
+Pars d’un objectif, d’un workflow vide ou d’un paquet, puis teste et déploie une version.
 
 </Card>
 
 </CardGroup>
 
-## Où cela s’inscrit
+## Partir d’une connexion concrète
 
-Développeur est le pont entre Tale et le reste de la base de code que l’organisation fait tourner. La première lecture dépend de ce que tu viens brancher — pour l’entrant (quelque chose dehors appelle Tale) [Clés API](/fr/platform/admin/api-keys) et l’[endpoint MCP](/fr/develop/mcp-endpoint) ; pour le sortant (quelque chose dans Tale atteint l’extérieur) [Identifiants de connector](/fr/platform/admin/connectors) et les [Secrets](/fr/platform/projects/project-agents) d’un agent de projet.
+Pour les requêtes entrantes, commence par la [référence API](/fr/develop/api-reference) ou les [webhooks](/fr/develop/webhooks). Pour un agent qui appelle un autre système, privilégie un connecteur pris en charge. Des identifiants directs dans une sandbox demandent un périmètre soigneusement limité. [Agents de projet](/fr/platform/projects/project-agents) explique l’équipement. Les fichiers de déploiement et variables d’environnement figurent dans la [configuration auto-hébergée](/fr/self-hosted/configuration/environment-reference).

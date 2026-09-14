@@ -485,6 +485,8 @@ any toggled setting after the run.
   per row (`settings.credentials.actionsLabel`)
 - [ ] `SET-A6` · **Sandbox total feedback** — `/dashboard/{org}/settings/sandboxes` → edit a workload limit by keyboard until **Total organization sessions** (`sandboxes.limits.total`) exceeds the deployment capacity → a screen reader announces the updated total and explains `sandboxes.limits.totalExceedsDeployment` when a workload field receives focus. The total, validation text and capacity-card hints remain readable without clipping or horizontal scrolling in `en`, `de` and `fr`; return to valid values and use **Discard** to leave saved limits unchanged.
 
+- [ ] `SET-A7` · **WebDAV status labels** — on `/dashboard/{org}/settings/api/webdav`, generate an app-password with a descriptive multiword device label, then revoke it → at desktop and narrow widths in `en`, `de` and `fr`, the full revoked status (`webdav.list.revoked`) remains readable beside or below the device label; active rows keep a labelled Revoke control and revoked rows have none.
+
 ## Performance
 
 - [ ] `SET-P1` · **Rail navigation** → < 1 s to switch between two

@@ -1,33 +1,31 @@
 ---
-title: Nutzungs-Analyse
-description: Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste.
+title: Nutzungsanalyse
+description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach Modell, Assistent und Person.
 ---
 
-Nutzungs-Analyse ist das Dashboard, das jeden abrechenbaren AI-Aufruf in einer einzigen Ansicht von Tokens, Kosten und Anfragenvolumen aggregiert. Es schneidet nach Benutzer, Team, Rolle, Modell, Agent und Zeit, sodass die unerwartete Zeile auf der Rechnung zur Last zurückführbar ist, die sie verursacht hat. Admins und Inhaber lesen diese Seite, wenn eine Rechnung unerwartet ist, wenn die Führung die grobe Form der AI-Ausgaben will, oder wenn eine Budgetwarnung auslöst und die nächste Frage _wer und was_ ist.
+Öffne als Admin oder Inhaber **Einstellungen > Metriken > Nutzung**, um zu sehen, welche Aufgaben KI-Ressourcen verbrauchen. Wähle zuerst den Zeitraum und untersuche dann die Aufschlüsselungen, um veränderte Kosten oder Mengen zu erklären.
 
-## Eine durchgespielte Detailansicht
+## Einen Nutzungsanstieg untersuchen
 
-Öffne **Einstellungen > Metriken > Nutzung**. Die Default-Ansicht sind die letzten 30 Tage, org-weit, mit den Kennzahlen-Zählern — Anfragen, Tokens, Kosten und aktive Benutzer — über dem Nutzungs-Trend. Lies **Nutzung pro Benutzer**, um die größten Verbraucher zu finden, **Top-Modelle**, um ein teures Primärmodell mit einem günstigeren Fallback zu vergleichen, oder **Top-Assistenten**, um den Assistenten zu finden, der die Last treibt. Der Perioden-Schalter (7, 30 oder 90 Tage) treibt alle Abschnitte zugleich.
+1. Öffne **Filter** und wähle unter **Zeitraum** 7, 30 oder 90 Tage. Die erste Ansicht zeigt 30 Tage.
+2. Vergleiche Anfragen, Tokens, Kosten und aktive Benutzer. Mehr Anfragen haben andere Ursachen als längere Antworten.
+3. Wähle im Filtermenü die Messgröße und zeitliche Auflösung des Diagramms, um den Beginn der Veränderung zu erkennen.
+4. Prüfe die Tabellen für Assistenten, Modelle und Nutzung pro Person. Wähle eine Assistenten- oder Modellaufschlüsselung, um die Ansicht einzugrenzen. Entferne den Filterchip, um wieder mehr zu sehen.
 
-## Die Dimensionen
+Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chattiteln stehen. Die Zahl der Anfragen entspricht daher nicht immer der Zahl gesendeter Nachrichten. Für die Sprachausgabe gibt es eine eigene Tabelle der Sprachmodelle.
 
-- **Benutzer** — jedes Mitglied, das einen abrechenbaren Aufruf ausgelöst hat, mit Tokens, Kosten und Anfragen.
-- **Modell** — jedes Modell, das eine Antwort erzeugt hat; Sprachmodelle halten ihre eigene Rangliste.
-- **Assistent** — jeder Assistent mit zugeordneter Nutzung.
-- **Zeit** — der Trend-Chart folgt dem gewählten Fenster: 7, 30 oder 90 Tage.
+## Kosten zusammen mit Tokens lesen
 
-## Das Kostenmodell
+Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie Sprach- oder Bilderzeugung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
 
-Kosten sind eine Schätzung. Jede Anfrage landet im Nutzungsbuch mit Eingabe-Tokens, Ausgabe-Tokens, dem veröffentlichten Preis des Modells pro Million Tokens und der Wanduhr-Dauer. Das Dashboard multipliziert Tokens mit Preis; Bildgenerierungsaufrufe landen mit einem Per-Bild-Preis, den der Anbieter zurückgibt. Die Zeile im Nutzungsbuch ist die Quelle der Wahrheit, und das [Audit-Log](/de/platform/admin/governance/audit-logs) trägt Akteur und Zeitstempel der Zeile für den Quervergleich.
+Lies die Kosten als erfasste Anwendungsnutzung, nicht als Rechnung deines Anbieters. Preise, Abos, Guthaben und nicht erfasste Aufrufe können den Vergleich beeinflussen. Eine angezeigte Null beweist nicht, dass der Anbieter nichts berechnet hat.
 
-## Budgets und Nutzung
+## Auf eine Budgetwarnung reagieren
 
-Budgets leben unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits); dieses Dashboard ist der Ort, an dem du nachverfolgst, was sie getrieben hat. Feuert im Chat eine Budget-Warnung oder ein Budget-überschritten-Hinweis, beantworten die Tabellen pro Benutzer und pro Modell hier die Anschlussfrage — wer hat es ausgegeben, auf welchem Modell, über welche Tage.
+Wähle für die Untersuchung denselben Zeitraum und die betroffene Aufgabe. Finde die Person, den Assistenten oder das Modell hinter dem Anstieg. Entscheide dann, ob du den Ablauf änderst, ein anderes Modell wählst oder unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) eine Obergrenze anpasst.
 
-## Aufbewahrung von Nutzungs-Zeilen
+Prüfe die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics), bevor du ein Modell allein wegen der Kosten wechselst. Geringere Ausgaben helfen nur, wenn die Ergebnisse die Aufgabe weiterhin erfüllen.
 
-Das Nutzungsbuch hat sein eigenes Aufbewahrungsfenster in [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). Default sind 365 Tage; kürze es und der historische Chart wird entsprechend gekürzt. Das Dashboard spiegelt, was das Nutzungsbuch hält — es gibt keine Archiv-Ebene darunter.
+## Fehlende Historie verstehen
 
-## Wo das hingehört
-
-Nutzungs-Analyse ist die Ausgaben- und Volumen-Seite derselben Last, die [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) für Qualität liest. Zusammen beantworten sie _ist dieser Agent seine Kosten wert_. Die Begleitseite ist [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) — die Seite, auf der die Budgets, die dieses Dashboard überlagert, konfiguriert werden.
+Die Diagramme zeigen die Nutzungsdaten, die Tale noch aufbewahrt. Organisations- und Deployment-Einstellungen bestimmen, wie weit die Historie reicht; eine allgemeine Garantie von 365 Tagen gibt es nicht. Prüfe Zeitraum, Filter und Aufbewahrung des Nutzungsprotokolls, wenn erwartete Aktivität fehlt.

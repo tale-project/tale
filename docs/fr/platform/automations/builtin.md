@@ -1,49 +1,69 @@
 ---
 title: Automatisations livrées
-description: Ce que fait chacune des huit automatisations livrées — synchronisation et tri du courrier pour Gmail, Outlook et IMAP, évaluation des issues et examen des pull requests pour GitHub — et le connector dont chacune a besoin avant sa mise en service.
+description: Choisis un workflow de courrier ou GitHub et vérifie ses données, connexions et écritures avant sa mise en service.
 ---
 
-Tale livre huit automatisations, et chaque organisation démarre avec toutes en place : trois qui tirent une boîte aux lettres dans la **Boîte de réception** partagée, trois qui résument ce qui y est arrivé, et deux pour GitHub — l’une évalue les issues ouvertes, l’autre examine les pull requests ouvertes. Chacune arrive en version 1, son planning déjà lié et le badge **Pas en service** affiché ; rien ne tourne donc tant qu’un Propriétaire, un Admin ou un Développeur n’a pas connecté le connector requis et mis l’automatisation en service. Cette page nomme ce que fait chaque paquet, à quelle fréquence il tourne et ce dont il a besoin ; la mécanique de la mise en service est sur [L’éditeur de workflow](/fr/platform/automations/editor).
+Tale fournit huit paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception et deux workflows GitHub. Chacun commence en version 1, avec une planification et le statut **Pas en service**. Utilise-les comme points de départ. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
 
-<Frame caption="La page Automatisations d’une organisation fraîche — chaque paquet semé est une version portant Pas en service jusqu’à ce que tu le mettes en service.">
+<Frame caption="Le catalogue affiche les noms des paquets, le nombre de versions et leur état de mise en service.">
 
-![La page Automatisations listant les automatisations semées github-review-pull-requests, github-triage-issues, gmail-triage-inbox, imap-smtp-triage-inbox et outlook-triage-inbox, chacune avec une version et un badge Pas en service, sous les boutons Téléverser un paquet et Nouvelle automatisation.](/images/platform/automations-catalog.webp)
+![Le catalogue liste des paquets GitHub et de courrier, chacun avec une version et le statut Pas en service.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## Comment les paquets arrivent
+## Commencer avec un paquet
 
-Les paquets sont semés à la création de l’organisation, pas installés depuis un catalogue. Le semis fait attention à ce qui existe déjà : un paquet dont l’organisation tient déjà une version, quelle qu’elle soit, est laissé tel quel — seuls son nom et sa description livrés se rafraîchissent — et un paquet que tu as supprimé reste supprimé ; un déploiement ultérieur ne le ramène jamais. Ouvre un paquet comme n’importe quelle automatisation pour lire son document sur le canvas, suivre ses [journaux d’exécution](/fr/platform/automations/execution-logs), changer son [déclencheur](/fr/platform/automations/triggers) ou le modifier — une modification devient une nouvelle version que tu mets en service quand tu es prêt.
+Ouvre **Automatisations**, choisis un paquet et examine ses nœuds dans l’[éditeur de workflow](/fr/platform/automations/editor). Le connector requis doit être connecté, et le modèle de chaque nœud `llm` disponible. Un essai utilise des réponses simulées : il vérifie le déroulement sans prouver l’accès à ta boîte de réception ou à ton dépôt réel.
 
-## Tirer une boîte aux lettres dans la Boîte de réception
+Les paquets sont ajoutés à la création de l’organisation. Lorsque le paquet fourni évolue, tes versions existantes sont conservées ; seuls son nom et sa description fournis sont actualisés. Un paquet supprimé reste supprimé. Tes modifications créent de nouvelles versions, que tu mets en service séparément.
 
-**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation trois fois, une par type de boîte. Chacune tire les nouveaux messages dans les conversations toutes les cinq minutes et déclare la vue **Boîte de réception** : dès que l’une d’elles est en service, **Boîte de réception** apparaît dans la navigation et le formulaire de rédaction propose la boîte connectée — jusque-là, la page de la boîte te renvoie vers **Automatisations**. Chacune a d’abord besoin de son connector de courrier connecté.
+## Synchroniser le courrier dans la Boîte de réception
 
-| Automatisation                         | Requiert  | Planning             |
-| -------------------------------------- | --------- | -------------------- |
-| Synchroniser les e-mails Gmail         | Gmail     | Toutes les 5 minutes |
-| Synchroniser les e-mails Outlook       | Outlook   | Toutes les 5 minutes |
+Ces workflows importent les nouveaux messages dans des conversations toutes les cinq minutes. Chacun fournit la vue **Boîte de réception** : sa mise en service l’ajoute à la navigation et propose la boîte connectée dans le formulaire de rédaction. Avant cela, la page de réception renvoie vers **Automatisations**.
+
+| Automatisation | Connector requis | Planification |
+| --- | --- | --- |
+| Synchroniser les e-mails Gmail | Gmail | Toutes les 5 minutes |
+| Synchroniser les e-mails Outlook | Outlook | Toutes les 5 minutes |
 | Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
-## Résumer ce qui est arrivé
+Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la Boîte de réception.
 
-**Trier la boîte de réception Gmail**, **Trier la boîte de réception Outlook** et **Trier la boîte de réception IMAP** lisent toutes les six heures les messages les plus récents de chaque boîte connectée de leur type et écrivent un résumé : ce qui est arrivé, en bref, et les messages qui demandent manifestement une réponse aujourd’hui. Le résumé est la sortie de l’exécution — ouvre l’exécution dans les [journaux d’exécution](/fr/platform/automations/execution-logs) pour le lire. Rien n’est réécrit dans la boîte, et aucune conversation ne change de statut.
+## Lire un résumé des messages récents
 
-| Automatisation                      | Requiert  | Planning            |
-| ----------------------------------- | --------- | ------------------- |
-| Trier la boîte de réception Gmail   | Gmail     | Toutes les 6 heures |
-| Trier la boîte de réception Outlook | Outlook   | Toutes les 6 heures |
-| Trier la boîte de réception IMAP    | IMAP/SMTP | Toutes les 6 heures |
+Ces workflows lisent toutes les six heures les messages récents de chaque boîte connectée de leur type. Ils produisent un résumé et repèrent les messages qui semblent demander une réponse aujourd’hui. Le résumé constitue la sortie de l’exécution : ouvre celle-ci pour le lire. Ils n’écrivent rien dans la boîte et ne changent pas le statut des conversations.
 
-## Évaluer les issues et examiner les pull requests sur GitHub
+| Automatisation | Connector requis | Planification |
+| --- | --- | --- |
+| Trier la boîte de réception Gmail | Gmail | Toutes les 6 heures |
+| Trier la boîte de réception Outlook | Outlook | Toutes les 6 heures |
+| Trier la boîte de réception IMAP | IMAP/SMTP | Toutes les 6 heures |
 
-**Trier les issues GitHub** liste une fois par jour, à 07:00 UTC, les issues ouvertes d’un dépôt, évalue pour chacune si elle est exploitable et à quel point elle est urgente, et renvoie une courte liste classée avec une phrase de justification par issue. En lecture seule : rien n’est écrit sur GitHub, et aucune tâche n’est créée sur aucun tableau — la liste est un rapport sur lequel une personne agit. **Examiner les pull requests GitHub** lit toutes les trente minutes le diff de chaque pull request ouverte, l’examine et publie ses conclusions en commentaire de revue sur la pull request. Jamais d’approbation ni de fusion — cela reste humain. Les deux ont besoin du connector GitHub connecté.
+## Examiner le travail sur GitHub
 
-| Automatisation                    | Requiert | Planning                | Écrit                                                |
-| --------------------------------- | -------- | ----------------------- | ---------------------------------------------------- |
-| Trier les issues GitHub           | GitHub   | Chaque jour à 07:00 UTC | Rien — la liste classée est la sortie de l’exécution |
-| Examiner les pull requests GitHub | GitHub   | Toutes les 30 minutes   | Un commentaire de revue par pull request ouverte     |
+**Trier les issues GitHub** lit les issues ouvertes, évalue leur caractère exploitable et leur priorité, puis renvoie une sélection classée avec les raisons. Le workflow n’écrit rien sur GitHub et ne crée pas de tâche de projet. Sa limite par défaut est de 50 issues par exécution.
 
-## Où cela se place
+**Examiner les pull requests GitHub** lit les diffs des pull requests ouvertes et publie ses conclusions sous forme de commentaires de revue. Sa limite par défaut est de 10 pull requests par exécution. Il n’approuve ni ne fusionne de pull request. Vérifie le dépôt cible avant une exécution réelle : une nouvelle exécution peut ajouter d’autres commentaires.
 
-Huit paquets, deux familles : le courrier tiré dans la Boîte de réception et résumé, GitHub évalué et examiné — chacun une automatisation normale que tu mets en service, modifies et versionnes comme les tiennes. [Ajouter des automatisations](/fr/platform/automations/catalog) couvre l’écriture sur le canvas et le téléversement de tes propres paquets ; [L’éditeur de workflow](/fr/platform/automations/editor) la mise en service d’une version ; [Backlog du projet](/fr/platform/projects/backlog) explique le statut du tableau qu’utilise le travail proposé — et pourquoi rien de livré ne le remplit tout seul.
+| Automatisation | Connector requis | Planification fournie | Écritures |
+| --- | --- | --- | --- |
+| Trier les issues GitHub | GitHub | Chaque jour à 07:00 UTC | Aucune ; lis la sortie de l’exécution |
+| Examiner les pull requests GitHub | GitHub | Toutes les 30 minutes | Un commentaire de revue par pull request traitée |
+
+Les deux workflows exigent `owner` et `repo`. Dans **Essai**, renseigne **Données de l’exécution (JSON)** avec les valeurs de ton dépôt :
+
+```json
+{
+  "owner": "ton-organisation",
+  "repo": "ton-depot",
+  "limit": 5
+}
+```
+
+<Note>
+
+Les planifications GitHub fournies ne transmettent ni `owner` ni `repo` : la mise en service seule ne suffit donc pas à rendre ces exécutions planifiées valides. Une planification envoie `trigger` et `firedAt`, que le schéma d’entrée inchangé refuse. Lance le workflow manuellement avec les données requises, ou adapte le schéma et la configuration du dépôt avant d’activer les exécutions planifiées. Un démarrage planifié refusé apparaît comme `start_refused` sur le [déclencheur](/fr/platform/automations/triggers).
+
+</Note>
+
+Avant la mise en service, lis les données résolues et la sortie de l’essai. Pour une exécution réelle, vérifie aussi les permissions du connector et les approbations nécessaires. Les [journaux d’exécution](/fr/platform/automations/execution-logs) expliquent les attentes, les échecs et les écritures enregistrées.

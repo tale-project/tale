@@ -1,44 +1,62 @@
 ---
-title: Projekt-Dateien verwalten
-description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann.
+title: Projektdateien verwalten
+description: Lade Referenzdateien hoch, ordne sie, prüfe die Indexierung und unterscheide Löschen vom Verschieben in die Wissensbibliothek.
 ---
 
-Der **Wissen**-Tab eines Projekts ist der geteilte Dateibereich, den jeder Chat im Projekt erreichen kann. Lade eine Datei einmal hoch, und jeder Chat im Projekt — und jeder Agent, der darin läuft — kann sie ohne erneutes Hochladen lesen. Diese Seite deckt den Ordnerbaum, den Upload-Mechanismus, das Anheften und die Grenzen ab.
+Unter **Wissen** im Projekt liegen Dateien, die dessen Chats abrufen können. Lade eine Referenz einmal hoch und verwende sie in mehreren Projektgesprächen. Zum Hinzufügen, Ordnen oder Entfernen brauchst du Bearbeitungszugriff auf das Projekt.
 
-Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](/de/platform/knowledge/documents). Seine Dateien sind auf ein Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch über WebDAV auf; das Projekt zu löschen löscht die Dateien. Für org-weites Referenzmaterial nutz [Dokumente](/de/platform/knowledge/documents) und bind sie an Agents. Die beiden Orte haben zwei Zugriffshebel: Wer ein Dokument der Wissensdatenbank sieht, entscheiden seine Team-Tags; wer eine Projektdatei sieht, entscheidet allein der Projektzugriff — ein org-weites Projekt heißt jedes Mitglied, ein Team-Projekt seine besitzenden und geteilten Teams, und Inhaber und Admins sehen jedes Projekt. Eine Projektdatei trägt nie Team-Tags, und ein Dokument lebt an genau einem der beiden Orte.
+<Frame caption="Die Dateien gehören zum Projekt. Ihre Statusanzeigen zeigen, ob der Chat ihren Text durchsuchen kann.">
 
-<Frame caption="Der Wissen-Tab — der Dateibaum des Projekts; jede Datei bleibt auf dieses Projekt begrenzt und ist für die Suche indexiert.">
-
-![Der Wissen-Tab des Projekts Website relaunch mit zwei indexierten Dateien im Dateibaum, einem Neuer-Ordner-Button und der Dropzone zum Hinzufügen von Dateien.](/images/platform/project-knowledge-files.webp)
+![Der Bereich Wissen im Projekt Website relaunch enthält zwei indexierte Dateien sowie Schaltflächen für neue Ordner und Datei- und Ordner-Uploads.](/images/platform/project-knowledge-files.webp)
 
 </Frame>
 
-## Ordner
+## In den passenden Ordner hochladen
 
-Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner auf der Wurzelebene an; das Ordner-Plus-Symbol auf einer Ordnerzeile erstellt einen Unterordner. Klick einen Ordner an, um ihn auszuwählen — der Drop-Bereich wechselt zu _Datei zu „…" hinzufügen_ und Uploads landen darin. **Ordner hinzufügen** lädt einen ganzen Ordner von der Festplatte hoch: Wähl ein Verzeichnis, und seine Dateien landen mit nachgebauter Unterordner-Struktur unter dem ausgewählten Ordner — Dateien, die das Upload-Tor ablehnt, werden übersprungen und gemeldet, und eine Auswahl ist auf 200 Dateien / 200 MB begrenzt. Einen Ordner zu löschen löscht alles darin, inklusive der Einträge im Retrieval-Index; die Bestätigung sagt das, bevor irgendetwas passiert. Ordner hier sind projekt-gebunden: ein gleichnamiger Ordner in der org-weiten Dokumentbibliothek ist ein anderer Ordner.
+1. Öffne das Projekt und wähle **Wissen**.
+2. Wähle einen Ordner oder bleibe auf der obersten Ebene.
+3. Klicke auf **Datei hinzufügen** oder ziehe Dateien auf die Upload-Fläche.
+4. Prüfe, ob jede Datei im gewünschten Ordner erscheint und fertig indexiert wird.
 
-## Ein durchgespielter Upload
+**Neuer Ordner** erstellt einen Ordner auf der obersten Ebene. Mit **Neuer Unterordner** legst du einen Ordner innerhalb eines anderen an. **Ordner hinzufügen** importiert einen Ordner von deinem Gerät und bildet seine Struktur am gewählten Ort nach. Ein Ordner-Upload ist auf 200 Dateien und 200 MB begrenzt. Teile größere Ordner auf und prüfe den Bericht auf übersprungene Dateien.
 
-Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexiert** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema nennt, und der Assistent ruft sie ab — und lädt den vollen Text, wenn ein Schnipsel nicht reicht. Eine Datei, die über die [REST-API](/de/develop/api-reference#ein-externes-system-in-ein-projekt-spiegeln) gekommen ist, steht ebenfalls in der Liste, zeigt aber **Nicht indexiert**: Eine Suche findet sie erst, wenn du in ihrer Zeile auf **Jetzt indexieren** klickst — eine reine Textdatei liest der Assistent trotzdem auf Zuruf, wenn du sie beim Namen nennst.
+## Prüfen, ob der Chat die Datei lesen kann
 
-## Ersetzen und Löschen
+| Status | Bedeutung und Maßnahme |
+| --- | --- |
+| **In Warteschlange** | Die Datei wartet auf die Verarbeitung. |
+| **Wird indexiert…** | Tale bereitet den Text für die Suche vor. |
+| **Indexiert** | Der Text ist durchsuchbar. Prüfe eine Antwort anhand der Originaldatei. |
+| **Fehlgeschlagen** | Lies verfügbare Fehlerdetails und nutze **Indexierung erneut versuchen**. Wiederholt sich der Fehler, bitte einen Admin um Hilfe. |
+| **Nicht unterstützt** | Dieser Inhalt lässt sich nicht indexieren. Stelle lesbaren Text oder ein unterstütztes Format bereit; ein erneuter Versuch mit derselben Datei hilft nicht. |
+| **Nicht indexiert** | Die Datei ist gespeichert, aber nicht durchsuchbar. Nutze **Jetzt indexieren**, sofern angeboten, oder wandle ein Format ohne Textextraktor um. |
 
-Eine Datei zu ersetzen lädt eine neue Kopie unter demselben Namen hoch; die frühere Version wandert in die Versions-History des Projekts. Zitate aus früheren Chats verweisen weiterhin auf die Version, die aktiv war, als der Chat sie referenzierte. Eine Datei zu löschen entfernt sie sofort aus dem Picker; bestehende Chats behalten ihre Zitate, aber die darunterliegende Datei wird mit dem Rest der Aufbewahrungs-Kohorte des Projekts in den [Papierkorb](/de/platform/admin/governance/trash) verschoben.
+Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateibaum sichtbar. Eine unterstützte Textdatei lässt sich auf ausdrückliche Nachfrage direkt lesen; in der Textsuche erscheint sie erst nach der Indexierung.
 
-## Eine Datei als gelenktes Dokument führen
+Organisationsregeln können Datei- und Speichergrenzen weiter einschränken. Versuche bei einem fehlgeschlagenen Upload zuerst eine kleine unterstützte Datei. Ein Admin kann [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), Speicher und Embedding-Modell prüfen.
 
-Wenn die Freigabe mit genau der Datei verknüpft bleiben muss, die der Reviewer gesehen hat — eine SOP, ein Validierungsplan —, öffne das Zeilenmenü der Datei und klick **Als gelenktes Dokument führen**. Die Zeile trägt danach `v1 · Entwurf` und durchläuft denselben Lebenszyklus wie ein gelenktes Dokument in der org-weiten Bibliothek: **Zum Review einreichen** friert die Datei für einen benannten Reviewer ein, die Freigabe macht die Version unveränderlich, und **Neue Revision** öffnet den nächsten Entwurf. Den vollständigen Lebenszyklus — inklusive Ersetzen der Entwurfsdatei — beschreibt [Dokumente](/de/platform/knowledge/documents#gelenktes-dokument-ueberarbeiten). Am Geltungsbereich ändert das nichts: Eine gelenkte Projekt-Datei bleibt eine Projekt-Datei und ist nur im Projekt sichtbar.
+## Im Projektchat nach Dateien fragen
 
-## Grössenlimits
+Öffne **Chats** in diesem Projekt, starte ein Gespräch und frage nach Dateiname oder Thema. Der Assistent kann Dateien dieses Projekts und zugängliche Dokumente der Wissensbibliothek abrufen. Dateien anderer Projekte erreicht er von hier aus nicht.
 
-Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) gesetzt. Ein Pro-Datei-Limit zu treffen scheitert den Upload mit einem Toast; ein Pro-Projekt-Limit zu treffen scheitert den Upload mit einem anderen Toast, der die Richtlinie benennt. Mitglieder, die ein Limit treffen, können es nicht selbst anheben — ein Admin justiert die Richtlinie, oder der Projektbesitzer löscht ältere Dateien.
+Der allgemeine Organisationschat durchsucht keine Projektdateien. Solange sie zum Projekt gehören, stehen sie weder in der Dokumentliste der Organisation noch in deren WebDAV-Bibliothek. Wer sie lesen darf, bestimmt der Projektzugriff. Separate Team-Zuordnungen gibt es bei Projektdateien nicht.
 
-## Auftauchen in Chats
+## Gelenkte Dateien mit Prüfverlauf ersetzen
 
-Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Die Tools des Assistenten sehen die Dateien dieses Projekts neben der Wissensdatenbank der Organisation, so wie du sie siehst — und nichts aus anderen Projekten: Die Grenze setzt der Server für jeden Chat im Projekt, nicht das, was der Assistent zu durchsuchen beschließt. Fragst du nach den Dokumenten des Projekts, listet er sie neben denen der Wissensdatenbank, jede mit dem Vermerk, wo sie lebt und ob sie indexiert ist; eine nicht indexierte Datei bleibt auf Zuruf lesbar, wenn sie reiner Text ist. Der Organisations-Chat außerhalb jedes Projekts erreicht nur die Wissensdatenbank — die Dateien eines Projekts liest du aus dem Chat des Projekts selbst. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
+Ein erneuter Upload unter demselben Namen erstellt ein separates Dokument. Ein gleicher Dateiname verknüpft keine Revisionen. Soll eine Freigabe an genau die geprüfte Datei gebunden bleiben, wähle im Zeilenmenü **Als gelenktes Dokument führen**.
 
-Einen `@`-Picker gibt es im Composer dieser Version nicht — eine Nachricht nennt das Thema, das Retrieval findet die Datei, und der Assistent lädt den vollen Text mit seinem Fetch-Tool, wenn er mehr als einen Schnipsel braucht. Ein Projekt-Agent, der eine Board-Aufgabe bearbeitet, bekommt seine Dateien auf einem anderen Weg: Die Anhänge der Aufgabe werden schreibgeschützt unter `/agent/inputs/<task>/attachments/` in seine Sandbox gespiegelt, ein Coding-Harness öffnet also die echten Bytes statt eines Retrieval-Schnipsels — [Harnesses](/de/platform/agents/harnesses) beschreibt diesen Weg.
+Das gelenkte Dokument startet als Entwurf. **Datei ersetzen** aktualisiert einen Entwurf oder öffnet aus einer genehmigten Version den nächsten Entwurf, ohne die genehmigte Version zu verändern. **Zum Review einreichen** friert den Entwurf für den benannten Reviewer ein. [Gelenkte Dokumente](/de/platform/knowledge/documents) erklärt den gesamten Ablauf und die Regeln für Reviewer.
 
-## Wo das hineinpasst
+## In die Wissensbibliothek verschieben oder löschen
 
-Dateien verwalten ist die operative Seite für den Wissen-Tab — die konzeptuelle Rahmung liegt in den [Projekt-Konzepten](/de/platform/projects/concepts), und das agent-gebundene Äquivalent über die ganze Org ist [Dokumente](/de/platform/knowledge/documents). Wenn du dich dabei ertappst, dieselben Dateien in viele Projekte erneut hochzuladen, ist das das Signal, sie in die [Dokumente](/de/platform/knowledge/documents) zu verschieben und stattdessen einen Agent daran zu binden.
+**Aus Projekt entfernen** verschiebt die Datei in die Wissensbibliothek der Organisation. Die Datei wird dabei nicht gelöscht.
+
+<Warning>
+
+Durch das Entfernen aus dem Projekt wird die Datei für alle Personen der Organisation sichtbar. Verwende diese Aktion nur, wenn du diesen größeren Personenkreis erreichen möchtest. Lies die Bestätigung vor dem Fortfahren.
+
+</Warning>
+
+Soll die Datei vollständig entfernt werden, nutze **Löschen** im Zeilenmenü und lies die Bestätigung. Das Löschen eines Ordners entfernt auch seine Dateien, Unterordner und Sucheinträge. Über den Dateibaum lassen sich diese Aktionen nicht rückgängig machen. Ein Legal Hold oder geschützte gelenkte Dokumente können das Löschen verhindern.
+
+Wird eine Datei in mehreren unabhängigen Projekten gebraucht, eignet sich möglicherweise eine passend freigegebene Kopie in der [Wissensbibliothek](/de/platform/knowledge/documents). Vermeide mehrere widersprüchliche Fassungen derselben Richtlinie.

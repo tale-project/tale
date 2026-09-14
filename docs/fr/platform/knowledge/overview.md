@@ -1,68 +1,71 @@
 ---
-title: Base de connaissances
-description: La base de connaissances est la bibliothèque partagée de l’organisation — documents, petits faits, sites web explorés et fiches typées — sur laquelle les agents ancrent leurs réponses. Cet aperçu nomme les onglets et pointe vers les pages par domaine.
+title: Connaissances
+description: Choisis où conserver les informations partagées, prépare-les pour la recherche et vérifie les sources d’une réponse.
 ---
 
-La base de connaissances est l’espace où vivent les données de l’organisation pour que les agents puissent les lire et les citer. Les éditeurs la constituent une fois ; les agents y puisent au moment de répondre — c’est ce qui permet à un agent Tale de répondre avec ta réalité plutôt qu’avec les données d’entraînement du modèle. L’espace s’ouvre sur cinq onglets : **Documents**, **Entrées de connaissances**, **Sites web**, **Produits** et **Contacts**.
-
-Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèque en trois minutes — indexation, entrées, fiches, crawler et périmètres, sous-titres compris.
+Connaissances est la bibliothèque partagée de ton organisation. Documents, informations courtes, sites publics, contacts et produits donnent aux personnes et aux agents des sources communes. Commence par les informations nécessaires pour répondre à une vraie question. Une petite collection tenue à jour est plus facile à vérifier qu’une archive non relue.
 
 <Video src="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.mp4" poster="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.webp" captions="/videos/fr/tutorials/ep3-knowledge/ep3-knowledge.fr.vtt" lang="fr" title="Épisode 3 — Connaissances" caption="Épisode 3 — Connaissances (2:45)">
 
 </Video>
 
-<Frame caption="L’onglet Documents — le coin le plus utilisé de la base de connaissances.">
+<Frame caption="Commence par Documents pour les fichiers, ou choisis l’onglet adapté à ta source. Le filtre ne conserve que les fichiers chargés et indexés.">
 
-![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés et les trois documents Markdown des entrées de connaissances, avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
+![L’espace Connaissances présente les onglets Documents, Entrées de connaissances, Sites web, Produits et Contacts au-dessus du tableau des fichiers partagés.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-## Les deux formes
+## Choisir le bon emplacement
 
-Tout ce que contient l’espace prend l’une de deux formes. Le **contenu indexé** — les fichiers de Documents, les faits des Entrées de connaissances, les pages qu’une exploration de site web ramène — passe par le pipeline d’indexation (extraction, découpage, embeddings, stockage) pour que les agents récupèrent les passages pertinents et les citent. Les **fiches typées** — Produits et Contacts (l’annuaire de correspondants qui couvre à la fois clients et fournisseurs) — sont des lignes à champs nommés que les agents lisent comme des données, pas comme de la prose : des valeurs exactes, sans approximation de récupération.
+| Tu disposes de | Utilise | Pourquoi |
+| --- | --- | --- |
+| Une politique, un guide, un tableur ou un rapport | **Documents** | Conserve le fichier d’origine et retrouve les passages des formats pris en charge. |
+| Une information courte, comme les horaires du support | **Entrées de connaissances** | Un sujet durable permet de maintenir une seule réponse courante. |
+| Des pages publiques qui évoluent | **Sites web** | Explore un site entier ou une liste d’URL à intervalle régulier. |
+| Des personnes, des organisations et leurs coordonnées | **Contacts** | Conserve les noms et les autres champs dans des fiches structurées. |
+| Des articles avec leurs caractéristiques | **Produits** | Consulte les champs de la fiche au lieu de rechercher un paragraphe. |
+| Des fichiers de référence pour un travail précis | L’onglet **Connaissances** du projet | Garde les fichiers dans le périmètre d’accès et le contexte de ce projet. |
 
-La forme que tu choisis décide de la façon dont un agent peut exploiter le contenu — c’est pourquoi [Données structurées](/fr/platform/knowledge/structured-data) est une page de décision, pas seulement une référence.
+Les membres peuvent lire les contenus auxquels ils ont accès. Les rôles Éditeur et supérieurs entretiennent la bibliothèque commune. Le guide des [données structurées](/fr/platform/knowledge/structured-data) aide à choisir lorsqu’un tableur peut servir de document source ou de collection de fiches.
 
-## Où réside l'index
+## Préparer une source pour les réponses
 
-Le contenu indexé est intégré dans la base de données vectorielle intégrée de Tale — un stockage **PostgreSQL** (ParadeDB) qui combine les embeddings `pgvector` avec la recherche par mots-clés (BM25) et fusionne les deux, de sorte que la recherche capte à la fois les correspondances sémantiques et les termes exacts. Il est livré avec la plateforme : rien de plus à licencier ni à exploiter, et la recherche, les citations, les permissions par équipe et l'effacement RGPD agissent tous sur un seul stockage. Les embeddings proviennent du **modèle d'embedding** configuré par l'organisation — un admin d'org choisit le fournisseur, le modèle et la largeur des vecteurs dans **Paramètres > Résidence des données**, et la recherche de connaissances refuse avec une erreur actionnable tant qu'aucun n'est configuré, plutôt que de deviner un modèle.
+Importer ou enregistrer n’est que la première étape. Les documents, les entrées et les pages web doivent aussi être **indexés** : Tale en extrait le texte et le prépare pour la recherche. Vérifie le statut avant de poser une question sur un nouveau contenu. Un fichier peut rester téléchargeable même si son format ne permet pas l’indexation.
 
-**Apporte ta propre base de données vectorielle — c'est du Postgres.** Comme le stockage vectoriel est PostgreSQL, tu peux pointer la base de connaissances de Tale vers n'importe quel PostgreSQL géré que tu exploites (avec les extensions `pgvector` et `pg_search`/ParadeDB) au lieu de celui fourni — tes données, ton infrastructure, ta région. Un admin d'org renseigne la connexion dans **Paramètres > Résidence des données** — saisis l'hôte, la base et les identifiants de ton Postgres, de la même façon pour un déploiement auto-hébergé et une instance cloud dédiée. Tale vérifie la connexion et la présence des extensions requises avant que tu bascules. Voir [Résidence des données](/fr/self-hosted/configuration/data-residency) pour les détails de connexion et les prérequis d'extensions.
+Choisis un titre clair et indique les dates et le périmètre dans le contenu. Corrige ou retire les consignes dépassées. Si deux sources se contredisent, précise laquelle fait référence et vérifie la citation. Ajouter des fichiers ne résout pas cette contradiction.
 
-## Comment les agents y puisent
+<Tip>
 
-Un agent ne se choisit pas sa propre tranche de la bibliothèque — c’est le serveur qui la découpe. Dans le chat de l’organisation, l’assistant interroge le hub avec `rag_search` et charge ce qu’il a trouvé avec `rag_fetch` dès qu’une question l’exige ; dans un chat de projet, il interroge les fichiers de ce projet avec le hub, et jamais ceux d’un autre projet. Un agent de projet le lit par les outils de la plateforme dont tu l’équipes, et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. Chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Agents de projet](/fr/platform/projects/project-agents).
+Teste une nouvelle source avec une question dont tu connais la réponse : « Quels sont les horaires de notre support ? Cite la source. » Ouvre la source citée et compare la réponse. Ce contrôle est plus précis qu’une demande de résumé général de toute la bibliothèque.
 
-## Pages dans cette section
+</Tip>
+
+## Comprendre l’accès et la recherche
+
+Le chat de l’organisation peut rechercher dans la bibliothèque commune selon tes droits. Le chat d’un projet peut aussi consulter les fichiers de ce projet et utilise ses instructions enregistrées. Il ne recherche pas dans les fichiers d’un autre projet. Les agents de projet doivent être équipés des outils de plateforme correspondants.
+
+Les restrictions par équipe s’appliquent aussi à la recherche. Un fichier visible dans un espace peut donc manquer dans le contexte d’un autre projet. Utilise les [fichiers de projet](/fr/platform/projects/manage-files) pour les contenus propres à un projet et l’affectation aux équipes pour les documents de la bibliothèque commune.
+
+Si toutes les recherches échouent, demande à un administrateur de vérifier le modèle d’embeddings et la connexion aux connaissances dans **Paramètres > Résidence des données**. Les détails destinés aux exploitants figurent dans [Résidence des données](/fr/self-hosted/configuration/data-residency).
+
+## Entretenir chaque source
 
 <CardGroup cols="2">
 
 <Card title="Documents" icon="file-text" href="/fr/platform/knowledge/documents">
-
-Téléverser des fichiers, le pipeline d’indexation, les formats pris en charge et le cycle de vie de chaque document.
-
+Importe des fichiers, vérifie leur indexation et gère les révisions approuvées.
 </Card>
 
 <Card title="Entrées de connaissances" icon="book-open" href="/fr/platform/knowledge/knowledge-entries">
-
-De petits faits indexés par sujet — capturés depuis le chat avec approbation ou ajoutés à la main.
-
+Ajoute une information courte, corrige-la et consulte son historique.
 </Card>
 
-<Card title="Exploration de sites web" icon="globe" href="/fr/platform/knowledge/crawling">
-
-Transformer un site public en connaissances — domaine, intervalle d’analyse et vue des pages indexées.
-
+<Card title="Sites web" icon="globe" href="/fr/platform/knowledge/crawling">
+Choisis les pages à explorer, règle l’intervalle et examine les pages manquantes.
 </Card>
 
 <Card title="Données structurées" icon="table" href="/fr/platform/knowledge/structured-data">
-
-Contacts, Produits, Sites web — quand une fiche typée bat un document.
-
+Choisis des fiches pour les champs exacts et des documents pour les explications.
 </Card>
 
 </CardGroup>
-
-## Où cela s’inscrit
-
-La base de connaissances est la couche de données sur laquelle repose chaque réponse ancrée ; sans elle, les agents ne savent que ce que le modèle sait déjà. Fais entrer le contenu par l’onglet qui correspond à sa forme, puis branche les agents dessus — la suite naturelle est [Documents](/fr/platform/knowledge/documents) pour les fichiers, [Données structurées](/fr/platform/knowledge/structured-data) pour les fiches et [Agents de projet](/fr/platform/projects/project-agents) pour la façon dont un agent y accède.

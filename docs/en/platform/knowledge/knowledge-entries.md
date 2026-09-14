@@ -1,38 +1,74 @@
 ---
 title: Knowledge entries
-description: Knowledge entries are small, topic-keyed facts in the knowledge base — added by hand or through the API — with one live version per topic and full version history.
+description: Add a concise fact to shared knowledge, keep it current, and check the history when it changes.
 ---
 
-Knowledge entries are the knowledge base's fact surface. Where a document carries a whole file, an entry carries one small, durable fact — "the store opens at 9", "the return window is 3 days" — keyed by a topic name. Entries ride the same indexing pipeline as documents, so every agent whose scope covers them retrieves and cites them like any other source; what makes them special is how they get in and how corrections replace what they correct.
+Use a knowledge entry for a short fact that colleagues should be able to find again: support hours, a return window, or the owner of a process. Each entry has a topic and a body. Choose a [document](/platform/knowledge/documents) when the source is a whole policy or report, and [structured data](/platform/knowledge/structured-data) when named fields and exact values matter.
 
-<Frame caption="The Knowledge entries tab — topic, content, source, and indexing status per fact.">
+Members can read entries. Creating, editing, and deleting them requires the Editor role or higher. Entries belong to the organization's shared knowledge; do not use one for a personal note or a fact intended only for a particular project.
 
-![The Knowledge entries tab listing three manually added facts, each showing a Manual source tag and a Not indexed status badge with its retry control.](/images/platform/knowledge-entries-list.webp)
+## Add a fact
+
+<Steps>
+
+<Step title="Open the entry form">
+
+Go to **Knowledge > Knowledge entries** and click **Add entry**. If the action is missing, ask an administrator to check your role.
+
+</Step>
+
+<Step title="Give the fact a stable topic">
+
+Enter a **Topic** such as `Support response target`. Use a name you would keep even if the answer changes. The topic can contain up to 120 characters and must be unique; edit the existing entry when Tale reports a duplicate.
+
+</Step>
+
+<Step title="Write enough context to use the answer">
+
+In **Content**, state the fact, its scope, and any conditions. Markdown is supported, up to 8,000 characters. For example:
+
+```markdown
+Support aims to send a first response within 45 minutes during business
+hours: Monday–Friday, 09:00–17:00 CET. This is a response target, not a
+resolution deadline. Owner: Support Operations.
+```
+
+Avoid relative dates such as “next Friday” or references such as “the policy above.” An entry needs to make sense when retrieved on its own.
+
+</Step>
+
+<Step title="Save and check indexing">
+
+Click **Save**. The entry appears in the table with its topic, content, source, indexing status, and update time. Open it to read the full content. Indexing happens in the background; saving the row does not mean search is already using it.
+
+</Step>
+
+</Steps>
+
+<Frame caption="The table lets you check the fact and its indexing status before relying on it in an answer.">
+
+![The Knowledge entries table lists manual facts with topic, content, source, indexing status, and update time.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 
-## Where entries come from
+## Correct an existing fact
 
-**Not from chat.** The earlier version let an agent propose a fact from a conversation as a **Save to knowledge base** card for you to approve. That card does not exist in this version: the chat assistant has no write tool and proposes nothing to save, so no agent writes into the organization's shared knowledge at all. An entry whose **Source** reads **Chat** was captured by the earlier version; new entries arrive by hand or through the REST API's knowledge-entries endpoint.
+Open the entry's row menu, choose **Edit**, change the content, and **Save**. Editing creates a new current version and queues its updated text for indexing. There is one current entry per topic, so correcting the existing fact avoids competing answers.
 
-<Note>
+Open the entry's details to inspect **Version history** after a correction. Previous versions record what changed and when they were replaced; they are not additional current facts. An application can also create or update entries through the [REST API](/develop/api-reference).
 
-There is no per-agent knowledge-write switch to turn on. A fact gets into the knowledge base because a person typed it or a program posted it through the API — never because a model decided to remember it.
+<Tip>
 
-</Note>
+When a chat uncovers a useful fact, verify it against the source, then add or edit an entry yourself. Chat does not automatically save facts to the organization's knowledge base.
 
-**Manually.** Click **Add entry** on **Knowledge > Knowledge entries**. Give it a **Topic** (up to 120 characters — short and stable, like a heading) and the **Content** as markdown (up to 8000 characters), written so it makes sense without any surrounding conversation. The **Source** column keeps the two origins apart: **Chat** or **Manual**.
+</Tip>
 
-## One live version per topic
+## Remove an obsolete entry
 
-Topics are the dedup key: an edit replaces the live version rather than adding a second one — the knowledge base never serves two versions of the same fact. Adding a new entry under an existing topic is refused with a duplicate-topic error; edit the existing entry instead.
+Use **Delete** in its row menu and read the confirmation. Deletion removes the entry and its version chain from this view and makes its backing document unavailable to knowledge retrieval. Keep a copy before deleting if you still need the text; use **Edit** for a correction instead.
 
-Replaced versions are not lost. Open an entry to see its details — indexing status, last update, and the **Version history** with every superseded version and when it was replaced. Only the live version is indexed for retrieval; the history exists for audit and reference. Over the API the same history is `GET /api/v1/knowledge-entries/{id}/versions`, and `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` lists one topic's replaced versions, each with its `supersededAt` — see the [API reference](/develop/api-reference).
+## If the fact is missing from an answer
 
-## Editing, indexing, deleting
+Check the current entry before changing the prompt. Has it been saved, is its indexing complete, and does the question use a clear topic? If indexing failed, use the retry control after resolving the reported cause. Repeated failures need an administrator to check the organization's embedding configuration and indexing services.
 
-Editing creates a new live version and re-indexes in the background — the **Status** badge dips to indexing and returns to **Indexed** when search picks up the new text. Deleting removes the whole entry: the confirmation warns that it also disappears from the knowledge base, so agents can no longer find it, and that the action cannot be undone. If the fact was right, add it again.
-
-## Where this fits
-
-Knowledge entries are the knowledge base's smallest unit: a fact written down once becomes something every lane retrieves, with one live version per topic guaranteeing the old fact disappears when the new one lands. For the file-shaped half read [Documents](/platform/knowledge/documents); for how the chat assistant and project agents retrieve, read the [Knowledge overview](/platform/knowledge/overview).
+Ask the assistant to cite the source, then open that source and compare it with the entry. A plausible answer alone does not establish that the latest fact was used. [Documents](/platform/knowledge/documents) explains the shared indexing states in more detail.

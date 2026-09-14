@@ -32698,6 +32698,7 @@
           "imageUrl": {
             "type": "string",
             "format": "uri",
+            "description": "An absolute image URL. App-uploaded images use a stable, organization-protected app URL and require an authorized app session to view; external image URLs keep their original access rules.",
             "nullable": true
           },
           "stock": {
@@ -32802,7 +32803,7 @@
             "type": "string",
             "format": "uri",
             "maxLength": 2048,
-            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half."
+            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half. Exception: an exact managed product-image URL returned by this deployment may be replayed, including on a private deployment. It must name registered image metadata in this organization that the caller uploaded or a current product already uses; a missing or inaccessible image answers 404 `FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route."
           },
           "stock": {
             "type": "number",
@@ -32873,7 +32874,7 @@
             "type": "string",
             "format": "uri",
             "maxLength": 2048,
-            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half.",
+            "description": "An absolute http(s) URL, trimmed; any other value (a relative path, a `javascript:` or `ftp:` URL) answers 400. The host is held to the crawl-target rule by name and by IP literal — loopback, link-local, private-network (RFC 1918, CGNAT, ULA, `.internal`/`.lan`-style suffixes, single-label names) and cloud metadata hosts answer 400 `INVALID_BODY` — as a string, without a DNS lookup: a public name that resolves to a private address passes here. The platform never fetches the URL; the rule keeps a stored URL from becoming a server-side request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the private-network half, never the metadata half. Exception: an exact managed product-image URL returned by this deployment may be replayed, including on a private deployment. It must name registered image metadata in this organization that the caller uploaded or a current product already uses; a missing or inaccessible image answers 404 `FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route.",
             "nullable": true
           },
           "stock": {

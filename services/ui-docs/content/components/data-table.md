@@ -1,112 +1,70 @@
 ---
 title: Data table
-description: The list surface — columns, search, filters, the create action and the empty state, in one component.
+description: Connect rows, search, selection, loading, and paging to one consistent list surface.
 ---
 
-`DataTable` is not a styled `<table>`. It owns the whole list surface: the
-header bar with search and filters, the rows, the empty state, pagination or
-infinite scroll, selection, and the create action. That is deliberate — a list
-page assembled from separate pieces drifts, and in this system every list looks
-and behaves the same.
-
-By the end of this page you will be able to render a table with columns you
-define, wire a search box, and know which prop owns which part of the chrome.
+`DataTable` renders a table and its surrounding search, filters, create action, and paging controls. You provide the data and state transitions. The component does not fetch rows, authorize actions, or filter a backend query for you.
 
 ```tsx
 import { DataTable } from '@tale/ui/data-table/data-table';
-import type { ColumnDef } from '@tale/ui/data-table/data-table-types';
+import type { ColumnDef } from '@tanstack/react-table';
 ```
 
-## A table with columns
+## Define the visible columns
 
 <Demo name="data-table/basic" />
 
-Columns are TanStack Table `ColumnDef`s. `caption` is the accessible name of
-the table and is required for a screen reader to announce what it is reading.
+Each TanStack `ColumnDef` supplies an accessor or cell renderer and a header. Use a stable domain ID through `getRowId` when rows can be selected, expanded, reordered, or refreshed. Otherwise row-index identity can attach state to the wrong item after a data change.
 
-For the common column shapes there are builders in
-`@tale/ui/data-table/column-builders` — `createTextColumn`, `createDateColumn`,
-`createCreationTimeColumn`, `createSelectColumn`, `createActionsColumn` — so a
-date renders the same way in every table.
+Pass a descriptive `caption`, such as **Agents in this workspace**. It becomes a screen-reader table caption. It is optional in the TypeScript interface, but a data table still needs an accessible name in the page.
 
-## Search, and an empty state that is honest
+The builders exported from `@tale/ui/data-table/column-builders` include text, date, creation-time, selection, and action columns. Reuse them for those common shapes; use custom cells when the content requires them.
+
+## Wire search to the rows
 
 <Demo name="data-table/with-search" />
 
-`search` renders the header's search box; you own the value and the filtering,
-because only the caller knows whether the query goes to memory or to a backend.
+Activate **Search automations**, then type `Weekly`: only **Weekly digest** remains. Type a value that matches nothing to see the shared **No results found** state. Clear the query to restore all four rows. The example filters names in memory; it does not search the trigger column.
 
-`emptyState` takes a `title` and optional `description`, `icon` and `action`.
-When the table is empty **and** has no search or filter chrome, `DataTable`
-moves `addAction` into the empty state, so the create button sits with the
-copy explaining the emptiness instead of floating above an empty grid.
+`search={{ value, onChange, placeholder }}` renders and controls the search field. Your callback updates the query and the rows. For a backend search, send the new query to the backend, reset the paging cursor, and pass the resulting rows back to the table. Preserve meaningful query/filter state in the URL when the screen needs shareable results.
 
-Type a query that matches nothing in the example above to see it.
+`emptyState` describes an initially empty collection. An active query or filter with zero rows uses the table's shared no-results copy instead. If cursor pages remain, the table treats zero visible matches as still loading rather than declaring the entire source empty.
 
-## The header bar
+## Choose toolbar controls
 
-| Prop | What it renders |
+| Prop | Host responsibility |
 | --- | --- |
-| `search` | The search box — `{ value, onChange, placeholder }` |
-| `filters` | Facet filters, through the shared filter panel |
-| `dateRange` | A date-range picker with presets |
-| `onClearFilters` | The "clear" affordance beside the filters |
-| `addAction` | The primary create button, at a fixed size and placement |
-| `actionMenu` | An escape hatch for bespoke header content |
+| `search` | Own the query and apply it to the data source. |
+| `filters`, `dateRange` | Supply available choices, selected values, and handlers. |
+| `onClearFilters` | Reset the relevant filters consistently. |
+| `filtersContent` | Place an additional filter-side control inside the toolbar. |
+| `addAction` | Supply a label and a click handler, destination, or create-menu items. |
+| `actionMenu` | Supply bespoke primary-side toolbar content; it takes precedence over `addAction`. |
 
-Prefer `addAction` over `actionMenu` for the standard "Add X" button — that is
-what keeps the create affordance in the same place on every list page in the
-product.
+When an initially empty table has no search/filter toolbar, `addAction` moves into the empty state. With toolbar controls present, it stays in the header. Pass the permission-dependent disabled state from your service; the table does not decide access.
 
-## Rows
+## Loading and errors
 
-| Prop | Type | Notes |
-| --- | --- | --- |
-| `columns` | `ColumnDef<TData, TValue>[]` | Required |
-| `data` | `TData[]` | Required |
-| `caption` | `string` | The table's accessible name |
-| `getRowId` | `(row: TData) => string` | Needed for selection and expansion |
-| `onRowClick` | `(row: Row<TData>) => void` | Whole-row navigation |
-| `isRowClickable` | `(row: Row<TData>) => boolean` | Per-row guard for the above |
-| `rowClassName` | `string \| (row) => string` | |
-| `enableRowSelection` | `boolean \| (row) => boolean` | The function form gates per row |
-| `rowSelection` / `onRowSelectionChange` | controlled state | |
-| `enableExpanding` + `renderExpandedRow` | | Inline detail panel |
-| `onRowMouseEnter` | `(row: Row<TData>) => void` | Use with route preloading |
+Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve space: an unknown count gives the default skeleton; a positive estimate gives skeleton rows up to the component's cap; zero allows the supplied initial empty state. Do not pass zero merely because a request has not returned yet.
 
-## Loading and paging
+Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees.
 
-`isLoading` renders skeleton rows. `approxRowCount` tells the table **how
-many** — `undefined` means the count is still loading, `0` means no data is
-expected and the empty state shows immediately, and a positive number sets the
-skeleton row count so the page does not jump when the data lands.
+## Pick one paging model
 
-Choose one paging model:
-
-- **`pagination`** — page numbers. Pass `clientSide` when the whole set is
-  already in memory.
-- **`infiniteScroll`** — cursor-based. `{ hasMore, onLoadMore, isLoadingMore }`
-  plus an `entityLabel` for the footer count. Pass `entityLabel` as
-  `{ one, other }` so a single-row table reads correctly.
-
-## Accessibility
-
-- `caption` is not optional in practice. Without it the table has no accessible
-  name, and a reader arrives at a grid of unexplained cells.
-- Every header cell renders real `<th>` text. A header that is only an icon
-  reads as an empty column to a screen reader.
-- Row selection uses real checkboxes with names, not click targets.
-- Sorting controls are buttons inside the header cell, reachable by Tab.
-
-## When to use something else
-
-| Instead of | Use |
+| Model | Configuration |
 | --- | --- |
-| A short static list with no chrome | `Table` from `@tale/ui/table` |
-| A grid of cards | `catalog/catalog-grid` and friends |
-| Two or three key/value rows | `LabeledValue` or `SectionRow` |
+| All rows already loaded | `pagination.clientSide: true`; the table slices the in-memory data. |
+| Server pages | Supply `pagination` callbacks/counts and the one-based `currentPage`; replace rows after each request. |
+| Cursor loading | Supply `infiniteScroll.hasMore`, `onLoadMore`, and loading state; append returned rows in the host. |
 
-## Where to go next
+Cursor loading is automatic by default and also provides a load-more control. Supply `entityLabel: { one, other }` for count-aware footer text. `totalCount` is the unfiltered total; `displayedCount` is useful when one visible row represents multiple entities. Do not report an estimate as an exact total.
 
-[List page](/docs/patterns/list-page) puts this table inside the page chrome it
-is designed for.
+## Selection, sorting, and row actions
+
+`enableRowSelection` accepts a boolean or a per-row predicate. Pair controlled `rowSelection` with `onRowSelectionChange`, a stable `getRowId`, and a selection column. A disabled UI row is not a server-side permission boundary.
+
+The `sorting` configuration enables sorting and carries `initialSorting` with `onSortingChange`. Verify whether your host is sorting the complete local set or requesting a sorted backend set; sorting only the currently loaded page is not a global ordering.
+
+`onRowClick` receives a TanStack `Row`, so domain data is in `row.original`. `isRowClickable` can exclude aggregate or restricted rows. Keep a named keyboard-accessible link or action in the row; a pointer click handler alone is not equivalent to a navigation link. Use `onRowMouseEnter` for optional route preloading.
+
+`enableExpanding` and `renderExpandedRow` reveal inline detail. Keep the expansion control distinct from row navigation and test both with the keyboard. For the surrounding screen, use the [list-page pattern](/docs/patterns/list-page); for a short static table without this chrome, use `Table` from `@tale/ui/table`.

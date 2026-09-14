@@ -11,7 +11,7 @@ import {
   skillEditFields,
 } from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
@@ -65,6 +65,7 @@ import {
   queueRagIndexingRetry,
   readDocumentIndexing,
   readDocumentRestExtras,
+  requireDocumentWriteAccess,
   updateDocument,
 } from '../domains/documents/service.ts';
 import type { DocumentIndexingState } from '../domains/file_metadata/indexing-state.ts';
@@ -98,6 +99,11 @@ import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { entityTagOf } from '../lib/conditional-get.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
+import {
+  productRestImageSchema,
+  productRestPayload,
+  validateRestProductImage,
+} from './product-images.ts';
 import {
   codedRefusalResponse,
   documentDeleteRefusal,
@@ -194,8 +200,6 @@ const contactBulkRow = blankStringsAsAbsent(contactBulkItemSchema);
 const contactPatchBody = blankStringsAsNull(
   contactFieldsSchema.extend(expectedUpdatedAtField),
 );
-const productCreateBody = blankStringsAsAbsent(productCreateSchema);
-const productPatchBody = blankStringsAsNull(productPatchSchema);
 
 /** What `/me` says about the key itself. Keys are minted, rotated and
  * revoked in the app — nothing under `/api/v1` does — so this is the one
@@ -526,7 +530,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         limit,
       });
       return c.json({
-        page: result.items,
+        page: result.items.map((product) =>
+          productRestPayload(c.req.raw, product),
+        ),
         isDone: result.nextCursor === null,
         continueCursor:
           result.nextCursor === null
@@ -546,12 +552,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = await parseBody(c, productCreateBody);
+    const body = await parseBody(
+      c,
+      blankStringsAsAbsent(
+        productCreateSchema.extend({
+          imageUrl: productRestImageSchema(c.req.raw, c.get('organizationId')),
+        }),
+      ),
+    );
     if (body instanceof Response) return body;
     try {
-      const id = await deps.sql.begin((tx) =>
-        createProduct(tx, scope(c), body),
-      );
+      const id = await deps.sql.begin(async (tx) => {
+        await validateRestProductImage(tx, scope(c), body.imageUrl);
+        return createProduct(tx, scope(c), body);
+      });
       return c.json({ id }, 201);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -563,7 +577,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const product = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!product)
         return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
-      return c.json(product);
+      return c.json(productRestPayload(c.req.raw, product));
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -573,16 +587,24 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * an optional field (a blank string reads as `null`; a blank `name` is
    * refused); `metadata` merges per RFC 7396. */
   app.patch('/products/:id', async (c) => {
-    const body = await parseBody(c, productPatchBody);
+    const body = await parseBody(
+      c,
+      blankStringsAsNull(
+        productPatchSchema.extend({
+          imageUrl: productRestImageSchema(c.req.raw, c.get('organizationId')),
+        }),
+      ),
+    );
     if (body instanceof Response) return body;
     try {
-      await deps.sql.begin((tx) =>
-        updateProduct(tx, scope(c), c.req.param('id'), body),
-      );
+      await deps.sql.begin(async (tx) => {
+        await validateRestProductImage(tx, scope(c), body.imageUrl);
+        await updateProduct(tx, scope(c), c.req.param('id'), body);
+      });
       const updated = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!updated)
         return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
-      return c.json(updated);
+      return c.json(productRestPayload(c.req.raw, updated));
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -632,8 +654,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** The indexing state of every file-backed document on a page, by blob. */
-  const indexingOf = (c: Context<RestEnv>, docs: readonly DocumentRow[]) =>
-    readDocumentIndexing(deps.sql, c.get('organizationId'), [
+  const indexingOf = (
+    c: Context<RestEnv>,
+    docs: readonly DocumentRow[],
+    sql: Sql | TransactionSql = deps.sql,
+  ) =>
+    readDocumentIndexing(sql, c.get('organizationId'), [
       ...new Set(
         docs
           .map((doc) => doc.fileRef)
@@ -847,47 +873,48 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         if (backing) return backing;
       }
       const auth = await restProjectAuth(deps.sql, c);
-      // `If-Match` (RFC 9110 §13.1.1) is honoured the way the skills door
-      // honours it: the tag is the strong entity tag `GET /documents/{id}`
-      // answers — the digest of that read's JSON — so the same
-      // representation is rebuilt here and compared strongly (a `W/` tag
-      // never matches). A mismatch answers 412 `PRECONDITION_FAILED` with
-      // `data.etag` naming the current tag, nothing written. The header used
-      // to be ignored, so a client that reached for the standard HTTP
-      // precondition got a silent overwrite it thought it was guarded
-      // against (2026-09-14 evaluation, g8-5). `expectedUpdatedAt` remains
-      // the row-level precondition (409 `DOCUMENT_STALE`).
       const ifMatch = c.req.header('if-match');
-      if (ifMatch !== undefined) {
-        const extras = await readDocumentRestExtras(deps.sql, doc.id);
-        const indexing = await indexingOf(c, [doc]);
-        const current = hubDocumentPayload(
-          doc,
-          extras,
-          doc.fileRef === null ? undefined : indexing.get(doc.fileRef),
-        );
-        const etag = entityTagOf(
-          new TextEncoder().encode(JSON.stringify(current)),
-        );
-        const holds = ifMatchHolds(
-          parseEntityTagList(ifMatch),
-          parseEntityTag(etag),
-        );
-        if (!holds) {
-          return c.json(
-            {
-              error:
-                'The document does not carry the entity tag If-Match names — reload it, merge, and send its current etag',
-              code: 'PRECONDITION_FAILED',
-              data: { etag },
-            },
-            412,
+      const result = await deps.sql.begin(async (tx) => {
+        if (ifMatch !== undefined) {
+          // Validate the GET representation after acquiring the SAME row
+          // lock updateDocument holds. A preflight ETag check can pass
+          // before another writer commits, then overwrite that writer.
+          const locked = await requireDocumentWriteAccess(tx, auth, doc.id, {
+            lock: true,
+          });
+          if (
+            locked.projectId !== null ||
+            (locked.lifecycleStatus ?? 'active') !== 'active'
+          ) {
+            return notFound(c, 'Document not found', 'DOCUMENT_NOT_FOUND');
+          }
+          const extras = await readDocumentRestExtras(tx, locked.id);
+          const indexing = await indexingOf(c, [locked], tx);
+          const current = hubDocumentPayload(
+            locked,
+            extras,
+            locked.fileRef === null ? undefined : indexing.get(locked.fileRef),
           );
+          const etag = entityTagOf(
+            new TextEncoder().encode(JSON.stringify(current)),
+          );
+          if (
+            !ifMatchHolds(parseEntityTagList(ifMatch), parseEntityTag(etag))
+          ) {
+            return c.json(
+              {
+                error:
+                  'The document does not carry the entity tag If-Match names — reload it, merge, and send its current etag',
+                code: 'PRECONDITION_FAILED',
+                data: { etag },
+              },
+              412,
+            );
+          }
         }
-      }
-      const result = await deps.sql.begin((tx) =>
-        updateDocument(tx, auth, { documentId: doc.id, ...body }),
-      );
+        return updateDocument(tx, auth, { documentId: doc.id, ...body });
+      });
+      if (result instanceof Response) return result;
       // Same post-commit re-stamp as the app door: a team or folder change
       // moves the corpus filters, not the embeddings.
       if (

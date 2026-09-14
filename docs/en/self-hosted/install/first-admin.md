@@ -1,43 +1,35 @@
 ---
-title: Create the first admin
-description: Walk a brand-new self-hosted instance through its one-time setup wizard — the first account becomes Owner with no key, and new people join by invite.
+title: Create the first owner account
+description: Complete first-time setup, confirm ownership and prepare the instance for teammates.
 ---
+On an empty instance, Tale’s setup flow creates the first account and organization. That account becomes the Owner. Complete this step while you still control access to the new instance, before sharing its address with others.
 
-A brand-new Tale instance has no users. The first person to open it runs a one-time setup wizard that creates their account, signs them in, makes them the **Owner**, and names the first organization — no bootstrap key, no manual promotion. This walk covers that first run and how teammates join afterward.
+## Confirm the instance is ready
 
-The one thing to unlearn from older instructions: the first sign-up no longer asks for an admin key. Tale is invite-only after the first account, so there is no open sign-up page to lock down either.
+Open the configured `SITE_URL` and check the certificate and hostname. For a CLI deployment, run `tale status`; for a deployment you maintain yourself, inspect its services and probes. An unhealthy backend needs [troubleshooting](/self-hosted/operate/observability/troubleshooting) before account setup.
 
-## Before you begin
+A login page instead of setup usually means an account already exists. This is expected in a seeded development environment. Do not erase the database to recover access; sign in with the existing account or ask an administrator for an invitation.
 
-Have the instance running and reachable on `SITE_URL`. Verify with:
+## Complete setup
 
-```bash
-docker compose ps
-```
+Open the instance URL. Follow the setup flow to create your account and name the organization. Keep your sign-in credentials in a password manager.
 
-Every service should show `running` or `healthy`. If any is unhealthy, [troubleshooting](/self-hosted/operate/observability/troubleshooting) names the four common causes.
+The model-provider step can be completed during setup or later under **Settings > AI providers**. Without a provider you can inspect the app, but a real model reply still needs valid credentials and an available model. Follow [AI providers](/platform/admin/providers) when you are ready to connect one.
 
-## Run the setup wizard
+## Confirm ownership
 
-Open `SITE_URL`. With no users yet, Tale sends you straight to the setup wizard — there is no separate sign-up page to hunt for, because the log-in screen redirects an empty instance into setup automatically. The wizard creates your account and signs you in mid-flow, then names your first organization.
+Open **Settings > Members** and verify that your account has the **Owner** role. The organization name and account should match the instance you intended to initialize.
 
-The provider step is optional: skip it and add a key later under **Settings > AI providers**, or connect OpenRouter now to start chatting immediately. Get a key at [openrouter.ai/keys](https://openrouter.ai/keys). The finish step drops you in the dashboard.
+<Frame caption="Check the owner and each invited member’s role before giving the team access.">
 
-## Confirm you're the Owner
+![The organization members page lists people and their assigned roles.](/images/get-started/settings-organization-members.webp)
 
-The first account on a fresh instance is the **Owner** automatically — there is no key to paste and no promotion step. Confirm under **Settings > People** that your row carries the Owner badge.
+</Frame>
 
-## How new people join
+Sign out and sign in again to verify the credentials independently of the setup session. Keep another tested administrative recovery path before changing authentication settings.
 
-There is no self-service sign-up. Once an Owner exists, `SITE_URL/sign-up` redirects visitors to the log-in page, so nobody can create an account on their own. Add teammates by invite under **Settings > People**; each invite carries the role the new member lands with. The full role model is in [Members and roles](/platform/admin/members-and-roles).
+## Invite teammates
 
-## Troubleshooting
+Add people through **Settings > Members** and choose their roles deliberately. After the initial account, local account creation uses invitations rather than open self-service registration. Corporate SSO and provisioning have their own [setup and membership rules](/platform/admin/enterprise-sso).
 
-- **The wizard didn't appear — you landed on the log-in page.** Users already exist on this instance; the wizard only runs on a truly empty one. Sign in instead, or have an existing Owner invite you under **Settings > People**.
-- **A service is unhealthy.** The platform container is not fully up. `docker compose ps` says which service is failing; `docker compose logs platform` shows why.
-
-## Where this gets used
-
-You now have an Owner and an org. The first run is keyless by design: open the URL, the wizard makes you the Owner, and everyone else joins by invite.
-
-The next steps that belong on the calendar are inviting the rest of the admins (under **Settings > People**), adding a model provider, and publishing the first agent — the [Cloud onboarding](/cloud/onboarding) walk is identical from this point on except for the URL.
+Use [Members and roles](/platform/admin/members-and-roles) to choose access. Then [create a first agent](/tutorials/editor/first-agent-end-to-end) and test a real reply. A working dashboard confirms access to the application; it does not verify the model provider or every background service.

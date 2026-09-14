@@ -62,6 +62,10 @@ import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
+import {
+  AutomationRunDialog,
+  type AutomationRunRequest,
+} from './automation-run-dialog';
 import { NodeInspector } from './node-inspector';
 import { WorkflowSettings } from './workflow-settings';
 
@@ -222,7 +226,9 @@ function AutomationEditorScope({
    * control there is; the Versions tab's rows never deploy. */
   const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
-  const [confirmLiveRun, setConfirmLiveRun] = useState(false);
+  const [runRequest, setRunRequest] = useState<AutomationRunRequest | null>(
+    null,
+  );
   /** Which project a manual run operates in — `undefined` means org-wide, the
    * default. Only offered (and only meaningful) when the automation is bound to
    * more than one project; a sole binding is auto-applied server-side, and an
@@ -238,6 +244,11 @@ function AutomationEditorScope({
     organizationId,
     automationSlug,
     version,
+  );
+  const deployedQuery = useAutomation(
+    organizationId,
+    automationSlug,
+    automationQuery.data?.deployedVersion,
   );
   const versionsQuery = useAutomationVersions(organizationId, automationSlug);
   // Only the newest run matters here — it is what the canvas overlays; the
@@ -291,6 +302,10 @@ function AutomationEditorScope({
   const stored = useMemo(
     () => readDocument(automationQuery.data?.document),
     [automationQuery.data?.document],
+  );
+  const deployed = useMemo(
+    () => readDocument(deployedQuery.data?.document),
+    [deployedQuery.data?.document],
   );
   const automation = draft ?? stored;
   const graph = useMemo(() => buildGraph(automation), [automation]);
@@ -439,6 +454,27 @@ function AutomationEditorScope({
   }
 
   const meta = automationQuery.data;
+  const scheduleRun = (
+    request: AutomationRunRequest,
+    input?: unknown,
+  ): void => {
+    setRefusal(null);
+    setRunRequest(null);
+    startRun.mutate(
+      {
+        organizationId,
+        name: automationSlug,
+        mode: request.mode,
+        version: request.version,
+        ...(request.schema !== undefined && { input }),
+        ...(request.projectId !== undefined && {
+          projectId: request.projectId,
+        }),
+      },
+      { onError: (error) => setRefusal(automationErrorMessage(error)) },
+    );
+  };
+
   const lookingVersion = meta?.version;
   const lookingIsLive =
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
@@ -592,27 +628,18 @@ function AutomationEditorScope({
               icon={Play}
               isLoading={startRun.isPending}
               onClick={() => {
-                setRefusal(null);
-                startRun.mutate(
-                  {
-                    organizationId,
-                    name: automationSlug,
-                    mode: 'mock',
-                    // A test run exercises the version on screen — the
-                    // header picker — so an undeployed draft is testable.
-                    // Without a version the server falls back to the deployed
-                    // one and refuses when there is none.
-                    ...(meta && { version: meta.version }),
-                    ...(effectiveRunProjectId !== undefined && {
-                      projectId: effectiveRunProjectId,
-                    }),
-                  },
-                  {
-                    onError: (error) => {
-                      setRefusal(automationErrorMessage(error));
-                    },
-                  },
-                );
+                if (meta == null || stored === null) return;
+                const request: AutomationRunRequest = {
+                  mode: 'mock',
+                  version: meta.version,
+                  ...(stored.inputs !== undefined && { schema: stored.inputs }),
+                  ...(effectiveRunProjectId !== undefined && {
+                    projectId: effectiveRunProjectId,
+                  }),
+                  scopeText: liveRunScopeText,
+                };
+                if (request.schema === undefined) scheduleRun(request);
+                else setRunRequest(request);
               }}
             >
               {t('detail.runMock')}
@@ -623,10 +650,26 @@ function AutomationEditorScope({
                 size="sm"
                 icon={Zap}
                 isLoading={startRun.isPending}
-                disabled={meta?.deployedVersion === undefined}
+                disabled={
+                  meta?.deployedVersion === undefined ||
+                  deployedQuery.isPending ||
+                  deployed === null
+                }
                 disabledReason={t('detail.runLiveNeedsDeploy')}
                 onClick={() => {
-                  setConfirmLiveRun(true);
+                  if (meta?.deployedVersion === undefined || deployed === null)
+                    return;
+                  setRunRequest({
+                    mode: 'live',
+                    version: meta.deployedVersion,
+                    ...(deployed.inputs !== undefined && {
+                      schema: deployed.inputs,
+                    }),
+                    ...(effectiveRunProjectId !== undefined && {
+                      projectId: effectiveRunProjectId,
+                    }),
+                    scopeText: liveRunScopeText,
+                  });
                 }}
               >
                 {t('detail.runLive')}
@@ -765,41 +808,13 @@ function AutomationEditorScope({
         </Field>
       </Dialog>
 
-      <ConfirmDialog
-        open={confirmLiveRun}
-        onOpenChange={setConfirmLiveRun}
-        title={t('detail.runLiveTitle')}
-        description={t('detail.runLiveBody')}
-        confirmText={t('detail.runLive')}
-        onConfirm={() => {
-          setRefusal(null);
-          // Close before the mutation settles: startRun only schedules the
-          // run — a later LIVE_BODY_FAILED is a run outcome, not a start
-          // refusal, so waiting on it would leave this dialog stuck open.
-          setConfirmLiveRun(false);
-          startRun.mutate(
-            {
-              organizationId,
-              name: automationSlug,
-              mode: 'live',
-              ...(effectiveRunProjectId !== undefined && {
-                projectId: effectiveRunProjectId,
-              }),
-            },
-            {
-              onError: (error) => {
-                setRefusal(automationErrorMessage(error));
-              },
-            },
-          );
-        }}
-      >
-        {/* Always name where the consequential run acts: the bound project it
-            is pinned to, the picker's choice, or organization-wide. */}
-        <Text as="p" variant="muted" className="text-sm">
-          {liveRunScopeText}
-        </Text>
-      </ConfirmDialog>
+      {runRequest !== null && (
+        <AutomationRunDialog
+          request={runRequest}
+          onClose={() => setRunRequest(null)}
+          onConfirm={(input) => scheduleRun(runRequest, input)}
+        />
+      )}
 
       <ConfirmDialog
         open={pendingVersion !== null}

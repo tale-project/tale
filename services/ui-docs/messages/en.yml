@@ -48,14 +48,11 @@ demo:
     app/demos/{name}.tsx and reference it from a page.
 home:
   heroTitle: The Tale design system
-  heroDescription: Two design languages, one system — @tale/ui builds the
-    product, @tale/marketing-ui builds the site around it. Every component on
-    this page is the real thing, running in your browser.
+  heroDescription: Build application screens with @tale/ui and public websites with @tale/marketing-ui. Use the guides and live examples to choose and connect the components.
   heroPrimary: Read the docs
   heroSecondary: View on GitHub
-  showcaseTitle: Real components, not screenshots
-  showcaseDescription: The window below renders the shipped package. Change your
-    theme and it follows, because it reads the same tokens the product does.
+  showcaseTitle: Components in a sample workspace
+  showcaseDescription: This illustration uses the shipped components and follows your selected theme. Try the interactive examples in the guides.
   showcaseWindowTitle: Workspace settings
   showcaseFormLegend: General
   showcaseNameLabel: Workspace name
@@ -78,21 +75,17 @@ home:
   showcaseStatusActive: Active
   showcaseStatusInvited: Invited
   sectionsTitle: Where to go next
-  sectionsDescription: Five sections, each one a different question about the
-    system.
+  sectionsDescription: Choose a guide for setup, a design decision, or the screen you are building.
   sectionsGettingStarted: Install the packages, learn how they relate, and set up
     theming and translations.
   sectionsFoundations: The tokens underneath every component — colour, type,
     spacing, icons, accessibility.
-  sectionsComponents: One page per component, each with live examples and the
-    props table from the source.
-  sectionsPatterns: How the components compose into the screens the product
-    actually ships.
+  sectionsComponents: Choose component states and connect their props, callbacks, and accessible names.
+  sectionsPatterns: Compose collection and settings screens, including search, drafts, and save behavior.
   sectionsMarketingUi: The site chrome, the marketing primitives and the demo
     frames that build tale.dev.
   installTitle: Install it in your own repository
-  installDescription: The packages ship TypeScript source, not a build. Pin the
-    snapshot branch, or a release tag for a reproducible install.
+  installDescription: The packages ship TypeScript source. Try a snapshot branch, then pin a release tag and commit the lockfile for a reproducible installation.
   installCodeLabel: package.json
   installDocsLink: Read the installation guide
   closingTitle: Start with the introduction

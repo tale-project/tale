@@ -3,10 +3,9 @@
 Vendored copies of common JS / CSS libraries the LLM-generated `html`-type
 artifacts reach for. Files here are served same-origin under `'self'`, so
 they pass the canvas-preview iframe's CSP without needing any external
-origin allow-list (see `lib/canvas-preview-shell.ts`).
+origin allow-list (see [`lib/canvas-preview-shell.ts`](../../lib/canvas-preview-shell.ts)).
 
-The agent's `artifact_create` tool description points the model at these
-exact paths. CDN URLs (cdn.jsdelivr.net, unpkg, cdnjs, cdn.tailwindcss.com)
+HTML artifacts should reference these exact local paths. CDN URLs (cdn.jsdelivr.net, unpkg, cdnjs, cdn.tailwindcss.com)
 are blocked — both as a GDPR posture (no third-party transfer of end-user
 IP/UA/Referer by default) and to keep operator deployments air-gappable.
 
@@ -18,7 +17,7 @@ IP/UA/Referer by default) and to keep operator deployments air-gappable.
 | Chart.js             | 4.4.0   | MIT                                                                                                                                                | `chart.js/4.4.0/chart.umd.js`                        |
 | D3                   | 7.8.5   | ISC / BSD-3                                                                                                                                        | `d3/7.8.5/d3.min.js`                                 |
 | @tailwindcss/browser | 4.2.4   | MIT                                                                                                                                                | `tailwindcss-browser/4.2.4/tailwindcss.js`           |
-| GSAP                 | 3.12.5  | Standard "no-charge" (free for non-commercial; commercial use requires Club GreenSock for some plugins, but the core library bundled here is free) | `gsap/3.12.5/gsap.min.js`                            |
+| GSAP                 | 3.12.5  | [License referenced by the vendored header](https://gsap.com/standard-license) | `gsap/3.12.5/gsap.min.js`                            |
 
 Pinned, byte-for-byte copies fetched from `cdn.jsdelivr.net/npm/<pkg>@<ver>`.
 
@@ -31,8 +30,8 @@ Pinned, byte-for-byte copies fetched from `cdn.jsdelivr.net/npm/<pkg>@<ver>`.
 2. Adding a new library: confirm license (MIT / BSD / Apache 2 are fine),
    confirm runtime fits the same-origin sandbox (no `allow-same-origin`,
    no external network), then mirror the directory layout and update
-   `convex/agent_tools/artifacts/artifact_create_tool.ts` so the model
-   knows about it.
+   any tool instructions, skills, and examples that list the available
+   `/canvas-libs/` assets, so generated previews use an installed version.
 
 ## Operator escape hatch
 

@@ -1,40 +1,63 @@
 ---
-title: Limites de débit
-description: Limites de débit REST et MCP — les buckets, la réponse 429 et son Retry-After, et comment relancer sans empirer la situation.
+title: Gérer les limites de requêtes
+description: Planifie les appels REST, MCP et webhook, interprète Retry-After et réessaie sans dupliquer un travail déjà accepté.
 ---
 
-L'API limite avec des token buckets rattachés au détenteur de la clé — l'utilisateur au nom duquel ta clé API agit — si bien qu'un budget appartient toujours à un appelant identifiable et qu'aucun en-tête réseau ne peut en fabriquer un neuf : les rafales passent, le martèlement continu répond **429**. Chaque clé qu'un utilisateur crée puise dans le budget de cet utilisateur ; une flotte de workers qui a besoin de son propre budget reçoit son propre utilisateur machine. Une clé qui échoue à s'authentifier est freinée par IP source à la place (20 requêtes par minute, rafale de 40) : les inconnus ne puisent donc jamais dans le budget d'un détenteur de clé, et une requête sans clé ne coûte rien du tout. Les budgets sont taillés pour qu'une connector normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
+Tale limite le trafic API par détenteur de clé. Toutes les clés d’une même personne partagent son budget. Compte donc l’ensemble des intégrations et processus de suivi utilisant cette identité, plutôt que chaque clé séparément.
 
-Lis ceci quand tu câbles un client qui appelle l'API sur un planning ou sous charge.
+Les limites ci-dessous décrivent le backend actuel. Un proxy de l’opérateur ou un fournisseur en aval peut ajouter ses propres limites.
 
-## Les buckets
+## Les budgets
 
-| Surface                                                                                                                               | Budget             | Rafale |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------ |
-| Lectures et CRUD — chaque endpoint `/api/v1` absent des lignes du dessous, y compris `POST /api/v1/mcp`                               | 120 requêtes / min | 200    |
-| Démarrer du travail — exécutions de projet (`POST /api/v1/projects/{id}/automations/{name}/runs`), messages (`POST /api/v1/projects/{id}/threads/{threadId}/messages`) et tâches (`POST /api/v1/projects/{id}/tasks/{taskId}/start`), ainsi que les exécutions et messages de threads sans projet | 20 requêtes / min | 40 |
-| Le flux de fichiers projet — le handoff de chargement et la liaison de fichier (`POST .../uploads` et `POST .../files`)  | 240 requêtes / min | 300    |
-| Livraisons webhook entrantes (`POST /api/automations/webhook/{token}` et la forme projet) — par adresse d’expéditeur, facturées avant même la vérification du jeton | 120 requêtes / min | 240 |
-| Les mêmes livraisons, par déclencheur vérifié                                                                                         | 20 requêtes / min  | 40     |
+Un seau de jetons se remplit en continu jusqu’à sa capacité de rafale. Une courte série peut utiliser cette réserve ; le débit soutenu doit rester inférieur au rythme de remplissage.
 
-Le second bucket est petit à dessein : chacune de ces requêtes coûte une exécution durable entière ou un tour de modèle, pas une lecture de base — et le bucket webhook par déclencheur l’est pour la même raison ; la porte webhook ne porte aucune clé, ses budgets tiennent donc à l’adresse de l’expéditeur et au déclencheur que le jeton nomme (la [page Webhooks](/fr/develop/webhooks) a le vocabulaire de cette porte). Le troisième est spacieux à dessein : un fichier coûte ici au moins deux appels — demander le handoff, lier le fichier — le budget couvre donc toute la chorégraphie. Chaque requête compte aussi contre le budget général — c'est la porte — donc un POST de démarrage de travail ou de chargement tire sur deux voies à la fois, et la plus étroite gouverne ; dimensionne sur elle. Un token bucket se remplit en continu — la capacité de rafale absorbe un lot, puis le débit soutenu s'applique. Le bucket de démarrage de travail borne la vitesse à laquelle les envois sont **acceptés**, pas le nombre de tours qui tournent en même temps : les messages de thread acceptés rejoignent une seule file, partagée par chaque organisation et chaque détenteur de clé du déploiement, que le worker d’arrière-plan traite du plus ancien au plus récent par lots de cinq tours au plus (le `WORKER_CONCURRENCY` de l’opérateur, 5 par défaut), et un nouveau lot ne démarre que lorsque chaque tour du lot en cours s’est réglé — une rafale de N envois se termine par vagues, pas en parallèle.
+| Trafic | Débit soutenu | Rafale | Budget attribué à |
+| --- | --- | --- | --- |
+| Appels généraux `/api/v1`, MCP compris | 120/minute | 200 | Détenteur de la clé |
+| Démarrages d’exécution, messages au modèle et démarrages de tâche | 20/minute | 40 | Détenteur de la clé |
+| Autorisation de téléversement et rattachement de fichier au projet | 240/minute | 300 | Détenteur de la clé |
+| Authentification par clé API échouée | 20/minute | 40 | IP source |
+| Livraisons webhook avant validation du jeton | 120/minute | 240 | Adresse de l’expéditeur |
+| Livraisons à un déclencheur webhook vérifié | 20/minute | 40 | Déclencheur |
 
-Certaines écritures passent aussi par les mêmes budgets par utilisateur ou par organisation que leurs jumelles dans l'app — un commentaire de tâche, un changement de dossier — et répondent la même 429 au-delà.
+Les appels REST d’exécution et de téléversement consomment aussi le budget général. Un fichier de projet nécessite par exemple une autorisation de téléversement puis un rattachement. Chacun de ces appels compte dans les deux budgets. Le budget de téléversement plus large ne contourne pas la limite générale.
 
-## La 429
+L’exécution comprend les démarrages d’automatisation avec ou sans projet, les messages de fil et les démarrages explicites de tâche. La création ou mise à jour d’une tâche consomme aussi ce budget si `runWorkflowSlug` est fourni. Certaines mutations, comme les commentaires de tâche ou les changements de dossier, ont des limites supplémentaires partagées avec l’application.
 
-Un dépassement répond avec l'enveloppe d'erreur ordinaire de l'API, plus un header `Retry-After` qui nomme l'attente en secondes entières (arrondies au-dessus) :
+Dans un lot MCP, les appels d’outil supplémentaires consomment du budget supplémentaire. Le [point d’accès MCP](/fr/develop/mcp-endpoint) distingue une réponse HTTP `429` d’un message refusé à l’intérieur du lot. Les webhooks ont des budgets séparés ; les limites de l’expéditeur et du déclencheur doivent toutes deux permettre la livraison.
 
-```json
-{ "error": "Too many requests — retry after 1500 ms", "code": "RATE_LIMITED", "requestId": "…", "data": { "retryAfterMs": 1500 } }
+Le budget d’exécution limite la vitesse d’acceptation des messages, pas le nombre de tours simultanés. Les messages acceptés partagent une file entre toutes les organisations et les clés de l’instance. Chaque lot traite au maximum `WORKER_CONCURRENCY` tours, 5 par défaut ; le suivant attend la fin du lot en cours. Un envoi accepté peut donc attendre derrière d’autres clients. L’API n’expose ni position dans la file ni heure de démarrage estimée.
+
+## La réponse 429
+
+Un refus HTTP pour dépassement de limite indique `Retry-After` en secondes entières. Le corps JSON exprime la même attente en millisecondes. Cet exemple impose au moins deux secondes de pause :
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 2
+Content-Type: application/json
+
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-`code` est la valeur sur laquelle brancher, comme partout dans le [modèle d’erreur](/fr/develop/api-reference) ; `error` porte une phrase qui nomme l’attente, et `requestId` l’id à citer quand tu la signales — les portes de l’app, elles, continuent de répéter le code dans `error` pour leurs propres clients, une 429 venue de `/api/app` se lit donc autrement. Le corps indique l’attente en millisecondes dans `data.retryAfterMs` ; l’en-tête `Retry-After` l’arrondit aux secondes entières supérieures. Par exemple, `1500` millisecondes donnent `Retry-After: 2`.
+Branche ta logique sur `code`. `error` décrit l’attente dans une phrase et `requestId` identifie la requête pour une investigation. Ce format est celui de REST. Les refus de débit de `/api/app` et des webhooks conservent le code machine dans `error` ; ne traite donc pas ce texte comme un format commun aux interfaces. Tale ne fournit pas de compteur de budget restant : mesure ton trafic et respecte l’attente indiquée.
 
-Une interrogation qui répond **304** (`ETag` inchangé, voir [cache](/fr/develop/api-reference#cache-compression-et-lectures-partielles)) coûte une requête comme les autres — la revalidation économise des octets, pas du budget. Dimensionne donc l’intervalle d’interrogation sur le budget : à une lecture par seconde, un détenteur de clé peut suivre deux exécutions, à cinq secondes dix. Ne lis que ce dont tu as besoin (`?fields=status,finishedAt` sur une exécution) pour que chaque requête reste petite, et préfère un planning à une boucle serrée.
+1. Arrête la boucle de relance immédiate.
+2. Attends au moins `Retry-After`. Si plusieurs processus partagent l’identité, coordonne leur pause.
+3. Si les refus continuent, augmente le délai exponentiellement avec une borne et une variation aléatoire. Par exemple, passe d’une à soixante secondes en respectant toujours une attente serveur plus longue.
+4. Conserve la clé d’idempotence initiale pour les opérations qui la prennent en charge. Un timeout au démarrage peut survenir après l’acceptation du travail.
 
-Dors au moins `Retry-After` avant le prochain essai. Il n'y a pas de compteurs de budget restant — au-delà, recule à l'aveugle : commence à une seconde, double à chaque 429 consécutif, plafonne à soixante, et ajoute du jitter pour que des workers parallèles ne relancent pas au pas. Comme démarrer une exécution répond **202** avant que le travail n’ait lieu, une réponse perdue est le cas ordinaire, pas un cas limite : nomme le démarrage avec `Idempotency-Key` et relance-le — la répétition répond l’exécution que la première tentative a lancée, marquée `duplicate: true`, au lieu d’en démarrer une seconde (la [référence API](/fr/develop/api-reference) donne les règles).
+Les autres réponses `4xx` nécessitent généralement une correction de requête, d’identifiants ou de droits. Ne traite pas tout échec comme une limite ; consulte le [modèle d’erreur](/fr/develop/api-reference#modele-derreur).
 
-## Où ça se place
+## Planifier le suivi et les relances
 
-La [référence API](/fr/develop/api-reference) nomme la 429 dans le modèle d'erreur et pointe ici. Si ta charge a vraiment besoin de plus que les budgets, regroupe de ton côté — `POST /api/v1/contacts/bulk` existe exactement pour ça — ou étale le planning ; les buckets valent par détenteur de clé — répartir le trafic sur plusieurs clés du même utilisateur ne change rien. Une intégration qui a vraiment besoin de son propre budget reçoit son propre utilisateur machine.
+Une réponse `304` après vérification d’`ETag` compte toujours comme une requête. Elle économise des octets, pas du budget. Suivre une exécution toutes les cinq secondes consomme douze lectures par minute avant les relances et les autres opérations. Réserve de la capacité pour ces appels supplémentaires.
+
+Demande uniquement les champs nécessaires, comme `?fields=status,finishedAt` pour une exécution. Espace les lectures lorsqu’une décision humaine est attendue et arrête-les une fois l’exécution terminée. [Démarrer puis suivre une exécution](/fr/develop/api-reference#demarrer-une-execution-puis-la-suivre) explique les états et les démarrages idempotents.
+
+Pour les imports importants, utilise les opérations groupées prises en charge, telles que `POST /api/v1/contacts/bulk`, et répartis les lots dans le temps. Créer d’autres clés pour la même personne n’augmente pas le budget. Si un traitement nécessite sa propre identité de service, prépare-la par le processus habituel de comptes et de permissions. Changer de clé n’est pas une stratégie de relance.

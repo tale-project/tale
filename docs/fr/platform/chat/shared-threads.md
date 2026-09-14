@@ -1,33 +1,39 @@
 ---
-title: Chats partagés
-description: Partager un chat avec le reste de l’organisation — le dialogue de partage et son lien, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage.
+title: Partager un chat avec ton organisation
+description: Crée un instantané en lecture seule, ajoute les messages récents lorsque tu le souhaites et arrête le partage plus tard.
 ---
 
-Partager un chat publie un instantané de la conversation en lecture seule, derrière un lien que toute personne de ton organisation peut ouvrir. Deux clics et un collage : **Partager** ouvre un petit dialogue où tu choisis **Partager avec l’organisation** et crées le lien, puis tu le colles là où ton équipe discute. Le mécanisme est assez léger pour un usage courant — partage une question et sa réponse comme tu partagerais un document.
+Partage un chat lorsqu’un collègue doit lire la question et la réponse sans poursuivre ta conversation. Le lien publie un instantané pour les membres connectés de ton organisation. Il n’est pas public et ne se met pas à jour automatiquement lorsque tu continues à discuter.
 
-## Partager un chat
+## Créer l’instantané
 
-Ouvre le chat et clique sur le menu **⋯** dans l’en-tête, puis sur **Partager**. Le dialogue **Partager le chat** s’ouvre sur **Garder privé** ; choisis **Partager avec l’organisation** et clique sur **Créer le lien de partage**. Le lien apparaît dans le dialogue, avec **Copier le lien** à côté, et **Aperçu** ouvre l’instantané tel que le destinataire le verra. Le menu de la ligne du chat, dans la barre latérale, offre un raccourci : son entrée **Partager** crée le lien et le copie directement dans ton presse-papiers — un toast **Lien copié** le confirme.
+1. Ouvre le menu dans l’en-tête du chat et choisis **Partager**.
+2. Dans **Partager le chat**, sélectionne **Partager avec l'organisation**.
+3. Clique sur **Créer le lien de partage**.
+4. Vérifie le contenu avec **Aperçu**, puis utilise **Copier le lien** lorsqu’il est prêt.
 
-Deux choses à savoir sur ce lien :
+Relis la conversation avant de diffuser le lien. Une réponse peut reprendre ou résumer des informations provenant d’une source à accès restreint. Partager cette réponse rend son texte lisible par les membres de l’organisation qui possèdent le lien.
 
-- **Il est limité à l’organisation.** Seuls les membres connectés de ton organisation peuvent l’ouvrir ; ce n’est pas une URL publique.
-- **C’est un instantané.** Le destinataire voit la conversation telle qu’elle était au moment du partage. Si le chat a avancé et que tu veux partager l’état plus récent, rouvre le dialogue et clique sur **Inclure les messages plus récents** — le lien reste le même et l’instantané se rafraîchit.
+<Frame caption="Les destinataires lisent l’instantané avec le nom de la personne qui l’a partagé, sans champ de saisie.">
 
-<Frame caption="Ce que le destinataire ouvre : l’instantané partagé, en lecture seule, avec sa mention de partage.">
-
-![Un chat partagé consulté en lecture seule, montrant la transcription de la conversation sous un titre Chat partagé, avec la mention de qui l’a partagé et quand.](/images/platform/chat-shared-view.webp)
+![Un chat partagé en lecture seule affiche la conversation et une mention indiquant qui l’a partagé et à quelle date.](/images/platform/chat-shared-view.webp)
 
 </Frame>
 
-## Ce que voit le visiteur
+## Inclure une réponse ultérieure
 
-Le lien ouvre une vue **Chat partagé** en lecture seule : la transcription, avec la mention de qui a partagé le chat et quand. Il n’y a pas de zone de saisie — un chat partagé se lit, on n’y répond pas. Le visiteur qui veut aller plus loin sur le sujet démarre son propre chat — ou une tâche dans un [projet](/fr/platform/projects/overview), si c’est un livrable qu’il lui faut.
+Les nouveaux messages restent hors de l’instantané publié. Rouvre **Partager** et choisis **Inclure les messages plus récents** pour que le même lien affiche la suite de l’échange. Vérifie à nouveau cette version dans l’aperçu.
+
+Un destinataire qui souhaite poursuivre le sujet démarre son propre chat. L’instantané ne crée pas de conversation collaborative et n’accorde pas l’accès à toutes les sources qui y sont mentionnées.
 
 ## Arrêter le partage
 
-Repasse le dialogue sur **Garder privé**, ou choisis **Arrêter le partage** dans le menu de la ligne du chat une fois qu’il est partagé. Le lien cesse de fonctionner immédiatement ; les visiteurs atterrissent sur une page indiquant que le chat n’est plus disponible. Supprimer le chat a le même effet sur le lien. Partager de nouveau plus tard publie un nouvel instantané.
+Choisis **Garder privé** dans le dialogue ou **Arrêter le partage** dans le menu de la ligne du chat. Le lien devient indisponible. Supprimer le chat d’origine met également fin à l’accès partagé.
 
-## Où cela s’inscrit
+L’arrêt empêche les nouvelles consultations par ce lien. Il ne retire pas le texte déjà copié par quelqu’un : relire avant de partager reste donc nécessaire.
 
-Les chats partagés sont la façon légère de passer une conversation à un coéquipier sans quitter le produit. L’alternative plus lourde est d’amener le coéquipier dans un [Projet](/fr/platform/projects/overview) où chats, fichiers et agents sont partagés par défaut. Le partage sert les passations ponctuelles ; un Projet sert la collaboration continue sur le même travail.
+## Partager avec un projet
+
+Pour une collaboration suivie, utilise **Partager avec le projet** sur un chat dans un [projet](/fr/platform/projects/concepts). L’onglet **Chats** distingue les conversations personnelles de celles partagées avec le projet. L’accès au projet ne partage pas automatiquement tes chats personnels.
+
+Un chat Arena ne peut pas être partagé tant que la comparaison est en cours. Termine d’abord le choix, puis partage la conversation conservée ; consulte [Mode Arena](/fr/platform/chat/arena-mode).

@@ -1,104 +1,45 @@
-# Loanword buckets
+# Decide what to translate
 
-Three buckets cover every English noun that appears in a non-English Tale string. The bucket decides
-whether the noun translates, stays English, or matches the shipped UI verbatim. The assignment lives on
-each term's `category` field in
-[`packages/ui/src/i18n/tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml);
-the tests enforce the rules.
+The canonical assignments live in
+[glossary.yml](../../../packages/ui/src/i18n/tests/glossary/glossary.yml). This file explains how
+to use them; it does not maintain a second word list.
 
-## Bucket 1 — Always English
+## First identify the context
 
-Brands, acronyms, and code identifiers — international tokens that lose meaning when translated.
+An exact code identifier, a quoted UI label, and an ordinary word have different requirements.
+For example, `Authorization` in an HTTP request must stay byte-for-byte, while a sentence explaining
+request authorization needs native prose. Use the shipped catalog for a control's name. Do not
+change it to a preferred dictionary term and make the interface harder to follow.
 
-| Category         | Examples                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `brand`          | `Tale`, `Convex`, `OpenRouter`, `Claude`, `GitHub`, `Slack`, `Gmail`, `Outlook`, `Shopify`, `Docker`, `Kubernetes`                       |
-| `acronym`        | `AI`, `LLM`, `API`, `MCP`, `RAG`, `OIDC`, `SSO`, `SAML`, `SOC 2`, `ISO 27001`                                                            |
-| `codeIdentifier` | Env vars (`TALE_CONFIG_DIR`), CLI flags (`--detach`), file paths (`docker-compose.yml`), JSON keys, API paths (`POST /api/v1/documents`) |
+## The glossary categories
 
-## Bucket 2 — Established loanwords
+| Kind | Categories | Treatment |
+| --- | --- | --- |
+| Stable identifiers | `brand`, `acronym`, `codeIdentifier`, `abbreviation` | Preserve the specified token; explain unfamiliar abbreviations when the audience needs it. |
+| Established loanwords | `loanword`, `gitDomain` | Use the approved form in that domain and locale; fit it into native grammar. |
+| Required translation | `translateBucket` | Use the recorded locale form unless a scoped glossary exception applies. |
+| Product and ordinary vocabulary | `feature`, `role`, `knowledgeEntity`, `technicalVocab`, `actionVerb`, `deploymentVocab` | Use the current locale form in context; quoted UI labels still follow the shipped catalog. |
 
-English in industry usage, and natural read as English in German/French. Stay English in DE/FR;
-hyphenate when forming a German compound (`Webhook-Adresse`, `Workflow-Schritt`).
+Check the actual term entry, including locale overrides and `_note`. The category alone does not
+justify preserving every English use of a word. An industry term suitable for an API integrator
+may need a brief explanation for a first-time product user.
 
-| Category    | Examples                                                                                                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loanword`  | `Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Connector`, `Tool`, `Pipeline`, `Branding`, `Open Source`, `Team` |
-| `gitDomain` | `Pull Request`, `Code Review`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Issue`, `Repository`, `Tag`, `Release`                                |
+## Compounds and grammar
 
-The Git-domain split is a sharper sub-bucket: a German developer reading `Pull Request` recognises the
-workflow instantly; `Ziehanforderung` introduces friction no native developer asks for.
+Translate a compound as a unit or retain the established unit. Avoid hybrids such as
+`Knowledge-Datenbank` or `Pull Demande`. German compounds with accepted technical tokens may need
+hyphens, such as `API-Schlüssel`. French surrounding prose needs normal articles, agreement,
+prepositions, and plural forms; a loanword is not an excuse to reproduce English word order.
 
-## Bucket 3 — Translate-bucket
+The testable patterns live in
+[locale terminology data](../../../packages/ui/src/i18n/tests/locales/). Check their scope before
+extending a denylist: a short pattern can reject legitimate language outside its intended domain.
+Add realistic positive and negative fixtures for a new enforced rule.
 
-English words with a perfectly natural target-language form that must translate. Caught by
-`terminology-loanword`.
+## Resolve disagreement
 
-| EN             | DE                  | FR                    | de-CH (override) |
-| -------------- | ------------------- | --------------------- | ---------------- |
-| Header         | Kopfzeile           | En-tête               | (same as DE)     |
-| Request        | Anfrage             | Requête               | (same as DE)     |
-| Provider       | Anbieter            | Fournisseur           | (same as DE)     |
-| Email          | E-Mail              | Courriel              | (same as DE)     |
-| Help Center    | Hilfe-Center        | Centre d'aide         | (same as DE)     |
-| Billing        | Abrechnung          | Facturation           | (same as DE)     |
-| Sales Research | Vertriebs-Recherche | Recherche commerciale | (same as DE)     |
-| Draft          | Entwurf             | Brouillon             | (same as DE)     |
-| Attachment     | Anhang              | Pièce jointe          | (same as DE)     |
-| Self-hosted    | selbst gehostet     | auto-hébergé          | (same as DE)     |
-
-When a term belongs here but the shipped UI still renders it English, the UI wins: add a glossary entry
-with `_lintExclude: { <locale>: true }` and a `_note` explaining the deferral; plan the UI fix as a
-separate PR (see [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md)).
-
-## Bucket assignment workflow
-
-1. **Default to translation.** If a target-language reader expects the word in their language
-   (spreadsheet headers, error names, navigation paths, role names), translate.
-2. **Loanword exceptions are explicit.** A word stays English only when the target-language developer
-   uses the English form in conversation without thinking — i.e. it sits in bucket 2.
-3. **No half compounds.** A compound translates whole or stays whole: `Knowledge Base` →
-   `Wissensdatenbank` (DE) or `Base de connaissances` (FR); never `Knowledge-Datenbank`,
-   `Base de Knowledge`.
-4. **The UI is authoritative.** If the bucket says "translate" but the UI ships English, the entry gets
-   a `_lintExclude` for that locale plus a `_note`.
-
-## Half-compound denylists
-
-Known half-translation patterns the tests reject. Add new ones to the per-locale terminology file:
-[`packages/ui/src/i18n/tests/locales/<locale>/terminology.ts`](../../../packages/ui/src/i18n/tests/locales/).
-
-**DE — Git domain (keep English):**
-
-| Wrong               | Right        | Why                                |
-| ------------------- | ------------ | ---------------------------------- |
-| Pull Anfrage        | Pull Request | Git vocabulary stays English       |
-| Merge Anfrage       | Pull Request | "Merge-Anfrage" is not a real term |
-| Code Review-Prozess | Code Review  | Drop the German suffix             |
-| Branch Zweig        | Branch       | Git vocabulary stays English       |
-| Commit Übergabe     | Commit       | Git vocabulary stays English       |
-
-**DE — product domain (translate whole):**
-
-| Wrong               | Right                     |
-| ------------------- | ------------------------- |
-| Knowledge Datenbank | Wissensdatenbank          |
-| Knowledge Basis     | Wissensdatenbank          |
-| Help Zentrum        | Hilfe-Center (matches UI) |
-| Email Anbieter      | E-Mail-Anbieter           |
-
-**FR — Git domain (keep English):**
-
-| Wrong                 | Right        |
-| --------------------- | ------------ |
-| Pull Demande          | Pull Request |
-| Merge Fusion          | Merge        |
-| Code Review-Processus | Code Review  |
-| Branch Branche        | Branch       |
-
-**FR — product domain (translate whole):**
-
-| Wrong          | Right                 |
-| -------------- | --------------------- |
-| Knowledge Base | Base de connaissances |
-| Help Centre    | Centre d'aide         |
+Read the glossary entry, its notes, nearby native text, and the actual UI before choosing. If a
+term has two meanings, document the distinction instead of applying a global replacement. If the
+UI and glossary conflict, keep docs findable against the shipped UI while correcting the owner
+within the authorized task. A deferred mismatch needs a narrow, explained exception following
+[GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md), not an untracked synonym.

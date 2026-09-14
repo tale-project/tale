@@ -4,17 +4,12 @@ import { useCallback, useState } from 'react';
 
 import { useBackendClient } from '@/app/hooks/use-backend-client';
 
-/** Product images are small thumbnails; cap uploads at 5 MB. */
-export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-export const PRODUCT_IMAGE_ACCEPT =
-  'image/png,image/jpeg,image/webp,image/gif,image/svg+xml';
+export {
+  PRODUCT_IMAGE_MAX_BYTES,
+  PRODUCT_IMAGE_ACCEPT,
+} from '@/lib/shared/product-images';
 
-/**
- * Uploads a product image to Convex storage and resolves a stable public URL
- * suitable for the product's `imageUrl` field. Reuses the same
- * generateUploadUrl → POST → getFileUrl flow as chat attachments, so no new
- * storage/serving infrastructure is introduced.
- */
+/** Upload and register an image; persist the authorized app URL, never a presign. */
 export function useProductImageUpload() {
   const client = useBackendClient();
   const [isUploading, setIsUploading] = useState(false);
@@ -24,7 +19,7 @@ export function useProductImageUpload() {
       setIsUploading(true);
       try {
         const uploadUrl = await client.mutation(
-          'files/mutations:generateUploadUrl',
+          'products/mutations:generateImageUploadUrl',
           {},
         );
         const res = await fetch(uploadUrl, {
@@ -35,13 +30,11 @@ export function useProductImageUpload() {
         if (!res.ok) {
           throw new Error(`Upload failed with status ${res.status}`);
         }
-        const { storageId } = await res.json();
-        if (!storageId) {
-          throw new Error('Upload response missing storageId');
+        const { imageUrl } = await res.json();
+        if (typeof imageUrl !== 'string' || !imageUrl.startsWith('/')) {
+          throw new Error('Upload response missing product image URL');
         }
-        return await client.query('files/queries:getFileUrl', {
-          fileId: storageId,
-        });
+        return imageUrl;
       } finally {
         setIsUploading(false);
       }

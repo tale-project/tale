@@ -1,102 +1,67 @@
 ---
 title: Colours
-description: Every semantic colour token in the system, which vocabulary it belongs to, and what it is for.
+description: Choose semantic surface, text, status, and chart colors that can adapt to light and dark themes.
 ---
 
-There is no palette to choose from. Every colour in a Tale interface resolves
-through a semantic token, so the same class produces the right result in light
-and dark, and a retune happens in one file rather than in four hundred
-components.
+Choose a color token for its role: page surface, secondary text, input edge, or status. This lets the shared stylesheet adjust the appearance centrally without changing each component. Avoid introducing raw palette colors in new UI code when an existing semantic token fits.
 
-This page is the reference: the two vocabularies, the full token list, and the
-rules that keep them from drifting.
-
-## The swatches
+## Compare the two themes
 
 <Demo name="foundations/color-tokens" />
 
-Toggle the theme in the header and watch the same classes repaint. That is the
-entire point of a token.
+Use the header theme menu to switch between **Light** and **Dark**. The swatches retain their class names while their values change. Check text against the surface it actually sits on, rather than judging an isolated swatch.
 
-## The canonical family
+## Canonical semantic tokens
 
-Declared directly in `@theme` and overridden inside `.dark`.
+These tokens are declared in `@theme` in `packages/ui/src/globals.css`. The surface, text, border, and accent families have dark overrides.
 
-| Utility | Use it for |
+| Utility | Intended role |
 | --- | --- |
-| `bg-bg-base` | The page or card ground plane |
-| `bg-bg-elevated` | Hover fill, raised rows, secondary button rest |
-| `bg-bg-muted` | Quiet wells, inert chips, inactive fills |
-| `bg-bg-overlay` | The scrim behind a modal or sheet |
-| `text-fg-base` | Primary text, headings, the active nav row |
-| `text-fg-muted` | Descriptions, body prose under a label |
-| `text-fg-subtle` | Captions, metadata, code line numbers |
-| `text-fg-inverse` | Text sitting on an inverted or accent fill |
-| `border-border-base` | The default hairline: cards, dividers, header rules |
-| `border-border-strong` | Hover border lift, secondary-button ring |
-| `border-border-input` | A form field's edge, and nothing else |
-| `bg-accent-base` | The neutral ink accent — primary button, active indicator |
-| `text-accent-fg` | Text or icon on `accent-base` |
+| `bg-bg-base` | Main component surface. |
+| `bg-bg-elevated` | Raised or hovered surface. |
+| `bg-bg-muted` | Quiet inset area. |
+| `bg-bg-overlay` | Backdrop over other content. |
+| `text-fg-base` | Primary text. |
+| `text-fg-muted` | Supporting description. |
+| `text-fg-subtle` | Metadata or captions; check the actual background. |
+| `text-fg-inverse` | Text on a suitable inverted fill. |
+| `border-border-base` | Dividers and ordinary surface edges. |
+| `border-border-strong` | Stronger boundary treatment. |
+| `border-border-input` | Form-control outline. |
+| `bg-accent-base` with `text-accent-fg` | Primary neutral action fill and its foreground. |
 
-`border-border-input` exists because the plain border is near-invisible on
-white — about 1.2:1 — so a field would lose its shape. In light mode it
-resolves to the strong border; in dark mode it drops back to the base one,
-where the contrast is already there.
+`border-border-input` resolves to the strong border in light mode and the base border in dark mode. Use the input primitive for its full outline/focus treatment rather than approximating the field with a plain divider border.
 
-Status tints carry the same value in both themes, because a red that is
-recognisably red matters more here than a perfectly balanced surface:
-`bg-success-bg`, `bg-warning-bg`, `bg-danger-bg`, `text-danger`, `bg-info-bg`.
+The canonical status tints include `bg-success-bg`, `bg-warning-bg`, `bg-danger-bg`, `text-danger`, and `bg-info-bg`. These values do not all have dark overrides. Pair them deliberately, or use a shared status component that already applies the intended treatment.
 
-## The HSL family
+## HSL-compatible aliases
 
-The shadcn-shaped set, exposed as `hsl(var(--x))` aliases. It is the page
-baseline: `body` is `bg-background text-foreground`.
+The stylesheet also exposes the familiar HSL token family used by many existing components:
 
-| Utility | Use it for |
+| Utilities | Intended pairing |
 | --- | --- |
-| `bg-background` / `text-foreground` | The page ground and its primary text |
-| `bg-card` / `text-card-foreground` | A card surface that must sit above the page |
-| `bg-popover` / `text-popover-foreground` | Menus, popovers, the command palette |
-| `bg-primary` / `text-primary-foreground` | The primary control fill |
-| `bg-secondary` / `text-secondary-foreground` | The secondary control fill |
-| `bg-muted` / `text-muted-foreground` | Quiet fills, hover rows, secondary text |
-| `bg-accent` / `text-accent-foreground` | The hovered or highlighted row in a list |
-| `text-destructive` | Inline validation errors, destructive affordances |
-| `bg-success` · `bg-warning` · `bg-info` | Status fills with their `-foreground` pairs |
-| `border-border` | The default border — already applied to every element |
-| `bg-input` | A field's own fill |
-| `ring-ring` | The focus ring, with `ring-offset-background` |
-| `bg-sidebar` · `bg-tab` | The two chrome surfaces with their own value |
+| `bg-background` and `text-foreground` | Page surface and primary text. |
+| `bg-card` and `text-card-foreground` | Card surface and text. |
+| `bg-popover` and `text-popover-foreground` | Menu or popover surface and text. |
+| `bg-primary` and `text-primary-foreground` | Primary fill and text. |
+| `bg-secondary` and `text-secondary-foreground` | Secondary fill and text. |
+| `bg-muted` and `text-muted-foreground` | Quiet fill and supporting text. |
+| `bg-accent` and `text-accent-foreground` | Highlighted surface and text. |
+| `text-destructive` | Error text or a destructive affordance. |
+| `bg-success`, `bg-warning`, `bg-info` | Status fills, each with a corresponding `-foreground` token. |
+| `border-border`, `bg-input`, `ring-ring` | Ordinary border, field fill, and focus-ring role. |
+| `bg-sidebar`, `bg-tab` | Navigation and selected-tab surfaces. |
 
-Charts get their own scales — `bg-chart-1` through `bg-chart-5`, plus
-`bg-chart-success`, `bg-chart-failure`, `bg-chart-warning`, `bg-chart-neutral`
-and `bg-chart-primary` — tuned separately for light and dark so a series stays
-legible in both. A chart that reads a hex value is a chart that disappears when
-the theme flips.
+Follow the existing file's family rather than partially converting its colors while adding an unrelated feature. The canonical and HSL names are supported vocabularies, not interchangeable values you can mix without checking the result.
 
-## Which family should a new component use?
+## Use chart-specific colors
 
-Follow the file you are in. Both vocabularies are supported and both flip with
-the theme, so consistency inside one component is worth more than consistency
-across the package. When you are starting a file from scratch, the canonical
-family reads better in review — `text-fg-muted` says what it is for, where
-`text-muted-foreground` says what it is made of.
+Charts have `chart-1` through `chart-5` plus `chart-success`, `chart-failure`, `chart-warning`, `chart-neutral`, and `chart-primary`. CSS consumers can read `var(--color-chart-1)` and its siblings; Tailwind exposes the corresponding color utilities.
 
-## The rules
+Use labels, shapes, or line patterns as well as color to distinguish meaningful series. Verify legends and tooltips in both themes, including small text and a single low-value data point.
 
-- **Never a raw hex, never a Tailwind grey.** `text-gray-400` is not a token;
-  it will not flip, and it has already shipped a contrast failure once.
-- **Dark surfaces use the neutral scale, not `gray`.** Tailwind's `gray` is
-  blue-tinted, which gave the app a cold cast.
-- **Meaning picks the token, not appearance.** A muted description is
-  `text-muted-foreground` because it is a description — not because that
-  happens to be the grey you wanted.
-- **Contrast is a requirement, not a preference.** `text-muted-foreground`
-  clears 4.5:1 on the page background in both themes;
-  [Accessibility](/docs/foundations/accessibility) has the measured numbers.
+## Add a color only when the meaning is missing
 
-## Where to go next
+First inspect the existing tokens and neighboring components. If a new semantic role is needed, add its token and intended theme treatment centrally. Record which foreground/background pairing it supports and check rest, hover, focus, selected, and error states.
 
-[Typography](/docs/foundations/typography) covers the other half of the visual
-baseline, and [Theming](/docs/getting-started/theming) explains how the `.dark`
-class gets applied in the first place.
+A host accent is a separate runtime input used by participating components; see [Theming](/docs/getting-started/theming). Neither an accent color nor a semantic token removes the need for the rendered [accessibility review](/docs/foundations/accessibility).

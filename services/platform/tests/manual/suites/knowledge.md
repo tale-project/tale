@@ -72,8 +72,9 @@ records and delete them after.
   the list to matching names. The **Delete folder** dialog shows the cascade
   requirement **"All files and subfolders inside this folder will also be
   permanently deleted."** (`documents.deleteFolder.requirement`); after
-  confirm + reload the folder row is gone. The **From Microsoft 365** menu
-  item is present iff a Microsoft account is linked.
+  confirm + reload the folder row is gone. **From Microsoft 365** remains
+  available before an account is connected; its first-use flow shows the
+  required setup or connection step.
 - [ ] `KNOW-F3` · **Knowledge entry CRUD** — Knowledge entries → **Add entry**
   (`knowledgeEntries.addButton`) → **Topic** (`knowledgeEntries.topic`) +
   **Content** (`knowledgeEntries.content`) → **Save** (`common.actions.save`);

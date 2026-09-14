@@ -1,48 +1,79 @@
 ---
-title: Use projects to bundle files and chats
-description: Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together.
+title: Use a project for shared context
+description: Create a project, add reference files and instructions, then ask a question that uses the project’s knowledge.
 ---
 
-A project is what you reach for the second time you find yourself pasting the same context into a chat. It bundles files, instructions, and chats around one body of work — a contact, a launch, a long investigation — so every new conversation starts with the context already loaded. This walk takes a fresh project from "I keep re-uploading the same brief" to "every chat inside this project already knows the brief" on one instance.
-
-You need a Member role (the floor for creating projects) and three or four files you keep referencing. The conceptual side lives in [Project concepts](/platform/projects/concepts); this walk is the end-to-end mechanic.
+Create a project when several chats need the same reference material. In this walkthrough, you will set up a small workspace, add a file, and check that a chat inside the project can use it. Allow about ten minutes, plus the time needed to index your file.
 
 ## Before you begin
 
-Confirm two things. Your role is at least Member — project creation is gated to Member and above. You have three to four files that recur across the chats you have been having — a brief, a transcript, a price list, a policy. Those become the project's working set.
+You need the **Member** role or higher and a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
 
-## Step 1 — Create the project
+New projects are **Org-wide**. Use non-sensitive material for this walkthrough; if the real project needs restricted access, set its owning team under **General > Sharing** before uploading its files. Project chats remain personal until you share them.
 
-The project is the container the rest of the pieces live in. Open **Projects > New project** and set:
+## Create the project
 
-- **Name** — `Acme account` (or whatever names the body of work)
-- **Description** — one sentence on what the project is for
-- **Members** — leave it private for now; you can add teammates after the first chat works
+1. Open **Projects** and click **Create project**.
+2. Set **Project name** to a recognizable name, such as `Website relaunch`.
+3. Check **Project key**, the short prefix used in task identifiers such as `WEB-1`. It cannot be changed after creation.
+4. Add an optional **Description** and click **Create project**.
 
-Save. The project appears in the sidebar; clicking it opens the **Tasks** board, with tabs for General, Chats, Knowledge, and Agents.
+The new project opens on **Tasks**. The navigation also includes **General**, **Chats**, **Knowledge**, and **Agents**. You do not need to create an agent to use project chat.
 
-## Step 2 — Upload the files once
+## Upload a reference file
 
-The project's files are visible to every chat inside the project, so this upload happens once and pays back on every later chat. Open the **Knowledge** tab and drag in the three or four files you confirmed in the prerequisites.
+Open **Knowledge** in the project and click **Add file**, or drop your file onto the upload area. The file appears in the project’s file tree. Wait for **Indexed** before relying on search; **Queued** and **Indexing…** mean the file is still being prepared.
 
-Each file lands in the project's storage and indexes the same way a knowledge-base document does. Once the status is **Ready**, the files are reachable by any chat started inside the project.
+<Frame caption="The Knowledge tab keeps reference files inside the project; the status beside each file shows whether it is searchable.">
 
-## Step 3 — Add project instructions
+![The Website relaunch project’s Knowledge tab lists two indexed files and offers controls to add files and folders.](/images/platform/project-knowledge-files.webp)
 
-Project instructions frame every chat in the project. They compose with the agent's own instructions: the project frames the work, the agent frames the reply. Open the **Instructions** tab and set:
+</Frame>
 
-`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The contact's voice is conservative — drafts should not promise dates we have not confirmed.`
+A file uploaded here belongs to this project. To ask about it, use a chat inside the project. The organization’s general chat does not search project files.
 
-Save. Every new chat in the project will now run with this preamble in addition to the agent's own instructions.
+## Add instructions that apply to every project chat
 
-## Step 4 — Start a chat and verify the context follows
+Open **General**, find **Instructions**, and describe the context or constraints that every chat should follow. For example:
 
-Open the **Threads** tab and click **New chat**. Leave the model picker on **Auto** — there is no agent to pick in chat — and ask a question one of the project's files answers (`What does the contract say about the renewal clause?`). The reply should cite the contract; the citation opens the file from the project's Knowledge tab, not from the org-wide library.
+> Use the project files when answering questions about this launch. Cite the source for dates and decisions. If a launch date has not been approved, say that it is unconfirmed.
 
-If the assistant answers without citing, the file was not retrieved — usually because indexing has not finished. Check that its row on the **Knowledge** tab reads **Indexed**, then ask again.
+Click **Save** in the page header. The instructions are part of the project’s chat context; they do not replace the need to upload and retrieve the underlying documents.
 
-## Where this fits
+<Frame caption="Instructions live on General, alongside the project’s name and description.">
 
-A project with files, instructions, and threads is the smallest useful unit of shared context in Tale. The same shape scales — add members so a team works the project together, add a project-scoped agent so the voice is locked in, archive the project when the work ships.
+![The General tab contains the project name, description, Instructions editor, and Sharing section, with Save and Discard in the header.](/images/platform/project-general-tab.webp)
 
-For the deeper model of what a project is and when to reach for one, see [Project concepts](/platform/projects/concepts). For project-scoped agents, see [Project agents](/platform/projects/project-agents).
+</Frame>
+
+## Ask a question and check the source
+
+Open **Chats** and click **New chat**. Leave the model on **Auto** when it is available, then ask a question that your file answers. For a launch brief, try:
+
+> Read the launch brief. Who owns the review, and which dates are confirmed? Cite the file and distinguish confirmed dates from open decisions.
+
+Check the search and reading steps above the reply, then compare the answer with the file. A fluent reply without a supporting source is not proof that Tale used your document. Reopen **Knowledge** to inspect the original when necessary.
+
+<Tip>
+
+Name the document and the specific question. “Which review date is confirmed in the launch brief?” gives the assistant a clearer retrieval target than “Tell me about the project.”
+
+</Tip>
+
+## Share the useful conversation
+
+The **Chats** tab separates **Your chats** from **Shared with project**. Enable **Share with project** on a chat when the people who can access this project should be able to read it. Uploading project files does not share your chats automatically.
+
+For a one-off link to a snapshot for organization members, follow [Shared chats](/platform/chat/shared-threads). Check the transcript before sharing: its text may contain details from sources with a narrower audience.
+
+## If the file is missing from the answer
+
+| What you see | What to check |
+| --- | --- |
+| Upload fails before a row appears | Retry with a small supported file. If that also fails, ask an admin to check document storage and the upload policy. |
+| **Queued** or **Indexing…** | Let processing finish, then ask again. |
+| **Failed** | Use **Retry indexing**. If the failure returns, ask an admin to check the embedding model and knowledge service. |
+| **Not indexed** | Use **Index now** when offered. Convert a legacy Office file to its modern format if it has no supported text extractor. |
+| **Indexed**, but the reply has no relevant source | Confirm the chat belongs to this project, name the file, and ask for one specific fact. Verify the result against the original. |
+
+You now have a reusable place for the project’s sources and conversations. Add work to its [task board](/platform/projects/tasks) when it needs an owner, a due date, or a reviewable result.

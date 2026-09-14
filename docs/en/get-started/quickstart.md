@@ -1,74 +1,72 @@
 ---
-title: Quickstart
-description: From nothing to your first agent answer — get an instance, sign in, and send your first message.
+title: Send your first message
+description: Sign in to Tale, start a chat, choose a model, and check the response.
 ---
 
-This is the shortest path to a working chat with an agent: get an instance, sign in, send a message, watch the reply stream. It takes about five minutes on a ready instance and fifteen if you stand one up on your own machine, and it ends with the screen below — a real answer from an agent over your workspace.
+Start here when you have access to a Tale workspace and want to get your first answer. You will send a short prompt, read the response, and find the conversation again.
 
-<Frame caption="Where this quickstart ends: a streamed agent reply in the Chat tab.">
+## Before you begin
 
-![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)
+You need your instance address, an account, and a workspace with an AI provider connected. Ask the person who manages your workspace for access. To install your own instance, follow the [self-hosted quickstart](/self-hosted/install/quickstart); for a managed instance, follow [Cloud onboarding](/cloud/onboarding).
 
-</Frame>
+An account lets you sign in. Your organization is the workspace that holds your team’s members, projects, and configuration. Your role controls which actions you can take there.
 
-Prefer the tour as a video? Episode 1 walks the same ground in three minutes — captions included.
-
-<Video src="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.mp4" poster="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.webp" captions="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:48)">
-
-</Video>
-
-## Get an instance
-
-The two editions run the same product — pick by who should operate the stack.
-
-<Tabs>
-
-<Tab title="Self-hosted">
-
-With [Docker](https://www.docker.com/products/docker-desktop) running, three commands stand up the whole stack on your machine:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-tale init my-project && cd my-project
-tale dev
-```
-
-The first run pulls images — expect five to ten minutes. When the browser opens, sign up: the first account claims the **Owner** role and creates your organization. The [self-hosted quickstart](/self-hosted/install/quickstart) covers every step in depth, including Windows and troubleshooting.
-
-</Tab>
-
-<Tab title="Cloud">
-
-Cloud instances are set up for you: fill in the [demo request form](https://tale.dev/request-demo) and the Tale team provisions your own instance. Once it is ready, open it and sign up — the form asks for your name, email, and a password; verify the email link when it arrives, name your organization, and you land in the dashboard. The setup wizard offers to connect an AI provider right away — paste an [OpenRouter](https://openrouter.ai) key there and chat works immediately. The [admin journey](/get-started/admins) walks the same wizard with screenshots when you want more than the happy path.
-
-</Tab>
-
-</Tabs>
-
-## Send your first message
+## Start a conversation
 
 <Steps>
 
-<Step title="Open a new chat">
+<Step title="Sign in and open Chat">
 
-Click **New chat** in the sidebar. The composer at the bottom of the screen is where everything starts: the message field, and one picker naming the model the reply will come from. A model already showing on the picker means you are ready to send — the assistant itself is built in, so there is nothing else to choose.
+Open your instance and sign in with the method your administrator provided. If you belong to several organizations, choose the one where you want to work. Open **Chat**, then **New chat** in the chat sidebar. If the history is hidden, use **Show chats** to reveal it.
 
 </Step>
 
-<Step title="Ask something real">
+<Step title="Check the model and write a prompt">
 
-Pick any chat model from the picker — every reply comes from the model you named, so nothing is chosen for you behind the scenes. Type a question and send it. The reply streams in token by token; when the agent reasons before answering, a collapsible thinking line appears above the reply.
+Use the model control below the message field to inspect the available models. It may show **Auto**; you can choose a specific model when you want to control which one answers. The available choices depend on your workspace’s connected providers and access rules.
 
-<Check>
+<Frame caption="The message field and model control are in the same composer.">
 
-A streamed reply that answers your question means the whole chain works — provider credential, model, and assistant. You have a working workspace.
+![The chat composer contains the message field, the model selector, attachment controls, and the send button.](/images/platform/chat-composer.webp)
 
-</Check>
+</Frame>
+
+For a first test, use a self-contained request: “Write a three-item checklist for preparing a team meeting. Keep each item to one sentence.” This does not depend on uploaded documents or connected tools.
+
+</Step>
+
+<Step title="Send and read the answer">
+
+Select **Send message** or press Enter. Your message appears in the conversation, followed by the assistant’s response. A thinking indicator may appear before the answer. Wait for the response to finish before evaluating it.
+
+Check whether it followed the requested length and format. Ask a follow-up such as “Add who should prepare each item.” The same conversation retains the context of your earlier messages.
 
 </Step>
 
 </Steps>
 
-## Where you are now
+## Find the chat again
 
-You have a running instance and an agent that answers. The next fifteen minutes depend on your role: the [member journey](/get-started/members) covers documents and projects, the [editor journey](/get-started/editors) publishes your first specialist agent, the [admin journey](/get-started/admins) sets up the team and providers, and the [developer journey](/get-started/developers) gets you an API key and your first request.
+Use the chat sidebar to reopen the conversation. A new chat starts a separate conversation; it is useful when you change subjects. For names, history, and response controls, read [Chat basics](/platform/chat/basics).
+
+<Tip>
+
+Give the model the goal, the information it should use, and the format you need. “Summarize these notes as decisions and open questions” gives it a clearer task than “Help with this.”
+
+</Tip>
+
+## If you cannot get an answer
+
+| What you see | What to do |
+| --- | --- |
+| You cannot sign in | Check the instance address and sign-in method with your administrator. |
+| No models are available | Ask an administrator to check [AI providers](/platform/admin/providers) and your model access. |
+| A provider or model error | Try another available model and report the displayed error to the administrator. |
+| A usage limit message | Ask the administrator to review the relevant [policy](/platform/admin/governance/policies-and-limits). |
+| An answer without your documents | This first prompt did not supply a source. Follow [chat attachments](/platform/chat/attachments) or [knowledge](/platform/knowledge/overview) to add one. |
+
+Continue with [using Tale with your team](/get-started/members) or [writing effective prompts](/tutorials/member/chat-effectively).
+
+<Video src="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.mp4" poster="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.webp" captions="/videos/en/tutorials/ep1-welcome/ep1-welcome.en.vtt" lang="en" title="Episode 1 — Welcome to Tale" caption="Episode 1 — Welcome to Tale (2:48)">
+
+</Video>

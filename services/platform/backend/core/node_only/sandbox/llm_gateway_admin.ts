@@ -34,13 +34,16 @@
 //     immutable per record; changing them requires delete + recreate.
 
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 
-import { isPrivateIp } from '@tale/shared/net/private-ip';
+import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
 
 import {
   checkProviderHostPolicy,
   privateProviderHostsAllowed,
 } from '../../../../lib/net/host-policy';
+import { resolveHostAddresses } from '../../../../lib/net/safe-fetch';
+import { AppError } from '../../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
@@ -688,7 +691,10 @@ export interface ProviderProvision {
  */
 const pushedProviderFingerprints = new Map<string, string>();
 
-function providerFingerprint(p: ProviderProvision): string {
+function providerFingerprint(
+  p: ProviderProvision,
+  allowPrivateNetwork: boolean,
+): string {
   // baseUrl IS included: for a custom provider it is pushed to the gateway
   // as network_config.base_url, so a base-URL-only change must bust the memo
   // and re-provision. Inert for standard providers (their baseUrl is never
@@ -699,29 +705,47 @@ function providerFingerprint(p: ProviderProvision): string {
         apiKey: p.apiKey,
         baseUrl: p.baseUrl ?? null,
         apiFormat: p.apiFormat ?? null,
+        allowPrivateNetwork,
         models: [...p.models].sort(),
       }),
     )
     .digest('hex');
 }
 
-/**
- * Whether this upstream is the self-hosted kind the gateway would refuse:
- * a private/loopback host AND the operator opt-in that admitted it. Both
- * halves matter — without the opt-in the provider is inert anyway, so the
- * gateway keeps its own guard rather than trusting a config file alone.
- */
-function privateBaseUrl(baseUrl: string): boolean {
-  if (!privateProviderHostsAllowed()) return false;
-  try {
-    const host = new URL(baseUrl).hostname
-      .toLowerCase()
-      .replace(/^\[|\]$/g, '')
-      .replace(/\.$/, '');
-    return isPrivateIp(host);
-  } catch {
-    return false;
+/** Check the custom upstream before gateway I/O or memo reuse. The gateway
+ * resolves DNS itself, so hostname spelling alone cannot determine whether
+ * its private-network guard needs the operator's explicit opt-in. This is a
+ * provisioning preflight, not a DNS pin for the gateway's later requests. */
+async function privateBaseUrl(baseUrl: string): Promise<boolean> {
+  const parsed = checkProviderHostPolicy(baseUrl);
+  const host = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+  const addresses = isIP(host)
+    ? [{ address: host }]
+    : await resolveHostAddresses(host);
+  if (addresses.length === 0) {
+    throw new Error(`Provider host "${host}" did not resolve to an address.`);
   }
+  if (addresses.some(({ address }) => isMetadataAddress(address))) {
+    throw new AppError({
+      code: 'BLOCKED_HOST',
+      message: `Provider host "${host}" resolves to a cloud metadata endpoint.`,
+    });
+  }
+  const isPrivate =
+    isPrivateIp(host) || addresses.some(({ address }) => isPrivateIp(address));
+  if (isPrivate && !privateProviderHostsAllowed()) {
+    throw new AppError({
+      code: 'PRIVATE_HOST_BLOCKED',
+      message:
+        `Provider host "${host}" resolves to a private/loopback address. ` +
+        'Set TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 in the platform process env ' +
+        'to enable self-hosted backends.',
+    });
+  }
+  return isPrivate;
 }
 
 /** True when a provider cannot be provisioned at all: a custom upstream with
@@ -846,6 +870,7 @@ async function deleteGatewayProvider(name: string): Promise<void> {
  */
 async function ensureProviderConfig(
   p: ProviderProvision,
+  allowPrivateNetwork: boolean,
 ): Promise<{ recreated: boolean }> {
   const attribution = providerAttributionHeaders({
     providerName: p.name,
@@ -872,7 +897,7 @@ async function ensureProviderConfig(
       // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1, the same knob that lets the
       // provider file name a private host and lets a request reach it. A
       // deployment without the opt-in keeps the gateway's default refusal.
-      ...(baseUrl && privateBaseUrl(baseUrl)
+      ...(baseUrl && allowPrivateNetwork
         ? { allow_private_network: true }
         : {}),
       ...(Object.keys(attribution).length > 0
@@ -978,28 +1003,25 @@ async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
 ): Promise<void> {
-  // The private-network opt-in never admits cloud metadata endpoints.
-  // Apply the same host policy as direct provider calls before gateway I/O
-  // or a memo hit can authorize a session with an existing upstream key.
-  if (!isStandardGatewayProvider(p.name) && p.baseUrl) {
-    checkProviderHostPolicy(p.baseUrl);
-  }
+  // Recheck DNS and the opt-in before a cached key can authorize a session.
+  const allowPrivateNetwork =
+    !isStandardGatewayProvider(p.name) && p.baseUrl
+      ? await privateBaseUrl(p.baseUrl)
+      : false;
+  const fingerprint = providerFingerprint(p, allowPrivateNetwork);
   const memoKey = `${organizationId}:${p.name}`;
   const existing =
     (await listProviderKeys(p.name)).find(
       (k) => k.name === gatewayKeyName(organizationId, p.name),
     ) ?? null;
-  if (
-    existing &&
-    pushedProviderFingerprints.get(memoKey) === providerFingerprint(p)
-  ) {
+  if (existing && pushedProviderFingerprints.get(memoKey) === fingerprint) {
     return; // fully provisioned by this process already
   }
-  const { recreated } = await ensureProviderConfig(p);
+  const { recreated } = await ensureProviderConfig(p, allowPrivateNetwork);
   // A recreate (immutable base-type change) deleted the record + its keys,
   // so the previously-fetched key row is gone — POST a fresh one.
   await writeProviderKey(organizationId, p, recreated ? null : existing);
-  pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
+  pushedProviderFingerprints.set(memoKey, fingerprint);
 }
 
 /** One provider the reconcile could not push: the gateway record name and

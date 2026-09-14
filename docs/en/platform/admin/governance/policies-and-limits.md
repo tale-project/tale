@@ -1,9 +1,9 @@
 ---
 title: Policies and limits
-description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key.
+description: Set spending budgets, upload rules, retention periods, feature controls, and inbound-conversation routing.
 ---
 
-Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls cap the context window per scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when one group's replies should run with a smaller context window, or when a regulator names a retention window that differs from the default.
+Use **Settings > Governance > Policies & Limits** as an Admin or Owner to control resource use and data handling. Choose the section that matches the problem: spending, uploads, retention, feature availability, or who receives inbound conversations.
 
 <Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
 
@@ -11,42 +11,54 @@ Policies and limits is the surface where you cap what your members and agents ca
 
 </Frame>
 
-## A worked budget
+## Add a spending budget
 
-To cap an Editor's monthly spend, open **Settings > Governance > Policies & Limits** and click **Add rule** under **Budget rules**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and once an Editor's period spend crosses the cap, the chat composer blocks new sends with a budget-exceeded notice — and voice requests are refused outright. A managed agent run — a project agent's task, an automation's agent node — is refused at its start the same way, and a run that does start may spend only what remains under the cap. A warning threshold below the cap surfaces a warning banner before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.
+1. Under **Budget rules**, select **Add rule**.
+2. Choose the scope and its target. Use a role for a group such as Editors, a team for a shared workload, a user for an individual, an API key for one credential, or the organization for a shared ceiling.
+3. Select a daily, weekly, or monthly period. Enter at least one positive token, cost, or request limit. Cost is entered in USD; an empty field leaves that dimension uncapped by this rule.
+4. Optionally set **Warning threshold (%)** between 0 and 100 to warn before the cap is reached.
+5. Select **Confirm**, save the pending page changes, and check the saved rule's scope, target, period, and limits.
 
-## The four policy layers
+For example, a monthly role rule can give Editors a USD 50 personal spending limit, while an organization rule caps everyone's combined spend at USD 500. These are example amounts, not recommended defaults.
 
-**Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, user, or API key. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap. An API-key rule targets one issued key (pick **API key** as the scope, then the key from **Settings > API**) and caps only the traffic authenticated with that key — the REST API — so you can meter a single connector without touching in-app usage. Image generation is metered by cost and request count, not tokens — an image request reports no tokens, so cap image spend with the cost or request limit, not the token limit.
+Budgets apply to new billable work, including chat and managed agent runs. Image generation needs cost or request limits because its usage is not measured as text tokens. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
 
-**Feature controls** cap the max context tokens for AI replies per user, team, or role. There are no per-feature toggles.
+## Understand which caps apply
 
-**Upload policy** gates the file extensions, MIME types, and sizes a member can attach. It also caps the total volume per user — useful when storage is metered. Toggle the policy off for a permissive default; toggle it on to enforce the lists.
+Personal limits resolve each dimension from the most specific rule that defines it: user, then team, role, and default. Organization limits apply in addition. A team budget also caps the team's combined usage, even when a member has a more specific personal rule. API-key limits independently cap requests authenticated with that key; they do not cap unrelated in-app work.
 
-**Retention policy** decides how long each data type (chat history, documents, prompts, audit logs, usage ledger, workflow runs, and more) stays before the cleanup pass removes it. The page shows the operator-imposed bounds, the per-org override within those bounds, and a grace window before hard delete.
+If a request is refused unexpectedly, check all applicable caps and their periods. Increasing one personal limit does not remove an organization, shared-team, or API-key ceiling.
 
-## Precedence
+## Control uploads
 
-All four layers share the same scope ladder: user > team > role > org > default. The narrowest rule wins. Where a layer carries an org-wide cap (budgets), the cap applies as an additional ceiling on top of any narrower rule. An API-key budget sits outside the ladder as its own independent bucket: it binds the key's own requests regardless of the owner's user, team, or org caps, so a single credential can be held to a tighter allotment than the person who issued it.
+**Upload policy** sets allowed and blocked extensions, allowed MIME types, maximum file size in MB, and total volume per user in GB. Use the types your workflows need and test an allowed file and a rejected file after saving.
 
-## Retention bounds and approvals
+A filename extension, content type, and size are separate checks. If an upload fails, compare all three with the policy. Check existing per-user storage when individual files fit but further uploads are refused.
 
-Retention policy sits inside operator-imposed bounds — the self-hosted operator sets a floor and a ceiling per category, and the org's value clamps to that range. When the operator proposes a tighter floor or a lower ceiling, the change surfaces as a proposal Admins can apply or reject. Reductions to the policy land with a pending-change banner and a grace window before they take effect — the same grace gives Admins a chance to cancel.
+## Set retention and recovery time
 
-## Session idle timeout
+Under **Retention policy**, select **Edit** and configure the categories your organization needs. The summary shows effective values, including disabled categories and temporary-file cleanup. Disabling a category's scheduled retention does not prevent an explicit deletion or erasure request.
 
-Session idle timeout signs members out after a period of inactivity — the session-bound control compliance frameworks ask for (SOC 2 CC6.1). Open **Settings > Governance > Security**, switch on **Enable session idle timeout**, and set **Idle timeout (minutes)** (1–1440, default 30). Members see a warning shortly before the cut-off; after it, the active tab signs out and the login page explains the sign-out instead of presenting a bare form.
+Check the deployment's minimum and maximum bounds before changing a period. Changes that require review or a delay appear as proposals or pending changes; read their effective time instead of assuming they apply immediately.
 
-The window can only tighten the deployment-wide limit, never loosen it. Self-hosted operators set that hard cap with an environment variable (see the [environment reference](/self-hosted/configuration/environment-reference)); the org policy applies on top, and the stricter of the two windows wins. A member of several organisations gets the strictest window across all of them.
+The deletion grace period is the recovery window for supported soft-deleted records. A positive value leaves time to restore them in [Trash](/platform/admin/governance/trash); zero permits immediate permanent cleanup. Not every category has a restore path. A [legal hold](/platform/admin/governance/legal-hold) protects covered data from cleanup.
 
-Enforcement has two halves. The watchdog in the browser ends open, visible sessions on the minute. Closed tabs and abandoned devices are caught server-side by a revocation sweep that runs about every five minutes — a session can therefore outlive the window by a few minutes; when you state the control to an auditor, count the window plus roughly half an hour in the worst case. Every server-side revocation lands in the [audit log](/platform/admin/governance/audit-logs) as `session.idle_revoked`. One caveat for trusted-headers deployments: the reverse proxy owns authentication there, so a revoked session is re-established as soon as the member confirms the sign-in notice — pair the policy with an idle timeout on the proxy or IdP side for a real lockout.
+For self-hosted deployments, [Retention configuration](/self-hosted/configuration/retention) explains the operator controls and category-specific behavior. Do not infer an archive guarantee from a disabled policy or a displayed period alone.
+
+## Review feature controls
+
+Feature controls include scoped context-window limits and the organization-wide voice-output switch. A context limit controls how much context can reach an AI reply; it is different from a spending budget. Turning off voice output prevents members from enabling it through their own defaults or conversation choices.
+
+The custom-instructions and memories default switches store organization defaults. Their presence does not mean personal custom instructions or memory creation are currently active in chat. Organization-wide mandatory instructions are a separate setting under [Guardrails](/platform/admin/governance/guardrails).
 
 ## Conversation routing
 
-Inbound mail lands unassigned unless a routing rule claims it. Under **Settings > Governance > Policies & limits**, open **Conversation routing** and add a rule mapping a recipient address to a team, a person, or both: the next conversation that arrives at that address is assigned the moment it is created, before anyone opens the inbox. A rule matches the address the sender wrote to — the conversation's `To` — case-insensitively; an address with no rule stays unassigned.
+Use **Conversation routing** to assign new inbound conversations by the recipient address. Add a rule, select a team, a person, or both, then save it. Address matching ignores case.
 
-Visibility is built in: a conversation assigned to a team is visible only to that team's members, and one assigned to a person only to that person (the union when both are set). True unassigned conversations — no person and no team — are visible only to admins and owners, who triage them. Members and Editors only see work routed or assigned into their person or team queue. Pair routing with the header **Assignee** control so inbound land in the right queue on arrival. Routing only ever assigns; it never reassigns a conversation that already has an owner or team, so a reply threading into an existing thread is left alone. A rule pointing at a since-deleted team or person is skipped — the conversation still arrives, just unassigned for admin triage.
+A team assignment makes the conversation visible to that team's members; a person assignment makes it visible to that person. When both are set, either membership grants visibility. Unassigned conversations are for Admin and Owner triage.
 
-## Where this fits
+Rules apply when a new conversation arrives. They do not reassign an existing conversation when a reply joins it. If a rule points to a deleted person or team, the conversation still arrives without that routing assignment. Test with a new message to the recipient address and verify the resulting assignee.
 
-Policies and limits is the budget and gate layer that protects the org from runaway spend and unintended access. Pair it with [content and models](/platform/admin/governance/content-models) so the model the budget caps is also the one the access list permits, and with [retention policy on the same page](#retention-bounds-and-approvals) so the data the org keeps is bounded too. The companion is [audit logs](/platform/admin/governance/audit-logs) — every policy change here lands there as a permanent record.
+## Configure sign-in limits separately
+
+Password requirements, sign-in attempt limits, session idle timeout, and [two-factor policy](/platform/admin/two-factor-authentication) live under **Settings > Governance > Security**. An organization idle timeout can tighten the deployment's limit. For trusted-header authentication, coordinate session expiry with the proxy or identity provider, which can authenticate the member again.

@@ -1,9 +1,9 @@
 ---
 title: Legal hold
-description: The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation.
+description: Preserve a person's or organization's data, organize holds by matter, and review release requests.
 ---
 
-Legal hold is the mechanism Tale ships for preserving evidence under litigation hold. A hold pins a target — a user as custodian, or the whole organisation — out of reach of the retention sweep and the data-subject erasure cascade. Admins and Owners read this page when counsel asks them to preserve a custodian's data, when a release request needs the dual-control sign-off, or when an audit reconciles which holds were in force on a given date.
+A legal hold preserves covered data while a matter is open. Admins and Owners manage holds under **Settings > Governance > Legal hold**. Place the hold while the data still exists: it cannot recover records that were already permanently deleted.
 
 <Frame caption="Governance > Legal hold — the active-holds table with the Place legal hold action above the dual-control release-requests queue.">
 
@@ -11,28 +11,36 @@ Legal hold is the mechanism Tale ships for preserving evidence under litigation 
 
 </Frame>
 
-## A worked placement
+## Place a hold
 
-To place a hold on a user, open **Settings > Governance > Legal hold** and click **Place legal hold**. Pick the target type — a user as custodian, or the whole organisation — pick the user where one is needed, add a reason, and link the hold to a matter if one is open. The hold takes effect immediately: retention sweeps skip the target's rows, an erasure request against the target is refused, and deleting held content is refused at the source.
+1. Select **Place legal hold**.
+2. Choose the target: a user as custodian, or the whole organization. For a user hold, select the intended member.
+3. Enter a reason that lets another admin understand what must be preserved. Link the hold to a matter if you are tracking a case.
+4. Confirm, then check the target and reason in **Active holds**.
 
-## The four sections
+A placed hold takes effect immediately. Covered data is protected from retention and erasure; attempts to delete held content are refused. Use your organization's preservation process to decide the correct scope.
 
-**Active holds** is the working list of every hold currently in force. Each row carries the type, the target, the reason, the matter, who placed it, and when. Filter by type or by matter to scope the view.
+## Organize holds by matter
 
-**Release requests** is the dual-control queue. Releasing a hold requires a different Admin to approve the request; approved requests still wait out a cooldown before they take effect. The section splits into _pending approval_ and _approved, awaiting cooldown_ so the queue and the timer are both visible.
+Use **Create matter** to group related holds under a case name and number. The matter's linked-hold count helps you check that the intended custodians are covered.
 
-**Matters** groups holds by case. Each matter carries a name, a case number, and the list of linked holds. Closing a matter files release requests for every linked hold — still subject to the dual-control approval per request.
+Closing a matter requests the release of its linked holds. It does not release them immediately: each request still needs the separate review below.
 
-**Release history** is the read-only audit of effected and rejected releases. Use it to reconcile against an opposing counsel's preservation letter or to feed an audit report.
+## Release a hold
 
-## Hold-and-cascade interaction
+1. On the active hold, choose **Request release** and record why preservation is no longer needed.
+2. A different admin reviews the request and chooses **Approve** or **Reject**. The requesting admin cannot approve their own release.
+3. After approval, check the cooldown shown in **Release requests**. The hold remains effective while the request awaits that cooldown.
+4. Check **Release history** for the completed outcome and **Active holds** to confirm which holds remain.
 
-A hold blocks every retention pass and every erasure step for the target, and deletion is refused at the source — trashing a held user's threads or documents fails with a legal-hold error, and a folder delete refuses while it contains a held file. It also blocks deleting the organization itself: while any hold — org-wide or on a member — is active, **Delete organization** is refused and the organization stays exactly as it was. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; the receipt records the block.
+Placing a hold takes one admin; releasing it uses two-person review and a delay. Approval is therefore not the same as completed release.
 
-## Dual-control
+## Understand blocked deletion
 
-Place and release are not symmetric. Place is a single-Admin action — the speed matters when litigation arrives. Release is dual-control: the requesting Admin files, a different Admin approves, and a cooldown window applies between approval and effect so a hasty release can still be cancelled. Both halves of the workflow are audited end to end.
+A hold can block a person's erasure request, deletion of their covered chats or documents, and deletion of a folder that contains held files. Any active organization or member hold also prevents deletion of the organization itself.
 
-## Where this fits
+If a deletion fails, inspect the relevant hold instead of repeatedly trying the action. Releasing one hold does not remove another overlapping hold, and release allows the applicable retention or erasure process to continue.
 
-Legal hold is the freeze button on retention. It is the only mechanism that beats the timed retention sweep and the data-subject erasure cascade — both of which respect holds by design. The companion pages are [data subject requests](/platform/admin/governance/data-subject-requests) for the cascade side and [policies and limits](/platform/admin/governance/policies-and-limits) for the retention windows the hold overrides.
+## Review related requests
+
+Use [Data subject requests](/platform/admin/governance/data-subject-requests) to inspect an erasure receipt blocked by a hold, and [audit logs](/platform/admin/governance/audit-logs) to investigate recorded hold actions. The [retention policy](/platform/admin/governance/policies-and-limits) determines normal cleanup after preservation no longer applies.

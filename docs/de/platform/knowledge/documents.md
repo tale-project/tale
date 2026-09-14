@@ -1,21 +1,101 @@
 ---
 title: Dokumente
-description: Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus.
+description: Lade gemeinsame Referenzdateien hoch, prüfe ihre Suchbarkeit und halte Importe sowie freigegebene Revisionen aktuell.
 ---
 
-Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Dateien hoch, Tale schickt jede durch die Indexierungs-Pipeline — Text extrahieren, chunken, die Chunks einbetten, speichern —, und Agenten, deren Wissens-Umfang das Dokument abdeckt, rufen zur Antwortzeit relevante Passagen ab und zitieren sie. Diese Seite behandelt die Operator-Seite: Hochladen, die Status-Spalte, Team-Bindung, Ordner und den Lebenszyklus eines Dokuments.
+Unter **Wissen > Dokumente** gehören Dateien in die gemeinsame Bibliothek: Richtlinien, Anleitungen, Berichte und Belege. Mitglieder lesen Dokumente innerhalb ihrer Zugriffsrechte. Redakteure und höhere Rollen können sie hochladen und verwalten. Material für ein einzelnes Projekt gehört auf dessen [Wissen-Tab](/de/platform/projects/manage-files).
 
-<Frame caption="Die Dokumente-Tabelle — Größe, Quelle, RAG-Status und Team-Bindung pro Datei.">
+<Frame caption="Die Dokumentliste verbindet Originaldatei, Herkunft, Indexierungsstatus und Team-Zugriff. Die Ansicht ist auf hochgeladene, indexierte Dateien gefiltert.">
 
-![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien und den drei Markdown-Dokumenten hinter den Wissenseinträgen, samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
+![Der Dokumente-Tab zeigt gemeinsame Dateien mit Größe, Quelle, RAG-Status und Team-Spalten.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-## Hochladen
+## Vom Gerät hochladen
 
-Öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen** — das Menü bietet **Von deinem Gerät**, **Von Microsoft 365** und **Von Google Drive**. Das Upload-Tor akzeptiert die Formate, die den Großteil des Org-Wissens abdecken: PDF, Word (`.doc`, `.docx`), OpenDocument-Text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, reinen Text und Bilder (JPG, PNG, GIF, WEBP). Alles andere wird beim Upload abgewiesen.
+1. Öffne **Wissen > Dokumente** und den gewünschten Zielordner. Lege bei Bedarf mit **Neuer Ordner** einen an.
+2. Wähle **Dokumente hochladen > Von deinem Gerät** und die Dateien.
+3. Warte auf den Abschluss des Uploads und suche die Zeilen in der Tabelle.
+4. Öffne ein Dokument, um Vorschau und Details zu prüfen. Kontrolliere den **RAG-Status**, bevor du den Assistenten nach seinem Inhalt fragst.
 
-Hochladen und Indexieren sind zwei getrennte Tatsachen, und die Spalte **RAG-Status** verfolgt die zweite: **Wird indexiert**, während die Pipeline läuft, **Indexiert**, wenn Agenten den Inhalt abrufen können, **Fehlgeschlagen**, wenn die Pipeline auf einen Fehler lief, und **Neuindexierung nötig**, wenn die gespeicherten Chunks veraltet sind. Moderne Formate indexieren; das alte Office-Trio (`.doc`, `.xls`, `.ppt`) lädt hoch und bleibt herunterladbar, zeigt aber **Nicht indexiert** — Agenten kommen an den Inhalt erst heran, wenn du die Datei im modernen Format neu speicherst.
+Wähle einen aussagekräftigen Dateinamen. Ein Datum oder eine Revision hilft, Quellen auseinanderzuhalten. Eine weitere Datei mit demselben Namen wird als eigenes Dokument angelegt; sie ersetzt die vorhandene nicht.
+
+## Upload und Suchbarkeit unterscheiden
+
+Eine gespeicherte Datei ist nicht automatisch durchsuchbar. Tale muss zuerst ihren Text auslesen können, um sie für die Wissenssuche zu indexieren.
+
+| Format | Was du erwarten kannst |
+| --- | --- |
+| PDF mit eingebettetem Text, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, reiner Text | Textextraktion und Indexierung werden unterstützt. Prüfe das Ergebnis für die konkrete Datei. |
+| Ältere Office-Formate `.doc`, `.xls`, `.ppt` | Speichern und Herunterladen sind möglich. Konvertiere sie zur Indexierung in ein modernes Format. |
+| Bilder wie JPG, PNG, GIF, WEBP | Speichern und Herunterladen sind möglich. Der Wissensindex liest daraus keinen Text aus. |
+| Gescanntes PDF ohne lesbaren Text | Stelle eine Fassung mit OCR oder Text bereit, wenn der Inhalt durchsuchbar sein soll. |
+
+Wiederholtes Indexieren macht ein nicht unterstütztes Format nicht durchsuchbar. Für Fragen zu einem Bild siehe [Chat-Anhänge](/de/platform/chat/attachments): Ein verfügbares Bildmodell kann es dort direkt lesen.
+
+## Den Indexierungsstatus lesen
+
+| Status | Bedeutung und nächster Schritt |
+| --- | --- |
+| **In Warteschlange** | Wartet auf einen freien Indexierungsplatz. Eine ausgelastete Bibliothek verarbeitet Dateien nach und nach. |
+| **Wird indexiert** | Der Text wird für die Suche vorbereitet. Warte mit der Prüfung der Quelle. |
+| **Indexiert** | Die Indexierung ist abgeschlossen. Stelle eine konkrete Frage und öffne den Quellenbeleg. |
+| **Neuindexierung nötig** | Der Index ist veraltet. Nutze **Indexierung erneut versuchen** neben der Statusanzeige. |
+| **Fehlgeschlagen** | Lies den Fehler, behebe die Ursache und versuche es erneut. |
+| **Nicht unterstützt** | Dieser Dateiinhalt lässt sich nicht indexieren: etwa bei einem ungeeigneten Format, leerem oder unlesbarem Text oder einer beschädigten PDF-Datei. Öffne die Statusanzeige für die Ursache. |
+| **Nicht indexiert** | Es liegt kein abgeschlossener Index vor. Prüfe die Datei und starte die Indexierung, wenn angeboten. |
+
+Unterbrochene Vorgänge werden im Hintergrund wieder aufgenommen oder melden einen Fehler mit Wiederholungsoption. Bleibt der Status stehen, gib einem Administrator Dokumentname und Fehlermeldung. Er kann Indexierungsdienste und Embedding-Konfiguration prüfen. Fehlgeschlagene und nicht unterstützte Dateien belegen weiterhin Speicher, bis du sie entfernst.
+
+## Ein Indexierungsproblem beheben
+
+Klicke auf **Fehlgeschlagen** oder **Nicht unterstützt**, um die Erklärung zu lesen. Entscheidend für die Abhilfe ist die Ursache, nicht allein die Dateiendung.
+
+| Ursache | Nächster Schritt |
+| --- | --- |
+| Nicht unterstütztes Format oder Bild | Konvertiere die Quelle in ein unterstütztes Dokument mit lesbarem Text. Ein Bild-Upload allein führt keine OCR für die Wissenssuche aus. |
+| Leerer Text oder gescannte PDF-Datei ohne Textebene | Ergänze den fehlenden Inhalt oder stelle eine OCR-verarbeitete Fassung bereit. Nur Leerzeichen und Zeilenumbrüche zählen ebenfalls als leer. |
+| Binärdaten mit einer Textdateiendung | Exportiere lesbaren Text, möglichst in UTF-8. Das Umbenennen einer Binärdatei in `.txt` konvertiert sie nicht. |
+| PDF-Datei lässt sich nicht auslesen | Prüfe, ob sich das Original öffnen lässt. Entferne einen Kennwortschutz, soweit erlaubt, oder exportiere eine neue PDF-Datei. Bei beschädigten Office-Dateien kann stattdessen ein allgemeiner Indexierungsfehler erscheinen; prüfe das Original vor weiteren Versuchen. |
+| Ein Zugangsschlüssel oder eine Datenschutzregel blockiert die Indexierung | Entferne die Zugangsdaten aus der Quelle oder lass einen Administrator die gemeldete Richtlinie prüfen. Lade danach das korrigierte Material hoch oder versuche es nach der Konfigurationskorrektur erneut. |
+| Embedding-Modell fehlt oder der Anbieter lehnt das Konto ab | Ein Administrator muss das Modell unter **Einstellungen > Datenresidenz** konfigurieren oder Schlüssel, Modellzugriff, Tarif beziehungsweise Guthaben beim Anbieter korrigieren. Versuche es danach erneut. |
+| Vorübergehender Fehler beim Anbieter oder Indexierungsdienst | Hintergrundaufträge wiederholen vorübergehende Fehler. Bleibt der Fehler bestehen, gib einem Administrator Dokumentname und Meldung. Nach der Reparatur nutze **Indexierung erneut versuchen**. |
+| Suchindex wird neu aufgebaut oder Reparatur fehlgeschlagen | Der Neuaufbau kann automatisch abschließen. Scheitert die Reparatur, muss der Betreiber die Wissensdatenbank reparieren oder wiederherstellen, bevor ein neuer Versuch hilft. |
+
+Bei **Nicht unterstützt** gibt es keine Wiederholungsaktion: Dieselben Dateiinhalte würden wieder scheitern. Auch bei **Fehlgeschlagen** kann zuerst eine Änderung an Quelle oder Konfiguration nötig sein. Anwendungen unterscheiden die Fälle anhand von `indexing.errorCode`; die [API-Referenz](/de/develop/api-reference) führt die stabilen Codes auf.
+
+<Frame caption="Der Statusdialog erklärt, dass dieses Dokument keinen indexierbaren Text enthält. Ergänze lesbaren Inhalt vor dem erneuten Upload.">
+
+![Der englische Statusdialog meldet ein leeres Dokument oder einen Scan ohne Textebene und empfiehlt eine lesbare Textversion.](/images/platform/document-indexing-unsupported.webp)
+
+</Frame>
+
+## Festlegen, wer das Dokument lesen kann
+
+Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.
+
+Auf der obersten Bibliotheksebene siehst du Ordner und Dokumente, die keinem Ordner zugeordnet sind. Öffne einen Ordner, um seinen Inhalt zu sehen. Ein dort abgelegtes Dokument erscheint nicht zusätzlich als Dateizeile auf der obersten Ebene.
+
+Ordner gliedern die Bibliothek. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
+
+## Aus Microsoft 365 oder Google Drive importieren
+
+Wähle **Von Microsoft 365** oder **Von Google Drive** unter **Dokumente hochladen**. Verbinde beim ersten Mal dein Konto und erlaube den Import. Meldet Tale eine fehlende Einrichtung, muss ein Administrator den Dienst unter [Connectoren](/de/platform/admin/connectors) konfigurieren.
+
+Wähle Dateien oder Ordner und anschließend den Importmodus:
+
+| Modus | Ergebnis |
+| --- | --- |
+| **Einmaliger Import** | Kopiert die Auswahl einmal und erhält die Ordnerstruktur. Spätere Änderungen an der Quelle ändern die Kopie nicht. |
+| **Synchronisierungsimport** | Hält die unterstützte Auswahl aktuell. Neue Dateien folgen bei einem späteren Abgleich; Änderungen werden neu indexiert; an der Quelle gelöschte Dateien verschwinden aus dem Abbild. |
+
+Ein neuer Ordnerabgleich kann auch einen früheren Import umordnen. Ist dieselbe Quelldatei bereits in Tale vorhanden, übernimmt die Synchronisierung dieses Dokument und verschiebt es in den passenden Sync-Ordner — selbst wenn der Inhalt unverändert ist. Entscheidend ist die Identität der Quelldatei, nicht nur ihr Name. Gibt es keinen Zielordner für den Abgleich, bleibt die bisherige Ablage erhalten.
+
+Bei Microsoft 365 stehen **Mein OneDrive** und **SharePoint-Websites** zur Wahl. Die Synchronisierung unterstützt persönliche OneDrive-Ordner; SharePoint wird einmalig importiert. Wähle bei Google Drive aus Mein Drive. Native Google Docs, Tabellen und Präsentationen werden übersprungen. Exportiere sie zuerst als PDF oder Office-Dateien.
+
+Ist ein Ordner zu groß für eine vollständige Auflistung, lehnt Tale den Import ab. Wähle kleinere Unterordner oder nutze die Synchronisierung, soweit unterstützt. Wird der ausgewählte Quellordner oder die Quelldatei gelöscht, entfernt Tale das Abbild und beendet die Synchronisierung.
+
+Über **Synchronisierung beenden** im Zeilenmenü bleiben die importierten Dateien erhalten, ohne weiter aktualisiert zu werden. Das Löschen des importierten Elements beendet die Synchronisierung ebenfalls. Die Originale in OneDrive oder Google Drive bleiben unberührt. **Google Drive trennen** im Importdialog widerruft die Verbindung; verbinde dich für weitere Importe erneut.
 
 ## Gelenktes Dokument überarbeiten
 
@@ -35,7 +115,7 @@ Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft b
 
 <Frame caption="Der Dialog nimmt genau eine Datei im vorhandenen Format des Datensatzes an.">
 
-![Der Dialog „Datei ersetzen" für ein gelenktes Textdokument mit einer Dateiauswahl für dasselbe Format und dem Hinweis, dass freigegebene Versionen im Verlauf bleiben.](/images/platform/controlled-document-replace-file.webp)
+![Der Dialog „Datei ersetzen“ für ein gelenktes Textdokument mit einer Dateiauswahl für dasselbe Format und dem Hinweis, dass freigegebene Versionen im Verlauf bleiben.](/images/platform/controlled-document-replace-file.webp)
 
 </Frame>
 
@@ -43,50 +123,24 @@ Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft b
 
 <Step title="Revision prüfen und einreichen">
 
-Öffne die Dokumentvorschau und prüfe, ob sie die Ersatzdatei zeigt. Öffne dann das Zeilenmenü und klicke auf **Zum Review einreichen**. Die Auswahl bietet nur Mitglieder an, die das Dokument auch öffnen können — eine Projekt-Datei verlangt Bearbeitungszugriff auf das Projekt — und nie dich selbst: Nur der Reviewer, den du benennst, kann freigeben oder Änderungen anfordern, jedes Review ist also ein zweites Augenpaar. Der Entwurf bleibt während der Entscheidung für genau diese Datei gesperrt; der Reviewer wird über die Glocke und per E-Mail benachrichtigt, und die Entscheidung kommt auf demselben Weg zu dir zurück — eine Änderungsanforderung trägt das Feedback des Reviewers, das der Einreichen-Dialog vor deinem nächsten Anlauf ebenfalls zeigt. Kann der Reviewer nicht mehr entscheiden — er hat die Organisation verlassen, wurde deaktiviert oder hat den Zugriff auf das Dokument verloren —, öffne das Zeilenmenü und klicke auf **Reviewer wechseln**: Die offene Anfrage geht an das Mitglied, das du benennst, und der Datensatz bleibt für dieselbe Datei gesperrt.
+Öffne die Dokumentvorschau und prüfe, ob sie die Ersatzdatei zeigt. Öffne dann das Zeilenmenü und klicke auf **Zum Review einreichen**. Die Auswahl bietet nur Mitglieder an, die das Dokument auch öffnen können — eine Projekt-Datei verlangt Bearbeitungszugriff auf das Projekt — und nie dich selbst: Nur der Reviewer, den du benennst, kann freigeben oder Änderungen anfordern, jedes Review ist also ein zweites Augenpaar.
+
+Der Entwurf bleibt während der Entscheidung für genau diese Datei gesperrt; der Reviewer wird über die Glocke und per E-Mail benachrichtigt, und die Entscheidung kommt auf demselben Weg zu dir zurück — eine Änderungsanforderung trägt das Feedback des Reviewers, das der Einreichen-Dialog vor deinem nächsten Anlauf ebenfalls zeigt.
+
+Kann der Reviewer nicht mehr entscheiden — er hat die Organisation verlassen, wurde deaktiviert oder hat den Zugriff auf das Dokument verloren —, öffne das Zeilenmenü und klicke auf **Reviewer wechseln**: Die offene Anfrage geht an das Mitglied, das du benennst, und der Datensatz bleibt für dieselbe Datei gesperrt.
 
 </Step>
 
 </Steps>
 
-## Import aus Microsoft 365
+## Vor dem Löschen die Inhalte prüfen
 
-**Von Microsoft 365** steht immer im Upload-Menü. Beim ersten Mal bittet Tale dich, OneDrive und SharePoint für den Import in Dokumente zu autorisieren. Meldet der Dialog, dass der Import noch nicht eingerichtet ist, hinterlegt zuerst ein Org-Admin die OAuth-App unter **Einstellungen > Connectors > OAuth-Apps** (oder der Betreiber registriert eine im Deployment) — meldet sich deine Organisation über Microsoft Entra ID an, lässt sich dort die SSO-App-Registrierung übernehmen, statt eine neue zu registrieren. Danach wählst du Dateien oder Ordner unter **Mein OneDrive** oder **SharePoint-Websites** und einen Import-Modus. **Einmaliger Import** holt die Dateien einmal — sie verhalten sich wie Uploads von der Festplatte. **Synchronisierungsimport** hält die Auswahl synchron: neue Dateien im OneDrive-Ordner erscheinen bei einem späteren Sync-Lauf, geänderte Dateien werden neu indexiert, und an der Quelle gelöschte Dateien verschwinden aus dem Workspace — wird der synchronisierte Ordner oder die Datei selbst an der Quelle gelöscht, entfernt Tale das Abbild und beendet die Synchronisierung. Beide Modi erhalten die Ordnerstruktur deiner Auswahl: Ein synchronisierter Ordner landet als Ordner gleichen Namens, und eine Datei, die der Workspace beim Start eines Ordner-Syncs schon enthält — etwa aus einem früheren einmaligen Import —, übernimmt der Sync und verschiebt sie unverändert unter diesen Ordner. Die Synchronisierung deckt persönliche OneDrive-Ordner ab — eine SharePoint-Auswahl importiert immer einmalig. Enthält ein Ordner mehr Elemente, als ein Import auflisten kann, lehnt der Dialog ihn ab, statt ihn nur teilweise zu importieren — importiere die Unterordner einzeln oder nutze den Synchronisierungsimport.
-
-Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner oder einer einzelnen synchronisierten Datei — öffne das Menü der Zeile und klicke auf **Synchronisierung beenden**; die importierten Dokumente bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners oder einer einzelnen Datei beendet die Synchronisierung. In allen Fällen bleiben die Dateien in OneDrive unberührt.
-
-## Import aus Google Drive
-
-**Von Google Drive** steht immer im Upload-Menü. Beim ersten Mal bittet Tale dich, Google Drive für den Import in Dokumente zu autorisieren. Meldet der Dialog, dass der Import noch nicht eingerichtet ist, hinterlegt zuerst ein Org-Admin die OAuth-App unter **Einstellungen > Connectors > OAuth-Apps** (oder der Betreiber registriert eine im Deployment). Danach wählst du Dateien oder Ordner in Mein Drive und den Importmodus. **Einmaliger Import** bringt die Dateien einmal hinein — sie verhalten sich wie Uploads vom Gerät. **Synchronisierungsimport** hält die Auswahl aktuell: neue Dateien im Drive-Ordner erscheinen beim nächsten Sync-Lauf, geänderte Dateien werden neu indexiert, und am Quellort gelöschte Dateien verlassen den Workspace — wird der synchronisierte Ordner oder die Datei selbst in Drive gelöscht oder in den Papierkorb verschoben, entfernt Tale das Abbild und beendet die Synchronisierung. Beide Modi bewahren die Ordnerstruktur deiner Auswahl: Ein synchronisierter Ordner landet als Ordner gleichen Namens, und eine Datei, die der Workspace beim Start eines Ordner-Syncs schon enthält — etwa aus einem früheren einmaligen Import —, übernimmt der Sync und verschiebt sie unverändert unter diesen Ordner. Native Google Docs, Tabellen und Präsentationen werden übersprungen — exportiere sie zuerst als PDF oder Office-Format, wenn du sie in Dokumente brauchst. Enthält ein Ordner mehr Elemente, als ein Import auflisten kann, lehnt der Dialog ihn ab, statt ihn nur teilweise zu importieren — importiere die Unterordner einzeln oder nutze den Synchronisierungsimport.
-
-Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner oder einer einzelnen synchronisierten Datei — öffne das Menü der Zeile und klicke auf **Synchronisierung beenden**; die importierten Dokumente bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners oder einer einzelnen Datei beendet die Synchronisierung. In allen Fällen bleiben die Dateien in Google Drive unberührt.
-
-Über **Google Drive trennen** im Kopf des Import-Dialogs widerrufst du die Freigabe; verbinde erneut, wenn du weitere Dateien importieren willst.
-
-## Team-Bindung, Ordner, Quellen
-
-Jede Zeile trägt eine Zelle **Teams** — standardmäßig **Organisationsweit**, oder die Teams, die du über **Team zuweisen** im Zeilenmenü wählst. Ein team-gebundenes Dokument ist für Mitglieder und Agenten außerhalb des Teams unsichtbar; das ist der Zugriffshebel der Wissensdatenbank. Projekt-Dateien liegen ganz außerhalb dieses Modells: Der **Wissen**-Tab eines Projekts hält Dateien, die auf dieses eine Projekt begrenzt sind, und sie tauchen weder in dieser Bibliothek noch in ihrer Team-Bindung auf — Teams entscheiden, wer ein Dokument der Wissensdatenbank sieht, der Projektzugriff entscheidet, wer eine Projektdatei sieht, und ein Dokument lebt an genau einem der beiden Orte — siehe [Dateien verwalten](/de/platform/projects/manage-files).
-
-**Neuer Ordner** hält große Bibliotheken navigierbar, und Connectors bringen ihre eigene Struktur mit: Dokumente aus einem OneDrive-, SharePoint- oder Google-Drive-Sync landen unter Sync-Ordnern und zeigen ihre Herkunft in der Spalte **Quelle**, was Zitate bis ins Quellsystem nachvollziehbar hält.
+**Löschen** entfernt das Dokument und seinen indexierten Inhalt. Die Bestätigung erläutert die Folgen. Sichere eine Kopie, wenn du die Datei später brauchst. Ein erneuter Upload erzeugt ein neues Dokument.
 
 <Warning>
 
-Das Löschen eines Ordners löscht jede Datei und jeden Unterordner darin endgültig. Das Löschen eines OneDrive- oder Google-Drive-Sync-Ordners entfernt auch dessen Auto-Sync-Konfiguration und -Historie — nie aber die Dateien in OneDrive oder Google Drive selbst.
+Das Löschen eines Ordners entfernt seine Dateien und Unterordner endgültig. Bei einem synchronisierten Ordner werden auch Sync-Konfiguration und Verlauf entfernt. Die Originale in Microsoft 365 oder Google Drive bleiben unberührt.
 
 </Warning>
 
-## Neu indexieren und löschen
-
-**Neu indexieren** (Zeilenmenü) lässt die Pipeline erneut über die gespeicherte Datei laufen — der richtige Zug nach einem Indexierungsfehler oder wenn ein Dokument **Neuindexierung nötig** zeigt. **Löschen** entfernt das Dokument und seine indexierten Chunks; die Bestätigung sagt es unumwunden — die Aktion lässt sich nicht rückgängig machen. Dieselbe Datei erneut hochzuladen bringt den Inhalt als frisches Dokument zurück. Ein gelenktes Dokument lässt sich nicht mehr löschen, sobald irgendeine Version freigegeben wurde — im Review, freigegeben oder mit offenem nächsten Entwurf zeigt der Menüeintrag stattdessen **Geschütztes gelenktes Dokument**, und ein Ordner mit so einem Datensatz verweigert das Ordner-Löschen genauso. Der freigegebene Stand ist ein aufbewahrtes Dokument; genau dafür gibt es den Lebenszyklus.
-
-Jedes Dokument zeigt einen Status: **In Warteschlange** (wartet — eine ausgelastete Organisation indexiert einige Dateien gleichzeitig, der Rest reiht sich ein), **Wird indexiert**, **Indexiert**, **Fehlgeschlagen** oder **Nicht unterstützt** (ein Altformat wie `.doc`/`.ppt`/`.xls` oder ein Bild wie `.png`/`.jpg` — lässt sich problemlos speichern und herunterladen, hat aber keinen Text-Extraktor und wird daher nie für die Suche indexiert). Ein durch ein Zeitlimit oder einen Backend-Neustart unterbrochener Indexierungsvorgang erholt sich innerhalb weniger Minuten von selbst — er wird wiederholt oder als **Fehlgeschlagen** mit Wiederholen-Option markiert, nie steckengelassen. Wenn deine Organisation ein Speicher-Kontingent pro Nutzer durchsetzt, zählen fehlgeschlagene und nicht unterstützte Dateien weiterhin dagegen, bis sie gelöscht werden — Platz schaffen heißt also, nicht mehr benötigte Dateien zu entfernen.
-
-Ein Klick auf ein Dokument öffnet die Vorschau, mit einer Seitenleiste für Größe, Quelle, RAG-Status, Teams, hochladende Person und Änderungsdatum — der schnellste Weg zu prüfen, worauf ein Zitat wirklich zeigt.
-
-## Dokumente gegenüber strukturierten Daten
-
-Dokumente sind die unstrukturierte Hälfte der Wissensdatenbank. Ist der Inhalt eine Liste gleichartiger Dinge mit denselben Feldern — Kontakte, Produkte, Zulieferer —, dient ein typisierter Datensatz den Agenten besser als ein hochgeladenes Tabellenblatt: exakte Werte statt abgerufener Passagen. Die Entscheidungsregeln stehen in [Strukturierte Daten](/de/platform/knowledge/structured-data).
-
-## Wo das hingehört
-
-Dokumente sind die meistgenutzte Ecke der Wissensdatenbank — die meisten Zitate in den meisten Antworten zeigen hierher. Die Abrufseite — wie der Chat-Assistent und Projekt-Agenten lesen, was hier indexiert ist — ist der [Wissens-Überblick](/de/platform/knowledge/overview); die faktengroße Schwesterfläche sind die [Wissenseinträge](/de/platform/knowledge/knowledge-entries), die dieselbe Pipeline dokumentweise nutzen.
+Ein gelenktes Dokument mit einer freigegebenen Version ist vor dem Löschen geschützt, auch während der Vorbereitung eines späteren Entwurfs. Das Menü zeigt **Geschütztes gelenktes Dokument**. Ein Ordner mit einem solchen Dokument lässt sich ebenfalls nicht löschen. Auch ein Legal Hold kann Änderungen oder Löschungen sperren. Lass die konkrete Beschränkung von einem Administrator prüfen, statt sie durch doppelte Uploads zu umgehen.

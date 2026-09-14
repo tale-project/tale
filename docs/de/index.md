@@ -1,97 +1,51 @@
 ---
 title: Tale-Dokumentation
-description: Tale ist der Orchestrator für KI-Agents. Starte mit dem Quickstart, folge dem Einstieg für deine Rolle oder spring direkt in die Feature-Referenz.
+description: Tale nutzen, Projektagenten erstellen, Anwendungen anbinden und eine Instanz betreiben.
 kind: index
 ---
 
-Tale ist der Orchestrator für KI-Agents. Du chattest mit Modellen über deine eigenen Dokumente, baust Agents, die eine Aufgabe von Anfang bis Ende übernehmen, lässt Automatisierungen im Hintergrund laufen und verwaltest Kunden-Konversationen in einem einzigen Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten in einer Region, die du selbst bestimmst.
+Tale vereint Gespräche, Projekte, Wissen und Automatisierungen in einem Arbeitsbereich. Beginne mit deiner Aufgabe; du musst nicht zuerst jede Funktion kennen.
 
-Jedes Feature, jede API und jede Rolle ist in beiden Editionen identisch; der einzige Unterschied ist, wer den Stack betreibt. Starte mit dem Quickstart und folge dann dem Einstieg, der zu deiner Rolle passt.
-
-<CardGroup cols="1">
-
-<Card title="Quickstart — in 5 Minuten zur ersten Agent-Antwort" icon="zap" href="/de/get-started/quickstart">
-
-Von einer laufenden Instanz zu einer funktionierenden Chat-Antwort, auf Cloud oder deiner eigenen Maschine.
-
-</Card>
-
-</CardGroup>
-
-## Wähl deinen Einstieg
-
-Vier Einstiege für den ersten Tag, einer pro Rolle. Jeder dauert rund 15 Minuten und endet mit etwas, das funktioniert.
+## Dein Einstieg
 
 <CardGroup cols="2">
 
-<Card title="Ich nutze Tale" icon="message-circle" href="/de/get-started/members">
+<Card title="Deine erste Nachricht senden" icon="message-circle" href="/de/get-started/quickstart">
 
-Dein erster Chat, dein erstes Dokument, dein erstes Projekt — der erste Tag als Mitglied.
-
-</Card>
-
-<Card title="Ich baue Agents" icon="bot" href="/de/get-started/editors">
-
-Leg einen Projekt-Agent an und sieh ihm zu, wie er eine Board-Aufgabe abarbeitet — der erste Tag als Redakteur.
+Anmelden, ein Modell wählen und eine Antwort erhalten.
 
 </Card>
 
-<Card title="Ich binde Tale an" icon="code" href="/de/get-started/developers">
+<Card title="Tale im Team nutzen" icon="users" href="/de/get-started/members">
 
-Erstelle einen API-Schlüssel und mach deine erste authentifizierte Anfrage — der erste Tag als Entwickler.
-
-</Card>
-
-<Card title="Ich betreibe den Arbeitsbereich" icon="shield" href="/de/get-started/admins">
-
-Richte den Arbeitsbereich ein, lade das Team ein, verbinde einen Anbieter — der erste Tag als Admin.
+Chats wiederfinden, mit Quellen arbeiten und ein Projekt öffnen.
 
 </Card>
 
-</CardGroup>
+<Card title="Einen Projektagenten erstellen" icon="bot" href="/de/get-started/editors">
 
-## Wähl deine Edition
-
-<CardGroup cols="2">
-
-<Card title="Cloud" icon="cloud" href="/de/cloud">
-
-Tale betreibt den Stack — wähl das, wenn das Betreiben von Infrastruktur nicht der richtige Ort für die Stunden deines Teams ist.
+Einem Agenten eine klare Aufgabe geben und sein erstes Ergebnis prüfen.
 
 </Card>
 
-<Card title="Selbst gehostet" icon="server" href="/de/self-hosted">
+<Card title="Einen Arbeitsbereich einrichten" icon="shield" href="/de/get-started/admins">
 
-Installiere Tale in deiner eigenen VPC, auf On-Premise-Hardware oder in einer Air-gapped-Umgebung.
+Anbieter verbinden, Personen hinzufügen und Zugriffsrechte festlegen.
 
 </Card>
 
 </CardGroup>
 
-## Tiefer eintauchen
+## Die passende Anleitung finden
 
-<CardGroup cols="3">
+- **[Eine Aufgabe durchspielen](/de/tutorials/overview)** — Angeleitete Beispiele für Mitglieder, Agentenentwickler und Admins.
+- **[Eine Funktion nachschlagen](/de/platform)** — Bedienelemente, Berechtigungen, erwartetes Verhalten und Fehlersuche.
+- **[Ein anderes System anbinden](/de/develop/overview)** — REST-API, MCP, WebDAV und Webhooks.
+- **[Tale selbst betreiben](/de/self-hosted)** — Installation, Konfiguration, Sicherungen und Upgrades.
+- **[Verwaltetes Hosting nutzen](/de/cloud)** — Cloud-Einrichtung, Vertragsbedingungen und Zuständigkeiten im Betrieb.
 
-<Card title="Plattform" icon="layout-dashboard" href="/de/platform">
+## So nutzt du diese Dokumentation
 
-Die kanonische Feature-Referenz, identisch für Cloud und selbst gehostet.
+Die Produktanleitungen gelten für Cloud-Instanzen und selbst gehostete Instanzen. Welche Bedienelemente du siehst, hängt von deiner Rolle und den eingerichteten Anbietern und Diensten ab. Fehlt dir eine Funktion, lies zuerst [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
-</Card>
-
-<Card title="Tutorials" icon="route" href="/de/tutorials/overview">
-
-Rollenbasierte Walkthroughs von „Ich möchte X tun" zum funktionierenden Ergebnis.
-
-</Card>
-
-<Card title="Entwicklung" icon="terminal" href="/de/develop/overview">
-
-REST API, Webhooks, Connectors, Contributor-Workflows.
-
-</Card>
-
-</CardGroup>
-
-## Wo das hingehört
-
-Sobald du einen Einstieg durchlaufen hast, ist der Rest der Dokumentation einen Klick entfernt: [Plattform](/de/platform) ist die kanonische Referenz für jedes nutzersichtbare Feature, und die [Tutorials](/de/tutorials/overview) gehen bei kompletten Aufgaben in die Tiefe. Quellcode, Issues und Release-Ankündigungen leben auf [GitHub](https://github.com/tale-project/tale).
+Die Anleitungen verwenden die Bezeichnungen aus der Anwendung. Screenshots zeigen die englische Oberfläche; deutsche und französische Seiten nennen die Bedienelemente in der jeweiligen Sprache. Für deinen ersten Besuch eignet sich der [Schnellstart](/de/get-started/quickstart).

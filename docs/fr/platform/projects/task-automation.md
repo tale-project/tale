@@ -1,68 +1,64 @@
 ---
-title: Automatisation des tâches
-description: Comment l’affectation d’une tâche à un agent la met au travail, la séparation Assigné/Relecteur, la revue directement via le statut En revue, les garde-fous et l’arrêt d’urgence.
+title: Déléguer une tâche à un agent
+description: Lance un agent, examine son résultat, demande des modifications et reprends ou annule une exécution.
 ---
 
-Affecter une tâche du tableau à un agent IA la met au travail. La personne ou le système **assigné** à la tâche — un membre, un agent du projet ou une automatisation — conduit le travail et la chorégraphie du tableau ; le **Relecteur** est l’humain nommé qu’attend le résultat terminé. Une tâche qu’une automatisation propose reste dans le [Backlog](/fr/platform/projects/backlog) jusqu’à ce qu’un humain la démarre — à partir de ce moment, c’est une tâche de tableau comme une autre et elle entre dans la boucle ci-dessous.
+Un agent de projet travaille sur une tâche et remet son résultat à une personne pour vérification. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier le projet, un fournisseur fonctionnel, un harness compatible et de la capacité de sandbox.
 
-<Frame caption="Le tableau des tâches du projet — affecter une carte à un agent est ce qui lance la boucle ci-dessous.">
+<Frame caption="Le travail des agents utilise le même tableau que le travail humain : il démarre à En cours et attend sa validation à En revue.">
 
-![Un tableau kanban de tâches dans le projet Website relaunch, montrant sept cartes de tâches réparties sur ses colonnes de statut, du Backlog et de À faire jusqu’à En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
+![Le tableau du projet répartit les tâches entre Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## La boucle d’exécution
+## Préparer et démarrer la tâche
 
-1. **Affecte** la tâche à un agent. La carte passe à _En cours_ et l’agent travaille dans sa propre session sandbox, avec la description, les commentaires et les fichiers d’entrée de la tâche comme contexte.
-2. L’agent **rend compte** : son résultat arrive en commentaire sur la tâche (les livrables dans la zone Output), et la tâche se gare sur **_En revue_** — un agent ne peut jamais passer une tâche à _Terminé_ ; la règle est appliquée côté serveur.
-3. Ce stationnement **demande une relecture** : le **Relecteur** de la tâche reçoit une cloche dans sa boîte et un e-mail, et la carte porte la puce _En attente de {name}_ sur le tableau. Sans relecteur désigné, la demande arrive chez la personne qui a créé la tâche (sinon chez le créateur du projet) — une fin de travail ne reste jamais silencieuse.
-4. Un humain **décide sur le tableau** : faire passer la carte d’_En revue_ à _Terminé_ — par glisser-déposer ou via le champ **Statut** de la fiche — approuve, et la décision est enregistrée comme celle de cette personne, jamais celle de l’agent. Pour renvoyer le travail, **@-mentionne** l’assigné dans un commentaire : le feedback lance une exécution de reprise qui poursuit la conversation précédente là où elle s’était arrêtée et gare le résultat de nouveau sur _En revue_. Déplacer la carte vers une autre colonne retire la demande de relecture — les cloches se taisent, et le prochain stationnement redemande.
+1. Crée une [tâche](/fr/platform/projects/tasks) avec le résultat attendu, les critères de fin et les fichiers d’entrée.
+2. Choisis un [agent de projet](/fr/platform/projects/project-agents) sous **Assigné à**.
+3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet.
+4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**.
 
-Une exécution qui échoue laisse la tâche où elle était et s’explique dans la fiche — et la plateforme réessaie d’elle-même, immédiatement, jusqu’à trois fois d’affilée ; la ligne d’exécution compte les tentatives. Une tentative qui a tourné quinze minutes ou plus prouve un progrès et repart avec un budget neuf — une longue tâche qui trébuche encore et encore se relève donc encore et encore. Les impasses qu’aucune relance ne répare — un agent supprimé, une exécution au-delà de sa limite de temps — te reviennent directement. Une fois les relances automatiques épuisées, l’erreur reste sur la fiche et **Relancer** reprend la même conversation là où elle s’était arrêtée. Une tâche parente avec des sous-tâches ouvertes refuse de se fermer tant que la dernière n’est pas terminée.
+L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille.
 
-## Assigné et Relecteur
+## Lire et accepter le résultat
 
-Les deux rôles sont des champs volontairement séparés :
+L’agent publie son compte rendu dans un commentaire et joint les fichiers produits comme livrables. Il passe ensuite la tâche à **En revue**. Le relecteur reçoit une notification et, si l’envoi d’e-mails est configuré, un e-mail.
 
-| Rôle          | Qui                                      | Ce qu’il fait                                                                                                                                 |
-| ------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Assigné à** | membre, agent ou automatisation          | Conduit le travail et le statut du tableau — l’assigné unique, polymorphe                                                                     |
-| **Relecteur** | un membre du projet qui peut le modifier | L’humain nommé qu’on attend : reçoit la demande de relecture et alimente le filtre **En attente de ma relecture** ; son passage à _Terminé_ décide |
+Lis le compte rendu, ouvre les livrables et compare-les aux critères de fin. Passe la tâche à **Terminé** seulement lorsque tu acceptes le travail. Tale enregistre la décision humaine ; un agent ne peut pas marquer sa propre tâche comme terminée.
 
-Le relecteur se choisit dans la fiche de tâche, champ **Relecteur**. La désignation est volontairement **souple** : elle route les notifications et la file d’attente, mais tout membre qui peut modifier le projet peut encore décider une revue — et contrairement à l’assigné, tu peux poser ou changer le relecteur pendant qu’une exécution tourne. Relire n’oblige jamais à reprendre la tâche : l’agent ou l’automatisation reste assigné, et la chorégraphie continue après la décision.
+**Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres membres autorisés à modifier le projet d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent.
 
-Le tableau nomme l’attente : les cartes garées sur _En revue_ portent une puce **En attente de {name}** (ou _En attente de ta relecture_), et le filtre **Relecture** du tableau le réduit aux tâches qui t’attendent — ta file de relecture personnelle dans le projet.
+## Demander des modifications
 
-## Mentions
+Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
 
-**Mentionne un agent avec @** dans un commentaire de tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres, les agents du projet et les automatisations qui opèrent ce tableau ; le composeur montre à l’avance si chaque agent mentionné répondra vraiment (automatisation coupée, disjoncteur déclenché, non mentionnable dans ce projet). Une mention de l’**assigné** vaut feedback sur son travail : un agent en cours d’exécution reprend le commentaire en vol, un agent au repos lance une exécution de reprise qui reçoit le commentaire tel quel et poursuit la conversation précédente là où elle s’était arrêtée.
+Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue.
 
-Les tâches qui appartiennent à une automatisation suivent la même règle : un commentaire ordinaire reste un commentaire ; **mentionne l’automatisation propriétaire avec @** et son workflow repart, en lisant ton commentaire — avec le reste de la timeline depuis sa dernière livraison — comme feedback. Mentionner une autre automatisation ne lance rien : une tâche n’exécute que le workflow auquel elle appartient, et une tâche avec une exécution en cours la garde. **Demander des modifications** sur le panneau sujet compose exactement cette mention pour toi — la timeline montre le même commentaire @, que tu l’aies tapé ou cliqué.
+Pour une tâche pilotée par une automatisation, mentionne celle qui en est responsable pour demander une nouvelle exécution. Mentionner une autre automatisation ne lui transfère pas la tâche et ne la démarre pas. [Automatisations](/fr/platform/automations/concepts) présente les workflows qui coordonnent plusieurs étapes.
 
-## Garde-fous
+Pour une tâche démarrée par une automatisation, le même workflow ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente pour cette tâche dans le projet. Répéter la demande de démarrage tant qu’elle est active renvoie à l’exécution existante. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
 
-Chaque exécution d’agent — affectation, mention, reprise après revue — passe la même porte d’admission :
+## Traiter une attente ou un échec
 
-- **Un moteur par tâche** : une tâche avec une exécution en cours en refuse une seconde, et une réaffectation en plein vol est refusée (annule d’abord — le sélecteur propose annuler-puis-réaffecter).
-- **Simultanéité** : les sessions d’agents puisent dans la capacité de l’organisation ; les exécutions en trop patientent et démarrent dès qu’une place se libère.
-- **Disjoncteur par tâche** : trop d’exécutions automatiques en une heure sur une même tâche suspendent l’automatisation sur cette tâche jusqu’à ce qu’un humain change son statut.
+| État ou symptôme | Action |
+| --- | --- |
+| Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
+| Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
+| L’exécution reste en échec | Lis l’erreur, corrige sa cause, puis utilise **Relancer** pour continuer la conversation. Un agent supprimé ou une limite de temps atteinte demande une intervention. |
+| Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
+| Automatisation suspendue sur une tâche | Des démarrages trop fréquents ont déclenché la protection. Examine le travail répété avant qu’un changement de statut humain lève la pause. |
+| Clôture impossible | Termine d’abord les sous-tâches ouvertes. |
 
-## Choisir l’assigné
+Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives après la tentative initiale. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.
 
-Toute tâche n’a pas sa place sur un harness de code. En règle générale :
+## Annuler ou suspendre le travail
 
-| Type de tâche                                              | Affecter à                                                                                                                                               |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recherche, rédaction, synthèses, livrables personnels      | Une **personne**                                                                                                                                         |
-| Travail de tableau conduit par une automatisation déployée | Une **Automatisation** — son desk conduit alors les verbes de statut du tableau, et la revue se fait sur le panneau sujet de la tâche                    |
-| Travail de dépôt — bugs, fonctionnalités, refactorings, PR | Un **Agent** sur un [**Harness**](/fr/platform/agents/harnesses) de code — créé dans l’onglet Agents du projet avec le harness qui correspond au travail |
+Utilise **Annuler l'exécution** pour arrêter l’agent actif. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.
 
-Le sélecteur d’assigné groupe **Agents** et **Automatisations**. Chaque agent tourne dans une sandbox sur le **Harness** choisi à sa création, pré-équipé de ses skills, connecteurs et instructions.
+Un admin peut désactiver l’automatisation des tâches pour l’organisation. Cela bloque les nouveaux démarrages pendant que le travail déjà lancé se termine. Les limites et budgets de l’organisation s’appliquent toujours ; consulte [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
 
-## L’arrêt d’urgence
+## Choisir le bon responsable
 
-La politique de gouvernance `task_automation` porte l’interrupteur principal : la couper stoppe le chemin d’exécution — le travail en vol se termine, rien de neuf ne démarre. Réservée aux admins et auditée ; sur une instance auto-hébergée, la politique est l’un des fichiers de configuration de gouvernance de l’organisation, à côté des limites décrites sur [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connecteurs.
 
-## Où cela s’inscrit
-
-L’automatisation des tâches transforme le tableau de projet d’une liste de choses à faire en surface de délégation : un humain affecte, un humain nommé relit, l’agent exécute tout ce qu’il y a entre les deux — et _Terminé_ reste une décision humaine. La suite naturelle : [Backlog](/fr/platform/projects/backlog), pour comprendre comment le travail proposé entre dans la boucle.
+Pour commencer, suis [Créer ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Choisis une tâche assez petite pour en vérifier toi-même le résultat.

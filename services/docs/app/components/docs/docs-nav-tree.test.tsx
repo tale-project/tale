@@ -11,6 +11,7 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
     children,
+    activeOptions: _activeOptions,
     ...rest
   }: {
     to: string;
@@ -53,7 +54,9 @@ describe('DocsNavTree', () => {
 
   it('marks the active page row', () => {
     renderTree();
-    const active = screen.getByRole('link', { name: 'Self-hosted quickstart' });
+    const active = screen.getByRole('link', {
+      name: 'Run your first self-hosted instance',
+    });
     expect(active).toHaveAttribute('aria-current', 'page');
     expect(active).toHaveAttribute('href', pathname);
   });
@@ -71,7 +74,9 @@ describe('DocsNavTree', () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
     renderTree(onNavigate);
-    await user.click(screen.getByRole('link', { name: 'Quickstart' }));
+    await user.click(
+      screen.getByRole('link', { name: 'Run your first self-hosted instance' }),
+    );
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 

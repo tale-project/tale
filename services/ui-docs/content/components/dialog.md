@@ -1,101 +1,68 @@
 ---
 title: Dialog
-description: The modal surface and its specialised forms — confirm, delete, form and view.
+description: Open a labelled modal, manage confirmation state, and return focus to a useful place.
 ---
 
-`Dialog` is the base modal: a title, an optional description, a body and a
-footer. Four specialised dialogs build on it, and reaching for the right one
-saves you from re-deciding button order, destructive colour and focus handling
-every time.
-
-By the end of this page you will know which dialog to open for a given
-decision, and what the component guarantees about focus.
+Use a dialog when someone needs to complete a focused task or make a decision before returning to the current page. `Dialog` supplies the modal structure; your application supplies its state, content, and callbacks.
 
 ```tsx
 import { Dialog } from '@tale/ui/dialog/dialog';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 ```
 
-## A dialog with a form inside
+## Open and close a dialog
 
 <Demo name="dialog/basic" />
 
-`title` is required — it is the dialog's accessible name. `trigger` is
-optional: pass it when the opener lives right there, or drive `open` yourself
-when the opener is a menu item several levels away.
+Choose **Invite a member**, enter a sample email, and press Escape or **Cancel**. Focus returns to the opener. **Send invitation** only closes this local example; it sends no email and performs no validation or persistence.
 
-The footer is yours, and the order is fixed by convention: the dismissing
-action on the left, the confirming action on the right.
+`open`, `onOpenChange`, and `title` are required by `Dialog`. Pass a `trigger` when the opener is available in the same composition. Otherwise update `open` from your own button or menu and let the dialog capture the active opener.
 
-## Confirming something destructive
+The title is the accessible name. `description` gives context under it. Place required instructions where they remain visible, and label every form control independently. The footer is caller-owned: dismissing action first, confirming action second.
+
+## Explain a consequential decision
 
 <Demo name="dialog/confirm" />
 
-`ConfirmDialog` takes the decision rather than the markup: a title, a
-description, a confirm label and an `onConfirm`. `variant="destructive"` colours
-the confirm button and nothing else — the dialog itself is not red.
+Choose **Delete project**, then cancel or confirm. Confirmation updates only the example's local message. The sample consequence text demonstrates where an application would explain its own deletion rules; it is not a specification of Tale project deletion.
 
-For a decision that must not be made by muscle memory, `requireConfirmPhrase`
-renders an input between the description and the footer and keeps the confirm
-button disabled until the typed phrase matches exactly.
+`ConfirmDialog` renders Cancel and Confirm actions for you. `confirmText` and `cancelText` override shared translated defaults. `variant` selects `default`, `destructive`, or `warning` styling; it does not implement the underlying operation.
 
-## The family
+Your `onConfirm` handler owns the request and closing behavior. Set `isLoading` while it runs: confirmation, cancellation, and close requests are blocked until it settles. On failure, keep the decision context and explain the problem. `disableConfirm` disables confirmation without disabling cancellation.
 
-| Component | Use it for |
+For a type-to-confirm decision, set `requireConfirmPhrase`. The trimmed input must match the phrase exactly, including case. It resets when the dialog opens again. This deliberate UI step is additional confirmation, not a substitute for authorization.
+
+## Choose the right wrapper
+
+| Component subpath | Use |
 | --- | --- |
-| `dialog/dialog` | Anything custom — the base |
-| `dialog/confirm-dialog` | A yes/no decision, including destructive ones |
-| `dialog/delete-dialog` | Deleting a named entity, with its name in the copy |
-| `dialog/form-dialog` | A form whose submit closes the dialog |
-| `dialog/view-dialog` | Read-only detail, no confirming action |
-| `overlays/responsive-dialog` | A dialog on desktop, a drawer on a phone |
+| `dialog/dialog` | Custom content and footer. |
+| `dialog/confirm-dialog` | A decision with paired cancel/confirm actions. |
+| `dialog/delete-dialog` | Entity-specific deletion wording. |
+| `dialog/form-dialog` | A form with submission state and actions. |
+| `dialog/view-dialog` | Read-only detail. |
+| `overlays/responsive-dialog` | The responsive wrapper's dialog/drawer composition. |
 
-## Props
+The base Dialog itself uses a bottom-sheet layout below `md` and a centered modal above it. Its header and footer remain outside the scrollable body. Test long content on a phone; choosing a large desktop size does not remove the need for that check.
 
-| Prop | Type | Notes |
-| --- | --- | --- |
-| `open` | `boolean` | Required |
-| `onOpenChange` | `(open: boolean) => void` | Required |
-| `title` | `string` | Required — the accessible name |
-| `description` | `ReactNode` | Under the title |
-| `children` | `ReactNode` | The body |
-| `footer` | `ReactNode` | Omit for no footer |
-| `size` | `DialogSize` | |
-| `trigger` | `ReactNode` | Renders the opener for you |
-| `icon` | `ReactNode` | Before the title |
-| `headerActions` | `ReactNode` | Beside the title |
-| `onBack` + `backLabel` | | Turns the dialog into a drill-in surface |
-| `customHeader` | `ReactNode` | Replaces the header entirely |
-| `hideClose` | `boolean` | |
-| `bodyClassName` | `string` | The scrollable body wrapper |
-| `restoreFocusRef` | `RefObject<HTMLElement>` | When the opener unmounts before close |
+## Base dialog options
 
-> [!WARNING]
-> If your dialog body uses hooks, render it conditionally rather than leaving
-> it mounted. Radix keeps content mounted through the closing animation, and a
-> body whose hooks keep running against unmounting state throws "Maximum update
-> depth exceeded".
-
-## Accessibility
-
-- Focus moves into the dialog on open and **returns to the opener** on close.
-  When the opener itself unmounts — a dropdown menu item, typically — pass
-  `restoreFocusRef` so focus has somewhere stable to land.
-- Escape closes. A nested tooltip layer can swallow the first Escape, which is
-  why a drawer's own close control should be a plain `Button` rather than an
-  `IconButton` with its automatic tooltip.
-- `title` is announced as the dialog's name even when `customHeader` hides it
-  visually.
-
-## When to use something else
-
-| Instead of | Use |
+| Prop | Purpose |
 | --- | --- |
-| A side panel that keeps the page visible | `Sheet` |
-| A transient confirmation of something done | `toast` |
-| A choice attached to a control | `DropdownMenu` or `Popover` |
-| A destructive action inside a row | `entity/entity-delete-dialog` |
+| `size` | `sm`, `default`, `md`, `lg`, `xl`, `3xl`, or `wide`; default `default`. |
+| `children`, `footer` | Body and action content; either may be omitted. |
+| `icon`, `headerActions` | Additional header content. |
+| `onBack`, `backLabel` | A labelled back control for an in-dialog subview. |
+| `customHeader` | Replaces the visible header; the required title remains available to assistive technology. |
+| `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
+| `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |
+| `restoreFocusRef` | Stable fallback when the captured opener unmounts, for example after a menu closes. |
+| `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. |
 
-## Where to go next
+## Handle lifecycle and focus deliberately
 
-[Toast](/docs/components/toast) is the other half of feedback — what you show
-after the dialog closes.
+The modal traps focus while open. Escape and the close control request dismissal; controlled state determines whether the request is accepted. Restore focus to a useful surviving control after close, especially when a successful action removes the original row.
+
+Content can remain mounted through a closing animation. Do not assume `open=false` immediately stops its subscriptions or requests. If hook-heavy content has a closing-lifecycle problem, move it into a separate component and conditionally mount that component; do not call hooks conditionally inside one component.
+
+Use an inline error for repairable form problems and a [toast](/docs/components/toast) for an optional completion notice. Use a persistent page or side panel when the task needs more room or the reader needs to refer to the surrounding content continuously.

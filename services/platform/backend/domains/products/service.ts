@@ -54,7 +54,7 @@ export interface ProductScope {
   role: string;
 }
 
-function assertProductAccess(
+export function assertProductAccess(
   scope: ProductScope,
   action: 'read' | 'write',
 ): void {

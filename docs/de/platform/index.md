@@ -1,105 +1,112 @@
 ---
 title: Plattform
-description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet.
+description: Lerne Tale anhand deiner Arbeit kennen: vom ersten Chat über Projekte und Automatisierungen bis zur Verwaltung.
 kind: index
 ---
 
-Plattform ist die kanonische Produktreferenz: jedes nutzersichtbare Feature in Tale, identisch für Cloud und selbst gehostet. Die Seiten hier beschreiben die UI, die jemand anklickt, das Konzept dahinter und die Trade-offs zwischen Features, die ähnlich aussehen.
+Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen Deployment. Beginne mit einer Frage im Chat, halte wiederkehrende Arbeit in einem Projekt zusammen oder öffne die passende Funktionsanleitung, wenn du eine Einstellung ändern möchtest.
 
-Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature gegliedert. Die meisten Leser arbeiten ihn nicht von vorne bis hinten durch — sie landen aus einer Suche oder aus einem Tutorial-Link hier, und die Seite, auf der sie landen, sollte die Frage beantworten, die sie mitgebracht haben.
+## Zwischen Bereichen wechseln {#navigation}
 
-## Feature-Bereiche
+Am Computer wechselst du über die linke Seitenleiste zwischen den Bereichen, auf dem Smartphone über die Navigation am unteren Rand. **Mehr** öffnet dort die weiteren Bereiche. Kehrst du aus einem anderen Bereich zurück, öffnet Tale deine zuletzt besuchte Ansicht. Ein Beispiel: Öffne in einem Projekt **Agenten**, wechsle zu **Chat** und wähle dann **Projekte**. Du landest wieder im selben Projekt auf demselben Tab.
+
+| Du möchtest … | So gehst du vor |
+| --- | --- |
+| In einem anderen Bereich weiterarbeiten | Wähle den Bereich in der Hauptnavigation. |
+| Zur Projektliste zurückkehren | Wähle **Projekte**, während du bereits im Bereich Projekte bist, oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
+| Zur Dokumentenliste zurückkehren | Wähle **Wissen**, während du bereits im Bereich Wissen bist. |
+| Ein neues Thema im Chat beginnen | Wähle **Chat**, während du bereits im Chat bist, oder nutze **Neuer Chat**. |
+
+Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder einem Dokument öffnen weiterhin dieses Ziel. Die gemerkte Navigation ändert deine Zugriffsrechte nicht. Die [Kontoeinstellungen](/de/platform/member/preferences#navigation-memory) erklären das Verhalten bei mehreren Tabs und Organisationen.
+
+## Eine Funktion wählen
 
 <CardGroup cols="2">
 
 <Card title="Chat" icon="message-circle" href="/de/platform/chat/overview">
 
-Der alltägliche Einstieg — Konversationen, der Assistent, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
+Fragen stellen, Dateien anhängen, Quellen prüfen, Modelle vergleichen und Gespräche teilen.
 
 </Card>
 
 <Card title="Projekte" icon="folder-open" href="/de/platform/projects/overview">
 
-Geteilte Arbeitsbereiche, die Dateien, Anweisungen, Konversationen und projektgebundene Agents bündeln.
+Dateien, Anweisungen, persönliche und geteilte Chats sowie Aufgaben zusammenhalten.
 
 </Card>
 
-<Card title="Agents" icon="bot" href="/de/platform/agents/concepts">
+<Card title="Agenten" icon="bot" href="/de/platform/agents/concepts">
 
-Anweisungen, Wissen, Tools, Modell — plus Fähigkeiten, Worker, Versionierung und Webhook-Trigger.
+Agenten mit passendem Harness, Modell und Ausstattung für Projektaufgaben einrichten.
 
 </Card>
 
-<Card title="Automatisierungen" icon="layout-grid" href="/de/platform/automations/concepts">
+<Card title="Automatisierungen" icon="workflow" href="/de/platform/automations/concepts">
 
-Installierbare Bündel aus Connectors, Agents, Skills und einem Workflow — der Katalog, der Installations-Assistent, der Editor und die Trigger hinter jeder Automatisierung und die Laufhistorie, die sie hinterlässt.
+Einen wiederholbaren Ablauf erstellen, testen, bereitstellen und seine Läufe prüfen.
 
 </Card>
 
 <Card title="Wissen" icon="library" href="/de/platform/knowledge/overview">
 
-Dokumente, Kontakte, Produkte, Websites — das Modell für strukturierte Daten, das Agents zitieren.
+Dokumente, kurze Informationen, öffentliche Websites, Kontakte und Produkte pflegen.
 
 </Card>
 
-<Card title="Genehmigungen" icon="check-check" href="/de/platform/approvals/concepts">
+<Card title="Freigaben" icon="check-check" href="/de/platform/approvals/concepts">
 
-Inline-Karten, Workflow-Gates und der Genehmiger-Pool, der Menschen in der Schleife hält.
+Eine vorgeschlagene Aktion der Automatisierung prüfen, bevor du sie zulässt.
 
 </Card>
 
 <Card title="Skill-Bibliothek" icon="list-plus" href="/de/platform/workspace/skills">
 
-Wiederverwendbare Anleitungs-Bundles, die du privat behältst oder mit der ganzen Organisation teilst.
+Wiederverwendbare Anweisungen erstellen und mit Teams oder der Organisation teilen.
 
 </Card>
 
 <Card title="Modelle" icon="cpu" href="/de/platform/models">
 
-Der Modellkatalog hinter jedem Picker — Fähigkeits-Tags, Standards und die ausgelieferte Liste.
+Fähigkeiten, Verfügbarkeit und Auswahl von Modellen verstehen.
 
 </Card>
 
 <Card title="Connectors" icon="plug" href="/de/platform/connectors/overview">
 
-Drittanbieter-Connectors und die Zugangsdaten dahinter.
+Externe Dienste verbinden und verfügbare Aktionen für Agenten und Automatisierungen kennen.
 
 </Card>
 
 </CardGroup>
 
-## Richte deinen ersten Tag ein
+## Deinen Einstieg finden
 
-Vier rollenbasierte Einträge zeigen dieselben Features von der Seite des Lesers — was ein Mitglied, ein Redakteur, ein Entwickler oder die Verwaltung am ersten Tag tatsächlich anfasst.
+Deine Rolle bestimmt die verfügbaren Aktionen. Teams und Projektzugriff bestimmen, welche Inhalte du erreichen kannst. Wähle den Einstieg, der zu deiner Arbeit passt. Fehlende Aktionen kann ein Administrator erklären.
 
 <CardGroup cols="2">
 
 <Card title="Mitglied" icon="user" href="/de/platform/member/overview">
 
-Chat, Wissen, persönliche Einstellungen — die Oberfläche, die die meisten Leute in den meisten Orgs nutzen.
+Fragen stellen, gemeinsames Wissen lesen und persönliche Einstellungen verwalten.
 
 </Card>
 
 <Card title="Redakteur" icon="pencil-ruler" href="/de/platform/editor/overview">
 
-Die Bau-Oberfläche — Agents, Wissenspflege, Automatisierungen, Projekte.
+Gemeinsame Inhalte pflegen und in bearbeitbaren Projekten arbeiten.
 
 </Card>
 
 <Card title="Entwickler" icon="terminal" href="/de/platform/developer/overview">
 
-API-Schlüssel, der MCP-Endpoint, Connector-Zugangsdaten — Tale an externen Code anbinden.
+Automatisierungen erstellen und Code, Clients sowie externe Dienste verbinden.
 
 </Card>
 
-<Card title="Verwaltung" icon="shield" href="/de/platform/admin/overview">
+<Card title="Admin" icon="shield" href="/de/platform/admin/overview">
 
-Organisationseinstellungen, Anbieter, Branding, Connectors und der Governance-Unterzweig.
+Personen, Provider, Infrastruktur und Organisationsrichtlinien einrichten.
 
 </Card>
 
 </CardGroup>
-
-## Wo das hingehört
-
-Plattform ist der Gravitationsbrunnen — Cloud und selbst gehostet verlinken beide für Feature-Dokumentation hier hinein, und jedes Tutorial zitiert Seiten von hier für die zugrundeliegenden Konzepte. Die Seite, die du dir an deinem ersten Tag setzen willst, ist [Agents → concepts](/de/platform/agents/concepts) — fast jede andere Produktseite setzt das Vier-Knöpfe-Modell voraus, das dort aufgebaut wird.

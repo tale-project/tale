@@ -1,56 +1,75 @@
 ---
 title: Build your first agent
-description: Walk a fresh project from "I want an agent" to a reviewed task result — create a project agent with a harness, a model, and a paragraph of instructions, hand it a real task, and review what comes back.
+description: Create a project agent for a small text task, start it from the board, and review its result.
 ---
 
-A first agent is the smallest useful thing in Tale: a name, a harness, a model, and a paragraph of instructions on a project's **Agents** tab. This walk creates one, hands it a real task, and reviews the result where every agent's work waits — the **In review** column. The shape generalises: every agent you build later is the same four moves with different choices, and the loop at the end is the one you spend the most time in.
-
-You need edit access to a project and at least one provider under **Settings > AI providers** with a model on it. The conceptual side lives in [Agent concepts](/platform/agents/concepts) and the field-by-field reference in [Project agents](/platform/projects/project-agents); this walk is the end-to-end mechanic.
+Build an agent that summarizes a contact message and recommends a next action. This exercise uses the task description as its input, so you can check the whole loop before adding connectors or shared knowledge: configure the agent, start one task, then review the result.
 
 ## Before you begin
 
-Confirm three things. You can edit the project — anyone with project edit access creates, edits, and deletes its agents, up to 50 per project. The organization has a provider configured with at least one model; without that there is nothing to pick under **Model**, and the run at the end has nothing to call. And you have a job in mind narrow enough that a paragraph of instructions can frame it — this walk uses "summarise an inbound contact message into one sentence plus a recommended next action".
+You need a project you can edit, an available coding-agent harness with compatible model credentials, and a working sandbox allocation. An administrator manages [AI providers](/platform/admin/providers) and [Sandboxes](/platform/admin/sandboxes). A model that works in Chat is not enough by itself: the selected harness must be able to use its credential.
 
-## Step 1 — Name the agent and pick its engine
+If the Agents page or model list is unavailable, resolve access or setup first. This tutorial does not require skills, connectors, platform tools, or injected secrets.
 
-Open the project's **Agents** tab. It lists the project's crew, one row per agent, and this is where the agent you are about to create lands.
+## Create the agent
 
-<Frame caption="The Agents tab — each row names the agent's harness, serving provider, and model.">
+Open the project's **Agents** tab and click **New agent**.
 
-![The Agents tab of the Website relaunch project listing two named agents — Content editor on Claude Code and Redirect auditor on Codex — each row naming the serving provider and model id, beside a New agent button.](/images/platform/project-agents-models.webp)
+<Frame caption="The Agents table identifies each agent by its harness, provider, and model.">
+
+![Website relaunch lists Content editor using Claude Code and Redirect auditor using Codex, with their provider and model beside the New agent button.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
-Click **New agent**. The first three fields decide what runs:
-
-- **Name** — `Triage assistant`. Your team sees it on task cards, so name it for the job.
-- **Agent type** — the coding harness the agent runs on. [Harnesses](/platform/agents/harnesses) compares them and says which credentials each accepts.
-- **Model** — the list is searchable, and a model served by more than one provider appears once per provider. The pick is exact: runs call that model through that provider, and the spend lands on that provider's credential.
-
-## Step 2 — Leave the equipment empty
-
-**Skills, connectors & tools** decide what the agent can reach beyond its sandbox: skills stage reference bundles, connectors broker a connected service, and platform tools let it read — or, when you grant a write tool, change — the project's tasks, documents, and knowledge. For triage, grant nothing: the agent reads input and writes output, and every tool you grant widens the trust boundary. Leave **Secrets** empty too — that is the escape hatch for a service with no connector, and this agent calls none.
-
-If the agent should later write the recommended action into a CRM, you would equip the corresponding connector then — but not before the text-only version works.
-
-## Step 3 — Write the instructions and create it
-
-**Instructions** ride along on every run as a standing instruction — what the agent owns, how it works, and where it stops. This is the field most people overshoot; keep it under a paragraph:
+1. Set **Name** to `Triage assistant`.
+2. Choose an **Agent type** that your administrator has configured.
+3. Under **Model**, search by model name or API ID and select the entry for the intended provider. The same model can appear from more than one provider.
+4. Leave **Skills, connectors & tools** and **Secrets** empty for this exercise.
+5. Paste the instructions below into **Instructions**, then click **Create agent**.
 
 ```text
-You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.
+Read the contact message in the task description. Return two lines:
+Summary: one sentence explaining what the person needs.
+Next action: reply, escalate, or close, followed by a short reason.
+If the message has no usable request, say what information is missing.
+Do not contact anyone or change records.
 ```
 
-Click **Create agent**. The row lists the harness, the serving provider, the model, and the equipped count — there is no publish step, and the agent can be assigned work from this moment.
+The new row is ready to be assigned a task. There is no separate publish step. Keep the agent's instructions about its recurring job; the individual message belongs in the task.
 
-## Step 4 — Hand it a task and review the result
+## Give it a task with a checkable answer
 
-Create a task on the project board, paste a real contact message into its description, and pick a **Reviewer** in the task sheet — without one, the review request lands with the task's creator. Assign the task to `Triage assistant` and click **Start agent**. The card moves to _In progress_ while the agent works in its sandbox; when it finishes, its report lands as a task comment and the card parks at **In review** — agents never set _Done_.
+Open **Tasks**, create a task called `Triage the invoice-copy request`, and paste this into its description:
 
-Read the comment: it should hold two lines per the instructions, a one-sentence summary and a recommended action. Move the card to _Done_ to accept it. If the format drifted, @-mention the agent in a task comment with the correction — a rework run continues the same conversation and parks the result at _In review_ again — and tighten the **Instructions** on the agent for next time; edits apply from the next run.
+```text
+Contact message:
+“Hello, I received the order confirmation, but cannot find the invoice.
+Could you send me a copy? The order number is A-1042.”
 
-## Where this fits
+Acceptance criteria:
+- Summarize the request in one sentence.
+- Recommend reply, escalate, or close, with a reason.
+- Do not say the invoice has already been sent.
+```
 
-Four moves, one agent, one reviewed result: the same shape every agent you build later follows. [Task automation](/platform/projects/task-automation) is the board loop you ran a moment ago, end to end — the Driver/Reviewer split, mentions, retries, and the kill switch. [Project agents](/platform/projects/project-agents) is the reference for every field you touched, and [Agent concepts](/platform/agents/concepts) the model behind it.
+Assign the task to `Triage assistant`. Open its details to set a **Reviewer** if someone else should review it; otherwise the task's creator receives the review request. Click **Start agent**. Assigning alone does not start work.
 
-The knobs that used to sit on an agent editor live elsewhere in this version: knowledge is organization-wide under [Knowledge](/platform/knowledge/overview) and reached through platform tools ([Project agents](/platform/projects/project-agents) explains how), and work that should run without a person is an [automation](/platform/automations/concepts) rather than a second agent.
+The task moves to **In progress**. A successful run posts its report as a comment and moves the task to **In review**. The sandbox and provider must be working for that run to complete.
+
+## Review and improve the result
+
+Read the agent's comment against the acceptance criteria. A suitable answer recognizes a request for an invoice copy and recommends replying; it must not claim an email was sent. Wording may vary by model.
+
+Move the task to **Done** when you accept the result. If something is missing, mention the assigned agent in a task comment and give a specific correction, such as “Keep the summary to one sentence and explain why a reply is needed.” The follow-up continues the task conversation and returns a new result for review.
+
+<Tip>
+
+Change the task comment for a one-time correction. Edit the agent's instructions when the same rule should apply to its future tasks. Add tools only when a later exercise needs the agent to read or change something outside the supplied input.
+
+</Tip>
+
+## If the run cannot start or finish
+
+A missing model calls for a provider and harness check. A sandbox error needs an administrator to check capacity and infrastructure. A failed task run stays visible for inspection; correct the cause before retrying. Avoid repeatedly starting the task while a run is already active.
+
+[Task automation](/platform/projects/task-automation) explains retries, cancellation, reviewer handoff, and rework. [Project agents](/platform/projects/project-agents) covers the equipment you can add after this first task works.

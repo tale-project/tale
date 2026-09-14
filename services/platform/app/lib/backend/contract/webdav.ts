@@ -26,8 +26,8 @@ export interface WebdavContract {
       label: string;
       prefix: string;
       createdAt: number;
-      lastUsedAt: undefined | number;
-      revokedAt: undefined | number;
+      lastUsedAt: undefined | null | number;
+      revokedAt: undefined | null | number;
     }>;
   };
 }

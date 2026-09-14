@@ -10,6 +10,40 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   const releasePath = `${prefix}/self-hosted/configuration/config-releases`;
 
   test.describe(`${locale} docs page header`, () => {
+    for (const width of [1440, 390]) {
+      test(`starts keyboard navigation at the skip link at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto(releasePath);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        await page.keyboard.press('Tab');
+        await expect(
+          page.getByRole('link', { name: t('nav.skipToMain') }),
+        ).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('main')).toBeFocused();
+      });
+    }
+
+    test('wraps long page titles within the phone viewport', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 960 });
+      await page.goto(`${prefix}/self-hosted/configuration/secrets-with-sops`);
+      const title = page.getByRole('heading', { level: 1 });
+      await expect(title).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBe(390);
+      const dimensions = await title.evaluate((element) => ({
+        content: element.scrollWidth,
+        available: element.clientWidth,
+      }));
+      expect(dimensions.content).toBeLessThanOrEqual(dimensions.available);
+    });
+
     test('uses the translated navigation group when a section has no index page', async ({
       page,
     }) => {

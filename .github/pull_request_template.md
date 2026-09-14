@@ -8,7 +8,7 @@ Tick each box or mark **N/A** with a short reason. Empty boxes block review.
 
 - [ ] `bun run check` passes (format, lint, typecheck, all tests).
 - [ ] `bun run lint:sast` passes (Opengrep) — or N/A.
-- [ ] Translations updated in `services/platform/messages/{en,de,fr}.json` — or N/A.
+- [ ] Translations updated in the affected `messages/{en,de,fr}.yml` catalogs, including shared UI strings and relevant `de-CH` overrides — or N/A.
 - [ ] Docs updated in `docs/{en,de,fr}/` for any user-visible change — or N/A.
 - [ ] `README.md` / `README.de.md` / `README.fr.md` updated — or N/A.
 

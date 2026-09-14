@@ -1,104 +1,111 @@
 ---
-title: Contributor-Setup
-description: Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung.
+title: Tale aus dem Quellcode starten
+description: Richte deine lokale Entwicklungsumgebung ein, starte Backend und App und prüfe deine Änderung.
 ---
+Starte Tale aus dem Quellcode, wenn du das Produkt ändern oder einen Beitrag testen möchtest. App und Backend laufen auf deinem Rechner; Datenbanken und Sandbox-Dienste laufen in Docker. Für eine fertige Installation folge dem [Schnellstart für selbst gehostete Instanzen](/de/self-hosted/install/quickstart).
 
-Diese Seite ist für Contributors, die Tale aus dem Quellcode laufen lassen und eine Änderung zurückgeben wollen. Sie deckt die Voraussetzungen ab, das einmalige Setup, den Pre-flight-Check, der eine kaputte Maschine vor einem langen Boot erkennt, und was du von `bun run dev` erwarten kannst. Es ist nicht der Operator-Weg — willst du Tale benutzen statt verändern, installiert der [Self-hosted Quickstart](/de/self-hosted/install/quickstart) stattdessen den paketierten Stack mit der CLI.
+## Rechner vorbereiten
 
-Der Quellcode ist ein einziger Bun-Workspace, von Anfang bis Ende — der ganze Stack ist TypeScript, ohne Python und ohne einen zweiten Paketmanager zu installieren. Ein einziges `bun install` verdrahtet jeden Dienst, und `bun run dev` startet die Backing-Container, das Platform-Backend und Vite mit generierten Dev-Secrets — kein Cloud-Konto, keine von Hand editierte `.env`. Die Wissens-Arbeit, die früher in eigenständigen Diensten lebte (RAG-Suche, Dokument-Ingestion, Web-Crawling, Dokumentgenerierung), läuft im Backend, also gibt es dafür nichts Zusätzliches zu starten.
+Arbeite in einem lokalen Checkout des [Tale-Repositorys](https://github.com/tale-project/tale). Führe die folgenden Befehle im Stammverzeichnis aus.
 
-## Ein funktionierendes Setup von Anfang bis Ende
+| Voraussetzung | Aufgabe | Prüfung |
+| --- | --- | --- |
+| Bun-Version aus der `package.json` im Repository-Stamm | Workspaces, Abhängigkeiten, Vite und Entwicklungsskripte | `bun --version` |
+| Node.js ab 22.21.1 innerhalb von 22.x | Anwendungsbackend; das Container-Image verwendet 22.21.1 | `node --version` |
+| Docker mit Compose | Anwendungs- und Wissensdatenbank, Objektspeicher und Sandbox-Dienste | `docker info` und `docker compose version` |
+| Freie lokale Ports | App auf 3000 und Backend auf 3005 | `bun run setup:check` |
 
-Der kürzeste Weg von einem frischen Klon zu einer laufenden App sind drei Befehle. Der Pre-flight-Check zwischen Install und Dev ist der, der dir ein verwirrendes Scheitern zehn Schichten tief erspart:
+Das Repository legt die Paketmanager-Version fest. Nutze sie beim Nachstellen eines Fehlers oder bei einer Lockfile-Änderung; die Startprüfung kontrolliert nur eine Mindestversion.
 
-```bash
-bun install            # jeden Workspace verdrahten
-bun run setup:check    # Bun und die Dev-Ports prüfen
-bun run dev            # den Stack booten (auf das READY-Banner warten)
-```
+Die Vorabprüfung kontrolliert Bun und die beiden Ports. Prüfe Node und Docker separat; ein grünes Ergebnis bestätigt diese Voraussetzungen nicht. Beim ersten Start brauchst du außerdem Netzwerkzugriff für Abhängigkeiten und Container-Images. Für echte AI-Antworten brauchst du einen Modellanbieter, für die Anmeldung und das Erkunden der App noch nicht.
 
-Wenn `setup:check` alles grün meldet und `bun run dev` sein `READY`-Banner erreicht, ist deine Umgebung in Ordnung. Der Rest dieser Seite erklärt jedes Teilstück und was zu tun ist, wenn eines davon meckert.
+## Installieren und starten
 
-## Voraussetzungen
-
-Zwei Dinge müssen auf deiner Maschine sein, weil der ganze Stack TypeScript auf einer einzigen Runtime ist — plus eine echte Datenbank:
-
-- **Bun 1.3 oder höher** — die Workspace-Runtime und der Paketmanager. Installier es von [bun.sh](https://bun.sh/docs/installation) und bestätige mit `bun --version`. Jede Service-Abhängigkeit löst `bun install` auf.
-- **Docker** — `bun run dev` lässt das Backend auf deinem Host laufen, seine Backing-Services aber in Containern: Postgres (die App-Datenbank), ParadeDB (der Wissens-Korpus), das LLM-Gateway und die Sandbox-Ebene. Docker Desktop oder irgendein Daemon, auf den der Docker-Context deiner Shell zeigt, genügt.
-
-## Install und Pre-flight
-
-Ein einziges Install deckt jeden Workspace ab, weil das Repo ein einziger Bun-Workspace-Graph ist:
+Installiere die Abhängigkeiten, prüfe die lokalen Ports und starte die Entwicklungsumgebung:
 
 ```bash
 bun install
-```
-
-Vor dem ersten `bun run dev` lauf den Pre-flight-Check. Er prüft deine Bun-Version und ob die Ports 3000 und 3005 frei sind — und druckt für alles Fehlende die exakte Behebung, damit du eine falsche Bun-Version nicht erst mitten in einem Kaltstart entdeckst:
-
-```bash
 bun run setup:check
+bun run dev
 ```
 
-Jede fehlschlagende Zeile trägt ihre Behebung: ein `bun upgrade` für ein altes Bun, ein `lsof`/`kill`-Paar für einen belegten Port. Ein sauberer Lauf endet mit Exit-Code 0 und sagt dir, dass du mit `bun run dev` weitermachen kannst.
+Das Entwicklungsskript im Stammverzeichnis ergänzt fehlende Geheimnisse in der von Git ignorierten `.env` und behält vorhandene Werte bei. Schütze diese Datei und bewahre sie zwischen Neustarts auf: Backend und Sandbox brauchen dieselben Geheimnisse.
 
-## Was `bun run dev` tut
+Der Orchestrator startet die Docker-Dienste und das Node-Backend, wartet auf API und Authentifizierung und startet danach Vite. Das Backend führt beim Start die Datenbankmigrationen aus. Warte auf `READY`, bevor du `http://localhost:3000` öffnest; Downloads und die erstmalige Einrichtung können den ersten Start verlängern.
 
-`bun run dev` ist der Entwicklungs-Orchestrator. Er lädt deine `.env`-Dateien, generiert unsichere lokale Defaults für jedes nicht gesetzte Secret, fährt die Docker-Backing-Services hoch und startet dann das **Platform-Backend** — denselben `backend/main.ts`-Einstieg, den auch der Container fährt, in der kombinierten Rolle `all` (HTTP-API und Job-Worker in einem Prozess) — und wartet, bis es seinen Port bindet. Vite startet zuletzt und proxied `/api`, `/events`, `/dav` und `/scim` dorthin. Ein Kaltstart dauert 20 bis 60 Sekunden, ein warmer deutlich weniger.
+<Check>
 
-Das Backend wendet seine Datenbank-Migrationen beim Start selbst an, unter einem Advisory Lock — ein frischer Klon bekommt also ohne Extraschritt eine vollständig migrierte Datenbank. Eine Health-Probe überwacht es: Antwortet es nicht mehr, startet der Orchestrator es bis zu einem Limit neu und sagt dir, wenn er aufgibt.
+Öffne die App und melde dich an. Das Dashboard bestätigt die Verbindung zwischen Browser und Backend. Sende mit einem eingerichteten Anbieter eine Nachricht, um auch einen Modellaufruf zu prüfen.
 
-Bis der Orchestrator sein `READY`-Banner druckt, ist eine abgelehnte Verbindung auf `http://localhost:3000` erwartet und kein Fehler — Vite hat den Port noch nicht gebunden. Beim Banner ist die App erreichbar und die Authentifizierung gesund. Stopp den ganzen Stack mit `Ctrl-C`; er fährt Backend und Vite sauber herunter.
+</Check>
 
-Der Dev-Orchestrator generiert alles, was er braucht, eine lokale `.env.example`-Kopie ist für lokale Entwicklung also optional — die unsicheren Defaults (`INSTANCE_SECRET`, `BETTER_AUTH_SECRET`, der WebDAV-HMAC-Key) werden beim Boot gefüllt und als Warnungen gedruckt. Setz echte Werte in `services/platform/.env.local` nur, wenn du produktionsnahes Verhalten brauchst oder einen Default überschreiben willst.
+Beende die Vordergrundprozesse mit `Ctrl-C`. Die Docker-Datenvolumes bleiben erhalten; das Beenden löscht die Instanz nicht.
 
-Laufen die Container schon, oder willst du nur an Frontend-Code arbeiten? `TALE_DEV_SKIP_DOCKER=1 bun run dev` überspringt die Docker-Bring-up und geht direkt zu Backend und Vite.
+## Am lokalen Workspace anmelden
 
-## Ein einsatzbereiter Dev-Login
+Die lokale Entwicklungsumgebung legt `dev@tale.test` mit dem Passwort `TaleDev!Passw0rd` und der Organisation **Dev Workspace** an. Ein vorhandenes Konto bleibt unverändert. Diese Einrichtung ist auf Loopback-Adressen in `SITE_URL` beschränkt.
 
-Ein frischer Stack seedet ein Owner-Konto, damit du vor dem Testen nicht durch den `/setup`-Wizard musst: `dev@tale.test` / `TaleDev!Passw0rd`, Owner einer aufgesetzten Organisation "Dev Workspace". Der Seeder ist idempotent (er läuft bei jedem Boot und tut nichts, wenn das Konto schon existiert) und weigert sich zu laufen, wenn `SITE_URL` kein Loopback-Host ist — ein bekanntes Passwort auf einem erreichbaren Hostnamen wäre eine Konto-Übernahme, keine Bequemlichkeit. Abwählen mit `TALE_DEV_SEED_USER=0`, Identität überschreiben mit `TALE_DEV_SEED_USER_EMAIL` / `TALE_DEV_SEED_USER_PASSWORD`.
+Setze `TALE_DEV_SEED_USER=0`, um stattdessen die Ersteinrichtung zu testen. Für eine andere lokale Identität übergib `TALE_DEV_SEED_USER_EMAIL` und `TALE_DEV_SEED_USER_PASSWORD` als Umgebungsvariablen. Neue Werte setzen das Passwort eines bestehenden Kontos nicht zurück.
 
-## Wenn ein Port belegt ist
+## Passende Startweise wählen
 
-`bun run dev` bindet zwei Ports: 3000 für die Vite-App und 3005 für das Backend. Es scheitert schnell mit einer umsetzbaren Meldung, wenn einer belegt ist, denn ein stiller Fallback auf einen anderen Port würde den Vite-Proxy und jeden `localhost:3000`-Link brechen. Meist ist ein früheres `bun run dev` oder `tale dev` schuld, das nicht vollständig beendet wurde.
+Verwende für die normale Produktentwicklung `bun run dev`. Der Befehl startet Backend und App gemeinsam und stellt ihre gemeinsame Konfiguration bereit.
 
-Gib den Port frei und starte neu. Der Befehl, der den Halter findet und stoppt, ist derselbe, den `setup:check` und der Orchestrator vorschlagen:
+Laufen die benötigten Dienste bereits mit passenden Ports und Zugangsdaten, überspringe nur ihren Docker-Start:
 
 ```bash
-lsof -nP -iTCP:3000 -sTCP:LISTEN   # die PID zeigen, die den App-Port hält
-kill <PID>                         # sie stoppen
+TALE_DEV_SKIP_DOCKER=1 bun run dev
 ```
 
-## Lokale Dev-Daten zurücksetzen
+Dabei startet weiterhin ein lokales Backend. Postgres, Objektspeicher und Sandbox bleiben erforderlich. Nutze [Compose-Dateien für die Entwicklung](/de/develop/compose-files), wenn du den vollständigen Container-Build prüfen musst.
 
-Lokaler Dev-Zustand liegt in den Docker-Volumes der Backing-Services, ein Reset ist also ein Compose-Befehl statt eines eigenen Skripts:
+Für reine Frontend-Arbeit mit einem vorhandenen Backend starte Vite direkt aus `services/platform` und gib dessen Adresse an:
 
 ```bash
-docker compose -f compose.yml -f compose.dev.yml down -v db knowledge-db
+cd services/platform
+TALE_BACKEND_URL=http://localhost:3005 bunx --bun vite --host 127.0.0.1 --port 3000
 ```
 
-Das zerstört die lokalen Datenbanken — jede Organisation, Konversation und hochgeladene Datei in deinem Dev-Stack. Org-Config-Bäume auf der Platte (`$TALE_CONFIG_DIR`) und `.env.local` bleiben unangetastet. Das nächste `bun run dev` migriert von leer neu und seedet den Dev-Login wieder.
+Dieser Befehl startet keine Dienste, legt keine Konten an und führt keine Migrationen aus. Das Backend muss den verwendeten Browser-Ursprung bereits erlauben.
 
-## Hybrid-Modus gegen ein containerisiertes Backend
+## Startprobleme eingrenzen
 
-`bun run dev` lässt das Backend auf deinem Host laufen, was für die meiste Arbeit richtig ist. Um Vite auf ein Backend zeigen zu lassen, das woanders läuft — ein Container oder der Stack einer Kollegin — setz `TALE_BACKEND_URL`:
+| Symptom | Nächste Prüfung |
+| --- | --- |
+| `node` fehlt oder kennt eine Option nicht | Installiere die oben genannte Node-Version und prüfe den Aufruf in deiner Shell. |
+| Docker stellt keine Verbindung her | Starte Docker und prüfe `docker info` in derselben Shell. |
+| Port 3000 oder 3005 ist belegt | Ermittle den Prozess, bevor du ihn beendest; er kann zu einem anderen Checkout gehören. |
+| Das Backend scheitert vor dem Vite-Start | Lies den ersten Backend-Fehler und prüfe Datenbankverbindung und Zugangsdaten. |
+| Anmeldung funktioniert, Modellaufrufe scheitern | Prüfe Anbieterzugangsdaten, Modellwahl und Sandbox-Dienste. |
+| Änderungen erscheinen in der falschen App | Prüfe die URL und den Checkout des laufenden Prozesses. |
+
+Unter macOS oder Linux findest du die lauschenden Prozesse mit:
 
 ```bash
-TALE_BACKEND_URL=http://localhost:3105 TALE_DEV_SKIP_DOCKER=1 bun run dev
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+lsof -nP -iTCP:3005 -sTCP:LISTEN
 ```
 
-Vite proxied jede Backend-Lane dorthin, und der Orchestrator wartet auf diese URL, statt ein eigenes Kind zu starten.
+Beende einen bekannten Entwicklungsprozess in seinem ursprünglichen Terminal. Ein belegter Port allein ist kein Grund, einen Prozess zu beenden.
 
-## Bevor du einen PR aufmachst
+## Lokale Daten bewusst behalten oder zurücksetzen
 
-Jeder PR läuft durch ein Gate: `bun run check` — Format, Lint, Typecheck und die volle Test-Suite über jeden berührten Workspace. Ein grüner Lauf ist das Merge-Signal, ein roter blockiert. Die Pre-PR-Checkliste in [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) listet den Rest — Docs und Übersetzungen gehen im selben PR raus wie der Code, der sie geändert hat.
+Datenbanken und hochgeladene Dateien liegen außerhalb des Quellcode-Checkouts. Ein zweiter Git-Worktree trennt Docker-Dienstnamen, Ports, Volumes und `.env`-Zugangsdaten nicht automatisch. Gib parallelen Instanzen jeweils eigene Dienste und eine eigene Konfiguration.
 
-Berührt deine Änderung `services/docs/`, lauf auch das Docs-Gate (`bun run --filter @tale/docs test`), damit strukturelle Parität, Terminologie und Prosa-Checks vor dem Review passen. Alles, was ein Nutzer sehen, konfigurieren oder aufrufen kann, braucht seine Docs in allen drei Basis-Locales im selben Commit.
+Ein Zurücksetzen löscht Entwicklungsdaten und kann einen anderen Checkout mit demselben Compose-Projekt treffen. Prüfe Container und Volumes des Projekts, sichere benötigte Daten und stoppe die Umgebung, bevor du Zustand entfernst. Konfigurationsverzeichnisse unter `TALE_CONFIG_DIR` bleiben davon unabhängig; eine gelöschte Datenbank setzt diese Dateien nicht zurück.
 
-## Wo das hingehört
+## Vorhandene UI-Komponenten nutzen
 
-Contributor-Setup ist der Boden, auf dem jede andere Entwickleraufgabe steht: Voraussetzungen hinstellen, `setup:check` die Maschine bestätigen lassen, und `bun run dev` gibt dir die ganze Plattform in unter zwei Minuten, sobald die Images warm sind. Der Pre-flight-Check und die Port-Behebung existieren, weil die häufigsten Erstlauf-Fehler eine falsche Tool-Version oder ein übrig gebliebener Prozess auf einem Port sind — beides Fünf-Sekunden-Fixes, sobald man sie sieht.
+Lies vor einer Änderung an der Oberfläche die [Dokumentation zum Design-System](https://ui.tale.dev). Sie erklärt `@tale/ui` für die App und `@tale/marketing-ui` für Marketing-Seiten anhand interaktiver Beispiele, Design-Tokens und Layoutmuster. Prüfe zuerst, ob eine vorhandene Paketkomponente deine Aufgabe erfüllt. Die Inhalte dieser Dokumentation sind auf Englisch.
 
-Sobald der Stack läuft, rahmt die [Develop-Übersicht](/de/develop/overview) die externe Oberfläche ein, gegen die du baust, und [KI-gestützte Entwicklung](/de/develop/ai-assisted-development) deckt ab, wie du Tales eigene Agenten zum Schreiben von Tale-Configs nutzt. Trägst du eine Container-Änderung statt einer Quellcode-Änderung bei, ist [Zu Docker-Images beitragen](/de/develop/contributing-docker) der Build-and-Test-Weg dafür. Die Compose-Overlays im Repo stehen in [Contributor-Compose-Dateien](/de/develop/compose-files).
+## Einen Beitrag prüfen
 
-Berührt deine Änderung die Oberfläche, hat das Design-System eine eigene Seite: [ui.tale.dev](https://ui.tale.dev) dokumentiert `@tale/ui` (die App-Sprache, aus der jeder Plattform-Screen gebaut ist) und `@tale/marketing-ui` (die Marketing-Sprache von tale.dev) mit Live-Beispielen, den Tokens und den Mustern, aus denen ein Screen zusammengesetzt wird — lies sie, bevor du eine Komponente hinzufügst, und greif zum Paket, bevor du ein neues schreibst.
+Lies vor Änderungen `AGENTS.md` und `.agents/repo.md` im Repository. Führe während der Arbeit passende Prüfungen aus und danach die gemeinsame Prüfung im Stammverzeichnis:
+
+```bash
+bun run check
+```
+
+Sie umfasst Formatierung, Lint, Typen und automatisierte Tests. Die Python-Formatierung verwendet zusätzlich `uvx`; installiere dieses Werkzeug vor dem vollständigen Durchlauf. Prüfe Browser-Verhalten auch im Browser. Für Datenbankänderungen verlangt der Repository-Vertrag den Integrationstest mit echtem Postgres.
+
+Aktualisiere betroffene Dokumentation und alle ausgelieferten Sprachen gemeinsam mit deiner Änderung. Für Container-Arbeit lies [Docker-Images bauen](/de/develop/contributing-docker); für externe Integrationen beginne mit [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script).

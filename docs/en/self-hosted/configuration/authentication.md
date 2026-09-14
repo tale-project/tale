@@ -1,57 +1,67 @@
 ---
-title: Authentication
-description: The four sign-in modes Tale ships with — local password, Microsoft Entra, generic OIDC, and trusted headers — and how an operator switches between them.
+title: Choose an authentication setup
+description: Configure local accounts, enterprise sign-in or a trusted authentication proxy for your deployment.
 ---
+Tale supports local email-and-password accounts, organization-specific enterprise sign-in and identity supplied by a trusted reverse proxy. Choose based on where your team’s identities are managed and who owns account provisioning. Sign-in and provisioning are separate decisions: SSO authenticates a person, while invitations, sign-in provisioning or SCIM control membership.
 
-Tale ships four sign-in modes that an operator picks per instance. The default is local password, with one user per email; Microsoft Entra and generic OIDC delegate identity to an external provider; trusted headers hands the responsibility to a reverse proxy already terminating SSO upstream. The decision is permanent in the sense that it shapes how users are provisioned — switching modes after rollout is possible, but every existing user has to be re-mapped to the new identity source.
+## Choose the right integration
 
-Local password and trusted headers are switched by env vars ([Environment reference](/self-hosted/configuration/environment-reference)); Microsoft Entra and generic OIDC are configured per organisation inside the running app. This page is the mode-by-mode walkthrough — when to choose each, what it changes for the user, what breaks when it is misconfigured.
+| Your environment | Configure | Main prerequisite |
+| --- | --- | --- |
+| Local accounts managed in Tale | Local sign-in and invitations | Stable deployment secrets and a reachable instance URL. |
+| An existing corporate identity provider | Enterprise SSO: Microsoft Entra ID, generic OIDC, OAuth2 or SAML 2.0 | An IdP application configured with Tale’s exact callback or metadata URLs. |
+| An upstream proxy already authenticates every request | Trusted headers | A private backend connection and a shared internal secret. |
 
-## Local password (default)
+These mechanisms are not a single deployment-wide selector. Enterprise SSO is configured per organization; trusted headers are enabled at deployment level. Plan and test changes to identity mapping before moving existing accounts to another mechanism.
 
-Local password is the mode you get if you set nothing. The platform stores a bcrypt hash in Postgres, signs the session with `BETTER_AUTH_SECRET`, and the user signs in with an email and password the admin invites them with. No external identity provider is involved.
+## Establish the public URL first
 
-Reach for it on small instances and air-gapped deployments where adding an IdP is more friction than it solves. The cost: password reset goes through the admin (or through email if `SMTP_*` is configured), and there is no SSO story.
+Set `SITE_URL` and any supported base-path configuration to the URL people will actually open. Complete [TLS and domain setup](/self-hosted/configuration/tls-and-domains) before registering redirect URLs with an identity provider.
 
-```bash
-# .env — no flags needed for local password
-HOST=localhost
-SITE_URL=https://localhost
-BETTER_AUTH_SECRET=...
-```
+Keep `BETTER_AUTH_SECRET` stable across the backend processes that serve the instance. Use the generated secret from your deployment tooling or inject it from your secret manager. A mismatch can interrupt authentication even when the identity provider accepts the user.
 
-## Microsoft Entra
+## Use local accounts
 
-The Microsoft Entra mode adds a **Continue with SSO** button to the sign-in screen and accepts users from a tenant you control. There is no env-var switch: the connection is configured per organisation under **Settings > Enterprise SSO** once the platform is up — pick the **Microsoft Entra ID** protocol and enter the client ID, client secret, and issuer URL from your app registration. The full walkthrough, including role mapping and group-to-team sync, is [Enterprise SSO and provisioning](/platform/admin/enterprise-sso).
+Local sign-in stores password hashes in the application database. The [first-admin setup](/self-hosted/install/first-admin) creates the initial Owner; later members join by invitation. Configure mail delivery if your onboarding and password-recovery process relies on email.
 
-Two deployment values must be right before the flow can work: `SITE_URL`, because the sign-in redirect URL is derived from it, and `BETTER_AUTH_SECRET`, which signs the OAuth state. The redirect URI to register in Entra is `${SITE_URL}${BASE_PATH}/http_api/api/sso/callback` — the settings page shows the exact URL to copy, and it must match byte-for-byte or Entra rejects the sign-in with `AADSTS50011`. The tenant ID in the Entra app registration narrows who can sign in; a multi-tenant registration accepts anyone with a Microsoft account, which is rarely what you want.
+Verify the complete flow with a test account: invitation, sign-in, sign-out and recovery. A working owner session does not prove that a new member can join.
 
-## Generic OIDC
+## Connect enterprise sign-in
 
-Generic OIDC accepts any spec-compliant identity provider — Keycloak, Authentik, Okta, Google Workspace. Configuration lives on the **Single Sign-On** card under **Settings > Connectors**: pick the **Generic OIDC** provider type, enter the issuer URL, client ID, and client secret, and Tale reads the authorization, token, and userinfo endpoints from the issuer's `.well-known/openid-configuration` document. The flow uses the standard Authorization Code grant with PKCE (S256). Tale stores no secret on disk for OIDC; the client ID and client secret live in the encrypted credential store. The redirect URI to register with your provider is `${SITE_URL}/http_api/api/sso/callback`.
+Configure the organization under **Settings > Enterprise SSO**. Microsoft Entra ID and generic OIDC use issuer discovery; OAuth2 takes explicit authorization, token and userinfo endpoints; SAML uses metadata, an assertion-consumer URL and signing certificates.
 
-Identity providers disagree on where claims live, so the card lets you point Tale at yours. The **Email claim**, **Name claim**, and **Groups claim** fields take a claim name or a dot path into the userinfo response — Keycloak's realm roles, for example, sit at `realm_access.roles`. Role mapping rules assign platform roles at sign-in: a **Group** rule matches the user's groups against a wildcard pattern (`platform-admin*` → Admin), a **Claim** rule matches any claim resolved by dot path. **Auto-provision teams** mirrors the groups your provider returns as Tale teams on every sign-in, minus the groups you exclude.
+<Frame caption="Copy the URLs from the running instance so its domain and deployment path are included.">
 
-A worked Keycloak example: create a confidential client `tale-platform` with the redirect URI above, add a Group Membership mapper so the client emits `groups` in userinfo, then in Tale set the issuer to `https://keycloak.example.com/realms/<realm>`, add a group rule `platform-admin*` → Admin, and click **Test connection** — it validates discovery before anything is saved.
+![The Enterprise SSO settings page shows protocol selection and the connection fields for Microsoft Entra ID.](/images/platform/settings-enterprise-sso.webp)
 
-This is the mode for teams that already run an IdP and want their existing identity surface in Tale.
+</Frame>
 
-## Trusted headers
+Use the callback and metadata URLs shown there rather than reconstructing them. Current native OIDC callbacks use `/api/sso/callback`; the compatibility route `/http_api/api/sso/callback` is also supported for existing registrations. The IdP registration must match the URL used by the flow.
 
-Trusted headers is the mode for sites that terminate SSO at an upstream reverse proxy — oauth2-proxy, Pomerium, Authelia. The proxy authenticates the user and forwards identity headers; Tale reads `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams` by default, trusts them, and creates or updates the user record on the fly. A proxy that names its headers differently (oauth2-proxy sends `X-Auth-Request-Email`) is mapped with the `TRUSTED_*_HEADER` variables in the [environment reference](/self-hosted/configuration/environment-reference).
+Follow [Enterprise SSO and provisioning](/platform/admin/enterprise-sso) for protocol-specific setup, claim mapping, default roles, team synchronization and SCIM. Test sign-in in a separate browser session before ending the administrator session used to configure it. Discovery passing does not prove claims, group permissions or a complete sign-in.
 
-```bash
-# .env
-TRUSTED_HEADERS_ENABLED=true
-TRUSTED_HEADERS_INTERNAL_SECRET=<long random value>
-```
+## Trust an authentication proxy
 
-The secret is not optional: the identity headers alone are forgeable by anything that can reach the backend, so the endpoint refuses to run until `TRUSTED_HEADERS_INTERNAL_SECRET` is set. Configure the authenticating proxy to send the same value in the `Remote-Internal-Secret` header on every request it forwards to Tale (rename the header with `TRUSTED_SECRET_HEADER` if your proxy dictates its own naming) — a request arriving without the matching value is refused before any user is looked up.
+Enable trusted headers only when your proxy owns authentication and can protect the connection to Tale. The default identity headers are `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams`.
 
-`Remote-Teams` carries team memberships as comma-separated `id:name` entries — `t-fin:Finance, t-ops:Operations`. On every sign-in Tale creates each named team in the organization if it does not exist yet and puts the user in it; a team the header stops naming is left again. The sync only touches memberships it granted itself — a membership an admin assigned by hand stays. Leave the header out to keep Tale out of team management; send it present but empty to revoke every membership the proxy granted. A present value with no `id:name` entry in it (bare names, for instance) counts as empty and leaves a warning in the platform container's log — check there when users lose their teams after a proxy change.
+Set `TRUSTED_HEADERS_ENABLED=true` and inject `TRUSTED_HEADERS_INTERNAL_SECRET`. Configure the proxy to supply that secret in `Remote-Internal-Secret` on forwarded requests. The [environment reference](/self-hosted/configuration/environment-reference) lists the `TRUSTED_*_HEADER` variables for changing those names.
 
-The threat model is still delicate. Anything that can reach the platform container with those headers **and** the secret becomes the user named in them. Restrict the platform port so only the proxy can speak to it (a Docker network or a host firewall rule), and never expose the platform container directly to the internet when this mode is on.
+<Warning>
 
-## Where this fits
+The proxy must remove client-supplied identity headers and set its own authenticated values. Restrict backend access to that proxy. Anyone who can submit matching identity headers and the internal secret can impersonate the named user.
 
-The four modes are mutually exclusive in spirit but technically additive — Microsoft Entra and trusted headers can coexist on the same instance if your IdP story is mid-migration. The full per-mode trade-off table lives in [Members and roles](/platform/admin/members-and-roles) on the user side; this page covers the operator's switch. The next configuration page worth reading is [Providers](/self-hosted/configuration/providers) — once users can sign in, you still need at least one model provider wired up before they can do anything.
+</Warning>
+
+`Remote-Teams` contains comma-separated `id:name` entries, for example `t-fin:Finance,t-ops:Operations`. An omitted header leaves team management alone; a present empty header removes memberships previously granted by this synchronization. Invalid entries can therefore remove synchronized memberships. Manually granted memberships are preserved.
+
+## Diagnose sign-in failures
+
+| Symptom | Check first |
+| --- | --- |
+| IdP rejects a redirect | Compare its registered URL with the URL shown by Tale, including scheme, host and path. |
+| Redirect returns but sign-in fails | Check callback reachability, cookies and the configured claim names. |
+| Member receives the wrong role | Check default role and mapping rules with that person’s actual claims. |
+| Synchronized teams disappear | Inspect the groups claim or `Remote-Teams` value; distinguish absent from empty. |
+| Trusted-header sign-in is refused | Check enablement, the shared secret and proxy header names. |
+
+Use a staging organization for mapping changes and keep a tested administrative recovery path. Authentication changes can affect every member whose identity depends on the connection.

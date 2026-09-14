@@ -4,7 +4,8 @@
  * hand-made, so a retake of the docs images is one command away from a retake
  * of the README.
  *
- *   bun run readme:assets
+ *   bun run readme:assets --gallery-only  # static gallery only
+ *   bun run readme:assets                 # gallery and animated tour
  *
  * Sources are the full frames under `services/docs/public/images/`, which are
  * 1.6:1 by construction (a 1440×900 viewport at DPR 2). Every asset here keeps
@@ -18,6 +19,7 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 import sharp from 'sharp';
 
@@ -25,6 +27,10 @@ const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(HERE, '../../../..');
 const IMAGES = path.join(REPO_ROOT, 'services/docs/public/images');
 const ASSETS = path.join(REPO_ROOT, '.github/assets');
+const { values } = parseArgs({
+  args: process.argv.slice(2),
+  options: { 'gallery-only': { type: 'boolean', default: false } },
+});
 
 /** Gallery tile → the docs frame it is a downscale of. */
 const TILES: ReadonlyArray<{ name: string; source: string }> = [
@@ -59,7 +65,7 @@ const TOUR_FRAMES: readonly string[] = [
 
 /** Bounding boxes — every source is 1.6:1, so fitting inside is a plain
  *  downscale, never a stretch. */
-const TILE_BOX = { width: 802, height: 502 } as const;
+const TILE_BOX = { width: 1202, height: 752 } as const;
 const TOUR_BOX = { width: 1402, height: 877 } as const;
 /** Straight cuts, held long enough to read — a morph between product screens
  *  just smears text. */
@@ -70,9 +76,11 @@ const sourcePath = (source: string): string =>
 const assetPath = (name: string): string => path.join(ASSETS, `${name}.webp`);
 
 async function main(): Promise<void> {
-  const missing = [...TILES.map((tile) => tile.source), ...TOUR_FRAMES].filter(
-    (source) => !existsSync(sourcePath(source)),
-  );
+  const sources = [
+    ...TILES.map((tile) => tile.source),
+    ...(values['gallery-only'] ? [] : TOUR_FRAMES),
+  ];
+  const missing = sources.filter((source) => !existsSync(sourcePath(source)));
   if (missing.length > 0) {
     console.error(
       'Missing docs screenshots — run `bun run docs:screenshots` first:\n' +
@@ -85,10 +93,12 @@ async function main(): Promise<void> {
     // sharp drops the capture rig's metadata unless asked to keep it.
     await sharp(sourcePath(tile.source))
       .resize(TILE_BOX.width, TILE_BOX.height, { fit: 'inside' })
-      .webp({ quality: 82 })
+      .webp({ quality: 92 })
       .toFile(assetPath(tile.name));
     console.log(`✓ ${tile.name}.webp ← ${tile.source}.webp`);
   }
+
+  if (values['gallery-only']) return;
 
   // Animation frames must share one size, so scale each first, then join
   // them as pages of one animated WebP.

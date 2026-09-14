@@ -61,11 +61,13 @@ function localeFromPathname(pathname: string): SupportedLocale {
 /** Slug-section keys (e.g. "self-hosted") map to camelCase i18n keys
  *  (e.g. "selfHosted") so we can reuse the existing `nav.groups` namespace. */
 const SECTION_TO_NAV_KEY: Record<string, string> = {
+  'get-started': 'start',
   cloud: 'cloud',
   'self-hosted': 'selfHosted',
   platform: 'platform',
   develop: 'develop',
   tutorials: 'tutorials',
+  legal: 'legal',
 };
 
 /**
@@ -141,7 +143,7 @@ function RootLayout() {
           activeSlug={activeSlug}
           onOpenSearch={openSearch}
         />
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
           <Outlet />
         </main>
         <DocsFooter />

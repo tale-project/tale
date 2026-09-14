@@ -1,26 +1,24 @@
 ---
-title: Installation
-description: Deux façons de faire tourner Tale — la CLI, ou une stack que tu écris toi-même (Compose ou Kubernetes).
+title: Choisir une méthode d’installation
+description: Installe un environnement avec la CLI Tale ou mets en œuvre l’architecture documentée avec tes propres outils d’infrastructure.
 ---
 
-Installer Tale prend deux formes. La CLI enveloppe Docker Compose, tu n’édites aucun fichier. Écrire la stack toi-même est le chemin quand ce wrapper est précisément ce que tu ne peux pas faire tourner — un fichier compose, ou un mapping Kubernetes du même contrat.
+Utilise la CLI Tale pour une installation standard. Choisis ton propre déploiement lorsque tes outils d’infrastructure doivent gérer les définitions des services. Les deux méthodes nécessitent les mêmes services applicatifs et une personne responsable de la configuration et de la maintenance.
 
-## La CLI
+## Installer avec la CLI
 
-Installe la CLI, puis `tale init` et soit `tale dev`, soit `tale deploy`. Le même répertoire de projet est l’unité : un essai sur laptop devient un hôte de production sans réinitialiser.
+Le [guide de démarrage](/fr/self-hosted/install/quickstart) couvre les prérequis, la création du projet, le démarrage et la première connexion. `tale init` prépare un répertoire de projet. `tale dev` lance une instance de développement ; `tale deploy` déploie cet environnement.
 
-- [Démarrage rapide](/fr/self-hosted/install/quickstart) — `tale init`, puis `tale dev` ou `tale deploy`.
-- Après le premier boot, [Premier admin](/fr/self-hosted/install/first-admin) fait du premier compte l’**Owner**. Tous les suivants arrivent par invitation.
-- [Installation de la CLI](/fr/self-hosted/install/cli-install) est l’installateur et la moitié workstation distante (`DOCKER_HOST`).
+La CLI gère les opérations sur les conteneurs. Tu restes responsable de la configuration, des identifiants, des volumes et des mises à jour. Conserve le répertoire du projet avec ses paramètres de déploiement. [Installer la CLI](/fr/self-hosted/install/cli-install) décrit les systèmes pris en charge, l’accès à un hôte Docker distant, les commandes et les déploiements gérés.
 
-## Écrire la stack toi-même
+## Utiliser tes propres définitions de services
 
-Pas de chart Helm officiel. Le contrat est le même que tu écrives Compose ou Kubernetes : quels services tiennent l’état, les noms DNS, les sondes, les volumes, et ce qu’un fichier que tu maintiens ne fait pas pour toi.
+[Exploiter ton propre déploiement](/fr/self-hosted/install/own-compose) décrit les services, les volumes, le réseau, les contrôles de disponibilité et l’ordre de démarrage à respecter. Suis ce guide si tu maintiens Compose ou transposes cette architecture dans Kubernetes. Tale ne fournit pas de chart Helm officiel.
 
-[Écrire Compose toi-même](/fr/self-hosted/install/own-compose) est cette page.
+Pour modifier le code source de Tale, configure plutôt un [environnement de développement](/fr/develop/contributor-setup).
 
-## Où cela s’inscrit
+## Terminer la configuration initiale
 
-Choisis selon ce que tu acceptes d’exploiter. Le [démarrage rapide](/fr/self-hosted/install/quickstart) est le chemin CLI — laptop ou hôte de production. Le chemin compose-ou-cluster est pour l’air-gap et l’automation déjà en place.
+Une fois l’instance prête, [crée le premier compte administrateur](/fr/self-hosted/install/first-admin), connecte un fournisseur et teste une conversation. Ajoute ensuite les utilisateurs dans [Membres et rôles](/fr/platform/admin/members-and-roles), selon les options de compte et de connexion disponibles dans ton organisation.
 
-Une fois installé, les pages [Configuration](/fr/self-hosted/configuration/environment-reference) sont chaque variable d’environnement et fichier de fournisseur, et [Exploitation](/fr/self-hosted/operate/container-architecture) couvre les montées de version, les sauvegardes et l’observabilité.
+Avant d’utiliser des données de production, configure TLS et les sauvegardes. Vérifie les [paramètres d’environnement](/fr/self-hosted/configuration/environment-reference) et consulte l’[architecture d’exploitation](/fr/self-hosted/operate/container-architecture).

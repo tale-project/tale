@@ -1,54 +1,60 @@
 ---
-title: Rétention
-description: Comment la rétention à l'échelle de l'organisation est configurée — bornes opérateur dans les variables d'env et contrôles UI sous Gouvernance pour les chats, documents, audit logs.
+title: Définir les limites de conservation
+description: Fixe les limites par organisation, applique les changements après examen et comprends la suppression des données.
 ---
+La conservation détermine combien de temps Tale garde chaque catégorie de données. L’opérateur fixe les limites autorisées ; l’admin de l’organisation active les catégories et choisit une durée dans ces limites. Une durée plus courte peut supprimer un historique existant : examine son effet avant de l’appliquer.
 
-La rétention dans Tale est la policy qui supprime les vieilles données sur un planning — chats, documents, audit logs, exécutions de workflow, lignes du ledger d'usage de tokens. L'opérateur fixe les bornes (minimums et maximums) par catégorie ; l'admin de chaque organisation choisit la fenêtre de rétention réelle dans ces bornes via **Paramètres > Gouvernance > Politique de rétention**. La séparation existe pour qu'une équipe d'hébergement puisse imposer des planchers de compliance sans micromanager chaque tenant.
+## Distinguer limites et politique
 
-Cette page couvre la surface opérateur. Les contrôles côté admin et les descriptions par catégorie vivent dans [Gouvernance > Politique de rétention](/fr/platform/admin/governance/policies-and-limits).
+Deux fichiers sous `TALE_CONFIG_DIR/<orgSlug>/governance/` ont des fonctions différentes :
 
-## Comment marchent les bornes
+| Fichier | Fonction |
+| --- | --- |
+| `retention.yml` | Limites et valeurs par défaut définies par l’opérateur pour chaque catégorie. JSON est aussi accepté. |
+| `retention-policy.yml` | Catégories actives et durées choisies par l’organisation. Les paramètres de gouvernance gèrent ce fichier. |
 
-Chaque catégorie de rétention — fils de chat, documents, contacts, fournisseurs, templates de prompt, lignes de ledger, audit logs, exécutions de workflow, logs de triggers de workflow, tentatives de login — a un `min` et un `max`. Un admin d'org fixe une valeur dans cette fenêtre. Resserrer le plancher sur une instance existante est un flow en plusieurs étapes : l'opérateur propose la nouvelle borne, chaque admin affecté voit une bannière, le changement s'applique une fois accepté.
+Chaque organisation reçoit ses propres fichiers à sa création. Modifier ceux d’une organisation ne change pas la politique d’une autre. Si son fichier de limites manque, Tale ne reprend pas celui d’une organisation `default`.
 
-| Catégorie                    | Plancher typique | Pourquoi                                                  |
-| ---------------------------- | ---------------- | --------------------------------------------------------- |
-| Historique de chat           | 30 j             | La plupart veulent du contexte récent, pas pour toujours  |
-| Documents                    | 1 a              | Les connaissances vieillissent lentement                  |
-| Audit logs                   | 1 a minimum      | Les frameworks de compliance attendent un an              |
-| Ledger d'usage de tokens     | 90 j             | Analytics et rapports de budget s'appuient sur les lignes |
-| Logs d'exécution de workflow | 30 j             | Le debugging remonte rarement plus loin                   |
-| Tentatives de login          | 30 j             | L'enquête brute-force a besoin de la trace d'audit        |
+Chaque catégorie contient `min`, `max`, `default` et `unit`. Augmenter `min` impose de garder les données plus longtemps ; diminuer `max` réduit la durée autorisée. Aucune de ces valeurs n’active seule le nettoyage. La politique appliquée détermine si la catégorie est active.
 
-Les défauts livrés sont lâches ; resserre selon ta posture de compliance.
+## Modifier les limites d’une organisation
 
-## Où tu fixes les bornes
+Pars de son fichier complet existant et conserve les catégories que tu ne modifies pas. Cet extrait montre une seule catégorie ; il ne remplace pas le fichier entier :
 
-Sous la disposition org-first, les bornes de rétention sont **par org** : édite `retention.json` directement dans le sous-arbre d'une org sous `TALE_CONFIG_DIR` (par défaut `/app/data/` dans le conteneur plateforme, le fichier se trouve donc à `/app/data/<org>/retention.json`, p. ex. `/app/data/default/retention.json`). Chaque org a son propre fichier ; celui de l'org `default` est le modèle qu'un nouveau déploiement reprend au premier démarrage.
-
-```json
-{
-  "chatHistory": { "min": 30, "max": 730, "unit": "days" },
-  "documents": { "min": 1, "max": 3650, "unit": "days" },
-  "auditLog": { "min": 365, "max": 3650, "unit": "days" },
-  "tokenLedger": { "min": 90, "max": 1095, "unit": "days" }
-}
+```yaml
+chatHistory:
+  min: 30
+  max: 730
+  default: 90
+  unit: days
 ```
 
-Le conteneur plateforme surveille le fichier ; les changements proposent une mise à jour de bornes pour chaque org existante. Les admins voient la proposition dans leur écran **Politique de rétention** et l'appliquent eux-mêmes. L'étape propose-puis-applique est délibérée : resserrer un plancher raccourcit l'historique, ce qui est une action destructive qu'aucun opérateur ne devrait poser silencieusement sur chaque tenant.
+La plupart des catégories utilisent les jours ; `userTempHours` et `agentTempHours` utilisent les heures. La catégorie de consommation de tokens s’appelle `usageLedger`. Reprends les identifiants du fichier existant pour que la validation puisse détecter les erreurs.
 
-Les fenêtres de rétention choisies par l'admin vivent dans un fichier distinct, `retention-policy.json`, à côté des bornes dans le même dossier `governance/`. Il contient des champs plats `<catégorie>Enabled` / `<catégorie>RetentionDays` (p. ex. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), pas les bornes `min`/`max`. Ce fichier est écrit par **Paramètres > Gouvernance > Politique de rétention** dans l'app, donc les admins ne l'éditent normalement jamais à la main — garde-le distinct du fichier de bornes géré par l'opérateur.
+Les variables d’environnement sont associées explicitement dans `_metadata.envNames`, à la racine du fichier, avec un préfixe facultatif `_metadata.envPrefix`. Le fichier livré associe par exemple `TALE_RETENTION_AUDIT_MIN` à `auditLog.min`. Une variable ne peut qu’augmenter le minimum ou diminuer le maximum. Redémarre les processus backend après avoir modifié leur environnement.
 
-## Le sweep de rétention
+## Examiner et appliquer un changement
 
-Un job planifié dans `tale-backend-worker` fait la suppression réelle. Chaque catégorie est sweepée indépendamment — un run lent sur une ne bloque pas les autres. Les suppressions sont auditées (chaque catégorie a son propre événement `*.retention_deleted`), et restaurer une entité dans sa fenêtre de grâce est possible depuis **Corbeille** avant le sweep final.
+Après avoir modifié les limites, demande à l’admin de l’organisation d’examiner la proposition dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Le nettoyage utilise les limites déjà appliquées ; une modification du fichier par l’opérateur ne les active pas silencieusement.
 
-Les entrées d'audit log sont elles-mêmes soumises à la rétention, mais leur plancher est imposé par déploiement, pas par org : la rétention d'audit log la plus stricte (la plus courte) à travers toutes les orgs est ce qui tourne effectivement. Un tenant plus strict tire tout le monde plus serré — garde ça en tête sur les instances multi-tenants.
+Vérifie les catégories actives, les anciennes et nouvelles durées et les éventuels délais de grâce. `auditLogRetentionDays: 730` est une durée choisie, tandis que `auditLog.min: 365` est une limite minimale. Distingue ces deux sens pendant la revue du diff.
 
-## Legal hold
+<Tip>
 
-Un legal hold gèle la rétention pour un scope spécifique : un fil unique, un enregistrement client, ou toute une organisation. Les entités tenues sautent le sweep jusqu'à ce que le hold soit relâché. Le hold lui-même est audité ; les holds à l'échelle de l'org sont assez bruyants pour que l'UI fasse remonter une confirmation avant qu'ils s'appliquent.
+Teste d’abord une durée réduite sur des données synthétiques. Vérifie qu’une donnée encore dans la période reste présente, qu’une donnée expirée suit le comportement de sa catégorie et qu’une donnée sous gel reste protégée.
 
-## Où cela s'inscrit
+</Tip>
 
-Le fichier de bornes est le levier de l'opérateur ; les fenêtres par catégorie que l'admin voit sont documentées dans [Politique de rétention](/fr/platform/admin/governance/policies-and-limits). Si tu fixes des bornes contre un framework de compliance (RGPD, HIPAA, SOC 2), le plancher d'audit log est habituellement ce que les auditeurs vérifient en premier.
+## Comprendre le nettoyage
+
+Le worker backend effectue le nettoyage planifié par organisation. Les threads, documents, contacts et conversations externes ont un cycle de vie ; les catégories de lignes individuelles peuvent être supprimées directement après leur durée de conservation et leur délai de grâce. Ne suppose pas que chaque élément supprimé passe par la Corbeille.
+
+La conservation des journaux d’audit est aussi propre à chaque organisation. Elle supprime le début éligible de sa chaîne d’audit, du plus ancien au plus récent, et s’arrête lorsqu’une ligne sous gel doit rester. La durée plus courte d’un tenant ne réduit pas l’historique d’un autre.
+
+`TALE_RETENTION_DISABLED=true` suspend le nettoyage planifié pendant une maintenance contrôlée par l’opérateur. Cette variable ne restaure pas les données et ne désactive pas les autres voies de suppression. Consigne son activation et retire-la à la fin de la maintenance.
+
+## Préserver les données sous gel
+
+Les gels juridiques priment sur la conservation dans leur périmètre. Un gel de l’organisation la protège dans son ensemble ; un gel plus ciblé protège les entités ou personnes concernées. Consulte le [parcours du gel juridique](/fr/platform/admin/governance/legal-hold) avant de modifier une politique qui les touche.
+
+Un gel ne remplace pas une sauvegarde. Une fois la suppression achevée hors gel, augmenter la durée ne récupère pas les données. La restauration dépend d’une sauvegarde conservée et de l’état de déploiement correspondant.

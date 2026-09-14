@@ -32,6 +32,7 @@ import {
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
+  DEMO_EMPTY_DOCUMENT,
   DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -48,6 +49,7 @@ import {
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
+  DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
   type DemoDocument,
@@ -80,11 +82,13 @@ const isPresent = (locator: Locator): Promise<boolean> =>
  * already exists: it made four "Growth" teams across four runs, and re-created
  * a project until the mutation threw PROJECT_KEY_TAKEN.
  *
- * The row-count footer ("Showing all N …", role=status) renders only once the
+ * The row-count footer ("Showing all N …", an output element) renders only once the
  * list query has returned, so it is the honest settled marker.
  */
-async function settleList(page: Page): Promise<void> {
-  await expect(page.getByRole('status').first()).toBeVisible({
+// Loading masks and unrelated toasts also expose role=status. Only the
+// table's output footer establishes that its query returned rows.
+export async function settleList(page: Page): Promise<void> {
+  await expect(page.locator('output').first()).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
 }
@@ -92,13 +96,16 @@ async function settleList(page: Page): Promise<void> {
 /**
  * Like settleList, for pages that REPLACE the table (footer included) with an
  * empty-state hero when they hold no rows — on a fresh org the documents page
- * shows "No documents yet" and no role=status ever arrives. Settle on
+ * shows "No documents yet" and no output footer ever arrives. Settle on
  * whichever renders first; when it is the empty state, grant the query one
  * flash window to disprove it (the DataTable paints `data ?? []` while the
  * query is still in flight, so a just-loading table can masquerade as empty).
  */
-async function settleListOrEmpty(page: Page, empty: Locator): Promise<void> {
-  await expect(page.getByRole('status').first().or(empty.first())).toBeVisible({
+export async function settleListOrEmpty(
+  page: Page,
+  empty: Locator,
+): Promise<void> {
+  await expect(page.locator('output').first().or(empty.first())).toBeVisible({
     timeout: TIMEOUT.FIRST_PAINT,
   });
   if (await isPresent(empty)) {
@@ -371,7 +378,11 @@ async function ensureProjectAgents(
         name: t('projects.agents.modelSearchPlaceholder'),
       })
       .fill(agent.model);
-    await page.getByRole('option', { name: agent.model }).first().click();
+    // Search accepts the API id while the option presents its friendly label.
+    // The id is unique within this fixture provider; the filtered option is
+    // the same model/provider pair the form persists.
+    await expect(page.getByRole('option')).toHaveCount(1);
+    await page.getByRole('option').click();
     await dialog
       .getByRole('textbox', {
         name: t('projects.agents.instructionsLabel'),
@@ -596,7 +607,12 @@ async function ensureDocuments(
   page: Page,
   orgId: string,
   documents: readonly DemoDocument[] = DEMO_DOCUMENTS,
+  expectedStatus: 'indexed' | 'unsupported' = 'indexed',
 ): Promise<void> {
+  const labels = {
+    ...DOCUMENT_LABELS,
+    indexed: t(`documents.rag.status.${expectedStatus}`),
+  };
   await page.goto(`/dashboard/${orgId}/documents`);
   const importButton = page.getByRole('button', {
     name: t('documents.upload.importDocuments'),
@@ -639,12 +655,12 @@ async function ensureDocuments(
       .click();
     const row = page.getByRole('row').filter({ hasText: doc.fileName }).first();
     await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await awaitIndexed(row, DOCUMENT_LABELS.indexed, doc.fileName);
+    await awaitIndexed(row, labels.indexed, doc.fileName);
   }
   for (const doc of documents) {
     await retryFailedIndexing(
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
-      DOCUMENT_LABELS,
+      labels,
       doc.fileName,
     );
   }
@@ -814,8 +830,9 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
 /**
  * Connect the Tavily connector so connector-bound builtin agents — the
  * Researcher — offer themselves in the chat agent picker. Outbound Tavily
- * HTTP is rewritten to the mock gateway (`TALE_MOCK_CONNECTORS_BASE`), so
- * the key value is arbitrary and nothing ever leaves the machine.
+ * The fixture supplies a synthetic credential for the settings capture.
+ * Seeding does not execute Tavily requests; gateway availability alone does
+ * not redirect runtime connector traffic.
  */
 async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/connectors`);
@@ -1092,8 +1109,7 @@ async function ensureMembers(
   const addButton = page.getByRole('button', {
     name: t('settings.organization.addMember'),
   });
-  // This page renders several role=status regions (the org form's save state
-  // among them), so settleList would latch onto the wrong one. The owner's row
+  // This page has no table output footer. The owner's row
   // is always in the members table once it has resolved.
   await expect(
     page.getByRole('row').filter({ hasText: DEMO_OWNER.email }).first(),
@@ -1193,7 +1209,7 @@ async function ensureTeams(
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   // The teams table hides its row-count footer entirely at zero rows — no
-  // role=status, no empty-state hero, just the header row — so a fresh org
+  // output footer, no empty-state hero, just the header row — so a fresh org
   // gives settleList nothing to latch onto. Settle on footer-or-table and,
   // when the footer is absent, grant the query the same flash window
   // settleListOrEmpty grants an empty state.
@@ -1267,6 +1283,13 @@ async function ensureApiKeys(page: Page, orgId: string): Promise<void> {
   }
 }
 
+/** A retired fixture must not satisfy a similarly named active device. */
+export function webdavPasswordRow(page: Page, label: string): Locator {
+  return page.getByRole('row').filter({
+    has: page.getByText(label, { exact: true }),
+  });
+}
+
 /** WebDAV app-passwords (Settings > API > WebDAV). */
 async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/api/webdav`);
@@ -1275,8 +1298,7 @@ async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
     .first();
   await expect(generateButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const label of DEMO_WEBDAV_LABELS) {
-    if (await isPresent(page.getByRole('row').filter({ hasText: label })))
-      continue;
+    if (await isPresent(webdavPasswordRow(page, label))) continue;
     await generateButton.click();
     const dialog = page.getByRole('dialog', { name: t('webdav.create.title') });
     await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
@@ -1291,10 +1313,28 @@ async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
     });
     await expect(dismiss).toBeVisible({ timeout: TIMEOUT.PERSIST });
     await dismiss.click();
-    await expect(
-      page.getByRole('row').filter({ hasText: label }).first(),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(webdavPasswordRow(page, label).first()).toBeVisible({
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
   }
+  const retiredRow = webdavPasswordRow(page, DEMO_WEBDAV_RETIRED_LABEL);
+  const revoke = retiredRow.getByRole('button', {
+    name: t('webdav.list.revoke'),
+    exact: true,
+  });
+  if (await isPresent(revoke)) {
+    await revoke.click();
+    await page
+      .getByRole('dialog', { name: t('webdav.revokeDialog.title') })
+      .getByRole('button', {
+        name: t('webdav.revokeDialog.confirm'),
+        exact: true,
+      })
+      .click();
+  }
+  await expect(
+    retiredRow.getByText(t('webdav.list.revoked'), { exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 }
 
 /** Per-user custom instructions (Settings > Preferences). */
@@ -1523,15 +1563,15 @@ export async function seedDemoOrg(
     );
   }
   await step('documents', () => ensureDocuments(page, orgId));
+  await step('empty document indexing explanation', () =>
+    ensureDocuments(page, orgId, [DEMO_EMPTY_DOCUMENT], 'unsupported'),
+  );
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
   await step('knowledge entry documents indexed', () =>
     ensureKnowledgeEntryDocumentsIndexed(page, orgId),
   );
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
-  await step('researcher agent installed', () =>
-    ensureResearcherInstalled(orgId),
-  );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));

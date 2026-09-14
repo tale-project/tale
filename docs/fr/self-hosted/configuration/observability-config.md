@@ -1,37 +1,37 @@
 ---
-title: Configuration de l'observabilité
-description: Les variables d'env et flags qui activent les logs, les métriques et le suivi d'erreurs — et où chacune route quoi.
+title: Configurer la supervision
+description: Consulter les journaux, collecter les métriques protégées et choisir la destination des rapports d’erreur.
 ---
+Commence par les journaux des conteneurs et l’état des services. Ajoute les métriques Prometheus pour suivre les tendances et déclencher des alertes, puis un service de suivi des erreurs si tu veux consulter leur historique. Tale n’envoie ces données à un service de supervision externe que si tu en configures un.
 
-Tale ship trois coutures d'observabilité : logs stdout depuis chaque conteneur, métriques au format Prometheus derrière un bearer token, et reporting d'erreurs Sentry optionnel. Les défauts sont assez bruyants pour repérer un crash et assez discrets pour tenir dans le journald d'un seul hôte ; les boutons de production ci-dessous ajoutent les chemins structurés que ta stack de monitoring existante peut scraper. Aucune des trois n'envoie quoi que ce soit hors-hôte sauf si tu le configures.
+## Consulter les journaux de l’application
 
-Cette page couvre les interrupteurs côté serveur. Le playbook d'alerte côté opérateur vit dans [Opérations](/fr/self-hosted/operate/observability/operations), et la recherche par symptôme dans [Dépannage](/fr/self-hosted/operate/observability/troubleshooting).
+Les conteneurs écrivent sur stdout et stderr. La configuration Compose fournie utilise le pilote Docker `json-file`, avec une rotation à 10 Mo par fichier et trois fichiers par conteneur. Utilise les noms de services de ton fichier Compose :
 
-## Logs
+```bash
+docker compose logs --tail=100 backend-api backend-worker
+docker compose logs -f backend-api
+```
 
-Chaque conteneur écrit des logs JSON structurés ou console vers stdout, capturés par le driver `json-file` par défaut de Docker avec une rotation de 10 Mo par fichier et 3 fichiers. La destination des logs est fonction de comment tu déploies :
+Appuie sur `Ctrl-C` pour arrêter le suivi ; les conteneurs continuent de fonctionner. Consulte `backend-api` pour les requêtes, la connexion et les réponses du chat interactif ; utilise `backend-worker` pour les tâches de fond, les appels d’agent mis en file et l’importation des documents. `docker compose ps` permet de repérer un conteneur qui redémarre en boucle.
 
-- Hôte unique avec journald — `journalctl -u docker` porte le tout.
-- Hôte unique sans journald — `docker compose logs -f <service>` pour le tailing en direct.
-- Aggregator (Loki, Vector, Fluent Bit) — pointe le driver de logging Docker dessus via `daemon.json`.
+`journalctl -u docker` affiche le journal du démon Docker. Avec le pilote par défaut `json-file`, il ne remplace pas les journaux des conteneurs. Pour utiliser journald ou centraliser les journaux, configure séparément le pilote Docker et leur collecte. Tale ne fournit pas d’agent de collecte. Un changement de pilote exige de recréer les conteneurs concernés.
 
-Tale ne ship pas de log shipper. L'échange de driver est le point de connector supporté.
+## Activer les métriques protégées {#metriques}
 
-## Métriques
+Définis un `METRICS_BEARER_TOKEN` robuste dans l’environnement du déploiement. Applique la modification avec ta procédure habituelle afin de recréer les services concernés. Un simple redémarrage de conteneur ne recharge pas les variables d’environnement de Compose. Enregistre le même jeton dans le gestionnaire de secrets de ton système de supervision.
 
-Le proxy Caddy expose trois chemins de métriques derrière un seul bearer token :
+Le proxy exige `Authorization: Bearer <token>` pour ces routes. Sans jeton configuré, elles renvoient **401**.
 
-| Chemin               | Source             | Ce qui est dedans                                                                                                                                                                                              |
-| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/metrics/platform`  | `tale-platform`    | Latence HTTP, compteurs de routes, métriques de processus Node, gauges de cible SLA de temps de réponse                                                                                                        |
-| `/metrics/sla-rules` | `tale-platform`    | Rules Prometheus de recording + alerting générées pour les SLA de temps de réponse                                                                                                                             |
-| `/metrics/backend`   | `tale-backend-api` | Métriques process, compteurs et latence HTTP par classe de route, profondeur de queue par état de job, générations de chat en cours, streams de hints ouverts, état de drain, et les mêmes gauges de cible SLA |
+| Route | Contenu | Utilisation |
+| --- | --- | --- |
+| `/metrics/platform` | Métriques du processus web et objectifs de temps de réponse | Cible de collecte Prometheus |
+| `/metrics/backend` | Métriques HTTP et système du backend, files d’attente, générations actives et état d’arrêt progressif | Cible de collecte Prometheus |
+| `/metrics/sla-rules` | Règles d’enregistrement et d’alerte générées en YAML | Fichier de règles Prometheus |
 
-Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend worker, donc ses timings empruntent la série `/metrics/backend` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer ces endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Le chemin `/metrics/sla-rules` est un fichier YAML de rules en lecture seule que tu charges dans Prometheus, pas une cible de scrape — les seuils qu'il porte sont documentés dans [Opérations](/fr/self-hosted/operate/observability/operations). Tout sauf les chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
+Le backend traite les recherches de connaissances et les tâches d’importation. Ses métriques HTTP et de file d’attente aident à repérer les erreurs et les retards ; elles ne mesurent pas séparément la durée de la recherche ou de la génération. `BACKEND_UPSTREAM` désigne la cible backend d’un déploiement séparé. Cette variable ne crée pas de service de métriques propre aux connaissances.
 
-`/metrics/backend` est servi par le backend applicatif, que chaque déploiement fait tourner ; `BACKEND_UPSTREAM` ne fait que surcharger l'upstream pour un déploiement scindé. Un chemin de métriques gated sans lane sur le déploiement répond 404 au lieu de servir en silence les chiffres d'un autre service sous le mauvais nom.
-
-Une stanza de scrape Prometheus qui marche :
+Crée une tâche de collecte par route. Dans cet exemple, `/run/secrets/tale_metrics_token` est un fichier du conteneur Prometheus qui contient uniquement le jeton. Crée-le avec ton gestionnaire de secrets et autorise Prometheus à le lire.
 
 ```yaml
 scrape_configs:
@@ -39,39 +39,50 @@ scrape_configs:
     scheme: https
     metrics_path: /metrics/platform
     authorization:
-      credentials: <METRICS_BEARER_TOKEN>
+      credentials_file: /run/secrets/tale_metrics_token
+    static_configs:
+      - targets: ['tale.example.com']
+  - job_name: tale-backend
+    scheme: https
+    metrics_path: /metrics/backend
+    authorization:
+      credentials_file: /run/secrets/tale_metrics_token
     static_configs:
       - targets: ['tale.example.com']
 ```
 
-Duplique la stanza par chemin, ou utilise un job unique avec `relabel_configs` si tu préfères.
+Ne collecte pas `/metrics/sla-rules` comme des métriques. Les règles générées utilisent des séries de latence qui nécessitent une instrumentation supplémentaire. Charger le fichier ne suffit pas à mesurer le respect des objectifs de réponse. Examine les règles avant de les charger dans Prometheus. La page [Prometheus et Grafana](/fr/self-hosted/operate/observability/prometheus-grafana) détaille l’installation complète.
 
-## Suivi d'erreurs avec Sentry
+## Choisir la destination des erreurs
 
-Sentry est opt-in via `SENTRY_DSN`. GlitchTip et Bugsink auto-hébergés marchent aussi, puisqu'ils parlent le même format de DSN. Un seul DSN couvre les deux côtés de la stack : l'app navigateur remonte les erreurs front-end, et les conteneurs `backend-api` / `backend-worker` remontent le côté serveur — requêtes plantées, jobs d'arrière-plan échoués et échecs au boot — tagués avec le rôle du processus (`tale.role`) et la version de release.
+`SENTRY_DSN` active le suivi facultatif des erreurs. Il peut désigner Sentry ou un service compatible comme GlitchTip ou Bugsink. Le navigateur et le backend utilisent ce DSN ; les événements du backend indiquent le rôle du processus et la version déployée.
 
 ```bash
-# .env
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Le sample rate plafonne les traces de performance du navigateur et ne s'applique que là — le backend remonte des erreurs, jamais de traces. Laisse-le non défini pour le défaut 1.0 en développement et resserre-le (0.05–0.2) en production. Les stack frames sont envoyés sans rédaction des deux côtés, donc pointe le DSN sur une infra que tu contrôles si tes payloads d'erreur sont sensibles.
+Le taux d’échantillonnage concerne les traces de performance du navigateur. Le backend envoie des erreurs, pas de traces de performance. Le taux par défaut des traces du navigateur est de 1.0 en développement. Choisis un taux adapté à ton budget de supervision en production. Les cadres de pile sont envoyés sans masquage ; choisis la destination selon tes exigences de traitement des données.
 
 ## Statistiques agrégées avec Umami
 
-La mesure du trafic s’active séparément pour chaque déploiement. Définis `UMAMI_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_PROXY_TOKEN` selon la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Une Website ID vide la désactive sans reconstruire l’image. Le Token reste sur le serveur. Utilise une Website ID distincte par déploiement.
+La collecte est désactivée par défaut. Tu l’actives séparément pour chaque déploiement avec `UMAMI_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_PROXY_TOKEN`, décrits dans la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Utilise un identifiant de site distinct par déploiement. Recrée le service de production concerné avec les nouvelles variables ; il n’est pas nécessaire de reconstruire l’image. Pour arrêter la collecte, vide l’identifiant de site et applique la modification de la même façon. Le serveur de développement Vite n’injecte pas cette configuration.
 
-Le proxy sur le domaine du site sert le tracker Umami et transmet uniquement les pages vues et les demandes de contact ou de démo abouties du site marketing. La passerelle de collecte doit authentifier `GET /_collect/script.js` et `POST /_collect/api/send` avec le Bearer Token configuré. Caddy doit remplacer `X-Analytics-Client-IP` par l’adresse du client de confiance. Garde les ports applicatifs privés et configure les réseaux de proxy de confiance si un autre proxy se trouve en amont. Les cookies du navigateur, les identifiants de connexion, les en-têtes de provenance, les titres de page, les paramètres de recherche, les fragments, les identifiants de compte, les champs de formulaire et le contenu produit ne parviennent jamais à la collecte.
+Le navigateur charge le script Umami depuis sa propre origine, sous `/_a/script.js`, et envoie les événements sélectionnés à `/_a/api/send`. Si un chemin de base est configuré, il précède ces URL. Seuls l’identifiant de site et le chemin du proxy figurent dans la configuration du navigateur ; l’origine de collecte et le jeton Bearer restent sur le serveur.
 
-Les rapports contiennent les chemins publics connus, les modèles de routes de la plateforme privée, les origines de provenance, la langue du navigateur, la taille de l’écran, le navigateur, le système, l’appareil et la localisation approximative. La collecte déduit les visites et la localisation de l’adresse IP sans la conserver en clair. Des paramètres génériques remplacent les identifiants privés d’organisation et de ressource. Aucune identité entre sites, capture automatique des clics ou relecture de session. Do Not Track et Global Privacy Control désactivent la collecte.
+`UMAMI_URL` doit désigner une passerelle qui authentifie `GET /_collect/script.js` et `POST /_collect/api/send` avec ce jeton Bearer. L’URL d’un tableau de bord Umami standard ne suffit pas à fournir cette interface. Caddy doit remplacer `X-Analytics-Client-IP` par une adresse client issue d’une source de confiance. Garde les ports applicatifs privés et configure les plages d’adresses des proxys de confiance si un autre proxy se trouve en amont. Le serveur transmet l’IP validée, le User-Agent du navigateur et les en-têtes Umami nécessaires ; il retire les cookies, les identifiants de connexion et les en-têtes de provenance du navigateur.
 
-Après le déploiement, ouvre une page connue, navigue dans l’application et vérifie les deux pages vues dans le site Umami du déploiement. Inspecte le corps de la requête de collecte : une route privée contient des paramètres génériques, sans paramètres de recherche, titres ou données de formulaire. La navigation doit fonctionner même si la collecte est bloquée ou indisponible.
+Les rapports contiennent les chemins publics connus ou les modèles de routes privées de la plateforme, les origines de provenance, la langue du navigateur, la taille de l’écran, le navigateur, le système, l’appareil et la localisation approximative. La collecte déduit les visites et la localisation de l’IP sans conserver l’adresse brute. Des paramètres génériques remplacent les identifiants privés d’organisation et de ressource. Les titres de page, paramètres de recherche, fragments, champs de formulaire et contenus produit sont exclus. Le site marketing compte aussi les demandes de contact et de démo abouties, sans leur contenu. Il n’y a ni identité entre sites, ni capture automatique des clics, ni enregistrement des sessions. Do Not Track et Global Privacy Control désactivent la collecte.
 
-## Ce qui ne ship pas encore
+Après le déploiement, vérifie le comportement avec un navigateur qui autorise la collecte :
 
-Les traces OpenTelemetry ne sont pas intégrées aux conteneurs. Les données sont joignables indirectement — les durées de requête backend et les timings de routes HTTP arrivent par les métriques Prometheus — mais il n'y a pas d'exportateur OTLP sur la boîte aujourd'hui. Si tu as besoin d'export de traces complet, fais tourner un OpenTelemetry Collector à côté de Tale et scrape les endpoints Prometheus depuis lui.
+1. Ouvre une page connue, passe à une autre et vérifie les deux pages vues dans le site Umami du déploiement.
+2. Inspecte le corps de la requête. Les routes privées contiennent des paramètres génériques, sans paramètres de recherche, titres ni données de formulaire.
+3. Active Do Not Track ou Global Privacy Control et vérifie que la collecte s’arrête.
+4. Bloque la collecte ou teste son indisponibilité. La navigation normale doit continuer à fonctionner.
 
-## Où cela s'inscrit
+## Connaître les limites
 
-Les trois coutures ci-dessus sont les points de contact avec le reste de ta stack de monitoring ; les seuils d'alerte et la checklist d'astreinte vivent dans [Opérations](/fr/self-hosted/operate/observability/operations). Si quelque chose brûle là, maintenant, et qu'il te faut l'index par symptôme, saute à [Dépannage](/fr/self-hosted/operate/observability/troubleshooting).
+Tale n’exporte actuellement pas de traces OpenTelemetry par OTLP. Un OpenTelemetry Collector peut collecter les métriques Prometheus, mais cette collecte ne produit pas de traces distribuées. L’export de traces de bout en bout exige aussi une instrumentation de l’application.
+
+Pour les seuils d’alerte et les procédures d’intervention, consulte [Exploitation](/fr/self-hosted/operate/observability/operations). Si un service échoue, utilise les tableaux de symptômes du [Dépannage](/fr/self-hosted/operate/observability/troubleshooting).

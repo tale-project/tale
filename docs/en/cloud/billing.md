@@ -1,40 +1,36 @@
 ---
-title: Billing
-description: What Tale Cloud charges for, how budgets stop runaway costs, and where the bill shows up in the product.
+title: Plans, invoices, and usage
+description: Understand your Cloud service charges, model usage, and the controls available in Tale.
 ---
 
-Billing on Cloud is metered, not seat-based. You pay for tokens consumed by chats and agents, voice minutes, image generations, and storage; the platform itself comes with the org. This page walks one invoice line, lists the metered components, and points at the budget controls that prevent surprises.
+Your Cloud service agreement determines what you pay for hosting, support, seats, and storage. Model usage is a separate consideration: the provider and model you use affect the cost of each AI request.
 
-The invoice arrives monthly via email and is also visible inside the product under **Settings > Billing**. Cloud bills in your org's billing currency, which defaults to USD on sign-up and can be changed before the first invoice cuts.
+## Understand the charges
 
-## A worked invoice line
+Tale offers the free, self-hosted Community edition and Enterprise for managed Cloud or supported self-hosted deployments. Both include the same product features. Enterprise adds professional services and support; it does not unlock a separate set of product controls.
 
-A line on the invoice reads `Models — Anthropic Claude Sonnet — 1.2M tokens — $4.32`. Tale assembled it from the per-message usage ledger: every chat reply records the model used, the token count, and the cost at the rate active when the call completed. Lines aggregate by provider and model per billing period. The detail is downloadable as CSV from the same screen.
+The [pricing page](https://tale.dev/pricing) is the source for current seat and storage rates, billing periods, and included services. It lists AI usage at provider rates without a markup. Use your agreed quote and service agreement for the terms that apply to your organization.
 
-## Plan tiers
+## Find an invoice or change billing details
 
-Tale ships two tiers — **Community** and **Enterprise**. Community is the self-hosted open-source edition; you run it on your own infrastructure and the billing concept on this page does not apply. **Enterprise** is the managed tier (Cloud or self-hosted) with a support SLA, audit-log retention controls, SSO, the DPA, and access to regions beyond the default. The tier affects fixed monthly fees and feature gates, not per-call costs; the metered pricing for tokens, voice, and storage below applies to Enterprise on Cloud.
+Contact the Tale team through your Enterprise support channel for invoices, billing details, seat changes, or questions about a charge. There is no **Settings > Billing** page in the shared product interface. Usage dashboards are operational records, not an invoice portal.
 
-## Metered components
+When querying a charge, include the billing period, organization, and invoice reference. Never include provider keys or API keys.
 
-| Component   | Unit              | Counted as                                                | Where to view                                                 |
-| ----------- | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------- |
-| Models      | Tokens (in + out) | Per provider call; markup applied on top of provider rate | [Usage analytics](/platform/admin/governance/usage-analytics) |
-| Voice (TTS) | Characters spoken | Per agent reply rendered as audio                         | Usage analytics                                               |
-| Voice (STT) | Audio seconds     | Per user message recorded                                 | Usage analytics                                               |
-| Images      | Generations       | Per image returned by the model                           | Usage analytics                                               |
-| Storage     | GB-month          | Object store usage averaged over the period               | Billing page                                                  |
+## Understand model usage
 
-## Budgets and overages
+Open [Usage analytics](/platform/admin/governance/usage-analytics) to see the usage recorded by the platform. Use the date range and model or user breakdowns to find what generated the activity.
 
-Set budgets under [Policies and limits](/platform/admin/governance/policies-and-limits). A **Budget rule** caps monthly spend per user, per team, per role, or per org. Hitting a budget reads as a clear toast — **Usage limit reached** — and pauses the affected scope until the budget is raised or the period rolls over. The default precedence is `user > team > role > default` — the most specific rule wins.
+A displayed usage cost and a final invoice serve different purposes. Your commercial agreement and the provider’s billing rules determine the amount payable; do not treat a dashboard total as a final invoice or tax statement.
 
-A **Warning threshold (%)** on the same rule emits a notification when usage crosses the threshold without blocking. Reach for the warning when you want to know but not interrupt; reach for hard limits when overruns are an emergency.
+<Tip>
 
-## Where to find usage
+Before rolling out a new model, try a representative task and review its quality and recorded usage. A cheaper request is useful only if it produces a result your team can use.
 
-The richest view is [Usage analytics](/platform/admin/governance/usage-analytics) under Governance — it breaks usage down by **Top Assistants**, **Top Models**, **Top Voice Models**, and **Per-User Usage**, all filterable by date range. The Billing page in Settings shows the invoice-level view; Usage analytics shows the operational view.
+</Tip>
 
-## Where this fits
+## Set limits for the workspace
 
-Billing is the operator's headline page; [Usage analytics](/platform/admin/governance/usage-analytics) is the everyday one. If your org's cost is mostly tokens, the page worth bookmarking is the Top Models table — it surfaces which models the team has settled on and tells you whether a switch to a cheaper alternative would matter. For self-hosted users, the billing concept does not apply (you pay your provider directly); the cost-visibility page does.
+Use [Policies and limits](/platform/admin/governance/policies-and-limits) to configure the controls your team needs. Check the scope of each rule and test it with an account in that scope. Platform limits apply to the activity they govern; they do not change the terms of your hosting contract.
+
+For self-hosted Community, you operate the infrastructure and pay your chosen providers directly. The same usage and policy pages help you understand that activity.

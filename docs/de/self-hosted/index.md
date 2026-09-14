@@ -1,23 +1,29 @@
 ---
-title: Selbst gehostet
-description: Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped.
+title: Tale auf deiner Infrastruktur betreiben
+description: Wähle eine Installationsmethode, kläre die Verantwortung für den Betrieb und finde die passenden Konfigurations- und Wartungsanleitungen.
 kind: index
 ---
 
-Selbst gehostetes Tale läuft auf deiner eigenen Infrastruktur — on-premise, in deiner VPC oder air-gapped. Neun Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung und kein Traffic, der zu Tales Servern fließt, außer du richtest einen Anbieter dort ein.
+Mit selbst gehostetem Tale bestimmt deine Organisation, wo die Anwendung läuft, wo Daten gespeichert werden und welche Modelle sie nutzt. Die Open-Source-Plattform bietet dieselben Produktfunktionen wie die Enterprise-Ausgabe. Dein Team betreibt die Infrastruktur und legt fest, welche externen Dienste sie erreichen darf.
 
-Dieser Abschnitt ist für Operator: die Leute, die entscheiden, wo Tale läuft, es installieren, konfigurieren, gepatcht halten und den Pager übernehmen, wenn etwas schiefgeht. Endnutzer von selbst gehosteten Instanzen lesen meist den Reiter Plattform — die Produktoberfläche ist zwischen den Editionen identisch.
+## Den passenden Einstieg wählen
 
-## Seiten in diesem Abschnitt
+| Dein Vorhaben | Einstieg |
+| --- | --- |
+| Eine lokale Instanz testen oder eine neue Umgebung installieren | [Schnellstart zur Installation](/de/self-hosted/install/quickstart) |
+| Dienste, Datenhaltung und Netzwerkverbindungen verstehen | [Architekturübersicht](/de/self-hosted/overview) |
+| Ein eigenes Compose- oder Kubernetes-Deployment aufsetzen | [Einen eigenen Stack betreiben](/de/self-hosted/install/own-compose) |
+| Den Quellcode der Anwendung ändern | [Entwicklungsumgebung einrichten](/de/develop/contributor-setup) |
+| Eine bereits betriebene Instanz nutzen | [Deine erste Nachricht senden](/de/get-started/quickstart) |
 
-**[Architektur-Überblick](/de/self-hosted/overview)** — was jeder Container tut, wo Daten auf dem Storage liegen, was mit was spricht.
+## Die Betriebsverantwortung klären
 
-**[Installation](/de/self-hosted/install)** — die CLI (`tale init` / `tale dev` / `tale deploy`), oder ein Stack, den du selbst schreibst.
+Lege fest, wer Zugriff, TLS, Updates, Backups, Überwachung und Störungen betreut, bevor du weitere Nutzer hinzufügst. Richte einen KI-Anbieter ein. Für durchsuchbare Dokumente brauchst du außerdem ein Embedding-Modell und den Wissensspeicher. Teste einen Upload und einen vollständigen Chat, bevor du die Instanz freigibst.
 
-**[Konfiguration](/de/self-hosted/configuration/environment-reference)** — jede Umgebungsvariable, Provider-Dateien, Authentifizierungsmodi, TLS, Speicher, Aufbewahrung, SOPS-verschlüsselte Secrets, Observability.
+Selbst zu hosten bedeutet nicht, dass jede Anfrage im eigenen Netzwerk bleibt. Ein konfigurierter Modellanbieter, Connector, Webcrawler oder externer Überwachungsdienst kann Daten erhalten. Prüfe die tatsächlichen Ziele anhand der [Sicherheitshärtung](/de/self-hosted/operate/security/hardening) und der Anbieterkonfiguration. Für eine isolierte Installation müssen Images, Modelle, Zugangsdaten und Abhängigkeiten lokal verfügbar sein.
 
-**[Betrieb](/de/self-hosted/operate/container-architecture)** — Upgrades, Backups und Restore, Observability und Troubleshooting, Security-Advisories, Härtung, Format der Release Notes.
+## Die Instanz konfigurieren und warten
 
-## Wo das hingehört
+Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt Deployment-Variablen; die Konfigurationsanleitungen behandeln Organisationseinstellungen. Die [Container-Architektur](/de/self-hosted/operate/container-architecture) erklärt die Abhängigkeiten im Betrieb. [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) hilft dir bei der Wiederherstellungsplanung.
 
-Selbst gehostet ist die Edition, in der der Operator mehr vom Stack besitzt. Wenn dein Team klein ist und der Betriebsaufwand die Produktarbeit verdrängen würde, ist [Cloud](/de/cloud) die andere Form desselben Produkts. Wenn du gerade eine frische Instanz aufsetzt, ist [Quickstart](/de/self-hosted/install/quickstart) der richtige nächste Lesestoff.
+Soll Tale den Dienst für dein Team betreiben, lies [Tale Cloud](/de/cloud). Die Plattformanleitungen gelten für beide Hosting-Varianten.

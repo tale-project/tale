@@ -1,5 +1,34 @@
 languageSwitcher:
   ariaLabel: Switch language
+markdownCallout:
+  note: Note
+  tip: Tip
+  info: Info
+  warning: Warning
+  danger: Caution
+  check: Success
+markdownCodeGroup:
+  examples: Code examples
+  tab: 'Tab {number}'
+markdownDiagram:
+  preparingLabel: Mermaid diagram (preparing)
+  preparing: Preparing diagram…
+  failedLabel: Mermaid diagram (failed to render)
+  failed: Diagram failed to render
+  showSource: Show source
+  hideSource: Hide source
+  zoomOut: Zoom out
+  zoomIn: Zoom in
+  reset: Reset zoom and pan
+  openFullscreen: Open fullscreen
+  exitFullscreen: Exit fullscreen
+  label: Mermaid diagram
+  fullscreenLabel: Mermaid diagram (fullscreen)
+markdownCopy:
+  copyLink: Copy link to this section
+  linkCopied: Link copied
+  copyCode: Copy code
+  codeCopied: Copied
 markdownImage:
   zoom: Zoom image
   close: Close

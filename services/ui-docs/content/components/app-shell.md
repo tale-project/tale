@@ -1,120 +1,75 @@
 ---
 title: App shell
-description: The providers every Tale frontend mounts, and the chrome pieces a page is assembled from.
+description: Mount application providers once, then compose a page header, content area, and responsive navigation.
 ---
 
-"App shell" is two things: the provider stack that wraps the whole app, and the
-chrome components a single page is built from. Both are in `@tale/ui`, and both
-are why two screens written by two people end up looking like one product.
+`AppShell` provides the shared theme, translation, and tooltip context. It does not draw your page header or navigation. Compose those separately with `PageLayout`, the adaptive header components, and `ContentArea`.
 
-By the end of this page you will know what `AppShell` mounts and in what order,
-and how a page assembles its header, its body and its breadcrumb trail.
+## Mount the providers
 
-## The provider stack
+[Installation](/docs/getting-started/installation) includes a complete entry point. A router-based application uses this composition:
 
 ```tsx
 import { AppShell } from '@tale/ui/app-shell';
+import { RouterProvider } from '@tanstack/react-router';
 
+// i18n and router are initialized by the host application.
 <AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
   <RouterProvider router={router} />
 </AppShell>;
 ```
 
-The order it mounts is load-bearing:
+| Option | What it adds |
+| --- | --- |
+| `i18n` | Required service instance, supplied to `I18nextProvider`. |
+| `locale={{ mode: 'client' }}` | Preference/browser locale detection and synchronization. `onChange` can load additional locale data; `defaultLocale` supplies a fallback. |
+| `theme` | The shared theme provider with the normal system-preference behavior. |
+| `children` | Your router or application content. |
 
-```
-<ThemeProvider> → <TooltipProvider> → <LocaleProvider> →
-  <I18nextProvider> → <LocaleSync> → children
-```
+The full optional stack is ThemeProvider, TooltipProvider, LocaleProvider, I18nextProvider, then locale synchronization and content. Do not add a TooltipProvider around each button; the outer provider shares tooltip timing across controls.
 
-`I18nextProvider` contains a bridge that reads `useLocale()`, so
-`LocaleProvider` has to sit above it. One `TooltipProvider` wraps everything so
-the skip-delay works across a whole toolbar — nesting a second one resets the
-timer and every tip re-waits.
+For a URL-driven locale, omit `locale` and synchronize the route's language through `LocaleSync`. Query clients, authentication, authorization, branding, and a toast viewport remain host responsibilities. `AppShell` imports the shared Inter fonts.
 
-| Prop | Type | Notes |
-| --- | --- | --- |
-| `i18n` | `i18n` | The instance from `initServiceI18n` |
-| `locale` | `{ mode: 'client', onChange?, defaultLocale? }` | Omit for a URL-driven site |
-| `theme` | `boolean \| { defaultTheme }` | `theme` alone mounts the `'system'` default |
-
-Omit `locale` when the language comes from the URL; mount `<LocaleSync>` from
-your root route instead. Omit `theme` only when the service deliberately never
-toggles `.dark`.
-
-`AppShell` is also where the Inter webfont is imported, so a service that
-skips it renders in the fallback face.
-
-Query clients, auth, branding and the router are **not** bundled, because they
-vary per service. Outer providers wrap `AppShell`; inner ones nest between it
-and the router.
-
-## A page
+## Compose the page
 
 <Demo name="app-shell/page-layout" />
 
-Three pieces:
+This is a labelled layout illustration. Its nested application header and controls are inert; inspect **Code** to see how the pieces compose without adding a second accessible application to this page.
 
-- **`PageLayout`** is the scroll container. It takes an optional `header`,
-  wraps it in a `StickyHeader`, and reserves the scrollbar's width so filtering
-  a list does not shift the page sideways.
-- **`AdaptiveHeaderRoot`** is the `h-13` title row. `AdaptiveHeaderTitle`
-  renders the page's only `h1` inside it. `showBorder` draws the section
-  divider — pass it unless a tab strip directly below carries its own border,
-  because a header ends in exactly one line.
-- **`ContentArea`** is the body measure: `page` for a list, `narrow`
-  (`max-w-3xl`) for configuration, `panel` for a side panel.
+| Piece | Responsibility |
+| --- | --- |
+| `PageLayout` | Flex page and scroll container; wraps an optional `header` in `StickyHeader`. |
+| `AdaptiveHeaderRoot` | The title/action row, with optional border and responsive treatment. |
+| `AdaptiveHeaderTitle` | The page title, rendered as `h1`. |
+| `ContentArea` | Content spacing and width: `page`, `narrow`, or `panel`. |
 
-On a phone the desktop header is hidden and its content is mirrored through
-`AdaptiveHeaderSlot`, which is why the root marks itself `aria-hidden` there —
-exactly one `h1` stays in the accessibility tree either way.
+Give flex ancestors a usable height and `min-h-0` when the page should scroll inside them. `PageLayout` reserves scrollbar space to reduce sideways movement as row counts change. `ContentArea` includes clearance for mobile floating actions.
 
-## Breadcrumbs
+Choose one divider between header and content. Use `showBorder` for a plain header; avoid adding another border when a tab strip already supplies the divider.
+
+## Plan the mobile header
+
+Adaptive headers coordinate through `AdaptiveHeaderProvider`. The desktop root alone is not a complete mobile header: the host must render the receiving `AdaptiveHeaderSlot` in its mobile chrome. The mobile treatment removes the desktop title from the accessibility tree and presents the active title through that slot.
+
+Check a real phone-width page after composing the providers and slots. It should have one accessible `h1`, visible actions, and enough bottom clearance for any floating action bar. A desktop layout illustration cannot prove this integration for your service.
+
+## Add breadcrumbs
 
 <Demo name="app-shell/breadcrumbs" />
 
-`HeaderBreadcrumbs` is a semantic `nav > ol` whose **leaf is the page's `h1`**,
-carrying `aria-current="page"`. Ancestor crumbs are yours to render — pass a
-`Link` or a `button` carrying `HEADER_CRUMB_LINK_CLASS` — so the component
-stays router-agnostic while every trail styles identically.
+`HeaderBreadcrumbs` renders a labelled navigation list whose leaf is the current page's `h1`. Supply ancestor links or buttons through the crumb content and use `HEADER_CRUMB_LINK_CLASS` for their shared treatment. The component does not resolve application routes for you.
 
-Below `md` the full trail is too wide, so it collapses to an icon-only back
-button pointing at the immediate parent. Pass
-`showImmediateParentOnMobile` when the parent's name is worth the width.
+Below `md`, the trail collapses toward an immediate-parent back control. `showImmediateParentOnMobile` can preserve the parent's visible name where there is room. Long titles still need testing in the full header, including the action buttons beside them.
 
-## The side panel
+## Add a section rail
 
-`SubPanel` is the second-level rail a section mounts beside its content — the
-settings rail and the chat panel are the two in the product, and the navigation
-rail on this site is a third. It is a fixed width (`default` 224px, `wide`
-256px), `bg-background`, right-bordered, and hidden below `md`.
-
-Its rows come from `sub-panel-list`: `SubPanelSectionHeader` for a group label,
-`SubPanelRowLink` for a leaf, and `SUB_PANEL_ROW_CLASS` +
-`useSubPanelRowTreatment` when a row needs more than a path — which is how the
-rail on the left of this page is built.
+`SubPanel` provides the bordered secondary navigation surface. The default width is 224px; `wide` is 256px. It is hidden below `md`, so the host needs a mobile navigation path, such as a labelled drawer.
 
 ```tsx
 import { SubPanel } from '@tale/ui/sub-panel';
-import {
-  SubPanelRowLink,
-  SubPanelSectionHeader,
-} from '@tale/ui/sub-panel-list';
+import { SubPanelRowLink, SubPanelSectionHeader } from '@tale/ui/sub-panel-list';
 ```
 
-Content and scrolling stay with the caller: pass a scrollable child rather than
-an overflowing panel.
+The caller supplies rows and scrolling. Use `SubPanelRowLink` for destinations and `SubPanelSectionHeader` for groups. For a custom row, reuse `SUB_PANEL_ROW_CLASS` and `useSubPanelRowTreatment` rather than reproducing selection styles.
 
-## Accessibility
-
-- One `h1` per page, rendered by the header — not by the body.
-- The header ends in exactly one `border-border` line.
-- Name every landmark: `SubPanel` takes `ariaLabel`, `HeaderBreadcrumbs` takes
-  `ariaLabel`, and a page with two `nav`s needs both.
-- Start the page with a `SkipLink` pointing at `<main id="main">`.
-
-## Where to go next
-
-[List page](/docs/patterns/list-page) and
-[Settings page](/docs/patterns/settings-page) are these pieces assembled into
-the two screens the product has most of.
+Start the application with a `SkipLink` targeting `<main id="main" tabIndex={-1}>`. Name each navigation landmark. Scrolling a rail to its active row should not steal the reader's initial keyboard position. Use the [list-page](/docs/patterns/list-page) or [settings-page](/docs/patterns/settings-page) pattern for the content inside this shell.

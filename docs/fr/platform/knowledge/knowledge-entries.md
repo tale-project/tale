@@ -1,38 +1,74 @@
 ---
 title: Entrées de connaissances
-description: Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — ajoutés à la main ou par l’API — avec une seule version active par sujet et un historique complet des versions.
+description: Enregistre une information courte dans les connaissances partagées, actualise-la et consulte ses versions précédentes.
 ---
 
-Les entrées de connaissances sont la surface « faits » de la base de connaissances. Là où un document transporte un fichier entier, une entrée porte un seul fait, petit et durable — « le magasin ouvre à 9 h », « le délai de retour est de 3 jours » — indexé par un nom de sujet. Les entrées empruntent le même pipeline d’indexation que les documents, si bien que chaque agent dont le périmètre les couvre les récupère et les cite comme n’importe quelle source ; ce qui les rend particulières, c’est la façon dont elles entrent et dont les corrections remplacent ce qu’elles corrigent.
+Une entrée de connaissances convient à une information courte que tes collègues doivent pouvoir retrouver : horaires du support, délai de retour ou responsable d’un processus. Elle comporte un sujet et un contenu. Pour une politique complète ou un rapport, choisis un [document](/fr/platform/knowledge/documents). Pour des champs nommés et des valeurs exactes, utilise les [données structurées](/fr/platform/knowledge/structured-data).
 
-<Frame caption="L’onglet Entrées de connaissances — sujet, contenu, source et statut d’indexation par fait.">
+Les membres peuvent lire les entrées. Le rôle Éditeur ou supérieur est nécessaire pour les créer, les modifier et les supprimer. Elles font partie des connaissances partagées de l’organisation : réserve tes notes personnelles et les informations destinées à un seul projet à un autre espace.
 
-![L’onglet Entrées de connaissances listant trois faits ajoutés à la main, chacun avec l’étiquette de source Manuel, le badge de statut Non indexé et sa commande de relance de l’indexation.](/images/platform/knowledge-entries-list.webp)
+## Ajouter une information
+
+<Steps>
+
+<Step title="Ouvrir le formulaire">
+
+Va dans **Connaissances > Entrées de connaissances**, puis clique sur **Ajouter une entrée**. Si l’action n’apparaît pas, demande à un administrateur de vérifier ton rôle.
+
+</Step>
+
+<Step title="Choisir un sujet durable">
+
+Dans **Sujet**, saisis par exemple `Délai de réponse du support`. Choisis un nom qui restera pertinent si la réponse change. Le sujet est limité à 120 caractères et doit être unique. Si Tale signale un doublon, modifie l’entrée existante.
+
+</Step>
+
+<Step title="Donner le contexte nécessaire">
+
+Dans **Contenu**, indique l’information, son périmètre et ses conditions. Le Markdown est accepté, jusqu’à 8 000 caractères. Par exemple :
+
+```markdown
+Le support vise une première réponse sous 45 minutes pendant les heures
+ouvrées : du lundi au vendredi, de 09:00 à 17:00 CET. Il s’agit d’un objectif
+de réponse, pas d’un délai de résolution. Responsable : Support Operations.
+```
+
+Évite les dates relatives comme « vendredi prochain » et les renvois comme « la politique ci-dessus ». L’entrée doit rester compréhensible lorsqu’elle est consultée seule.
+
+</Step>
+
+<Step title="Enregistrer et vérifier l’indexation">
+
+Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source, le statut d’indexation et la date de mise à jour. Ouvre-la pour lire le texte intégral. L’indexation s’effectue en arrière-plan : une entrée enregistrée n’est pas immédiatement disponible dans la recherche.
+
+</Step>
+
+</Steps>
+
+<Frame caption="Le tableau permet de vérifier l’information et son indexation avant de s’appuyer dessus dans une réponse.">
+
+![Le tableau des entrées de connaissances présente des informations manuelles avec sujet, contenu, source, statut d’indexation et date de mise à jour.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 
-## D’où viennent les entrées
+## Corriger une information existante
 
-**Pas depuis le chat.** L’ancienne version laissait un agent proposer un fait tiré d’une conversation comme carte **Enregistrer dans la base de connaissances**, que tu approuvais. Cette carte n’existe pas dans cette version : l’assistant de chat n’a aucun outil d’écriture et ne propose rien à enregistrer, aucun agent n’écrit donc dans les connaissances partagées de l’organisation. Une entrée dont la **Source** indique **Chat** a été capturée par l’ancienne version ; les nouvelles entrées arrivent à la main ou par l’endpoint knowledge-entries de l’API REST.
+Dans le menu de la ligne, choisis **Modifier**, corrige le contenu et clique sur **Enregistrer**. Cela crée une nouvelle version courante et programme l’indexation de son texte. Chaque sujet possède une seule entrée courante ; corriger l’entrée existante évite les réponses contradictoires.
 
-<Note>
+Après une correction, ouvre les détails pour consulter l’**Historique des versions**. Les anciennes versions permettent de retrouver ce qui a changé et leur date de remplacement. Elles ne constituent pas des informations courantes supplémentaires. Une application peut également créer et modifier des entrées via l’[API REST](/fr/develop/api-reference).
 
-Il n’y a aucun interrupteur d’écriture dans les connaissances à activer agent par agent. Un fait entre dans la base de connaissances parce qu’une personne l’a saisi ou qu’un programme l’a posté par l’API — jamais parce qu’un modèle a décidé de s’en souvenir.
+<Tip>
 
-</Note>
+Lorsqu’un chat fait ressortir une information utile, vérifie-la à la source, puis ajoute ou modifie l’entrée toi-même. Chat n’enregistre pas automatiquement les faits dans les connaissances de l’organisation.
 
-**À la main.** Clique sur **Ajouter une entrée** dans **Connaissances > Entrées de connaissances**. Donne-lui un **Sujet** (120 caractères au maximum — court et stable, comme un titre) et le **Contenu** en markdown (8 000 caractères au maximum), rédigé pour rester compréhensible sans la conversation autour. La colonne **Source** distingue les deux origines : **Chat** ou **Manuel**.
+</Tip>
 
-## Une seule version active par sujet
+## Retirer une entrée obsolète
 
-Le sujet est la clé de déduplication : une modification remplace la version active au lieu d’en ajouter une seconde — la base de connaissances ne sert jamais deux versions du même fait. Ajouter une nouvelle entrée sous un sujet existant est refusé avec une erreur de sujet en double ; modifie l’entrée existante à la place.
+Choisis **Supprimer** dans le menu de la ligne et lis la confirmation. L’entrée et ses versions disparaissent de cette vue ; le document associé n’est plus disponible pour la recherche dans les connaissances. Garde une copie du texte avant la suppression si tu en as encore besoin. Pour une correction, utilise **Modifier**.
 
-Les versions remplacées ne sont pas perdues. Ouvre une entrée pour voir ses détails — le statut d’indexation, la dernière mise à jour et l’**Historique des versions**, avec chaque version remplacée et la date de son remplacement. Seule la version active est indexée pour la récupération ; l’historique existe pour l’audit et la référence. Par l’API, le même historique est `GET /api/v1/knowledge-entries/{id}/versions`, et `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` liste les versions remplacées d’un sujet, chacune avec son `supersededAt` — voir la [référence API](/fr/develop/api-reference).
+## Si l’information manque dans une réponse
 
-## Modifier, indexer, supprimer
+Vérifie d’abord l’entrée courante : est-elle enregistrée et indexée ? La question désigne-t-elle clairement son sujet ? Si l’indexation a échoué, résous la cause indiquée avant de la relancer. En cas d’échecs répétés, un administrateur doit vérifier la configuration des embeddings et les services d’indexation.
 
-Modifier crée une nouvelle version active et réindexe en arrière-plan — le badge de statut repasse par l’indexation et revient à **Indexé** quand la recherche reprend le nouveau texte. Supprimer retire l’entrée entière : la confirmation prévient qu’elle disparaît aussi de la base de connaissances, que les agents ne pourront plus la trouver, et que l’action est irréversible. Si le fait était juste, ajoute-le de nouveau.
-
-## Où cela s’inscrit
-
-Les entrées de connaissances sont la plus petite unité de la base de connaissances : un fait noté une fois devient quelque chose que chaque voie récupère, et une seule version active par sujet garantit que l’ancien fait disparaît quand le nouveau atterrit. Pour la moitié au format fichier, lis [Documents](/fr/platform/knowledge/documents) ; pour la façon dont l’assistant de chat et les agents de projet récupèrent, lis l’[aperçu des connaissances](/fr/platform/knowledge/overview).
+Demande une citation à l’assistant, ouvre la source et compare-la à l’entrée. Une réponse plausible ne prouve pas qu’elle utilise la dernière information. La page [Documents](/fr/platform/knowledge/documents) détaille les états d’indexation communs.

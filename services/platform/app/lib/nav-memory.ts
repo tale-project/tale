@@ -24,6 +24,8 @@ import { isRecord } from '@/lib/utils/type-utils';
  */
 
 const STORAGE_PREFIX = 'tale:nav-memory:v1:';
+const STORAGE_AREAS = ['sessionStorage', 'localStorage'] as const;
+type StorageArea = (typeof STORAGE_AREAS)[number];
 
 /** Sliding: every recorded navigation refreshes `savedAt`, so the window only
  *  runs down while the user is away. Long enough to span a working day, short
@@ -129,10 +131,14 @@ function parseRecord(raw: string): NavMemoryRecord | null {
   }
 }
 
-function read(store: Storage, organizationId: string): NavMemoryRecord | null {
+function read(
+  area: StorageArea,
+  organizationId: string,
+): NavMemoryRecord | null {
   let raw: string | null = null;
   try {
-    raw = store.getItem(storageKey(organizationId));
+    // Privacy settings can throw while accessing the Storage getter itself.
+    raw = window[area].getItem(storageKey(organizationId));
   } catch (error) {
     console.warn('[nav-memory] failed to read', error);
     return null;
@@ -142,12 +148,12 @@ function read(store: Storage, organizationId: string): NavMemoryRecord | null {
 }
 
 function write(
-  store: Storage,
+  area: StorageArea,
   organizationId: string,
   record: NavMemoryRecord,
 ): void {
   try {
-    store.setItem(storageKey(organizationId), JSON.stringify(record));
+    window[area].setItem(storageKey(organizationId), JSON.stringify(record));
   } catch (error) {
     // Quota or a privacy mode that refuses writes. The rail simply falls back
     // to each section's default entry.
@@ -194,10 +200,10 @@ export function readNavTarget(
   section: NavSection,
 ): NavTarget | undefined {
   if (!isBrowser) return undefined;
-  const tab = read(window.sessionStorage, organizationId);
+  const tab = read('sessionStorage', organizationId);
   const fromTab = tab?.sections[section];
   if (fromTab !== undefined) return fromTab;
-  const shared = read(window.localStorage, organizationId);
+  const shared = read('localStorage', organizationId);
   if (!shared) return undefined;
   if (shared.savedAt + TTL_MS < Date.now()) {
     clearNavMemory(organizationId);
@@ -222,9 +228,9 @@ export function recordNavLocation(
     ...(kept !== undefined ? { search: kept } : {}),
   };
   const savedAt = Date.now();
-  for (const store of [window.sessionStorage, window.localStorage]) {
-    const existing = read(store, organizationId);
-    write(store, organizationId, {
+  for (const area of STORAGE_AREAS) {
+    const existing = read(area, organizationId);
+    write(area, organizationId, {
       sections: { ...existing?.sections, [section]: target },
       savedAt,
     });
@@ -238,11 +244,11 @@ export function clearNavSection(
   section: NavSection,
 ): void {
   if (!isBrowser) return;
-  for (const store of [window.sessionStorage, window.localStorage]) {
-    const existing = read(store, organizationId);
+  for (const area of STORAGE_AREAS) {
+    const existing = read(area, organizationId);
     if (!existing) continue;
     const { [section]: _dropped, ...rest } = existing.sections;
-    write(store, organizationId, { sections: rest, savedAt: existing.savedAt });
+    write(area, organizationId, { sections: rest, savedAt: existing.savedAt });
   }
 }
 
@@ -250,8 +256,9 @@ export function clearNavSection(
  *  and stale-org recovery). */
 export function clearNavMemory(organizationId?: string): void {
   if (!isBrowser) return;
-  for (const store of [window.sessionStorage, window.localStorage]) {
+  for (const area of STORAGE_AREAS) {
     try {
+      const store = window[area];
       if (organizationId !== undefined) {
         store.removeItem(storageKey(organizationId));
         continue;

@@ -1,9 +1,9 @@
 ---
 title: Automatisierungskonzepte
-description: Das Modell hinter jeder Automatisierung — ein Workflow-Dokument, eine Versionshistorie, die sich nie ändert, genau eine live geschaltete Version, die Trigger, die sie starten, und die Läufe, die sie aufzeichnet.
+description: Verstehe Workflow-Schritte, gespeicherte Versionen, Bereitstellung, Trigger und den Verlauf einzelner Läufe.
 ---
 
-Eine Automatisierung ist ein gespeichertes Workflow-Dokument unter einem Namen — zusammen mit allem, was die Plattform darum herum aufbewahrt: der Historie seiner Versionen, der einen Version, die live ist, den Triggern, die sie starten dürfen, und dem Protokoll jedes Laufs. Öffne **Automatisierungen** in der Seitenleiste, und jede Zeile ist einer dieser Namen, mit der Version daneben, die live ist. Drei Gedanken auf dieser Seite bestimmen, wie sich alles Weitere verhält — Versionen ändern sich nie, Live-Schalten ist ein eigener Schritt, und ein Trigger hängt am Namen statt an einer Version —, also lies sie, bevor du etwas baust.
+Nutze eine Automatisierung für Arbeit mit einem wiederholbaren Ablauf. Der Workflow beschreibt die Schritte; gespeicherte Versionen erhalten jede Fassung, die Bereitstellung wählt die Version für Live-Läufe und ein Trigger kann sie nach Zeitplan oder Ereignis starten. Jeder Lauf zeigt Eingabe, Ergebnisse und Aktionen.
 
 Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine Freigabekarte vor der Kamera, mit Untertiteln — aufgenommen auf der früheren Version, wo die Karte im Chat saß; in dieser Version sitzt sie auf der Detailseite des Laufs.
 
@@ -13,7 +13,9 @@ Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis 
 
 ## Das Workflow-Dokument
 
-Alles, was eine Automatisierung tut, steht in einem einzigen Dokument. Sein `name` ist zugleich seine Identität — kleingeschriebene Slug-Segmente mit Bindestrichen, wobei `/` verwandte Automatisierungen zu Ordnern gruppiert, etwa `billing/dunning-reminder`. Das erste Segment darf keines der Wörter sein, die die Plattform für eigene Seiten braucht — `asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload` —, denn eine so benannte Automatisierung ließe sich speichern, aber nie öffnen; deshalb lehnt der Editor einen solchen Namen beim Speichern ab. Um den Namen herum stehen eine `description`, ein `inputs`-JSON-Schema für die Eingabe zur Laufzeit, die `nodes`, die die Arbeit erledigen, ein `output` als Rückgabewert und die `tests`, die darüber entscheiden, ob eine Version live gehen darf.
+Der `name` identifiziert die Automatisierung. Verwende kleingeschriebene Segmente mit Bindestrichen; `/` fasst verwandte Automatisierungen in Ordnern zusammen, etwa `billing/dunning-reminder`. Das erste Segment darf kein reservierter Seitenname sein: `asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview` oder `upload`.
+
+Das Dokument enthält außerdem eine `description`, ein JSON-Schema `inputs` für die Eingabe eines Laufs, die ausführenden `nodes` und einen `output`-Ausdruck für das Ergebnis. Seine `tests` beschreiben Beispiele und erwartete Ergebnisse, die vor der Bereitstellung geprüft werden.
 
 ```yaml
 name: billing/dunning-reminder
@@ -40,7 +42,7 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Die Positionen auf dem Canvas reisen in einem `ui`-Block mit, den die Engine ignoriert — eine Box zu verschieben ändert also nie das Verhalten.
+Der `ui`-Block speichert die Positionen auf dem Canvas. Verschieben ändert die Anordnung, nicht die Ausführung einer Node.
 
 ### Kanten entstehen, sie werden nicht deklariert
 
@@ -62,7 +64,7 @@ Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen.
 
 ### Node-Typen
 
-Vier Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
+Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
 
 **`transform`** führt reines JavaScript aus, um Daten umzuformen. Ohne Netzwerk und ohne Imports: Der Rumpf liest die aufgelöste `input` der Node und muss einen Wert zurückgeben.
 
@@ -74,15 +76,15 @@ Vier Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktio
 
 ### Strukturierte und unstrukturierte Ausgabe
 
-Die Ausgabe jedes Node-Typs ist von einer von zwei Arten, und daran stolpern Autoren am häufigsten. Eine **strukturierte** Ausgabe ist eine typisierte Form, in die du mit `nodes.<id>.output.<field>` hineingreifen darfst. Eine **unstrukturierte** Ausgabe ist freier Text: Es existiert nur `nodes.<id>.output.text`, und das nur im Textkontext. Ein Werkzeug ohne deklariertes Ausgabeschema ist per Definition unstrukturiert, und die eine vorgesehene Brücke von Text zu strukturierten Daten ist eine `llm`-Node mit `outputSchema`.
+Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.output.<field>` referenzierst. Eine **unstrukturierte** Ausgabe enthält freien Text. Verwende dafür `nodes.<id>.output.text` in einem Textausdruck; behandle die Ausgabe nicht wie ein Objekt mit weiteren Feldern.
 
-Die Validierung weist den Fehler zurück, statt ihn erst zur Laufzeit auftauchen zu lassen, und jede Meldung trägt einen maschinenlesbaren Code sowie einen Hinweis darauf, was tatsächlich verfügbar ist. Diesen Hinweis zu lesen ist der Weg, die Form zu finden, die du referenzieren wolltest.
+Ein Werkzeug ohne Ausgabeschema liefert unstrukturierte Ausgabe. Soll daraus strukturierte Eingabe für weitere Schritte entstehen, nutze eine `llm`-Node mit `outputSchema`. Die Validierung nennt bei einem Fehler die ungültige Referenz und die zulässigen Felder oder Kontexte. Korrigiere die Referenz, bevor du erneut speicherst.
 
 ## Versionen ändern sich nie
 
-Speichern hängt eine neue Version an; es überschreibt nie eine bestehende. Versionen sind ab 1 nummeriert und bleiben je Automatisierung lückenlos, und jede trägt die Notiz, die ihr Autor zur Änderung geschrieben hat. Version 3 einer Automatisierung ist deshalb für immer dasselbe Dokument.
+Speichern legt eine neue Version an, statt die vorige zu überschreiben. Die Nummerierung beginnt für jede Automatisierung bei 1; jede Version enthält die Änderungsnotiz ihres Autors. Der Workflow einer vorhandenen Version bleibt unverändert.
 
-Daraus folgt zweierlei. Eine Automatisierung zu bearbeiten kann nicht stören, was gerade läuft, denn die laufende Version ist eine andere Zeile. Und ein Lauf, der letzten Monat fehlgeschlagen ist, lässt sich gegen genau das Dokument lesen, das ihn erzeugt hat — dieses Dokument existiert unverändert weiter.
+Ein laufender Workflow behält die Version, mit der er gestartet wurde. Spätere Bearbeitungen ändern seine Schritte nicht. Öffne bei der Prüfung eines älteren Laufs dessen aufgezeichnete Version, um Eingabe und Ablauf zu vergleichen. Unveränderlichkeit ist keine unbegrenzte Aufbewahrung: Beim Löschen einer Automatisierung oder ihrer Historie können die Datensätze entfernt werden.
 
 ## Live-Schalten ist ein eigener Schritt
 
@@ -92,39 +94,40 @@ Eine Version wird erst live-fähig, wenn ihre eigenen Tests bestanden sind. Test
 
 <Note>
 
-Eine Automatisierung ohne live geschaltete Version lässt sich überhaupt nicht starten — weder von einem Trigger noch von Hand. Speichere eine Version und schalte sie dann live.
+Ein Live-Lauf braucht eine bereitgestellte Version. Einen gespeicherten Entwurf kannst du vorher mit **Testlauf** prüfen.
 
 </Note>
 
 ## Was einen Lauf startet
 
-Ein Trigger sagt, was eine Automatisierung starten darf, und es gibt genau drei Arten: einen **schedule** (ein Cron-Ausdruck, gelesen in einer benannten IANA-Zeitzone), einen **webhook** (eine eingehende URL, geschützt durch ein Token) und ein **event** (der Name eines Plattform-Ereignisses).
+Eine gespeicherte Version kannst du manuell testen; die bereitgestellte Version lässt sich live ausführen. Für automatische Starts richtest du eine von drei Trigger-Arten ein: einen Zeitplan mit Cron-Ausdruck und IANA-Zeitzone, eine durch ein Token geschützte Webhook-URL oder ein benanntes Plattformereignis.
 
-Ein Trigger hängt am **Namen** der Automatisierung, nie an einer Version. Eine neue Version live zu schalten macht deshalb nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg, auf den sich jemand verlässt. Jeder Trigger lässt sich aus- und wieder einschalten, ohne verloren zu gehen, und jeder hält fest, wann der Scheduler zuletzt auf ihn reagiert hat. [Workflow-Trigger](/de/platform/automations/triggers) behandelt, was jede Art in den Lauf trägt.
+Der Trigger gehört zum Namen der Automatisierung. Bei einer neuen Bereitstellung bleiben Konfiguration und Webhook-URL erhalten; nachfolgende Starts verwenden die neu bereitgestellte Version. Deaktiviere den Trigger, um automatische Starts zu pausieren. [Workflow-Trigger](/de/platform/automations/triggers) erklärt Zeitsteuerung, Anmeldung und die Eingabe jeder Trigger-Art.
 
 ## Was ein Lauf festhält
 
-Ein Lauf ist ein dauerhaftes Objekt, keine Logzeile. Er hält seinen Status — `queued`, `running`, `waiting`, `success`, `failed` oder `cancelled` —, seinen Modus, was ihn gestartet hat, die empfangene Eingabe, die erzeugte Ausgabe und einen **Checkpoint für jede abgeschlossene Node**.
+Ein Lauf speichert Status (`queued`, `running`, `waiting`, `success`, `failed` oder `cancelled`), Modus, Auslöser, Eingabe, Ausgabe und einen Checkpoint für jede abgeschlossene Node. Die Ablaufspur zeigt die vom Ausführungssystem versuchten Schritte.
 
-Diese Checkpoints sind der Kern. Ein Live-Lauf geht Node für Node vor, und wenn er an das Zeitfenster der Plattform stößt, gibt er sich zurück und setzt bei der letzten abgeschlossenen Node fort, statt bereits erledigte Nebenwirkungen zu wiederholen. Ein Lauf bewahrt außerdem die vollständige Spur der Engine und die geordnete Liste der Auswirkungen, die er erzeugt hat — das ist es, was den Canvas den Lauf nachzeichnen lässt und was jede Veränderung außerhalb der Plattform nachträglich prüfbar hält.
+Gibt die Verarbeitung vorübergehend ab, setzt derselbe Lauf anhand seiner Checkpoints fort, ohne abgeschlossene Nodes erneut auszuführen. Die Liste der Auswirkungen erfasst Connector-Schreibaktionen. Sie ist kein vollständiges Verzeichnis der Änderungen durch eine Sandbox oder direkte Werkzeuge. Für die Laufhistorie gelten weiterhin Löschung und Aufbewahrungseinstellungen.
 
-Läufe gibt es in zwei Modi. **Test** berührt die Außenwelt nie und ist die schnelle Rückmeldeschleife beim Bauen. **Live** darf es, weshalb einen solchen Lauf zu starten eine Entwickler-Berechtigung braucht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest einen Lauf von Anfang bis Ende.
+Im Modus **Test** werden externe Aktionen simuliert. **Live** kann sie tatsächlich ausführen und benötigt zum Starten Entwicklerrechte. Unter [Ausführungsprotokolle](/de/platform/automations/execution-logs) erfährst du, wie du gespeicherte Version, aufgelöste Eingaben, Fehler und protokollierte Auswirkungen prüfst.
 
 ## Wo ein Mensch entscheidet
 
-Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. Er pausiert im Status `waiting`, und sobald die Freigabe beantwortet ist, setzt er an genau der Node wieder ein, an der er stehen geblieben war, und trägt die Antwort weiter. Ein Lauf, der auf eine menschliche Eingabe wartet, verhält sich genauso. In `waiting` parkt ein Lauf auch, solange ein Agent-Turn noch arbeitet oder eine Node pollt, bis ihre Bedingung gilt — die brauchen niemanden, und der Lauf nennt, in welcher Art Warten er steckt (`waitingFor`: `approval`, `ask`, `agent` oder `repeat`), „braucht eine Person“ liest sich also nie am Status allein ab. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte und was jede Entscheidung hinterlässt.
+Eine erforderliche Freigabe hält den Lauf vor einer geschützten Schreibaktion im Status `waiting` an. Die Freigabe erlaubt den Ausführungsversuch, garantiert aber keinen Erfolg. Ablehnen verhindert die Aktion und lässt den Lauf fehlschlagen. Eine Frage pausiert ebenfalls, verlangt jedoch Informationen statt einer Erlaubnis.
 
-## Die richtige Einheit wählen
+Der Status `waiting` kann auch bedeuten, dass ein Agent noch arbeitet oder eine Node ihre Bedingung wiederholt prüft. Lies deshalb `waitingFor`: `approval` und `ask` brauchen eine Person; `agent` und `repeat` setzen normalerweise automatisch fort. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt, wie du die menschlichen Anfragen prüfst und beantwortest.
 
-| Greif zu … bei                                                                     | Automatisierung | Agent | Agent-Webhook |
-| ---------------------------------------------------------------------------------- | --------------- | ----- | ------------- |
-| Arbeit mit mehreren Schritten, Verzweigungen, Zeitplänen oder Freigaben dazwischen | ✓               |       |               |
-| Etwas, das nach der Uhr laufen oder einen Webhook beantworten muss                 | ✓               |       |               |
-| Einer wiederkehrenden Frage im Chat, ohne externes System                          |                 | ✓     |               |
-| Einer Agent-Antwort pro eingehendem POST                                           |                 |       | ✓             |
+## Chat, Aufgabe oder Automatisierung wählen
 
-Prüf den Katalog, bevor du baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Ein [Webhook-Trigger](/de/platform/automations/triggers) ist die eingehende Naht; greif dazu, wenn eine externe Payload einen Lauf starten soll.
+| Bedarf | Nutze |
+| --- | --- |
+| Eine Frage stellen und die Antwort besprechen | Chat |
+| Ein geprüftes Ergebnis mit Zuständigkeit erstellen | Eine Projektaufgabe, bei Bedarf einem Agenten zugewiesen |
+| Abhängige Schritte ausführen oder auf Zeitplan, Webhook oder Ereignis reagieren | Eine Automatisierung |
+
+Prüfe vor dem Erstellen die [mitgelieferten Automatisierungen](/de/platform/automations/builtin). Ein Webhook startet eine Automatisierung; er ist keine eigene Art von Projektagent.
 
 ## Das Modell in die Praxis bringen
 
-Eine Automatisierung ist ein Dokument, geführt als ununterbrochene Kette von Versionen, von denen genau eine live ist, mit Triggern, die an ihrem Namen hängen statt an irgendeiner Version — und genau das macht Bearbeiten sicher, Zurückrollen billig und einen fehlgeschlagenen Lauf reproduzierbar. [Der Workflow-Editor](/de/platform/automations/editor) ist das praktische Handbuch zum Speichern, Testen, Live-Schalten und Zurückrollen; [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) führt zu denen, die schon mitgeliefert werden.
+Workflow, Versionen, Bereitstellung und Trigger sind getrennte Bestandteile einer Automatisierung. Folge dem [Workflow-Editor](/de/platform/automations/editor), um eine Änderung zu testen und live zu schalten. Die [Ausführungsprotokolle](/de/platform/automations/execution-logs) zeigen, was ein Lauf getan hat.

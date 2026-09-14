@@ -1,57 +1,43 @@
 ---
 title: Mode vocal
-description: Parler au lieu de taper — comment un enregistrement devient un message, comment une réponse est relue à voix haute, et quels fournisseurs touchent l’audio au passage.
+description: Dicte un message, vérifie sa transcription avant l’envoi et écoute les réponses lorsque la sortie vocale est disponible.
 ---
 
-Le mode vocal transforme la zone de saisie en microphone. Tu parles, l’enregistrement est transcrit dans ton message suivant, l’agent répond en texte, et cette réponse peut être lue à voix haute. La boucle se fait sans les mains, ce qui vaut beaucoup quand tu marches, tu cuisines ou tu en as assez de taper — et elle traverse deux fournisseurs vocaux, ce qui mérite d’être su avant d’y faire passer les données de ton organisation.
+La dictée permet de parler au lieu de taper un message. La sortie vocale lit une réponse de l’assistant à voix haute. Tu peux utiliser chacune séparément : dicter n’impose pas une réponse parlée et écouter ne nécessite pas l’accès au microphone.
 
-Cette page couvre les deux moitiés de l’aller-retour et la frontière que franchit l’audio. Le chat lui-même ne change pas : la voix est une enveloppe autour du même flux de messages que décrit [Bases du chat](/fr/platform/chat/basics).
+## Dicter et vérifier un message
 
-## De la parole au texte
+1. Clique sur **Démarrer la dictée** sur le microphone du champ de message.
+2. Autorise le microphone dans le navigateur si nécessaire, puis parle clairement.
+3. Clique sur **Arrêter la dictée**. Si la transcription passe par le serveur, attends qu’elle se termine.
+4. Relis et corrige le texte, surtout les noms, nombres et dates. Envoie-le lorsqu’il est prêt.
 
-Lance l’enregistrement depuis le micro de la zone de saisie et parle ; arrête-le de la même façon. L’enregistrement part, un modèle de reconnaissance vocale le transcrit, et la transcription devient le message suivant du chat — exactement comme si tu l’avais tapé. Tu peux relire la transcription avant qu’elle parte, et cela compte : une erreur de transcription devient indiscernable d’une question mal formulée dès que l’agent y a répondu.
+La dictée ajoute du texte au champ de saisie ; elle n’envoie pas automatiquement le message. L’envoi arrête une dictée en cours. Le modèle de chat reçoit le texte que tu soumets.
 
-La transcription tourne une fois par message parlé. Ce que l’agent reçoit, c’est du texte ; aucun audio n’atteint le modèle de chat.
+Tale utilise d’abord la reconnaissance vocale du navigateur lorsqu’elle est disponible. Sinon, il peut enregistrer et transcrire via le modèle configuré par l’organisation. Si aucun parcours n’est disponible, le microphone est absent ou explique la configuration manquante. La reconnaissance du navigateur peut utiliser un service de son fournisseur : ne suppose pas qu’elle fonctionne hors ligne.
 
-## Du texte à la parole
+## Écouter une réponse
 
-Faire lire une réponse à voix haute est un interrupteur dans la zone de saisie qui règle la sortie vocale pour le chat où tu te trouves. Active la sortie vocale et la réponse qui revient part vers un modèle de synthèse et se joue à mesure qu’elle arrive ; laisse-la éteinte et la réponse atterrit en texte comme n’importe quelle autre. La lecture peut être coupée avant la fin, et la dernière réponse peut être rejouée sans reposer la question.
+Active **Mode vocal** dans le champ de message pour écouter les réponses du chat courant. Un modèle de synthèse vocale prépare l’audio à partir de la réponse. Utilise la commande de lecture de la réponse pour arrêter ou réécouter. Le texte reste disponible pour vérifier les détails.
 
-<Note>
+Une politique de l’organisation peut masquer la sortie vocale. Une commande désactivée peut aussi signaler l’absence de modèle vocal utilisable. Un administrateur vérifie les [fournisseurs d’IA](/fr/platform/admin/providers). Changer seulement le modèle de chat ne configure pas un fournisseur vocal.
 
-La sortie vocale résout une cascade, pas un simple interrupteur par tour : une politique à l’échelle de l’organisation peut la couper entièrement — ce qui masque le contrôle — et en dessous se trouvent ton défaut enregistré et le remplacement propre à chaque chat. La régler dans un chat écrit le remplacement de ce chat ; la régler sur un nouveau chat fixe le défaut utilisateur dont tes chats suivants héritent. Aucune voix n’est épinglée à un agent.
+Le réglage dans un chat existant s’applique à ce chat. Sur un nouveau chat, il définit aussi la valeur par défaut des conversations suivantes. Il n’y a pas de voix distincte à configurer pour chaque agent de projet.
 
-</Note>
+## Résoudre un problème vocal
 
-## Qui détient quelle partie
+| Symptôme | Points à vérifier |
+| --- | --- |
+| Le microphone ne démarre pas | Permission du navigateur, périphérique d’entrée sélectionné et éventuelle utilisation par une autre app. |
+| Des mots manquent ou sont incorrects | Réduire le bruit ambiant et corriger le texte avant l’envoi. |
+| La transcription serveur échoue | Réessayer tant que l’enregistrement reste disponible, ou le supprimer et taper le message. |
+| La réponse est prête mais silencieuse | Vérifier le volume et l’autorisation de lecture du navigateur, puis lancer la lecture de la réponse. |
+| Une erreur de configuration apparaît | Demander à un administrateur de vérifier le modèle vocal et ses identifiants. |
 
-Deux choix de modèles comptent ici, et aucun n’est le modèle du sélecteur. La reconnaissance vocale tourne avant le tour de l’agent, sur l’audio. La synthèse tourne après, sur la réponse finie. L’agent entre les deux ne change pas — mêmes instructions, mêmes tools, même contrat de contexte.
+Après un échec de transcription serveur, l’enregistrement reste dans la mémoire de la page pour une relance. Quitter ou recharger la page peut le perdre. Ce n’est pas une pièce jointe audio enregistrée. Utilise les [pièces jointes](/fr/platform/chat/attachments) pour importer un enregistrement existant.
 
-Les deux sont configurés par la personne qui administre les fournisseurs de l’organisation. Si aucun fournisseur vocal n’est configuré, les contrôles vocaux n’ont rien à appeler, et la réponse est d’en connecter un plutôt que de changer quoi que ce soit dans le chat.
+## Comprendre le parcours de l’audio
 
-## La frontière de confidentialité
+La dictée du navigateur suit son propre service de reconnaissance. Le parcours serveur transmet l’enregistrement à Tale pour une transcription avec le fournisseur de l’organisation. Ce parcours de dictée ne le stocke pas comme document. Une fois envoyé, le texte transcrit rejoint l’historique du chat.
 
-L’enregistrement quitte ton appareil. Il est déposé dans le stockage de Tale, envoyé au fournisseur de reconnaissance vocale que l’organisation a configuré, et la transcription obtenue reste dans l’historique du chat à côté des messages tapés — cherchable, exportable, et soumise aux mêmes règles de rétention que le reste du chat. L’audio lui-même suit la politique de rétention de l’organisation.
-
-Les réponses partent vers le fournisseur de synthèse en texte brut, et l’audio renvoyé est streamé vers ton appareil plutôt que stocké.
-
-<Warning>
-
-Les organisations soumises à des règles strictes de résidence des données devraient choisir des fournisseurs vocaux dans la même région que le reste de la pile — l’audio et la transcription relèvent des mêmes règles que n’importe quel autre contenu de message. Voir [Résidence des données](/fr/cloud/data-residency).
-
-</Warning>
-
-## Quand la voix bat le texte
-
-La voix va plus vite que le clavier pour les questions courtes et conversationnelles, et nettement moins vite pour tout ce que tu recopieras ensuite. Une réponse parlée s’entend une fois ; une réponse écrite se survole, se cite et se colle.
-
-| Prends … quand                                      | Voix | Texte |
-| --------------------------------------------------- | ---- | ----- |
-| Tu as les mains prises et tu veux un fait rapide    | ✓    |       |
-| La réponse sera une longue liste ou un bloc de code |      | ✓     |
-| La réponse alimentera un travail écrit plus tard    |      | ✓     |
-| Tu pratiques une langue et tu veux l’entendre       | ✓    |       |
-
-## Où cela s’inscrit
-
-La voix est la deuxième forme d’entrée de la même zone de saisie, à côté de la frappe. La confidentialité pèse le plus lourd ici parce que deux fournisseurs supplémentaires touchent les données ; la page suivante dépend donc de ton édition — [Résidence des données](/fr/cloud/data-residency) sur le Cloud, ou [Fournisseurs](/fr/self-hosted/configuration/providers) si tu héberges Tale toi-même et choisis les fournisseurs vocaux comme les modèles de chat.
+La sortie vocale transmet le texte de la réponse au fournisseur configuré et diffuse l’audio pour la lecture. Si la réponse contient des informations issues d’une source restreinte, elles font aussi partie de cette demande vocale. Les administrateurs doivent choisir des services compatibles avec les [exigences de résidence des données](/fr/cloud/data-residency) de l’organisation.

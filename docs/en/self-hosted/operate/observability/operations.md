@@ -1,101 +1,62 @@
 ---
-title: Operations
-description: What to alert on, which metrics matter, and the oncall checklist when a Tale instance starts behaving badly.
+title: Monitor and respond to incidents
+description: Choose actionable health signals, understand the exported metrics, and investigate failures without losing evidence.
 ---
 
-The operations page is the alert playbook — which signals are worth waking someone for, which can ride out a coffee, and what the first five minutes of an incident look like. Tale's metrics surface lives behind `METRICS_BEARER_TOKEN`; this page assumes you have wired up Prometheus and Grafana per [Observability config](/self-hosted/configuration/observability-config) and now need to know which numbers to watch.
+Monitor the actions people need to complete, as well as the services beneath them. A successful HTTP probe does not prove that sign-in, a file download, a knowledge query, or an automation finishes. Define alert severity from the impact on your deployment and give each alert an owner and a recovery procedure.
 
-The symptom-first index is at [Troubleshooting](/self-hosted/operate/observability/troubleshooting). This page is the proactive side — signals first, oncall checklist second.
+[Observability config](/self-hosted/configuration/observability-config) explains the endpoints and access token. [Prometheus and Grafana](/self-hosted/operate/observability/prometheus-grafana) provides a collection example.
 
-## Signals worth alerting on
+## Choose signals with a useful response
 
-| Signal                                      | Severity | Why it matters                                      |
-| ------------------------------------------- | -------- | --------------------------------------------------- |
-| `tale-proxy` health probe failing > 1 min   | page     | Every user sees a connection error                  |
-| `tale-platform` HTTP 5xx rate > 5 %         | page     | The UI is broken for a meaningful share of requests |
-| `tale-backend-api` down or crash-looping    | page     | UI loads but no data flows                          |
-| Postgres connections > 80 % of pool         | warn     | The next spike will start blocking                  |
-| `db-data` volume > 80 % full                | warn     | The operational Postgres goes read-only at full     |
-| `knowledge-db-data` volume > 80 % full      | warn     | Ingestion fails when the corpus database is full    |
-| `knowledge-db` unreachable from the backend | warn     | Knowledge search returns empty; ingestion stalls    |
-| Provider request error rate > 20 %          | warn     | The upstream LLM provider is having a bad day       |
-| Daily backup did not write                  | page     | Restore drill will fail at the worst moment         |
-| TLS cert renewal failed                     | warn     | Renews 30 d before expiry — you have time           |
+| Signal | How to investigate | When to escalate |
+| --- | --- | --- |
+| Public URL, certificate, or sign-in fails | Check the public path from outside the host, then proxy and backend logs. | Users cannot reach a required service, or certificates are near expiry without a working renewal path. |
+| Backend 5xx responses rise | Compare `tale_backend_http_requests_total` by `route` and `status` with the affected action. | Errors affect active users or critical integrations. |
+| A store becomes unreachable | Inspect `tale_backend_store_up` and the store's own monitoring. | The missing store blocks required data, search, or file access. |
+| Queued or failed jobs accumulate | Inspect `tale_backend_jobs{state=...}`, workers, and representative run errors. | The backlog stops clearing or a completion deadline is at risk. |
+| Disk or connection headroom shrinks | Use host/database monitoring; these are not all Tale-exported metrics. | Forecast exhaustion early enough to add capacity or resolve the cause. |
+| A scheduled backup or copy is missing | Check the backup job, completed manifest, and off-host destination. | Your recovery-point objective is no longer met. |
+| Provider requests are throttled or rejected | Read the provider response and affected run; check quota, credentials, and provider status. | Required work fails or waits beyond its allowed delay. |
 
-The first two pages are the actually-customer-impacting ones. The warns are catching trends before they tip into page territory.
+An 80% disk alert can be a starting point, but growth rate and recovery lead time matter more than one universal percentage. A knowledge outage can be critical for a team whose work depends on retrieval; do not automatically defer it because the UI still loads.
 
-## Log signals to grep for
+## Choose the right health endpoint
 
-Logs come through stdout per container, captured by Docker's `json-file` driver. The four phrases that consistently mean trouble:
+Use these paths on the public origin of a production deployment behind the bundled proxy:
 
-- repeated unhandled-error lines in `tale-backend-api` logs — a backend request-handler crash-loop.
-- `decryption failed` in `tale-platform` logs — SOPS age key mismatch with the file on disk.
-- `429 Too Many Requests` repeated from a provider — rate limit hit, agents will start failing.
-- `connection refused` or `ECONNREFUSED` to `knowledge-db` in `tale-backend-worker` logs — the worker cannot reach the corpus database; ingestion and knowledge search fail.
+| Path | What a successful response establishes |
+| --- | --- |
+| `/health` | Caddy answers `OK`. This stays healthy while the platform restarts. |
+| `/api/health` | The platform web process answers its liveness request. |
+| `/status.json` | The public dependency-status report is available; inspect its component verdicts. Results are cached for five seconds. |
+| `/status` | The same availability report in a page for people. |
 
-Pipe these to your aggregator as derived alerts; the metrics endpoints do not surface them as gauges.
+Check the expected response body as well as the HTTP status. An unrecognized frontend path such as `/healthz` can return the app shell with `200`; that is not a health report. See [Status page](/develop/status-page) for the response contract.
 
-## Oncall checklist
+## Understand what the metrics prove
 
-When a page lands, the first five minutes follow the same shape every time.
+The backend exports process metrics, HTTP response counts and durations, queue counts, in-flight generations, open hint streams, the drain flag, and store reachability. Inspect the actual series from your deployed version before writing an alert against it.
 
-1. **Confirm the alert is real.** Open `$SITE_URL` in a browser. If the UI loads and chat works, you are looking at a metrics or scraper issue, not a customer-impacting one.
-2. **Identify the container.** `docker compose ps` shows which is unhealthy; `docker compose logs --tail=200 <service>` shows the last error.
-3. **Restart the most-likely culprit.** `docker compose restart <service>` resolves a surprising fraction of incidents — process crashes, file watchers gone stale, exhausted connection pools. The architecture is built to survive a single container restart cleanly.
-4. **Check upstream providers.** `https://status.openai.com`, `https://status.anthropic.com`, etc. If the provider is on fire, agents fail; Tale is not the cause.
-5. **Page the on-call engineer if the user-visible symptom persists after a restart.** No need to escalate sooner — most incidents resolve in the first three steps.
+- `tale_backend_store_up` probes the **deployment-default** application database, knowledge database, and bucket. Organization-specific connections need their own monitoring.
+- Store probes are cached for 30 seconds. An object-store `403` on the bucket probe counts as reachable: it can mean the key cannot list the bucket. A value of `1` does not prove that a particular object can be uploaded or downloaded.
+- `/ready` expresses rollout readiness. It does not incorporate external-store health, so a healthy replica can still depend on an unavailable store.
+- The public backend metrics URL can reach different API replicas. Process metrics describe the replica that answered; queue and generation collectors read shared database state. Do not sum shared counts as if every replica owned a separate queue.
 
-## What does not need oncall
+Use a controlled end-to-end check for the gaps: sign in with a monitoring account, read a known record, and test the file or knowledge flow your team depends on. Keep that check within a dedicated scope and avoid sends or other external effects.
 
-A `tale-knowledge-db` outage is a warn, not a page. The web-crawl schedule absorbs hours of downtime without user impact, and document ingestion retries rather than dropping work — uploads sit in "indexing" until the corpus database is back. Knowledge search returns empty in the meantime, but chats that do not retrieve knowledge keep working. Catch this in the warn band and fix it in business hours.
+## Keep latency targets separate from measurements
 
-## Response-time SLAs
+Tale exports `tale_sla_target_seconds` and a rule template at `/metrics/sla-rules`. The current targets are a 1-second mean time to first token over 30 minutes and a 40-second mean long-operation duration over 6 hours. These are target metadata, not observations or a guarantee that your deployment meets them.
 
-Two response-time budgets are tracked as first-class signals: interactive dialog input and long-running operations such as evaluations. Both are verified as a **mean** over a rolling window — the contractual figure is an average, not a per-request ceiling — and both are wired so Prometheus alerts the moment the average drifts past budget.
+The generated rules expect `tale_dialog_ttft_seconds` and `tale_long_operation_seconds` histograms. The backend does not automatically emit those two latency series. Its HTTP request-duration histogram measures request handling, which is not interchangeable with first-token time or the full duration of queued work. Instrument the actual operation boundaries and confirm samples exist before enabling these rules. An empty query is missing evidence, not a passing latency check.
 
-| Budget         | Statistic | Target | Window | Underlying series             |
-| -------------- | --------- | ------ | ------ | ----------------------------- |
-| Dialog input   | mean      | ~1 s   | 30 m   | `tale_dialog_ttft_seconds`    |
-| Long operation | mean      | ~40 s  | 6 h    | `tale_long_operation_seconds` |
+## Investigate before changing state
 
-Each target also rides the platform metrics endpoint as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The underlying latency series are the backend's request-duration histograms on `/metrics/backend`; relabel or record them to the names above so the rules resolve. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
+1. Record the affected organization, URL or action, error code, time range, and scope of impact. Check whether the symptom is reproducible without changing data.
+2. Inspect `tale status` and `tale logs <service>`. For a deployment you manage directly, use the Compose service name with `docker compose ps` and `docker compose logs --tail=200 <service>`.
+3. Compare browser network failures with API/worker logs and store or provider health. Preserve relevant logs before a restart rotates or obscures them.
+4. Address the identified cause: capacity, connectivity, configuration, credentials, or a failed process. Recreate affected containers when changing environment values; `docker compose restart` keeps their previous environment.
+5. Verify the original action and related queued work after recovery. Record any interrupted requests or jobs that need an explicit retry, then update the incident timeline.
 
-```yaml
-groups:
-  - name: tale-sla-recording
-    rules:
-      - record: tale_sla_dialog_ttft:mean30m
-        expr: rate(tale_dialog_ttft_seconds_sum[30m]) / rate(tale_dialog_ttft_seconds_count[30m])
-        labels:
-          sla: dialog_ttft
-      - record: tale_sla_long_operation:mean6h
-        expr: rate(tale_long_operation_seconds_sum[6h]) / rate(tale_long_operation_seconds_count[6h])
-        labels:
-          sla: long_operation
-  - name: tale-sla-alerts
-    rules:
-      - alert: TaleSlaDialogTtftBreached
-        expr: tale_sla_dialog_ttft:mean30m > 1
-        for: 15m
-        labels:
-          severity: warn
-          sla: dialog_ttft
-        annotations:
-          summary: 'Dialog input response time: mean response time over 30m exceeds the 1s SLA'
-          description: Mean time-to-first-token for an interactive chat / dialog turn.
-      - alert: TaleSlaLongOperationBreached
-        expr: tale_sla_long_operation:mean6h > 40
-        for: 30m
-        labels:
-          severity: warn
-          sla: long_operation
-        annotations:
-          summary: 'Long operation response time: mean response time over 6h exceeds the 40s SLA'
-          description: Mean end-to-end time for long-running operations such as evaluations.
-```
-
-A breach here is a **warn**, not a page: a drifting average is a degradation to chase in business hours, and the `for:` windows deliberately wait out a short spike before firing. The ~1 s dialog budget reconciles with the looser ~3 s warm time-to-first-token in the manual performance plan — that ~3 s is a per-request ceiling for a single cold, Auto-routed first token (the first provider SSE text delta) including model and network time, whereas the ~1 s here is the steady-state mean across dialog turns, so occasional first tokens reaching the ceiling are consistent with a sub-second mean. Holding the 1 s mean on live providers may still need the backend-overhead optimization tracked on the feature issue; this alert is what confirms whether the target is met.
-
-## Where this fits
-
-The signals above are the proactive side of operating a Tale instance; the reactive side is [Troubleshooting](/self-hosted/operate/observability/troubleshooting), and the configuration that gets the metrics into Prometheus is [Observability config](/self-hosted/configuration/observability-config). If you have not yet set `METRICS_BEARER_TOKEN`, every threshold above is unmonitored — start there.
+Escalate as soon as your incident policy requires it. A restart is a recovery action with possible interruption, not a mandatory diagnostic step or a reason to delay escalation. [Troubleshooting](/self-hosted/operate/observability/troubleshooting) maps common symptoms to narrower checks.

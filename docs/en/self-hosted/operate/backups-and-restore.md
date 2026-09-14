@@ -1,93 +1,107 @@
 ---
 title: Backups and restore
-description: Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill.
+description: Plan the complete recovery set, create and copy CLI snapshots, then restore data with its matching Tale version.
 ---
 
-Tale's backup unit is the volume snapshot: a paused, checksummed tar of the instance's core data volumes, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
+A recoverable Tale instance needs more than a database archive: keep its files, organization configuration, deployment workspace, and decryption keys together with the version that wrote them. Set your recovery-point and recovery-time objectives first, then test whether your backup schedule and restore procedure meet them.
 
-The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers what a snapshot contains, when one is taken, how the copy gets off the host, and the restore walk.
+This guide covers the workspace CLI's Docker-volume snapshots. If you maintain Compose yourself, use a backup process that covers the same stores. External databases and buckets need separate, coordinated backups.
 
-## What a snapshot contains
+## Prepare an empty recovery host
 
-| Volume                       | Holds                                                                                                                                   |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages), **when they run in the bundled `db` container** |
-| `config-data`                | Org config, provider secrets, uploaded branding                                                                                         |
-| `object-store-data`          | The blob store — uploaded files, chat attachments, audio, generated media — whenever the deployment default is the bundled object store |
-| `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                        |
+Recover the original workspace and confirm that your Docker connection targets the recovery host. Keep the stack stopped. Replace `your-project-id` below with the original ID from `tale.json`; for a development snapshot, use `TALE_RESTORE_PREFIX="${TALE_RESTORE_PROJECT}-dev_"` instead. Production and development namespaces are different, and the CLI selects production first when both exist.
 
-Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored, and rotation deletes it on the next `tale deploy` or `tale backup` once a newer complete snapshot exists. Two things live outside the volumes entirely and need their own place in your off-host job: the project workspace (the directory holding `tale.json`) and `.env`.
+```bash
+TALE_RESTORE_PROJECT=your-project-id
+TALE_RESTORE_PREFIX="${TALE_RESTORE_PROJECT}_"
+docker volume create --label "project=$TALE_RESTORE_PROJECT" "${TALE_RESTORE_PREFIX}config-data"
+docker volume create --label "project=$TALE_RESTORE_PROJECT" "${TALE_RESTORE_PREFIX}backups"
+docker volume inspect "${TALE_RESTORE_PREFIX}backups"
+```
 
-Blobs follow the object store. With the bundled `object-store` — the default — `object-store-data` is captured like every other volume, and its archive is as large as everything ever uploaded: the store is paused while it is tarred, so uploads and downloads stall for that long. Two cases put blobs outside the snapshot, and both are announced rather than silent. A deployment default repointed at an external S3 (`default/object-storage/connection.json` no longer naming the bundled store) leaves the local volume with nothing the app reads, so the volume is skipped and `tale backup` prints a one-line notice with the endpoint and bucket — that bucket's backup runs under your own S3 tooling. An organization that brings its own bucket under **Settings > Data residency** never writes to the local volume either; the notice names the organization, and no snapshot can contain those blobs.
+This prepares the configuration and backup volumes without starting a backend or applying migrations. Restore the complete saved contents of `backups` into that volume using your backup system; the inspected mountpoint belongs to the Docker host, which may be remote. Snapshot directories and their manifests must retain their original layout. `tale restore` must then list the expected snapshot. During an actual restore, the CLI creates any other missing target volumes after verifying the snapshot.
 
+## Check the snapshot's scope
+
+`tale backup` captures existing project volumes from this inventory:
+
+| Volume | Included data |
+| --- | --- |
+| `db-data` | Application data and, in the packaged single-host stack, the knowledge database. |
+| `knowledge-db-data` | The separate knowledge database when this volume exists, as in source Compose. |
+| `config-data` | Organization configuration, supported secret sidecars, and branding. Provider credentials stored in Postgres belong to the database backup. |
+| `object-store-data` | Uploaded files and generated media when the deployment default uses the bundled store. |
+| `caddy-data`, `caddy-config` | Certificates and proxy state. |
+
+A snapshot contains an archive and SHA-256 sidecar for each captured volume. `manifest.json` is written last and records the platform version when it can be determined. A directory without a manifest is incomplete: it is excluded from restore listings and can be removed by rotation after a newer complete snapshot exists.
+
+Also preserve the workspace containing `tale.json`, its `.env`, and any separately mounted key files. In particular, retain `ENCRYPTION_SECRET_HEX` and the age identity needed to decrypt SOPS sidecars. The gateway's `llm-gateway-data` and sandbox workspaces are outside this snapshot inventory; include them in your own plan if you need to retain their state.
 
 <Warning>
 
-**Databases you moved off the box are not in the snapshot, and nothing says so.** `DATABASE_URL`
-and `KNOWLEDGE_DATABASE_URL` can point either database at a Postgres of your own
-([Data residency](/self-hosted/configuration/data-residency)). Blobs get an announcement when they
-move; databases do not — `db-data` still exists on the host, still gets tarred, and the snapshot
-still looks complete while containing none of the data that matters.
-
-Two consequences to plan for:
-
-- Back an external database up with your provider's own tooling, on its own schedule.
-- A `tale restore` rolls the local volumes back while an external database stays where it is. If
-  both are in play, restore the database from its own backup to the same point in time, and take
-  the deployment down for the swap rather than restoring one half under live traffic.
+External Postgres data is not captured, even when an unused local database volume still appears in the snapshot. The CLI does not warn about this database configuration. External buckets are also outside the snapshot; the CLI reports a repointed default bucket or organization-specific buckets it discovers. Check each organization's storage connections before declaring backup coverage complete.
 
 </Warning>
-## When snapshots are taken
 
-`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, or a host-config push (`--override` / `--override-all`) is requested. While each volume is tarred, the containers using it are paused for the duration — seconds for the database and config volumes, as long as the store is large for the blob volume — so the archive is crash-consistent: a live copy of a running Postgres directory is not restorable.
+## Create and verify a snapshot
 
-A failed snapshot aborts the deploy. `--skip-backup` overrides that on `tale deploy`, which leaves your own external backups as the only recovery path — the flag logs a loud warning for exactly that reason.
+Run these commands in the intended deployment workspace:
 
 ```bash
-# Take a snapshot right now
+tale status
 tale backup
-```
-
-## Retention
-
-Rotation keeps the newest five snapshots and everything from the last 14 days — whichever is more generous. A snapshot is deleted only when it is both beyond the count window and older than the age window, so a quiet instance keeps its last snapshots indefinitely. Override the windows with `BACKUP_KEEP_COUNT` and `BACKUP_KEEP_DAYS` in `.env`.
-
-## Off-host copy
-
-The snapshots live on the same host as the data they protect — a dead disk takes both. Point your existing backup tooling (Restic, Borg, Velero, cloud-provider snapshots) at the `backups` volume, and capture the project workspace and `.env` in the same job. Tale does not ship an upload step — keeping the off-host copy under your existing backup contract is deliberate.
-
-```bash
-# crontab on the host — hourly Restic copy of the backups volume to S3
-0 * * * * restic -r s3:s3.amazonaws.com/bucket/tale backup \
-  /var/lib/docker/volumes/<project-id>_backups/_data
-```
-
-Find the volume's host path with `docker volume inspect <project-id>_backups`; the project id lives in `tale.json`.
-
-## Restoring a snapshot
-
-`tale restore` without arguments lists what is available; with an id it verifies the checksums, wipes the data volumes, and extracts the snapshot. It refuses while any project container runs — pass `--stop` to stop them — and asks for confirmation before touching anything.
-
-```bash
-# See what's available
 tale restore
-
-# Stop the stack and restore
-tale restore 20260611-142530-deploy --stop
-
-# Bring the stack back on the version that matches the data
-tale update --version 0.9.6
-tale deploy --stop
 ```
 
-The redeploy of the matching version is part of the restore, not an optional extra: the snapshot captured the data exactly as that platform version left it, and a newer binary would immediately re-run its migrations against it. The restore output prints the exact version recorded in the snapshot's manifest.
+`backup` prints the snapshot result. `restore` without an ID only lists available snapshots, including the recorded version and whether blobs are absent. Record the snapshot ID with your external backup IDs.
 
-A snapshot taken before blobs were captured, or on a deployment whose blobs live in external S3, has no `object-store-data` archive. `tale restore` lists such snapshots as `without blobs`, says so again before asking for confirmation, and leaves the blob volume untouched while it restores everything else — the blobs stay exactly as they are on the host.
+The snapshot process pauses containers using each volume while that volume is archived. Uploads, downloads, and database work can stall during the relevant pause; duration depends on data size and host throughput. These are volume-level crash-consistent archives, not an atomic transaction across all stores. For a coordinated recovery point, stop incoming writes and scheduled work or use a maintenance window that also covers external stores.
 
-## Restore drill
+A version-changing `tale deploy`, or a host-config override, takes a snapshot before its mutating steps. Snapshot failure aborts that deployment. `--skip-backup` bypasses this protection; use it only when your recovery plan already provides the required backup.
 
-Run the drill quarterly on a non-production host. The drill is not "does a snapshot exist" — it is "can a fresh host be rebuilt from the off-host copy of the `backups` volume, the project workspace, and `.env` in under an hour." The failure modes the drill catches: an off-host job that never captured the workspace, and a stale `.env` that no longer matches the current binary's requirements.
+## Retain a copy off the host
 
-## Where this fits
+Snapshots live in the project's `backups` Docker volume. A host or disk failure can destroy both live data and local snapshots. Copy completed snapshots, workspace configuration, and keys into your existing protected off-host backup system; Tale does not upload them for you.
 
-Snapshots are the cheap part; the restore drill is what proves they work, and the redeploy-the-matching-version rule is the one thing to remember — recovery is never "roll the binary back," it is "restore the data and deploy the version it belongs to." The upgrade flow these snapshots protect lives in [Upgrades](/self-hosted/operate/upgrades); the hardening checklist that names backups as a row is in [Hardening](/self-hosted/operate/security/hardening).
+Use the project ID from `tale.json` to locate the volume:
+
+```bash
+docker volume inspect <project-id>_backups
+```
+
+The mount location belongs to the Docker host, which may be a VM or remote machine. Point your backup agent there rather than assuming the path exists on your workstation. Verify that the off-host copy includes `manifest.json`, every archive it names, and each checksum sidecar.
+
+Local rotation keeps the newest five snapshots **and** snapshots from the last 14 days. It deletes a snapshot only when it is outside both windows. Set `BACKUP_KEEP_COUNT` and `BACKUP_KEEP_DAYS` in `.env` to change these windows; configure off-host retention separately.
+
+## Restore the matching data and version
+
+<Warning>
+
+Restoring replaces the contents of the included data volumes. Preserve the current state if you may need it, verify the destination workspace, and keep users and scheduled integrations away from the recovery environment until it is accepted.
+
+</Warning>
+
+1. Retrieve the completed snapshot, deployment workspace, matching keys, and any external-store backups. On a fresh host, follow the empty-host preparation above before proceeding.
+2. Run `tale restore` to select an ID and read its platform version. If that version is unknown, resolve it from your deployment records before starting the application.
+3. Restore with the stack stopped. `--stop` stops running project containers; the CLI then verifies archive checksums and asks for confirmation before replacing data.
+
+```bash
+tale restore <snapshot-id> --stop
+```
+
+4. Restore external databases and buckets to the coordinated recovery point while traffic remains stopped. A snapshot marked `without blobs` leaves the existing local blob volume untouched.
+5. Select the version recorded for the snapshot and deploy it, including the stateful services:
+
+```bash
+tale update --version <snapshot-platform-version>
+tale deploy --stop
+tale status
+```
+
+The version matters because a newer backend can apply migrations as soon as it starts. A data restore followed by an arbitrary current image is not a rollback to the recorded state. Older `convex-data` config archives are restored into the current `config-data` volume by the CLI.
+
+## Prove recovery before reopening traffic
+
+In an isolated drill, sign in, open a known conversation, download an old file, check organization configuration, and run a controlled knowledge query. Verify access to provider secrets and external storage without triggering production notifications or automations. Record lost-data range, elapsed recovery time, and every manual step.
+
+Repeat the drill after material storage, key, or deployment changes and at the interval your recovery objectives require. Use [Upgrades](/self-hosted/operate/upgrades) for version selection and [Troubleshooting](/self-hosted/operate/observability/troubleshooting) if a restored service does not become healthy.

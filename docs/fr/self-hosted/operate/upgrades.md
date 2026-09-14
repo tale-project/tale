@@ -1,207 +1,90 @@
 ---
-title: Montées de version
-description: Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
+title: Mettre à niveau et rétablir un déploiement
+description: Prévisualise une mise à niveau, déploie avec un plan de reprise, vérifie le résultat et choisis le retour arrière adapté.
 ---
 
-Les montées de version d’un workspace Tale auto-hébergé passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l’ancienne, les healthchecks passent, le trafic bascule, l’ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
+Pour un déploiement dans un workspace, `tale update` modifie la CLI et les fichiers locaux ; `tale deploy` modifie les services actifs. Choisis la version cible et le point de reprise avant ces étapes. Le déploiement bleu-vert fait coexister les réplicas applicatifs, mais snapshots, drainage et remplacement des services persistants peuvent interrompre le travail.
 
-**Une exception dure :** il n'existe aucun chemin de montée de version vers la 0.5 depuis une ligne antérieure. La 0.5 est une rupture qui exige un déploiement neuf — lis [0.4 → 0.5 : rupture de version](#04--05--rupture-de-version) avant toute chose si ton instance est en 0.4.x ou plus ancienne (la 0.4 était la rupture précédente du même genre, qui a coupé la 0.3.x).
+Les déploiements gérés utilisent des révisions de sources fixées et des bundles préparés. Suis [Déploiements gérés](/fr/self-hosted/install/cli-install#managed-deployments) pour ce parcours, ou [Releases de configuration](/fr/self-hosted/configuration/config-releases) si seul le contenu client change.
 
-Ce que tu ne fais plus, c'est garder la CLI synchronisée à la main : la CLI s'aligne elle-même sur l'instance automatiquement (voir plus bas), donc le seul pas délibéré est de choisir quand bouger de version avec `tale update`.
+## Préparer la mise à niveau
 
-L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/install/cli-install). Cette page couvre ce que fait chaque commande et comment le modèle de versions fonctionne.
+1. Lance `tale status` dans le bon workspace. Note la version active, celle du workspace et l’état du déploiement.
+2. Lis les notes de la version cible : compatibilité, configuration requise et limites connues. Une instance antérieure à 0.5 exige le changement d’installation décrit plus bas.
+3. Confirme une sauvegarde externe restaurable, les clés correspondantes et la couverture des bases et buckets externes. [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) décrit les éléments nécessaires.
+4. Prévois la capacité pour les anciens et nouveaux réplicas ensemble. Réserve une maintenance si les snapshots ou remplacements de sandbox et de services persistants peuvent interrompre un travail nécessaire.
+5. Prévisualise la mise à jour et le déploiement. Examine les avertissements : un aperçu réussi ne prouve pas qu’une migration réelle aboutira.
 
-## La CLI suit l'instance automatiquement
+## Sélectionner la version
 
-Les commandes du workspace alignent la CLI sur la version enregistrée dans le fichier `tale.json` du workspace. Si les versions diffèrent, la CLI tente de se mettre à jour avant l’exécution. Si elles correspondent, elle ne lit que des données locales, sans appel réseau. Si le téléchargement échoue, la CLI affiche un avertissement et continue avec sa version actuelle ; vérifie cet avertissement avant le déploiement.
+Les commandes du workspace essaient d’aligner la CLI sur la version de `tale.json`. Si le téléchargement échoue, la CLI avertit puis continue avec le programme actuel. Résous tout décalage inattendu avant de modifier le déploiement.
 
-Utilise `tale update` pour changer la version d’une instance de workspace. Pour un déploiement géré, modifie les références source du runtime et des configurations, prépare et vérifie un nouveau bundle, puis applique-le avec la CLI fixée. [Déploiements gérés](/fr/self-hosted/install/cli-install#deploiements-geres) décrit ce parcours complet et la récupération de l’état conservé. Les commandes de configuration seules choisissent explicitement source et cible native sans redémarrer de conteneurs ; voir [Publier les configurations d’un client](/fr/self-hosted/configuration/config-releases).
-
-## Avant de monter de version
-
-Deux choses valent la peine d'être confirmées d'abord :
-
-- Ta copie hors-hôte du volume `backups` est à jour — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). `tale update` snapshotte automatiquement les volumes de données avant toute étape qui peut migrer des données, mais le snapshot vit sur le même hôte ; la copie hors-hôte est ce qui survit à un disque mort.
-- Les notes de version pour la version cible ne nomment pas un changement breaking. Les notes sont liées depuis la page de release GitHub ; les changements breaking sont flaggés comme tels en haut.
-
-Si la montée de version traverse une version majeure (1.x → 2.x), lis les notes de migration de bout en bout avant de commencer. Les versions majeures sont où atterrissent les migrations de schéma et les changements de format de fichier de config.
-
-## Les deux commandes
-
-`tale update` met à jour le binaire CLI, puis synchronise tes fichiers projet sur les templates de cette version. Il ne **touche pas** aux conteneurs en marche — c'est le boulot de `tale deploy`. Si la synchro des fichiers échoue, la CLI fait reculer son propre binaire à la version sur laquelle ton workspace était, pour que le binaire et `tale.json` ne dérivent jamais l'un de l'autre.
-
-Lancée sans argument, la commande vise la release la plus récente **de ta ligne x.y actuelle** — une instance 0.3.x bouge vers la 0.3.x la plus récente. Les releases d'une ligne plus récente peuvent porter des changements breaking, donc la commande ne franchit jamais cette frontière d'elle-même : quand une ligne plus récente existe, elle le dit et reste en place. Changer de ligne est un pas délibéré — lis d'abord les notes de version de la nouvelle ligne, puis fixe la version cible avec `--version`.
+Sans argument de version, `tale update` choisit la dernière release de la ligne `major.minor` du workspace. Pour changer de ligne, indique la version :
 
 ```bash
-# Bouge la CLI et les fichiers projet à la release la plus récente de la ligne x.y actuelle
-tale update
-
-# Fixe une version précise — le seul moyen de changer de ligne (autorise les downgrades — voir Rollback)
-tale update --version 0.10.2
-
-# Aperçu du changement de version et de la synchro des fichiers sans rien toucher
 tale update --dry-run
+tale update --version <target-version> --dry-run
+tale update --version <target-version>
 ```
 
-`tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
+La mise à jour remplace la CLI et synchronise les modèles du workspace, sans toucher aux conteneurs actifs. Si la synchronisation échoue, elle tente de remettre le programme à la version précédente du workspace. Vérifie les fichiers et la sortie avant de déployer.
 
-- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, sans downtime, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_PLATFORM_REPLICAS` dans `.env` (plage `1`–`16`). Monte le worker d’abord. Un déploiement double chaque nombre le temps du drain. Les stores et le plan sandbox restent des singletons.
-- **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roule à chaque déploiement lui aussi, mais **en place** : le spawner tient le socket Docker, le répertoire de sessions et le volume du gateway, c'est donc un singleton par construction. Le déploiement draine d'abord ses runs d'agent en cours pour que le bref redémarrage n'en coupe pas un vivant.
-- **Étage à arrêt requis** — `db`, `object-store`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres, le store de blobs ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
+## Prévisualiser et déployer
 
 ```bash
-# Après tale update, roule les conteneurs pour correspondre (étage app + backend)
-tale deploy
-
-# Mets aussi à jour db/proxy (brève coupure pendant qu'ils se recréent)
-tale deploy --stop
-
-# Roule seulement des services spécifiques
-tale deploy --services platform
-
-# Aperçu sans changement
 tale deploy --dry-run
-```
-
-`--dry-run` mérite d'être lancé avant chaque montée de version en production — il fait remonter les images manquantes, les migrations manquantes et les mismatches de dépendances sans toucher aux conteneurs en marche.
-
-## Le pattern blue-green
-
-Une instance en marche est l'une de deux couleurs (blue ou green) à un instant donné. Une couleur, c'est tout l'étage app sur une même version — chaque replica de `platform`, `backend-api` et `backend-worker`. Le déploiement monte l'autre couleur à côté de celle qui sert, attend que **chaque** replica passe son healthcheck, enregistre la bascule, puis démonte l'ancienne.
-
-Les deux couleurs tournent pendant tout ce recouvrement, et c'est l'ordre du démontage qui empêche d'y perdre des requêtes :
-
-<Steps>
-
-<Step title="La couleur inactive démarre">
-
-Ses conteneurs portent les mêmes alias réseau `platform` et `backend-api` que la couleur vivante — mais une replica encore en train de booter n'écoute pas sur son port, donc le resolver retombe sur celle qui écoute. Une couleur à moitié démarrée ne prend aucun trafic.
-
-</Step>
-
-<Step title="Chaque replica se déclare saine">
-
-Pas la première qui répond : toutes, rôle par rôle. Une couleur montée à moitié ne devient jamais vivante, et le déploiement abandonne pendant que l'ancienne continue de servir.
-
-</Step>
-
-<Step title="Le trafic se partage, brièvement">
-
-Dès que la nouvelle couleur écoute, les requêtes atteignent les deux. C'est la même fenêtre de compatibilité ascendante qu'un déploiement roulant suppose déjà : l'image précédente continue de servir pendant que la nouvelle migre, donc une release n'embarque jamais un changement qui casse la version qu'elle remplace.
-
-</Step>
-
-<Step title="L'ancienne couleur cesse de prendre du nouveau travail">
-
-On dit à son API de refuser les **nouveaux** tours de chat. L'UI ne renvoie pas un 503 de drain — ce tour est refusé. Le déploiement attend ceux qui sont en cours, jusqu'à 3 minutes. L'étage web reste sain sur `/api/health` tant qu'il partage encore l'alias `platform` : Caddy sonde ce nom d'hôte comme un seul upstream, donc une sonde en échec marquerait tout le site down. Le trafic quitte l'ancienne couleur quand `docker network disconnect` la coupe du DNS, et le HTTP en vol s'écoule pendant la fenêtre de drain (`DRAIN_TIMEOUT`, défaut 30 s).
-
-</Step>
-
-<Step title="Alors seulement elle sort du DNS">
-
-`docker network disconnect` retire les conteneurs de l'ancienne couleur des réseaux de service. Cela coupe les connexions vivantes sur ces réseaux — c'est précisément pour ça que ça vient après les deux drains, et pas avant.
-
-</Step>
-
-</Steps>
-
-Deux autres garanties que le pattern te donne :
-
-- **Le rollback de patch est une commande.** `tale rollback` redéploie la release patch précédente sur la couleur inactive et rebascule le trafic, par les mêmes étapes. Il refuse les downgrades minor et major — ceux-là peuvent laisser la base en avance sur le binaire, et leur chemin de récupération est une restauration de snapshot.
-- **Les healthchecks échoués bloquent la bascule.** Si la nouvelle couleur ne passe pas dans `HEALTH_CHECK_TIMEOUT`, le déploiement abandonne et l'ancienne couleur continue à servir.
-
-<Note>
-
-Le premier déploiement après la montée en 0.5.11 retire aussi les anciens
-conteneurs `tale-backend-api` et `tale-backend-worker`. C'étaient des
-singletons hors des deux couleurs ; l'étage tourne maintenant dans chaque
-couleur, ils sont donc balayés une fois la nouvelle couleur en service. Les
-déploiements suivants ne trouvent plus rien.
-
-</Note>
-
-<Warning>
-
-Pendant le recouvrement, l'hôte fait tourner **deux** étages app. Sur une seule machine avec le défaut d'une replica par rôle, cela fait deux conteneurs `platform`, deux `backend-api` et deux `backend-worker` le temps du drain. Dimensionne l'hôte sur le pic, pas sur le régime normal — et sur le nombre doublé avant de monter un nombre de replicas sur une machine déjà juste.
-
-</Warning>
-
-La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale update && tale deploy && tale status` et confirmation visuelle dans le navigateur.
-
-## Comment les changements de schéma arrivent sur un déploiement
-
-Les changements de schéma de la base de données ne sont pas une étape séparée que tu exécutes. Le backend de chaque version applique ses propres migrations SQL **au démarrage**, sous un verrou consultatif : les conteneurs api et worker (et toute réplique mise à l'échelle) les appliquent exactement une fois pendant que les autres attendent. Un conteneur déployé est donc toujours sur son propre schéma — il n'y a rien à vérifier, appliquer ou rattraper à la main.
-
-Les migrations sont **uniquement vers l'avant** et écrites pour être sûres sous un déploiement progressif : la version précédente continue de servir pendant que la nouvelle migre, donc une version ne livre jamais un changement qui casse celle qu'elle remplace. Revenir EN ARRIÈRE d'une version est une restauration de snapshot, pas une migration descendante — c'est pourquoi `tale rollback` refuse les downgrades mineurs et majeurs (voir ci-dessous).
-
-```bash
-# Reprovisionner les valeurs par défaut intégrées dans chaque organisation (idempotent).
-# La même étape que chaque déploiement exécute — à la demande.
-tale migrate
-```
-
-Si le backend ne peut pas appliquer une migration, il ne démarre pas, et le healthcheck du déploiement bloque le basculement du trafic : l'ancienne couleur continue de servir pendant que tu lis `docker compose logs` et corriges la cause. Rien de à moitié migré n'est jamais mis devant les utilisateurs.
-
-## Rollback
-
-```bash
-# Retour à la version patch précédente (demande confirmation)
-tale rollback
-
-# Ignorer l'invite en mode non-interactif
-tale rollback --yes
-```
-
-`tale rollback` est limité aux pas de patch : il ne cible que la version précédente enregistrée, et refuse si cette version ne partage pas `major.minor` avec la plateforme qui tourne. Les releases patch ne portent jamais de migrations, donc redéployer le patch précédent est toujours sûr. Tout ce qui est plus gros peut avoir migré les données vers l'avant — déployer un binaire plus vieux sur des données migrées corrompt l'instance au lieu de la sauver. Pour ces cas, le chemin de récupération est de restaurer le snapshot pré-upgrade et de revenir à la version qui lui correspond avec `tale update --version <version>` suivi de `tale deploy --stop` (pour que `db`/`proxy` reculent aussi) ; le message de refus imprime les commandes exactes, et le walk complet vit dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
-
-Comme le rollback démolit les conteneurs en cours d'exécution, la commande prévient de ce qu'elle s'apprête à faire et demande confirmation avant de tirer la moindre image ; passe `--yes` pour ignorer cette invite dans les scripts ou en CI.
-
-## Compatibilité de versions
-
-Les versions Tale sont en semver. Les règles de compatibilité :
-
-- Patch (`0.9.0 → 0.9.1`) — pas de migrations, pas de changements de config, `tale rollback` est toujours sûr.
-- Minor (`0.9.x → 0.10.x`) — peut inclure des migrations forward-only ; `tale rollback` refuse, la récupération est restauration-de-snapshot plus redéploiement.
-- Major (`0.x → 1.x`) — lis les notes de migration, planifie la fenêtre de maintenance, attends-toi à des surprises.
-- **La baseline 0.5.0** — les versions sous la 0.5.0 et les versions à partir de la 0.5.0 sont deux mondes séparés : aucune montée ni descente entre eux, voir la section rupture ci-dessous.
-
-Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les migrations de schéma intermédiaires sont encore dans l'image ; les notes de version le mentionnent quand ce n'est pas le cas. La baseline 0.5.0 est le cas permanent de cette exception : le store applicatif lui-même a changé à la 0.5, donc aucune release 0.5+ ne peut lire ce qui existait avant.
-
-Pour descendre _délibérément_ d'une version — disons qu'une release minor se comporte mal — fixe la cible avec `tale update --version <version>`. La commande prévient quand la cible est plus ancienne que la version qui tourne ; ne descends que vers une version dont les migrations de schéma sont un préfixe de ce que la base a appliqué, ou restaure un snapshot de volume antérieur à la montée. Descendre sous la 0.5.0 traverse la rupture à rebours et n'est pas supporté : une release 0.4.x ne peut pas lire des données créées par la 0.5+ — restaure un snapshot pré-0.5 ou déploie la 0.4.x à neuf.
-
-## 0.4 → 0.5 : rupture de version
-
-La 0.5 a remplacé le runtime et le store du backend applicatif : les données applicatives vivent désormais dans Postgres, là où la 0.4 les gardait dans la base propre du service Convex embarqué. Aucun importateur ne relie les deux, donc **une instance 0.4.x ne peut pas être montée en place — la 0.5 exige un déploiement neuf.**
-
-**Ce que ça veut dire concrètement :**
-
-- `tale deploy` avec une CLI 0.5+ **refuse** de toucher une instance dont la version qui tourne est sous la 0.5.0, avant de tirer une image ou d'écrire quoi que ce soit.
-- Rien de la base d'une instance 0.4 n'est repris : chats, automatisations et leur historique d'exécution, entrées de connaissance, historique des tâches, utilisateurs et connexions. L'**arbre de configuration** de l'organisation (agents, skills, fournisseurs, politiques de gouvernance) vit en fichiers sur le volume de configuration partagé et suit, lui ; les fichiers d'un bucket BYO-S3 restent physiquement dans le bucket, mais la nouvelle instance n'a aucune référence vers eux.
-- La ligne 0.4.x reste maintenue pour la sécurité et les correctifs critiques sur la branche `release/0.4` — rester en 0.4.x un moment est un choix supporté ; passer à la 0.5 est un ré-embarquement, pas une montée de version.
-
-**Passer à la 0.5 :**
-
-```bash
-# 1. Laisser l'instance 0.4 intacte (elle continue de servir).
-# 2. Créer un NOUVEAU répertoire projet avec une CLI 0.5 :
-mkdir tale-05 && cd tale-05
-tale init
 tale deploy
-
-# 3. Ré-embarquer : organisations, utilisateurs (invitation / SSO),
-#    configuration, re-téléversement des documents et connaissances.
-# 4. Décommissionner l'instance 0.4 une fois la nouvelle validée.
+tale status
 ```
 
-Le contournement expert — `tale deploy --accept-data-loss` — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.5 de cette instance deviennent définitivement illisibles.
+Un changement de version ou un remplacement de configuration de l’hôte prend un snapshot local avant modification, sauf avec `--skip-backup`. Cette protection supplémentaire ne remplace pas une sauvegarde hors de l’hôte.
 
-**L'ancienne base `tale_platform`.** Chaque conteneur `tale-db` créait au démarrage une base `tale_platform` vide — la base que le service Convex embarqué utilisait en 0.4 et que rien dans la 0.5 ne lit. Les installations neuves ne la créent plus, et rien ne la supprime pour toi : une instance déployée d'abord avec une version 0.5 antérieure la porte encore, comme un hôte 0.4 réutilisé. Elle ne gêne pas. Quand tu es sûr de n'avoir plus besoin de rien de l'ère Convex, prends un snapshot puis supprime-la à la main — sur `db`, et sur `knowledge-db` si ton déploiement en a un :
+| Groupe de services | Déploiement ordinaire | Quand prévoir une interruption supplémentaire ? |
+| --- | --- | --- |
+| `platform`, `backend-api`, `backend-worker` | Déploiement commun dans la nouvelle couleur applicative. | Anciens et nouveaux réplicas coexistent ; le drainage peut refuser de nouveaux tours. |
+| `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Remplacement sur place après drainage du travail concerné. | Ce sont des dépendances d’exécution communes, pas un second groupe applicatif bleu-vert. |
+| `db`, `object-store`, `proxy` | Conservation des services actifs ; la CLI signale les mises à jour ignorées. | Ajoute `--stop` lorsque ces services doivent être remplacés. |
 
 ```bash
-tale backup
-docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+tale deploy --stop
 ```
 
-## Où cela s'inscrit
+`TALE_PLATFORM_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_BACKEND_WORKER_REPLICAS` acceptent 1–16 réplicas. Augmente le rôle dont les mesures montrent la saturation ; ajouter des workers ne corrige ni une base indisponible ni un quota fournisseur épuisé.
 
-Le flow de montée de version noue chaque autre page d'exploitation — les backups sont ce qui rend une montée de version échouée récupérable, l'observabilité est ce qui te dit que la nouvelle couleur est saine, le durcissement est ce que tu reparcours après une version majeure. Si tu mets en place la CLI pour la première fois, [Installer la CLI tale](/fr/self-hosted/install/cli-install) couvre le setup côté workstation ; si tu prends le pager en plein rollout, [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.
+## Comprendre la bascule
+
+La CLI démarre la couleur inactive et attend que ses réplicas passent les contrôles de santé avant de terminer la bascule. Les deux versions peuvent servir pendant le chevauchement. Les releases doivent donc rester compatibles avec l’application précédente pendant les migrations.
+
+L’ancienne API est drainée avant son retrait : de nouveaux tours de chat peuvent être refusés, tandis que les tours en cours disposent d’un délai pour finir. Le drainage des chats attend jusqu’à trois minutes ; celui du service web utilise `DRAIN_TIMEOUT`, par défaut 30 secondes. La route de santé web reste saine tant que son alias est partagé. Déconnecter les anciens conteneurs des réseaux de service les retire du DNS et peut couper les connexions restantes ; cette étape vient donc après les drainages.
+
+Si le nouveau groupe ne devient pas sain avant `HEALTH_CHECK_TIMEOUT`, la CLI ne termine pas la bascule. Examine l’état enregistré et les journaux avant de réessayer. Un déploiement interrompu peut laisser les deux groupes ou un transfert en attente. Suis les indications de reprise de la CLI plutôt que de supprimer manuellement conteneurs ou fichiers d’état.
+
+## Vérifier les migrations et le résultat utilisateur
+
+Le backend applique les migrations SQL numérotées au démarrage sous un verrou consultatif de session. Les autres réplicas attendent cette étape. Une erreur de migration empêche le nouveau backend de démarrer normalement ; examine l’erreur et la base avant de réessayer. Changer un tag d’image n’annule pas des migrations conçues pour avancer uniquement.
+
+`tale migrate` actualise les valeurs d’organisation fournies ; ce n’est pas une commande de retour arrière de la base. Avant de remplacer la configuration de l’hôte, vérifie que les adaptations locales doivent réellement être écrasées.
+
+Après le déploiement, vérifie certificat public et connexion, ouvre un projet ou une conversation existante et télécharge un fichier connu. Teste de façon contrôlée les parcours de connaissances et d’automatisation utilisés. Vérifie l’avancement des workers, les stockages et la version effectivement active. Conserve les éléments de reprise antérieurs jusqu’à l’acceptation du déploiement.
+
+## Choisir un retour arrière
+
+| Situation | Reprise |
+| --- | --- |
+| Revenir à la version précédente enregistrée dans la même ligne `major.minor` | `tale rollback` vérifie cette limite et demande confirmation avant de redéployer. Lis aussi les notes de compatibilité de la release. |
+| Revenir au-delà d’une limite mineure ou majeure | Restaure les données coordonnées d’avant la mise à niveau et déploie leur version correspondante. `tale rollback` refuse ce retour limité aux images. |
+| Version cible ou compatibilité des données inconnue | Résous la version et la provenance des sauvegardes avant de démarrer un programme plus ancien. |
+
+```bash
+tale rollback
+```
+
+`--yes` supprime la confirmation pour une opération sans surveillance déjà approuvée. La vérification de ligne de version est un garde-fou, pas une preuve indépendante de compatibilité de chaque intégration externe ou configuration personnalisée. Une liste d’anciennes migrations qui forme le préfixe de la nouvelle ne suffit pas à rendre un retour arrière sûr.
+
+## 0.4 → 0.5 : une installation séparée
+
+En 0.5, Postgres a remplacé l’ancien stockage applicatif Convex. Aucun importeur ne permet une mise à niveau directe entre ces bases. Garde l’ancienne instance et ses sauvegardes intactes pendant que tu prépares un déploiement neuf, avec un workspace et des données séparés.
+
+Recrée organisations et utilisateurs, examine et transfère la configuration compatible, puis réimporte les documents nécessaires. Des fichiers laissés dans un bucket externe ne reçoivent pas automatiquement de références dans la nouvelle base applicative. Valide l’environnement de remplacement avant de retirer l’ancien.
+
+La CLI refuse ce changement non pris en charge par défaut. L’option experte `--accept-data-loss` n’est pas un outil de migration et ne préserve pas les anciennes données applicatives. Des volumes ou bases historiques peuvent subsister après de précédentes mises à niveau ; leur seule présence ne justifie pas de les supprimer pendant cette procédure.

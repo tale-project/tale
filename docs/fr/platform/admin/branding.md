@@ -1,11 +1,9 @@
 ---
-title: Branding
-description: Logo, favicon et la couleur d’accentuation que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l’entreprise.
+title: Personnalisation visuelle
+description: Modifie le logo, les icônes d’onglet et la couleur d’accentuation, et vérifie quand les changements s’appliquent.
 ---
 
-Le branding est la surface qui échange le chrome par défaut de Tale contre celui de ton organisation. La page couvre les assets que la plateforme habille — logo, favicon et la couleur d’accentuation dont dérive la palette — et explique où chacun apparaît pour que tu aies un aperçu avant d’enregistrer. Le nom du produit lui-même suit automatiquement le nom de ton organisation, il n’y a donc pas de champ séparé à remplir. Les Administrateurs vont vers le branding quand une instance auto-hébergée s’expose à un public externe ou quand un déploiement interne doit sembler natif à l’entreprise.
-
-Seuls les Administrateurs et Propriétaires peuvent éditer le branding. Tous les autres voient le résultat ; le formulaire lui-même est caché aux Éditeurs, Développeurs et Membres.
+Donne à une organisation son logo, ses icônes d’onglet et sa couleur d’accentuation dans **Paramètres > Branding**. Les propriétaires et les admins peuvent modifier ces réglages. Ils concernent l’organisation ouverte : vérifie son nom avant de changer l’apparence partagée.
 
 <Frame caption="Paramètres > Branding — les contrôles de logo, favicon et couleur d’accentuation à côté d’un aperçu en direct de la barre latérale.">
 
@@ -13,32 +11,36 @@ Seuls les Administrateurs et Propriétaires peuvent éditer le branding. Tous le
 
 </Frame>
 
-## Où vit le branding
+## Préparer les éléments visuels
 
-Ouvre **Paramètres > Branding**. Le formulaire a trois sections (téléversement du logo, téléversement du favicon, couleur d’accentuation) et un aperçu en direct qui reflète la barre latérale avec les valeurs que tu édites. Enregistrer applique le changement pour chaque membre de _cette_ organisation à son prochain chargement de page — il n’y a pas de surcharge par utilisateur.
+| Réglage | Élément à préparer |
+| --- | --- |
+| **Logo** | Un symbole lisible à la taille de la barre latérale, sur fond clair comme sur fond sombre. SVG est préférable ; une image matricielle devrait mesurer au moins 64 × 64 pixels. |
+| **Favicon** | Une petite icône d’onglet reconnaissable. Tu peux fournir une variante claire et une variante sombre. |
+| **Couleur d'accentuation** | La couleur hexadécimale de ta marque, à vérifier dans les deux thèmes. Tale en dérive la palette affichée pour le thème courant. |
 
-Le branding est limité à une organisation. Chaque organisation conserve son propre logo, favicon et sa couleur d’accentuation, donc changer d’organisation bascule le chrome vers le branding de cette organisation au lieu de garder celui de la précédente. Éditer ici ne change que l’organisation dans laquelle tu te trouves actuellement.
+En l’absence de logo, le nom de l’organisation sert de marque textuelle. Modifie-le dans **Paramètres > Organisation** ; la page de personnalisation n’a pas de champ distinct pour le nom de l’application.
 
-## Le nom du produit
+## Charger un logo ou une favicon
 
-Il n’y a pas de champ « nom d’app » ni « logo texte ». La marque de mot dans l’en-tête de la barre latérale et le nom dans le titre d’onglet du navigateur sont le nom propre de ton organisation, que tu définis sur la page **Paramètres > Organisation**. Renomme l’organisation et le chrome suit au prochain chargement de page. Téléverse une image de logo (ci-dessous) et elle prend la place de la marque de mot ; sans logo, le nom de l’organisation est rendu comme marque de mot textuelle.
+Sélectionne l’image dans le champ correspondant. Le chargement ou le retrait d’une image prend effet immédiatement, sans attendre Enregistrer. L’aperçu et l’apparence de l’organisation se mettent à jour lorsque l’opération aboutit.
 
-## Les assets
+Sans favicon explicite, Tale peut en créer une à partir du logo chargé. Fournis une icône dédiée si le logo complet devient difficile à reconnaître dans un onglet. Après le chargement, vérifie l’icône et la barre latérale, y compris dans l’autre thème.
 
-**Logo** est une image — PNG, SVG, JPG, WebP ou ICO. La plateforme la rend à la hauteur de la barre latérale ; vise un fond transparent et une marque de mot lisible à environ 32 pixels de haut. Le logo est un téléversement unique utilisé sur les deux thèmes — choisis une marque lisible sur fond clair comme sombre. Sans logo, le chrome retombe sur le nom de ton organisation comme marque de mot textuelle.
+<Note>
 
-**Favicon** est l’icône d’onglet. Téléverse une variante claire et une variante sombre pour que l’icône reste lisible quel que soit le thème choisi par le système d’exploitation — ou laisse-le vide, et Tale en dérive un de ton logo dès que tu le téléverses, si bien qu’un seul téléversement habille à la fois la barre latérale et l’onglet du navigateur. Un favicon explicite l’emporte toujours sur celui dérivé automatiquement.
+L’action Abandonner de l’en-tête concerne les modifications du formulaire encore en attente. Elle ne rétablit pas une image déjà chargée ou retirée.
 
-**Couleur d'accentuation** est la seule couleur dont dérive la palette de marque — boutons, anneaux de focus, états de sélection et la ligne active de la barre latérale en tirent tous leur ton. Elle accepte toute valeur hex, choisie une fois pour les modes clair et sombre ; Tale dérive une palette lisible par thème — une couleur difficile à lire contre le fond d’un thème est poussée vers le contraste pour ce thème seulement, l’autre reste intact, et la même marque se lit proprement sur les deux. L’aperçu reflète la palette dérivée pour le thème que tu regardes actuellement.
+</Note>
 
-## Un rebranding mis en pratique
+## Changer la couleur d’accentuation
 
-Pour rebrander une instance pour `Acme Corp`, mets d’abord le nom de l’organisation à `Acme Corp` sur la page **Paramètres > Organisation** — ce nom devient la marque de mot de la barre latérale et le titre d’onglet du navigateur. Ouvre ensuite **Paramètres > Branding**, téléverse la marque de mot de l’entreprise comme logo, et colle le hex de marque (`#3B82F6` dans l’exemple) dans le champ de couleur d’accentuation. Laisse le favicon vide, et Tale en génère un depuis le logo. Le panneau d’aperçu à droite se met à jour pendant que tu tapes. Enregistrer applique le changement ; la barre latérale, l’onglet du navigateur et le favicon reflètent le nouveau branding immédiatement.
+Modifie **Couleur d'accentuation** et examine l’aperçu. Sélectionne **Enregistrer** dans l’en-tête pour conserver la modification, ou **Abandonner** pour revenir à la valeur enregistrée. Le champ reflète le thème courant : la couleur dérivée du thème sombre peut donc différer de la valeur stockée pour le thème clair.
 
-## L’écran de connexion personnalisé
+Après l’enregistrement, recharge la page et vérifie un élément de navigation sélectionné, un bouton et le focus au clavier. Une couleur convaincante sur une grande surface peut être difficile à distinguer sur un petit contrôle.
 
-Les écrans de connexion, d’inscription et de réinitialisation de mot de passe s’affichent avant que tu aies choisi une organisation — il n’y a donc aucune organisation dans le contexte pour les brander. Ils montrent le branding par défaut de la plateforme plutôt que celui d’une organisation précise ; le branding par organisation prend le relais dès que tu arrives dans l’espace de travail de cette organisation. Déconnecte-toi et recharge l’URL de connexion pour vérifier quels assets utilisent les écrans pré-authentification.
+## Vérifier où l’apparence s’applique
 
-## Où ça s’inscrit
+La personnalisation s’applique à l’intérieur de l’espace de travail. Changer d’organisation charge l’apparence de la destination. Les pages de connexion s’affichent avant le choix d’une organisation et utilisent l’apparence par défaut de la plateforme.
 
-Le branding est la couche visuelle au-dessus de toute autre surface admin ; SSO, courriels et journaux d’audit portent le chrome brandé jusqu’à tes membres. Comme le nom du produit est le nom propre de l’organisation, garde-le net dans [membres et rôles](/fr/platform/admin/members-and-roles). Combine le branding avec [fournisseurs](/fr/platform/admin/providers) pour que les noms de modèles dans l’en-tête de chat correspondent au chrome qui les entoure, et avec [membres et rôles](/fr/platform/admin/members-and-roles) pour que les personnes qui peuvent éditer le branding soient les mêmes qui détiennent le reste du chrome de l’org.
+Si le navigateur montre encore une ancienne icône, recharge la page et vérifie les champs de favicon. Une favicon explicite a priorité sur celle dérivée du logo. Utilise **Réinitialiser** seulement pour retirer la personnalisation enregistrée de l’organisation, après avoir lu la confirmation.

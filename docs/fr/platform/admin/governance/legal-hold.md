@@ -1,38 +1,46 @@
 ---
-title: Conservation légale
-description: Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves.
+title: Conservation juridique
+description: Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération.
 ---
 
-Conservation légale est le mécanisme que Tale livre pour préserver des preuves sous conservation contentieuse. Un hold épingle une cible — un utilisateur en tant que custodian, ou l’organisation entière — hors de portée du balayage de rétention et de la cascade d’effacement des personnes concernées. Les Administrateurs et Propriétaires lisent cette page quand le conseil leur demande de préserver les données d’un custodian, quand une demande de levée a besoin de la signature à double contrôle, ou quand un audit réconcilie quels holds étaient en vigueur à une date donnée.
+Une conservation juridique préserve les données couvertes pendant qu’un dossier est ouvert. Les admins et propriétaires gèrent ces gels dans **Paramètres > Gouvernance > Conservation légale**. Place le gel tant que les données existent : il ne récupère pas les enregistrements déjà supprimés définitivement.
 
-<Frame caption="Gouvernance > Conservation légale — le tableau des holds actifs avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
+<Frame caption="Gouvernance > Conservation légale — le tableau des conservations actives avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
 
-![La page de gouvernance Conservation légale montrant un hold actif — de type Utilisateur sur marta.vogel, placé par Alex Rivera au titre de l’affaire Northstar contract — à côté d’un bouton Placer une conservation légale, au-dessus des deux files de demandes de levée, Approbation en attente et Approuvées, qui n’affichent aucune demande.](/images/platform/governance-legal-hold.webp)
+![La page de gouvernance Conservation légale montrant une conservation active — de type Utilisateur sur marta.vogel, placée par Alex Rivera au titre de l’affaire Northstar contract — à côté d’un bouton Placer une conservation légale, au-dessus des deux files de demandes de levée, Approbation en attente et Approuvées, qui n’affichent aucune demande.](/images/platform/governance-legal-hold.webp)
 
 </Frame>
 
-## Une mise en place mise en pratique
+## Placer un gel
 
-Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Conservation légale** et clique sur **Placer une conservation légale**. Choisis le type de cible — utilisateur en tant que custodian, ou l’organisation entière — choisis la personne là où il en faut une, ajoute un motif et lie le hold à un dossier s’il y en a un d’ouvert. Le hold prend effet immédiatement : les balayages de rétention sautent les lignes de la cible, une demande d’effacement contre la cible est refusée, et supprimer du contenu retenu est refusé à la source.
+1. Choisis **Placer une conservation**.
+2. Choisis la cible : une personne comme dépositaire, ou toute l’organisation. Pour une personne, sélectionne le bon membre.
+3. Indique un motif permettant à un autre admin de comprendre ce qui doit être préservé. Associe le gel à un dossier si tu suis une affaire.
+4. Confirme, puis vérifie la cible et le motif dans les conservations actives.
 
-## Les quatre sections
+Le gel prend effet immédiatement. Les données couvertes sont protégées de la rétention et de l’effacement ; les tentatives de suppression sont refusées. Détermine le bon périmètre selon la procédure de préservation de ton organisation.
 
-**Holds actifs** est la liste de travail de chaque hold actuellement en vigueur. Chaque ligne porte le type, la cible, le motif, le dossier, qui l’a placé et quand. Filtre par type ou par dossier pour cadrer la vue.
+## Regrouper les gels par dossier
 
-**Demandes de levée** est la file à double contrôle. Lever un hold demande qu’un autre Administrateur approuve la demande ; les demandes approuvées attendent encore un délai de refroidissement avant de prendre effet. La section se sépare en _en attente d’approbation_ et _approuvée, en attente du refroidissement_, pour que la file et le minuteur soient tous deux visibles.
+Utilise **Créer un dossier** pour réunir les gels liés sous un nom et un numéro de dossier. Le nombre de gels associés aide à vérifier que les personnes prévues sont couvertes.
 
-**Dossiers** groupe les holds par affaire. Chaque dossier porte un nom, un numéro de dossier et la liste des holds liés. Fermer un dossier dépose des demandes de levée pour chaque hold lié — toujours soumises à l’approbation à double contrôle par demande.
+Fermer un dossier demande la libération de ses gels. Cela ne les libère pas immédiatement : chaque demande doit encore suivre l’examen décrit ci-dessous.
 
-**Historique des levées** est l’audit en lecture seule des levées effectuées et rejetées. Utilise-le pour réconcilier contre une lettre de préservation du conseil adverse ou alimenter un rapport d’audit.
+## Libérer un gel
 
-## Interaction hold-et-cascade
+1. Sur le gel actif, choisis **Demander la libération** et explique pourquoi la conservation n’est plus nécessaire.
+2. Un autre admin examine la demande et choisit **Approuver** ou **Rejeter**. La personne qui demande la libération ne peut pas l’approuver elle-même.
+3. Après l’approbation, vérifie le délai affiché dans les demandes de libération. Le gel reste actif pendant ce délai.
+4. Vérifie le résultat terminé dans l’historique des libérations et les gels restants dans la liste active.
 
-Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible, et la suppression est refusée à la source — mettre à la corbeille les threads ou documents d’une personne retenue échoue avec une erreur de conservation légale, et supprimer un dossier refuse tant qu’il contient un fichier retenu. Il bloque aussi la suppression de l’organisation elle-même : tant qu’un hold est actif — sur toute l’organisation ou sur un membre —, **Supprimer l'organisation** est refusé et l’organisation reste exactement telle qu’elle était. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; le reçu enregistre le blocage.
+Un admin peut placer un gel. Sa libération exige deux personnes et un délai. Une approbation ne signifie donc pas encore que la libération est terminée.
 
-## Double contrôle
+## Comprendre une suppression bloquée
 
-Placer et lever ne sont pas symétriques. Placer est une action d’un Administrateur seul — la vitesse compte quand un litige arrive. Lever est à double contrôle : l’Administrateur demandeur dépose, un autre Administrateur approuve, et un délai de refroidissement s’applique entre l’approbation et l’effet pour qu’une levée hâtive puisse encore être annulée. Les deux moitiés du workflow sont auditées de bout en bout.
+Un gel peut empêcher une demande d’effacement, la suppression des chats ou documents couverts, ou celle d’un dossier contenant des fichiers gelés. Tout gel actif au niveau de l’organisation ou d’un membre empêche aussi la suppression de l’organisation elle-même.
 
-## Où cela s’inscrit
+Si une suppression échoue, examine le gel concerné au lieu de répéter l’action. Libérer un gel ne retire pas un autre gel qui couvre les mêmes données. La libération permet à la rétention ou à l’effacement applicable de reprendre.
 
-Conservation légale est le bouton gel sur la rétention. C’est le seul mécanisme qui bat le balayage chronométré de la rétention et la cascade d’effacement des personnes concernées — les deux respectent les holds par conception. Les pages compagnons sont [demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) pour le côté cascade et [politiques et limites](/fr/platform/admin/governance/policies-and-limits) pour les fenêtres de rétention que le hold outrepasse.
+## Examiner les demandes liées
+
+Consulte [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) pour examiner un reçu d’effacement bloqué par un gel, et les [journaux d’audit](/fr/platform/admin/governance/audit-logs) pour les actions enregistrées. La [règle de rétention](/fr/platform/admin/governance/policies-and-limits) détermine le nettoyage normal lorsque la conservation ne s’applique plus.

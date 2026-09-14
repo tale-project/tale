@@ -18,7 +18,7 @@ import type {
   ReadAdapter,
   WriteAdapter,
 } from './adapters';
-import { backendFetch } from './api-client';
+import { backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type CollabUnreadResult = ReturnsOf<'collab/notifications:myUnreadCount'>;
@@ -59,6 +59,21 @@ function withConvexId(row: unknown): unknown {
     : row;
 }
 
+/** Record tables and details still consume the document timestamp names. */
+function withRecordDates(row: unknown): unknown {
+  const doc = withConvexId(row);
+  if (doc === null || typeof doc !== 'object') return doc;
+  return {
+    ...doc,
+    ...('createdAt' in doc && typeof doc.createdAt === 'number'
+      ? { _creationTime: doc.createdAt }
+      : {}),
+    ...('updatedAt' in doc && typeof doc.updatedAt === 'number'
+      ? { lastUpdated: doc.updatedAt }
+      : {}),
+  };
+}
+
 interface PageEnvelope {
   page: unknown[];
   isDone: boolean;
@@ -70,9 +85,10 @@ function compositeEnvelope(
   rows: unknown[],
   nextCursor: Record<string, number | string> | null,
   tsField: string,
+  mapRow: (row: unknown) => unknown = withConvexId,
 ): PageEnvelope {
   return {
-    page: rows.map(withConvexId),
+    page: rows.map(mapRow),
     isDone: nextCursor === null,
     continueCursor:
       nextCursor === null
@@ -106,7 +122,7 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
       queryFn: () =>
         backendFetch<{ items: unknown[] }>(`/contacts?limit=${LIST_LIMIT}`, {
           orgId,
-        }).then((body) => body.items.map(withConvexId)),
+        }).then((body) => body.items.map(withRecordDates)),
     };
   },
   'knowledge_entries/queries:approxCountKnowledgeEntries': (args, ctx) => {
@@ -140,9 +156,9 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(orgId, 'website', 'list'),
       queryFn: () =>
-        backendFetch<{ items: unknown[] }>(`/websites?limit=${LIST_LIMIT}`, {
+        backendFetch<PageEnvelope>(`/websites?limit=${LIST_LIMIT}`, {
           orgId,
-        }).then((body) => body.items.map(withConvexId)),
+        }).then((body) => body.page.map(withRecordDates)),
     };
   },
   'websites/queries:approxCountWebsites': (args, ctx) => {
@@ -196,7 +212,7 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
       queryFn: () =>
         backendFetch<{ items: unknown[] }>(`/products?limit=${LIST_LIMIT}`, {
           orgId,
-        }).then((body) => body.items.map(withConvexId)),
+        }).then((body) => body.items.map(withRecordDates)),
     };
   },
   'products/queries:approxCountProducts': (args, ctx) => {
@@ -334,7 +350,12 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
           `/contacts?limit=${numItems}${qs}${split !== null ? `&cursorUpdatedAt=${encodeURIComponent(split.ts)}&cursorId=${encodeURIComponent(split.id)}` : ''}`,
           { orgId },
         ).then((body) =>
-          compositeEnvelope(body.items, body.nextCursor, 'updatedAt'),
+          compositeEnvelope(
+            body.items,
+            body.nextCursor,
+            'updatedAt',
+            withRecordDates,
+          ),
         );
       },
     };
@@ -364,7 +385,12 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
           `/products?limit=${numItems}${qs}${split !== null ? `&cursorUpdatedAt=${encodeURIComponent(split.ts)}&cursorId=${encodeURIComponent(split.id)}` : ''}`,
           { orgId },
         ).then((body) =>
-          compositeEnvelope(body.items, body.nextCursor, 'updatedAt'),
+          compositeEnvelope(
+            body.items,
+            body.nextCursor,
+            'updatedAt',
+            withRecordDates,
+          ),
         );
       },
     };
@@ -410,7 +436,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
         backendFetch<PageEnvelope>(
           `/websites?limit=${numItems}${qs}${cursor !== null && cursor !== '' ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
           { orgId },
-        ).then((body) => ({ ...body, page: body.page.map(withConvexId) })),
+        ).then((body) => ({ ...body, page: body.page.map(withRecordDates) })),
     };
   },
 };
@@ -634,6 +660,10 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
           },
         },
       ),
+  },
+  'products/mutations:generateImageUploadUrl': {
+    run: (args, ctx) =>
+      Promise.resolve(backendUrl('/products/images', requireOrg(args, ctx))),
   },
   'products/mutations:createProduct': {
     run: (args, ctx) =>

@@ -1,109 +1,121 @@
 ---
 title: Skill library
-description: The Skills settings page — file-based bundles your agents read, created by any member and shared with teams or across the organization.
+description: Create reusable instructions, import a skill bundle, and choose which teams and project agents can use it.
 ---
 
-A skill is an instruction you write once and let every agent read. It lives in your organization's own file tree as a small bundle — a `SKILL.md` carrying the instruction in its body, plus any reference material that instruction leans on — and **Settings > Skills** is where you create, upload, and maintain those bundles. Every member can create skills; what you may edit is decided per bundle.
+A skill packages a repeatable way of working: writing release notes, checking a brief, or preparing a document in your house style. It contains a `SKILL.md` instruction file and, optionally, supporting files. Use **Settings > Skills** to maintain it once, then [equip the agents](/platform/agents/skills) that need it.
 
-This page covers what a skill is, the file it is made of, who gets to see it, and how you add and retire one. Read the agent side on [Skills on agents](/platform/agents/skills) once you want a particular agent to reach for a particular bundle.
+Every member can create a skill. You can edit your own; editing or deleting another person's shared skill requires an organization administrator.
 
-## What a skill is, and what it is not
-
-A skill is a **knowledge pack**. Its body is instruction a model reads when the work calls for it: a house writing voice, a checklist your team follows, the way your organization phrases a refusal. A model finds the bundle by its description, reads the body when that description matches the task at hand, and opens individual bundle files when the body points at them.
-
-A skill is never something the platform executes. There is no entry point, no command, and no runtime in a bundle — a file under `scripts/` is material a model may read and adapt, not a program Tale runs on your behalf. That boundary is what makes a bundle safe to accept from outside: importing someone else's skill hands your organization prose and reference files, and nothing that can act on its own.
-
-## The SKILL.md file
-
-Every bundle has exactly one `SKILL.md` at its root — a YAML frontmatter block, then the instruction body in markdown.
-
-```markdown
----
-name: release-notes
-description: Turn a list of merged changes into release notes in our house voice. Use when someone asks for a changelog, release notes, or a summary of what shipped.
-visibility: team
-teams:
-  - jx7d…
-license: CC-BY-4.0
----
-
-Write release notes as three sections — Added, Changed, Fixed — and lead each
-line with the verb...
-```
-
-The keys follow the agentskills.io convention in kebab-case, and any key Tale does not recognise is kept verbatim, so a bundle authored for another tool survives an edit and a save unchanged.
-
-| Key                        | What it carries                                                                                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`                     | The slug, which must equal the bundle's folder name — lowercase letters, digits, and single hyphens, 64 characters at most. `anthropic` and `claude` are reserved. |
-| `description`              | Up to 1024 characters, and the field that decides whether a model reaches for the skill at all. Say what it does and when it applies.                              |
-| `visibility`               | `team` or `org`. Absent counts as `org`. `private` is retired — a pre-existing private bundle still parses, but no new skill may take it.                          |
-| `teams`                    | The team ids a `team` skill is shared with — required there, rejected elsewhere. The library's sharing picker fills it for you.                                    |
-| `owner`                    | The member the bundle belongs to — attribution on a shared skill, required on a legacy `private` one.                                                              |
-| `license`                  | Free text, for a bundle you imported or intend to pass on.                                                                                                         |
-| `recommended-packages`     | Python or Node package specs the author suggests. Advisory only — Tale never installs them on a skill's behalf.                                                    |
-| `disable-model-invocation` | Set it to `true` and a model must not reach for the skill on its own. It stays available for an explicit recall.                                                   |
-| `icon` and `labels`        | An Iconify id and up to eight chips, for the skill's card in the library.                                                                                          |
-
-Two ceilings apply: the frontmatter block may run to 16 KB, and the whole `SKILL.md` to 512 KB. Bundle assets sit outside that budget.
-
-## Who can see it
-
-Sharing is one field rather than a table of permissions. `visibility: team` shares the bundle with the teams listed under `teams` — pick them in the library's **Visibility** section. `visibility: org` means every member sees it, and any project's agents can equip it. Any member may share a skill team- or organization-wide; editing or deleting someone else's shared skill takes an org admin. A bundle carrying no `visibility` at all — including one you upload — counts as an organization skill, and the upload preview says so before you confirm.
-
-<Note>
-
-`visibility: private` is retired. Agents are the only surface that equips skills, and a project's agents never see one member's private bundle — so a private skill would be visible to you alone and usable nowhere. A bundle that already carries it keeps working for its owner (even an admin cannot read it), and its owner can widen the sharing at any time; new skills and uploads that declare `private` are refused.
-
-</Note>
-
-Narrowing a skill's sharing — org to team, or dropping a team — asks for confirmation first: whoever loses sight of the skill also loses it in every agent that equipped it through them.
-
-## Add a skill
-
-Open **Settings > Skills**. The page is a table of every skill you may see — its name, description, visibility, and labels — with search over all three of name, description and labels, and filters for visibility and label. Clicking a row opens the bundle. **Add skill** offers three starting points.
+## Create a small skill
 
 <Steps>
 
-<Step title="Start blank">
+<Step title="Name the skill and explain when to use it">
 
-**Blank skill** asks for a name — the slug, in lowercase letters, numbers, and single hyphens — plus the description, the sharing, and an instruction body you can write on the spot. New skills start shared with the organization; narrow the sharing to teams where the knowledge is theirs.
+Open **Settings > Skills**, then **Add skill > Blank skill**. Enter a **Name** such as `brief-summary` and a **Description**:
+
+```text
+Summarize a project brief into its review date, owner, and open questions.
+Use when someone asks for a handover or a quick check of a brief.
+```
+
+The name is a unique slug: lowercase letters, digits, and single hyphens, up to 64 characters. The description tells the model when the skill is relevant. Click **Create** to add it and open its editor.
 
 </Step>
 
-<Step title="Or upload a bundle">
+<Step title="Write the instructions">
 
-**Upload zip** takes a `.zip` with `SKILL.md` at its root, alongside any `scripts/`, `references/`, or `assets/` folders; **Upload folder** takes the folder itself and zips it for you. Either way Tale reads the frontmatter before writing anything and shows you what it found — the description, the sharing it will land with, the license, and a full file list with sizes — so you approve a bundle you have actually read. A bundle whose slug already exists asks first whether to replace it.
+Under **Instructions (body)**, give a short procedure and a recognizable result. For example:
+
+```markdown
+Read the supplied brief. Return a table with three rows: review date,
+owner, and open questions. Quote the sentence supporting each answer.
+Write "Not stated" where the brief supplies no answer. Do not infer a
+launch date from a review date.
+```
+
+Add reference files only when they help perform the procedure. Keep detailed examples in those files and tell the agent when to open them.
 
 </Step>
 
-<Step title="Write the body">
+<Step title="Choose the audience and save">
 
-Open the skill and write the instruction under **Instructions (body)**. This is the text a model reads, so write it the way you would brief a colleague: what the skill is for, when it applies, and what good output looks like.
+New skills start with **Organization** visibility. Choose **Teams** under **Visibility** and select at least one team if the content belongs to a narrower audience. Add an icon or labels if they will help people find the skill, then click **Save**.
+
+Creating a skill does not equip an agent automatically. Open the intended project's agent and select the skill in its equipment. Run a small task with a known input and check the result against the instructions.
 
 </Step>
 
 </Steps>
 
-## What sits in the bundle
+<Frame caption="The skill editor puts bundle files, description, labels, and visibility together, with Instructions below.">
 
-A skill's detail view shows **Bundle** — the file tree as it exists on disk — with a viewer for any file you click. The smallest useful skill is a single file, and most grow one folder at a time.
+![The docx skill editor shows its bundle file tree, description, labels, Organization visibility, and the Instructions heading.](/images/platform/skill-library-detail.webp)
+
+</Frame>
+
+## Import an existing bundle
+
+Use **Add skill > Upload zip** or **Upload folder**. The bundle must contain `SKILL.md` at its root. References, assets, and scripts can accompany it:
 
 ```text
-release-notes/
+brief-summary/
 ├── SKILL.md
-├── references/
-│   └── voice-and-tone.md
-└── scripts/
-    └── group-changes.py
+└── references/
+    └── example-brief.md
 ```
 
-Keep the assets small and readable. Text a model can open cheaply gets used; a large binary sits there unread, and the viewer says outright that it cannot preview it.
+The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
 
-## Retire a skill
+<Warning>
 
-**Delete skill** on the detail view removes the bundle from disk; every agent equipped with it loses access, with nothing to fall back on. There is no version pinning — a skill is always read exactly as it stands right now, which is also what makes it worth extracting: one edit reaches everyone who holds it.
+Importing a skill does not start a task or execute its files. Once equipped, however, its instructions guide a coding agent that may have tools, credentials, and a shell. Review unfamiliar instructions and scripts before equipping the bundle. A skill is not an additional permission boundary.
 
-## Where this fits
+</Warning>
 
-The skill library is the lightest reuse Tale offers: one file, one field for sharing, and nothing to keep in sync across the people who need it. It is where a phrasing you keep retyping stops being something you retype. Once a bundle is in the library, the remaining decision is which agents get it — that is [Skills on agents](/platform/agents/skills), which covers equipping a project's agents and how a bundle reaches a sandbox.
+## Understand sharing
+
+| Visibility | Who can read it | Which project agents can equip it |
+| --- | --- | --- |
+| **Organization** | Every organization member | Agents in any project |
+| **Teams** | Members of the selected teams | Agents in projects with a matching team |
+
+The project's access decides its equipment, even if you personally can read more skills. An organization-wide project can equip organization skills. Legacy private skills remain visible to their owner, but cannot be equipped; new private skills are not accepted.
+
+Narrowing visibility asks for confirmation because some agents may lose access. Deleting a skill has the same practical consequence: runs that require the missing bundle cannot stage it. Check where a shared skill is used before restricting or retiring it.
+
+## File reference
+
+A minimal `SKILL.md` looks like this:
+
+```markdown
+---
+name: brief-summary
+description: Summarize a project brief. Use for brief handovers and checks.
+visibility: org
+---
+
+Read the supplied brief. Report its review date, owner, and open questions.
+Quote supporting text and mark missing information as "Not stated".
+```
+
+| Field | Meaning |
+| --- | --- |
+| `name` | Matches the bundle's folder name. `anthropic` and `claude` are reserved. |
+| `description` | When and why the model should read the skill; maximum 1,024 characters. |
+| `visibility` / `teams` | `org`, or `team` with the team IDs. The UI fills these in for you. |
+| `license` | The terms supplied by the author. |
+| `recommended-packages` | Suggested dependencies; importing does not install them. |
+| `disable-model-invocation` | Requests explicit use of the skill. Treat this metadata as an instruction, not an access restriction. |
+| `icon` / `labels` | Library presentation; up to eight labels. |
+
+Tale preserves unrecognized frontmatter keys. The frontmatter limit is 16 KB and the complete `SKILL.md` limit is 512 KB. Keep frequently read instructions much smaller than these ceilings.
+
+## Update and troubleshoot
+
+Open a row to edit its description, instructions, labels, and visibility. The **Bundle** tree lets you inspect supporting files. Changes are not pinned per agent: later staging uses the current bundle, so test shared changes with a representative task.
+
+If an agent cannot find the skill, check that it is equipped and visible to the project. If it ignores an equipped skill, state explicitly in the task which skill to use and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
+
+For an import error, check that `SKILL.md` is at the root, its frontmatter is valid, and its name is a valid slug. The error names rejected paths or size limits. To retire a bundle, open it and choose **Delete skill** after checking the affected agents.

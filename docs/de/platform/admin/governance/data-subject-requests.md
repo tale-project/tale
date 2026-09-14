@@ -1,45 +1,55 @@
 ---
 title: Anfragen betroffener Personen
-description: Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg.
+description: Reiche Löschanfragen ein, verwalte Freigaben und Fristen und prüfe den daraus entstehenden Beleg.
 ---
 
-Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von DSGVO Artikel 17 (Recht auf Löschung) und das entsprechende CCPA-Recht nach kalifornischem Recht ausliefert. Jede Anfrage wird zu einem Beleg: er nennt die betroffene Person, den Begründungs-Code, die SLA-Frist und die Kaskade von Zeilen, die das System über Threads, Dokumente, Uploads und die übrigen Zeilen hinweg gelöscht hat, die die Person identifizieren. Admins und Inhaber lesen diese Seite, wenn eine Person eine Anfrage stellt, wenn eine Frist näher rückt, oder wenn ein Audit den Beleg einer vergangenen Löschung verlangt.
+Als Admin oder Inhaber bearbeitest du unter **Einstellungen > Richtlinien > Anfragen betroffener Personen** Löschanfragen. Tale verfolgt die Anfrage, ihre Freigabe und Wartezeit sowie das Ergebnis der Löschung. Prüfe vor der Einreichung Identität und passenden Umfang nach dem Verfahren deiner Organisation.
 
-<Frame caption="Governance > Anfragen betroffener Personen — die DSAR-Governance-Richtlinie (Cooling-off-Fenster, Vier-Augen-Freigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
+<Frame caption="Richtlinien > Anfragen betroffener Personen — die Richtlinie für Löschanfragen (Karenzzeit, Doppelfreigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
 
-![Die Governance-Seite Anfragen betroffener Personen zeigt das Cooling-off-Fenster, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer Tabelle der Löschungs-Anfragen mit einer offenen Anfrage — betroffene Person Jordan Blake, Begründungs-Code Einwilligung widerrufen, noch 24 Stunden bis zur Ausführung und 29 Tage SLA-Frist —, daneben die Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
+![Die Einstellungsseite Anfragen betroffener Personen zeigt das Karenzzeit, den Schalter für die Vier-Augen-Freigabe und die Tageslimit-Felder über einer Tabelle der Löschungs-Anfragen mit einer offenen Anfrage — betroffene Person Jordan Blake, Begründungs-Code Einwilligung widerrufen, noch 24 Stunden bis zur Ausführung und 29 Tage SLA-Frist —, daneben die Schaltfläche Anfrage einreichen.](/images/platform/governance-data-subject-requests.webp)
 
 </Frame>
 
-## Eine durchgespielte Einreichung
+## Eine Anfrage einreichen
 
-Um eine Anfrage einzureichen, öffne **Einstellungen > Richtlinien > Anfragen betroffener Personen** und klick auf **Anfrage einreichen**. Wähle die betroffene Person, wähle einen Begründungs-Code (Einwilligung widerrufen, nicht mehr erforderlich, unrechtmäßige Verarbeitung, rechtliche Verpflichtung, Widerspruch, minderjährige Person oder Vertragsende) und füge eine Freitext-Begründung hinzu. Die Anfrage tritt in ein Cooling-off-Fenster ein, bevor die Kaskade läuft — jeder Admin kann während des Fensters abbrechen. Nach Ablauf des Fensters löscht die Kaskade die Threads und Dokumente der Person (der Wissensdatenbank-Eintrag eines Dokuments geht mit), ihre Uploads, Einstellungen, Benachrichtigungen, Feedback-, Memory- und Nutzungszeilen und schwärzt ihre Kennungen im Audit-Pfad — der Beleg dokumentiert einen Zähler pro Durchlauf.
+1. Wähle **Anfrage einreichen** und suche die **Person** nach Name oder E-Mail. Prüfe, ob du das richtige Konto ausgewählt hast.
+2. Wähle den **Rechtsgrund** und schreibe unter **Begründung**, worum es geht. Verweise auf deinen internen Fall.
+3. Gib exakt `ERASE` ein und wähle **Anfrage einreichen**.
+4. Öffne den Beleg und prüfe Status, Frist und die nächste erforderliche Aktion.
 
-## Status-Lebenszyklus
+Die Löschung entfernt betroffene Daten endgültig; sie verschiebt sie nicht in den Papierkorb. Der Beleg erfasst Kategorien und Anzahlen, darunter Chats, Dokumente und Uploads, Einstellungen, Feedback, Benachrichtigungen, Nutzung und das Bereinigen von Personenkennungen im Audit-Protokoll.
 
-| Name                | Default        | Beschreibung                                                                                                                                                                  |
-| ------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ausstehend          | Anfangszustand | Die Anfrage ist eingereicht und wartet auf das Cooling-off-Fenster oder die zweite Admin-Freigabe.                                                                            |
-| Wartet auf Freigabe | Vier-Augen     | Ein zweiter Admin muss freigeben, bevor die Kaskade läuft — oder weist die Anfrage zurück, was sie abbricht.                                                                  |
-| Läuft               | mid-cascade    | Die Kaskade läuft; Teilzähler aktualisieren sich, sobald jede Kategorie fertig ist.                                                                                           |
-| Abgeschlossen       | terminal       | Jede Kategorie ist ohne Fehler gelöscht.                                                                                                                                      |
-| Teilweise           | terminal       | Einige Zeilen wurden übersprungen (ein Legal Hold hat sie blockiert) oder ein Kaskade-Durchlauf schlug fehl — der Fehler im Beleg benennt die fehlgeschlagenen Durchläufe.    |
-| Fehlgeschlagen      | terminal       | Die Kaskade starb mitten im Lauf — bei einem fatalen Fehler setzt Wiederholen sie neu auf, nach einem Watchdog-Timeout reichst du eine neue Anfrage ein.                      |
-| Blockiert           | terminal       | Ein aktiver Legal Hold blockiert jeden Kaskade-Schritt.                                                                                                                       |
-| Abgebrochen         | terminal       | Ein Admin hat abgebrochen, bevor die Kaskade lief, oder ein zweiter Admin hat die Freigabe zurückgewiesen. Für die betroffene Person lässt sich eine neue Anfrage einreichen. |
+## Vorher die Richtlinie prüfen
 
-## SLA-Verfolgung
+| Einstellung | Wirkung |
+| --- | --- |
+| **Karenzzeit (Stunden)** | Wartezeit von 0–72 Stunden vor der Ausführung. Admins können währenddessen abbrechen. Null erlaubt die sofortige Ausführung, sobald alle anderen Voraussetzungen erfüllt sind. |
+| **Doppelfreigabe erforderlich** | Ein anderer Admin muss zustimmen, bevor die Karenzzeit beginnt. Die einreichende Person kann nicht selbst freigeben. |
+| **Tägliches Limit pro Admin** | Begrenzt jeden Admin auf 1–50 Einreichungen pro Tag. |
 
-Jede Anfrage trägt eine Service-Level-Frist — standardmäßig 30 Tage ab Einreichung. Die Anfragenliste zeigt verbleibende Tage oder ein Überfällig-Badge pro Zeile. Artikel 12(3) DSGVO erlaubt eine einmalige Verlängerung für komplexe Fälle; die Aktion **Frist verlängern** vermerkt die Verlängerung auf dem Beleg mit dem Namen des anfordernden Admins und einer Begründung.
+Nur der Inhaber kann diese Richtlinie ändern. Strengere Schutzmaßnahmen gelten sofort. Lockerungen werden 24 Stunden vorgemerkt, damit jeder Admin sie abbrechen kann. Prüfe die wirksamen Einstellungen und Hinweise auf ausstehende Änderungen, bevor du mit einem neuen Wert planst.
 
-## Interaktion mit Legal Hold
+## Den Beleg verfolgen
 
-Daten einer betroffenen Person werden _nicht_ gelöscht, solange sie auf Legal Hold liegen. Zeilen unter Hold erscheinen im Beleg in den Per-Kategorie-Zählern als **Durch Legal Hold übersprungen**; den Hold aufheben und die Anfrage erneut versuchen schließt die Löschung ab. Der Status Blockiert greift, wenn ein Hold von Anfang an jede Kategorie abdeckt — die Kaskade läuft nicht, und der Beleg spiegelt die Blockade. Ein erneuter Versuch einer Anfrage, die schon bei der Einreichung blockiert wurde, durchläuft dieselbe Richtlinie wie eine neue Einreichung — das Cooling-off-Fenster oder bei Vier-Augen-Freigabe die Freigabe durch einen zweiten Admin. Solange für eine Person ein Beleg offen ist (ausstehend, laufend, blockiert oder teilweise), wird eine zweite Anfrage für sie abgewiesen: Wiederhole stattdessen die offene (oder storniere sie, solange sie noch aussteht).
+| Zustand | Nächster Schritt |
+| --- | --- |
+| Ausstehend / wartet auf Freigabe | Prüfe, ob ein zweiter Admin zustimmen oder die Karenzzeit enden muss. Brich ab oder lehne ab, wenn die Anfrage nicht ausgeführt werden soll. |
+| Läuft | Warte auf die Kategorieergebnisse und reiche keine doppelte Anfrage ein. |
+| Abgeschlossen | Prüfe die Anzahlen und bewahre den Beleg bei deinem Fall auf. |
+| Teilweise | Untersuche übersprungene Kategorien und Fehler. Behebe die Ursache vor einem neuen Versuch. |
+| Blockiert | Prüfe den [Legal Hold](/de/platform/admin/governance/legal-hold). Betroffene Daten bleiben geschützt. |
+| Fehlgeschlagen | Lies die Fehlerdetails. Nutze **Erneut versuchen**, wenn verfügbar. Bei einem Watchdog-Timeout kann eine neue Anfrage nötig sein. |
+| Abgebrochen | Dieser Beleg plant keine weitere Ausführung. Reiche bei Bedarf eine neue Anfrage ein. |
 
-## Die Kaskade-Kategorien
+Ein offener Beleg kann eine zweite Anfrage für dieselbe Person verhindern. Arbeite mit diesem Beleg weiter. War die Anfrage schon bei der Einreichung blockiert, muss ein neuer Versuch erneut die aktuelle Freigabe- und Wartezeitregel erfüllen.
 
-Der Beleg schlüsselt die gelöschten Zeilen nach Durchlauf auf — Threads, Dokumente, Uploads, Einstellungen, Benachrichtigungen, Abonnements, Feedback, Memories, Nutzungs-Ledger und die Schwärzung im Audit-Pfad. Lies das Drawer für Zähler und die Audit-Zeitleiste; das Audit-Log im selben Governance-Bereich trägt die volle Ereigniskette (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
+## Die Frist verwalten
 
-## Wo das hingehört
+Die Liste zeigt die erfasste Frist und mögliche Überschreitungen. Nutze **Frist verlängern** für eine begründete Verlängerung, solange die Aktion verfügbar ist. Die Anwendung erlaubt eine Verlängerung vor Ablauf der ursprünglichen Frist und protokolliert Grund und Admin.
 
-Anfragen betroffener Personen ist das Compliance-Gesicht der Aufbewahrung — der auditierte, vier-Augen-kontrollierte Pfad, der eine bestimmte Person auf Anfrage löscht, statt der zeitgesteuerten Sweeps, die die Aufbewahrung über alle hinweg läuft. Die Begleitseite ist [Legal Hold](/de/platform/admin/governance/legal-hold) — sie deckt ab, wie Aufbewahrung und Löschungs-Kaskaden für Rechtsstreitigkeiten pausiert werden, bevor sie laufen.
+Die Frist unterstützt die Nachverfolgung. Deine Organisation bleibt für die Prüfung und die Kommunikation mit der Person verantwortlich. Ein abgeschlossener Tale-Beleg bestätigt für sich allein keine Löschung in unabhängigen externen Systemen oder Backups.
+
+## Das Ergebnis prüfen
+
+Öffne die Kategorieanzahlen, Fehler und Audit-Zeitleiste des Belegs. Eine abgeschlossene Aktion, eine gesperrte Kategorie und ein fehlgeschlagener Durchlauf haben unterschiedliche Ergebnisse. Halte diese Unterschiede im Fall fest. Zugehörige Admin-Ereignisse findest du in den [Audit-Logs](/de/platform/admin/governance/audit-logs).

@@ -1,64 +1,64 @@
 ---
-title: Dein erster Tag als Arbeitsbereichs-Verantwortlicher
-description: Der Einstieg für Admins — erstelle den Arbeitsbereich, verbinde einen KI-Anbieter, hol das Team an Bord und lerne, wo Governance wohnt.
+title: Einen Arbeitsbereich fürs Team einrichten
+description: Einen Modellanbieter verbinden, Mitglieder hinzufügen und den Arbeitsbereich mit deren Zugriffsrechten prüfen.
 ---
 
-Dieser Einstieg ist für die Person, die den Arbeitsbereich verantwortet. In fünfzehn Minuten erstellst du die Organisation, verbindest den Anbieter, der den Chat zum Antworten bringt, holst die ersten Teammitglieder an Bord und lernst, wo die Governance-Steuerung wohnt, bevor du sie brauchst.
+Ein nutzbarer Arbeitsbereich braucht eine Organisation, einen funktionierenden Modellanbieter und Konten mit passenden Rechten. Richte diese Grundlagen ein und ergänze danach die Kontrollen für eure geplante Arbeit.
 
-Du brauchst ein Konto auf einer laufenden Instanz ([Quickstart](/de/get-started/quickstart)); auf einer brandneuen Instanz ist das erste Konto automatisch **Inhaber**, und diese Rolle trägt jede Berechtigung unten.
+## Was du brauchst
+
+Melde dich auf der richtigen Instanz als Inhaber oder Admin an. Die Ersteinrichtung erstellt das erste Konto und die Organisation. Siehst du deine Organisation bereits im Dashboard, öffne ihre Einstellungen, statt eine weitere anzulegen.
+
+Halte die Anbieter-Zugangsdaten im Passwortmanager bereit. Der Anbieter muss das gewünschte Modell und die vorgesehenen Aufgaben unterstützen. [KI-Anbieter](/de/platform/admin/providers) erklärt Zugangsdaten, Kataloge und Agentenlaufzeiten.
+
+## Einen Anbieter verbinden und Chat testen
 
 <Steps>
 
-<Step title="Erstelle den Arbeitsbereich">
+<Step title="Zugangsdaten hinzufügen">
 
-Kommst du aus dem Quickstart, existiert deine Organisation schon — spring zum Anbieter-Schritt. Eine frische Anmeldung ohne Organisation landet im Erstellungsassistenten: Der **Organisationsname** ist der Anzeigename, den dein Team in der Ecke jeder Seite sieht — wähl einen, der ein Rebranding überlebt. Der Assistent bietet danach an, einen KI-Anbieter zu verbinden, und endet im Dashboard.
+Öffne **Einstellungen > KI-Anbieter**, wähle **Zugangsdaten hinzufügen** und dann den Anbieter. Fülle die Felder seiner Anmeldemethode aus und speichere. Wähle einen Namen, an dem andere Admins den Verwendungszweck erkennen.
 
-<Frame caption="Der Arbeitsbereichs-Schritt des Erstellungsassistenten.">
+<Frame caption="Verbundene Zugangsdaten stellen die Modelle des Anbieters im Arbeitsbereich bereit.">
 
-![Der Assistent zum Erstellen einer Organisation auf seinem Arbeitsbereichs-Schritt, mit Northlight Labs im Feld Organisationsname und aktivem Knopf Weiter.](/images/get-started/org-create-wizard.webp)
-
-</Frame>
-
-</Step>
-
-<Step title="Verbinde einen KI-Anbieter">
-
-Nichts antwortet, solange kein Anbieter verbunden ist. Hast du den Anbieter-Schritt des Assistenten übersprungen, öffne **Einstellungen > KI-Anbieter** und klicke bei einem Connector auf **Zugangsdaten hinzufügen** — ein [OpenRouter](https://openrouter.ai)-Schlüssel erreicht den breitesten Modellkatalog, und jeder direkte Anbieter bringt daneben seinen eigenen Connector mit. Zugangsdaten sind nutzbar, sobald sie gespeichert sind; ab dann kann jeder Agent im Arbeitsbereich mit jedem Modell antworten, das dieser Connector freigibt.
-
-<Frame caption="Ein verbundener Anbieter mit seinem Modellkatalog.">
-
-![Die Einstellungsseite für KI-Anbieter listet einen verbundenen Anbieter, OpenRouter, mit seiner Basis-URL und 52 Modellen.](/images/get-started/settings-providers.webp)
+![Die Einstellungen für KI-Anbieter zeigen die verbundenen Anbieter-Zugangsdaten.](/images/get-started/settings-providers.webp)
 
 </Frame>
 
 </Step>
 
-<Step title="Hol das Team an Bord">
+<Step title="Das Modell in einem neuen Chat prüfen">
 
-Um Personen hinzuzufügen, öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied hinzufügen**. Jede Person landet mit einer Rolle, die absteckt, was sie tun kann: **Mitglied** liest und chattet, **Redakteur** baut Agents und Wissen, **Entwickler** verdrahtet Workflows, Automatisierungen und API-Zugriff, **Admin** betreibt den Arbeitsbereich. Fang niedrig an — eine Rolle später anzuheben ist ein Klick, geleakten Zugriff einzufangen nicht.
+Öffne **Chat**, beginne ein neues Gespräch und wähle ein verfügbares Modell. Sende einen eigenständigen Prompt wie „Schreibe eine Checkliste mit drei Punkten für eine Besprechung“. Warte auf die vollständige Antwort. Gespeicherte Zugangsdaten allein belegen noch keinen Zugriff auf das gewählte Modell.
 
-<Frame caption="Die Seite Mitglieder — jedes Konto und seine Rolle.">
-
-![Die Einstellungsseite Mitglieder mit fünf Personen und ihren Rollen — Alex Rivera als Inhaber, ein Admin, ein Redakteur und zwei Mitglieder — neben dem Knopf Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
-
-</Frame>
-
-<Check>
-
-Ein Teammitglied, das sich anmeldet und im Chat eine Antwort bekommt, beweist die ganze Kette — Konto, Rolle, Anbieter — ohne dass du danebenstehst.
-
-</Check>
-
-</Step>
-
-<Step title="Wisse, wo Governance wohnt">
-
-Am ersten Tag brauchst du keine Richtlinien, aber du solltest die Tür kennen: **Einstellungen > Richtlinien** hält Audit-Logs, Nutzungsanalysen, Inhaltsrichtlinien, Guardrails und Aufbewahrung. Die eine Gewohnheit, die sich heute schon lohnt: Überflieg nach der ersten Woche die [Audit-Logs](/de/platform/admin/governance/audit-logs) — sie zeigen dir, was dein Arbeitsbereich tatsächlich tut.
+Bleibt die Modellauswahl leer oder lehnt der Anbieter die Anfrage ab, folge der Fehlersuche unter [KI-Anbieter](/de/platform/admin/providers).
 
 </Step>
 
 </Steps>
 
-## Wo du jetzt stehst
+## Personen mit passenden Rechten hinzufügen
 
-Der Arbeitsbereich steht: Ein Anbieter antwortet, das Team ist mit abgesteckten Rollen drin, und du kennst die Orte der Steuerung. Die vollständige Berechtigungsmatrix sind [Mitglieder und Rollen](/de/platform/admin/members-and-roles); die [Admin-Übersicht](/de/platform/admin/overview) verzeichnet jeden Bereich, den du jetzt verantwortest; und wenn die Compliance fragt, ist [Governance](/de/platform/admin/governance/audit-logs) der Abschnitt, den du ihr zeigst.
+Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**. Für ein neues Konto legst du im Formular ein erstes Passwort fest. Ein vorhandenes Konto behält seine Zugangsdaten. Dieser Ablauf versendet keine Einladung per E-Mail. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Felder und die sichere Übergabe der ersten Zugangsdaten.
+
+<Frame caption="Prüfe die Rolle jedes Mitglieds, bevor du den Zugang übergibst.">
+
+![Die Mitgliederseite zeigt die Personen der Organisation und ihre zugewiesenen Rollen.](/images/get-started/settings-organization-members.webp)
+
+</Frame>
+
+Wähle die Rolle nach der Aufgabe: Mitglieder nutzen den Arbeitsbereich, Bearbeiter pflegen gemeinsame Inhalte, Entwickler arbeiten an Integrationen und Automatisierungen, Admins verwalten die Organisation. Bei Grenzfällen hilft die genaue Berechtigungstabelle. Teams und Projektfreigaben bestimmen zusätzlich, auf welche Projektarbeit eine Person zugreifen kann.
+
+## Den ersten Teamablauf prüfen
+
+Bitte ein Teammitglied, sich mit dem eigenen Konto anzumelden, eine Nachricht zu senden und das benötigte Projekt zu öffnen. Prüfe gemeinsame Quellen ebenfalls mit diesem Konto. Tests nur als Inhaber können fehlende Rechte oder zu weitgehenden Zugriff verdecken.
+
+<Tip>
+
+Beginne mit einem typischen Projekt und wenigen Quelldokumenten. Prüfe, ob das Team die Arbeit findet und die vorgesehenen Konten auf die Dateien zugreifen können, bevor du eine große Bibliothek importierst.
+
+</Tip>
+
+## Betriebsregeln festlegen
+
+Prüfe je nach Bedarf [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), [Audit-Logs](/de/platform/admin/governance/audit-logs) und [SSO](/de/platform/admin/enterprise-sso). Lege fest, wer Zugangsdaten pflegt, Rechte kontrolliert und fehlgeschlagene Aufträge bearbeitet. Im Eigenbetrieb braucht ihr außerdem einen getesteten Ablauf für [Sicherung und Wiederherstellung](/de/self-hosted/operate/backups-and-restore).

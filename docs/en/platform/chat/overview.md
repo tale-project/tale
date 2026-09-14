@@ -1,70 +1,65 @@
 ---
 title: Chat
-description: Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible.
+description: Ask a question, inspect the answer and its sources, and keep useful conversations within reach.
 ---
 
-Chat is the everyday entry point to Tale. You ask, the assistant searches the organisation's knowledge or fetches a page when the question needs it, and the reply streams back with every step and source on display. Chat deliberately does one job — questions and retrieval. Work that needs an owner and a reviewable result — a presentation, a translated document, a data export — lives on a task; a fixed process lives in an automation. The assistant knows that boundary and points you to a task the moment a request crosses it, so nothing heavy ever gets half-built inside a chat.
+Chat is the quickest place to ask about a document, understand a topic, or refine an answer through follow-up questions. The assistant can search accessible knowledge and fetch public pages when the question needs them. Check its sources before relying on a factual answer, especially when the information may have changed.
 
-<Frame caption="A chat with a streamed reply — the question, the assistant's steps, and the answer.">
+<Frame caption="A conversation keeps the question and answer together so you can refine the request without starting over.">
 
-![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)
-
-</Frame>
-
-## The parts of the screen
-
-The sidebar lists every chat you can resume, filed under your project folders, pinned favourites first, with search and an archive below. The conversation column carries the exchange: above each reply, a collapsible thinking line records what the assistant did — the reasoning and each knowledge search or page fetch, in order — and below the answer, **Sources** lists what it actually read. The composer at the bottom is the message field plus one picker for the model — **Auto** by default, any listed model to pin, and the reasoning effort for a pinned model that has one; the `+` menu holds read-aloud and Arena Mode, and the microphone dictates. While a reply streams, send becomes stop.
-
-A fresh chat opens with four starter prompts. Click one and it becomes your first message — the fastest way to see the whole loop run once.
-
-<Frame caption="A new chat: the welcome heading, four starters, and the composer.">
-
-![The empty new-chat screen showing the welcome heading, four conversation starter buttons, and the composer below.](/images/platform/chat-starters-empty.webp)
+![A chat shows a question about onboarding feedback and an answer arranged as a table of themes.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## Chat, task, or automation?
+## Start with a useful question
 
-Match the work to the surface — each kind has exactly one home.
+Open **Chat**, type in the composer, and send. A starter prompt can help if you are unsure where to begin. Include the outcome you need and the relevant source: “Using the onboarding guide, list the steps a new customer needs to complete. Cite the guide.”
 
-| Kind of work                                                    | Where it lives | Why                                                                    |
-| --------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
-| Ask about knowledge, documents, or a public web page            | Chat           | Conversation with visible steps and sources; nothing to sign off       |
-| Produce a deliverable — a presentation, a translation, a report | Task           | Needs an owner and review; an agent does the work, a person marks Done |
-| A fixed process with validation gates and human steps           | Automation     | The process is the product; people and agents act inside it            |
+When several usable models are available, the model picker can start on **Auto**. Select a named model when you want control over which available model answers, and adjust reasoning effort where supported. You can attach a file for a question about its contents or open a project chat for recurring reference material.
 
-The assistant enforces the first row itself: ask it for a 2000-word essay and it gives you a brief sketch, then tells you to create a task and assign it to an agent. That is by design — a deliverable produced inline in chat would have no review step and no owner.
+<Frame caption="Starter prompts offer a first question; the composer also accepts your own.">
 
-## Pages in this section
+![A new chat shows the welcome heading, four starter prompts, and the message composer.](/images/platform/chat-starters-empty.webp)
+
+</Frame>
+
+## Choose the surface for the work
+
+| You want to | Start in |
+| --- | --- |
+| Ask, compare information, or clarify an answer | **Chat** |
+| Reuse the same files and instructions across conversations | A **project chat** |
+| Produce a deliverable with an owner and a review | A project **task** |
+| Run a repeatable process on a schedule or incoming event | An **automation** |
+
+Chat focuses on conversation and retrieval. For a substantial deliverable, the assistant may direct you to a task so an agent can work in a sandbox and a person can review the result. See [Tasks](/platform/projects/tasks) and [Automations](/platform/automations/concepts).
+
+## Use the conversation well
 
 <CardGroup cols="2">
 
 <Card title="Chat basics" icon="message-circle" href="/platform/chat/basics">
-
-What happens between hitting send and the reply landing — the composer, the three retrieval tools, the thought timeline, and sources.
-
+Send, choose a model, read sources, and resume a conversation later.
 </Card>
 
-<Card title="Arena Mode" icon="swords" href="/platform/chat/arena-mode">
-
-Side-by-side model comparison, and how verdicts roll into feedback analytics.
-
+<Card title="Attach files" icon="paperclip" href="/platform/chat/attachments">
+Add a document or image and understand upload and indexing states.
 </Card>
 
-<Card title="Voice mode" icon="mic" href="/platform/chat/voice-mode">
-
-Speaking instead of typing — the STT and TTS handoffs and the privacy boundary.
-
+<Card title="Compare models in Arena" icon="swords" href="/platform/chat/arena-mode">
+Compare two answers to the same question and keep the one that works better.
 </Card>
 
-<Card title="Shared chats" icon="share-2" href="/platform/chat/shared-threads">
+<Card title="Use your voice" icon="mic" href="/platform/chat/voice-mode">
+Dictate a message or listen to a response, with the required provider setup.
+</Card>
 
-Sharing a read-only snapshot of a chat with the rest of the org, and stopping the share later.
+<Card title="Share a chat" icon="share-2" href="/platform/chat/shared-threads">
+Publish a read-only snapshot for your organization and stop sharing later.
+</Card>
 
+<Card title="Practice with a real source" icon="book-open" href="/tutorials/member/chat-effectively">
+Work through a focused question, a source check, and a useful follow-up.
 </Card>
 
 </CardGroup>
-
-## Where this fits
-
-Chat is the asking surface; the rest of the platform is what it asks. Knowledge feeds its searches, and [projects](/platform/projects/overview) file its history and carry the tasks that pick up everything chat deliberately refuses to build inline. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the send-to-reply path, every other chat page reads as a variation on it.
