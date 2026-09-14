@@ -131,6 +131,7 @@ export function AutomationsList({
         accessorKey: 'displayName',
         header: t('list.columnName'),
         size: 280,
+        meta: { skeleton: { type: 'icon-text', lines: 2 } },
         cell: ({ row }) => (
           <HStack align="center" gap={2} className="min-w-0">
             {/* The pack's declared glyph, like a skill's on its list; a
@@ -168,6 +169,7 @@ export function AutomationsList({
         id: 'projects',
         header: t('list.columnProjects'),
         size: 180,
+        meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
         cell: ({ row }) =>
           row.original.projectIds.length === 0 ? (
             <span className="text-muted-foreground text-xs">—</span>
@@ -187,6 +189,7 @@ export function AutomationsList({
         accessorKey: 'latest',
         header: t('list.columnVersions'),
         size: 120,
+        meta: { skeleton: { type: 'badge', badge: { variant: 'slate' } } },
         cell: ({ row }) => (
           <Badge variant="slate">
             {t('list.versionCount', { count: row.original.latest })}
@@ -197,6 +200,7 @@ export function AutomationsList({
         id: 'status',
         header: t('list.columnStatus'),
         size: 140,
+        meta: { skeleton: { type: 'badge', badge: { variant: 'green' } } },
         cell: ({ row }) =>
           row.original.deployedVersion === undefined ? (
             <Badge variant="yellow" icon={CircleDashed}>

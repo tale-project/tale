@@ -82,23 +82,18 @@ function BreakdownList({
   countTooltip: (count: number) => string;
 }) {
   const loading = useSkeleton();
+  const rows: BreakdownItem[] = loading
+    ? [0, 1, 2].map(() => ({ label: '\u00a0'.repeat(20), count: 0 }))
+    : items;
 
   return (
     <Stack gap={2}>
       <Text className="text-fg-muted text-sm font-medium">{title}</Text>
-      {loading ? (
-        <Stack gap={2} aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <SkeletonBox key={i} fullWidth>
-              <div className="h-5 w-full" />
-            </SkeletonBox>
-          ))}
-        </Stack>
-      ) : items.length === 0 ? (
+      {rows.length === 0 ? (
         <Text variant="caption">—</Text>
       ) : (
         <Stack gap={2}>
-          {items.map((item, i) => (
+          {rows.map((item, i) => (
             // Key includes the index because dropping the provider from the
             // model label lets two providers' same-named models collide.
             <HStack
@@ -113,17 +108,20 @@ function BreakdownList({
                 className="min-w-0 flex-1 truncate text-sm"
                 title={item.title ?? item.label}
               >
-                {item.label}
+                <SkeletonBox>{item.label}</SkeletonBox>
               </Text>
               {/* ProgressBar shows the share % inline; the exact count rides
                   in its tooltip. */}
-              <ProgressBar
-                value={item.count}
-                max={total}
-                label={`${item.label}: ${item.count}`}
-                tooltipContent={countTooltip(item.count)}
-                className="w-40 shrink-0"
-              />
+              <SkeletonBox asChild>
+                <div className="w-40 shrink-0">
+                  <ProgressBar
+                    value={item.count}
+                    max={total}
+                    label={`${item.label}: ${item.count}`}
+                    tooltipContent={countTooltip(item.count)}
+                  />
+                </div>
+              </SkeletonBox>
             </HStack>
           ))}
         </Stack>
@@ -148,21 +146,22 @@ interface RecentErrorRow {
 function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
   const { t } = useT('analytics');
   const loading = useSkeleton();
+  const rows = loading
+    ? [0, 1, 2].map((index) => ({
+        key: `loading-${index}`,
+        time: '00:00',
+        typeLabel: '\u00a0'.repeat(12),
+        model: '\u00a0'.repeat(20),
+        agentSlug: '\u00a0'.repeat(16),
+      }))
+    : items;
 
   return (
     <Stack gap={2}>
       <Text className="text-fg-muted text-sm font-medium">
         {t('chatHealth.errorBreakdown.recentTitle')}
       </Text>
-      {loading ? (
-        <Stack gap={2} aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <SkeletonBox key={i} fullWidth>
-              <div className="h-5 w-full" />
-            </SkeletonBox>
-          ))}
-        </Stack>
-      ) : items.length === 0 ? (
+      {rows.length === 0 ? (
         <Text variant="caption">{t('chatHealth.errorBreakdown.noRecent')}</Text>
       ) : (
         <Stack gap={1}>
@@ -184,10 +183,10 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
               {t('chatHealth.errorBreakdown.columns.agent')}
             </span>
           </HStack>
-          {items.map((item) => (
+          {rows.map((item) => (
             <HStack key={item.key} align="center" gap={3}>
               <Text className="text-fg-muted w-32 shrink-0 text-xs tabular-nums">
-                {item.time}
+                <SkeletonBox>{item.time}</SkeletonBox>
               </Text>
               <span className="w-40 shrink-0">
                 <Badge variant="outline" className="max-w-full">
@@ -198,13 +197,13 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
                 className="min-w-0 flex-1 truncate text-sm"
                 title={item.model}
               >
-                {item.model}
+                <SkeletonBox>{item.model}</SkeletonBox>
               </Text>
               <Text
                 className="text-fg-muted w-32 shrink-0 truncate text-right text-sm"
                 title={item.agentSlug}
               >
-                {item.agentSlug}
+                <SkeletonBox>{item.agentSlug}</SkeletonBox>
               </Text>
             </HStack>
           ))}

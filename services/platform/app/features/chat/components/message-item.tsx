@@ -42,6 +42,7 @@ import {
   useThinkingTimer,
 } from '../hooks/use-thinking-timer';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
+import { CHAT_USER_BUBBLE_CLASS, CHAT_USER_MESSAGE_CLASS } from '../lib/layout';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageItem, ChatMessageView } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
@@ -289,11 +290,11 @@ function UserBubble({
   }
 
   return (
-    <div className="flex max-w-xs flex-col items-end lg:max-w-md">
+    <div className={CHAT_USER_MESSAGE_CLASS}>
       <div
         ref={bodyRef}
         className={cn(
-          'bg-muted text-foreground rounded-2xl px-4 py-3 break-words',
+          CHAT_USER_BUBBLE_CLASS,
           // ~16 lines of text-sm (the 0.3 clamp); longer collapses behind
           // Show more.
           !expanded && 'max-h-96 overflow-hidden',

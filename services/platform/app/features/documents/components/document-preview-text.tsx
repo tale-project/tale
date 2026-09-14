@@ -1,7 +1,5 @@
 'use client';
 
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
@@ -18,7 +16,11 @@ import {
   TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS,
   useTextPreview,
 } from '../hooks/use-document-preview';
-import { PreviewPane, previewPaneReadableClasses } from './preview-pane';
+import {
+  PreviewContentSkeleton,
+  PreviewPane,
+  previewPaneReadableClasses,
+} from './preview-pane';
 
 interface DocumentPreviewTextProps {
   url: string;
@@ -70,11 +72,7 @@ export function DocumentPreviewText({
   return (
     <PreviewPane className={previewPaneReadableClasses}>
       {isLoading && (
-        <Skeletonize loading label={t('preview.loading')} className="contents">
-          <SkeletonBox>
-            <div className="h-40 w-full max-w-lg" />
-          </SkeletonBox>
-        </Skeletonize>
+        <PreviewContentSkeleton kind="text" label={t('preview.loading')} />
       )}
       {!isLoading && error && (
         <Text as="div" variant="error" align="center">

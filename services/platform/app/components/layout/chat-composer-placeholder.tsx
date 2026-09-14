@@ -1,6 +1,11 @@
-import { Row } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+
+import {
+  CHAT_COMPOSER_FIELD_CLASS,
+  CHAT_COMPOSER_FRAME_CLASS,
+} from '../../features/chat/lib/layout';
 
 /**
  * KEEP THIS MODULE LEAN. The boot-shell prerender script renders it under
@@ -25,32 +30,41 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 export function ChatComposerPlaceholder() {
   return (
     <div className="mt-auto hidden shrink-0 px-4 pb-4 [.boot-chat_&]:block">
-      <div className="border-border sm:border-muted-foreground/50 bg-background mx-auto w-full max-w-3xl rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
-        <Skeletonize loading>
-          <div className="min-h-[72px] sm:min-h-[100px]">
-            <SkeletonBox>
-              <div className="h-4 w-44" />
+      <Skeletonize loading className="mx-auto w-full max-w-3xl">
+        <Stack gap={2} className={CHAT_COMPOSER_FRAME_CLASS}>
+          <div className={CHAT_COMPOSER_FIELD_CLASS}>
+            <SkeletonBox asChild>
+              <div className="h-5 w-44 rounded-md" />
             </SkeletonBox>
           </div>
-          <Row gap={2} justify="between" align="center" className="pb-3">
-            <Row gap={1} align="center">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <SkeletonBox key={`control-${i}`}>
-                  <div className="h-7 w-16 rounded-md" />
-                </SkeletonBox>
+          <Row
+            gap={2}
+            justify="between"
+            align="center"
+            className="min-w-0 pb-3 sm:gap-4"
+          >
+            <Row
+              gap={1}
+              align="center"
+              className="min-w-0 flex-1 overflow-hidden"
+            >
+              <SkeletonBox asChild>
+                <div className="size-9 shrink-0 rounded-lg" />
+              </SkeletonBox>
+              <SkeletonBox asChild>
+                <div className="h-8 w-24 rounded-lg" />
+              </SkeletonBox>
+            </Row>
+            <Row gap={1} align="center" className="shrink-0">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <SkeletonCircle key={index} asChild>
+                  <div className="size-9 rounded-full" />
+                </SkeletonCircle>
               ))}
             </Row>
-            <Row gap={1} align="center">
-              <SkeletonCircle>
-                <div className="size-8" />
-              </SkeletonCircle>
-              <SkeletonCircle>
-                <div className="size-8" />
-              </SkeletonCircle>
-            </Row>
           </Row>
-        </Skeletonize>
-      </div>
+        </Stack>
+      </Skeletonize>
     </div>
   );
 }

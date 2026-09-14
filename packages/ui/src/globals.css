@@ -383,6 +383,37 @@
 }
 
 @layer utilities {
+  /* Paint the real element's border box. Geometry, display and border radius
+     stay owned by the component, including native input/textarea surfaces
+     where pseudo-element overlays are unsupported. Hide every foreground
+     layer so pulsing opacity can never reveal the content underneath. */
+  [data-skeleton-mask] {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    background: var(--color-muted) !important;
+    border-color: transparent !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    outline: none !important;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  [data-skeleton-mask] *,
+  [data-skeleton-mask]::before,
+  [data-skeleton-mask]::after,
+  [data-skeleton-mask]::placeholder,
+  [data-skeleton-mask]::file-selector-button {
+    visibility: hidden !important;
+  }
+
+  [data-skeleton-mask]::-webkit-calendar-picker-indicator,
+  [data-skeleton-mask]::-webkit-inner-spin-button {
+    visibility: hidden !important;
+  }
+
   /* Hide scrollbar across browsers. */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -419,6 +450,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    [data-skeleton-mask] {
+      animation: none;
+    }
+
     .animate-cursor-blink {
       animation: none;
       opacity: 1;

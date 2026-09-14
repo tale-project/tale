@@ -23,9 +23,8 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 /**
- * Skeleton-aware Textarea. Always wraps the real field in a `<SkeletonBox>`:
- * idle, the box is `display: contents`; inside a `<Skeletonize loading>` it
- * masks the field with an overlay at its exact size (incl. `rows`).
+ * Skeleton-aware Textarea. Masks the real field in place, retaining its
+ * dimensions, radius and flex/grid position while loading.
  */
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
@@ -36,8 +35,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     // reaches pointer and keyboard users) while `readOnly` blocks edits.
     const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
     return (
-      <SkeletonBox fullWidth>
-        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+      <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+        <SkeletonBox asChild>
           <textarea
             ref={ref}
             rows={rows}
@@ -58,8 +57,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             )}
             {...props}
           />
-        </DisabledReasonTooltip>
-      </SkeletonBox>
+        </SkeletonBox>
+      </DisabledReasonTooltip>
     );
   },
 );

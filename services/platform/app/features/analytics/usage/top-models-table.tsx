@@ -45,6 +45,7 @@ export function TopModelsTable({
       {
         id: 'model',
         header: t('usage.tables.topModels.model'),
+        meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
           <div className="flex max-w-[260px] items-center gap-2">
             <Text

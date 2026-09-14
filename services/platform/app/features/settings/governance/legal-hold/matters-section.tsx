@@ -93,7 +93,11 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
       {
         id: 'actions',
         header: t('legalHold.columns.actions'),
-        meta: { isAction: true, align: 'right' as const },
+        meta: {
+          isAction: true,
+          align: 'right' as const,
+          skeleton: { actionSize: 'sm', actionCount: 2 },
+        },
         cell: ({ row }) => (
           <Row gap={1} align="stretch" justify="end">
             <IconButton

@@ -125,6 +125,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         accessorKey: 'createdBy',
         header: t('columns.owner'),
         size: 150,
+        meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const s = row.original;
           // A long owner name or fallback identifier stays within this column.
@@ -158,6 +159,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         id: 'status',
         size: 150,
         header: t('columns.status'),
+        meta: { skeleton: { type: 'badge-text', lineGap: 1 } },
         cell: ({ row }) => {
           const s = row.original;
           const paused = s.currentOp?.pausedReason === 'budget';

@@ -150,6 +150,12 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         // names lead without a fixed-px or meta.flex pin (those either
         // truncated names or clustered Overdue…Activity on the far right).
         size: 240,
+        meta: {
+          skeleton: {
+            type: 'icon-text',
+            icon: <ProjectAvatar name="" size={20} />,
+          },
+        },
         cell: ({ row }) => (
           // The row stays SINGLE-LINE (density matches customers/agents), so
           // the description rides on `title` rather than a second line — the
@@ -258,7 +264,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
         size: 88,
-        meta: { className: 'hidden md:table-cell' },
+        meta: { className: 'hidden md:table-cell', skeleton: { type: 'icon' } },
         cell: ({ row }) => {
           const teamCount =
             (row.original.teamId ? 1 : 0) +

@@ -6,8 +6,8 @@ import {
 } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { HStack, Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { Row, Stack } from '@tale/ui/layout';
+import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   Table,
@@ -577,23 +577,25 @@ export function ConversationRoutingPolicyEditor({
                     Array.from(
                       { length: PLACEHOLDER_ROW_COUNT },
                       (_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
+                        <TableRow key={`skeleton-${index}`} data-no-hover>
                           <TableCell>
-                            <SkeletonBox>
-                              <div className="h-3.5 w-40" />
-                            </SkeletonBox>
+                            <div className="w-40">
+                              <SkeletonText />
+                            </div>
                           </TableCell>
                           <TableCell>
-                            <SkeletonBox>
-                              <div className="h-3.5 w-28" />
-                            </SkeletonBox>
+                            <div className="w-28">
+                              <SkeletonText />
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <HStack gap={1} justify="end">
-                              <SkeletonBox>
-                                <div className="size-8 rounded-md" />
-                              </SkeletonBox>
-                            </HStack>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('conversationRouting.deleteRule')}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ),

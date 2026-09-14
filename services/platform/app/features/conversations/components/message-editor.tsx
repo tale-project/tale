@@ -26,6 +26,7 @@ import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
 import { FileAttachmentsList } from './message-editor/file-attachments-list';
 import { ImproveMode } from './message-editor/improve-mode';
+import { MESSAGE_EDITOR_FRAME_CLASS } from './message-editor/message-editor-placeholder';
 import { toOutboundHtml } from './message-editor/outbound-html';
 import {
   type AttachedFile,
@@ -283,7 +284,7 @@ function MilkdownEditorInner({
 
   return (
     <>
-      <div className="bg-background relative rounded-xl border border-gray-300 px-3.5 pt-2.5 pb-1 shadow-sm">
+      <div className={MESSAGE_EDITOR_FRAME_CLASS}>
         <div
           className={cn(
             'overflow-y-auto transition-all duration-300 ease-in-out',

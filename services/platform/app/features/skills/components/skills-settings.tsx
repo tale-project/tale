@@ -145,6 +145,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'slug',
         accessorKey: 'slug',
         header: t('columns.name'),
+        meta: { skeleton: { type: 'icon-text' } },
         cell: ({ row }) => (
           <HStack align="center" gap={2} className="min-w-0">
             <SkillIcon icon={row.original.icon} className="size-4 shrink-0" />
@@ -169,6 +170,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'visibility',
         header: t('columns.visibility'),
         size: 160,
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const skill = row.original;
           if (skill.visibility === 'org') {

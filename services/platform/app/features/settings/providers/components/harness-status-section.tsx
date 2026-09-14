@@ -31,6 +31,16 @@ interface HarnessStatusSectionProps {
   displayNames: ReadonlyMap<string, string>;
 }
 
+const LOADING_HARNESSES: HarnessStatus[] = Array.from(
+  { length: 3 },
+  (_, i) => ({
+    slug: `loading-${i}`,
+    label: 'Harness',
+    managed: { available: true, modelCount: 1, defaultModelId: 'model' },
+    subscriptions: [],
+  }),
+);
+
 function HarnessRow({
   row,
   degraded,
@@ -45,25 +55,31 @@ function HarnessRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="text-foreground truncate text-sm font-medium">
-          {row.label}
-        </span>
+        <SkeletonBox asChild>
+          <span className="text-foreground truncate text-sm font-medium">
+            {row.label}
+          </span>
+        </SkeletonBox>
         {degraded && (
           <Badge variant="orange">{t('providers.harnesses.degraded')}</Badge>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {row.managed.available ? (
-          <span className="text-muted-foreground text-xs">
-            {t('providers.harnesses.modelPool', {
-              count: row.managed.modelCount,
-              model: row.managed.defaultModelId,
-            })}
-          </span>
+          <SkeletonBox asChild>
+            <span className="text-muted-foreground text-xs">
+              {t('providers.harnesses.modelPool', {
+                count: row.managed.modelCount,
+                model: row.managed.defaultModelId,
+              })}
+            </span>
+          </SkeletonBox>
         ) : (
-          <span className="text-muted-foreground text-xs">
-            {t('providers.harnesses.noDirectCredential')}
-          </span>
+          <SkeletonBox asChild>
+            <span className="text-muted-foreground text-xs">
+              {t('providers.harnesses.noDirectCredential')}
+            </span>
+          </SkeletonBox>
         )}
         {row.subscriptions.map((sub) => (
           <Badge
@@ -110,23 +126,21 @@ export function HarnessStatusSection({
           message={t('providers.harnesses.listFailed')}
           onRetry={() => void statusQuery.refetch()}
         />
-      ) : statusQuery.isPending ? (
-        <Skeletonize loading>
-          <SkeletonBox fullWidth>
-            <div className="h-24 w-full rounded-lg" />
-          </SkeletonBox>
-        </Skeletonize>
       ) : (
-        <ul className="border-border divide-border divide-y rounded-lg border">
-          {statusQuery.data.map((row) => (
-            <HarnessRow
-              key={row.slug}
-              row={row}
-              degraded={degraded.has(row.slug)}
-              displayNames={displayNames}
-            />
-          ))}
-        </ul>
+        <Skeletonize loading={statusQuery.isPending}>
+          <ul className="border-border divide-border divide-y rounded-lg border">
+            {(statusQuery.isPending ? LOADING_HARNESSES : statusQuery.data).map(
+              (row) => (
+                <HarnessRow
+                  key={row.slug}
+                  row={row}
+                  degraded={degraded.has(row.slug)}
+                  displayNames={displayNames}
+                />
+              ),
+            )}
+          </ul>
+        </Skeletonize>
       )}
     </Stack>
   );

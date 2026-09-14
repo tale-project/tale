@@ -25,6 +25,7 @@ import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useSetThreadSharedWithProject } from '../hooks/mutations';
 import { useProjectChatThreads } from '../hooks/queries';
+import { ProjectThreadsSkeleton } from './project-tab-skeletons';
 
 interface ProjectThreadsTabProps {
   organizationId: string;
@@ -37,8 +38,16 @@ export function ProjectThreadsTab({
 }: ProjectThreadsTabProps) {
   const { t } = useT('projects');
   const navigate = useNavigate();
-  const { mine, shared: sharedThreads } = useProjectChatThreads(projectId);
+  const {
+    mine,
+    shared: sharedThreads,
+    isLoading,
+  } = useProjectChatThreads(projectId);
   const { mutateAsync: setShared } = useSetThreadSharedWithProject();
+
+  if (isLoading && mine.length === 0 && sharedThreads.length === 0) {
+    return <ProjectThreadsSkeleton />;
+  }
 
   const handleNewChat = () => {
     void navigate({

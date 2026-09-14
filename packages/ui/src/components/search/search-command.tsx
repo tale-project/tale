@@ -304,7 +304,10 @@ export function SearchCommand({
                       aria-hidden
                       data-testid="search-skeleton"
                     >
-                      <SearchSkeleton reduceMotion={reduceMotion} />
+                      <SearchSkeleton
+                        reduceMotion={reduceMotion}
+                        showBreadcrumb={getBreadcrumb !== undefined}
+                      />
                     </motion.div>
                   ) : showError ? (
                     <motion.div

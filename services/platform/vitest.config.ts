@@ -13,6 +13,8 @@ export default defineConfig({
   // transform must run everywhere message catalogs are imported.
   plugins: [yamlImports()],
   resolve: {
+    // Match the app's React singleton across workspace and browser dependencies.
+    dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,
   },
   test: {

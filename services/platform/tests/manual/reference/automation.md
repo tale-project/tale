@@ -139,6 +139,13 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [metrics](../suites/metrics.md) | `MET-F1`, `MET-F3`, `MET-F5`, `MET-F10`–`MET-F11` | ⛔ manual-only | — |
 | [metrics](../suites/metrics.md) | `MET-B1`, `MET-A1`–`MET-A2`, `MET-P1`–`MET-P2` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-F1`, `NAV-F2`, `NAV-F3`, `NAV-F7` | ✅ automated | `navigation.spec.ts` |
+| [navigation](../suites/navigation.md) | Quick route transitions never flash the shared progress bar; slow transitions show labelled progress and cancel the reveal on completion or unmount | ✅ automated | `app/components/layout/route-progress-bar.test.tsx` |
+| [navigation](../suites/navigation.md) | Loading form controls keep their loaded dimensions, position, labels and DOM identity in narrow and wide layouts; JSON chunk loading reserves the editor height | ✅ automated | `app/components/ui/forms/form-skeletons.browser.test.tsx`, `app/components/ui/forms/json-input.browser.test.tsx`; shared primitive light/dark and reduced-motion geometry in `packages/ui/src/components/feedback/skeleton.stories.tsx` |
+| [navigation](../suites/navigation.md) | Table skeleton rows use the visible columns, real control shapes and matching text line heights; checkbox, switch and action positions remain stable in both themes | ✅ automated | `app/components/ui/data-table/data-table.browser.test.tsx`, `app/components/ui/data-table/data-table.test.tsx` |
+| [projects](../suites/projects.md) | Loading secret and environment rows reserve the real editor geometry and remain inert until data arrives | ✅ automated | `app/components/env/env-var-list-editor.browser.test.tsx` |
+| [navigation](../suites/navigation.md) | Catalog cards, chat composer, tasks, project tabs and document previews keep the loaded frame and control geometry through loading | ✅ automated | `app/components/layout/page-skeletons.browser.test.tsx` |
+| [governance](../suites/governance.md) | Policy editor loading rows match live action sizes and line heights; numeric masks keep their width and right alignment | ✅ automated | `app/features/settings/governance/components/governance-skeletons.browser.test.tsx` |
+| [settings](../suites/settings.md) | Color and image controls keep their natural dimensions and mounted inputs while static labels remain visible | ✅ automated | `app/features/settings/branding/components/branding-skeletons.browser.test.tsx` |
 | [navigation](../suites/navigation.md) | `NAV-F4` | ✅ automated | `search.spec.ts` |
 | [navigation](../suites/navigation.md) | `NAV-F9` | ✅ automated | `page-loads.spec.ts` (render-only anchors) |
 | [navigation](../suites/navigation.md) | `NAV-F5`, `NAV-F6`, `NAV-F8` | ⛔ manual-only | — |

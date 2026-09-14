@@ -45,6 +45,7 @@ export function TopVoiceModelsTable({
       {
         id: 'model',
         header: t('usage.tables.topVoiceModels.model'),
+        meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
           <div className="flex max-w-[260px] items-center gap-2">
             <Text

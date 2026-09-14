@@ -3,12 +3,10 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -23,6 +21,11 @@ import {
 } from '../hooks/queries';
 import { toModelOptions, type ModelOption } from '../lib/model-options';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
+import {
+  ProjectAgentRowsSkeleton,
+  ProjectAgentsFrame,
+  ProjectAgentsSkeleton,
+} from './project-tab-skeletons';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
@@ -42,10 +45,10 @@ export function ProjectAgentsTab({
   projectId,
 }: ProjectAgentsTabProps) {
   const { t } = useT('projects');
-  const { project } = useProject(projectId);
+  const { project, isLoading: projectLoading } = useProject(projectId);
   const rosterQuery = useProjectHarnesses(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
-  const { agents } = useProjectAgents(projectId);
+  const { agents, isLoading: agentsLoading } = useProjectAgents(projectId);
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -85,7 +88,7 @@ export function ProjectAgentsTab({
     return map;
   }, [models]);
 
-  if (!project) return null;
+  if (!project) return projectLoading ? <ProjectAgentsSkeleton /> : null;
 
   const skills = catalogQuery.data?.skills ?? [];
   const connectors = catalogQuery.data?.connectors ?? [];
@@ -123,14 +126,10 @@ export function ProjectAgentsTab({
   );
 
   return (
-    <ContentArea variant="narrow" gap={6} className="min-h-0 flex-1">
-      <StickySectionHeader
-        title={t('agents.agentsHeading')}
-        description={t('agents.sectionDescription')}
-        action={canEdit ? newAgentButton : undefined}
-      />
-
-      {agents.length === 0 ? (
+    <ProjectAgentsFrame action={canEdit ? newAgentButton : undefined}>
+      {agentsLoading && agents.length === 0 ? (
+        <ProjectAgentRowsSkeleton canEdit={canEdit} />
+      ) : agents.length === 0 ? (
         <EmptyState
           icon={Bot}
           title={t('agents.emptyTitle')}
@@ -231,6 +230,6 @@ export function ProjectAgentsTab({
         isDeleting={isDeleting}
         onDelete={() => void handleDelete()}
       />
-    </ContentArea>
+    </ProjectAgentsFrame>
   );
 }

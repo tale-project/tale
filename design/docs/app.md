@@ -57,7 +57,9 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
 - **Modals/overlays** use a backdrop blur over a dimmed scrim; confirm/cancel actions right-aligned;
   destructive confirm uses the danger colour.
 - **Loading** masks in place — `Skeletonize` around the real component, never a whole-tree swap or a
-  bare spinner where a skeleton fits.
+  bare spinner where a skeleton fits. Mask control surfaces with `SkeletonBox asChild`, preserving
+  their real dimensions and corner radii; leave known labels and descriptions visible. Keep the same
+  elements mounted as loading resolves.
 - **Settings pages have no page titles** — the rail/tab already names the page; content starts at the
   first section header.
 
