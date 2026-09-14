@@ -28,6 +28,7 @@ interface RecordedCall {
 function stubGateway(
   opts: {
     keyExists?: boolean;
+    keyName?: string;
     writeStatus?: number;
     configStatus?: number;
     configBody?: string;
@@ -63,7 +64,7 @@ function stubGateway(
           new Response(
             JSON.stringify({
               keys: opts.keyExists
-                ? [{ id: 'kid-A', name: KEY_NAME, models: [] }]
+                ? [{ id: 'kid-A', name: opts.keyName ?? KEY_NAME, models: [] }]
                 : [],
             }),
             { status: 200 },
@@ -349,24 +350,25 @@ describe('provisionProviders', () => {
     await mod.provisionProviders(ORG, [
       {
         name: 'selfhosted',
-        baseUrl: 'http://172.21.255.254:8081/vatplus/reasoning/v1',
+        baseUrl: 'http://172.21.255.254:8081/inference/reasoning/v1',
         apiKey: 'key-P',
         models: ['glm-5.3'],
       },
     ]);
     expect(writes(calls)[0]?.body).toMatchObject({
       network_config: expect.objectContaining({
-        base_url: 'http://172.21.255.254:8081/vatplus/reasoning/v1',
+        base_url: 'http://172.21.255.254:8081/inference/reasoning/v1',
         allow_private_network: true,
       }),
     });
   });
 
-  it('leaves the gateway guard in place for a private upstream without the opt-in', async () => {
+  it('refuses a private upstream before gateway I/O without the opt-in', async () => {
     vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await mod.provisionProviders(ORG, [
+    const failures = await mod.provisionProviders(ORG, [
       {
         name: 'selfhosted',
         baseUrl: 'http://172.21.255.254:8081/v1',
@@ -374,12 +376,58 @@ describe('provisionProviders', () => {
         models: ['glm-5.3'],
       },
     ]);
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const network = writes(calls)[0]?.body?.network_config as Record<
-      string,
-      unknown
-    >;
-    expect(network).not.toHaveProperty('allow_private_network');
+    expect(failures).toHaveLength(1);
+    expect(String(failures[0]?.error)).toContain('PRIVATE_HOST_BLOCKED');
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    'http://169.254.169.254/latest/meta-data',
+    'http://[fd00:ec2::254]/latest/meta-data',
+    'http://100.100.100.200/latest/meta-data',
+    'https://192.0.0.192/opc/v1',
+    'https://metadata.google.internal./computeMetadata/v1',
+  ])(
+    'refuses metadata endpoint %s even with the private-network opt-in',
+    async (baseUrl) => {
+      vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const calls = stubGateway({ keyExists: false });
+      const mod = await loadModule();
+      const failures = await mod.provisionProviders(ORG, [
+        {
+          name: 'selfhosted',
+          baseUrl,
+          apiKey: 'key-P',
+          models: ['m-1'],
+        },
+      ]);
+      expect(failures).toHaveLength(1);
+      expect(String(failures[0]?.error)).toContain('BLOCKED_HOST');
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it('rechecks the host policy before reusing a provisioned private upstream', async () => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubGateway({
+      keyExists: true,
+      keyName: `tale-${ORG}-selfhosted`,
+    });
+    const mod = await loadModule();
+    const provider = {
+      ...PROVIDER,
+      name: 'selfhosted',
+      baseUrl: 'http://127.0.0.1:8081/v1',
+    };
+    expect(await mod.provisionProviders(ORG, [provider])).toEqual([]);
+    calls.length = 0;
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
+    const failures = await mod.provisionProviders(ORG, [provider]);
+    expect(failures).toHaveLength(1);
+    expect(String(failures[0]?.error)).toContain('PRIVATE_HOST_BLOCKED');
+    expect(calls).toHaveLength(0);
   });
 
   it('never sends allow_private_network for a public upstream', async () => {

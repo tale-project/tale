@@ -37,7 +37,10 @@ import { createHash } from 'node:crypto';
 
 import { isPrivateIp } from '@tale/shared/net/private-ip';
 
-import { privateProviderHostsAllowed } from '../../../../lib/net/host-policy';
+import {
+  checkProviderHostPolicy,
+  privateProviderHostsAllowed,
+} from '../../../../lib/net/host-policy';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
@@ -975,6 +978,12 @@ async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
 ): Promise<void> {
+  // The private-network opt-in never admits cloud metadata endpoints.
+  // Apply the same host policy as direct provider calls before gateway I/O
+  // or a memo hit can authorize a session with an existing upstream key.
+  if (!isStandardGatewayProvider(p.name) && p.baseUrl) {
+    checkProviderHostPolicy(p.baseUrl);
+  }
   const memoKey = `${organizationId}:${p.name}`;
   const existing =
     (await listProviderKeys(p.name)).find(
