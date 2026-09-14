@@ -147,7 +147,7 @@ export async function assertBrowserSessionImporter(
       decision.code,
       decision.code === 'FORBIDDEN_INSTANCE_ADMIN'
         ? 'Browser-session import is restricted to organization administrators.'
-        : 'Your account is not on the deployment editor allowlist (TALE_DEPLOYMENT_CONFIG_ADMINS).',
+        : 'Your account is not on the deployment editor allowlist; GET /api/v1/me answers capabilities.deploymentEditor for this key.',
       403,
     );
   }

@@ -581,9 +581,12 @@ export function createApp(
   const makeSecure = (storageOrigins: readonly string[]) =>
     secureHeaders({
       contentSecurityPolicy: buildContentSecurityPolicy(env, storageOrigins),
-      // 180 days. No `includeSubDomains`, no `preload` — self-deployed
-      // operators run on varied domains and don't own preload submission.
-      strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+      // One year — the platform-wide value, repeated by every producer
+      // (`backend/lib/http-hygiene.ts`, `@tale/ui` security headers, the
+      // proxy's edge refusals). No `includeSubDomains`, no `preload` —
+      // self-deployed operators run on varied domains (an apex with
+      // plain-http siblings included) and don't own preload submission.
+      strictTransportSecurity: isHttpsSite(env) ? 'max-age=31536000' : false,
       xContentTypeOptions: 'nosniff',
       xFrameOptions: 'DENY',
       referrerPolicy: 'strict-origin-when-cross-origin',
@@ -638,7 +641,7 @@ export function createApp(
   // there's no `false` literal for the CSP key, so we omit it to disable
   // CSP generation while keeping HSTS / nosniff / X-Frame-Options.
   const secureForDav = secureHeaders({
-    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=31536000' : false,
     xContentTypeOptions: 'nosniff',
     xFrameOptions: 'DENY',
     referrerPolicy: 'strict-origin-when-cross-origin',
@@ -662,7 +665,7 @@ export function createApp(
   // image contexts is untouched. nosniff pins the allowlisted Content-Type.
   const secureForBrandingImages = secureHeaders({
     contentSecurityPolicy: { sandbox: [] },
-    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=31536000' : false,
     xContentTypeOptions: 'nosniff',
     xFrameOptions: 'DENY',
     referrerPolicy: 'strict-origin-when-cross-origin',

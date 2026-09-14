@@ -80,7 +80,7 @@ describe('security headers', () => {
     expect(csp).not.toContain('https://mcp.figma.com');
 
     expect(res.headers.get('strict-transport-security')).toBe(
-      'max-age=15552000',
+      'max-age=31536000',
     );
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('x-frame-options')).toBe('DENY');
@@ -140,7 +140,7 @@ describe('security headers', () => {
 
     // The remaining Observatory tests map one-to-one onto these headers.
     expect(res.headers.get('strict-transport-security')).toBe(
-      'max-age=15552000',
+      'max-age=31536000',
     );
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('x-frame-options')).toBe('DENY');

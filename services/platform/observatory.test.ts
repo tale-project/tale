@@ -55,7 +55,8 @@ const baseEnv = {
 
 // "15768000 is six months, but a lot of sites use 15552000, so a white lie is
 // in order" — strict-transport-security.js. The comparison is `maxAge <
-// SIX_MONTHS`, so exactly 15552000 (== Tale's `max-age`) passes.
+// SIX_MONTHS`, so exactly 15552000 passes; Tale's own `max-age` is one year
+// (31536000, `server.ts`), well above the threshold.
 const SIX_MONTHS = 15552000;
 // Bonus (positive) modifiers are only awarded if the uncurved score (100 + sum
 // of negative modifiers) reaches this floor.

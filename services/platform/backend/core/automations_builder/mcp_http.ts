@@ -385,8 +385,12 @@ async function handleMessage(
         if (DEVELOPER_TOOLS.has(name)) {
           const refusal = await developerRefusal(rc);
           if (refusal !== null) {
+            // The same role refusal the store raises on the live and run
+            // tools (`ActorAuthError`), under the same code — every refusal
+            // the page documents carries a `code` to branch on.
             return toolResult(tool, id, {
               error: `${name} is refused for this key: ${refusal}`,
+              code: 'FORBIDDEN_DEVELOPER_SETTINGS',
               hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
             });
           }

@@ -496,14 +496,16 @@ export function installClientErrorEnvelope(server: ServerType): void {
  * cross-origin isolation defaults off, as on the app's WebDAV variant:
  * OAuth callbacks and SSO hand-offs render in popups and top-level
  * navigations that COOP/CORP would break. HSTS only when the deployment is
- * served over https — a plain-http dev origin must not pin browsers.
+ * served over https — a plain-http dev origin must not pin browsers — with
+ * the platform-wide one-year lifetime `server.ts` uses (no
+ * `includeSubDomains`, no `preload`: self-hosted domains vary).
  */
 export function backendSecureHeaders<E extends Env>(
   siteUrl: string | undefined,
 ): MiddlewareHandler<E> {
   return secureHeaders({
     strictTransportSecurity: (siteUrl ?? '').startsWith('https://')
-      ? 'max-age=15552000'
+      ? 'max-age=31536000'
       : false,
     xContentTypeOptions: 'nosniff',
     xFrameOptions: 'DENY',
