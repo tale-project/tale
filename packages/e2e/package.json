@@ -13,7 +13,8 @@
   "scripts": {
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@playwright/test": "1.58.2",
