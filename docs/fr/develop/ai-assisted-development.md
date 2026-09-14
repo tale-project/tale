@@ -3,9 +3,9 @@ title: Développement assisté par IA
 description: Comment un agent de code édite un projet Tale — les fichiers AGENTS.md et CLAUDE.md que la CLI écrit, le miroir des sources sous .tale/reference/, et la disposition par organisation des fichiers de configuration.
 ---
 
-Un projet Tale est un répertoire de fichiers de configuration en clair — agents, skills, branding, fournisseurs, connectors — rangés par organisation, et cette disposition s’édite bien avec un agent de code dès qu’il connaît les règles. La CLI écrit ces règles pour toi : un `AGENTS.md` à la racine du projet avec toute la consigne, un `CLAUDE.md` qui pointe vers lui, et un miroir en lecture seule des sources de la plateforme sous `.tale/reference/` que les deux fichiers demandent à l’agent de lire avant de toucher une config.
+Un agent de code peut modifier un projet Tale s’il dispose des schémas et des instructions du projet. `tale init` fournit `AGENTS.md`, un renvoi dans `CLAUDE.md` et les sources de référence sous `.tale/reference/`. Ces fichiers aident à proposer une configuration adaptée à la version installée.
 
-Lis ceci quand tu veux modifier un projet Tale avec Claude Code ou tout autre agent qui lit `AGENTS.md`, sans taper la configuration à la main. Reviens-y quand l’agent invente des champs — le remède est presque toujours de lui faire relire `.tale/reference/`, ou de rafraîchir le miroir avec `tale update`.
+Examine les modifications et teste-les localement avant le déploiement. Les exemples générés forment un catalogue ; chaque fichier n’est pas nécessairement actif dans une organisation.
 
 ## Une mise en place concrète
 

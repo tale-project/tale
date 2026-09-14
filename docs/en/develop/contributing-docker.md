@@ -3,9 +3,9 @@ title: Contributing to Docker images
 description: How to build and extend Tale's Docker images for forks, vendored builds, or air-gapped distributions.
 ---
 
-Every container Tale ships has its Dockerfile in the public source repo. Forks, air-gapped distributions, and one-off patches all start from the same files; this page is the operator's walk through building the images yourself, where the customisation seams live, and how to keep a fork in sync with upstream without diverging on the boring parts.
+Build Tale’s images when you need to test a container change or distribute a controlled build. Start from the repository Dockerfiles so the runtime dependencies, startup roles and health probes remain consistent.
 
-The container architecture lives at [Container architecture](/self-hosted/operate/container-architecture); this page is what you read when the published images do not fit and you need to build your own.
+This guide covers building and testing images. Use [Run Compose yourself](/self-hosted/install/own-compose) for the deployment contract and [Upgrades](/self-hosted/operate/upgrades) for the lifecycle of an existing installation.
 
 ## What the images are
 

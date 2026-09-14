@@ -1,52 +1,48 @@
 ---
-title: Einstellungen
-description: Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, deine Erinnerungen, und Abmelden.
+title: Konto und persönliche Einstellungen verwalten
+description: Ändere deinen Namen, sichere die Anmeldung ab, wähle eine Sprache und lerne die persönlichen Einstellungen kennen.
 ---
 
-Einstellungen sind die Schrauben, die dir gehören, nicht der Organisation. Dein Name ist das, was Agents und Teamkolleginnen in Chats und Genehmigungen sehen. Deine Locale und dein Theme folgen dir zwischen Geräten. Deine Erinnerungen sind Fakten, die ein Agent über dich vorgeschlagen und du freigegeben hast — getrennt von allem, was Admin oder Redakteur auf Organisationsebene gesetzt hat. Diese Seite zeigt, wo jeder Hebel sitzt und was er ändert.
+Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du dich anmeldest. Im Profilmenü wechselst du außerdem Organisation, Team und Sprache. Dafür brauchst du keine Admin-Rolle.
 
-Die Form ist bewusst zweischichtig: das Profilmenü (überall, einen Klick vom Avatar entfernt) trägt die schnellen Schalter; **Einstellungen > Konto** und **Einstellungen > Personalisierung** tragen die tieferen Kontofelder. Alles hier gehört dir — nichts davon lecken zu anderen Mitgliedern oder anderen Organisationen durch.
+## Den sichtbaren Namen ändern
 
-## Das Profilmenü
+Öffne **Einstellungen > Konto**. Bearbeite unter **Profil** deinen **Namen** und klicke oben auf **Speichern**. Mit **Verwerfen** stellst du den gespeicherten Wert wieder her. Die E-Mail-Adresse ist schreibgeschützt, weil sie dein Konto bei der Anmeldung und für Benachrichtigungen identifiziert.
 
-Klick auf deinen Avatar oben rechts. Das Dropdown öffnet sich mit deinem Namen, deiner E-Mail und der aktuellen Build-Version. Unter dem Kopf sitzen vier Schnellschalter, die jedes Mitglied unabhängig von der Rolle sieht: der Theme-Wechsler (**Systemdesign** / **Helles Design** / **Dunkles Design**), das **Sprach**-Untermenü (English, Deutsch, Français), die Zeile **App installieren**, wenn der Browser Tale als PWA installieren kann, und **Abmelden**. Theme und Sprache greifen sofort und bleiben pro Gerät erhalten.
+Dein Name ist für Kollegen sichtbar. Er ist keine persönliche Anweisung an den Assistenten.
 
-Das Menü trägt außerdem einen Organisationswechsler, wenn du zu mehr als einer Organisation gehörst, und einen Team-Filter, wenn deine aktuelle Organisation Teams hat. Das sind keine Einstellungen — sie ändern, was Tale dir zeigt, nicht wie Tale sich verhält. Unter dem Team-Filter öffnet **Benutzereinstellungen** den Bereich **Einstellungen > Konto**, die nächste Seite hier.
+## Die Anmeldung absichern
 
-## Konto — Name, E-Mail, Passwort, Zwei-Faktor
+Unter **Sicherheit** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst.
 
-Öffne **Einstellungen > Konto**. Drei Abschnitte sitzen auf der Seite: **Profil**, **Sicherheit** und **Zwei-Faktor-Authentifizierung**.
+Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder ergänze unter **Passkeys** einen Passkey. Bewahre Wiederherstellungscodes an einem Ort auf, den du ohne Tale-Anmeldung erreichst. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Einrichtung, Wiederherstellung und Organisationsvorgaben.
 
-Der Profil-Abschnitt zeigt zuerst deine **E-Mail**, dann deinen **Namen** — die E-Mail legt den Namen nahe, den Tale vorschlägt und den du frei bearbeiten kannst. Der Name ist inline bearbeitbar; die Änderung speichert und schlägt beim nächsten Render in jedem Chat und jeder Genehmigung durch. Die E-Mail ist schreibgeschützt — sie ist das, womit du dich angemeldet hast, und ein Wechsel läuft über den Support. Es gibt kein Avatar-Feld auf der Seite; Tale leitet einen Avatar aus den Initialen deines Namens ab.
+## Sprache oder Arbeitsbereich wechseln
 
-Der Sicherheits-Abschnitt hält einen einzelnen Knopf: **Passwort ändern**, wenn du dich mit E-Mail und Passwort registriert hast, **Passwort festlegen**, wenn dein Konto über SSO föderiert ist und du ein Passwort als Rückfall hinzufügen willst. Beide Abläufe erzwingen die Passwort-Richtlinie der Organisation und zeigen die Regeln live, während du tippst, und ein falsches aktuelles Passwort wird direkt am Feld markiert statt als flüchtiger Fehler. Das Ändern deines Passworts meldet dich auf allen Geräten ab — der Dialog warnt dich, bevor du bestätigst, und du meldest dich anschließend mit dem neuen Passwort wieder an. Der Zwei-Faktor-Abschnitt paart das Konto mit einer TOTP-App oder einem Hardware-Schlüssel und zeigt die Backup-Codes einmal bei der Einrichtung.
+Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. **Team** grenzt die aktuelle Teamansicht ein, sofern Teams vorhanden sind.
 
-## Erinnerungen und die Freigabe davor
+Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst. Ein Team-Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
 
-Eine Erinnerung ist eine kurze Tatsache über dich, die ein Agent vorgeschlagen hat und du behalten hast — eine Vorliebe, die du genannt hast, eine Einschränkung, die du ständig wiederholst, ein Kontext, den mitzunehmen sich lohnt. Erinnerungen sind der einzige Teil deines Kontos, in den ein Agent schreiben kann, und genau deshalb geht der Schreibvorgang zuerst über dich.
+## Die Personalisierung einordnen
 
-Eine vorzuschlagen tut das Modell, indem es ein Tool aufruft — kein Hintergrundprozess liest dabei deine Gespräche mit. Der Aufruf legt den Eintrag als **ausstehend** an und schreibt zugleich eine Audit-Zeile, denn dauerhaftes Wissen über eine Person vorzuschlagen ist protokollierenswert, noch bevor jemand zustimmt. Ein ausstehender Eintrag bewirkt von sich aus nichts: Er wartet als Vorschlag unter **Einstellungen > Personalisierung**, bis du ihn speicherst oder verwirfst, und nur eine gespeicherte Erinnerung lässt sich je wieder lesen.
+Unter **Einstellungen > Personalisierung** stehen **Benutzerdefinierte Anweisungen** und **Erinnerungen**. Die Schalter können dem Organisationsstandard folgen oder eine persönliche Auswahl speichern. Gespeicherte Anweisungen und Erinnerungslisten gehören zu deinen Einstellungen.
 
-<Frame caption="Einstellungen > Personalisierung — deine benutzerdefinierten Anweisungen und die Erinnerungen, die der Assistent vorgeschlagen hat, jeweils hinter einem eigenen Schalter über dem Org-Standard.">
+<Frame caption="Die Personalisierung enthält gespeicherte persönliche Anweisungen und die Verwaltung von Erinnerungen.">
 
-![Die Seite Personalisierung mit dem eingeschalteten, ausgefüllten Editor für benutzerdefinierte Anweisungen und darunter dem eingeschalteten Abschnitt Erinnerungen, der noch keine ausstehenden Vorschläge und keine gespeicherten Erinnerungen listet.](/images/platform/settings-preferences.webp)
+![Die Seite Personalisierung zeigt einen Editor für benutzerdefinierte Anweisungen und einen Erinnerungsbereich mit ausstehenden und gespeicherten Einträgen.](/images/platform/settings-preferences.webp)
 
 </Frame>
 
-<Info>
+<Note>
 
-Nichts wandert in deinem Namen in einen Prompt. Eine gespeicherte Erinnerung erreicht eine Antwort nur, wenn das Modell danach sucht und die Suche sie zurückgibt — ein Modell kann sich kein dauerhaftes Wissen über dich verschaffen, indem es es aufschreibt, und es kann einen Vorschlag, den du abgelehnt hast, nicht heimlich nachschlagen.
+Der aktuelle Chat-Assistent verwendet diese persönlichen Anweisungen und Erinnerungswerkzeuge nicht für seine Antworten. Eine gespeicherte Einstellung gibt dem Chat deshalb keinen dauerhaften Kontext. Schreibe Anforderungen in deine Nachricht oder nutze **Allgemein > Anweisungen** im Projekt für Kontext, der in dessen Chats gelten soll.
 
-</Info>
+</Note>
 
-Gespeicherte Erinnerungen stehen auf derselben Seite, jede mit einem Knopf zum Löschen. Eine Erinnerung zu löschen nimmt sie aus dem heraus, was eine Suche zurückgeben kann — mehr Wirkung hat sie nicht, denn es fährt keine zweite Kopie in irgendeinem anderen Prompt mit.
+Falls bereits Erinnerungen vorhanden sind, prüfe ausstehende Vorschläge und behalte nur die gewünschten Einträge. Lösche gespeicherte Einträge, die nicht länger aufbewahrt werden sollen. Ein vorhandener Eintrag belegt nicht, dass ein Chat ihn gelesen hat.
 
-Der Schalter **Erinnerungen** über den Listen gilt für die ganze Funktion, nicht nur für die Seite: Ist er aus, kann der Assistent weder eine Erinnerung vorschlagen noch eine lesen — ein Vorschlag in dieser Zeit wird sofort abgewiesen, nicht für später aufgehoben — und was du schon gespeichert hast, bleibt unangetastet liegen, bis du ihn wieder einschaltest.
+## Alte Chats archivieren oder abmelden
 
-## Abmelden
+Unter **Einstellungen > Konto** kannst du im Bereich deiner Chats mehrere Gespräche gemeinsam archivieren oder löschen. Lies die Bestätigung vor einer Sammelaktion sorgfältig: Sie betrifft deine Chat-Historie. Verwende das Menü eines einzelnen Chats, wenn du nur dieses Gespräch ordnen möchtest.
 
-Die Zeile **Abmelden** unten im Profilmenü bestätigt mit einem Dialog, bevor sie die Session löscht. Nach der Bestätigung lädt Tale die Seite zur Anmeldeseite hart neu, damit kein veralteter Zustand im Tab hängenbleibt. Das Abmelden ist pro Gerät — dich auf dem Laptop abzumelden, meldet dich nicht auf dem Handy ab, und umgekehrt.
-
-## Wo das hingehört
-
-Einstellungen sind die Linie zwischen dir und dem Rest der Organisation. Der Org-Admin setzt die Standardwerte — die Passwort-Richtlinie, welche Modelle erlaubt sind, welche Governance für einen Chat gilt — und deine Einstellungen überschreiben sie dort, wo Tale es zulässt. Die nächste Lektüre, die sich lohnt, ist [Mitglieds-Übersicht](/de/platform/member/overview) für die Karte des restlichen Mitglieder-Bereichs, oder [Als App installieren](/de/platform/member/install-as-app), wenn du willst, dass Tale in deinem Dock statt in deinen Browser-Tabs lebt.
+**Abmelden** im Profilmenü beendet die aktuelle Sitzung und führt zur Anmeldung zurück. Melde dich auf gemeinsam genutzten Geräten nach der Arbeit ab. Für ein eigenes App-Fenster auf deinem Gerät lies [Als App installieren](/de/platform/member/install-as-app).

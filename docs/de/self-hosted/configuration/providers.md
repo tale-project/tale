@@ -3,7 +3,35 @@ title: Anbieter
 description: Die Operator-Seite der KI-Anbieter — die Connector-Dateien, die mit der Plattform kommen, und die reservierten Umgebungsvariablen, mit denen das Deployment die API-Schlüssel hält statt der Datenbank.
 ---
 
-Ein KI-Anbieter in Tale hat einen Connector und organisationsgebundene Zugangsdaten. Der Connector beschreibt Endpunkt, Katalog und Authentifizierungsmethoden; Zugangsdaten halten Zugriffsregeln und einen Schlüssel oder eine Umgebungsreferenz. Diese Seite beschreibt mitgelieferte Connectors und den generischen Deployment-Weg für einen extern betriebenen Anbieter.
+Unterscheide bei einem AI-Anbieter drei Dinge: Connector-Definition, Zugangsdaten der Organisation und Modellserver. Der Connector beschreibt Endpunkt und Protokoll, Zugangsdaten steuern den Zugriff, und der Endpunktbetreiber betreibt den Modelldienst.
+
+Diese Seite behandelt eigene Anbieterdefinitionen und Geheimnisse aus der Umgebung. Zugangsdaten und Standardmodelle in der App beschreibt [AI-Anbieter](/de/platform/admin/providers).
+
+## Lokale Anbieterendpunkte
+
+Ein lokaler Inferenzserver braucht eine Anbieterdefinition und die Erlaubnis für das Backend, seinen Host zu erreichen. Die Definition installiert keinen Server und lädt kein Modell.
+
+1. Mache den Inferenzserver für jede Backend-Rolle erreichbar, die ihn aufruft. `localhost` bezeichnet im Container diesen Container, nicht den Hostrechner. Prüfe Namensauflösung, Netzwerkzugriff und gegebenenfalls das TLS-Zertifikat aus dem tatsächlichen Laufzeitnetz.
+2. Setze für einen privaten oder Loopback-Endpunkt `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in der Backend-Bereitstellungsumgebung. Die Einstellung erlaubt private Anbieterhosts für die gesamte Installation; sie ist keine Freigabeliste einzelner Anbieter. Cloud-Metadatenendpunkte bleiben gesperrt. Erstelle die betroffenen Container neu, um die Änderung zu übernehmen. Ein Neustart behält ihre bestehende Compose-Umgebung.
+3. Lege die Anbieterdefinition unter `TALE_CONFIG_DIR/<orgSlug>/providers/local-models.yml` ab oder nutze den [verwalteten Konfigurationsablauf](/self-hosted/configuration/config-releases). Halte das native Anbieterschema ein und wähle einen Namen, der nicht mit einer mitgelieferten Definition kollidiert.
+
+Ersetze im Beispiel private IP und Port durch deinen erreichbaren Server. HTTP ist nur für als privat oder Loopback erkannte Hosts zulässig; öffentliche Endpunkte brauchen HTTPS. Ein interner DNS-Name umgeht die Prüfung privater Hosts zur Anfragezeit nicht.
+
+```yaml
+name: local-models
+displayName: Local models
+apiFormat: openai
+baseUrl: http://192.168.1.20:8000/v1
+catalog:
+  source: models-endpoint
+auth:
+  - method: api-key
+  - method: env
+```
+
+Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `/v1/models`. Prüfe die tatsächliche Kompatibilität des Servers. Eine Modellliste beweist noch nicht, dass Generierung, Werkzeugaufrufe oder Streaming funktionieren. Nutze einen statischen Katalog oder konkrete Modellfreigaben, wenn der Server den hier angeforderten Katalog nicht liefern kann.
+
+Lass anschließend einen Organisationsadmin unter [KI-Anbieter](/platform/admin/providers) Zugangsdaten hinzufügen, den Katalog aktualisieren und ein bestimmtes Modell für einen kurzen Chat auswählen. Prüfe die abgeschlossene Anfrage im Protokoll des vorgesehenen Inferenzservers. Für Embeddings, Sprache und Werkzeugverkehr musst du die Ziele getrennt prüfen; ein lokaler Chatendpunkt hält sie nicht automatisch lokal.
 
 ## Wo die Connectoren liegen
 
@@ -70,7 +98,7 @@ Die Schranke ist fail-closed: Jeder Name ausserhalb des reservierten Präfixes w
 
 </Note>
 
-Definier die Variable so, dass das Backend sie lesen kann — es löst die Anbieter-Zugangsdaten zur Laufzeit auf. Eine nach dem Boot hinzugefügte oder geänderte Variable braucht einen Neustart von `backend-api` und `backend-worker`, bevor sie sichtbar wird. Werte werden getrimmt, was dir den Zeilenumbruch am Ende einer gemounteten Secret-Datei und den daraus folgenden `401` erspart.
+Definier die Variable so, dass das Backend sie lesen kann — es löst die Anbieter-Zugangsdaten zur Laufzeit auf. Erstelle nach einer neuen oder geänderten Bereitstellungsvariablen `backend-api` und `backend-worker` mit der aktualisierten Umgebung neu. Ein Compose-Neustart behält die alten Werte. Werte werden getrimmt, was dir den Zeilenumbruch am Ende einer gemounteten Secret-Datei und den daraus folgenden `401` erspart.
 
 ## Broker-Secrets aus der Umgebung
 

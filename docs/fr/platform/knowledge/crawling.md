@@ -1,48 +1,61 @@
 ---
-title: Exploration de sites web
-description: Comment Tale transforme un site web en connaissances — enregistrement du domaine, découverte des URL par sitemap, ré-analyses planifiées et vue des pages indexées.
+title: Ajouter des sites aux connaissances
+description: Choisis les pages publiques à indexer, règle la fréquence des scans et examine les contenus absents ou périmés.
 ---
 
-Un site web est la forme que prend, dans la base de connaissances, « un site public que l’agent doit connaître ». Tu confies à Tale un domaine et un intervalle d’analyse ; le crawler découvre les URL, va chercher les pages, extrait le contenu principal, découpe le texte et calcule ses embeddings, puis sert les fragments au moment de répondre, exactement comme pour les Documents. Quand tu veux des pages précises plutôt qu’un site entier, confie-lui une liste d’URL — le même pipeline tourne alors exactement sur les pages que tu nommes. Cette page parcourt ce que tu vois entre l’ajout d’un domaine et les citations de ses pages par les agents.
+Ajoute un site lorsque ton équipe doit interroger un contenu public qui évolue. Tale récupère les pages sélectionnées et indexe leur texte lisible pour la recherche dans les connaissances. La gestion des sources nécessite le rôle Éditeur ou supérieur. Les pages protégées par une connexion demandent un autre parcours d’import, comme [Documents](/fr/platform/knowledge/documents).
 
-<Frame caption="Ajouter un site web — en mode « Site web entier », un domaine plus un intervalle d’analyse, et le formulaire est complet.">
+## Ajouter un site ou des pages précises
 
-![La boîte de dialogue Ajouter un site web de l’onglet Sites web, demandant un domaine et un intervalle d’analyse réglé par défaut sur toutes les 6 heures.](/images/platform/websites-add-dialog.webp)
+Ouvre **Connaissances > Sites web** et clique sur **Ajouter un site web**. Choisis le type de source avant de saisir l’adresse :
+
+| Type de source | Quand l’utiliser | Valeur à saisir |
+| --- | --- | --- |
+| **Site web entier** | Tu veux découvrir le contenu d’un domaine | Un **Domaine**, par exemple `example.com` |
+| **Liste d'URL** | Tu veux un ensemble précis de pages ou documents publics | Une adresse par ligne sous **URL** |
+
+Le mode site entier accepte une URL mais utilise son nom d’hôte. Coller un chemin ne limite pas le scan à ce chemin ; utilise une liste d’URL pour cela. Les formes avec et sans `www` désignent le même site : les ajouter toutes deux déclenche un avertissement de doublon.
+
+Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défaut est de six heures ; les choix vont d’une heure à trente jours. Le planificateur prend en charge la nouvelle source. L’enregistrement ne signifie pas que toutes les pages ont déjà été récupérées et indexées.
+
+<Frame caption="Le mode site entier demande un domaine et un intervalle. Choisis une liste d’URL lorsque la sélection des pages compte.">
+
+![Le dialogue d’ajout d’un site présente Domaine et Intervalle de scan, réglé sur six heures par défaut.](/images/platform/websites-add-dialog.webp)
 
 </Frame>
 
-## Ajouter un site web
+## Garder une liste d’URL ciblée
 
-Ouvre **Connaissances > Sites web** et clique sur **Ajouter un site web**. Le **Type de source** décide de ce que couvre la source : **Site web entier** — le réglage par défaut — explore tout ce qui se découvre sur le domaine, **Liste d'URL** indexe exactement les pages que tu colles (la section suivante y revient). En mode Site web entier, la boîte de dialogue a deux champs : **Domaine** (par exemple `example.com`) et **Intervalle d'analyse** — toutes les heures, toutes les 6 heures (le réglage par défaut), toutes les 12 heures, tous les jours, tous les 5, 7 ou 30 jours. Tale extrait l’hôte de ce que tu colles — `https://` et un chemin sont tolérés — et rejette tout ce qui ne se lit pas comme un nom d’hôte. L’hôte est stocké tel que tu le donnes, `www.` compris, et les orthographes avec `www.` et apex comptent pour un seul site : ajouter le jumeau d’un domaine que tu suis déjà est refusé comme un doublon qui nomme l’orthographe stockée, choisis-en donc une et garde-la. Clique sur **Enregistrer** ; le planificateur ramasse les nouveaux sites à son prochain passage, la première analyse démarre donc en quelques secondes.
+Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
 
-<Note>
+Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
 
-Il n’y a ni champ d’authentification ni liste de chemins à inclure ou exclure — le crawler voit exactement ce qu’un visiteur anonyme voit. Tout ce qui vit derrière une connexion relève de [Documents](/fr/platform/knowledge/documents) ou d’une [connector](/fr/platform/connectors/overview).
+## Comprendre la découverte et l’actualisation
 
-</Note>
+Pour un site entier, le crawler utilise l’accueil et les sitemaps publiés, y compris les index de sitemaps et ceux déclarés dans `robots.txt`. Sans sitemap exploitable, il suit les liens du domaine depuis l’accueil. Une page absente des sitemaps et inaccessible par ces liens peut manquer. Utilise une liste d’URL si des pages précises sont indispensables.
 
-## Ajouter une liste d’URL
+Les scans sont incrémentaux : les contenus inchangés sont ignorés, les contenus modifiés réindexés, les nouvelles pages ajoutées et les pages retirées supprimées de l’index. Une liste d’URL actualise sa sélection fixe au même rythme. Aucune publication séparée n’est nécessaire après l’indexation.
 
-Passe le **Type de source** sur **Liste d'URL** quand tu veux des pages précises, pas un site entier — un rapport ici, une page de tarifs là, quelques PDF. Colle une URL par ligne dans le champ **URL** ; seules ces pages sont chargées et indexées, le crawler ne suit aucun lien au-delà. Les lignes peuvent mélanger plusieurs sites web : la boîte de dialogue les regroupe en une source par site web, un collage qui couvre trois domaines crée donc trois lignes. Recoller une liste pour un site qui en a déjà une ajoute les nouvelles URL à la source existante — rien ne se perd, et l’intervalle d’analyse passe à ton nouveau choix. Les listes se ré-analysent à la même cadence que les sites entiers ; leurs lignes portent le badge **Liste d'URL** dans la table.
+Le crawler visite en lecteur anonyme. Il n’y a ni champ de connexion ni liste de chemins à inclure ou exclure pour le site entier. Ajouter une URL ne rend pas accessible un contenu privé.
 
-## Comment les URL sont découvertes
+## Vérifier le contenu indexé
 
-Le crawler tente d’abord la voie coopérative. Il résout la page d’accueil et parcourt chaque sitemap que le site publie — `sitemap.xml`, index de sitemaps, sitemaps compressés ou déclarés dans le robots.txt — pour collecter la liste d’URL que le site entretient lui-même. Les sites au sitemap sain obtiennent une couverture complète, sans rien deviner. Pendant la découverte des URL, le crawler respecte les règles `Disallow` du `robots.txt` pour l’agent `*` — pas pour les URL que tu listes toi-même : une liste explicite est ta consigne — et il saute une page qui répond `X-Robots-Tag: noindex` ; une telle page se lit `robots_noindex` dans la liste des pages. Une URL qui nomme un port explicite (`:8001`) n’est jamais suivie ni listée — un site n’est joint que sur son port par défaut.
+Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. Survole le pourcentage pour voir le nombre de pages récupérées et le total. Ouvre la source puis **Voir les pages** pour examiner les URL, le nombre de mots et de fragments et la date du dernier passage.
 
-Quand le sitemap manque, est cassé ou vide, le crawler se rabat sur un parcours de liens en largeur depuis la page d’accueil : liens du domaine uniquement, liens externes et sociaux écartés, navigation et pied de page retirés avant l’extraction. Ce repli couvre les sites sans sitemap, mais il ne peut pas égaler la complétude d’un sitemap bien tenu.
+| Statut | Signification |
+| --- | --- |
+| **Inactif** | Attend entre deux scans. |
+| **En cours d'analyse** | Un scan est en cours. |
+| **Actif** | Un scan s’est terminé avec succès. Vérifie les résultats page par page pour connaître la couverture. |
+| **Erreur** | Le dernier scan a échoué ; examine la cause. |
+| **Suppression en cours** | La source est en cours de retrait. |
 
-Les pages ne sont pas le seul contenu qui compte. Les documents liés — PDF et fichiers Office (`docx`, `xlsx`, `pptx`, `odt`) — sont chargés et indexés comme des pages, que le crawler les trouve sur un site ou que tu les listes directement dans une liste d’URL. Les images, les documents numérisés sans texte intégré et le contenu que le crawler ne sait pas transformer en texte — un endpoint JSON ou XML, un téléchargement binaire — sont ignorés : l’analyse note qu’elle a regardé et n’enregistre rien, la page reste à l’état découvert, et sa raison se lit `unsupported_content`.
+La vue des pages permet aussi de rechercher dans le contenu indexé. Essaie une expression distinctive de la page avant de t’appuyer dessus dans Chat, puis pose une question précise et vérifie la citation.
 
-Un site est plafonné à 10 000 URL suivies. Une analyse tourne par tronçons de cinq minutes, 200 au plus, et se termine quand il ne reste plus d’URL à visiter ; la découverte elle-même a un budget de trois minutes et de 50 récupérations de sitemap au plus. Une page de plus de 25 Mo ou plus lente que 30 secondes est enregistrée comme un échec, et une page découverte qui échoue cinq analyses de suite sort du planning — une page listée est retentée à chaque analyse tant qu’elle reste listée. Il n’y a ni plafond de pages, ni filtre de chemins, ni bouton d’arrêt de ton côté ; un site plus grand que cela se confie plutôt sous forme de liste d’URL.
+## Examiner une page absente
 
-## Le planning d’analyse
+Vérifie d’abord l’adresse, le type de source et la date du dernier scan. En cas d’échec, la ligne indique la cause et le nombre d’essais consécutifs échoués : erreur HTTP, adresse privée bloquée, problème de rendu ou extraction non prise en charge. Corrige la source ou attends que le site redevienne disponible.
 
-L’intervalle décide de la fréquence à laquelle les URL sont redécouvertes et les pages rechargées. Chaque analyse est incrémentale : les pages inchangées sont sautées, les pages modifiées sont réextraites et réindexées, les nouvelles pages sont ajoutées, les pages disparues sont retirées de l’index. Une liste d’URL suit la même cadence avec un ensemble fixe — les pages listées sont rechargées selon le planning, rien de nouveau n’est découvert. Les agents pointés sur le site voient le nouveau contenu dès la récupération suivante — il n’y a pas d’étape de publication séparée.
+Une page de liste d’URL est retentée aux scans suivants tant qu’elle reste dans la liste. Une page découverte automatiquement est abandonnée après cinq scans échoués. Une récupération réussie efface l’erreur précédente. Si le scan semble correct mais qu’une information manque, compare le texte indexé à l’original : un scan réussi ne garantit pas que chaque élément visible est devenu du texte recherchable.
 
-## Lire la table
-
-Chaque ligne montre le domaine (les sources de type liste d’URL portent à côté le badge **Liste d'URL**), son **Statut** — **Inactif** entre deux analyses, **En cours d'analyse** en vol, **Actif** après une analyse réussie, **Erreur** quand la dernière analyse a échoué ou n’a rien stocké (le détail de la ligne dit pourquoi), **Suppression en cours** pendant le retrait — le pourcentage **Indexé** (survole-le pour le compte de pages explorées sur le total), l’heure de dernière analyse dans **Analysé** et l’**Intervalle**. Ouvre une ligne pour le titre et la description découverts du site ; clique sur **Voir les pages** pour la liste des pages — chaque URL indexée avec son nombre de mots, son nombre de fragments et sa dernière exploration et, pour une page que le crawler n’a pas pu récupérer, la raison de l’échec avec le nombre de tentatives échouées de suite (une redirection vers une adresse privée que le garde-fou de récupération a refusée, un certificat auquel la plateforme ne fait pas confiance, une réponse `4xx` ou `5xx`, une page que le navigateur n’a pas pu rendre, un document lié qu’aucun extracteur n’a pu lire, un type de contenu que le crawler ne sait pas transformer en texte, ou une page dont l’origine a demandé à ne pas être indexée) — plus un champ de recherche qui interroge les fragments indexés : le moyen le plus rapide de vérifier ce qu’un agent récupérerait réellement. La raison s’efface dès qu’une analyse stocke de nouveau la page ; une page issue d’une liste d’URL est retentée à chaque analyse tant qu’elle reste listée, une page découverte abandonne après cinq analyses échouées.
-
-## Où cela s’inscrit
-
-L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine — ou une liste d’URL choisie à la main — une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une connector. Pour la place des lignes Sites web à côté des Contacts et Produits, lis [Données structurées](/fr/platform/knowledge/structured-data).
+Si la source affiche **Suspendu**, des échecs répétés d’accès à la base de connaissances ont arrêté les analyses. Demande à un administrateur de réparer la connexion dans **Paramètres > Résidence des données**, puis utilise **Reprendre l'analyse**.

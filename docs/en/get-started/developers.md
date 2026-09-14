@@ -1,50 +1,78 @@
 ---
-title: Your first day integrating with Tale
-description: The developer journey — mint an API key, make your first authenticated request, and know where the API surface lives.
+title: Make your first API request
+description: Create a key, identify your organization and find the models your integration can call.
 ---
+Start an integration by proving three things: the key authenticates, it targets the right organization and that organization has the resources you need. This guide gets you through those checks with curl. You need a running Tale instance and permission to create API keys, normally the Developer, Admin or Owner role.
 
-This journey is for the person wiring Tale into other systems. In ten minutes you mint an API key, make your first authenticated request, and know which door to knock on for chat, workflows, and documents.
+## Create a key for the integration
 
-You need the **Developer** role or higher (the API settings are hidden below it) on a running instance — [quickstart](/get-started/quickstart) if you have none. Replace `your-host.example.com` below with your instance's host.
+Open **Settings > API > REST** and select **Create API key**. Name the key for its purpose, choose an expiration and select **Create key**. Copy the value immediately; Tale displays the secret once.
 
-<Steps>
+<Frame caption="Use one recognizable key per integration so you can replace or revoke it independently.">
 
-<Step title="Mint an API key">
-
-To get a credential your scripts can hold, open **Settings > API > REST** and click **Create API key**. Name it for the system that will use it — keys are listed by name, and a year from now "zapier-bridge" beats "test". The key value shows once, on creation; store it in your secret manager, not in code. Keys are minted, rotated and revoked here and nowhere else — nothing under `/api/v1` creates, lists or revokes one — so plan the rotation as a human step; the key can at least see its own expiry coming, as `key.expiresAt` on `GET /api/v1/me`.
-
-<Frame caption="The REST API settings — keys are created and revoked here.">
-
-![The REST API keys settings page listing two keys — Production ingest and CI pipeline — each showing only its key prefix, the date it was added, and a Never used marker, beside a Create API key button.](/images/get-started/settings-api-keys.webp)
+![The Create API key dialog asks for a descriptive name and an expiry before a key is generated.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 
-</Step>
+Load the secret into `TALE_API_KEY` from a secret manager or private shell environment. Set `TALE_BASE_URL` to your instance, for example `https://your-host.example.com`. Do not include a trailing `/api/v1`; the commands below add that path.
 
-<Step title="Make the first request">
+## Identify the account and organization
 
-The shortest useful call lists the direct-chat models your key can use. The key travels as a bearer token. A key whose holder belongs to one organization needs nothing else; belong to several — a sandbox org and a real one is the usual case — and every request, reads included, must name the organization in `X-Organization-Slug` (its slug is in the address bar of the app, and `GET /api/v1/me` lists every slug you may send):
+Call `/me` without an organization header. With one membership, it returns the key’s identity and organization. With several memberships, it returns `400 ORG_SLUG_REQUIRED` and lists your choices in `data.organizations`:
 
 ```bash
-curl -sS --compressed https://your-host.example.com/api/v1/models \
+curl --fail-with-body --silent --show-error "$TALE_BASE_URL/api/v1/me" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+```
+
+Set `TALE_ORG_SLUG` to your chosen slug, then repeat `/me` with that scope. The dashboard URL contains an organization ID; do not use it as the slug. A `400` in the first request makes curl exit with code 22 while still printing the JSON body.
+
+```bash
+curl --fail-with-body --silent --show-error "$TALE_BASE_URL/api/v1/me" \
   -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "X-Organization-Slug: <org-slug>"
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
+```
+
+Check the successful response’s account, organization, capabilities and `key.expiresAt` before proceeding.
+
+The key acts with its holder’s current membership and permissions. Creating several keys for one account does not create several independent roles or rate-limit budgets. Plan key replacement before expiration; `/api/v1` does not manage API keys for you.
+
+## Find an available model
+
+Send the organization explicitly when listing models:
+
+```bash
+curl --fail-with-body --silent --show-error "$TALE_BASE_URL/api/v1/models" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
 ```
 
 <Check>
 
-A JSON object with a `models` array proves the key, authentication and route. The array can be empty when no direct-chat model is available. A `401` means the authorization header is malformed or the key was revoked. A `400` with `"code": "ORG_SLUG_REQUIRED"` means you belong to several organizations and the request named none — add the `X-Organization-Slug` header; the body lists the slugs you may send under `data.organizations`.
+A `200` response with a `models` array confirms this authenticated, organization-scoped request. The array may be empty; that confirms access to the endpoint, not readiness to generate a reply.
 
 </Check>
 
-</Step>
+Use a model’s `id` in chat requests and its `providerSlug` when that ID is available from several providers. A model can be listed yet unavailable to the provider account because of credit or plan restrictions. Ask an admin to check provider credentials and model access if the list is empty.
 
-</Steps>
+## Resolve the first error
 
-## The rest of the surface
+| Response | What to do |
+| --- | --- |
+| `401` | Check the bearer key, expiration and revocation state. |
+| `400` with `ORG_SLUG_REQUIRED` | Choose a slug from `data.organizations` in this error and send `X-Organization-Slug`. |
+| `403` | Check organization membership and the permission needed for the operation. |
+| `429` | Wait as directed by `Retry-After`; read [Rate limits](/develop/rate-limits). |
 
-For work in a project, start an automation at `POST /api/v1/projects/{id}/automations/{name}/runs` and poll `/api/v1/projects/{id}/runs/{runId}`. Project chats, tasks and files use the same `/api/v1/projects/{id}/...` structure; the project ID belongs in the URL. Ordinary personal chat uses `/api/v1/threads`, and `/api/v1/documents` serves Hub documents with no project. Webhook callers use `/api/projects/{id}/automations/webhook/{token}` for an installed project automation; the token is their credential. The [API reference](/develop/api-reference) covers the matching non-project routes, permissions and required organization header. The same key also opens the [MCP endpoint](/develop/mcp-endpoint) for model-driven clients.
+If curl reports a TLS or network error before receiving JSON, check the host and certificate. Avoid disabling certificate verification in production scripts.
 
-## Where you are now
+## Choose the next task
 
-You hold a working credential and have seen the request shape every endpoint shares. From here, [call Tale from a script](/tutorials/developer/call-tale-from-a-script) turns the curl into a real connector, [trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the push direction, and the [MCP endpoint](/develop/mcp-endpoint) is the same platform for MCP clients.
+| You want to… | Continue with |
+| --- | --- |
+| Print a completed assistant reply | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script). |
+| Start an automation from another system | [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). |
+| Connect an MCP client | [MCP endpoint](/develop/mcp-endpoint). |
+| Work with project files, tasks or runs | [API reference](/develop/api-reference). |
+
+Use project routes under `/api/v1/projects/{id}/...` for project-scoped work. The project ID belongs in that path; the organization slug belongs in the header. Keep both explicit in your integration configuration.

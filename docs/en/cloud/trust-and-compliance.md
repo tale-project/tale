@@ -1,53 +1,39 @@
 ---
-title: Trust and compliance
-description: Which compliance posture Tale Cloud ships with, who audits what, which controls are yours, and how to report incidents.
+title: Security and compliance
+description: Find certification information, understand responsibilities, and collect evidence for a security review.
 ---
 
-Trust and compliance on Cloud is the page an auditor wants. It names the frameworks the platform is certified against, splits responsibilities between Tale and your org cleanly, lists the data-protection controls available to you, and tells you who to call when something goes wrong.
+Tale holds ISO/IEC 27001 and SOC 2 Type II certifications. For a security review, ask your Tale contact for the applicable certificates, report scope, and supporting documents; use the evidence relevant to the service your organization has purchased.
 
-The content here is descriptive — what is shipped today, what evidence Tale can hand over on request. The legal documents themselves (DPA, terms, privacy) live under [Legal](/legal/privacy); this page is the operator's quick reference.
+Product controls support your organization’s processes. Whether a particular use meets your obligations also depends on your configuration, connected providers, and operating procedures.
 
-## A worked control — audit logs end to end
+## Prepare a review
 
-The org's compliance officer needs to demonstrate that "every change to access control is logged with the actor, the target, and the timestamp". Tale's [Audit logs](/platform/admin/governance/audit-logs) record every member invite, role change, removal, and 2FA reset with the actor's user ID, the affected member's ID, and an ISO timestamp. Logs are immutable — restoring a snapshot does not modify them — and retained per the org's configured floor. The officer exports a date range as CSV, hands it to the auditor, and the worked example clears the control.
+Bring together your service agreement, data-processing agreement, the relevant certification evidence, and a description of your deployment. The [privacy policy](/legal/privacy) and [subprocessor information](/legal/subprocessors) provide additional context. Record the version and scope of each document in your review.
 
-## Certifications and frameworks
+Clarify which organization and deployment the review covers. A certification statement is not a substitute for checking whether a particular service or configuration falls within the report’s scope.
 
-Tale Cloud is currently audited or attested against the following frameworks; the certification reports are available under NDA via support:
+## Know who is responsible
 
-- SOC 2 Type II (annual)
-- ISO/IEC 27001
-- GDPR-aligned controls (EDPB guidance applied)
-- FADP-aligned controls for the Switzerland region (revDSG)
+| Area | Tale on Cloud | Your organization |
+| --- | --- | --- |
+| Hosting and maintenance | Operates the agreed service | Chooses the service and coordinates changes |
+| Identity and access | Provides account, role, and SSO controls | Adds members, grants access, and reviews it |
+| Model providers and connectors | Provides integration controls | Chooses services, credentials, and permitted uses |
+| Usage and content policies | Provides policy controls and records | Configures rules and responds to events |
+| Data requests and retention | Provides the supported workflows | Determines requirements and authorizes actions |
 
-Pending or planned: HIPAA BAA (US enterprise customers), additional regional attestations as the region list grows.
+For self-hosted deployments, your operator also owns the infrastructure responsibilities. Enterprise support arrangements depend on your agreement.
 
-## Shared-responsibility split
+## Check the controls in the product
 
-| Control                       | Tale              | You                    | Evidence                                                 |
-| ----------------------------- | ----------------- | ---------------------- | -------------------------------------------------------- |
-| Infrastructure availability   | ✓                 |                        | Status page, SOC 2 SLA report                            |
-| Data encryption at rest       | ✓                 |                        | Architecture description                                 |
-| Encryption in transit         | ✓                 |                        | TLS termination by Tale's edge                           |
-| Member identity and roles     |                   | ✓                      | [Members and roles](/platform/admin/members-and-roles)   |
-| API key issuance and rotation |                   | ✓                      | [API keys](/platform/admin/api-keys)                     |
-| Content filtering and DLP     | Provides hooks    | Configures rules       | [Guardrails](/platform/admin/governance/guardrails)      |
-| Audit-log retention           | Provides storage  | Sets retention         | [Retention](/self-hosted/configuration/retention)        |
-| Data-subject requests         | Provides workflow | Initiates and approves | [DSRs](/platform/admin/governance/data-subject-requests) |
-| Provider credentials          |                   | ✓                      | [Providers](/platform/admin/providers)                   |
+- [Members and roles](/platform/admin/members-and-roles) define access. Review inactive accounts and elevated roles.
+- [Enterprise SSO](/platform/admin/enterprise-sso) connects your identity provider. Test both sign-in and recovery before requiring it.
+- [Audit logs](/platform/admin/governance/audit-logs) help investigate recorded actions. Use [audit-log integrity](/self-hosted/operate/security/audit-log-integrity) when evaluating tamper evidence and its limits.
+- [Guardrails](/platform/admin/governance/guardrails), [legal hold](/platform/admin/governance/legal-hold), and [data-subject requests](/platform/admin/governance/data-subject-requests) support specific processes; read their scope before relying on them.
 
-## Data protection controls
+## Report an incident
 
-Inside the product, three control surfaces matter for compliance:
+Use your agreed Enterprise support channel for a service incident. Report a suspected vulnerability through [GitHub’s private security reporting](https://github.com/tale-project/tale/security) or `security@tale.dev`. Include the affected version and reproduction details without sending credentials or personal data in a public issue.
 
-- **Audit logs** — immutable record of who did what; retention configurable.
-- **Legal hold** — exempts a record set from retention until lifted; covered in [Legal hold](/platform/admin/governance/legal-hold).
-- **Data subject requests** — the request → claim → erasure → audit workflow; covered in [DSRs](/platform/admin/governance/data-subject-requests).
-
-## Reporting incidents
-
-Tale's security incident contact is `security@tale.dev`. Suspected vulnerability disclosure follows the responsible-disclosure policy on the same email. Customer-facing security advisories are published in the [security advisory feed](/self-hosted/operate/security/advisories) and emailed to the org's Owner; the [status page](/develop/status-page) reports availability only and carries no advisories.
-
-## Where this fits
-
-Trust and compliance is the audit-time page; [Data residency](/cloud/data-residency) is the architecture-time page; [Subprocessors](/legal/subprocessors) is the list-of-vendors page. An auditor usually wants all three at once — bookmark them together. If you operate self-hosted, the controls are the same; what changes is who runs the infrastructure beneath them — see [Self-hosted overview](/self-hosted/overview).
+For a review of where data travels, continue with [Cloud data residency](/cloud/data-residency).

@@ -1,24 +1,30 @@
 ---
-title: Assistant d’automatisation
-description: Un agent de chat rattaché à une automatisation ne fait pas partie de cette version — tu modifies une automatisation sur sa propre page, et un modèle en rédige une par l’endpoint MCP.
+title: Choisir comment créer une automation
+description: Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP.
 ---
 
-Cette page décrivait l’**Assistant d’automatisation** : un agent de chat rattaché à une seule automatisation, avec son document, ses agents, ses compétences et ses connectors en contexte, capable de modifier des nœuds, d’enregistrer des versions et de lancer des simulations à ta place. Il n’existe pas dans cette version de Tale. Le chat n’a aucun agent rattaché à quoi que ce soit — l’assistant de chat porte trois outils de récupération en lecture seule et ne peut ni lire ni modifier une automatisation — et le canvas n’a pas de panneau d’assistant. Ce qui reste, ce sont les deux voies par lesquelles une automatisation se construit et se comprend vraiment : sa propre page, et l’endpoint MCP.
+Modifie une automation sur son canevas ou connecte un assistant externe avec MCP pour utiliser les outils de Tale. Les deux chemins enregistrent des versions du même workflow et suivent les mêmes règles de validation et de déploiement. Il te faut les droits Développeur pour créer et déployer des automations.
 
-<Note>
+## Modifier le workflow dans l’éditeur visuel
 
-L’Assistant d’automatisation n’est pas disponible dans cette version. Il n’y a aucun agent de chat lié à une automatisation ni aucun éditeur d’agent auquel il remettrait du JSON ; le versant agent d’une automatisation est son nœud **agent**, modifié dans le panneau comme n’importe quel autre nœud.
+Ouvre **Automations** et sélectionne le workflow. Choisis un nœud pour examiner ses entrées, son modèle, son code ou ses autres réglages. Enregistre la modification avec un message de version, lance un test, puis déploie la version souhaitée lorsque ses vérifications passent.
 
-</Note>
+<Frame caption="Le nœud sélectionné affiche sa configuration à côté du graphe.">
 
-## Comprendre et modifier une automatisation aujourd’hui
+![L’éditeur d’automation montre le graphe du workflow et les champs d’entrée du nœud sélectionné dans un panneau latéral.](/images/platform/automation-editor-canvas.webp)
 
-Ouvre l’automatisation depuis **Automatisations**. Son canvas montre le graphe entier d’un coup — le déclencheur, les nœuds et les arêtes entre eux — et sélectionner un nœud ouvre sa configuration dans le panneau latéral ; c’est là que tu modifies, que tu enregistres une version avec **Enregistrer** et une note, que tu la lances contre des simulations avec **Essai**, et que tu la promeus avec **Mettre cette version en service** quand elle est juste. [L’éditeur de workflow](/fr/platform/automations/editor) est le manuel d’exploitation de cette page, y compris le gate de mise en service que forment les propres tests d’une automatisation. Les pièces que l’ancien assistant rédigeait pour toi se modifient là où elles vivent : un identifiant sous **Paramètres > Connectors** ([Identifiants d’connector](/fr/platform/admin/connectors)), un déclencheur sur la page de l’automatisation elle-même ([Déclencheurs d’automatisation](/fr/platform/automations/triggers)).
+</Frame>
 
-## Laisser un modèle en rédiger une
+[L’éditeur de workflow](/fr/platform/automations/editor) détaille ces étapes, l’examen d’une exécution et le retour à une version antérieure. Le canevas n’inclut pas de panneau d’assistant conversationnel.
 
-La voie faite pour les modèles est l’[endpoint MCP](/fr/develop/mcp-endpoint) : pointe dessus un agent de code, un IDE ou ta propre boucle avec une clé API de l’organisation, et il tient les outils de rédaction que l’assistant portait autrefois — `get_docs` pour la grammaire, `validate_automation`, `save_automation`, `run_automation` contre les mocks, `test_automation` et `deploy_automation` — plus `list_automations` et `search_capabilities` pour trouver ce qui existe déjà avant de construire un doublon. Enregistrer par l’endpoint ajoute une version exactement comme la page le fait, et rien ne passe en service tant que quelque chose ne le met pas en service. Ce qu’une clé peut enregistrer et mettre en service suit le rôle de son détenteur : un droit de développeur, comme sur la page.
+## Utiliser un assistant externe avec MCP
 
-## Où cela s’inscrit
+Configure ton client avec le point d’accès indiqué sous **Paramètres > API > MCP** et une clé API adaptée. Décris les entrées, la sortie attendue et les systèmes que le workflow peut modifier. Demande au client d’examiner les automations et capacités existantes avant d’en créer une autre.
 
-Dans cette version, une automatisation se lit et se modifie à deux endroits — sa page pour les personnes, l’endpoint MCP pour les modèles — et aucun des deux n’est un chat. [Concepts d’automatisation](/fr/platform/automations/concepts) est le vocabulaire que les deux présupposent ; [Ajouter des automatisations à ton organisation](/fr/platform/automations/catalog) est l’endroit d’où viennent les packs livrés, les brouillons et les téléversements.
+Le [point d’accès MCP](/fr/develop/mcp-endpoint) propose des outils de documentation, validation, enregistrement, test et déploiement. Examine le workflow obtenu et ses résultats de test avant de le déployer. L’enregistrement crée une version, sans la rendre active.
+
+## Distinguer les décisions pendant l’exécution
+
+Un nœud agent accomplit du travail pendant une exécution. Il est distinct du client qui t’aide à écrire le workflow. De même, une [approbation](/fr/platform/approvals/concepts) autorise une opération en attente pendant l’exécution ; elle ne valide pas une modification proposée de la définition.
+
+Choisis [l’éditeur](/fr/platform/automations/editor) pour une modification directe ou [MCP](/fr/develop/mcp-endpoint) pour travailler depuis ton client. Pars d’[une automation existante](/fr/platform/automations/catalog) lorsqu’une solution adaptée est déjà disponible.

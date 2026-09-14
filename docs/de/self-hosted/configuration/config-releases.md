@@ -3,9 +3,9 @@ title: Client-Konfigurationen veröffentlichen
 description: Ein versioniertes Automatisierungspaket mit der Tale-CLI aus einem Client-Repository erstellen, prüfen und bereitstellen und danach die nativen Workflow- und Skill-Dateien verifizieren.
 ---
 
-Die Tale-CLI veröffentlicht Automatisierungspakete aus dem Repository eines Clients in einer bestehenden Organisation und einem Projekt. Der vollständige Quell-Commit kennzeichnet jedes neue Release; damit kannst du Workflow und eigene Skill-Dateien ohne zusätzlichen Commit generierter Archive reproduzieren. Das Client-Repository enthält die Inhalte und fachlichen Tests. Deine Deployment-Automatisierung wählt Ziel, Quell-Commits und CLI-Revision und ruft die Tale-Befehle auf.
+Veröffentliche ein Automationspaket aus seinem Kunden-Repository in einer bestehenden Tale-Organisation und einem Projekt. Jeder neue Release trägt den vollständigen Quellcode-Commit als Kennung. So lassen sich geprüfte Workflows und enthaltene Skills erneut bauen und mit dem bereitgestellten Inhalt vergleichen.
 
-Dieser Leitfaden behandelt nur die Konfiguration. Für Instanz und Konfiguration zusammen nutzt du die [Befehle für verwaltete Deployments](/de/self-hosted/install/cli-install#verwaltete-deployments); die CLI übernimmt auch Runtime-Vorbereitung, Rollout und native Provisionierung.
+Diese Anleitung behandelt Konfigurationsreleases. Für neue Instanzen oder Änderungen an der Laufzeit nutze [verwaltete Bereitstellungen](/de/self-hosted/install/cli-install). Fachliche Tests gehören ins Kunden-Repository; Formatvalidierung allein bestätigt keine fachlichen Ergebnisse.
 
 ## Bevor du beginnst
 

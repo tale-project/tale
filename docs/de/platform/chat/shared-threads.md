@@ -1,33 +1,39 @@
 ---
-title: Geteilte Chats
-description: Einen Chat mit dem Rest deiner Organisation teilen — der Freigabe-Dialog und sein Link, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest.
+title: Einen Chat mit der Organisation teilen
+description: Erstelle eine schreibgeschützte Momentaufnahme, ergänze bei Bedarf neue Nachrichten und beende die Freigabe später.
 ---
 
-Einen Chat zu teilen veröffentlicht einen schreibgeschützten Snapshot davon unter einem Link, den jeder in deiner Organisation öffnen kann. Zwei Klicks und ein Einfügen: **Teilen** öffnet einen kleinen Dialog, in dem du **Mit Organisation teilen** wählst und den Link erstellst; den fügst du dort ein, wo dein Team sich unterhält. Der Mechanismus ist leicht genug für den beiläufigen Einsatz — teil eine Frage und ihre Antwort so, wie du ein Dokument teilen würdest.
+Teile einen Chat, wenn Kollegen die Frage und Antwort lesen sollen, ohne dein Gespräch fortzusetzen. Der Link veröffentlicht eine Momentaufnahme für angemeldete Mitglieder deiner Organisation. Er ist nicht öffentlich und aktualisiert sich nicht automatisch, wenn du weiterchattest.
 
-## Einen Chat teilen
+## Die Momentaufnahme erstellen
 
-Öffne den Chat und klicke auf das **⋯**-Menü in der Kopfzeile, dann auf **Teilen**. Der Dialog **Chat teilen** startet auf **Privat lassen**; wähl **Mit Organisation teilen** und klick auf **Freigabelink erstellen**. Der Link erscheint im Dialog, daneben **Link kopieren**, und **Vorschau** öffnet den Snapshot so, wie Empfänger ihn sehen. Das Zeilenmenü des Chats in der Sidebar hat eine Abkürzung: Sein Eintrag **Teilen** erstellt den Link und kopiert ihn direkt in deine Zwischenablage — ein Toast **Link kopiert** bestätigt es.
+1. Öffne das Menü in der Chat-Kopfzeile und wähle **Teilen**.
+2. Wähle im Dialog **Chat teilen** die Option **Mit Organisation teilen**.
+3. Klicke auf **Freigabelink erstellen**.
+4. Prüfe die Momentaufnahme mit **Vorschau** und nutze anschließend **Link kopieren**.
 
-Zwei Dinge, die du über den Link wissen solltest:
+Lies den Verlauf, bevor du den Link weitergibst. Eine Antwort kann Angaben aus einer eingeschränkt zugänglichen Quelle enthalten. Mit der Freigabe wird ihr Text für Organisationsmitglieder mit dem Link lesbar.
 
-- **Er ist auf die Org begrenzt.** Nur angemeldete Mitglieder deiner Organisation können ihn öffnen; eine öffentliche URL ist er nicht.
-- **Er ist ein Snapshot.** Empfänger sehen das Gespräch in dem Stand, in dem du es geteilt hast. Läuft der Chat weiter und du willst den neueren Stand teilen, öffne den Dialog erneut und klick auf **Neuere Nachrichten einbeziehen** — der Link bleibt derselbe, der Snapshot erneuert sich.
+<Frame caption="Empfänger lesen die Momentaufnahme mit Angaben zur Freigabe. Ein Nachrichtenfeld gibt es dort nicht.">
 
-<Frame caption="Was Empfänger öffnen: der geteilte, schreibgeschützte Snapshot mit dem Vermerk, wer wann geteilt hat.">
-
-![Ein geteilter Chat in der schreibgeschützten Ansicht: das Gesprächstranskript unter der Überschrift Geteilter Chat, mit einem Vermerk, wer ihn wann geteilt hat.](/images/platform/chat-shared-view.webp)
+![Ein schreibgeschützter geteilter Chat zeigt den Verlauf sowie den Namen der teilenden Person und das Freigabedatum.](/images/platform/chat-shared-view.webp)
 
 </Frame>
 
-## Was Betrachter sehen
+## Eine spätere Antwort einbeziehen
 
-Der Link öffnet eine schreibgeschützte Ansicht **Geteilter Chat**: das Transkript, mit einem Vermerk, wer geteilt hat und wann. Eine Eingabezeile gibt es nicht — ein geteilter Chat ist etwas zum Lesen, kein Ort zum Antworten. Wer das Thema weiterführen will, startet einen eigenen Chat — oder eine Aufgabe in einem [Projekt](/de/platform/projects/overview), wenn ein Arbeitsergebnis gefragt ist.
+Neue Nachrichten bleiben außerhalb der veröffentlichten Momentaufnahme. Öffne erneut **Teilen** und wähle **Neuere Nachrichten einbeziehen**, wenn derselbe Link den neueren Austausch zeigen soll. Prüfe die aktualisierte Fassung noch einmal in der Vorschau.
 
-## Teilen beenden
+Wer das Thema fortsetzen möchte, beginnt einen eigenen Chat. Die Momentaufnahme macht aus deinem Chat kein gemeinsam bearbeitetes Gespräch und gewährt nicht automatisch Zugriff auf alle genannten Quellen.
 
-Stell den Dialog zurück auf **Privat lassen**, oder nimm **Teilen beenden** im Zeilenmenü des Chats, sobald er geteilt ist. Der Link funktioniert sofort nicht mehr; Besucher landen auf einer Seite „nicht mehr verfügbar". Den Chat zu löschen hat auf den Link denselben Effekt. Teilst du später erneut, entsteht ein frischer Snapshot.
+## Die Freigabe beenden
 
-## Wo das hineinpasst
+Wähle **Privat lassen** im Freigabedialog oder **Teilen beenden** im Zeilenmenü des Chats. Der Link ist danach nicht mehr verfügbar. Auch das Löschen des ursprünglichen Chats beendet seine Freigabe.
 
-Geteilte Chats sind der leichtgewichtige Weg, jemandem im Team ein Gespräch zu übergeben, ohne das Produkt zu verlassen. Die schwergewichtige Alternative ist, die Person in ein [Projekt](/de/platform/projects/overview) zu holen, wo Chats, Dateien und Agents standardmäßig geteilt sind. Teilen ist für einmalige Übergaben; ein Projekt ist für laufende Zusammenarbeit an derselben Arbeit.
+Nach dem Beenden lässt sich der Chat über diesen Link nicht mehr öffnen. Bereits kopierten Text kannst du damit nicht zurückholen. Prüfe den Inhalt deshalb vor der ersten Freigabe.
+
+## Stattdessen mit einem Projekt teilen
+
+Für die laufende Zusammenarbeit nutze **Mit Projekt teilen** an einem Chat in einem [Projekt](/de/platform/projects/concepts). Unter **Chats** trennt das Projekt persönliche Gespräche von den geteilten. Der Projektzugriff allein gibt deine persönlichen Chats nicht automatisch frei.
+
+Arena-Vergleiche lassen sich nicht teilen, solange sie Arena-Chats sind. Beende zuerst den Vergleich und teile dann das Gespräch, das du behältst. Siehe [Arena-Modus](/de/platform/chat/arena-mode).

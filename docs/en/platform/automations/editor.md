@@ -1,111 +1,74 @@
 ---
 title: The workflow editor
-description: The operating manual for an automation's page — reading the canvas, editing a node, saving a version, running it against mocks, deploying it, and rolling back.
+description: Inspect and edit nodes, supply test input, save a version, and deploy or roll back an automation.
 ---
 
-This page is the hands-on half of automations: what you click, in what order, to take a change from an idea to the version that triggers run. The model underneath — one document, immutable versions, one deployment, triggers bound to the name — lives on [Automation concepts](/platform/automations/concepts), and this page assumes it. Saving, testing, and deploying are three separate acts here, and keeping them separate is what lets you edit an automation that is live without disturbing a single running job.
+Use the workflow editor to change what an automation does and decide which saved version runs live. You need Developer, Admin, or Owner permissions to make changes. Saving, testing, and deployment are separate steps: editing a draft leaves the deployed version in place.
 
-## Where an automation lives
+Open **Automations**, then select an automation. To create one first, use [Add automations](/platform/automations/catalog).
 
-Open **Automations** in the sidebar. The list shows every automation in the organization with how many versions it has and either the version that is live or **Not deployed** when it has none yet. Click one and you land on its page.
+<Frame caption="Select a node to inspect its fields. The header controls testing, saving, and deployment.">
 
-To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug, then select an entry to open its latest saved version. The switch lands on the tab you were on.
+![The workflow editor shows connected nodes, the selected node’s settings, and version and run controls.](/images/platform/automation-editor-canvas.webp)
 
-That page has three tabs, like a project's: **Editor**, **Versions**, and **Runs**; it opens on **Editor**. The name carries a **Live** badge when the version on screen is live. **Version**, **Test run**, **Run live**, **Discard**, and **Save** sit at the right end of the tab strip — **Deploy this version** sits beside **Version** when the pick is not live. Beside the canvas, the panel shows **Trigger** and **Projects** — which projects' task boards see the automation; none means the whole organization — until you click a box. The panel is as tall as the canvas, which fills the window under the tabs. Selecting a node does not grow the canvas — extra fields scroll inside the panel. Click **Close**, press Escape, click the selected box again, or click the empty canvas, to get the trigger back. **Versions** lists every version you have saved and **Runs** every run; each opens in its own tab.
+</Frame>
+
+To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug, then select an entry to open its latest saved version.
 
 ## Read the canvas
 
-The canvas draws the version on screen. Each box is one node, labelled with its id and its type, and boxes that read another node's output say so — a **Reads** line names the nodes it depends on. The arrows between boxes are not something you draw: an arrow exists because one node's field references another node's output, so the graph always matches the document.
+Each box is a node. Its label identifies the step and type; **Reads** lists the nodes whose outputs it uses. Arrows come from references such as `{{ nodes.draft.output.text }}`. Edit the reference to change the dependency. The canvas does not create dependencies by drawing an arrow.
 
-Control flow appears as badges on the box it applies to, in the same vocabulary the document uses — `when …`, `else of …`, `for each …`, `repeat until …` (with the cap shown when there is one), and `continue on error`. Nothing about the shape of the graph is hidden in a separate settings screen.
-
-Two states are worth recognising. A version with no nodes says so and tells you to add one to the document. A version whose nodes reference each other in a circle warns you that the order shown is the order they are written in, not an order the engine could run, and asks you to remove one of the references to break the cycle.
-
-An agent that names a model without a pinned provider shows a warning on its box. Pin the model on the node, save, and deploy.
-
-<Note>
-
-The canvas is for reading and selecting. You wire nodes together by referencing them, not by dragging a connection between two boxes.
-
-</Note>
+Badges show conditions and loops: `when`, `else of`, `for each`, `repeat until`, and `continue on error`. A cycle warning means two or more nodes depend on one another; remove the circular reference before saving a runnable version.
 
 ## Edit a node
 
-Click a box and the panel beside the canvas switches from **Trigger** to that node's fields. Click **Close**, press Escape (when you are not typing in a field), click the box again, or click the empty canvas, to switch back. Which fields appear depends on the node's type: **Code** for a `transform`; **Prompt**, **System prompt**, **Model** and **Output schema** for an `llm`; **Automation** for a `subautomation`; and an `agent` adds its equipment — **Harness**, **Skills**, **Connectors**, **Platform tools**, **Secrets**, and **Staged files** — to the prompt and model it shares with `llm`. **Input** appears for anything that takes one, and the type-specific fields sit above it.
+Select a box to open its fields. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
 
-**Input** is a JSON object, and it is where references live. A string value may reference another node's output, and that reference is exactly what draws an arrow on the canvas. While the JSON is incomplete the panel tells you it is not valid yet and leaves the node unchanged, so a half-typed edit can never be saved by accident.
+Open **Control flow** for conditions and iteration. Click the empty canvas, **Close**, or press Escape outside a text field to return to trigger and project settings. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
 
-Open **Control flow** for **When**, **Else of**, **For each**, and **Repeat until**. These are the same fields the badges on the canvas reflect, so setting one here changes the badge immediately. The group starts open when any of those is already set.
+## Save and test a version
 
-## Save, run, deploy
+1. Edit the required fields and click **Save**.
+2. Enter a **Version message** that explains the change, then **Save version**. This appends a version and preserves earlier ones.
+3. Click **Test run**. If the workflow declares an input schema, fill **Run input (JSON)** in the dialog. Expand **Input schema** to inspect required fields and types. Invalid JSON or a schema mismatch prevents the start.
+4. Start the test and inspect its row in **Runs**. Open it to compare the resolved input, output, and proposed operations with your expected result.
 
-The three acts are deliberately separate. Run through them in order the first time and the separation stops feeling like extra work.
+For a workflow requiring `owner` and `repo`, an input might be:
 
-<Steps>
-
-<Step title="Save a version">
-
-Edits show an **Unsaved changes** marker until you save. Click **Save**, write a **Version message** saying what changed — that message is the only thing distinguishing two versions in the list later — then confirm **Save version**. The save appends a new version and leaves every earlier one exactly as it was. With nothing changed, the button tells you there is nothing to save rather than minting an identical version.
-
-</Step>
-
-<Step title="Run it against mocks">
-
-**Test run** starts a run in mock mode: connectors return their deterministic stand-ins and nothing outside the platform is touched. It is safe to press repeatedly, which is what makes it the loop to work in while you are still shaping a node.
-
-When the automation is bound to more than one project, a **project scope** selector sits beside the run controls. It defaults to organization-wide; pick one of the bound projects to make the run — and the task and document tools its agents use — act in just that project.
-
-</Step>
-
-<Step title="Deploy the version you want live">
-
-When the canvas version is not live, **Deploy this version** next to **Version** promotes the one on screen. The live one carries a **Live** badge in **Versions**, and deploying a different one moves that badge without touching any version's contents.
-
-</Step>
-
-</Steps>
-
-<Note>
-
-The run control on this page always runs against mocks. A run that may reach the outside world is started by a trigger or by a programmatic call, and starting one is a developer-level action.
-
-</Note>
-
-## Tests and the deploy gate
-
-Tests are part of the document, not a separate panel. Each test carries a name, an input, and expectations about the output and about the effects the run should produce, and they travel with the version like any other field.
-
-```yaml
-tests:
-  - name: reminds a late payer
-    input: { invoiceId: 'inv-1' }
-    expect:
-      effects:
-        - connector: email.send
+```json
+{
+  "owner": "your-organization",
+  "repo": "your-repository"
+}
 ```
 
-Whether a version's tests passed is recorded at save time, and the **Versions** tab shows the result as a **Tests passed** or **Tests failed** badge. Deploying reads that record: a version saved with failing tests is refused, and the page says the version was not deployed rather than silently doing nothing. Fix the cause and save a new version — a recorded result is a fact about that version and never changes.
+Use the workflow's actual schema. A field typed as a number must receive a JSON number, not a quoted string. Where a project selector is offered, check the scope before starting.
 
-## Roll back
+**Test run** uses the selected saved version with deterministic mocks. It does not send mail or change external records. A draft can be tested before it is deployed; a successful mock does not verify live credentials or outside services.
 
-Rolling back is deploying an earlier version. Pick it from **Version** in the tab strip — or open **Versions**, read its message, and click the row, which opens the editor at that version — then click **Deploy this version**. The badge moves, the newer versions stay in the list untouched, and no document is rewritten.
+<Frame caption="For an input-driven workflow, supply JSON and inspect its schema before starting the test.">
 
-This is why version messages matter more than they look. Six versions in, the message is what tells you which one was the last good state, so write it for the person who will be reading it during an incident.
+![The Test run dialog shows owner and repo JSON values and the expanded input schema.](/images/platform/automation-run-input.webp)
 
-## Delete an automation
+</Frame>
 
-Deleting removes the automation as a whole: every version, the deployment, the trigger and the project bindings go together — a schedule stops firing and a webhook URL stops working immediately. That happens from the list, not this page: open **Automations**, open the row menu, and click **Delete**. The confirm (**Delete automation**) names it first. Past runs stay readable until retention removes them, so what the automation did remains auditable after it is gone.
+## Deploy and run live
 
-Two guardrails apply. A run that is still queued, running or waiting blocks the deletion — cancel it or let it finish first. And a deleted built-in pack stays deleted across platform upgrades; re-creating an automation under the same name brings the name back to life.
+Choose the tested version under **Version** and click **Deploy this version**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version.
 
-## Read the last run on the canvas
+**Run live** starts the deployed version, even if you are viewing another one. Its confirmation shows the scope and, when required, **Run input (JSON)** for that deployed version. Check both before confirming. Live runs may act on connected systems and may wait for an [approval](/platform/approvals/concepts).
 
-Once an automation has run, **Show last run** overlays that run onto the canvas from an icon on the canvas (it reads **Hide last run** while the overlay is on). Every box picks up the status the run gave it — it **Ran**, was **Skipped**, **Failed**, was **Never reached**, or has **Not reached yet** while the run is still going — so a failure is visible as a position in the graph rather than as a line in a log.
+A trigger also runs the deployed version. Set it up only when you are ready for repeated or externally initiated execution; see [Automation triggers](/platform/automations/triggers).
 
-Select a node with the overlay on and the panel adds an **In this run** section: the **Resolved input** the node actually received after every template was evaluated, its **Output**, and the effects it produced, or a note that it changed nothing outside the platform. Resolved input is usually the fastest answer to "why did this node do that" — it shows the value a reference produced, not the reference you wrote.
+## Diagnose a result
 
-Open **Runs** and click a row to open that run's page — the tabs stay, with **Runs** active — where the same canvas sits alongside the run's input, its output, and the complete list of effects. [Execution logs](/platform/automations/execution-logs) reads that page end to end.
+**Show last run** overlays run states on the canvas. Select a node to see **In this run**, its **Resolved input**, **Output**, and effects. This is often enough to find a wrong reference: compare the input received by the failed node with the output of the node it reads.
 
-## Where this fits
+Open a row in **Runs** for the full record. Check whether it was a test or live run and inspect already completed operations before starting another run. [Execution logs](/platform/automations/execution-logs) explains waiting, failures, automatic retries, and stopping.
 
-The loop is short once the three acts are clear: edit a node, save a version with a message worth reading, run it against mocks until it does what you meant, then deploy it — and deploy an older version when you need to undo. [Automation concepts](/platform/automations/concepts) is the model this page operates; [Workflow triggers](/platform/automations/triggers) is what starts the deployed version once you are happy with it.
+## Roll back or delete
+
+To roll back, select an earlier version and click **Deploy this version**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
+
+To delete the automation, return to the list, open its row menu, and select **Delete**. Read the named confirmation. All versions, deployment, trigger, and project bindings are removed. An unfinished run blocks deletion; stop it or let it finish first. Past runs remain subject to retention. Deleting an automation does not undo the actions its runs already performed.

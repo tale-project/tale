@@ -25,7 +25,6 @@ import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
-  DEMO_API_KEYS,
   DEMO_CHAT_PROMPTS,
   DEMO_DOCUMENTS,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -179,6 +178,60 @@ export const SHOTS: readonly Shot[] = [
         .last(),
   },
   {
+    name: 'chat-document-attachment',
+    section: 'platform',
+    route: FRESH_CHAT_ROUTE,
+    prepare: async (page) => {
+      const document = DEMO_DOCUMENTS[0];
+      await expect(composer(page)).toBeVisible();
+      await page.locator('input[type="file"]').setInputFiles({
+        name: document.fileName,
+        mimeType: document.mimeType,
+        buffer: Buffer.from(document.content),
+      });
+      await expect(
+        page.getByText(document.fileName, { exact: true }),
+      ).toBeVisible();
+      await composer(page).fill(
+        'Summarize the changes in these brand guidelines.',
+      );
+      // The completed attachment shows its size instead of pipeline progress.
+      // Send can queue a message while indexing, so it is not a readiness gate.
+      await expect(
+        page
+          .getByText(document.fileName, { exact: true })
+          .locator('..')
+          .getByText(/^[\d.,]+\s*(?:B|KB|MB|GB)$/),
+      ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+      await expect(
+        page.getByText(t('chat.indexingFailed'), { exact: true }),
+      ).toBeHidden();
+    },
+    readyWhen: (page) =>
+      page.getByRole('button', { name: t('chat.removeAttachment') }),
+    capture: (page) =>
+      page
+        .locator('div')
+        .filter({ has: composer(page) })
+        .filter({ has: sendButton(page) })
+        .last(),
+  },
+  {
+    name: 'project-task-detail',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      await page.goto(projectRoute(ctx, '/tasks/board'));
+      await page
+        .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+  },
+  {
     name: 'projects-task-board',
     section: 'platform',
     route: '/dashboard/:orgId/projects',
@@ -264,6 +317,23 @@ export const SHOTS: readonly Shot[] = [
         { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
       );
     },
+  },
+  {
+    name: 'skill-library-detail',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/skills',
+    prepare: async (page) => {
+      await page
+        .getByRole('row')
+        .filter({ has: page.getByText('docx', { exact: true }) })
+        .click();
+      await expect(
+        page.getByRole('textbox', { name: t('skills.section.body') }),
+      ).toBeVisible();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', { name: 'docx', exact: true }),
+    capture: (page) => page.getByRole('dialog', { name: 'docx', exact: true }),
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -532,14 +602,25 @@ export const SHOTS: readonly Shot[] = [
     },
   },
   {
-    // The API keys table with the seeded keys. Gating on the Create button
-    // captured the loading skeleton — the button renders long before the rows
-    // do. Gate on a seeded ROW instead.
+    // Show the choices before creating a key; never capture its one-time secret.
     name: 'settings-api-keys',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/api/rest',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('settings.apiKeys.createKey') })
+        .click();
+      await page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByLabel(t('settings.apiKeys.form.name'))
+        .fill('Project reporting');
+    },
     readyWhen: (page) =>
-      page.getByRole('row').filter({ hasText: DEMO_API_KEYS[0] }).first(),
+      page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByLabel(t('settings.apiKeys.form.name')),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
     // The Automations page — the seeded pack rows with their version count
@@ -594,6 +675,45 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByText(t('automations.editor.fields.input'), { exact: true })
         .first(),
+  },
+  {
+    name: 'automation-run-input',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/github-triage-issues',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', {
+          name: t('automations.detail.runMock'),
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      });
+      await dialog
+        .getByRole('textbox', { name: t('automations.detail.runInput.label') })
+        .fill(JSON.stringify({ owner: 'tale-project', repo: 'tale' }, null, 2));
+      await dialog
+        .getByText(t('automations.detail.runInput.schema'), { exact: true })
+        .click();
+      await expect(
+        dialog.getByRole('button', {
+          name: t('automations.detail.runMock'),
+          exact: true,
+        }),
+      ).toBeEnabled();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('automations.detail.runMock'),
+        exact: true,
+      }),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the

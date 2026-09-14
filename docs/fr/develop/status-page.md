@@ -1,51 +1,62 @@
 ---
-title: Page de statut
-description: Chaque déploiement Tale sert sa propre page de statut et un jumeau JSON pour les moniteurs — ce qu’ils rapportent, comment les interroger, et où vit le signal d’exploitation plus fin.
+title: Vérifier la disponibilité de l’instance
+description: Consulte le statut public, surveille sa réponse JSON et distingue une panne d’une opération en échec.
 ---
+Ouvre `/status` sur ton hôte Tale pour vérifier la disponibilité sans te connecter. Les outils de supervision lisent le même résumé sur `/status.json`. Il couvre le backend et les stockages du déploiement, sans garantir chaque modèle ni chaque connexion propre à une organisation.
 
-Chaque déploiement Tale répond lui-même à la question « c’est juste moi ? ». La plateforme sert, sans connexion, une page de statut à `https://<ton-hôte>/status` et le même verdict en JSON à `https://<ton-hôte>/status.json`, qu’un moniteur d’uptime peut interroger. La page rend côté serveur un résumé de santé — operational, degraded ou outage — à partir de deux sondes contre le backend : sa liveness, et son propre verdict sur les magasins de données dont il dépend. Un opérateur ou un utilisateur peut ainsi lire la disponibilité sans se connecter.
+## Interroger le document de statut
 
-Lis ceci quand quelque chose se conduit mal et que tu veux savoir si le déploiement tient, ou quand tu câbles un moniteur qui doit réagir à une panne Tale avant que les relances de ton connector n’abandonnent.
-
-## Une interrogation mise en pratique
+Définis `TALE_BASE_URL` avec l’URL de l’instance, puis demande son statut :
 
 ```bash
-curl -sS https://your-host.example.com/status.json
-# → { "status": "operational", "checkedAt": "2026-09-12T05:45:20.921Z",
-#     "components": [ { "id": "backend", "status": "operational" },
-#                     { "id": "database", "status": "operational" },
-#                     { "id": "object-store", "status": "operational" } ] }
+curl --fail-with-body --silent --show-error \
+  "$TALE_BASE_URL/status.json"
 ```
 
-Interroge-la depuis ton moniteur au rythme où tu interroges tout le reste ; elle ne coûte aucun budget API, n’exige aucune clé, et le verdict reste en cache cinq secondes, si bien qu’une interrogation serrée ne tourne pas à la tempête de sondes. La page HTML à `/status` est le même verdict pour une personne. `GET /api/health` est la sonde de liveness moins chère que le contrôle de santé du conteneur utilise — `{"status":"ok","version":"<build>"}`, sans connexion — et celle à choisir quand tu veux seulement savoir si le processus répond. `/health` sur la même origine est la liveness du proxy en amont lui-même — c’est le proxy qui répond `OK`, il reste donc vert pendant que la plateforme redémarre — et un chemin qu’aucune route ne possède (`/healthz`, par exemple) répond la coquille de l’app avec **200** ; pointe un moniteur sur `/status.json` ou `/api/health`, jamais sur un chemin arbitraire.
+Examine le contenu JSON, pas seulement le statut HTTP. Lors de la vérification locale avec un stockage objet indisponible, l’endpoint a renvoyé HTTP `200` et ce résultat dégradé :
 
-Le JSON répond `Access-Control-Allow-Origin: *`, un tableau de bord dans le navigateur peut donc l’interroger directement, sans proxy ; `OPTIONS` sur l’une ou l’autre porte répond **204** avec `Allow: GET, HEAD, OPTIONS`, et `HEAD` renvoie les en-têtes seuls — `Content-Length` compris, la longueur que le `GET` porterait, sur ces deux portes comme sur `/api/health` et `/openapi.json`. La page HTML ne porte aucun en-tête CORS — une personne l’ouvre directement.
+```json
+{
+  "status": "degraded",
+  "checkedAt": "2026-09-14T04:31:20.847Z",
+  "components": [
+    { "id": "backend", "status": "operational" },
+    { "id": "database", "status": "operational" },
+    { "id": "object-store", "status": "outage" }
+  ]
+}
+```
 
-## Le JSON
+L’application répond et atteint sa base, mais les opérations sur les fichiers demandent une investigation. Une supervision qui considère tout HTTP `200` comme sain manquerait cette panne.
 
-Le document a trois champs, et le vocabulaire est fermé — branche sur ces orthographes exactes :
+## Interpréter les composantes
 
-- `status` — le verdict global : `operational` quand chaque composant est en service, `outage` quand chaque composant est tombé, `degraded` entre les deux.
-- `checkedAt` — le moment où les sondes ont tourné pour la dernière fois, en ISO 8601, UTC.
-- `components` — une entrée par composant, toujours dans cet ordre, chacune de la forme `{ "id", "status" }` avec `status` valant `operational` ou `outage` :
-  - `backend` — l’étage applicatif qui sert chaque requête ; chaque autre ligne en dépend, un backend tombé les emporte donc toutes avec lui.
-  - `database` — la base de données applicative et la base de données de connaissances du déploiement, repliées en une seule ligne : l’une ou l’autre injoignable, la ligne se lit comme tombée.
-  - `object-store` — le stockage de fichiers du déploiement, où vivent les documents et les uploads.
+| Champ ou composante | Signification |
+| --- | --- |
+| `status: operational` | Toutes les composantes signalées sont disponibles. |
+| `status: degraded` | Certaines sont indisponibles. |
+| `status: outage` | Toutes sont indisponibles. |
+| `checkedAt` | Heure du contrôle en UTC. |
+| `backend` | Accessibilité du backend applicatif. |
+| `database` | État combiné de la base applicative et de la base documentaire du déploiement. |
+| `object-store` | État du stockage de fichiers du déploiement. |
 
-Un nouvel id de composant est un changement additif : lis les ids que tu connais et traite ceux que tu ne connais pas comme opaques. L’ensemble des orthographes de `status` ne grandit pas sans une note dans les [notes de version](/fr/self-hosted/operate/release-notes/format).
+Les composantes indiquent `operational` ou `outage`. Si le backend ne répond pas, l’état des stockages qui en dépendent ne peut pas être établi ; ils apparaissent aussi indisponibles. Accepte les nouveaux IDs de composantes sans casser ton analyseur.
 
-## Ce que le verdict couvre
+## Configurer la supervision
 
-Le résumé rapporte la disponibilité du déploiement lui-même : si le backend répond, et si les magasins de données dont il dépend répondent — le backend sonde sa propre base de données, la base de données de connaissances et le stockage objet toutes les trente secondes et rapporte le résultat, si bien qu’une base coincée ou un bucket injoignable apparaît comme un verdict `degraded`, la ligne en défaut marquée, pendant que le backend lui-même reste vert. Il ne rapporte pas la santé des fournisseurs de modèles qu’une organisation a connectés — une panne de fournisseur apparaît sur le tour qui en avait besoin, comme l’`errorCode` que décrit la [référence API](/fr/develop/api-reference) — ni les avis de sécurité, qui ont leur propre [flux](/fr/self-hosted/operate/security/advisories).
+L’endpoint JSON ne demande aucune clé API et ne consomme pas son budget. Le résultat reste en cache cinq secondes ; les sondes de stockage se rafraîchissent séparément. Chaque lecture ne déclenche donc pas une nouvelle transaction de contrôle. Définis un délai de requête et alerte sur des échecs répétés ou un état dégradé selon les besoins du service.
 
-## Signal plus fin
+`/status.json` autorise les lectures depuis d’autres origines avec `Access-Control-Allow-Origin: *`. `HEAD` renvoie les en-têtes sans corps et `OPTIONS` annonce `GET, HEAD, OPTIONS`. Utilise `GET` pour examiner le verdict des composantes.
 
-Pour le détail d’exploitation — santé des conteneurs depuis `tale status`, métriques de requêtes depuis les journaux Caddy, et événements du plan de contrôle dans le journal d’audit du produit — la [page de dépannage observabilité](/fr/self-hosted/operate/observability/troubleshooting) associe les symptômes aux journaux.
+## Distinguer réponse du processus et disponibilité réelle
 
-## Tale Cloud
+L’endpoint `/api/health` du serveur web de production vérifie le processus à faible coût. Il convient aux sondes de conteneur, mais ne remplace pas les contrôles de dépendances. Le serveur Vite de développement peut router ce chemin autrement et renvoyer `404` ; utilise `/status.json` pour l’application locale.
 
-Les déploiements Tale Cloud servent les mêmes `/status` et `/status.json` sur leur propre hôte. Aucun hôte de statut public séparé n’est publié pour l’instant ; quand il y en aura un, cette page le nommera avec son flux d’abonnement.
+Un statut sain ne vérifie ni le crédit, ni les droits, ni la disponibilité d’un modèle externe. Il n’exécute pas non plus un téléversement, une recherche, un chat ou une automation complets. Ajoute un test contrôlé de bout en bout pour l’opération dont dépend ton intégration.
 
-## Où ça se place
+## Examiner un échec
 
-La page de statut est le canal opérationnel ; [Confiance et conformité](/fr/cloud/trust-and-compliance) est le canal d’audit. Si tu lis ceci parce que quelque chose dans ton connector échoue maintenant, la [référence API](/fr/develop/api-reference) liste les codes d’erreur sur lesquels brancher, et [Limites de débit](/fr/develop/rate-limits) explique la 429 qui n’est pas une panne.
+Pour une composante dégradée, le [dépannage](/fr/self-hosted/operate/observability/troubleshooting) indique les logs concernés. Pour un appel API en échec alors que l’instance est saine, lis le [code d’erreur API](/fr/develop/api-reference). `429` signale une [limite de débit](/fr/develop/rate-limits), pas un verdict de panne de l’instance.
+
+Les instances Cloud exposent les mêmes chemins sur leur propre hôte. Les communications d’incident et documents d’assurance sont décrits dans [Confiance et conformité](/fr/cloud/trust-and-compliance).

@@ -3,9 +3,9 @@ title: Opérations
 description: Sur quoi alerter, quelles métriques comptent et la checklist d'astreinte quand une instance Tale commence à mal se comporter.
 ---
 
-La page opérations est le playbook d'alerte — quels signaux valent la peine de réveiller quelqu'un, lesquels peuvent attendre un café, et à quoi ressemblent les cinq premières minutes d'un incident. La surface de métriques de Tale vit derrière `METRICS_BEARER_TOKEN` ; cette page suppose que tu as câblé Prometheus et Grafana selon [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config) et qu'il te faut maintenant savoir quels chiffres regarder.
+Surveille plusieurs niveaux : disponibilité publique, backend et stockage, traitements en arrière-plan et actions essentielles pour ton équipe. Une réponse HTTP ne prouve pas qu’un chat, un téléversement ou une automation se termine.
 
-L'index par symptôme est dans [Dépannage](/fr/self-hosted/operate/observability/troubleshooting). Cette page est le côté proactif — signaux d'abord, checklist d'astreinte ensuite.
+Utilise les signaux suivants pour choisir les alertes et premières actions. Configure leur collecte dans [Observabilité](/fr/self-hosted/configuration/observability-config) et consulte le [dépannage](/fr/self-hosted/operate/observability/troubleshooting) pour un parcours précis.
 
 ## Signaux qui méritent une alerte
 

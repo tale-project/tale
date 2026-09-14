@@ -1,30 +1,30 @@
 ---
-title: Serveurs MCP
-description: Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version.
+title: Connecter un client externe avec MCP
+description: Retrouve le point d’accès MCP de Tale et comprends comment un client externe peut l’utiliser.
 ---
 
-Cette page décrivait un formulaire **Ajouter un serveur MCP** : un transport, une méthode d’authentification, une liste d’agents autorisés et une table d’outils découverts avec un drapeau d’approbation par outil. Rien de tout cela n’existe dans cette version de Tale. Il n’y a ni panneau de serveurs MCP, ni formulaire d’enregistrement, ni trousse d’agent qu’un serveur externe pourrait rejoindre — une capacité qui mènerait à un outil MCP externe est refusée à l’exécution avec une raison lisible. Ce qui est livré, c’est la direction inverse : Tale est lui-même un serveur MCP auquel des clients extérieurs se connectent.
+Le point d’accès MCP permet à un assistant de programmation externe ou à un autre client MCP de travailler avec ton organisation dans Tale. Il peut découvrir des capacités, créer des automations et examiner leurs exécutions. L’accès suit la clé API de l’organisation et les droits de son titulaire.
 
-<Note>
+## Trouver le point d’accès
 
-Les serveurs MCP sortants ne sont pas disponibles dans cette version. L’ancienne adresse **Paramètres > Serveurs MCP** redirige vers **Paramètres > Connectors**, qui liste les connectors livrés par Tale et rien de spécifique à MCP.
+Ouvre **Paramètres > API > MCP**. La page indique l’URL du déploiement, le slug de l’organisation, les groupes d’outils et une requête à copier pour vérifier la connexion. Si tu n’as pas encore de clé adaptée, crée-la sous **Paramètres > API**.
 
-</Note>
+<Frame caption="Les paramètres MCP fournissent le point d’accès, le contexte de l’organisation et les outils disponibles.">
 
-## La surface MCP qui est livrée
-
-Tale expose un endpoint MCP par déploiement, sous `/api/v1/mcp`, authentifié par une clé API d’organisation. Vingt-deux outils se tiennent derrière, en trois groupes — écrire et déployer des automatisations, les exécuter et lire leurs exécutions, chercher et invoquer ce que l’organisation sait faire. **Paramètres > API > MCP** affiche l’URL de l’endpoint de ton déploiement, l’inventaire dans ces trois groupes et, sous **Essaie**, une requête `tools/list` à copier. [Endpoint MCP](/fr/develop/mcp-endpoint) est la référence — protocole, table des outils et ce que la clé de chaque rôle peut faire ; [Clés API](/fr/platform/admin/api-keys) couvre la création de la clé.
-
-<Frame caption="Paramètres > API > MCP — l’URL de l’endpoint à donner à ton client, le slug de l’organisation qu’une clé multi-organisations envoie, l’inventaire des outils dans ses trois groupes et une requête pour essayer la clé.">
-
-![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, une ligne Slug de l’organisation, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Capacités & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer et l’en-tête de slug d’organisation.](/images/platform/settings-mcp-endpoint.webp)
+![La page MCP affiche une URL se terminant par /api/v1/mcp, un slug d’organisation, des groupes d’outils et une requête de test.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 
-## Atteindre ton propre code depuis un agent aujourd’hui
+Suis [Point d’accès MCP](/fr/develop/mcp-endpoint) pour configurer le client, l’authentification et les droits. Conserve la clé dans les réglages d’identifiants du client, pas dans un prompt ou un document partagé.
 
-Emballer ton propre service pour qu’un agent l’utilise prend l’une de trois formes dans cette version. Un [connector](/fr/platform/connectors/overview) est le pont spécifique à un éditeur que Tale livre — prends-le quand il en existe un pour le système visé. Une [automatisation](/fr/platform/automations/catalog) appelle des actions de connector et exécute ton propre JavaScript dans des nœuds `transform`, sur un planning ou un webhook ; tu la téléverses comme un paquet. Un [agent de projet](/fr/platform/projects/project-agents) porte des **Secrets** — une clé API qu’il reçoit en variable d’environnement — et appelle ainsi, depuis sa sandbox, un service qui n’a pas de connector.
+## Choisir le sens de la connexion
 
-## Où cela se place
+Le point d’accès de Tale accepte les connexions de clients externes. Tale ne propose pas de formulaire pour ajouter un serveur MCP externe à l’équipement de ses propres agents de projet.
 
-La surface MCP de cette version pointe vers l’intérieur : des clients externes pilotent Tale, pas l’inverse. Quand un modèle hors de Tale doit écrire des automatisations ou chercher dans les connaissances de l’organisation, connecte-le à l’[endpoint MCP](/fr/develop/mcp-endpoint) ; quand un agent dans Tale doit atteindre ton code, passe par un connector, une automatisation ou les secrets d’un agent de projet — l’[aperçu des connectors](/fr/platform/connectors/overview) ouvre ce chemin.
+Pour un agent dans Tale qui doit utiliser un autre service, consulte le [catalogue de connectors](/fr/platform/connectors/overview). Sans connector adapté, un [agent de projet](/fr/platform/projects/project-agents) peut appeler le service depuis sa sandbox avec un secret aux droits limités. L’agent en cours d’exécution peut lire ce secret : limite donc ses droits au travail demandé.
+
+## Vérifier l’accès avant de créer
+
+Commence par la requête de test de la page MCP et confirme que le client liste les outils. Vérifie ensuite les droits exigés par l’outil avant une écriture. Enregistrer une automation et la déployer sont deux opérations distinctes. Connecter un client ne contourne ni les tests de déploiement ni les règles d’approbation.
+
+[Clés API](/fr/platform/admin/api-keys) explique le renouvellement et la révocation. [Comprendre les automations](/fr/platform/automations/concepts) présente leur cycle d’enregistrement, de test et de déploiement.

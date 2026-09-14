@@ -3,9 +3,9 @@ title: Webhooks
 description: Déclencheurs webhook entrants — poste sur une URL à jeton et une automatisation déployée s'exécute. Gestion du jeton, rotation, idempotence et codes de réponse.
 ---
 
-Un déclencheur webhook transforme un POST de ton système en exécution d'une automatisation déployée — pas de clé API, pas de SDK, juste une URL que Tale frappe quand tu lies le déclencheur. C'est la bonne couture quand l'appelant est un produit tiers — un prestataire de paiement, un outil de formulaires, un job CI — qui ne sait que tirer une requête HTTP sur une URL que tu lui donnes.
+Une URL de webhook permet à un système externe de démarrer une automation déployée par HTTP POST. Utilise-la pour un événement comme une commande reçue ou un formulaire envoyé. Le token secret de l’URL autorise la livraison.
 
-Lis ceci quand tu câbles un système externe qui doit démarrer des automatisations. Pour les appels où tu veux une valeur en retour ou détiens une clé API, la [référence API](/fr/develop/api-reference) est la moitié synchrone.
+La réponse confirme l’acceptation et fournit un ID d’exécution, pas le résultat final. Les démarrages par webhook et par clé API sont tous deux asynchrones. Pour un premier envoi, suis le [tutoriel webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
 
 ## Un déclencheur, de bout en bout
 
@@ -56,12 +56,12 @@ curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automat
 # → 202 { "runId": "run_a", "duplicate": true }
 ```
 
-Relancer est donc sûr de ton côté : relance les timeouts et les réponses non-2xx avec backoff, garde l’identifiant de livraison stable d’une tentative à l’autre, et considère tout **202** comme accepté — `duplicate: true` te dit que la tentative précédente avait déjà abouti. La réponse dit si l’exécution a _démarré_, pas si elle a réussi ; suis-la via `GET /api/v1/projects/{id}/runs/{runId}`. Un **409** n’est pas mémorisé : déploie une version et renvoie la livraison.
+Réessaie après une erreur réseau ou une réponse **5xx** temporaire, avec un nombre limité de tentatives et des pauses de plus en plus longues. Pour **429**, attends au moins la durée de `Retry-After`. Conserve le même identifiant de livraison pour éviter une seconde exécution si seule la réponse a été perdue. Corrige la cause des erreurs **4xx** avant de réessayer : `AUTOMATION_NOT_DEPLOYED` exige une version déployée et `AUTOMATION_PROJECT_SCOPE_REQUIRED` une URL de projet. Toute réponse **202** confirme la réception ; consulte ensuite l’exécution pour connaître son résultat. La déduplication empêche une seconde exécution pour la même livraison pendant sa durée de validité. Elle ne garantit pas qu’un système externe applique chaque modification exactement une fois.
 
 ## Budgets
 
 Rien n’authentifie un expéditeur, la porte est donc budgétée deux fois. Chaque adresse d’expéditeur — telle que les proxys de confiance du déploiement la rapportent — reçoit 120 livraisons par minute avec une rafale de 240, facturées avant même la vérification du jeton, si bien qu’un déluge d’URL devinées ne coûte rien de plus à la porte. Chaque déclencheur vérifié reçoit 20 livraisons par minute avec une rafale de 40 : une livraison coûte une exécution durable entière, le même prix qu’un démarrage authentifié par clé. Au-delà de l’un ou de l’autre, la porte répond **429** avec `Retry-After` en secondes entières et l’enveloppe d’erreur habituelle ; recule comme la page [Limites de débit](/fr/develop/rate-limits) le décrit, garde l’identifiant de livraison stable d’une tentative à l’autre, et la relance se lit comme le doublon qu’elle est, pas comme une seconde exécution.
 
-## Où ça se place
+## Choisir entre webhook et clé API
 
-Le webhook est l'entrée sans clé ; tout le reste passe par une clé API. La [page Déclencheurs](/fr/platform/automations/triggers) couvre le côté produit — plannings, événements et webhooks tels que l'éditeur d'automatisation les présente. La [référence API](/fr/develop/api-reference) couvre le démarrage d'exécutions avec clé (`POST /api/v1/projects/{id}/automations/{name}/runs`) — la meilleure couture quand l'appelant est ton propre code ; elle honore la même idée d’`Idempotency-Key`, un démarrage relancé là-bas est donc aussi sûr qu’une nouvelle livraison ici.
+Choisis un webhook si l’émetteur peut envoyer ses événements à une URL fixe. Utilise une clé API pour un programme qui doit aussi lister les automatisations, choisir un projet ou lire les résultats. Garde ces deux types d’accès secrets. La page [Déclencheurs](/platform/automations/triggers) explique la configuration dans l’application ; la [référence API](/develop/api-reference) décrit le lancement et le suivi des exécutions avec une clé.

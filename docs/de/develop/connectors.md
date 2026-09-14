@@ -3,9 +3,9 @@ title: Connectors
 description: Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wohin dein eigener Code gehört, wenn kein Connector passt.
 ---
 
-Connectoren sind die anbieterspezifische Hälfte davon, wie Tale andere Systeme erreicht, und sie gehören zur Plattform statt zu etwas, das eine Organisation zusammenbaut. Jeder von ihnen ist eine YAML-Datei im Quellbaum und deklariert, mit wem er spricht, wie er sich anmeldet und jede Aktion, die er ausführen kann — daher sieht der Katalog in jedem Deployment gleich aus, und ein Upgrade genügt, um ihn weiterzubewegen. Lies das, wenn du wissen willst, was ein Connector einem Aufrufer tatsächlich zusichert, oder wenn du abwägst, ob du einen Connector beisteuerst oder deinen eigenen Dienst aus einem Projekt-Agenten oder einer Automatisierung erreichst.
+Ein Connector beschreibt, wie Tale einen Dienst aufruft: erlaubte Hosts, Authentifizierung und typisierte Aktionen. Definitionen werden mit der Plattform ausgeliefert; Zugangsdaten verwaltet jede Organisation selbst. Nutze diese Referenz, um einen Aktionsvertrag zu prüfen oder einen Connector beizutragen.
 
-Die Seite für Organisationen — Zugangsdaten anlegen, Standard setzen, eine abgelaufene Freigabe erneuern — ist [Zugangsdaten für Connectors](/de/platform/admin/connectors); der Katalog selbst steht unter [Connectors](/de/platform/connectors/overview).
+Für das Verbinden eines Kontos in der App folge [Connector-Zugangsdaten](/de/platform/admin/connectors). Vorhandene Integrationen findest du im [Connector-Katalog](/de/platform/connectors/overview).
 
 ## Wie ein Connector deklariert wird
 

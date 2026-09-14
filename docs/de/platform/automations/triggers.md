@@ -70,7 +70,7 @@ Ein Ereignis, das aus dem Lauf einer Automatisierung stammt, feuert nie Trigger.
 
 ## Was jede Art in den Lauf trägt
 
-Die Eingabe, die eine Automatisierung erhält, sagt, welche Art sie gestartet hat — ein einzelnes Dokument kann also mehr als einen Trigger bedienen und sich am Unterschied verzweigen.
+Ein Trigger ergänzt die Eingabe des Laufs um seine Art und Ereignisdaten. Stimme das Eingabeschema des Workflows auf den gewählten Trigger ab. Eine Automatisierung hat weiterhin nur einen konfigurierten Trigger zur selben Zeit.
 
 | Art        | Die Eingabe des Laufs                                        |
 | ---------- | ------------------------------------------------------------ |
@@ -84,7 +84,7 @@ Deklarier die erwartete Form im `inputs`-Schema des Dokuments, und die Referenz 
 
 ## Live-Schalten stört sie nicht
 
-Weil ein Trigger die Automatisierung benennt statt eine Version, überlebt die ganze Menge jedes Live-Schalten und jedes Zurückrollen. Gib einem Partner eine Webhook-URL, schalte elf weitere Versionen live, roll zweimal zurück — diese URL funktioniert weiter und trifft jeweils das, was gerade live ist.
+Der konfigurierte Trigger bleibt beim Live-Schalten und Zurückrollen erhalten, weil er die Automatisierung benennt und keine bestimmte Version. Gib einem Partner eine Webhook-URL, schalte elf weitere Versionen live, roll zweimal zurück — diese URL funktioniert weiter und trifft jeweils das, was gerade live ist.
 
 Umgekehrt gilt dasselbe: Einen Trigger anzulegen, zu ändern oder zu entfernen ändert nichts am Dokument und nichts an seinen Versionen. Trigger und Versionen sind zwei unabhängige Dinge an derselben Automatisierung.
 

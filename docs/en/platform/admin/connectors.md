@@ -1,108 +1,62 @@
 ---
 title: Connector credentials
-description: Settings > Connectors is where an organisation adds, names, defaults, disables, and reconnects the credentials each shipped connector authenticates with.
+description: Connect service accounts, choose defaults, and repair or replace their authorization.
 ---
 
-Every connector ships with the platform, so the administrator's job is never installation — it is deciding which accounts Tale may act as, and keeping those credentials healthy. A connector holds as many credentials as you need, one per workspace, store, mailbox, or bot, and one of them answers for any caller that names none. This page is the operations side of that: what the page shows, how each authentication method is filled in, and what happens when you promote, disable, delete, or reconnect a row.
+Add connector credentials so Tale can use services such as a mailbox, file store, or issue tracker. Owners, Admins, and Developers manage them under **Settings > Connectors**. Choose the service and account your work needs; the [connector catalog](/platform/connectors/overview) explains each service's available actions.
 
-The catalog itself — the thirteen connectors, what each one buys you, and how their actions reach automations and agent runs — is on [Connectors](/platform/connectors/overview). Reading time here is best spent on the credential lifecycle, because that is the part that differs per organisation and the part that breaks.
+## Add an account
 
-## What the page shows
+1. Select **Add credential**, then the connector. Already configured connectors appear first and can hold additional credentials.
+2. Enter a **Name** that an automation author will recognize, such as `Support inbox` or `EU store`.
+3. Complete the authentication method offered by that connector. For OAuth, select **Connect** and complete the vendor's consent flow.
+4. Complete the form and check the resulting row, including its connector, account or instance, and status.
 
-Open **Settings > Connectors**. The page is gated on Admin or Developer permissions and is a table of the credentials your organisation holds — one row per credential, not one per shipped connector. A row shows its name, the connector it authenticates, its authentication method, and its coordinates: a masked preview of the stored secret, plus the instance URL where the connector needs one. A **Default** badge marks the one an action falls back to, a **Disabled** badge any that is switched off.
+The connector determines which fields appear. Use the account's actual credentials, not a Tale API key.
 
-Search covers both the name you gave a credential and the connector behind it; the filter button narrows to one connector. A `?connector=` link narrows the table the same way, which is where the OAuth round trip returns you.
+| Method | Required information |
+| --- | --- |
+| API key | The key issued by the service, such as Tavily or Shopify. |
+| Token | A service token, such as a GitHub personal access token or Discord bot token. |
+| Username and password | The service's expected pair. This can be a login and app password, or a vendor-specific ID and token. |
+| OAuth | Authorization in the vendor's browser flow; Tale stores the returned authorization. |
 
-Two warnings appear here, and they mean different things. _No default credential for {connector}_ means every row works but nothing answers for a caller that names none. **Reconnect needed** on a row means an OAuth grant stopped refreshing and needs consent again — the credential itself is fine.
+Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
 
-## Adding a credential
+## Choose the default
 
-**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **Configured**; everything else follows below it, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back** returns.
+The table contains one row per credential. The **Default** badge marks the credential used when an action does not explicitly name one. Select **Make default** in a row's menu to change it; one default is allowed per connector.
 
-Setup asks for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
+A connector with several credentials and no default can still serve callers that name a credential. Callers that omit the name need a default. Name accounts clearly before wiring automations so a future administrator can identify the intended account.
 
-What follows the name depends on the **Authentication method** the connector accepts.
+Mailbox synchronization and inbox triage can inspect every active credential for a mailbox connector. A second mailbox does not have to become the default before these operations can find it.
 
-<Tabs>
+## Rotate a secret or pause access
 
-<Tab title="API key">
+Use the row's replacement action for its method, such as **Replace API key** or **Replace token**. The new secret replaces the stored one while preserving the credential's name, default choice, and references. Test an appropriate service action after replacement.
 
-One field, **API key**. The connector's own action bodies decide where the key travels — a header the vendor defines, or the request body where the vendor requires it. Shopify and Tavily are the shipped cases.
-
-</Tab>
-
-<Tab title="Token">
-
-One field, **Token**, sent as the Authorization header on every request. GitHub takes a personal access token this way; Discord takes a bot token, which the platform sends under Discord's own scheme rather than the standard one.
-
-</Tab>
-
-<Tab title="Username & password">
-
-Two fields, **Username** and **Password**, sent as HTTP Basic. The pair is not always a login in the everyday sense: Confluence takes the account email with an API token, Twilio takes the Account SID with the Auth Token, and the WebDAV connector takes a WebDAV app password. IMAP / SMTP takes the mailbox login itself.
-
-</Tab>
-
-<Tab title="OAuth">
-
-No secret to type, so the setup step is the hand-off alone: **Connect** takes you to the vendor's consent screen, and Tale stores what comes back — access token, refresh token, expiry, and the granted scopes — as a new credential row. Gmail, Google Drive, Outlook, Teams, and Slack all connect this way. A connector that accepts both a grant and a token offers both, with **Connect** first.
-
-**Connect** needs somewhere to send you: an OAuth app must exist for the connector, either configured for this organization (see below) or registered on the deployment environment. Until one exists, the dialog says so instead of offering the button.
-
-</Tab>
-
-</Tabs>
-
-Adding a second credential to a connector that already has one is the same flow again — it simply appears under **Configured** in the catalog. There is no limit to work around and nothing to disconnect first.
-
-<Note>
-
-Confluence and Shopify also ask for an **Instance URL**, because neither has a single vendor host. Confluence wants your Atlassian site origin — the address you open Confluence at. Shopify wants your store's `myshopify.com` origin, which is the admin address rather than the storefront domain. The value is stored in the clear on purpose, so the table can show which instance each row points at.
-
-</Note>
-
-## Choosing the default
-
-One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node — or an agent's call through the broker — names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
-
-A connector with several credentials and no default is a working configuration with a gap in it. Callers that name a row keep running; callers that do not cannot pick one and fail. Promote a row and the gap closes immediately.
-
-## Replacing a secret
-
-Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node pointed at that row picks up the new secret without being touched.
-
-The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit credential** covers the other direction: renaming a row, or moving it to a different instance origin.
-
-## Disabling and deleting
-
-**Disable** takes a credential out of service while keeping the row and everything configured on it. The credential shows as **Disabled** and nothing resolves to it; **Enable** puts it back. Reach for this when an account is suspected rather than finished, or when you want a configuration parked without losing it.
+**Disable** pauses a credential while retaining its configuration; **Enable** restores it. **Edit credential** handles other editable details, including its name or instance address where supported.
 
 <Warning>
 
-**Delete** is immediate and final. Automations and agent runs using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
+Deleting credentials removes access for automations and agents that depend on them. Move callers first and select a new default when needed. Deletion cannot be undone by reopening the same row.
 
 </Warning>
 
-## Configuring OAuth apps
+## Prepare an OAuth app
 
-The **OAuth apps** section at the bottom of the page — visible to admins and owners — decides which vendor app registration each OAuth connector's consent runs against. An app configured here belongs to this organization and overrides the deployment-wide one from the environment; with neither, that connector cannot be connected and the list says **Not configured**.
+Owners and Admins use **OAuth apps** at the bottom of the page to configure the vendor app registrations used during consent. An organization app overrides the deployment-wide app. If neither exists, the connector cannot start authorization and the page shows that it is not configured.
 
-**Configure** takes the client ID and secret from the vendor's app registration, and for a single-tenant Microsoft app the directory (tenant) ID — Tale then authorizes against that tenant. The dialog lists the exact redirect URIs to register on the vendor side before connecting. The secret is stored encrypted, is never shown again, and a later edit may leave the field blank to keep it. **Remove** drops the organization's app; the deployment's, if any, takes over, and existing connections keep working until their tokens expire.
+Select **Configure**, enter the vendor's client ID and secret, and register the exact redirect URIs shown in the dialog with the vendor. Microsoft apps may also require a directory/tenant ID. On a later edit, leave a stored secret blank to keep it.
 
-Two entries reach beyond this page: the **Google Drive** app is shared with Knowledge's Google Drive import (one Google OAuth client, both redirect URIs), and **OneDrive / SharePoint (Knowledge import)** exists only for that import — it has no connector of its own. Slack is absent on purpose: its app stays on the deployment environment, because inbound event verification runs before any organization is known.
+The Google Drive app also supports Knowledge import. The OneDrive/SharePoint import entry is for Knowledge rather than a separate connector. Slack's app is configured by the deployment operator. Read the relevant [connector guide](/platform/connectors/overview) before assigning vendor permissions.
 
-An organization that signs in with Microsoft Entra ID already gave Tale an app registration, so the **OneDrive / SharePoint (Knowledge import)** row also offers **Use Entra ID SSO app**. It copies the SSO registration's client ID and secret into this entry server-side — the secret never passes through the browser — and the confirmation lists what that registration still needs in Entra before members can connect: the import redirect URI as a "Web" URI, and the delegated Microsoft Graph permissions. The copy is deliberately one-time; after rotating the SSO client secret, copy it again here.
+For OneDrive/SharePoint, **Use Entra ID SSO app** can copy an existing SSO registration into the import configuration. This is a one-time copy: after rotating the SSO secret, copy it again and review the redirect URI and delegated permissions listed by the confirmation.
 
-## Reconnecting a broken authorization
+## Reconnect or diagnose a failure
 
-An OAuth credential whose stored authorization expired or was revoked shows **Reconnect needed** with the reason attached. This is the platform's own finding, not an operator's decision, which is why it reads differently from a credential someone disabled by hand: nothing about the row is wrong, the vendor stopped honouring the grant.
+**Reconnect needed** means stored OAuth authorization can no longer refresh. Choose **Reconnect** and authorize the account again. This keeps the credential's name and references. A deliberately disabled credential instead needs **Enable**.
 
-**Reconnect** re-runs the vendor's consent flow and restores access on the same row, keeping its name, its default flag, and every reference pointed at it. A credential you disabled yourself is not repaired this way — **Enable** is the fix for that one, and reconnecting it would be answering the wrong question.
+If the connection cannot start, check whether the OAuth app is configured. If the vendor rejects the return to Tale, compare the registered redirect URI with the exact URI shown by Tale. If an action fails after connecting, check the account's permissions and the required scope for that action.
 
-## Connectors and MCP servers
-
-A connector is vendor-specific, ships with the platform, and is maintained for you; your side of it is the credential. Registering your own MCP server for agents to call is not part of this version — when no connector exists for a system, your own code reaches it from a project agent's **Secrets** or an automation's `transform` node, and Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your client drives Tale. [MCP servers](/platform/connectors/mcp-servers) lays out both.
-
-## Where this fits
-
-Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Project agents](/platform/projects/project-agents) shows how the resulting actions arrive in an agent's equipment, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.
+For systems without a built-in connector, see [MCP and custom integrations](/platform/connectors/mcp-servers). Registering an arbitrary outbound MCP server is not part of this credential page.

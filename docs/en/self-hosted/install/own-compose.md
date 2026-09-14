@@ -3,7 +3,9 @@ title: Run Compose yourself
 description: The production compose contract — networks, aliases, probes, volumes — so you can write the stack without the CLI.
 ---
 
-This page is what a stack must reproduce when you write Compose or Kubernetes yourself instead of running `tale deploy`: which services hold state, the DNS names, the probes, the volumes. The CLI path stays in [Quickstart](/self-hosted/install/quickstart) and [Upgrades](/self-hosted/operate/upgrades).
+Use this contract when your infrastructure team maintains the Compose or Kubernetes deployment itself. It describes the services, images, volumes, network aliases, secrets and health probes that must work together.
+
+You also own lifecycle behavior that the CLI normally coordinates: compatible versions, backups, migrations, rollout and recovery. For a first installation without an existing orchestration requirement, start with the [CLI quickstart](/self-hosted/install/quickstart).
 
 ## When this path is the right one
 

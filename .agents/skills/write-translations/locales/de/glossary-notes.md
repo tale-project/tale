@@ -1,11 +1,9 @@
-# DE — glossary notes
+# German terminology context
 
-Locale-specific term notes that exceed what the glossary's `_note` field can carry. Rare today; this file exists so future entries have a home.
+Check the canonical glossary and actual catalog for current forms. For example, an exact UI label
+containing `E-Mail` keeps that spelling. A sentence about a request still needs the correct case and
+article even when the glossary supplies its noun.
 
-## `Engineering` as a job-title context
-
-The English noun `Engineering` translates to `Ingenieurwesen` in prose but appears in job titles (`Engineering team`, `VP of Engineering`) where the English form is the spoken convention. The glossary entry should split these cases; today we accept the EN form in job-title contexts via reviewer judgment.
-
-## `Mail` vs `E-Mail`
-
-The shipped UI uses `E-Mail` (hyphenated, capital M) everywhere — never `Email`, never `Mail`. The glossary entry for `Email` has DE form `E-Mail`; the half-compound denylist catches `Email-Anbieter` (should be `E-Mail-Anbieter`).
+Job titles or external product names can retain an English form. Distinguish that use from a broad
+instruction to leave the same word untranslated in all prose. Record recurring contextual
+exceptions in the glossary rather than relying on an undocumented reviewer preference.

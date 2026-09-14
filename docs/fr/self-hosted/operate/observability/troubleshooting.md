@@ -3,9 +3,9 @@ title: Dépannage
 description: Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale.
 ---
 
-Cette page est la recherche par symptôme quand quelque chose ne va pas, là, tout de suite. Chaque section commence par ce que l'utilisateur rapporte réellement — ce que le navigateur affiche, sur quoi l'agent échoue, ce que l'écran de téléversement dit — et remonte à la cause et au fix. Tout ce qui n'est pas listé ici est candidat pour une nouvelle section dès qu'il s'est présenté deux fois.
+Pars du symptôme observé, puis examine le service responsable. Note l’heure, l’URL ou l’action et le code d’erreur avant de redémarrer : ces éléments relient le comportement du navigateur aux logs backend.
 
-Le côté proactif — signaux qui méritent une alerte, ce qu'il faut câbler à Prometheus — vit dans [Opérations](/fr/self-hosted/operate/observability/operations). Cette page est pour le moment après que la page a sonné.
+Utilise `tale status` pour l’état du déploiement et `tale logs <service>` pour la composante en échec. Ne réinitialise pas les données et ne remplace pas les secrets pour diagnostiquer une panne inexpliquée.
 
 ## Le navigateur voit 502 ou « Bad Gateway »
 

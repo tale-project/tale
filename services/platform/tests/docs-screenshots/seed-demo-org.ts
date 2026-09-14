@@ -371,7 +371,11 @@ async function ensureProjectAgents(
         name: t('projects.agents.modelSearchPlaceholder'),
       })
       .fill(agent.model);
-    await page.getByRole('option', { name: agent.model }).first().click();
+    // Search accepts the API id while the option presents its friendly label.
+    // The id is unique within this fixture provider; the filtered option is
+    // the same model/provider pair the form persists.
+    await expect(page.getByRole('option')).toHaveCount(1);
+    await page.getByRole('option').click();
     await dialog
       .getByRole('textbox', {
         name: t('projects.agents.instructionsLabel'),
@@ -814,8 +818,9 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
 /**
  * Connect the Tavily connector so connector-bound builtin agents — the
  * Researcher — offer themselves in the chat agent picker. Outbound Tavily
- * HTTP is rewritten to the mock gateway (`TALE_MOCK_CONNECTORS_BASE`), so
- * the key value is arbitrary and nothing ever leaves the machine.
+ * The fixture supplies a synthetic credential for the settings capture.
+ * Seeding does not execute Tavily requests; gateway availability alone does
+ * not redirect runtime connector traffic.
  */
 async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/connectors`);
@@ -1529,9 +1534,6 @@ export async function seedDemoOrg(
   );
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
-  await step('researcher agent installed', () =>
-    ensureResearcherInstalled(orgId),
-  );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));

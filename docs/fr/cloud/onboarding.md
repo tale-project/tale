@@ -1,114 +1,56 @@
 ---
-title: Onboarding Cloud
-description: De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, doter un projet d’un premier agent, ouvrir le chat.
+title: Démarrer sur Tale Cloud
+description: Accéder à ton instance, te connecter et préparer un espace fonctionnel pour l’équipe.
 ---
 
-<!--
-  Internal, for agents editing this page: Tale Cloud has no self-serve sign-up — tale.dev
-  ships no sign-up route. A Cloud customer fills in the demo request form
-  (https://tale.dev/request-demo — /de/ and /fr/ localized), and the Tale team sets up a
-  dedicated demo instance for them. The journey below only starts once that instance exists;
-  from there it deliberately mirrors normal first-run onboarding (sign-up on the customer's
-  own instance, org wizard, providers). Keep the request-your-instance step first and do not
-  change the entry point back to a tale.dev sign-up.
--->
+La mise en route Cloud commence par l’instance que ton organisation utilisera. Une fois l’accès obtenu, les mêmes guides de chat, de projets et d’administration s’appliquent qu’en auto-hébergement.
 
-Ce parcours va de la demande de démo à une organisation Cloud prête pour la production avec un agent qui fonctionne. Le résultat est une organisation où ton équipe peut se connecter, demander quelque chose d’utile à l’assistant du chat et confier sa première tâche à un agent de projet — rien d’extraordinaire encore, juste le socle sur lequel tout le reste se construit.
+## Rejoindre une instance existante
 
-Il te faut une adresse e-mail qui fonctionne et la possibilité de la vérifier. Le parcours ne suppose aucune connaissance préalable de Tale ; si quelque chose ci-dessous mentionne un concept que tu n’as pas rencontré, la page liée l’introduit. Une fois ton instance prête, la partie pratique prend moins d’une heure — environ la moitié part dans l’étape du fournisseur, le reste est surtout des clics.
+Demande à ton admin l’adresse de l’instance et la méthode de connexion. Ouvre cette adresse avec ton propre compte. Si l’organisation utilise le SSO, suis ce parcours au lieu de créer un deuxième compte.
 
-## Avant de commencer
+Après la connexion, suis le guide pour [envoyer ton premier message](/fr/get-started/quickstart). Si l’organisation ou le projet attendu manque, demande à l’admin de vérifier ton appartenance, ton rôle et le partage du projet.
 
-Cale trois choses :
-
-- Une adresse e-mail pour le premier compte **Propriétaire** de l’organisation. Ce compte portera le rôle le plus élevé ; choisis quelqu’un qui ne quittera pas l’équipe la semaine prochaine.
-- Des identifiants API pour au moins un fournisseur de modèles (OpenAI, Anthropic, Azure ou un compatible local). Le portail du fournisseur montre où ils vivent.
-- La région où ancrer tes données. Cloud propose la Suisse et l’UE ; le choix fait partie de la mise en place de l’instance — changer plus tard est une vraie migration.
-
-## De la demande de démo à un agent qui fonctionne
+## Configurer un nouveau service Cloud
 
 <Steps>
 
-<Step title="Demande ton instance">
+<Step title="Préparer l’instance">
 
-Tale Cloud ne s’active pas en libre-service — chaque organisation Cloud tourne sur sa propre instance, montée pour toi par l’équipe Tale. Remplis le formulaire de demande de démo sur [tale.dev/fr/request-demo](https://tale.dev/fr/request-demo) ; le nom et l’e-mail suffisent, la société et une ligne sur ce que tes agents doivent faire aident l’équipe à ajuster la mise en place. L’équipe monte ensuite ta propre instance de démo — un environnement dédié, pas un essai partagé — et revient vers toi dès qu’elle est prête.
+[Demande une démo](https://tale.dev/request-demo) ou contacte l’équipe Tale. Convenez de la région d’hébergement, des conditions de service, des besoins d’identité et de la personne qui administrera l’espace. Prépare ces décisions avec [la résidence des données](/fr/cloud/data-residency) et [la sécurité et la conformité](/fr/cloud/trust-and-compliance).
 
 </Step>
 
-<Step title="Crée ton organisation">
+<Step title="Configurer l’espace de travail">
 
-Ouvre ton instance et inscris-toi. Le formulaire demande ton nom, ton e-mail et un mot de passe ; vérifie le lien reçu par e-mail. L’écran suivant demande le **Nom de l'organisation** — le nom affiché que ton équipe verra dans le coin de chaque page. Choisis-en un qui survit à un rebranding.
+Utilise l’adresse et les instructions fournies par Tale. Si l’assistant de première configuration apparaît, crée le compte initial et l’organisation. Si une organisation est déjà présente, ouvre-la. En créer une autre produit un espace séparé.
 
-<Frame caption="L’étape espace de travail — le nom que ton équipe voit partout.">
+<Frame caption="Le nom de l’organisation identifie l’espace que ton équipe utilisera.">
 
-![L’assistant de création d’organisation à son étape espace de travail, avec Northlight Labs saisi dans le champ Nom de l’organisation et le bouton Suivant actif.](/images/get-started/org-create-wizard.webp)
+![L’assistant de création d’organisation affiche le champ du nom de l’organisation.](/images/get-started/org-create-wizard.webp)
 
 </Frame>
 
-Le premier utilisateur devient automatiquement **Propriétaire** de l’organisation. Tu retrouveras ton rôle plus tard sous **Paramètres > Membres** si tu l’oublies.
-
 </Step>
 
-<Step title="Invite le premier admin">
+<Step title="Connecter un fournisseur et ajouter l’équipe">
 
-Ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Saisis le nom et l’e-mail de l’admin, assigne le rôle **Admin** et fixe un mot de passe — Tale crée le compte directement et affiche les identifiants une seule fois ; enregistre-les et transmets-les au nouvel admin par un autre canal (il n’y a pas d’e-mail d’invitation). La personne atterrit dans l’organisation avec le rôle que tu as assigné. La règle de sécurité « au moins 2 Admins » empêche une organisation de s’enfermer dehors en retirant son seul Admin — ajoute un second admin avant toute action qui l’exige.
-
-Pour la matrice des rôles (qui peut faire quoi), voir [Membres et rôles](/fr/platform/admin/members-and-roles).
-
-</Step>
-
-<Step title="Ajoute un fournisseur de modèles">
-
-Ouvre **Paramètres > Fournisseurs IA**, repère le connecteur pour lequel tu détiens une clé et clique sur **Ajouter un identifiant**. Donne-lui un nom qui dira plus tard de quelle clé il s’agit, choisis **Clé API** comme méthode d’authentification et colle la clé. Elle est stockée chiffrée et devient l’identifiant par défaut du connecteur quand c’est le premier ; un second identifiant sur le même connecteur est permis, et c’est toi qui désignes le défaut. Quand une clé est rejetée, c’est presque toujours un espace autour d’elle.
-
-<Frame caption="Le fournisseur connecté — à partir d’ici, chaque agent peut répondre.">
-
-![La page des paramètres des fournisseurs d’IA listant un seul fournisseur connecté, OpenRouter, avec son URL de base et ses 52 modèles.](/images/get-started/settings-providers.webp)
-
-</Frame>
-
-<Note>
-
-C’est l’étape où la plupart des sessions d’onboarding calent — le portail du fournisseur est souvent un autre login, et l’équipe doit creuser pour retrouver la clé. Si la validation reste bloquée plus d’une minute, recharge la page ; la clé est enregistrée dès que **Enregistrer** confirme, la ligne a parfois juste besoin d’un rechargement pour se mettre à jour.
-
-</Note>
-
-</Step>
-
-<Step title="Crée ton premier agent de projet">
-
-Ouvre l’onglet **Agents** d’un projet et clique sur **Nouvel agent**. Choisis le **Harness** — la CLI de code sur laquelle l’agent tourne — et, sous **Modèle**, le modèle que tu viens d’ajouter. Écris un bloc d’instructions d’un paragraphe — la voix dans laquelle l’agent doit répondre, le domaine qu’il connaît, les cas qu’il refuse — et clique sur **Créer l'agent**. Assigne-lui une tâche du tableau et clique sur **Démarrer l'agent** ; le résultat revient en **En revue**, où une personne l’accepte. Il n’y a ni étape de publication ni sélecteur d’agent dans le chat — dans cette version, les agents traitent les tâches du tableau.
-
-Pour le dialogue champ par champ, voir [Agents de projet](/fr/platform/projects/project-agents) ; pour ce qui fait un bon agent, [Concepts d’agent](/fr/platform/agents/concepts).
-
-</Step>
-
-<Step title="Ouvre le chat">
-
-Clique sur **Nouveau chat** dans la barre latérale. Le sélecteur de modèle du composer s’ouvre sur **Auto** — Tale choisit un modèle chez le fournisseur que tu as connecté —, alors tape une question que le domaine de ton équipe couvre, et envoie.
-
-<Check>
-
-La réponse arrive en streaming et enregistre quel modèle a répondu — l’organisation a fini son onboarding.
-
-</Check>
-
-Trois suites qui valent la peine maintenant, pendant que tout est frais :
-
-- Ouvre **Paramètres > Branding** et téléverse le logo de l’organisation.
-- Règle la langue par défaut de l’organisation sous **Paramètres > Organisation**.
-- Parcours [Trust et conformité](/fr/cloud/trust-and-compliance) pour savoir quoi montrer à un auditeur avant qu’on te le demande.
+Suis [configurer un espace de travail](/fr/get-started/admins) pour ajouter les identifiants du fournisseur, vérifier une réponse de modèle et créer les comptes avec les bons rôles. L’espace peut exister avant que le fournisseur soit prêt. Un chat qui répond permet de vérifier l’accès aux modèles.
 
 </Step>
 
 </Steps>
 
-## Dépannage
+## Valider un premier parcours utile
 
-- **La liste des modèles est vide quand tu crées l’agent.** L’étape du fournisseur n’a pas abouti — un modèle doit exister sous **Paramètres > Fournisseurs IA** avant que le dialogue de l’agent puisse en choisir un.
-- **La validation du fournisseur échoue avec « invalid key ».** Recopie la clé depuis le portail du fournisseur — la copie embarque souvent un espace en tête ou en queue.
-- **Démarrer l'agent échoue avec un motif côté fournisseur.** Le fournisseur choisi ne peut plus servir ce modèle — corrige-le sous **Paramètres > Fournisseurs IA** et redémarre l’agent.
+Choisis une tâche réelle de l’équipe : discuter d’un document, organiser le travail d’un projet ou tester un agent. Vérifie le résultat avec le rôle prévu. [Utiliser Tale en équipe](/fr/get-started/members) et [créer un agent de projet](/fr/get-started/editors) proposent les étapes suivantes.
 
-## Où ça s’utilise
+<Tip>
 
-Tu as maintenant une organisation avec un agent qui fonctionne et un admin en plus de toi. Le parcours suivant naturel est [Construire ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end) — même forme, mais il met un agent de projet au travail sur une vraie tâche et relit ce qui revient. Si tu es venu évaluer Cloud face à l’auto-hébergé, [Migrer vers auto-hébergé](/fr/cloud/migrate-to-self-hosted) est le parcours inverse.
+Teste avec un petit échantillon non sensible avant d’importer une grande collection. Tu peux ainsi vérifier les accès et les flux de données tant que la configuration reste facile à examiner.
+
+</Tip>
+
+## Obtenir de l’aide
+
+Pour les accès au compte et aux projets, contacte d’abord ton admin. Pour la disponibilité de l’instance, la configuration du service ou le contrat, utilise le canal d’assistance Tale convenu. Indique l’adresse, l’heure, l’action et l’erreur affichée, sans transmettre de mot de passe ni de clé.

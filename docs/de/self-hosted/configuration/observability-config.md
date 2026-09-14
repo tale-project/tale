@@ -1,37 +1,37 @@
 ---
-title: Observability-Konfiguration
-description: Die Env-Vars und Flags, die Logs, Metriken und Error-Tracking aktivieren — und was jede davon wohin routet.
+title: Überwachung einrichten
+description: Containerprotokolle lesen, geschützte Messwerte erfassen und das Ziel für Fehlerberichte festlegen.
 ---
+Beginne mit den Containerprotokollen und dem Zustand der Dienste. Ergänze Prometheus-Messwerte für Trends und Alarme sowie eine Fehlererfassung, wenn du vergangene Fehler durchsuchen möchtest. Tale übermittelt diese Daten nur dann an einen externen Überwachungsdienst, wenn du einen einrichtest.
 
-Tale bringt drei Observability-Nähte mit: stdout-Logs aus jedem Container, Metriken im Prometheus-Format hinter einem Bearer-Token und optionales Sentry-Error-Reporting. Die Defaults sind laut genug, um einen Crash zu sehen, und leise genug, um in das journald eines einzelnen Hosts zu passen; die Produktions-Knöpfe unten fügen die strukturierten Pfade hinzu, die dein bestehender Monitoring-Stack scrapen kann. Keine der drei schickt etwas vom Host weg, ausser du konfigurierst sie dazu.
+## Anwendungsprotokolle lesen
 
-Diese Seite deckt die serverseitigen Schalter ab. Das operatorseitige Alert-Playbook lebt in [Operations](/de/self-hosted/operate/observability/operations), und das symptomorientierte Nachschlagen in [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting).
+Container schreiben auf stdout und stderr. Die mitgelieferte Compose-Konfiguration nutzt Dockers Protokolltreiber `json-file`: maximal 10 MB pro Datei und drei Dateien pro Container. Verwende die Dienstnamen aus der Compose-Datei deiner Installation:
 
-## Logs
+```bash
+docker compose logs --tail=100 backend-api backend-worker
+docker compose logs -f backend-api
+```
 
-Jeder Container schreibt strukturierte JSON- oder Console-Logs nach stdout, vom Default-Driver `json-file` von Docker mit einer Rotation von 10 MB pro Datei und drei Dateien aufgefangen. Das Log-Ziel ist eine Funktion davon, wie du deployest:
+Mit `Ctrl-C` beendest du die laufende Anzeige; die Container laufen weiter. Suche bei Anfrage- und Anmeldefehlern in `backend-api`, bei Hintergrundaufgaben, Chat-Antworten und Dokumentverarbeitung in `backend-worker`. `docker compose ps` zeigt dir Container, die wiederholt neu starten.
 
-- Einzelner Host mit journald — `journalctl -u docker` trägt alles.
-- Einzelner Host ohne journald — `docker compose logs -f <service>` für live tailing.
-- Aggregator (Loki, Vector, Fluent Bit) — richte den Docker-Logging-Driver über `daemon.json` dorthin.
+`journalctl -u docker` zeigt das Journal des Docker-Daemons. Beim Standardtreiber `json-file` ersetzt es die Containerprotokolle nicht. Für journald oder eine zentrale Protokollsammlung musst du den Docker-Protokolltreiber und die Sammlung gesondert einrichten. Tale liefert keinen Dienst zur Protokollweiterleitung mit. Nach einem Treiberwechsel musst du die betroffenen Container neu erstellen.
 
-Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Connector-Punkt.
+## Geschützte Messwerte aktivieren
 
-## Metriken
+Setze einen starken `METRICS_BEARER_TOKEN` in der Bereitstellungsumgebung. Übernimm die Änderung über deinen Bereitstellungsablauf, sodass die betroffenen Dienste neu erstellt werden. Ein einfacher Containerneustart lädt die Compose-Umgebungswerte nicht neu. Hinterlege denselben Token in der Geheimnisverwaltung deines Überwachungssystems.
 
-Der Caddy-Proxy exponiert drei Metric-Pfade, gegated von einem einzigen Bearer-Token:
+Der Proxy verlangt für diese Routen `Authorization: Bearer <token>`. Ohne konfigurierten Token antworten sie mit **401**.
 
-| Pfad                 | Quelle             | Was drinsteckt                                                                                                                                                                        |
-| -------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/metrics/platform`  | `tale-platform`    | HTTP-Latenz, Route-Counter, Node-Prozessmetriken, Antwortzeit-SLA-Ziel-Gauges                                                                                                         |
-| `/metrics/sla-rules` | `tale-platform`    | Generierte Prometheus-Recording- + Alerting-Rules für die Antwortzeit-SLAs                                                                                                            |
-| `/metrics/backend`   | `tale-backend-api` | Prozess-Metriken, HTTP-Counter und Latenz pro Routen-Klasse, Queue-Tiefe je Job-Status, laufende Chat-Generierungen, offene Hint-Streams, Drain-Zustand und dieselben SLA-Ziel-Gauges |
+| Route | Inhalt | Verwendung |
+| --- | --- | --- |
+| `/metrics/platform` | HTTP- und Prozessmesswerte der Webanwendung, Zielwerte für Antwortzeiten | Prometheus-Abfrageziel |
+| `/metrics/backend` | HTTP- und Prozessmesswerte des Backends, Warteschlangen, aktive Generierungen und Entleerungsstatus | Prometheus-Abfrageziel |
+| `/metrics/sla-rules` | Generierte Aufzeichnungs- und Alarmregeln als YAML | Als Prometheus-Regeldatei laden |
 
-Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Backend-Worker, also reiten ihre Timings auf der `/metrics/backend`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um diese Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Der `/metrics/sla-rules`-Pfad ist eine schreibgeschützte YAML-Rules-Datei, die du in Prometheus lädst, kein Scrape-Target — die Schwellen darin sind in [Operations](/de/self-hosted/operate/observability/operations) dokumentiert. Alles ausser den gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
+Wissenssuche und Dokumentverarbeitung laufen im Backend-Worker. Ihre Messwerte gehören zu den Backend-Metriken. `BACKEND_UPSTREAM` bestimmt bei einer getrennten Bereitstellung das Backend; es aktiviert keinen separaten Metrikdienst für die Wissensverarbeitung.
 
-`/metrics/backend` wird vom Application-Backend bedient, das jedes Deployment betreibt; `BACKEND_UPSTREAM` überschreibt nur den Upstream für ein Split-Deployment. Ein gegateter Metrics-Pfad ohne Lane auf dem Deployment antwortet mit 404, statt still die Zahlen eines anderen Dienstes unter dem falschen Namen auszuliefern.
-
-Eine funktionierende Prometheus-Scrape-Stanza:
+Richte pro Metrikroute einen eigenen Abfrageauftrag ein. Im Beispiel ist `/run/secrets/tale_metrics_token` eine Datei im Prometheus-Container, die ausschließlich den Token enthält. Erstelle sie über deine Geheimnisverwaltung und erlaube Prometheus den Lesezugriff.
 
 ```yaml
 scrape_configs:
@@ -39,39 +39,33 @@ scrape_configs:
     scheme: https
     metrics_path: /metrics/platform
     authorization:
-      credentials: <METRICS_BEARER_TOKEN>
+      credentials_file: /run/secrets/tale_metrics_token
+    static_configs:
+      - targets: ['tale.example.com']
+  - job_name: tale-backend
+    scheme: https
+    metrics_path: /metrics/backend
+    authorization:
+      credentials_file: /run/secrets/tale_metrics_token
     static_configs:
       - targets: ['tale.example.com']
 ```
 
-Dupliziere die Stanza pro Pfad, oder nutze einen einzelnen Job mit `relabel_configs`, wenn du das bevorzugst.
+Frage `/metrics/sla-rules` nicht als Metriken ab. Lade die YAML-Datei über die Regelkonfiguration von Prometheus. Die vollständige Einrichtung beschreibt [Prometheus und Grafana](/self-hosted/operate/observability/prometheus-grafana).
 
-## Error-Tracking mit Sentry
+## Ziel für Fehlerberichte wählen
 
-Sentry ist opt-in über `SENTRY_DSN`. Selbst gehostete GlitchTip und Bugsink funktionieren auch, da sie dasselbe DSN-Format sprechen. Ein DSN deckt beide Seiten des Stacks ab: die Browser-App meldet Frontend-Fehler, und die Container `backend-api` / `backend-worker` melden die Server-Seite — abgestürzte Anfragen, fehlgeschlagene Hintergrund-Jobs und Boot-Fehler — getaggt mit der Prozessrolle (`tale.role`) und der Release-Version.
+`SENTRY_DSN` aktiviert die optionale Fehlererfassung. Du kannst Sentry oder einen kompatiblen Dienst wie GlitchTip oder Bugsink verwenden. Browser und Backend nutzen denselben DSN; Backend-Ereignisse enthalten Prozessrolle und Versionsnummer.
 
 ```bash
-# .env
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Die Sample-Rate begrenzt Performance-Traces im Browser und gilt nur dort — das Backend meldet Fehler, nie Traces. Lass sie unset für den Default 1.0 in Development und ziehe sie an (0.05–0.2) in Produktion. Stack-Frames werden auf beiden Seiten unredigiert geschickt, also richte den DSN auf Infrastruktur, die du kontrollierst, wenn deine Error-Payloads sensibel sind.
+Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerberichte, keine Leistungstraces. In der Entwicklung beträgt die Standardrate für Browsertraces 1.0. Wähle für den Produktivbetrieb einen Wert passend zu deinem Überwachungsbudget. Stackframes werden ohne Schwärzung übertragen; berücksichtige bei der Zielwahl deine Vorgaben zur Datenverarbeitung.
 
-## Aggregierte Nutzungsstatistik mit Umami
+## Grenzen kennen
 
-Die aggregierte Verkehrsmessung aktivierst du getrennt pro Deployment. Setze `UMAMI_URL`, `UMAMI_WEBSITE_ID` und `UMAMI_PROXY_TOKEN` gemäß der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference). Eine leere Website-ID deaktiviert sie ohne neues Image. Das Token bleibt auf dem Server. Verwende für jedes Deployment eine eigene Website-ID.
+Tale exportiert derzeit keine OpenTelemetry-Traces über OTLP. Ein OpenTelemetry Collector kann die Prometheus-Messwerte erfassen. Aus dem Abfragen von Messwerten entstehen aber keine verteilten Traces. Dafür braucht die Anwendung zusätzlich eine entsprechende Instrumentierung.
 
-Der Proxy auf der eigenen Domain liefert den Umami-Tracker aus und leitet nur Seitenaufrufe sowie abgeschlossene Kontakt- und Demo-Anfragen der Marketing-Seite weiter. Das Erfassungs-Gateway muss `GET /_collect/script.js` und `POST /_collect/api/send` mit dem konfigurierten Bearer-Token authentifizieren. Caddy muss `X-Analytics-Client-IP` aus der vertrauenswürdigen Client-Adresse neu setzen. Halte die Anwendungsports privat und konfiguriere vertrauenswürdige Proxy-Netze, wenn ein weiterer Proxy vorgeschaltet ist. Browser-Cookies, Anmeldedaten, Referrer-Kopfzeilen, Seitentitel, Suchparameter, Fragmente, Kontokennungen, Formularfelder und Produktinhalte gelangen nie zur Erfassung.
-
-Die Berichte enthalten bekannte öffentliche Seitenpfade, Routenvorlagen der privaten Plattform, Referrer-Ursprünge, Browsersprache, Bildschirmgröße, Browser, Betriebssystem, Gerät und ungefähren Standort. Die Erfassung leitet Besuche und Standort aus der IP-Adresse ab, ohne diese im Klartext zu speichern. Private Organisations- und Ressourcenkennungen erscheinen als Platzhalter. Es gibt keine websiteübergreifende Identität, automatische Klickerfassung oder Sitzungsaufzeichnung. Do Not Track und Global Privacy Control deaktivieren die Erfassung.
-
-Öffne nach dem Rollout eine bekannte Seite, navigiere innerhalb der Anwendung und prüfe beide Seitenaufrufe in der Umami-Website des Deployments. Prüfe den Inhalt der Erfassungsanfrage: Eine private Route enthält Platzhalter, aber keine Suchparameter, Titel oder Formulardaten. Die Navigation muss auch bei blockierter oder ausgefallener Erfassung funktionieren.
-
-## Was noch nicht mitkommt
-
-OpenTelemetry-Traces sind nicht in die Container eingebaut. Die Daten sind indirekt erreichbar — Backend-Request-Dauern und HTTP-Route-Timings kommen durch die Prometheus-Metriken — aber es gibt heute keinen OTLP-Exporter auf der Box. Brauchst du vollen Trace-Export, betreib einen OpenTelemetry Collector neben Tale und scrape die Prometheus-Endpoints aus ihm.
-
-## Wo das hingehört
-
-Die drei Nähte oben sind die Kontaktpunkte mit dem Rest deines Monitoring-Stacks; die Alert-Schwellen und die Oncall-Checkliste leben in [Operations](/de/self-hosted/operate/observability/operations). Brennt etwas gerade und du brauchst den symptomorientierten Index, spring zu [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting).
+Alarmgrenzen und Reaktionsabläufe findest du unter [Betrieb](/self-hosted/operate/observability/operations). Bei einem ausgefallenen Dienst helfen die Symptomtabellen der [Fehlersuche](/self-hosted/operate/observability/troubleshooting).

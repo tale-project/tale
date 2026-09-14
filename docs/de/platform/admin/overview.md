@@ -1,90 +1,38 @@
 ---
-title: Admin
-description: Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien.
+title: Administration
+description: Richte Zugänge, KI-Dienste, Sicherheit und Organisationseinstellungen ein.
 ---
 
-Admin ist die Konfigurationsebene von Tale. Sie umfasst die Personen, die sich anmelden dürfen, die Teams, die sie gruppieren, die KI-Anbieter hinter jeder Antwort, die API-Schlüssel, mit denen externer Code mit der Organisation spricht, die Drittanbieter-Connectors, durch die Agents nach außen greifen, und das Branding, das der Rest der Organisation sieht. Nur Admins und Inhaber sehen das volle Admin-Menü; Entwickler sehen eine Teilmenge, andere Rollen sehen es gar nicht.
-
-Diese Seiten beschreiben, was jede Einstellung tut und was sie am laufenden Produkt ändert. Die meisten liest du einmal beim Aufsetzen und besuchst sie wieder, wenn sich etwas ändert — eine neue Person, ein rotierter Schlüssel, ein neuer Anbieter. Die Rollen- und Berechtigungsgeschichte hinter dem ganzen Menü liegt in [Mitglieder und Rollen](/de/platform/admin/members-and-roles); fang dort an, denn jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
-
-Lieber erst zusehen? Episode 9 durchquert den ganzen Kontrollraum — Anbieter, Leitplanken, Audit, Kosten — in gut drei Minuten, mit Untertiteln.
+In den Organisationseinstellungen legst du fest, wer Tale nutzen darf, welche Dienste verfügbar sind und wie die Organisation mit Arbeit und Daten umgeht. Beginne mit der Aufgabe, die gerade ansteht. Nicht jeder Bereich muss eingerichtet sein, bevor dein Team loslegen kann.
 
 <Video src="/videos/de/tutorials/ep9-governance/ep9-governance.de.mp4" poster="/videos/de/tutorials/ep9-governance/ep9-governance.de.webp" captions="/videos/de/tutorials/ep9-governance/ep9-governance.de.vtt" lang="de" title="Episode 9 — Richtlinien, Kosten & Vertrauen" caption="Episode 9 — Richtlinien, Kosten & Vertrauen (3:31)">
 
 </Video>
 
-## Konfigurationsbereiche
+## Eine Organisation einrichten
 
-<CardGroup cols="2">
+1. [Füge Mitglieder hinzu und wähle ihre Rollen](/de/platform/admin/members-and-roles). Vergib die Rechte, die ihre Arbeit erfordert.
+2. [Erstelle Teams](/de/platform/admin/teams), wenn mehrere Personen denselben Zugang zu Projekten oder Konversationen brauchen.
+3. [Verbinde einen KI-Anbieter](/de/platform/admin/providers), damit Chats und Agents Modelle verwenden können.
+4. [Hinterlege Zugangsdaten für Connectors](/de/platform/admin/connectors), deren Dienste deine Workflows benötigen.
 
-<Card title="Mitglieder und Rollen" icon="users" href="/de/platform/admin/members-and-roles">
+Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreichen die technischen Einstellungen für Integrationen, können aber keine Mitglieder verwalten und nicht den gesamten Richtlinienbereich öffnen. Persönliche Kontoeinstellungen sind davon getrennt.
 
-Die sechs Rollen und die ressourcengenaue Matrix, die sagt, wer lesen, schreiben, konfigurieren und regeln darf.
+## Die passende Einstellung finden
 
-</Card>
+| Du möchtest… | Öffne… |
+| --- | --- |
+| Standardmodelle festlegen oder die Modellauswahl begrenzen | [Modelle](/de/platform/admin/governance/content-models) |
+| Nutzung, Uploads oder Aufbewahrung begrenzen | [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) |
+| Nachrichten filtern und organisationsweite Anweisungen festlegen | [Schutzregeln](/de/platform/admin/governance/guardrails) |
+| Aktionen oder Ausgaben untersuchen | [Audit-Protokolle](/de/platform/admin/governance/audit-logs) oder [Nutzungsmetriken](/de/platform/admin/governance/usage-analytics) |
+| Aufbewahrte Daten wiederherstellen oder vor dem Löschen schützen | [Papierkorb](/de/platform/admin/governance/trash) oder [Aufbewahrungssperre](/de/platform/admin/governance/legal-hold) |
+| Eine Löschanfrage bearbeiten | [Betroffenenanfragen](/de/platform/admin/governance/data-subject-requests) |
 
-<Card title="Teams" icon="users-round" href="/de/platform/admin/teams">
+## Anmeldung, Integrationen und Darstellung
 
-Gruppiere Mitglieder in Teams, die Dokumente, Projekte, Skills und Konversationen teilen.
+Richte [Enterprise SSO](/de/platform/admin/enterprise-sso) für deinen Identitätsanbieter und [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) zum Schutz der Konten ein. [API-Schlüssel](/de/platform/admin/api-keys) ermöglichen Software den Zugriff auf Tale.
 
-</Card>
+Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agents aus Administrationssicht](/de/platform/admin/agents).
 
-<Card title="Agents" icon="bot" href="/de/platform/admin/agents">
-
-Jeder Agent, den die Organisation hat, und wo ein Admin eingreift, wenn einer Governance braucht.
-
-</Card>
-
-<Card title="KI-Anbieter" icon="cpu" href="/de/platform/admin/providers">
-
-Hinterleg die Zugangsdaten hinter jeder Antwort und wähl, welche Modelle die Organisation aufrufen darf.
-
-</Card>
-
-<Card title="Connectors" icon="plug" href="/de/platform/admin/connectors">
-
-Hinterleg und ersetz die Zugangsdaten hinter Slack, Gmail, Outlook, Google Drive, GitHub, Shopify und mehr.
-
-</Card>
-
-<Card title="Enterprise SSO" icon="shield-check" href="/de/platform/admin/enterprise-sso">
-
-Verdrahte die Anmeldung mit deinem Identity-Provider über SAML oder OIDC.
-
-</Card>
-
-<Card title="API-Schlüssel" icon="key" href="/de/platform/admin/api-keys">
-
-Erzeuge die Schlüssel, mit denen externer Code Tales REST-API erreicht.
-
-</Card>
-
-<Card title="Branding" icon="palette" href="/de/platform/admin/branding">
-
-Das Logo, das Favicon und die Akzentfarbe, die der Rest der Organisation sieht.
-
-</Card>
-
-<Card title="Zwei-Faktor-Authentifizierung" icon="smartphone" href="/de/platform/admin/two-factor-authentication">
-
-Verlange einen zweiten Faktor für die Anmeldung und verwalte die Einrichtung organisationsweit.
-
-</Card>
-
-<Card title="Changelog" icon="history" href="/de/platform/admin/changelog">
-
-Der produktinterne Eintrag darüber, was wann ausgeliefert wurde.
-
-</Card>
-
-<Card title="Governance" icon="scale" href="/de/platform/admin/governance/audit-logs">
-
-Audit-Logs, Richtlinien und Limits, Guardrails, Analysen, Aufbewahrung und Legal Hold.
-
-</Card>
-
-</CardGroup>
-
-## Wo das hingehört
-
-Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Connectors auf; die Skill-Bibliothek und die Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche erste Lektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
+Nach einem Update zeigt dir [Was gibt es Neues?](/de/platform/admin/changelog), welche Änderungen für dein Team relevant sind.

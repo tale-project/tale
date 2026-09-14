@@ -33,7 +33,7 @@ Drücke **⌘K** (Mit Server verbinden), füge die URL ein und melde dich mit de
 
 <Tab title="Windows">
 
-Wähle in **Dieser PC** die Option **Netzlaufwerk verbinden**, füge die URL als Ordner ein und wähle **Verbindung mit anderen Anmeldeinformationen herstellen**. Windows deckelt WebDAV-Übertragungen standardmäßig bei 50 MB pro Datei — erhöhe `FileSizeLimitInBytes` unter dem Registrierungsschlüssel `WebClient\Parameters` und starte den WebClient-Dienst neu. Auf einem Nicht-Standard-HTTPS-Port setze `BasicAuthLevel` unter demselben Schlüssel auf `2`.
+Wähle unter **Dieser PC** die Aktion **Netzlaufwerk verbinden**, füge die HTTPS-URL ein und aktiviere **Verbindung mit anderen Anmeldeinformationen herstellen**. Nutze deine E-Mail und das erzeugte App-Passwort. Der Windows-Dienst WebClient muss verfügbar und gestartet sein. Scheitern Verbindung oder große Übertragungen, nutze einen WebDAV-Client oder lass die IT die [Windows-WebDAV-Grenzen](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector) prüfen. Behalte HTTPS bei: `BasicAuthLevel: 2` erlaubt unverschlüsselte Verbindungen und behebt keinen abweichenden Port.
 
 </Tab>
 
@@ -45,9 +45,9 @@ Dateimanager mit einem geteilten **Mit Server verbinden**-Dialog (Nemo, Caja) ba
 
 </Tab>
 
-<Tab title="iOS Files">
+<Tab title="iPhone und iPad">
 
-Tippe auf das Dreipunkt-Menü, wähle **Mit Server verbinden** und gib dieselbe URL und dieselben Zugangsdaten ein. Die Dateien-App unterstützt Durchsuchen und Herunterladen; Bearbeiten an Ort und Stelle funktioniert für Formate mit einer iOS-App.
+Nutze eine App mit ausdrücklicher WebDAV-Unterstützung, die HTTPS-URL und ein eigenes App-Passwort für das Gerät. Folge ihrer Anleitung; der allgemeine Serverdialog der Dateien-App ist keine WebDAV-Einrichtungsanleitung. Direkte WebDAV-Uploads in Pages, Numbers und Keynote werden [nicht mehr unterstützt](https://support.apple.com/en-us/101948). Für gelegentlichen Zugriff kannst du Tale im Browser öffnen und Dokumente nutzen.
 
 </Tab>
 

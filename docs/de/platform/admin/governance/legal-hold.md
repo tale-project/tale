@@ -1,9 +1,9 @@
 ---
 title: Legal Hold
-description: Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern.
+description: Bewahre Daten einer Person oder Organisation, ordne Sperren einem Fall zu und prüfe Freigabeanträge.
 ---
 
-Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtshalt ausliefert. Ein Hold heftet ein Ziel — einen Benutzer als Custodian oder die gesamte Organisation — außer Reichweite des Aufbewahrungs-Sweeps und der Löschungs-Kaskade für betroffene Personen. Admins und Inhaber lesen diese Seite, wenn der Rechtsbeistand bittet, die Daten einer Custodian-Person zu sichern, wenn ein Freigabeantrag die Vier-Augen-Freigabe braucht, oder wenn ein Audit abgleicht, welche Holds zu einem gegebenen Datum in Kraft waren.
+Ein Legal Hold bewahrt die betroffenen Daten, solange ein Fall offen ist. Admins und Inhaber verwalten diese Aufbewahrungssperren unter **Einstellungen > Richtlinien > Legal Hold**. Setze die Sperre, solange die Daten noch vorhanden sind: Bereits endgültig gelöschte Datensätze holt sie nicht zurück.
 
 <Frame caption="Governance > Legal Hold — die Tabelle der aktiven Holds mit der Aktion Legal Hold setzen über der vier-Augen-kontrollierten Warteschlange der Freigabeanträge.">
 
@@ -11,28 +11,36 @@ Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtsha
 
 </Frame>
 
-## Eine durchgespielte Platzierung
+## Eine Sperre setzen
 
-Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien > Legal Hold** und klick auf **Legal Hold setzen**. Wähle den Zieltyp — Benutzer als Custodian oder die gesamte Organisation — wähle die Person, wo eine nötig ist, füge einen Grund hinzu und verknüpfe den Hold mit einem Fall, falls einer offen ist. Der Hold wirkt sofort: Aufbewahrungs-Sweeps überspringen die Zeilen des Ziels, ein Löschantrag gegen das Ziel wird verweigert, und das Löschen gehaltener Inhalte wird an der Quelle abgewiesen.
+1. Wähle **Legal Hold setzen**.
+2. Wähle das Ziel: eine Person als Verwahrer oder die gesamte Organisation. Wähle für eine Person das richtige Mitglied aus.
+3. Begründe die Sperre so, dass ein anderer Admin versteht, was erhalten bleiben muss. Verknüpfe sie bei Bedarf mit einem Fall.
+4. Bestätige und prüfe Ziel und Begründung in der Liste aktiver Sperren.
 
-## Die vier Bereiche
+Eine gesetzte Sperre gilt sofort. Betroffene Daten sind vor Aufbewahrungsbereinigung und Löschung geschützt. Löschversuche werden abgelehnt. Bestimme den passenden Umfang anhand des Beweissicherungsprozesses deiner Organisation.
 
-**Aktive Holds** ist die Arbeitsliste jedes Holds, der gerade in Kraft ist. Jede Zeile trägt den Typ, das Ziel, den Grund, den Fall, wer ihn gesetzt hat und wann. Filtere nach Typ oder nach Fall, um die Ansicht einzugrenzen.
+## Sperren nach Fall ordnen
 
-**Freigabeanträge** ist die Vier-Augen-Warteschlange. Einen Hold freigeben verlangt, dass ein anderer Admin die Anfrage genehmigt; genehmigte Anfragen warten zusätzlich eine Abkühlphase ab, bevor sie wirken. Der Bereich teilt sich in _wartet auf Freigabe_ und _genehmigt, wartet auf Abkühlphase_, sodass die Warteschlange und der Timer beide sichtbar sind.
+Mit **Fall anlegen** bündelst du zusammengehörige Sperren unter einem Namen und Aktenzeichen. Die Zahl verknüpfter Sperren hilft zu prüfen, ob die vorgesehenen Personen abgedeckt sind.
 
-**Fälle** gruppiert Holds nach Fall. Jeder Fall trägt einen Namen, eine Fallnummer und die Liste der verknüpften Holds. Einen Fall zu schließen reicht Freigabeanträge für jeden verknüpften Hold ein — weiterhin unter Vier-Augen-Genehmigung pro Antrag.
+Wenn du einen Fall schließt, werden Freigabeanträge für seine Sperren gestellt. Die Sperren enden dadurch nicht sofort. Jeder Antrag braucht weiterhin die folgende Prüfung.
 
-**Freigabeverlauf** ist das nur-lesbare Audit der effektiven und abgelehnten Freigaben. Nutz es, um gegen ein Beweissicherungsschreiben der Gegenseite abzugleichen oder einen Audit-Bericht zu speisen.
+## Eine Sperre freigeben
 
-## Hold-und-Kaskade-Interaktion
+1. Wähle bei der aktiven Sperre **Freigabe beantragen** und begründe, warum die Aufbewahrung nicht mehr nötig ist.
+2. Ein anderer Admin prüft den Antrag und wählt **Genehmigen** oder **Ablehnen**. Die antragstellende Person kann ihre eigene Freigabe nicht genehmigen.
+3. Prüfe nach der Genehmigung die angezeigte Wartezeit in den Freigabeanträgen. Bis sie endet, bleibt die Sperre wirksam.
+4. Prüfe das abgeschlossene Ergebnis im Freigabeverlauf und die verbleibenden Sperren in der aktiven Liste.
 
-Ein Hold blockiert jeden Aufbewahrungs-Lauf und jeden Löschungs-Schritt für das Ziel, und Löschen wird an der Quelle abgewiesen — die Threads oder Dokumente einer gehaltenen Person in den Papierkorb zu legen scheitert mit einem Legal-Hold-Fehler, und ein Ordner-Löschen verweigert, solange er eine gehaltene Datei enthält. Auch das Löschen der ganzen Organisation ist gesperrt: Solange irgendein Hold aktiv ist — organisationsweit oder für ein Mitglied —, lehnt Tale **Organisation löschen** ab, und die Organisation bleibt unverändert. Eine Anfrage einer betroffenen Person, deren Subjekt von einem Hold abgedeckt ist, landet im Status **Blockiert**, bis der Hold freigegeben ist; der Beleg dokumentiert die Blockade.
+Für das Setzen genügt ein Admin. Die Freigabe braucht das Vier-Augen-Prinzip und eine Wartezeit. Eine Genehmigung bedeutet deshalb noch keine abgeschlossene Freigabe.
 
-## Vier-Augen-Kontrolle
+## Blockierte Löschungen verstehen
 
-Platzieren und Freigeben sind nicht symmetrisch. Platzieren ist eine Aktion durch einen Admin allein — die Geschwindigkeit zählt, wenn Rechtsstreit kommt. Freigeben ist vier-Augen-kontrolliert: der anfordernde Admin reicht ein, ein anderer Admin gibt frei, und zwischen Genehmigung und Wirkung gilt eine Abkühlphase, sodass eine voreilige Freigabe noch abgebrochen werden kann. Beide Hälften des Workflows werden Ende zu Ende auditiert.
+Eine Sperre kann Löschanfragen für die Person, das Löschen betroffener Chats oder Dokumente und das Löschen eines Ordners mit gesperrten Dateien verhindern. Jede aktive Organisations- oder Mitgliedssperre verhindert außerdem das Löschen der gesamten Organisation.
 
-## Wo das hingehört
+Scheitert eine Löschung, prüfe die zuständige Sperre, statt die Aktion zu wiederholen. Die Freigabe einer Sperre hebt keine andere überlappende Sperre auf. Nach der Freigabe kann die geltende Aufbewahrungs- oder Löschverarbeitung fortfahren.
 
-Legal Hold ist der Einfrier-Knopf auf der Aufbewahrung. Er ist der einzige Mechanismus, der den zeitgesteuerten Aufbewahrungs-Sweep und die Löschungs-Kaskade für betroffene Personen schlägt — beide respektieren Holds per Konstruktion. Die Begleitseiten sind [Anfragen betroffener Personen](/de/platform/admin/governance/data-subject-requests) für die Kaskaden-Seite und [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) für die Aufbewahrungsfenster, die der Hold übersteuert.
+## Zugehörige Anfragen prüfen
+
+Unter [Anfragen betroffener Personen](/platform/admin/governance/data-subject-requests) findest du durch Sperren blockierte Löschbelege. In den [Audit-Logs](/platform/admin/governance/audit-logs) untersuchst du protokollierte Sperraktionen. Die [Aufbewahrungsrichtlinie](/platform/admin/governance/policies-and-limits) steuert die normale Bereinigung, sobald die Sperre nicht mehr greift.

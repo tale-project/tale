@@ -1,42 +1,40 @@
 ---
-title: Entwickler
-description: Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel für die REST-API, der MCP-Endpoint und die Connector-Zugangsdaten, mit denen eine Person mit Entwickler-Rolle Tale an externen Code anbindet.
+title: Developer
+description: Erstelle Automatisierungen und verbinde Tale mit Clients, Skripten und externen Diensten.
 ---
 
-Entwickler ist die In-App-Oberfläche für die Personen, die Tale an den Rest ihres Stacks anbinden. Sie bündelt die Hebel, die externem Code erlauben, mit Tale zu sprechen, und Tale erlauben, nach außen zu greifen: API-Schlüssel für die REST-Oberfläche, den MCP-Endpoint, mit dem sich MCP-Clients verbinden, und die Connector-Zugangsdaten hinter dem, was Agenten und Automatisierungen aufrufen können. Personen mit Entwickler-Rolle sehen diese Einstellungen; Mitglieder und Redakteure nicht.
+Als Developer richtest du technische Verbindungen und Automatisierungen für die Arbeit deines Teams ein. Neben Inhaltsbearbeitung hast du Zugriff auf technische Einstellungen wie Provider, Connectoren und API-Zugangsdaten. Die Mitgliederverwaltung bleibt bei Owner und Admin.
 
-Diese Übersicht nennt, was jede Seite behandelt, und verweist auf die tiefere Referenz. Wer die Entwickler-Rolle hat, landet meist am ersten Tag hier, erzeugt die nötigen Zugangsdaten und kommt wieder, wenn der Stack wächst — einen Schlüssel rotieren, einen neuen MCP-Client auf den Endpoint richten, einen weiteren Dienst verbinden.
-
-## Was Entwickler abdeckt
-
-Die Entwickler-Oberfläche sitzt neben den übrigen Einstellungen der Organisation, richtet sich aber an ein engeres Publikum. Sie setzt voraus, dass du weißt, was eine REST-API ist, wie ein Webhook aussieht und was ein MCP-Client tut — die Seiten erklären die Konzepte nicht neu, sondern zeigen, wie Tale sie offenlegt. Zwei Hebel der früheren Version gibt es in dieser nicht: externe MCP-Server registrieren und Custom Tools definieren. Dein eigener Code erreicht einen Agenten stattdessen über die **Secrets** eines Projekt-Agenten oder die Knoten einer Automatisierung — [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des ersten getreten ist; [Projekt-Agenten](/de/platform/projects/project-agents) geht den Dialog durch, in dem das zweite heute liegt.
-
-Dieselbe Oberfläche unterscheidet sich zwischen den Tabs Cloud und Selbst gehostet nur in der Deployment-Form; die Oberfläche hier ist identisch. Die Seite der Konfigurationsdateien — Umgebungsvariablen und Provider-Dateien — liegt einen Tab weiter in der Dokumentation unter Selbst gehostet.
-
-## Seiten in diesem Bereich
+## Eine Verbindung oder einen Ablauf wählen
 
 <CardGroup cols="2">
 
-<Card title="API-Schlüssel" icon="key" href="/de/platform/admin/api-keys">
+<Card title="Einen API-Schlüssel erstellen" icon="key" href="/de/platform/admin/api-keys">
 
-Ein Skript, einen Cron-Job oder einen internen Dienst an Tales REST-API anbinden. Geteilt mit Admin unter **Einstellungen > API > REST**.
-
-</Card>
-
-<Card title="MCP-Endpoint" icon="network" href="/de/develop/mcp-endpoint">
-
-Einen MCP-Client auf Tale richten — Endpoint-URL, Tool-Inventar und eine kopierbare Anfrage stehen unter **Einstellungen > API > MCP**.
+Erlaube einem Skript oder Dienst Tale-Aufrufe und plane Austausch und Widerruf ein.
 
 </Card>
 
-<Card title="Zugangsdaten für Connectors" icon="plug" href="/de/platform/admin/connectors">
+<Card title="Einen MCP-Client verbinden" icon="network" href="/de/develop/mcp-endpoint">
 
-Die Zugangsdaten anlegen, als Standard setzen, deaktivieren und neu verbinden, mit denen die mitgelieferten Connectors handeln — das, was Agenten und Automatisierungen außerhalb von Tale erreichen.
+Lass einen externen Client die von Tale angebotenen Tools finden und nutzen.
+
+</Card>
+
+<Card title="Einen externen Dienst verbinden" icon="plug" href="/de/platform/admin/connectors">
+
+Hinterlege Zugangsdaten, wähle den Standard und erneuere abgelaufene Autorisierungen.
+
+</Card>
+
+<Card title="Eine Automatisierung erstellen" icon="workflow" href="/de/platform/automations/catalog">
+
+Beginne mit Ziel, leerem Workflow oder Paket; teste und veröffentliche anschließend eine Version.
 
 </Card>
 
 </CardGroup>
 
-## Wo das hingehört
+## Von der konkreten Verbindung ausgehen
 
-Entwickler ist die Brücke zwischen Tale und dem Rest der Codebasis, die die Organisation betreibt. Die natürliche Erstlektüre hängt davon ab, was du anbinden willst — für eingehend (etwas von außen ruft in Tale hinein) [API-Schlüssel](/de/platform/admin/api-keys) und den [MCP-Endpoint](/de/develop/mcp-endpoint); für ausgehend (etwas in Tale greift nach außen) [Zugangsdaten für Connectors](/de/platform/admin/connectors) und die [Secrets](/de/platform/projects/project-agents) eines Projekt-Agenten.
+Für eingehende Anfragen beginne mit der [API-Referenz](/de/develop/api-reference) oder [Webhooks](/de/develop/webhooks). Soll ein Agent ein anderes System aufrufen, nutze nach Möglichkeit einen unterstützten Connector. Direkte Zugangsdaten in der Sandbox brauchen einen bewusst begrenzten Zugriff. [Projektagenten](/de/platform/projects/project-agents) erklärt die Ausstattung. Deployment-Dateien und Umgebungsvariablen gehören in die [Self-hosted-Konfiguration](/de/self-hosted/configuration/environment-reference).

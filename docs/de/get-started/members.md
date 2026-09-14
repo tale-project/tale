@@ -1,60 +1,53 @@
 ---
-title: Dein erster Tag mit Tale
-description: Der Einstieg für Mitglieder — chatte mit einem Agent, gib dem Arbeitsbereich ein Dokument und finde dich in Projekten und im Chatverlauf zurecht.
+title: Tale im Team nutzen
+description: Gespräche wiederfinden, Informationen passend ablegen und in einem Projekt arbeiten.
 ---
 
-Dieser Einstieg ist für alle, die Tale nutzen, statt es zu konfigurieren. In fünfzehn Minuten chattest du mit einem Agent, fügst ein Dokument hinzu, aus dem der ganze Arbeitsbereich schöpfen kann, und lernst, wo gemeinsame Arbeit lebt — die drei Handgriffe, die die meisten Tage abdecken.
+Deine tägliche Arbeit in Tale beginnt mit einem Gespräch oder einem Projekt. Diese Anleitung hilft dir, den passenden Ort für eine Frage, ein Dokument und gemeinsame Arbeit zu finden.
 
-Du brauchst ein angemeldetes Konto in einem Arbeitsbereich, in dem der Chat bereits antwortet — das ist der [Quickstart](/de/get-started/quickstart). Chatten und Stöbern funktionieren mit der Rolle **Mitglied**; die zwei Schreib-Handgriffe unten (ein Dokument hochladen, eine Aufgabe verschieben) brauchen **Redakteur** oder höher — fehlt dir ein Knopf, ist das die Rollengrenze, kein kaputter Arbeitsbereich.
+## Deinen Zugriff kennen
 
-<Steps>
+Du brauchst ein angemeldetes Konto und einen funktionierenden [ersten Chat](/de/get-started/quickstart). Rolle und Projektzugriff legen fest, was du lesen oder ändern darfst. Ein Mitglied nutzt die für diese Rolle verfügbaren Funktionen; gemeinsame Inhalte zu erstellen oder zu bearbeiten erfordert in der Regel die Rolle Bearbeiter oder höher. Fehlt ein Bedienelement, prüfe [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
-<Step title="Chatte mit einem Agent">
+## Eine Frage mit ausreichend Kontext stellen
 
-Deine erste Nachricht hast du schon im Quickstart geschickt — diesmal sieh zu, was der Agent daraus macht. Klicke auf **Neuer Chat**, frag etwas aus deiner echten Arbeit und klapp die Tool-Aufruf-Boxen über der Antwort auf: Sie zeigen, was der Agent gelesen oder ausgeführt hat, bevor er antwortete.
+Öffne **Chat** und wähle **Neuer Chat**. Beschreibe die Aufgabe, gib die nötigen Informationen mit und nenne das gewünschte Ergebnisformat. Füge etwa Besprechungsnotizen ein und bitte um Entscheidungen, Zuständige und offene Fragen.
 
-Soll die Antwort aus einem Dokument kommen, lad es zuerst unter **Wissen** hoch — der Assistent durchsucht die Dokumente der Organisation und belegt, was er verwendet hat. Der nächste Schritt zeigt genau diesen Upload.
+Lies die Antwort, bevor du sie verwendest. Enthält sie eine Quellenangabe, öffne die Quelle und prüfe, ob sie die Aussage belegt. Eine flüssige Antwort beweist nicht, dass das richtige Dokument verwendet wurde. [Wirksam chatten](/de/tutorials/member/chat-effectively) zeigt, wie du mit Anschlussfragen weiterkommst.
 
-</Step>
+## Informationen passend ablegen
 
-<Step title="Gib dem Arbeitsbereich ein Dokument">
+| Du möchtest… | Verwende… |
+| --- | --- |
+| Eine Datei in diesem Gespräch besprechen | Einen [Chat-Anhang](/de/platform/chat/attachments) |
+| Quellenmaterial beim Projekt behalten | Den [Wissen-Tab des Projekts](/de/platform/projects/manage-files) |
+| Freigegebenes Material als Organisationswissen bereitstellen | [Wissensdokumente](/de/platform/knowledge/documents) |
+| Einen kurzen wiederverwendbaren Artikel pflegen | Einen [Wissenseintrag](/de/platform/knowledge/knowledge-entries) |
 
-Wissen überdauert jeden Chat und zitiert sich in den Antworten selbst. Soll ein Dokument jedem Agent und jedem Teammitglied zur Verfügung stehen, öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen**, dann **Von deinem Gerät**, wähl die Datei und klicke auf **Hochladen**. Das Dokument erscheint in der Tabelle und wird im Hintergrund indiziert — sobald es indiziert ist, zitieren Agents es in ihren Antworten. Das Upload-Menü erscheint ab Redakteur; mit der Rolle Mitglied liest und durchsuchst du die Bibliothek und gibst die Datei einem Redakteur zum Hinzufügen.
+Lege vor dem Hochladen fest, wer die Informationen nutzen soll. Organisationswissen und Projektdateien haben unterschiedliche Zugriffsgrenzen. Hochladen und Suchbarkeit sind getrennte Schritte. Warte auf die Indexierung, bevor du den Abruf testest.
 
-<Frame caption="Die Dokumente-Tabelle nach ein paar Uploads.">
+<Frame caption="Die Dokumentliste zeigt hochgeladene Dateien und ihren Indexierungsstatus.">
 
-![Die Dokumente-Tabelle im Bereich Wissen mit drei hochgeladenen Textdateien, den Markdown-Dokumenten der Wissenseinträge und ihrem Indizierungsstatus.](/images/get-started/documents-list.webp)
-
-</Frame>
-
-<Check>
-
-Stell in einem neuen Chat eine Frage, die nur dein Dokument beantworten kann. Eine Antwort, die das Dokument zitiert, beweist den Index von Anfang bis Ende.
-
-</Check>
-
-</Step>
-
-<Step title="Finde die Arbeit des Teams in Projekten">
-
-Öffne **Projekte** in der Sidebar. Ein Projekt bündelt alles zu einem Vorhaben — Aufgaben auf einem Board, geteilte Dateien, Projekt-Chats und eigene Agents. Öffne ein Projekt und wechsle auf dem Tab **Aufgaben** zwischen **Board** und **Liste**; mit Bearbeitungszugriff (ab Redakteur) ziehst du eine Aufgabe zwischen den Spalten, um ihren Status zu ändern — bleibt die Karte nach einem Neuladen in ihrer neuen Spalte, ist die Änderung für alle gespeichert.
-
-<Frame caption="Das Aufgaben-Board eines Projekts — zieh Karten zwischen den Spalten.">
-
-![Ein Projekt-Aufgabenboard mit dem Titel Website-Relaunch und sieben Aufgabenkarten, ein bis zwei je Spalte, verteilt über Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
+![Die Dokumenttabelle zeigt Quelldateien mit ihrem Indexierungsstatus.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-</Step>
+Kannst du eine gemeinsame Quelle nicht hinzufügen, bitte eine Person mit Bearbeitungsrechten darum. Nenne die Zielgruppe und den vorgesehenen Ablageort.
 
-<Step title="Finde zurück zu deinen Chats">
+## In einem Projekt arbeiten
 
-Chats verschwinden nie stillschweigend. Klicke über dem Chat auf **Verlauf anzeigen**, um die Verlaufs-Sidebar zu öffnen — jeder Chat, den du in diesem Arbeitsbereich fortsetzen kannst, der neueste zuerst. Benennst du einen Chat um, behält er diesen Titel dauerhaft; löschst du einen, wandert er in den Papierkorb des Arbeitsbereichs, statt zerstört zu werden.
+Öffne **Projekte** und wähle ein zugängliches Projekt. Unter **Aufgaben** siehst du die Arbeit, unter **Wissen** die Projektdateien und unter **Chats** die Gespräche. Projektchats bleiben persönlich, bis du sie mit dem Projekt teilst.
 
-</Step>
+<Frame caption="Das Board gruppiert Arbeit nach Status; eine Karte öffnet die Aufgabendetails.">
 
-</Steps>
+![Ein Projektboard ordnet Aufgaben den Spalten Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen zu.](/images/platform/projects-task-board.webp)
 
-## Wo du jetzt stehst
+</Frame>
 
-Du kannst chatten, den Arbeitsbereich mit Wissen füttern und dich in gemeinsamer Arbeit bewegen — die tägliche Schleife eines Mitglieds. Als Nächstes lohnen sich [Chat-Grundlagen](/de/platform/chat/basics) für das mentale Modell hinter dem Chat und [Projekte nutzen](/de/tutorials/member/use-projects) für einen tieferen Projekt-Walkthrough. Sobald du bereit bist, einen eigenen Agent zu bauen, wechsle zum [Einstieg für Redakteure](/de/get-started/editors).
+Öffne eine Aufgabe und lies Beschreibung, Zuweisung und Diskussion. Mit Bearbeitungsrechten kannst du sie aktualisieren und nach dem Neuladen das gespeicherte Ergebnis prüfen. [Projektaufgaben verwalten](/de/platform/projects/tasks) erklärt die tägliche Aufgabenarbeit; [Projekte nutzen](/de/tutorials/member/use-projects) führt durch ein vollständiges Beispiel.
+
+## Zur Arbeit zurückkehren
+
+Die Chat-Seitenleiste enthält deinen Gesprächsverlauf. Blende sie bei Bedarf mit **Chats anzeigen** ein und öffne das Gespräch erneut. Beginne für ein neues Thema einen neuen Chat und teile Projektgespräche bewusst, wenn andere sie benötigen.
+
+Sprache und Erscheinungsbild findest du unter **Konto verwalten**. Die [Einstellungen](/de/platform/member/preferences) erklären weitere Kontofunktionen und wo sie wirken.

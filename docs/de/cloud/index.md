@@ -1,49 +1,44 @@
 ---
-title: Cloud
-description: Tale Cloud ist die verwaltete Edition. Tale betreibt den Stack, deine Daten liegen in der Schweiz oder in der EU, und die einzige Betriebsaufgabe deines Teams ist, das Produkt zu nutzen.
-kind: index
+title: Tale Cloud
+description: Eine verwaltete Tale-Instanz nutzen und die Zuständigkeiten im Betrieb verstehen.
 ---
 
-Tale Cloud ist die verwaltete Edition. Tale betreibt die Infrastruktur, deine Daten liegen in der Schweiz oder in der EU, und die einzige Betriebssorge deines Teams ist, das Produkt zu nutzen. Der Code ist identisch mit der selbst gehosteten Variante; der Unterschied liegt darin, wer ihn laufen hält.
+Mit Tale Cloud nutzt du eine verwaltete Tale-Instanz. Dein Team erhält dieselben Produktfunktionen wie in der Open-Source-Ausgabe; Tale betreibt den Dienst gemäß eurem Enterprise-Vertrag.
 
-Dieser Abschnitt behandelt die Themen, die spezifisch für Cloud sind — Onboarding, Regionen und Datenresidenz, Abrechnung, die Compliance-Position, die du einem Auditor vorlegen kannst, und wie du auf selbst gehostet migrierst, wenn sich deine Anforderungen ändern. Jede andere Feature-Referenz lebt einen Reiter weiter unter Plattform — identisch unabhängig von der Edition.
-
-## Seiten in diesem Abschnitt
+## Wähle deine nächste Aufgabe
 
 <CardGroup cols="2">
 
-<Card title="Onboarding" icon="rocket" href="/de/cloud/onboarding">
+<Card title="Zugang zur Instanz erhalten" href="/de/cloud/onboarding">
 
-Instanz anfordern, Org erstellen, ersten Modell-Anbieter konfigurieren, ersten Agent veröffentlichen. Etwa eine Stunde für einen Redakteur.
-
-</Card>
-
-<Card title="Datenresidenz" icon="map-pin" href="/de/cloud/data-residency">
-
-Wo deine Daten liegen, welche Sub-Auftragsverarbeiter sie berühren und was sich ändert, wenn du die Region wechselst.
+Eine Instanz anfragen oder der vorhandenen Instanz deiner Organisation beitreten.
 
 </Card>
 
-<Card title="Abrechnung" icon="credit-card" href="/de/cloud/billing">
+<Card title="Kosten und Rechnungen verstehen" href="/de/cloud/billing">
 
-Pläne, Sitze, abrechenbare Komponenten, Budgets, und wo du die Rechnung findest.
-
-</Card>
-
-<Card title="Vertrauen und Compliance" icon="shield-check" href="/de/cloud/trust-and-compliance">
-
-Die Zertifizierungen, die Tale mitbringt, die geteilte Verantwortung und was du als Nachweis vorlegen kannst.
+Dienstleistungskosten von Modellnutzung trennen und den passenden Kontakt finden.
 
 </Card>
 
-<Card title="Auf selbst gehostet migrieren" icon="server" href="/de/cloud/migrate-to-self-hosted">
+<Card title="Datenflüsse prüfen" href="/de/cloud/data-residency">
 
-Aus Cloud exportieren, selbst gehostete Instanz aufsetzen, importieren.
+Hosting sowie die Anbieter und Werkzeuge prüfen, die Inhalte verarbeiten.
+
+</Card>
+
+<Card title="Eine Sicherheitsprüfung vorbereiten" href="/de/cloud/trust-and-compliance">
+
+Zertifizierungsnachweise sammeln und eure Zuständigkeiten prüfen.
+
+</Card>
+
+<Card title="Den Wechsel auf eigene Infrastruktur planen" href="/de/cloud/migrate-to-self-hosted">
+
+Eine betreute Migration koordinieren und das Zielsystem prüfen.
 
 </Card>
 
 </CardGroup>
 
-## Wo das hingehört
-
-Cloud ist die Eingangstür; Plattform ist der Ort, an dem die eigentliche Arbeit stattfindet. Sobald deine Organisation eingeloggt ist und der erste Agent läuft, verbringt dein Team nahezu die gesamte Zeit auf den Plattform-Seiten, nicht hier. Die eine Seite, die sich bei jeder Änderung deiner Betriebslage erneut lesen lohnt, ist [Datenresidenz](/de/cloud/data-residency) — sie zeigt jedes externe System, das deine Daten kreuzen.
+Für Chats, Projekte, Agenten und Einstellungen nutze die [Plattformanleitungen](/de/platform). Die Cloud-Seiten erklären Hosting und Zuständigkeiten; die Produktabläufe sind dieselben.

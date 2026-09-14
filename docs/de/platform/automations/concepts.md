@@ -3,7 +3,7 @@ title: Automatisierungskonzepte
 description: Das Modell hinter jeder Automatisierung — ein Workflow-Dokument, eine Versionshistorie, die sich nie ändert, genau eine live geschaltete Version, die Trigger, die sie starten, und die Läufe, die sie aufzeichnet.
 ---
 
-Eine Automatisierung ist ein gespeichertes Workflow-Dokument unter einem Namen — zusammen mit allem, was die Plattform darum herum aufbewahrt: der Historie seiner Versionen, der einen Version, die live ist, den Triggern, die sie starten dürfen, und dem Protokoll jedes Laufs. Öffne **Automatisierungen** in der Seitenleiste, und jede Zeile ist einer dieser Namen, mit der Version daneben, die live ist. Drei Gedanken auf dieser Seite bestimmen, wie sich alles Weitere verhält — Versionen ändern sich nie, Live-Schalten ist ein eigener Schritt, und ein Trigger hängt am Namen statt an einer Version —, also lies sie, bevor du etwas baust.
+Nutze eine Automatisierung für Arbeit mit einem wiederholbaren Ablauf. Der Workflow beschreibt die Schritte; gespeicherte Versionen erhalten jede Fassung, die Bereitstellung wählt die Version für Live-Läufe und ein Trigger kann sie nach Zeitplan oder Ereignis starten. Jeder Lauf zeigt Eingabe, Ergebnisse und Aktionen.
 
 Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine Freigabekarte vor der Kamera, mit Untertiteln — aufgenommen auf der früheren Version, wo die Karte im Chat saß; in dieser Version sitzt sie auf der Detailseite des Laufs.
 
@@ -92,7 +92,7 @@ Eine Version wird erst live-fähig, wenn ihre eigenen Tests bestanden sind. Test
 
 <Note>
 
-Eine Automatisierung ohne live geschaltete Version lässt sich überhaupt nicht starten — weder von einem Trigger noch von Hand. Speichere eine Version und schalte sie dann live.
+Ein Live-Lauf braucht eine bereitgestellte Version. Einen gespeicherten Entwurf kannst du vorher mit **Testlauf** prüfen.
 
 </Note>
 
@@ -114,17 +114,16 @@ Läufe gibt es in zwei Modi. **Test** berührt die Außenwelt nie und ist die sc
 
 Ein Lauf, der eine Freigabe braucht, schlägt nicht fehl und startet nicht neu. Er pausiert im Status `waiting`, und sobald die Freigabe beantwortet ist, setzt er an genau der Node wieder ein, an der er stehen geblieben war, und trägt die Antwort weiter. Ein Lauf, der auf eine menschliche Eingabe wartet, verhält sich genauso. In `waiting` parkt ein Lauf auch, solange ein Agent-Turn noch arbeitet oder eine Node pollt, bis ihre Bedingung gilt — die brauchen niemanden, und der Lauf nennt, in welcher Art Warten er steckt (`waitingFor`: `approval`, `ask`, `agent` oder `repeat`), „braucht eine Person“ liest sich also nie am Status allein ab. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt die Kontrollpunkte und was jede Entscheidung hinterlässt.
 
-## Die richtige Einheit wählen
+## Chat, Aufgabe oder Automatisierung wählen
 
-| Greif zu … bei                                                                     | Automatisierung | Agent | Agent-Webhook |
-| ---------------------------------------------------------------------------------- | --------------- | ----- | ------------- |
-| Arbeit mit mehreren Schritten, Verzweigungen, Zeitplänen oder Freigaben dazwischen | ✓               |       |               |
-| Etwas, das nach der Uhr laufen oder einen Webhook beantworten muss                 | ✓               |       |               |
-| Einer wiederkehrenden Frage im Chat, ohne externes System                          |                 | ✓     |               |
-| Einer Agent-Antwort pro eingehendem POST                                           |                 |       | ✓             |
+| Bedarf | Nutze |
+| --- | --- |
+| Eine Frage stellen und die Antwort besprechen | Chat |
+| Ein geprüftes Ergebnis mit Zuständigkeit erstellen | Eine Projektaufgabe, bei Bedarf einem Agenten zugewiesen |
+| Abhängige Schritte ausführen oder auf Zeitplan, Webhook oder Ereignis reagieren | Eine Automatisierung |
 
-Prüf den Katalog, bevor du baust — die Automatisierung, die du brauchst, wird vielleicht schon mitgeliefert. Ein [Webhook-Trigger](/de/platform/automations/triggers) ist die eingehende Naht; greif dazu, wenn eine externe Payload einen Lauf starten soll.
+Prüfe vor dem Erstellen die [mitgelieferten Automatisierungen](/de/platform/automations/builtin). Ein Webhook startet eine Automatisierung; er ist keine eigene Art von Projektagent.
 
 ## Das Modell in die Praxis bringen
 
-Eine Automatisierung ist ein Dokument, geführt als ununterbrochene Kette von Versionen, von denen genau eine live ist, mit Triggern, die an ihrem Namen hängen statt an irgendeiner Version — und genau das macht Bearbeiten sicher, Zurückrollen billig und einen fehlgeschlagenen Lauf reproduzierbar. [Der Workflow-Editor](/de/platform/automations/editor) ist das praktische Handbuch zum Speichern, Testen, Live-Schalten und Zurückrollen; [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) führt zu denen, die schon mitgeliefert werden.
+Workflow, Versionen, Bereitstellung und Trigger sind getrennte Bestandteile einer Automatisierung. Folge dem [Workflow-Editor](/de/platform/automations/editor), um eine Änderung zu testen und live zu schalten. Die [Ausführungsprotokolle](/de/platform/automations/execution-logs) zeigen, was ein Lauf getan hat.

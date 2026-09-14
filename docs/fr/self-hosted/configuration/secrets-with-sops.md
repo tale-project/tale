@@ -1,76 +1,57 @@
 ---
-title: Secrets avec SOPS
-description: Comment Tale chiffre les clés de fournisseurs sur disque avec SOPS et age, les trois modes de stockage et le walk complet de rotation de clé.
+title: Protéger les secrets de configuration avec SOPS
+description: Distingue le chiffrement des fichiers de celui de la base et change les clés age sans perdre l’accès.
 ---
+Tale utilise SOPS et age pour les fichiers de secrets de configuration compatibles, notamment les connexions à la base documentaire et au stockage objet. Les identifiants actuels des fournisseurs AI sont stockés séparément dans la base applicative et utilisent `ENCRYPTION_SECRET_HEX`. Changer une clé age ne modifie pas ces identifiants.
 
-Tale stocke les clés API des fournisseurs dans des fichiers `providers/*.secrets.json` sur disque. Le mode par défaut après `tale init` chiffre ces fichiers avec SOPS en utilisant une clé age ; un mode alternatif lit plusieurs clés depuis un fichier (le chemin de rotation) ; un troisième mode garde les fichiers en clair au mode 0600 pour les environnements où le disque est chiffré au repos et où la rotation est gérée en externe. Cette page est le walkthrough opérateur des trois modes et du chemin de rotation sûr.
+## Identifier le secret concerné
 
-Les variables d'env qui pilotent les modes sont `SOPS_AGE_KEY` et `SOPS_AGE_KEY_FILE` — leurs lignes de référence vivent dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference#provider-secrets-encryption). Cette page est la version plus longue.
+Le mode de stockage détermine la clé à utiliser :
 
-## Les trois modes
+| Stockage du secret | Clé de chiffrement | Conséquence opérationnelle |
+| --- | --- | --- |
+| Fichier de configuration `*.secrets.json` compatible SOPS | `SOPS_AGE_KEY` ou `SOPS_AGE_KEY_FILE` | Conserve une clé capable de déchiffrer chaque fichier et sauvegarde retenus. |
+| Identifiants de fournisseurs et autres valeurs Secret Box en base | `ENCRYPTION_SECRET_HEX` | Remplacer la clé rend les données chiffrées illisibles ; une rotation age ne les migre pas. |
+| Identifiant de fournisseur issu d’une variable d’environnement | `TALE_PROVIDER_KEY_*` | Change le secret dans le gestionnaire du déploiement et redémarre ses consommateurs. |
 
-| Mode            | Variables d'env                    | Quand utiliser                                                    |
-| --------------- | ---------------------------------- | ----------------------------------------------------------------- |
-| Clé age inline  | `SOPS_AGE_KEY=AGE-SECRET-KEY-1...` | Défaut après `tale init`. Hôte unique, clé unique.                |
-| Fichier de clés | `SOPS_AGE_KEY_FILE=/path/to/keys`  | Requis pour la rotation. Une clé age par ligne, commentaires `#`. |
-| Clair à 0600    | Les deux non définis               | Disque chiffré au repos, ou outillage externe écrit les fichiers. |
+Un ancien fichier `providers/<name>.secrets.json` peut subsister dans une configuration historique. Sa présence ne signifie pas que les identifiants actuels l’utilisent. Consulte [Fournisseurs](/fr/self-hosted/configuration/providers) pour le modèle actuel.
 
-Le conteneur plateforme choisit le mode au boot. La forme inline est la plus simple ; la forme fichier est la seule qui supporte plusieurs lecteurs (ce qui rend la rotation possible sans downtime) ; la forme en clair saute SOPS entièrement et fait confiance au système de fichiers.
+## Choisir une source de clé age
 
-## Mode chiffré au premier boot
+Une valeur directe `SOPS_AGE_KEY` prime sur `SOPS_AGE_KEY_FILE`. Choisis explicitement une source. Le fichier accepte une clé privée age par ligne et ignore les lignes vides et les commentaires `#`. Tale inclut tous les destinataires configurés lorsqu’il chiffre un nouveau fichier SOPS.
 
-`tale init` génère une paire de clés age et écrit la moitié privée dans `SOPS_AGE_KEY` de ton `.env`. Les fichiers de secret de fournisseur écrits via **Paramètres > Fournisseurs** sont chiffrés à la sauvegarde :
+Le chemin est résolu depuis le processus qui lit le fichier. Un chemin hôte dans `.env` ne suffit pas : monte le fichier dans chaque conteneur concerné, indique son chemin interne et restreins l’accès. Recrée les conteneurs après une modification de leur environnement ; `docker compose restart` ne recharge pas les définitions modifiées.
 
-```bash
-# Inspecte — le fichier est du JSON SOPS-chiffré, pas la clé API en clair
-cat providers/openai.secrets.json
-# {
-#   "apiKey": "ENC[AES256_GCM,data:...,iv:...,tag:...]",
-#   "sops": { ... }
-# }
-```
+Si les deux variables sont absentes, le module SOPS écrit les fichiers compatibles en JSON non chiffré avec les permissions `0600`. Il reconnaît toujours les fichiers déjà chiffrés et refuse de les lire sans clé. Retirer les variables ne déchiffre aucun fichier existant.
 
-Le déchiffrement se passe in-process quand le conteneur plateforme lit le fichier. La clé age ne quitte jamais la mémoire du conteneur plateforme.
+## Préparer une rotation
 
-## Faire tourner la clé age
+Inventorie les fichiers SOPS et leurs sauvegardes avant de remplacer une clé. Garde une copie protégée de l’ancienne clé et vérifie le déchiffrement d’un fichier représentatif sans afficher son contenu ni l’envoyer dans les logs.
 
-La rotation est le seul chemin que la forme inline ne couvre pas — seul `SOPS_AGE_KEY_FILE` te laisse accepter du ciphertext lisible par l'ancienne et la nouvelle clé pendant le cutover. Le walk :
+Crée une nouvelle clé age avec tes outils habituels de gestion des secrets. Prépare un fichier protégé contenant **l’ancienne clé privée et la nouvelle**. N’écrase pas l’ancien fichier avec une commande qui ne génère que la nouvelle clé.
 
-```bash
-# 1. Génère une nouvelle clé age
-age-keygen -o /etc/tale/age-keys.txt
+Monte ce fichier dans le déploiement et utilise `SOPS_AGE_KEY_FILE`. Retire la valeur directe de l’environnement des processus concernés, sinon elle reste prioritaire. Déploie le changement et vérifie que les connexions existantes fonctionnent.
 
-# 2. Ajoute la nouvelle clé comme deuxième ligne dans le fichier
-echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
+## Rechiffrer et vérifier
 
-# 3. Pointe .env sur le fichier et redémarre le conteneur plateforme
-sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
-sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart platform backend-api backend-worker
-```
+Réécris chaque fichier concerné par son mécanisme de sauvegarde pris en charge ou par une procédure SOPS contrôlée. Tale chiffre les nouveaux fichiers pour tous les destinataires configurés. Ajouter une clé ne modifie pas les fichiers existants.
 
-Maintenant l'ancienne et la nouvelle clé peuvent déchiffrer les fichiers existants. Re-sauvegarde la clé API de chaque fournisseur sous **Paramètres > Fournisseurs** — chaque sauvegarde produit du ciphertext lisible par les deux clés. Une fois que chaque fournisseur a été re-sauvegardé (la colonne **Dernière rotation** dans le tableau des fournisseurs te dit lesquels tiennent encore l'ancien ciphertext), retire l'ancienne clé du fichier :
+<Warning>
 
-```bash
-# 4. Drop la ligne de l'ancienne clé et redémarre à nouveau
-sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart platform backend-api backend-worker
-```
+Ne retire pas l’ancienne clé avant d’avoir vérifié chaque fichier actif avec la nouvelle clé seule. Conserve l’ancienne clé sous protection pour les sauvegardes historiques qui en ont encore besoin.
 
-L'ordre est porteur : ne retire jamais l'ancienne clé avant que chaque fichier soit re-chiffré, sinon le conteneur plateforme échouera à lire les fichiers encore-anciens au prochain déchiffrement.
+</Warning>
 
-## Basculer en clair
+Déploie ensuite un fichier qui ne contient que la nouvelle clé. Redémarre les processus concernés pour vider les caches déchiffrés, puis teste chaque connexion. Le démarrage d’un processus ne prouve pas à lui seul que tous les fichiers sont lisibles.
 
-Quand le disque hôte est chiffré au repos (LUKS, chiffrement AWS EBS, GCP CSEK) et que tu ne veux pas d'une deuxième couche de gestion de clés, le mode en clair est l'option supportée. Commente `SOPS_AGE_KEY` et `SOPS_AGE_KEY_FILE`, redémarre et re-sauvegarde chaque fournisseur — les fichiers sont maintenant du JSON au mode 0600.
+## Résoudre un échec de déchiffrement
 
-Le modèle de risque change : un dump de système de fichiers leaké est maintenant un dump de credentials leaké. Choisis ce mode seulement quand le chiffrement de disque est réel (pas une case à cocher) et audite l'histoire de backup de l'hôte pour confirmer qu'aucun snapshot en clair n'échappe.
+| Symptôme | Vérification |
+| --- | --- |
+| Un fichier chiffré est trouvé sans clé | Rétablis la clé correspondante ; désactiver le chiffrement ne convertit pas le fichier. |
+| La lecture du fichier de clés échoue | Vérifie le montage, le chemin interne, le propriétaire et les permissions. |
+| L’ancienne clé reste sélectionnée | Retire la valeur non vide de `SOPS_AGE_KEY` avant d’utiliser le fichier. |
+| La nouvelle clé ne lit pas un fichier | Conserve l’ancienne clé et rechiffre ce fichier avant de terminer la rotation. |
+| Un fournisseur échoue après modification de `ENCRYPTION_SECRET_HEX` | Rétablis l’accès aux secrets en base ; changer les clés age ne les répare pas. |
 
-## Stores de secret externes
-
-Quand tes clés vivent déjà dans Vault, un gestionnaire de secrets cloud ou Kubernetes Secrets, le pattern de première classe est la source de clé par variable d'environnement : pointe chaque fournisseur sur une **variable d'environnement** avec `secretsEnv` et laisse ton store de secrets remplir cette variable. Aucun fichier en clair ne touche le disque, et la barrière de préfixe empêche un acteur qui écrit la config de lire un secret de déploiement étranger. Le mécanisme complet — la barrière de préfixe `TALE_PROVIDER_KEY_`, l'ordre de résolution et le comportement de redémarrage au changement — vit dans [Fournisseurs](/fr/self-hosted/configuration/providers#environment-variable-key-source).
-
-L'approche par mount de fichier est l'alternative legacy : écris les fichiers `*.secrets.json` en clair depuis le store externe et fais tourner Tale en mode clair. Cela fonctionne toujours, mais pose la clé en clair sur le disque et casse si tu sauvegardes un fournisseur via l'UI — l'UI écrase le mount. Préfère la source par variable d'environnement, sauf si une contrainte impose la forme fichier.
-
-## Où cela s'inscrit
-
-Cette page est le guide opérateur complet de la couche SOPS ; les lignes de référence de variables d'env sont dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference#provider-secrets-encryption), et le format des fichiers fournisseur lui-même dans [Fournisseurs](/fr/self-hosted/configuration/providers). Si une clé est leakée, la rotation est le même walk ci-dessus exécuté en urgence.
+Pour les secrets gérés par Vault, Kubernetes ou un autre service externe, privilégie la [source par variable d’environnement](/fr/self-hosted/configuration/providers) lorsqu’elle est disponible. Conserve les clés avec ton plan de reprise, sous une protection distincte des sauvegardes qu’elles déchiffrent.

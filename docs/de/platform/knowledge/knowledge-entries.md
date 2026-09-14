@@ -1,38 +1,74 @@
 ---
 title: Wissenseinträge
-description: Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — von Hand oder über die API hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf.
+description: Halte eine kurze, gemeinsame Information fest, aktualisiere sie bei Änderungen und prüfe frühere Fassungen im Verlauf.
 ---
 
-Wissenseinträge sind die Faktenfläche der Wissensdatenbank. Wo ein Dokument eine ganze Datei trägt, trägt ein Eintrag einen kleinen, haltbaren Fakt — „Der Laden öffnet um 9“, „Das Rückgabefenster beträgt 3 Tage“ —, abgelegt unter einem Themennamen. Einträge fahren auf derselben Indexierungs-Pipeline wie Dokumente, jeder Agent mit passendem Umfang ruft sie also ab und zitiert sie wie jede andere Quelle; besonders macht sie, wie sie hereinkommen und wie Korrekturen ersetzen, was sie korrigieren.
+Ein Wissenseintrag eignet sich für kurze Informationen, die dein Team später wiederfinden soll: Supportzeiten, Rückgabefristen oder die Zuständigkeit für einen Prozess. Jeder Eintrag besteht aus Thema und Inhalt. Für eine vollständige Richtlinie oder einen Bericht wähle ein [Dokument](/de/platform/knowledge/documents); für benannte Felder und genaue Werte nutze [strukturierte Daten](/de/platform/knowledge/structured-data).
 
-<Frame caption="Der Wissenseinträge-Tab — Thema, Inhalt, Quelle und Indexierungsstatus pro Fakt.">
+Mitglieder können Einträge lesen. Zum Erstellen, Bearbeiten und Löschen brauchst du die Rolle Editor oder höher. Einträge gehören zum gemeinsamen Wissen der Organisation. Persönliche Notizen und Informationen, die nur für ein bestimmtes Projekt gedacht sind, gehören deshalb an einen anderen Ort.
 
-![Der Wissenseinträge-Tab mit drei von Hand hinzugefügten Fakten, jeder mit dem Quellen-Tag Manuell, dem Status-Badge Nicht indexiert und dem Knopf zum erneuten Indexieren.](/images/platform/knowledge-entries-list.webp)
+## Eine Information hinzufügen
+
+<Steps>
+
+<Step title="Das Formular öffnen">
+
+Gehe zu **Wissen > Wissenseinträge** und klicke auf **Eintrag hinzufügen**. Fehlt die Aktion, lass einen Administrator deine Rolle prüfen.
+
+</Step>
+
+<Step title="Ein dauerhaftes Thema wählen">
+
+Trage unter **Thema** zum Beispiel `Reaktionszeit des Supports` ein. Wähle einen Namen, der auch nach einer inhaltlichen Änderung passt. Das Thema darf bis zu 120 Zeichen lang sein und muss eindeutig sein. Meldet Tale ein Duplikat, bearbeite den vorhandenen Eintrag.
+
+</Step>
+
+<Step title="Den nötigen Zusammenhang festhalten">
+
+Schreibe unter **Inhalt** die Information, ihren Geltungsbereich und mögliche Bedingungen. Markdown wird unterstützt; bis zu 8.000 Zeichen sind möglich. Zum Beispiel:
+
+```markdown
+Der Support strebt eine erste Antwort innerhalb von 45 Minuten während
+der Geschäftszeiten an: Montag–Freitag, 09:00–17:00 Uhr MEZ. Das ist ein
+Antwortziel, keine Frist zur Problemlösung. Zuständig: Support Operations.
+```
+
+Vermeide relative Zeitangaben wie „nächsten Freitag“ und Verweise wie „die Richtlinie oben“. Der Eintrag muss auch für sich allein verständlich sein.
+
+</Step>
+
+<Step title="Speichern und die Indexierung prüfen">
+
+Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle, Indexierungsstatus und Änderungszeit in der Tabelle. Öffne ihn, um den gesamten Inhalt zu lesen. Die Indexierung läuft im Hintergrund: Ein gespeicherter Eintrag ist nicht sofort für die Suche bereit.
+
+</Step>
+
+</Steps>
+
+<Frame caption="Prüfe Information und Indexierungsstatus in der Tabelle, bevor du dich in einer Antwort darauf verlässt.">
+
+![Die Tabelle der Wissenseinträge zeigt drei manuelle Informationen mit Thema, Inhalt, Quelle, Indexierungsstatus und Änderungszeit.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 
-## Woher Einträge kommen
+## Eine vorhandene Information korrigieren
 
-**Nicht aus dem Chat.** Die frühere Version ließ einen Agenten einen Fakt aus einem Gespräch als Karte **In Wissensdatenbank speichern** vorschlagen, die du freigegeben hast. Diese Karte gibt es in dieser Version nicht: Der Chat-Assistent hat kein Schreib-Tool und schlägt nichts zum Speichern vor, kein Agent schreibt also überhaupt in das geteilte Wissen der Organisation. Ein Eintrag, dessen **Quelle** **Chat** zeigt, stammt aus der früheren Version; neue Einträge kommen von Hand oder über den Knowledge-Entries-Endpoint der REST-API.
+Öffne das Zeilenmenü, wähle **Bearbeiten**, ändere den Inhalt und klicke auf **Speichern**. Damit entsteht eine neue aktuelle Fassung; ihr Text wird erneut zur Indexierung vorgemerkt. Pro Thema gibt es einen aktuellen Eintrag. Eine Korrektur am bestehenden Eintrag vermeidet widersprüchliche Antworten.
 
-<Note>
+Öffne nach einer Korrektur die Details und den **Versionsverlauf**. Frühere Fassungen zeigen, was geändert wurde und wann sie ersetzt wurden; sie sind keine zusätzlichen aktuellen Informationen. Anwendungen können Einträge auch über die [REST-API](/de/develop/api-reference) erstellen und ändern.
 
-Einen Wissens-Schreib-Schalter pro Agent gibt es nicht einzuschalten. Ein Fakt landet in der Wissensdatenbank, weil ein Mensch ihn eingetippt oder ein Programm ihn über die API angelegt hat — nie, weil ein Modell beschlossen hat, sich etwas zu merken.
+<Tip>
 
-</Note>
+Wenn ein Chat eine nützliche Information liefert, prüfe sie anhand der Quelle. Erstelle oder bearbeite den Eintrag anschließend selbst. Chat speichert Informationen nicht automatisch in der Wissensbasis der Organisation.
 
-**Von Hand.** Klicke unter **Wissen > Wissenseinträge** auf **Eintrag hinzufügen**. Gib ein **Thema** (bis zu 120 Zeichen — kurz und stabil, wie eine Überschrift) und den **Inhalt** als Markdown (bis zu 8000 Zeichen), so geschrieben, dass er ohne umgebendes Gespräch verständlich ist. Die Spalte **Quelle** hält die zwei Herkünfte auseinander: **Chat** oder **Manuell**.
+</Tip>
 
-## Eine aktive Version pro Thema
+## Einen veralteten Eintrag entfernen
 
-Themen sind der Dedup-Schlüssel: Eine Bearbeitung ersetzt die aktive Version, statt eine zweite daneben zu stellen — die Wissensdatenbank serviert nie zwei Versionen desselben Fakts. Einen neuen Eintrag unter einem bestehenden Thema anzulegen wird mit einem Duplikat-Fehler abgewiesen; bearbeite stattdessen den bestehenden Eintrag.
+Wähle **Löschen** im Zeilenmenü und lies die Bestätigung. Dadurch verschwinden der Eintrag und seine früheren Fassungen aus dieser Ansicht; das zugehörige Dokument steht der Wissenssuche nicht mehr zur Verfügung. Sichere den Text vorher, falls du ihn noch brauchst. Für eine Korrektur ist **Bearbeiten** der passende Weg.
 
-Ersetzte Versionen gehen nicht verloren. Öffne einen Eintrag für seine Details — Indexierungsstatus, letzte Aktualisierung und den **Versionsverlauf** mit jeder abgelösten Version und dem Zeitpunkt der Ablösung. Nur die aktive Version ist für den Abruf indexiert; der Verlauf existiert für Audit und Nachschlagen. Über die API ist derselbe Verlauf `GET /api/v1/knowledge-entries/{id}/versions`, und `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` listet die abgelösten Versionen eines Themas, jede mit ihrem `supersededAt` — siehe die [API-Referenz](/de/develop/api-reference).
+## Wenn die Information in einer Antwort fehlt
 
-## Bearbeiten, Indexieren, Löschen
+Prüfe zuerst den aktuellen Eintrag: Ist er gespeichert und fertig indexiert? Benennt die Frage das Thema eindeutig? Ist die Indexierung fehlgeschlagen, behebe die angegebene Ursache und starte sie über die Wiederholungsaktion erneut. Bei anhaltenden Fehlern muss ein Administrator die Embedding-Konfiguration und die Indexierungsdienste prüfen.
 
-Bearbeiten erzeugt eine neue aktive Version und indexiert im Hintergrund neu — das **Status**-Badge fällt kurz in die Indexierung und kehrt zu **Indexiert** zurück, sobald die Suche den neuen Text aufgenommen hat. Löschen entfernt den ganzen Eintrag: Die Bestätigung warnt, dass er auch aus der Wissensdatenbank verschwindet, Agenten ihn also nicht mehr finden, und dass sich die Aktion nicht rückgängig machen lässt. War der Fakt richtig, füge ihn neu hinzu.
-
-## Wo das hingehört
-
-Wissenseinträge sind die kleinste Einheit der Wissensdatenbank: Ein einmal notierter Fakt wird etwas, das jede Bahn abruft, und eine aktive Version pro Thema garantiert, dass der alte Fakt verschwindet, sobald der neue landet. Für die dateiförmige Hälfte lies [Dokumente](/de/platform/knowledge/documents); wie der Chat-Assistent und Projekt-Agenten abrufen, steht im [Wissens-Überblick](/de/platform/knowledge/overview).
+Bitte den Assistenten um einen Quellenbeleg, öffne die Quelle und vergleiche sie mit dem Eintrag. Eine plausibel klingende Antwort beweist noch nicht, dass die aktuelle Information verwendet wurde. Die gemeinsamen Indexierungszustände erklärt [Dokumente](/de/platform/knowledge/documents).

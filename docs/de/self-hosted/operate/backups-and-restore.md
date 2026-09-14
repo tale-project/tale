@@ -3,9 +3,9 @@ title: Backups und Restore
 description: Volume-Snapshots über `tale backup`, der automatische Pre-Migrations-Snapshot, Retention, die Off-Host-Kopie und der `tale restore`-Drill.
 ---
 
-Tales Backup-Einheit ist der Volume-Snapshot: ein pausiertes, checksummengesichertes Tar der Kern-Daten-Volumes der Instanz, geschrieben in ein dediziertes `backups`-Volume, das neben den Daten lebt, die es schützt. Das CLI nimmt automatisch einen vor jedem Deploy-Schritt, der Daten migrieren kann, und `tale backup` nimmt einen auf Zuruf. Recovery ist `tale restore <snapshot-id>` plus ein Redeploy der passenden Version — dieses Paar ist die Antwort auf ein gescheitertes Upgrade und der Grund, warum `tale rollback` sich alles jenseits eines Patch-Schritts verweigern kann.
+Ein nutzbares Backup braucht Daten, die passende Bereitstellungsversion und die Schlüssel für verschlüsselte Geheimnisse. Diese Anleitung erklärt den Umfang eines CLI-Snapshots und die Wiederherstellung. Teste sie auf einem isolierten Ziel, bevor du sie im Störungsfall brauchst.
 
-Der Architektur-Kontext lebt in [Container-Architektur](/de/self-hosted/operate/container-architecture); diese Seite deckt ab, was ein Snapshot enthält, wann einer genommen wird, wie die Kopie vom Host runterkommt und den Restore-Walk.
+Externe Datenbanken und Objektspeicher benötigen einen abgestimmten eigenen Backup-Plan. Ein Snapshot gebündelter Docker-Volumes enthält nicht automatisch ausgelagerte Infrastruktur.
 
 ## Was ein Snapshot enthält
 

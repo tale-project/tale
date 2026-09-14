@@ -1,52 +1,48 @@
 ---
-title: Préférences
-description: Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, tes mémoires, et déconnexion.
+title: Gérer ton compte et tes préférences
+description: Modifie ton nom, protège ta connexion, choisis une langue et comprends les réglages personnels de Tale.
 ---
 
-Les préférences sont les molettes qui t’appartiennent plutôt qu’à l’org. Ton nom est ce que voient agents et coéquipiers dans les chats et les approbations. Ta langue et ton thème te suivent entre les appareils. Tes mémoires sont des faits qu’un agent a proposés à ton sujet et que tu as validés, tenus à l’écart de tout ce que l’Administrateur ou l’Éditeur a posé au niveau de l’org. Cette page cartographie où vit chaque levier et ce qu’il change.
+Les réglages du compte déterminent le nom visible par tes collègues et ta façon de te connecter. Le menu de profil permet aussi de changer d’organisation, d’équipe et de langue. Ces commandes sont accessibles sans rôle d’admin.
 
-La forme est volontairement à deux couches : le menu de profil (partout, à un clic de l’avatar) porte les bascules rapides ; **Paramètres > Compte** et **Paramètres > Personnalisation** portent les champs de compte plus profonds. Tout ici t’appartient — rien ne fuite vers d’autres membres ou d’autres orgs.
+## Modifier le nom visible par tes collègues
 
-## Le menu de profil
+Ouvre **Paramètres > Compte**. Sous **Profil**, modifie **Nom**, puis clique sur **Enregistrer** en haut de la page. La commande d’abandon restaure la valeur enregistrée. L’adresse e-mail reste en lecture seule, car elle identifie le compte utilisé pour la connexion et les notifications.
 
-Clique ton avatar en haut à droite. Le menu déroulant s’ouvre avec ton nom, ton e-mail et la version de build actuelle. Sous l’en-tête se trouvent quatre contrôles rapides que voit chaque membre quelle que soit sa rôle : le sélecteur de **thème** (Système / Clair / Sombre), le sous-menu de **langue** (English, Deutsch, Français), la ligne **Installer l'app** quand le navigateur peut installer Tale en tant que PWA, et **Se déconnecter**. Le thème et la langue prennent effet immédiatement et persistent par appareil.
+Ton nom est visible par les collègues. Ce n’est pas une instruction privée destinée à l’assistant.
 
-Le menu porte aussi un sélecteur d’organisation quand tu appartiens à plus d’une org et un filtre d’équipe quand ton org actuelle a des équipes. Ce ne sont pas des préférences — ils changent ce que Tale t’affiche, pas la manière dont Tale se comporte. Sous le filtre d’équipe, **Paramètres utilisateur** ouvre **Paramètres > Compte**, la page couverte ensuite.
+## Protéger la connexion
 
-## Compte — nom, e-mail, mot de passe, double authentification
+La section **Sécurité** propose **Changer le mot de passe**, ou **Définir le mot de passe** si ton compte n’en possède pas encore. Respecte les exigences affichées dans le dialogue. Changer le mot de passe ferme tes sessions : garde le nouveau à portée de main avant de confirmer.
 
-Ouvre **Paramètres > Compte**. Trois sections siègent sur la page : **Profil**, **Sécurité** et **Authentification à deux facteurs**.
+Configure une application sous **Authentification à deux facteurs** ou ajoute une passkey dans la section correspondante. Conserve les codes de secours dans un endroit accessible sans connexion à Tale. [Authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) couvre la configuration, la récupération et les exigences de l’organisation.
 
-La section Profil affiche d’abord ton **e-mail**, puis ton **nom** — l’e-mail suggère le nom que Tale propose, que tu peux modifier librement. Le nom s’édite en ligne ; la modification s’enregistre et se propage dans chaque chat et chaque approbation au prochain rendu. L’e-mail est en lecture seule — c’est avec lui que tu t’es connecté, et un changement passe par le support. Il n’y a pas de champ avatar sur la page ; Tale dérive un avatar à partir des initiales de ton nom.
+## Changer de langue ou d’espace de travail
 
-La section Sécurité tient un seul bouton : **Changer le mot de passe** si tu t’es inscrit avec e-mail et mot de passe, **Définir le mot de passe** si ton compte est fédéré via SSO et que tu veux ajouter un mot de passe comme repli. Les deux flux imposent la politique de mot de passe de l’org et affichent les règles en direct pendant que tu tapes, et un mot de passe actuel erroné est signalé directement sur le champ plutôt que comme une erreur passagère. Changer ton mot de passe te déconnecte de tous les appareils — le dialogue t’avertit avant que tu confirmes, et tu te reconnectes ensuite avec le nouveau mot de passe. La section Deux-facteurs apparie le compte à une app TOTP ou à une clé matérielle et affiche les codes de secours une fois à l’enrôlement.
+Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. **Équipe** restreint la vue à une équipe lorsque des équipes sont disponibles.
 
-## Les mémoires, et l’accord qui les précède
+Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu. Un filtre d’équipe change la vue, sans accorder l’accès aux données d’une autre équipe.
 
-Une mémoire est un court fait à ton sujet qu’un agent a proposé et que tu as gardé — une préférence que tu as exprimée, une contrainte que tu répètes sans cesse, un contexte qui mérite de voyager d’un chat à l’autre. Les mémoires sont la seule partie de ton compte dans laquelle un agent peut écrire, et c’est précisément pour cela que l’écriture passe par toi d’abord.
+## Comprendre la page Personnalisation
 
-En proposer une, c’est un tool que le modèle appelle : aucun processus d’arrière-plan ne lit tes conversations pour cela. L’appel inscrit l’entrée comme **en attente** et pose en même temps une ligne d’audit, parce que proposer un savoir durable sur une personne mérite d’être tracé avant même que quiconque soit d’accord. Une entrée en attente ne fait rien d’elle-même : elle patiente comme suggestion sous **Paramètres > Personnalisation** jusqu’à ce que tu l’enregistres ou l’écartes, et seule une mémoire enregistrée pourra être relue.
+Ouvre **Paramètres > Personnalisation** pour consulter **Instructions personnalisées** et **Souvenirs**. Les interrupteurs peuvent suivre les valeurs de l’organisation ou enregistrer un choix personnel. Les instructions enregistrées et les listes de souvenirs appartiennent à tes préférences.
 
-<Frame caption="Paramètres > Personnalisation — tes instructions personnalisées et les souvenirs que l’assistant a proposés, chacun derrière sa propre bascule au-dessus du défaut de l’org.">
+<Frame caption="La page Personnalisation contient les instructions personnelles enregistrées et les commandes des souvenirs.">
 
-![La page Personnalisation avec l’éditeur d’instructions personnalisées activé et rempli, et en dessous la section Souvenirs activée, qui ne liste encore aucune suggestion en attente ni aucun souvenir enregistré.](/images/platform/settings-preferences.webp)
+![La page Personnalisation affiche un éditeur d’instructions personnalisées et une section Souvenirs avec les suggestions en attente et les entrées enregistrées.](/images/platform/settings-preferences.webp)
 
 </Frame>
 
-<Info>
+<Note>
 
-Rien n’est ajouté à un prompt en ton nom. Une mémoire enregistrée n’atteint une réponse que si le modèle la cherche et que la recherche la renvoie — un modèle ne peut pas se donner un savoir durable sur toi en l’écrivant, et il ne peut pas consulter en douce une suggestion que tu as refusée.
+L’assistant de chat actuel n’utilise ni ces instructions personnelles ni les outils de souvenirs dans ses réponses. Enregistrer une préférence ici ne donne donc pas de contexte durable au chat. Écris la contrainte dans ton message ou utilise **Général > Instructions** dans le projet pour un contexte commun à ses chats.
 
-</Info>
+</Note>
 
-Les mémoires enregistrées figurent sur la même page, chacune avec un bouton pour la supprimer. Supprimer une mémoire la retire de ce qu’une recherche peut renvoyer, et c’est tout son effet — aucune seconde copie ne voyage dans un autre prompt.
+Si des souvenirs existent déjà, examine les suggestions en attente et ne garde que les entrées souhaitées. Supprime un souvenir lorsqu’il ne doit plus être conservé. Sa présence dans la liste ne prouve pas qu’un chat l’a consulté.
 
-L’interrupteur **Souvenirs** au-dessus des listes commande toute la fonction, pas seulement la page : quand il est coupé, l’assistant ne peut ni proposer une mémoire ni en relire une — une proposition faite pendant ce temps est refusée sur-le-champ, pas mise de côté — et ce que tu as déjà enregistré attend, intact, que tu le rallumes.
+## Archiver des chats ou se déconnecter
 
-## Se déconnecter
+Sous **Paramètres > Compte**, la section consacrée à tes chats propose des actions groupées d’archivage et de suppression. Lis la confirmation attentivement : une action groupée porte sur ton historique de chats. Utilise le menu d’une conversation si tu souhaites seulement ranger celle-ci.
 
-La ligne **Se déconnecter** en bas du menu de profil confirme via une boîte de dialogue avant de purger la session. Après confirmation, Tale fait un rechargement complet vers la page de connexion pour qu’aucun état périmé ne traîne dans l’onglet. La déconnexion est par appareil — te déconnecter sur ton laptop ne te déconnecte pas sur ton téléphone, et réciproquement.
-
-## Où cela s’inscrit
-
-Les préférences sont la ligne entre toi et le reste de l’org. L’Administrateur de l’org pose les valeurs par défaut — la politique de mot de passe, les modèles autorisés, la gouvernance qui s’applique à un chat — et tes préférences les remplacent là où Tale le permet. La lecture suivante à mettre en file est [Vue d’ensemble Membre](/fr/platform/member/overview) pour la carte du reste de la surface Membre, ou [Installer en tant qu’app](/fr/platform/member/install-as-app) si tu veux que Tale vive dans ton dock plutôt que dans tes onglets de navigateur.
+**Se déconnecter** dans le menu de profil ferme la session actuelle et ramène à la connexion. Déconnecte-toi après usage sur un appareil partagé. Pour un espace dédié sur ton propre appareil, consulte [Installer l’application](/fr/platform/member/install-as-app).

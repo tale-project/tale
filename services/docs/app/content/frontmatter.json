@@ -3,49 +3,48 @@
     "slug": "cloud/billing",
     "locale": "de",
     "frontmatter": {
-      "title": "Abrechnung",
-      "description": "Was Tale Cloud verrechnet, wie Budgets ausufernde Kosten stoppen und wo die Rechnung im Produkt erscheint."
+      "title": "Tarife, Rechnungen und Nutzung",
+      "description": "Cloud-Kosten, Modellnutzung und die Kostenkontrollen in Tale verstehen."
     }
   },
   "de:cloud/data-residency": {
     "slug": "cloud/data-residency",
     "locale": "de",
     "frontmatter": {
-      "title": "Daten-Residenz",
-      "description": "Wo deine Cloud-Daten leben, wo sie sich während eines einzelnen Chats bewegen, welche Sub-Prozessoren sie berühren und was in der Region bleibt gegenüber was sie verlässt."
+      "title": "Datenresidenz in der Cloud verstehen",
+      "description": "Speicherort und Datenflüsse zu Anbietern und Konnektoren vor der Cloud-Nutzung prüfen."
     }
   },
   "de:cloud/index": {
     "slug": "cloud/index",
     "locale": "de",
     "frontmatter": {
-      "title": "Cloud",
-      "description": "Tale Cloud ist die verwaltete Edition. Tale betreibt den Stack, deine Daten liegen in der Schweiz oder in der EU, und die einzige Betriebsaufgabe deines Teams ist, das Produkt zu nutzen.",
-      "kind": "index"
+      "title": "Tale Cloud",
+      "description": "Eine verwaltete Tale-Instanz nutzen und die Zuständigkeiten im Betrieb verstehen."
     }
   },
   "de:cloud/migrate-to-self-hosted": {
     "slug": "cloud/migrate-to-self-hosted",
     "locale": "de",
     "frontmatter": {
-      "title": "Auf Self-hosted migrieren",
-      "description": "Wann Self-hosting Cloud schlägt, was mitkommt und was nicht, und wie du deine Org überträgst, ohne laufende Agents zu brechen."
+      "title": "Den Wechsel in den Eigenbetrieb planen",
+      "description": "Eine betreute Cloud-Migration vorbereiten, das Ziel prüfen und einen Rückfallplan vereinbaren."
     }
   },
   "de:cloud/onboarding": {
     "slug": "cloud/onboarding",
     "locale": "de",
     "frontmatter": {
-      "title": "Cloud-Onboarding",
-      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, ersten Projekt-Agenten anlegen, Chat öffnen."
+      "title": "Mit Tale Cloud beginnen",
+      "description": "Die Instanz erreichen, anmelden und einen funktionierenden Arbeitsbereich für das Team vorbereiten."
     }
   },
   "de:cloud/trust-and-compliance": {
     "slug": "cloud/trust-and-compliance",
     "locale": "de",
     "frontmatter": {
-      "title": "Trust und Compliance",
-      "description": "Welche Compliance-Haltung Tale Cloud ausliefert, wer was auditiert, welche Kontrollen bei dir liegen und wie du Vorfälle meldest."
+      "title": "Sicherheit und Compliance",
+      "description": "Zertifizierungen einordnen, Zuständigkeiten klären und Nachweise für eine Sicherheitsprüfung sammeln."
     }
   },
   "de:develop/ai-assisted-development": {
@@ -69,8 +68,8 @@
     "slug": "develop/compose-files",
     "locale": "de",
     "frontmatter": {
-      "title": "Contributor-Compose-Dateien",
-      "description": "Welche Compose-Overlays im Quellbaum liegen — für lokale Entwicklung, Docs und Tests. Kein Produktions-Installationsweg."
+      "title": "Compose-Dateien für Beiträge",
+      "description": "Einen Entwicklungsablauf wählen und verstehen, wie die Compose-Erweiterungen des Repositorys zusammenwirken."
     }
   },
   "de:develop/connectors": {
@@ -93,8 +92,8 @@
     "slug": "develop/contributor-setup",
     "locale": "de",
     "frontmatter": {
-      "title": "Contributor-Setup",
-      "description": "Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung."
+      "title": "Tale aus dem Quellcode starten",
+      "description": "Richte deine lokale Entwicklungsumgebung ein, starte Backend und App und prüfe deine Änderung."
     }
   },
   "de:develop/mcp-endpoint": {
@@ -110,8 +109,8 @@
     "slug": "develop/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Entwicklung",
-      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, der MCP-Endpoint, Webhooks, Connectors, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
+      "title": "Mit Tale entwickeln",
+      "description": "Verbinde andere Systeme mit Tale, automatisiere einen Ablauf oder arbeite am Quellcode der Anwendung."
     }
   },
   "de:develop/rate-limits": {
@@ -126,8 +125,8 @@
     "slug": "develop/status-page",
     "locale": "de",
     "frontmatter": {
-      "title": "Status-Page",
-      "description": "Jedes Tale-Deployment liefert seine eigene Status-Page und einen JSON-Zwilling für Monitore — was sie melden, wie du sie pollst und wo das tiefere Betriebssignal liegt."
+      "title": "Erreichbarkeit der Instanz prüfen",
+      "description": "Lies den öffentlichen Status, überwache die JSON-Antwort und unterscheide Ausfälle von fehlgeschlagenen Aktionen."
     }
   },
   "de:develop/webdav-api": {
@@ -150,40 +149,40 @@
     "slug": "get-started/admins",
     "locale": "de",
     "frontmatter": {
-      "title": "Dein erster Tag als Arbeitsbereichs-Verantwortlicher",
-      "description": "Der Einstieg für Admins — erstelle den Arbeitsbereich, verbinde einen KI-Anbieter, hol das Team an Bord und lerne, wo Governance wohnt."
+      "title": "Einen Arbeitsbereich fürs Team einrichten",
+      "description": "Einen Modellanbieter verbinden, Mitglieder hinzufügen und den Arbeitsbereich mit deren Zugriffsrechten prüfen."
     }
   },
   "de:get-started/developers": {
     "slug": "get-started/developers",
     "locale": "de",
     "frontmatter": {
-      "title": "Dein erster Tag mit der Tale-API",
-      "description": "Der Einstieg für Entwickler — erstelle einen API-Schlüssel, mach deine erste authentifizierte Anfrage und lerne, wo die API-Oberfläche wohnt."
+      "title": "Deine erste API-Anfrage",
+      "description": "Erstelle einen Schlüssel, bestimme deine Organisation und finde aufrufbare Modelle."
     }
   },
   "de:get-started/editors": {
     "slug": "get-started/editors",
     "locale": "de",
     "frontmatter": {
-      "title": "Dein erster Tag als Agent-Autor",
-      "description": "Der Einstieg für Redakteure — erstelle einen Projekt-Agenten, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu."
+      "title": "Einen Projektagenten erstellen und testen",
+      "description": "Einem Projektagenten einen klaren Auftrag geben, ihn starten und das Ergebnis prüfen."
     }
   },
   "de:get-started/members": {
     "slug": "get-started/members",
     "locale": "de",
     "frontmatter": {
-      "title": "Dein erster Tag mit Tale",
-      "description": "Der Einstieg für Mitglieder — chatte mit einem Agent, gib dem Arbeitsbereich ein Dokument und finde dich in Projekten und im Chatverlauf zurecht."
+      "title": "Tale im Team nutzen",
+      "description": "Gespräche wiederfinden, Informationen passend ablegen und in einem Projekt arbeiten."
     }
   },
   "de:get-started/quickstart": {
     "slug": "get-started/quickstart",
     "locale": "de",
     "frontmatter": {
-      "title": "Quickstart",
-      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden."
+      "title": "Deine erste Nachricht senden",
+      "description": "Bei Tale anmelden, einen Chat starten, ein Modell wählen und die Antwort prüfen."
     }
   },
   "de:index": {
@@ -191,7 +190,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale-Dokumentation",
-      "description": "Tale ist der Orchestrator für KI-Agents. Starte mit dem Quickstart, folge dem Einstieg für deine Rolle oder spring direkt in die Feature-Referenz.",
+      "description": "Tale nutzen, Projektagenten erstellen, Anwendungen anbinden und eine Instanz betreiben.",
       "kind": "index"
     }
   },
@@ -199,8 +198,8 @@
     "slug": "legal/privacy",
     "locale": "de",
     "frontmatter": {
-      "title": "Datenschutzerklärung",
-      "description": "Was Tale erhebt, warum, wie lange es aufbewahrt wird, wer es noch verarbeitet und welche Rechte du an deinen Daten hast.",
+      "title": "Datenschutz und deine Daten",
+      "description": "Finde die geltenden Datenschutzhinweise und erfahre, an wen du dich für Auskunft, Berichtigung oder Löschung wendest.",
       "noindex": true
     }
   },
@@ -208,8 +207,8 @@
     "slug": "legal/subprocessors",
     "locale": "de",
     "frontmatter": {
-      "title": "Auftragsverarbeiter",
-      "description": "Die Drittparteien, die Tale Cloud zur Lieferung des Dienstes einsetzt, was jede davon verarbeitet und wo die Verarbeitung stattfindet.",
+      "title": "Unterauftragsverarbeiter",
+      "description": "Finde die maßgebliche Liste für Tale Cloud und unterscheide Hosting, Modellanbieter und eigene Integrationen.",
       "noindex": true
     }
   },
@@ -226,7 +225,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "API-Schlüssel",
-      "description": "Persönliche Bearer-Anmeldedaten, mit denen externer Code Tales REST-API aufruft. Admins und Entwickler erstellen, rotieren und widerrufen sie unter Einstellungen > API > REST."
+      "description": "Erstelle, prüfe, rotiere und widerrufe Zugangsdaten für Software, die Tale aufruft."
     }
   },
   "de:platform/admin/branding": {
@@ -234,23 +233,23 @@
     "locale": "de",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, Favicon und die Akzentfarbe, die deine Organisation ihren Mitgliedern zeigt. Admins lesen das, wenn sie eine selbst gehostete Instanz whitelabeln oder die In-Produkt-Chrome an die Firmenpalette angleichen."
+      "description": "Ändere Logo, Tab-Symbole und Akzentfarbe der Organisation und prüfe, wann Änderungen gelten."
     }
   },
   "de:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "de",
     "frontmatter": {
-      "title": "Changelog",
-      "description": "Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plattform selbst geändert hat."
+      "title": "Neuigkeiten",
+      "description": "Lies Plattform-Änderungen nach und finde die für dein Team relevanten Neuerungen."
     }
   },
   "de:platform/admin/connectors": {
     "slug": "platform/admin/connectors",
     "locale": "de",
     "frontmatter": {
-      "title": "Zugangsdaten für Connectors",
-      "description": "Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet."
+      "title": "Connector-Zugangsdaten",
+      "description": "Verbinde Dienstkonten, wähle Standards und erneuere ihre Zugriffsberechtigung."
     }
   },
   "de:platform/admin/enterprise-sso": {
@@ -258,7 +257,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Enterprise-SSO und Bereitstellung",
-      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren."
+      "description": "Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO oder SCIM."
     }
   },
   "de:platform/admin/governance/audit-logs": {
@@ -266,15 +265,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Audit-Logs",
-      "description": "Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat."
+      "description": "Finde protokollierte Änderungen, prüfe Ereignisdetails, exportiere Ergebnisse und kontrolliere die Audit-Kette."
     }
   },
   "de:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "de",
     "frontmatter": {
-      "title": "Inhalte und Modelle",
-      "description": "Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet."
+      "title": "Modelle",
+      "description": "Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten."
     }
   },
   "de:platform/admin/governance/data-subject-requests": {
@@ -282,7 +281,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anfragen betroffener Personen",
-      "description": "Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg."
+      "description": "Reiche Löschanfragen ein, verwalte Freigaben und Fristen und prüfe den daraus entstehenden Beleg."
     }
   },
   "de:platform/admin/governance/feedback-analytics": {
@@ -290,15 +289,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Feedback-Analyse",
-      "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell."
+      "description": "Vergleiche Chatbewertungen und Arena-Urteile, lies Kommentare und untersuche Veränderungen der Antwortqualität."
     }
   },
   "de:platform/admin/governance/guardrails": {
     "slug": "platform/admin/governance/guardrails",
     "locale": "de",
     "frontmatter": {
-      "title": "Guardrails",
-      "description": "Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen."
+      "title": "Schutzregeln",
+      "description": "Richte Chatfilter, den Schutz personenbezogener Daten und Moderation ein und prüfe Erkennungen und Fehler."
     }
   },
   "de:platform/admin/governance/legal-hold": {
@@ -306,7 +305,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Legal Hold",
-      "description": "Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern."
+      "description": "Bewahre Daten einer Person oder Organisation, ordne Sperren einem Fall zu und prüfe Freigabeanträge."
     }
   },
   "de:platform/admin/governance/policies-and-limits": {
@@ -314,7 +313,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff."
+      "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen und die Zuordnung eingehender Konversationen fest."
     }
   },
   "de:platform/admin/governance/trash": {
@@ -322,15 +321,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Papierkorb",
-      "description": "Die Soft-Delete-Wiederherstellungsansicht für durch Aufbewahrung verworfene Datensätze — Chat-Threads, Dokumente, Prompts, Workflow-Läufe — bevor sie am Ende des Kulanzfensters endgültig gelöscht werden. Admins und Inhaber lesen das, wenn jemand ein gelöschtes Artefakt zurückbraucht."
+      "description": "Finde wiederherstellbare Datensätze, verstehe ihren Status und hole sie vor der endgültigen Löschung zurück."
     }
   },
   "de:platform/admin/governance/usage-analytics": {
     "slug": "platform/admin/governance/usage-analytics",
     "locale": "de",
     "frontmatter": {
-      "title": "Nutzungs-Analyse",
-      "description": "Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste."
+      "title": "Nutzungsanalyse",
+      "description": "Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach Modell, Assistent und Person."
     }
   },
   "de:platform/admin/members-and-roles": {
@@ -338,15 +337,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglieder und Rollen",
-      "description": "Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf."
+      "description": "Füge Personen hinzu, wähle ihre Rechte und verwalte den Kontozugriff."
     }
   },
   "de:platform/admin/overview": {
     "slug": "platform/admin/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Admin",
-      "description": "Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien."
+      "title": "Administration",
+      "description": "Richte Zugänge, KI-Dienste, Sicherheit und Organisationseinstellungen ein."
     }
   },
   "de:platform/admin/providers": {
@@ -354,7 +353,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "KI-Anbieter",
-      "description": "Verbinde deine Organisation mit den Modellen, die sie aufrufen darf — die mitgelieferten Anbieter-Connectoren, die Zugangsdaten, die du dagegen hinterlegst, und die Standards, erlaubten Modelle und Kataloge, die bestimmen, was alle anderen auswählen können."
+      "description": "Verbinde Anbieter-Zugangsdaten, stelle Modelle bereit und prüfe fehlende Auswahlmöglichkeiten."
     }
   },
   "de:platform/admin/sandboxes": {
@@ -370,7 +369,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen."
+      "description": "Gruppiere Personen für gemeinsamen Ressourcenzugriff und zugewiesene Konversationen."
     }
   },
   "de:platform/admin/two-factor-authentication": {
@@ -378,7 +377,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Zwei-Faktor-Authentifizierung",
-      "description": "TOTP-Registrierung, Passkeys, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst."
+      "description": "Sichere dein Konto mit Authenticator oder Passkey, bewahre Backup-Codes auf und richte die Richtlinie für deine Organisation ein."
     }
   },
   "de:platform/agents/concepts": {
@@ -401,40 +400,40 @@
     "slug": "platform/agents/skills",
     "locale": "de",
     "frontmatter": {
-      "title": "Skills auf Agenten",
-      "description": "Wie ein Skill aus der Bibliothek einen Agenten erreicht — die Agenten eines Projekts ausrüsten, wessen Sichtbarkeit zählt und wie ein Bundle in einer Sandbox-Sitzung landet."
+      "title": "Agenten mit Skills ausrüsten",
+      "description": "Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automationsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung."
     }
   },
   "de:platform/approvals/concepts": {
     "slug": "platform/approvals/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Genehmigungskonzepte",
-      "description": "Eine Genehmigung ist ein geparkter Schritt in einem laufenden Automatisierungslauf — ein Connector-Schreibzugriff, der auf der Detailseite des Laufs wartet, bis ein Mensch ihn freigibt oder ablehnt. Diese Seite benennt, was eine auslöst, welche Entscheidung sie bietet und was sie hinterlässt."
+      "title": "Freigaben für Aktionen verstehen",
+      "description": "Erfahre, warum ein Connector-Schreibzugriff wartet, was Freigeben oder Ablehnen bewirkt und wo du das Ergebnis prüfst."
     }
   },
   "de:platform/approvals/configure": {
     "slug": "platform/approvals/configure",
     "locale": "de",
     "frontmatter": {
-      "title": "Genehmigungen konfigurieren",
-      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, mit einer Richtliniendatei pro Organisation, die die Grenze verschiebt — und welche menschlichen Tore außerhalb dieser Richtlinie liegen."
+      "title": "Festlegen, welche Aktionen eine Freigabe brauchen",
+      "description": "Verstehe die Standardregeln, veranlasse eine Richtlinienänderung und unterscheide Operationsfreigaben von anderen Prüfungen."
     }
   },
   "de:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "de",
     "frontmatter": {
-      "title": "Genehmigungen in Workflows",
-      "description": "Wo ein Live-Lauf auf einen Menschen wartet — ein für die Freigabe geparkter Connector-Schreibzugriff, eine Frage einer Agent-Node — und wie eine Definition sich ändert und live geht, ohne Vorschlagskarte."
+      "title": "Auf einen wartenden Workflow reagieren",
+      "description": "Finde einen pausierten Automationslauf, prüfe einen geplanten Schreibzugriff oder beantworte eine Rückfrage des Agenten."
     }
   },
   "de:platform/automations/assistant": {
     "slug": "platform/automations/assistant",
     "locale": "de",
     "frontmatter": {
-      "title": "Automatisierungs-Assistent",
-      "description": "Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht."
+      "title": "Den Weg zur Automation wählen",
+      "description": "Bearbeite Workflows direkt im visuellen Editor oder verbinde einen externen Assistenten über MCP mit Tale."
     }
   },
   "de:platform/automations/builtin": {
@@ -442,7 +441,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
-      "description": "Was jede der acht mitgelieferten Automatisierungen tut — Mail-Sync und Sichtung für Gmail, Outlook und IMAP sowie Issue-Bewertung und Pull-Request-Prüfung für GitHub — und welchen Connector jede braucht, bevor du sie live schaltest."
+      "description": "Wähle einen Mail- oder GitHub-Workflow und prüfe vor dem Live-Schalten seine Eingaben, Verbindungen und Schreibvorgänge."
     }
   },
   "de:platform/automations/catalog": {
@@ -466,7 +465,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Der Workflow-Editor",
-      "description": "Das Betriebshandbuch zur Seite einer Automatisierung — den Canvas lesen, eine Node bearbeiten, eine Version speichern, sie gegen Mocks laufen lassen, live schalten und zurückrollen."
+      "description": "Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Version und schalte sie live oder kehre zu einer früheren zurück."
     }
   },
   "de:platform/automations/execution-logs": {
@@ -493,12 +492,20 @@
       "description": "Modell-Vergleich nebeneinander im Chat — wie er rendert, wie du die Kontrahenten wählst, wie Bewertungen in die Feedback-Analyse einfließen und wann du danach greifst."
     }
   },
+  "de:platform/chat/attachments": {
+    "slug": "platform/chat/attachments",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Fragen zu Dateien und Bildern stellen",
+      "description": "Hänge Dokumente, Bilder oder Aufnahmen an einen Chat an und prüfe, wann der Assistent ihre Inhalte verwenden kann."
+    }
+  },
   "de:platform/chat/basics": {
     "slug": "platform/chat/basics",
     "locale": "de",
     "frontmatter": {
-      "title": "Chat-Grundlagen",
-      "description": "Was zwischen dem Druck auf Senden und der landenden Antwort passiert — die Wahlen in der Eingabezeile, was das Modell bekommt, die drei Abruf-Tools und wie du Denkverlauf und Quellen liest."
+      "title": "Fragen im Chat stellen",
+      "description": "Sende eine Nachricht, wähle ein Modell, prüfe die Quellen und bewahre hilfreiche Gespräche auf."
     }
   },
   "de:platform/chat/overview": {
@@ -506,15 +513,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat ist zum Fragen und Nachschlagen da — schick eine Nachricht, lass Auto das Modell wählen oder nagle dein eigenes fest, lies eine Antwort mit sichtbaren Schritten und Quellen. Diese Übersicht zeigt die Teile des Bildschirms und zieht die Grenze zwischen Chat-, Aufgaben- und Automatisierungsarbeit."
+      "description": "Stelle eine Frage, prüfe Antwort und Quellen und finde nützliche Gespräche später wieder."
     }
   },
   "de:platform/chat/shared-threads": {
     "slug": "platform/chat/shared-threads",
     "locale": "de",
     "frontmatter": {
-      "title": "Geteilte Chats",
-      "description": "Einen Chat mit dem Rest deiner Organisation teilen — der Freigabe-Dialog und sein Link, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest."
+      "title": "Einen Chat mit der Organisation teilen",
+      "description": "Erstelle eine schreibgeschützte Momentaufnahme, ergänze bei Bedarf neue Nachrichten und beende die Freigabe später."
     }
   },
   "de:platform/chat/voice-mode": {
@@ -522,15 +529,15 @@
     "locale": "de",
     "frontmatter": {
       "title": "Sprachmodus",
-      "description": "Sprechen statt Tippen — wie aus einer Aufnahme eine Nachricht wird, wie eine Antwort vorgelesen wird und welche Anbieter das Audio unterwegs berühren."
+      "description": "Diktiere eine Nachricht, prüfe den Text vor dem Senden und höre Antworten bei verfügbarer Sprachausgabe an."
     }
   },
   "de:platform/connectors/mcp-servers": {
     "slug": "platform/connectors/mcp-servers",
     "locale": "de",
     "frontmatter": {
-      "title": "MCP-Server",
-      "description": "Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht."
+      "title": "Einen externen Client über MCP verbinden",
+      "description": "Finde den MCP-Endpunkt von Tale und erfahre, wie externe Clients damit arbeiten."
     }
   },
   "de:platform/connectors/overview": {
@@ -553,16 +560,16 @@
     "slug": "platform/developer/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Entwickler",
-      "description": "Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel für die REST-API, der MCP-Endpoint und die Connector-Zugangsdaten, mit denen eine Person mit Entwickler-Rolle Tale an externen Code anbindet."
+      "title": "Developer",
+      "description": "Erstelle Automatisierungen und verbinde Tale mit Clients, Skripten und externen Diensten."
     }
   },
   "de:platform/editor/overview": {
     "slug": "platform/editor/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Redakteur",
-      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen."
+      "title": "Editor",
+      "description": "Pflege gemeinsames Wissen und erledige die Inhaltsarbeit für dein Team."
     }
   },
   "de:platform/index": {
@@ -570,7 +577,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Plattform",
-      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet.",
+      "description": "Lerne Tale anhand deiner Arbeit kennen: vom ersten Chat über Projekte und Automatisierungen bis zur Verwaltung.",
       "kind": "index"
     }
   },
@@ -578,8 +585,8 @@
     "slug": "platform/knowledge/crawling",
     "locale": "de",
     "frontmatter": {
-      "title": "Crawling",
-      "description": "Wie Tale eine Website in Wissen verwandelt — Domain registrieren, URLs über die Sitemap entdecken, geplante Re-Scans und die Ansicht der indexierten Seiten."
+      "title": "Websites zum Wissen hinzufügen",
+      "description": "Wähle öffentliche Seiten für die Indexierung, lege ein Intervall fest und untersuche fehlende oder veraltete Inhalte."
     }
   },
   "de:platform/knowledge/documents": {
@@ -587,7 +594,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Dokumente",
-      "description": "Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus."
+      "description": "Lade gemeinsame Referenzdateien hoch, prüfe ihre Suchbarkeit und halte Importe sowie freigegebene Revisionen aktuell."
     }
   },
   "de:platform/knowledge/knowledge-entries": {
@@ -595,7 +602,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissenseinträge",
-      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — von Hand oder über die API hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
+      "description": "Halte eine kurze, gemeinsame Information fest, aktualisiere sie bei Änderungen und prüfe frühere Fassungen im Verlauf."
     }
   },
   "de:platform/knowledge/overview": {
@@ -603,39 +610,39 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissen",
-      "description": "Wissen ist die geteilte Bibliothek der Organisation — Dokumente, kleine Fakten, gecrawlte Websites und typisierte Datensätze —, in der Agenten ihre Antworten verankern. Diese Übersicht nennt die Tabs und verweist auf die Seiten pro Bereich."
+      "description": "Wähle den passenden Ort für gemeinsame Informationen, bereite sie für die Suche vor und prüfe die Quellen einer Antwort."
     }
   },
   "de:platform/knowledge/structured-data": {
     "slug": "platform/knowledge/structured-data",
     "locale": "de",
     "frontmatter": {
-      "title": "Strukturierte Daten",
-      "description": "Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten."
+      "title": "Dokumente oder strukturierte Datensätze wählen",
+      "description": "Finde den passenden Ort für Richtlinien, Kontaktdaten, Produktangaben und Website-Inhalte, damit Tale die benötigten Informationen findet."
     }
   },
   "de:platform/member/install-as-app": {
     "slug": "platform/member/install-as-app",
     "locale": "de",
     "frontmatter": {
-      "title": "Als App installieren",
-      "description": "Wie du Tale als Progressive Web App auf Desktop und Mobile installierst — die Menüverknüpfung in Chromium-Browsern, der iOS-Safari-Pfad und was sich ändert, sobald die App installiert ist."
+      "title": "Tale als App installieren",
+      "description": "Tale zum Startbildschirm oder Desktop hinzufügen, Anmeldungen unterscheiden und die App entfernen."
     }
   },
   "de:platform/member/overview": {
     "slug": "platform/member/overview",
     "locale": "de",
     "frontmatter": {
-      "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten."
+      "title": "Member",
+      "description": "Beginne mit Chat, gemeinsamem Wissen und der Arbeit, die deine Organisation für dich bereitstellt."
     }
   },
   "de:platform/member/preferences": {
     "slug": "platform/member/preferences",
     "locale": "de",
     "frontmatter": {
-      "title": "Einstellungen",
-      "description": "Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, deine Erinnerungen, und Abmelden."
+      "title": "Konto und persönliche Einstellungen verwalten",
+      "description": "Ändere deinen Namen, sichere die Anmeldung ab, wähle eine Sprache und lerne die persönlichen Einstellungen kennen."
     }
   },
   "de:platform/models": {
@@ -658,16 +665,16 @@
     "slug": "platform/projects/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekt-Konzepte",
-      "description": "Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich."
+      "title": "Projektgrundlagen",
+      "description": "Verstehe, was ein Projekt gemeinsam bereitstellt, welche Chats persönlich bleiben und wann sich ein Projekt lohnt."
     }
   },
   "de:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekt-Dateien verwalten",
-      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann."
+      "title": "Projektdateien verwalten",
+      "description": "Lade Referenzdateien hoch, ordne sie, prüfe die Indexierung und unterscheide Löschen vom Verschieben in die Wissensbibliothek."
     }
   },
   "de:platform/projects/overview": {
@@ -675,7 +682,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekte",
-      "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt."
+      "description": "Halte Referenzmaterial, Gespräche und Aufgaben eines Teams für ein gemeinsames Vorhaben zusammen."
     }
   },
   "de:platform/projects/project-agents": {
@@ -690,8 +697,16 @@
     "slug": "platform/projects/task-automation",
     "locale": "de",
     "frontmatter": {
-      "title": "Aufgaben-Automatisierung",
-      "description": "Wie die Zuweisung einer Board-Aufgabe an einen Agenten ihn arbeiten lässt, die Trennung von Zuständig und Reviewer, die Prüfung direkt über den Status In Prüfung, Leitplanken und der Notausschalter."
+      "title": "Eine Aufgabe an einen Agenten delegieren",
+      "description": "Starte einen Agenten, prüfe sein Ergebnis, fordere Änderungen an und setze fehlgeschlagene Läufe fort oder brich sie ab."
+    }
+  },
+  "de:platform/projects/tasks": {
+    "slug": "platform/projects/tasks",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Aufgaben auf dem Projektboard verwalten",
+      "description": "Erstelle Aufgaben, lege Verantwortliche fest, verfolge den Fortschritt und prüfe die Ergebnisse an einem Ort."
     }
   },
   "de:platform/workspace/skills": {
@@ -699,15 +714,23 @@
     "locale": "de",
     "frontmatter": {
       "title": "Skill-Bibliothek",
-      "description": "Die Seite Einstellungen > Skills — dateibasierte Bundles, die deine Agenten lesen, von jedem Mitglied erstellt und mit Teams oder organisationsweit geteilt."
+      "description": "Erstelle wiederverwendbare Anweisungen, importiere ein Skill-Bundle und lege fest, welche Teams und Projektagenten es nutzen können."
+    }
+  },
+  "de:self-hosted/configuration/approvals": {
+    "slug": "self-hosted/configuration/approvals",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Genehmigungsregeln für Automationen festlegen",
+      "description": "Lege fest, welche Connector-Schreibaktionen eine Prüfung brauchen, und prüfe die Regelauswertung."
     }
   },
   "de:self-hosted/configuration/authentication": {
     "slug": "self-hosted/configuration/authentication",
     "locale": "de",
     "frontmatter": {
-      "title": "Authentifizierung",
-      "description": "Die vier Sign-in-Modi, die Tale mitbringt — lokales Passwort, Microsoft Entra, generisches OIDC und trusted Headers — und wie ein Operator zwischen ihnen umschaltet."
+      "title": "Authentifizierung einrichten",
+      "description": "Wähle lokale Konten, Unternehmens-SSO oder einen vertrauenswürdigen Authentifizierungsproxy."
     }
   },
   "de:self-hosted/configuration/config-releases": {
@@ -739,8 +762,8 @@
     "slug": "self-hosted/configuration/observability-config",
     "locale": "de",
     "frontmatter": {
-      "title": "Observability-Konfiguration",
-      "description": "Die Env-Vars und Flags, die Logs, Metriken und Error-Tracking aktivieren — und was jede davon wohin routet."
+      "title": "Überwachung einrichten",
+      "description": "Containerprotokolle lesen, geschützte Messwerte erfassen und das Ziel für Fehlerberichte festlegen."
     }
   },
   "de:self-hosted/configuration/providers": {
@@ -755,16 +778,16 @@
     "slug": "self-hosted/configuration/retention",
     "locale": "de",
     "frontmatter": {
-      "title": "Retention",
-      "description": "Wie organisationsweite Retention konfiguriert wird — Operator-Grenzen in Env-Vars und UI-Controls unter Governance für Chats, Dokumente, Audit-Logs und Ledger-Zeilen."
+      "title": "Aufbewahrungsgrenzen festlegen",
+      "description": "Lege Aufbewahrungsgrenzen je Organisation fest, prüfe Änderungen und verstehe die Datenbereinigung."
     }
   },
   "de:self-hosted/configuration/secrets-with-sops": {
     "slug": "self-hosted/configuration/secrets-with-sops",
     "locale": "de",
     "frontmatter": {
-      "title": "Secrets mit SOPS",
-      "description": "Wie Tale Anbieter-Schlüssel auf Platte mit SOPS und age verschlüsselt, die drei Speicher-Modi und der vollständige Schlüssel-Rotations-Walk."
+      "title": "Konfigurationsgeheimnisse mit SOPS schützen",
+      "description": "Unterscheide Datei- und Datenbankverschlüsselung und rotiere age-Schlüssel, ohne den Zugriff zu verlieren."
     }
   },
   "de:self-hosted/configuration/tls-and-domains": {
@@ -787,8 +810,8 @@
     "slug": "self-hosted/index",
     "locale": "de",
     "frontmatter": {
-      "title": "Selbst gehostet",
-      "description": "Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped.",
+      "title": "Tale auf deiner Infrastruktur betreiben",
+      "description": "Wähle eine Installationsmethode, kläre die Verantwortung für den Betrieb und finde die passenden Konfigurations- und Wartungsanleitungen.",
       "kind": "index"
     }
   },
@@ -804,16 +827,16 @@
     "slug": "self-hosted/install/first-admin",
     "locale": "de",
     "frontmatter": {
-      "title": "Den ersten Admin erstellen",
-      "description": "Eine brandneue self-hosted Instanz durch ihren einmaligen Setup-Wizard führen — das erste Konto wird ohne Key zum Owner, neue Leute kommen per Einladung dazu."
+      "title": "Das erste Inhaberkonto erstellen",
+      "description": "Schließe die Ersteinrichtung ab, prüfe die Inhaberrolle und bereite die Instanz für dein Team vor."
     }
   },
   "de:self-hosted/install/index": {
     "slug": "self-hosted/install/index",
     "locale": "de",
     "frontmatter": {
-      "title": "Installation",
-      "description": "Zwei Wege, Tale zu betreiben — die CLI, oder ein Stack, den du selbst schreibst (Compose oder Kubernetes)."
+      "title": "Eine Installationsmethode wählen",
+      "description": "Installiere eine Umgebung mit der Tale-CLI oder setze die dokumentierte Dienstarchitektur mit deinen eigenen Infrastrukturwerkzeugen um."
     }
   },
   "de:self-hosted/install/own-compose": {
@@ -828,8 +851,8 @@
     "slug": "self-hosted/install/quickstart",
     "locale": "de",
     "frontmatter": {
-      "title": "Selbst gehosteter Quickstart",
-      "description": "Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Inhaber."
+      "title": "Deine erste selbst gehostete Instanz starten",
+      "description": "Installiere die CLI, starte ein lokales Tale-Projekt und prüfe eine erste Modellantwort."
     }
   },
   "de:self-hosted/operate/backups-and-restore": {
@@ -876,40 +899,40 @@
     "slug": "self-hosted/operate/release-notes/format",
     "locale": "de",
     "frontmatter": {
-      "title": "Wie du Release-Notes liest",
-      "description": "Die Form, der Tales Release-Notes folgen — das semver-Versprechen, wo breaking Changes und Deprecations sitzen, wie Security-Einträge markiert sind und wo die Migrations-Notes pro Release leben."
+      "title": "Ein Release vor dem Upgrade prüfen",
+      "description": "Finde das Zielrelease, bewerte die Folgen für deine Installation und bereite das Upgrade vor."
     }
   },
   "de:self-hosted/operate/security/advisories": {
     "slug": "self-hosted/operate/security/advisories",
     "locale": "de",
     "frontmatter": {
-      "title": "Security-Advisories",
-      "description": "Der Tale-Security-Advisory-Feed — CVE-Format, die vierstufige Severity-Skala, die Disclosure-Timeline, der die Maintainer sich verpflichten, und wie du dich anmeldest."
+      "title": "Sicherheitsmeldungen verfolgen",
+      "description": "Finde veröffentlichte Sicherheitshinweise, prüfe deine Betroffenheit und melde Schwachstellen vertraulich."
     }
   },
   "de:self-hosted/operate/security/audit-log-integrity": {
     "slug": "self-hosted/operate/security/audit-log-integrity",
     "locale": "de",
     "frontmatter": {
-      "title": "Audit-Log-Integritätswarnungen",
-      "description": "Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst."
+      "title": "Die Integrität des Audit-Protokolls untersuchen",
+      "description": "Prüfe die Audit-Kette, beachte die Grenzen der Prüfung und sichere Nachweise bei einem Fehler."
     }
   },
   "de:self-hosted/operate/security/cryptography": {
     "slug": "self-hosted/operate/security/cryptography",
     "locale": "de",
     "frontmatter": {
-      "title": "Kryptografie",
-      "description": "Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt."
+      "title": "Kryptografie und Schlüsselverantwortung",
+      "description": "Ordne Verschlüsselungs-, Passwort- und Audit-Schlüssel zu und plane ihre Wiederherstellung."
     }
   },
   "de:self-hosted/operate/security/hardening": {
     "slug": "self-hosted/operate/security/hardening",
     "locale": "de",
     "frontmatter": {
-      "title": "Hardening",
-      "description": "Die Hardening-Checkliste für eine Produktions-Tale-Instanz — Non-Root-Benutzer, Firewall, TLS, Secret-Storage, Audit-Log-Retention, Backups."
+      "title": "Eine Produktionsinstallation absichern",
+      "description": "Schütze Hostzugriff, Netzwerk, Geheimnisse und Wiederherstellung, bevor du Tale für Benutzer öffnest."
     }
   },
   "de:self-hosted/operate/upgrades": {
@@ -932,16 +955,16 @@
     "slug": "tutorials/admin/connect-local-provider",
     "locale": "de",
     "frontmatter": {
-      "title": "Einen lokalen LLM-Anbieter anbinden",
-      "description": "Deklariere einen lokalen Ollama-, LM-Studio- oder vLLM-Server als eigenen Provider-Connector auf einer selbst gehosteten Tale-Instanz, hinterleg seine Zugangsdaten und verifiziere, dass ein Chat ihn erreicht, ohne dein Netzwerk zu verlassen."
+      "title": "Einen lokalen Modellserver verbinden",
+      "description": "Den Endpunkt mit dem Betreiber abstimmen, Zugangsdaten einrichten und eine Modellanfrage prüfen."
     }
   },
   "de:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "de",
     "frontmatter": {
-      "title": "Meeting-Transkripte in die Wissensdatenbank pipen",
-      "description": "Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptions-Tool) mit der Wissensdatenbank eines Tale-Projekts, damit Transkripte als Dokumente von selbst landen, ohne dass jemand eine Datei hochlädt."
+      "title": "Ein Besprechungsprotokoll durchsuchbar machen",
+      "description": "Ein geprüftes Transkript ins passende Projekt importieren, die Indexierung prüfen und wiederkehrende Übernahmen vorbereiten."
     }
   },
   "de:tutorials/developer/call-tale-from-a-script": {
@@ -949,47 +972,47 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale aus einem Skript aufrufen",
-      "description": "Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash- oder Python-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Assistenten-Antwort."
+      "description": "Erstelle einen API-Schlüssel, wähle ein verfügbares Modell und gib eine fertige Antwort mit Python aus."
     }
   },
   "de:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
     "frontmatter": {
-      "title": "Eine Automatisierung per Webhook auslösen",
-      "description": "Häng einen Webhook-Trigger an eine Automatisierung und POSTe von einem externen System auf seine URL, um einen Lauf der deployten Version zu starten."
+      "title": "Eine Automation per Webhook auslösen",
+      "description": "Installiere eine veröffentlichte Automation im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf."
     }
   },
   "de:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "de",
     "frontmatter": {
-      "title": "Deinen ersten Agent bauen",
-      "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis."
+      "title": "Deinen ersten Agenten erstellen",
+      "description": "Richte einen Projektagenten für eine kleine Textaufgabe ein, starte ihn über die Aufgabenübersicht und prüfe sein Ergebnis."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "de",
     "frontmatter": {
-      "title": "Einen Workflow mit Freigabe bauen",
-      "description": "Den KI-Editor und seine Vorschlagskarte gibt es in dieser Version nicht — einen Workflow mit menschlicher Entscheidung baust du auf dem Canvas, und der Lauf wartet auf diese Entscheidung auf seiner Detailseite."
+      "title": "Einen Workflow mit Freigabe erstellen",
+      "description": "Importiere einen kleinen Workflow, teste seine geplante E-Mail und lehne die Live-Freigabe ab, ohne die Nachricht zu senden."
     }
   },
   "de:tutorials/member/chat-effectively": {
     "slug": "tutorials/member/chat-effectively",
     "locale": "de",
     "frontmatter": {
-      "title": "Effektiv chatten",
-      "description": "Fünf Gewohnheiten, die einen Chat von „danke für die Textwand\" zu „genau, was ich brauchte\" drehen."
+      "title": "Eine nützliche Chat-Antwort erhalten",
+      "description": "Übe eine gezielte Frage, prüfe den Quellenbeleg und verbessere die Antwort mit einer Rückfrage."
     }
   },
   "de:tutorials/member/use-projects": {
     "slug": "tutorials/member/use-projects",
     "locale": "de",
     "frontmatter": {
-      "title": "Projekte nutzen, um Dateien und Chats zu bündeln",
-      "description": "Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält."
+      "title": "Ein Projekt für gemeinsamen Kontext nutzen",
+      "description": "Erstelle ein Projekt, hinterlege Dateien und Anweisungen und stelle eine Frage zum Projektwissen."
     }
   },
   "de:tutorials/overview": {
@@ -997,7 +1020,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tutorials",
-      "description": "Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun\" zum funktionierenden Ergebnis."
+      "description": "Erprobe eine vollständige Aufgabe mit Voraussetzungen, Beispieldaten und einem überprüfbaren Ergebnis."
     }
   },
   "de:tutorials/videos/automations-and-approvals": {
@@ -1092,49 +1115,48 @@
     "slug": "cloud/billing",
     "locale": "en",
     "frontmatter": {
-      "title": "Billing",
-      "description": "What Tale Cloud charges for, how budgets stop runaway costs, and where the bill shows up in the product."
+      "title": "Plans, invoices, and usage",
+      "description": "Understand your Cloud service charges, model usage, and the controls available in Tale."
     }
   },
   "en:cloud/data-residency": {
     "slug": "cloud/data-residency",
     "locale": "en",
     "frontmatter": {
-      "title": "Data residency",
-      "description": "Where your Cloud data lives, where it moves during a single chat, which sub-processors touch it, and what stays in region versus what leaves."
+      "title": "Understand Cloud data residency",
+      "description": "Separate storage location from provider and connector data flows before choosing a Cloud deployment."
     }
   },
   "en:cloud/index": {
     "slug": "cloud/index",
     "locale": "en",
     "frontmatter": {
-      "title": "Cloud",
-      "description": "Tale Cloud is the managed edition. Tale runs the stack, your data is pinned to Switzerland or the EU, and your team's only operational task is using the product.",
-      "kind": "index"
+      "title": "Tale Cloud",
+      "description": "Use a managed Tale instance and understand the service responsibilities."
     }
   },
   "en:cloud/migrate-to-self-hosted": {
     "slug": "cloud/migrate-to-self-hosted",
     "locale": "en",
     "frontmatter": {
-      "title": "Migrate to self-hosted",
-      "description": "When self-hosting beats Cloud, what moves and what does not, and how to carry your org across without breaking running agents."
+      "title": "Plan a move to self-hosted Tale",
+      "description": "Prepare an assisted Cloud migration, validate the destination, and agree on a recovery plan."
     }
   },
   "en:cloud/onboarding": {
     "slug": "cloud/onboarding",
     "locale": "en",
     "frontmatter": {
-      "title": "Cloud onboarding",
-      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, staff a first project agent, open chat."
+      "title": "Get started on Tale Cloud",
+      "description": "Get your instance address, sign in, and prepare a working workspace for the team."
     }
   },
   "en:cloud/trust-and-compliance": {
     "slug": "cloud/trust-and-compliance",
     "locale": "en",
     "frontmatter": {
-      "title": "Trust and compliance",
-      "description": "Which compliance posture Tale Cloud ships with, who audits what, which controls are yours, and how to report incidents."
+      "title": "Security and compliance",
+      "description": "Find certification information, understand responsibilities, and collect evidence for a security review."
     }
   },
   "en:develop/ai-assisted-development": {
@@ -1158,8 +1180,8 @@
     "slug": "develop/compose-files",
     "locale": "en",
     "frontmatter": {
-      "title": "Contributor compose files",
-      "description": "Which compose overlays ship in the source tree — for local development, docs, and tests. Not a production install path."
+      "title": "Contributor Compose files",
+      "description": "Choose a source-development workflow and understand how the repository’s Compose overlays fit together."
     }
   },
   "en:develop/connectors": {
@@ -1182,8 +1204,8 @@
     "slug": "develop/contributor-setup",
     "locale": "en",
     "frontmatter": {
-      "title": "Contributor setup",
-      "description": "The single source of truth for setting up Tale's source for local development — prerequisites, bun install, the pre-flight check, what bun run dev does, port conflicts, and the pre-PR checklist."
+      "title": "Run Tale from source",
+      "description": "Prepare a local contributor environment, start the backend and app, and verify your change."
     }
   },
   "en:develop/mcp-endpoint": {
@@ -1199,8 +1221,8 @@
     "slug": "develop/overview",
     "locale": "en",
     "frontmatter": {
-      "title": "Develop",
-      "description": "Develop covers the API-consumer surface — REST API, the MCP endpoint, webhooks, connectors, AI-assisted development workflow, status page, rate limits."
+      "title": "Build with Tale",
+      "description": "Connect another system to Tale, automate a workflow, or contribute to the application source."
     }
   },
   "en:develop/rate-limits": {
@@ -1215,8 +1237,8 @@
     "slug": "develop/status-page",
     "locale": "en",
     "frontmatter": {
-      "title": "Status page",
-      "description": "Every Tale deployment serves its own status page and a JSON twin for monitors — what they report, how to poll them, and where the deeper operational signal lives."
+      "title": "Check instance availability",
+      "description": "Read the public status page, monitor its JSON response and distinguish an outage from a failed operation."
     }
   },
   "en:develop/webdav-api": {
@@ -1239,40 +1261,40 @@
     "slug": "get-started/admins",
     "locale": "en",
     "frontmatter": {
-      "title": "Your first day running a workspace",
-      "description": "The admin journey — create the workspace, connect an AI provider, bring in the team, and know where governance lives."
+      "title": "Set up a workspace for your team",
+      "description": "Connect a model provider, add members, and verify the workspace with the access your team will use."
     }
   },
   "en:get-started/developers": {
     "slug": "get-started/developers",
     "locale": "en",
     "frontmatter": {
-      "title": "Your first day integrating with Tale",
-      "description": "The developer journey — mint an API key, make your first authenticated request, and know where the API surface lives."
+      "title": "Make your first API request",
+      "description": "Create a key, identify your organization and find the models your integration can call."
     }
   },
   "en:get-started/editors": {
     "slug": "get-started/editors",
     "locale": "en",
     "frontmatter": {
-      "title": "Your first day building agents",
-      "description": "The editor journey — create a project agent, give it instructions, and watch it do real work on a task."
+      "title": "Create and test a project agent",
+      "description": "Give a project agent a focused job, start it on a task, and review the result."
     }
   },
   "en:get-started/members": {
     "slug": "get-started/members",
     "locale": "en",
     "frontmatter": {
-      "title": "Your first day using Tale",
-      "description": "The member journey — chat with an agent, give the workspace a document to know, and find your way around projects and chat history."
+      "title": "Use Tale with your team",
+      "description": "Find your conversations, choose where to put information, and work in a project."
     }
   },
   "en:get-started/quickstart": {
     "slug": "get-started/quickstart",
     "locale": "en",
     "frontmatter": {
-      "title": "Quickstart",
-      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message."
+      "title": "Send your first message",
+      "description": "Sign in to Tale, start a chat, choose a model, and check the response."
     }
   },
   "en:index": {
@@ -1280,7 +1302,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tale documentation",
-      "description": "Tale is the orchestrator for AI agents. Start with the quickstart, follow the get-started journey for your role, or jump into the feature reference.",
+      "description": "Learn to use Tale, build project agents, connect applications, and operate an instance.",
       "kind": "index"
     }
   },
@@ -1288,8 +1310,8 @@
     "slug": "legal/privacy",
     "locale": "en",
     "frontmatter": {
-      "title": "Privacy policy",
-      "description": "What Tale collects, why, how long it is kept, who else processes it, and the rights you have over your data.",
+      "title": "Privacy and your data",
+      "description": "Find the applicable privacy policy, understand the organization's role, and request access, correction, or erasure.",
       "noindex": true
     }
   },
@@ -1298,7 +1320,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Subprocessors",
-      "description": "The third-party processors Tale Cloud uses to deliver the service, what each one processes, and where the processing happens.",
+      "description": "Find Tale Cloud's authoritative subprocessor list and understand how hosting, model providers, and your own integrations fit together.",
       "noindex": true
     }
   },
@@ -1315,7 +1337,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "API keys",
-      "description": "Personal bearer credentials that let external code call Tale's REST API. Admins and Developers create, rotate, and revoke them under Settings > API > REST."
+      "description": "Create, verify, rotate, and revoke credentials for software that calls Tale."
     }
   },
   "en:platform/admin/branding": {
@@ -1323,15 +1345,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, favicon, and the accent colour your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette."
+      "description": "Change the organization logo, tab icons, and accent color, and understand when changes apply."
     }
   },
   "en:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "en",
     "frontmatter": {
-      "title": "Changelog",
-      "description": "The in-product release viewer that surfaces what changed in the Tale platform itself. Admins read this after an upgrade to see what landed and to share the highlights with the org."
+      "title": "What’s new",
+      "description": "Read platform release notes and find changes relevant to your team."
     }
   },
   "en:platform/admin/connectors": {
@@ -1339,7 +1361,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Connector credentials",
-      "description": "Settings > Connectors is where an organisation adds, names, defaults, disables, and reconnects the credentials each shipped connector authenticates with."
+      "description": "Connect service accounts, choose defaults, and repair or replace their authorization."
     }
   },
   "en:platform/admin/enterprise-sso": {
@@ -1347,7 +1369,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Enterprise SSO and provisioning",
-      "description": "Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation."
+      "description": "Connect your identity provider, test sign-in, and manage member roles and teams with SSO or SCIM."
     }
   },
   "en:platform/admin/governance/audit-logs": {
@@ -1355,15 +1377,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Audit logs",
-      "description": "The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits."
+      "description": "Find recorded organization changes, inspect event details, export results, and check the audit chain."
     }
   },
   "en:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "en",
     "frontmatter": {
-      "title": "Content and models",
-      "description": "Model-level controls — which models are allowed per role or team, and the default model each user group lands on."
+      "title": "Models",
+      "description": "Set default models, restrict model access, and choose the model that reads images for text-only agents."
     }
   },
   "en:platform/admin/governance/data-subject-requests": {
@@ -1371,7 +1393,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Data subject requests",
-      "description": "The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences."
+      "description": "File and review a person's erasure request, manage approvals and deadlines, and inspect the resulting receipt."
     }
   },
   "en:platform/admin/governance/feedback-analytics": {
@@ -1379,7 +1401,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Feedback analytics",
-      "description": "Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model."
+      "description": "Compare chat ratings and arena verdicts, read comments, and investigate changes in answer quality."
     }
   },
   "en:platform/admin/governance/guardrails": {
@@ -1387,7 +1409,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Guardrails",
-      "description": "The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model."
+      "description": "Configure chat content filters, personal-data protection, and moderation, then review detections and errors."
     }
   },
   "en:platform/admin/governance/legal-hold": {
@@ -1395,7 +1417,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Legal hold",
-      "description": "The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation."
+      "description": "Preserve a person's or organization's data, organize holds by matter, and review release requests."
     }
   },
   "en:platform/admin/governance/policies-and-limits": {
@@ -1403,7 +1425,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Policies and limits",
-      "description": "Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key."
+      "description": "Set spending budgets, upload rules, retention periods, feature controls, and inbound-conversation routing."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -1411,7 +1433,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Trash",
-      "description": "The soft-delete recovery view for retention-trashed records — chat threads, documents, prompts, workflow runs — before they are permanently deleted at the end of the grace window. Admins and Owners read this when someone needs a deleted artefact back."
+      "description": "Find recoverable records, understand their status, and restore them before permanent deletion."
     }
   },
   "en:platform/admin/governance/usage-analytics": {
@@ -1419,7 +1441,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Usage analytics",
-      "description": "The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard."
+      "description": "Investigate token consumption, request volume, and recorded cost by model, assistant, and user."
     }
   },
   "en:platform/admin/members-and-roles": {
@@ -1427,7 +1449,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Members and roles",
-      "description": "The six roles that ship with Tale and the resource-level matrix that says who can do what."
+      "description": "Add people, choose their permissions, and manage account access."
     }
   },
   "en:platform/admin/overview": {
@@ -1435,7 +1457,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance."
+      "description": "Set up access, AI services, security, and organization settings."
     }
   },
   "en:platform/admin/providers": {
@@ -1443,7 +1465,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "AI providers",
-      "description": "Connect your organisation to the models it is allowed to call — the provider connectors Tale ships with, the credentials you store against them, and the defaults, allowlists, and catalogs that decide what everyone else can pick."
+      "description": "Connect provider credentials, make models available, and diagnose missing model choices."
     }
   },
   "en:platform/admin/sandboxes": {
@@ -1459,7 +1481,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams are named groups of members that share access to documents, projects, skills, and conversations."
+      "description": "Group people for shared resource access and conversation assignment."
     }
   },
   "en:platform/admin/two-factor-authentication": {
@@ -1467,7 +1489,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Two-factor authentication",
-      "description": "TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator."
+      "description": "Protect your account with an authenticator or passkey, keep recovery codes, and roll out an organization policy."
     }
   },
   "en:platform/agents/concepts": {
@@ -1490,40 +1512,40 @@
     "slug": "platform/agents/skills",
     "locale": "en",
     "frontmatter": {
-      "title": "Skills on agents",
-      "description": "How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session."
+      "title": "Equip agents with skills",
+      "description": "Choose reusable skill bundles for project agents and automation nodes, understand their access scope, and check how they run."
     }
   },
   "en:platform/approvals/concepts": {
     "slug": "platform/approvals/concepts",
     "locale": "en",
     "frontmatter": {
-      "title": "Approval concepts",
-      "description": "An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it."
+      "title": "Understand operation approvals",
+      "description": "Learn why a connector write pauses, what approving or rejecting means, and where to review its outcome."
     }
   },
   "en:platform/approvals/configure": {
     "slug": "platform/approvals/configure",
     "locale": "en",
     "frontmatter": {
-      "title": "Configure approvals",
-      "description": "Where approval requirements are declared — per connector operation, with one policy file per organization moving the line — and which human gates sit outside that policy."
+      "title": "Decide which actions need approval",
+      "description": "Understand the default approval rules, request a policy change, and distinguish operation approvals from other reviews."
     }
   },
   "en:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "en",
     "frontmatter": {
-      "title": "Approvals in workflows",
-      "description": "Where a live run waits on a person — a connector write parked for approval, a question an agent node asks — and how a definition changes and goes live without a proposal card."
+      "title": "Respond to a waiting workflow",
+      "description": "Find a paused automation run, review a proposed write, or answer an agent’s question so the run can continue."
     }
   },
   "en:platform/automations/assistant": {
     "slug": "platform/automations/assistant",
     "locale": "en",
     "frontmatter": {
-      "title": "Automation assistant",
-      "description": "A chat agent scoped to one automation is not part of this version — you edit an automation on its own page, and a model authors one through the MCP endpoint."
+      "title": "Choose how to author an automation",
+      "description": "Use the visual editor for direct changes or connect an external assistant to Tale through MCP."
     }
   },
   "en:platform/automations/builtin": {
@@ -1531,7 +1553,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Built-in automations",
-      "description": "What each of the eight shipped automations does — mail sync and triage for Gmail, Outlook, and IMAP, and issue scoring and pull-request review for GitHub — and the connector each needs before you deploy it."
+      "description": "Choose a shipped mail or GitHub workflow, check its inputs and connections, and understand what it reads or writes before deployment."
     }
   },
   "en:platform/automations/catalog": {
@@ -1555,7 +1577,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "The workflow editor",
-      "description": "The operating manual for an automation's page — reading the canvas, editing a node, saving a version, running it against mocks, deploying it, and rolling back."
+      "description": "Inspect and edit nodes, supply test input, save a version, and deploy or roll back an automation."
     }
   },
   "en:platform/automations/execution-logs": {
@@ -1582,12 +1604,20 @@
       "description": "Side-by-side model comparison inside Chat — how it renders, how to pick the contenders, how verdicts feed feedback analytics, and when to reach for it."
     }
   },
+  "en:platform/chat/attachments": {
+    "slug": "platform/chat/attachments",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Ask about files and images",
+      "description": "Attach a document, image, or recording to a chat and understand when its contents are ready for the assistant."
+    }
+  },
   "en:platform/chat/basics": {
     "slug": "platform/chat/basics",
     "locale": "en",
     "frontmatter": {
-      "title": "Chat basics",
-      "description": "What happens between hitting send and the reply landing — the composer's choices, what the model is given, the three retrieval tools, and how to read the thought timeline and sources."
+      "title": "Ask questions in chat",
+      "description": "Send a message, choose a model, check the answer’s sources, and keep a useful conversation."
     }
   },
   "en:platform/chat/overview": {
@@ -1595,15 +1625,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible."
+      "description": "Ask a question, inspect the answer and its sources, and keep useful conversations within reach."
     }
   },
   "en:platform/chat/shared-threads": {
     "slug": "platform/chat/shared-threads",
     "locale": "en",
     "frontmatter": {
-      "title": "Shared chats",
-      "description": "Sharing a chat with the rest of your organization — the share dialog and its link, the read-only snapshot the recipient sees, and how to stop sharing."
+      "title": "Share a chat with your organization",
+      "description": "Create a read-only snapshot, choose when to include newer messages, and stop sharing later."
     }
   },
   "en:platform/chat/voice-mode": {
@@ -1611,15 +1641,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Voice mode",
-      "description": "Speaking instead of typing — how a recording becomes a message, how a reply gets read back, and which providers touch the audio on the way."
+      "description": "Dictate a message, check the transcript before sending, and listen to replies when voice output is available."
     }
   },
   "en:platform/connectors/mcp-servers": {
     "slug": "platform/connectors/mcp-servers",
     "locale": "en",
     "frontmatter": {
-      "title": "MCP servers",
-      "description": "Registering external MCP servers for agents to call is not part of this version — Tale's one MCP surface is the inbound endpoint under Settings > API > MCP."
+      "title": "Connect an external client with MCP",
+      "description": "Find Tale’s MCP endpoint and understand how external clients use it to work with Tale."
     }
   },
   "en:platform/connectors/overview": {
@@ -1643,7 +1673,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Developer",
-      "description": "Developer is the in-app developer surface — API keys for the REST API, the MCP endpoint, and the connector credentials a Developer-role user wires Tale to external code with."
+      "description": "Build automations and connect Tale to your clients, scripts, and external services."
     }
   },
   "en:platform/editor/overview": {
@@ -1651,7 +1681,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Editor",
-      "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into."
+      "description": "Maintain shared knowledge and carry out the content work your team needs."
     }
   },
   "en:platform/index": {
@@ -1659,7 +1689,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Platform",
-      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted.",
+      "description": "Learn the product by the work you want to do, from a first chat to projects, automations, and administration.",
       "kind": "index"
     }
   },
@@ -1667,8 +1697,8 @@
     "slug": "platform/knowledge/crawling",
     "locale": "en",
     "frontmatter": {
-      "title": "Crawling",
-      "description": "How Tale turns a website into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view."
+      "title": "Add websites to knowledge",
+      "description": "Choose public pages to index, set a scan interval, and investigate missing or outdated content."
     }
   },
   "en:platform/knowledge/documents": {
@@ -1676,7 +1706,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Documents",
-      "description": "The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle."
+      "description": "Upload shared reference files, check whether they can be searched, and keep imports and approved revisions current."
     }
   },
   "en:platform/knowledge/knowledge-entries": {
@@ -1684,7 +1714,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge entries",
-      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — added by hand or through the API — with one live version per topic and full version history."
+      "description": "Add a concise fact to shared knowledge, keep it current, and check the history when it changes."
     }
   },
   "en:platform/knowledge/overview": {
@@ -1692,23 +1722,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge",
-      "description": "Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in."
+      "description": "Choose where to store shared information, prepare it for search, and check the sources behind an answer."
     }
   },
   "en:platform/knowledge/structured-data": {
     "slug": "platform/knowledge/structured-data",
     "locale": "en",
     "frontmatter": {
-      "title": "Structured data",
-      "description": "Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents."
+      "title": "Choose documents or structured records",
+      "description": "Decide where to keep policies, contact details, product data, and website content so Tale can find the right information."
     }
   },
   "en:platform/member/install-as-app": {
     "slug": "platform/member/install-as-app",
     "locale": "en",
     "frontmatter": {
-      "title": "Install as app",
-      "description": "How to install Tale as a Progressive Web App on desktop and mobile — the menu shortcut on Chromium browsers, the iOS Safari path, and what changes once the app is installed."
+      "title": "Install Tale as an app",
+      "description": "Add Tale to your home screen or desktop, understand sign-in behavior and remove the installed app."
     }
   },
   "en:platform/member/overview": {
@@ -1716,15 +1746,15 @@
     "locale": "en",
     "frontmatter": {
       "title": "Member",
-      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox."
+      "description": "Start with chat, shared knowledge, and the work your organization has made available to you."
     }
   },
   "en:platform/member/preferences": {
     "slug": "platform/member/preferences",
     "locale": "en",
     "frontmatter": {
-      "title": "Preferences",
-      "description": "The member-level settings that follow you across orgs and chats — name and password under Account, theme and locale in the profile menu, your memories, and sign-out."
+      "title": "Manage your account and preferences",
+      "description": "Update your name, secure your sign-in, choose a language, and understand the personal settings available in Tale."
     }
   },
   "en:platform/models": {
@@ -1748,7 +1778,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Project concepts",
-      "description": "A project bundles chats, files, instructions, and tasks into one shared workspace. This page hands you the mental model for when to reach for a project over a stand-alone chat."
+      "description": "Understand what a project shares, what stays personal, and when to move recurring work into one."
     }
   },
   "en:platform/projects/manage-files": {
@@ -1756,7 +1786,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Manage project files",
-      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, and how project files stay scoped to the project."
+      "description": "Upload and organize reference files, check indexing, and understand the difference between deleting a file and moving it to Knowledge."
     }
   },
   "en:platform/projects/overview": {
@@ -1764,7 +1794,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Projects",
-      "description": "A project is a shared workspace that bundles chats, files, instructions, and tasks around one piece of work."
+      "description": "Bring a team's reference material, conversations, and tasks together around a shared piece of work."
     }
   },
   "en:platform/projects/project-agents": {
@@ -1779,8 +1809,16 @@
     "slug": "platform/projects/task-automation",
     "locale": "en",
     "frontmatter": {
-      "title": "Task automation",
-      "description": "How assigning a board task to an agent runs it, the Driver/Reviewer split, human review straight from the In review status, guardrails, and the kill switch."
+      "title": "Delegate a task to an agent",
+      "description": "Start an agent on a project task, review its result, request changes, and recover or cancel a run."
+    }
+  },
+  "en:platform/projects/tasks": {
+    "slug": "platform/projects/tasks",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Manage tasks on a project board",
+      "description": "Create a task, name its owner, track progress, and review the result in one place."
     }
   },
   "en:platform/workspace/skills": {
@@ -1788,15 +1826,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Skill library",
-      "description": "The Skills settings page — file-based bundles your agents read, created by any member and shared with teams or across the organization."
+      "description": "Create reusable instructions, import a skill bundle, and choose which teams and project agents can use it."
+    }
+  },
+  "en:self-hosted/configuration/approvals": {
+    "slug": "self-hosted/configuration/approvals",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Set automation approval rules",
+      "description": "Configure which connector writes need human approval and verify how rules are resolved."
     }
   },
   "en:self-hosted/configuration/authentication": {
     "slug": "self-hosted/configuration/authentication",
     "locale": "en",
     "frontmatter": {
-      "title": "Authentication",
-      "description": "The four sign-in modes Tale ships with — local password, Microsoft Entra, generic OIDC, and trusted headers — and how an operator switches between them."
+      "title": "Choose an authentication setup",
+      "description": "Configure local accounts, enterprise sign-in or a trusted authentication proxy for your deployment."
     }
   },
   "en:self-hosted/configuration/config-releases": {
@@ -1828,8 +1874,8 @@
     "slug": "self-hosted/configuration/observability-config",
     "locale": "en",
     "frontmatter": {
-      "title": "Observability config",
-      "description": "The env vars and flags that turn on logs, metrics, and error tracking — and what each one routes where."
+      "title": "Observability configuration",
+      "description": "Collect container logs, scrape authenticated metrics and choose where errors are reported."
     }
   },
   "en:self-hosted/configuration/providers": {
@@ -1844,16 +1890,16 @@
     "slug": "self-hosted/configuration/retention",
     "locale": "en",
     "frontmatter": {
-      "title": "Retention",
-      "description": "How org-wide retention is configured — operator bounds in env vars and UI controls under Governance for chats, documents, audit logs, and ledger rows."
+      "title": "Configure retention bounds",
+      "description": "Set organization retention bounds, apply policy changes deliberately and understand which data the cleanup job removes."
     }
   },
   "en:self-hosted/configuration/secrets-with-sops": {
     "slug": "self-hosted/configuration/secrets-with-sops",
     "locale": "en",
     "frontmatter": {
-      "title": "Secrets with SOPS",
-      "description": "How Tale encrypts provider keys on disk with SOPS and age, the three storage modes, and the full key rotation walk."
+      "title": "Protect configuration secrets with SOPS",
+      "description": "Distinguish file and database encryption, configure age keys, and rotate file-encryption keys without losing access."
     }
   },
   "en:self-hosted/configuration/tls-and-domains": {
@@ -1876,8 +1922,8 @@
     "slug": "self-hosted/index",
     "locale": "en",
     "frontmatter": {
-      "title": "Self-hosted",
-      "description": "Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing.",
+      "title": "Run Tale on your infrastructure",
+      "description": "Choose an installation path, understand your operating responsibilities, and find the configuration and maintenance guides.",
       "kind": "index"
     }
   },
@@ -1893,16 +1939,16 @@
     "slug": "self-hosted/install/first-admin",
     "locale": "en",
     "frontmatter": {
-      "title": "Create the first admin",
-      "description": "Walk a brand-new self-hosted instance through its one-time setup wizard — the first account becomes Owner with no key, and new people join by invite."
+      "title": "Create the first owner account",
+      "description": "Complete first-time setup, confirm ownership and prepare the instance for teammates."
     }
   },
   "en:self-hosted/install/index": {
     "slug": "self-hosted/install/index",
     "locale": "en",
     "frontmatter": {
-      "title": "Install",
-      "description": "Two ways to run Tale — the CLI, or a stack you write yourself (Compose or Kubernetes)."
+      "title": "Choose an installation method",
+      "description": "Use the Tale CLI for a workspace deployment, or run the documented service contract in your own infrastructure tooling."
     }
   },
   "en:self-hosted/install/own-compose": {
@@ -1917,8 +1963,8 @@
     "slug": "self-hosted/install/quickstart",
     "locale": "en",
     "frontmatter": {
-      "title": "Self-hosted quickstart",
-      "description": "Get a working Tale instance running on your machine — install the tale CLI, then two commands, and the setup wizard makes you the Owner."
+      "title": "Run your first self-hosted instance",
+      "description": "Install the CLI, start a local Tale project and verify a first model reply."
     }
   },
   "en:self-hosted/operate/backups-and-restore": {
@@ -1965,40 +2011,40 @@
     "slug": "self-hosted/operate/release-notes/format",
     "locale": "en",
     "frontmatter": {
-      "title": "How to read release notes",
-      "description": "The shape Tale's release notes follow — the semver promise, where breaking changes and deprecations sit, how security entries are flagged, and where the per-release migration notes live."
+      "title": "Review a release before upgrading",
+      "description": "Find the target release, assess changes that affect your deployment, and prepare the upgrade."
     }
   },
   "en:self-hosted/operate/security/advisories": {
     "slug": "self-hosted/operate/security/advisories",
     "locale": "en",
     "frontmatter": {
-      "title": "Security advisories",
-      "description": "The Tale security advisory feed — CVE format, the four-tier severity scale, the disclosure timeline maintainers commit to, and how to subscribe."
+      "title": "Follow security advisories",
+      "description": "Find published security notices, assess whether your deployment is affected, and report a vulnerability privately."
     }
   },
   "en:self-hosted/operate/security/audit-log-integrity": {
     "slug": "self-hosted/operate/security/audit-log-integrity",
     "locale": "en",
     "frontmatter": {
-      "title": "Audit-log integrity alerts",
-      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
+      "title": "Investigate audit-log integrity",
+      "description": "Check the audit chain, understand the verification limits, and preserve evidence when a check fails."
     }
   },
   "en:self-hosted/operate/security/cryptography": {
     "slug": "self-hosted/operate/security/cryptography",
     "locale": "en",
     "frontmatter": {
-      "title": "Cryptography",
-      "description": "The algorithms Tale uses for data at rest, data in transit, password hashing, and audit-log integrity — and how they map to BSI TR-02102-1."
+      "title": "Cryptography and key ownership",
+      "description": "Identify the encryption, password and audit keys your deployment depends on, and plan their recovery."
     }
   },
   "en:self-hosted/operate/security/hardening": {
     "slug": "self-hosted/operate/security/hardening",
     "locale": "en",
     "frontmatter": {
-      "title": "Hardening",
-      "description": "The hardening checklist for a production Tale instance — non-root user, firewall, TLS, secret storage, audit-log retention, backups."
+      "title": "Harden a production deployment",
+      "description": "Protect host access, network exposure, secrets and recovery before opening Tale to users."
     }
   },
   "en:self-hosted/operate/upgrades": {
@@ -2021,16 +2067,16 @@
     "slug": "tutorials/admin/connect-local-provider",
     "locale": "en",
     "frontmatter": {
-      "title": "Connect a local LLM provider",
-      "description": "Declare a local Ollama, LM Studio, or vLLM server as a custom provider connector on a self-hosted Tale instance, store its credential, and verify that a chat reaches it without leaving your network."
+      "title": "Connect a local model server",
+      "description": "Coordinate the local endpoint with an operator, add a provider credential and verify a model request."
     }
   },
   "en:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "en",
     "frontmatter": {
-      "title": "Pipe meeting transcripts into the Knowledge Base",
-      "description": "Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file."
+      "title": "Make a meeting transcript searchable",
+      "description": "Import a reviewed transcript into the right project, verify indexing and prepare a repeatable handoff."
     }
   },
   "en:tutorials/developer/call-tale-from-a-script": {
@@ -2038,7 +2084,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Call Tale from a script",
-      "description": "Mint an API key and call the Tale REST API from a bash or Python script — the smallest end-to-end path from terminal to an assistant reply."
+      "description": "Create an API key, choose an available model and print a completed assistant reply with Python."
     }
   },
   "en:tutorials/developer/trigger-automation-via-webhook": {
@@ -2046,7 +2092,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Trigger an automation via webhook",
-      "description": "Add a webhook trigger to an automation and POST to its URL from an external system to start a run of the deployed version."
+      "description": "Install a deployed automation in a project, bind a webhook, send a delivery and verify the completed run."
     }
   },
   "en:tutorials/editor/first-agent-end-to-end": {
@@ -2054,7 +2100,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build your first agent",
-      "description": "Walk a fresh project from \"I want an agent\" to a reviewed task result — create a project agent with a harness, a model, and a paragraph of instructions, hand it a real task, and review what comes back."
+      "description": "Create a project agent for a small text task, start it from the board, and review its result."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {
@@ -2062,23 +2108,23 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build a workflow with an approval",
-      "description": "The AI editor and its proposal card are not part of this version — a workflow with a human decision is built on the canvas, and the run waits for that decision on its detail page."
+      "description": "Import a small workflow, test its proposed email, then inspect and reject the live approval without sending it."
     }
   },
   "en:tutorials/member/chat-effectively": {
     "slug": "tutorials/member/chat-effectively",
     "locale": "en",
     "frontmatter": {
-      "title": "Chat effectively",
-      "description": "Five habits that turn a chat from \"thanks for the wall of text\" into \"exactly what I needed\"."
+      "title": "Get a useful answer from chat",
+      "description": "Practice asking a focused question, checking a citation, and improving the answer with a follow-up."
     }
   },
   "en:tutorials/member/use-projects": {
     "slug": "tutorials/member/use-projects",
     "locale": "en",
     "frontmatter": {
-      "title": "Use projects to bundle files and chats",
-      "description": "Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together."
+      "title": "Use a project for shared context",
+      "description": "Create a project, add reference files and instructions, then ask a question that uses the project’s knowledge."
     }
   },
   "en:tutorials/overview": {
@@ -2086,7 +2132,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tutorials",
-      "description": "Role-indexed task walks — Member, Editor, Developer, Admin. Each tutorial takes a fresh instance from \"I want to do X\" to a working result."
+      "description": "Practice a complete task with prerequisites, sample inputs, and a result you can check."
     }
   },
   "en:tutorials/videos/automations-and-approvals": {
@@ -2181,49 +2227,48 @@
     "slug": "cloud/billing",
     "locale": "fr",
     "frontmatter": {
-      "title": "Facturation",
-      "description": "Ce que Tale Cloud facture, comment les budgets coupent les coûts qui dérapent, et où la facture apparaît dans le produit."
+      "title": "Offres, factures et utilisation",
+      "description": "Comprendre les frais Cloud, l’utilisation des modèles et les contrôles disponibles dans Tale."
     }
   },
   "fr:cloud/data-residency": {
     "slug": "cloud/data-residency",
     "locale": "fr",
     "frontmatter": {
-      "title": "Résidence des données",
-      "description": "Où vivent tes données Cloud, où elles se déplacent pendant un chat, quels sous-traitants les touchent, et ce qui reste dans la région versus ce qui en sort."
+      "title": "Comprendre la résidence des données Cloud",
+      "description": "Distinguer le stockage des flux vers les fournisseurs et les connecteurs avant de choisir un déploiement Cloud."
     }
   },
   "fr:cloud/index": {
     "slug": "cloud/index",
     "locale": "fr",
     "frontmatter": {
-      "title": "Cloud",
-      "description": "Tale Cloud est l’édition gérée. Tale exploite la stack, tes données sont ancrées en Suisse ou dans l’UE, et la seule tâche opérationnelle de ton équipe est d’utiliser le produit.",
-      "kind": "index"
+      "title": "Tale Cloud",
+      "description": "Utiliser une instance Tale gérée et comprendre les responsabilités du service."
     }
   },
   "fr:cloud/migrate-to-self-hosted": {
     "slug": "cloud/migrate-to-self-hosted",
     "locale": "fr",
     "frontmatter": {
-      "title": "Migrer vers auto-hébergé",
-      "description": "Quand l'auto-hébergement bat Cloud, ce qui est transféré et ce qui ne l'est pas, et comment transporter ton organisation sans casser les agents en cours."
+      "title": "Préparer le passage à l’auto-hébergement",
+      "description": "Organiser une migration Cloud accompagnée, valider la destination et prévoir le retour arrière."
     }
   },
   "fr:cloud/onboarding": {
     "slug": "cloud/onboarding",
     "locale": "fr",
     "frontmatter": {
-      "title": "Onboarding Cloud",
-      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, doter un projet d’un premier agent, ouvrir le chat."
+      "title": "Démarrer sur Tale Cloud",
+      "description": "Accéder à ton instance, te connecter et préparer un espace fonctionnel pour l’équipe."
     }
   },
   "fr:cloud/trust-and-compliance": {
     "slug": "cloud/trust-and-compliance",
     "locale": "fr",
     "frontmatter": {
-      "title": "Trust et conformité",
-      "description": "Quelle posture de conformité Tale Cloud apporte, qui audite quoi, quels contrôles sont les tiens, et comment signaler les incidents."
+      "title": "Sécurité et conformité",
+      "description": "Trouver les certifications, comprendre les responsabilités et réunir les preuves pour une revue de sécurité."
     }
   },
   "fr:develop/ai-assisted-development": {
@@ -2247,8 +2292,8 @@
     "slug": "develop/compose-files",
     "locale": "fr",
     "frontmatter": {
-      "title": "Fichiers compose contributeur",
-      "description": "Quels overlays compose vivent dans l’arbre source — pour le développement local, les docs et les tests. Pas un chemin d’installation de production."
+      "title": "Fichiers Compose pour contribuer",
+      "description": "Choisir un mode de développement et comprendre les fichiers Compose complémentaires du dépôt."
     }
   },
   "fr:develop/connectors": {
@@ -2271,8 +2316,8 @@
     "slug": "develop/contributor-setup",
     "locale": "fr",
     "frontmatter": {
-      "title": "Configuration contributeur",
-      "description": "La source unique de vérité pour mettre en place le code source de Tale en développement local."
+      "title": "Démarrer Tale depuis les sources",
+      "description": "Prépare ton environnement local, démarre le backend et l’application, puis vérifie ta contribution."
     }
   },
   "fr:develop/mcp-endpoint": {
@@ -2288,8 +2333,8 @@
     "slug": "develop/overview",
     "locale": "fr",
     "frontmatter": {
-      "title": "Développement",
-      "description": "Développement couvre la surface côté consommateur d’API — REST API, l’endpoint MCP, webhooks, connectors, workflow de développement assisté par IA, page de statut, limites de débit."
+      "title": "Développer avec Tale",
+      "description": "Connecte un autre système à Tale, automatise un processus ou contribue au code de l’application."
     }
   },
   "fr:develop/rate-limits": {
@@ -2304,8 +2349,8 @@
     "slug": "develop/status-page",
     "locale": "fr",
     "frontmatter": {
-      "title": "Page de statut",
-      "description": "Chaque déploiement Tale sert sa propre page de statut et un jumeau JSON pour les moniteurs — ce qu’ils rapportent, comment les interroger, et où vit le signal d’exploitation plus fin."
+      "title": "Vérifier la disponibilité de l’instance",
+      "description": "Consulte le statut public, surveille sa réponse JSON et distingue une panne d’une opération en échec."
     }
   },
   "fr:develop/webdav-api": {
@@ -2328,40 +2373,40 @@
     "slug": "get-started/admins",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ton premier jour d’administration",
-      "description": "Le parcours admin — crée l’espace de travail, connecte un fournisseur d’IA, fais entrer l’équipe et sache où vit la gouvernance."
+      "title": "Configurer un espace pour ton équipe",
+      "description": "Connecter un fournisseur, ajouter les membres et vérifier les accès dont l’équipe a besoin."
     }
   },
   "fr:get-started/developers": {
     "slug": "get-started/developers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ton premier jour d’connector avec Tale",
-      "description": "Le parcours développeur — crée une clé API, envoie ta première requête authentifiée et sache où vit la surface d’API."
+      "title": "Ta première requête API",
+      "description": "Crée une clé, identifie ton organisation et trouve les modèles que ton intégration peut appeler."
     }
   },
   "fr:get-started/editors": {
     "slug": "get-started/editors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ton premier jour de création d’agents",
-      "description": "Le parcours éditeur — crée un agent de projet, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche."
+      "title": "Créer et tester un agent de projet",
+      "description": "Donner une tâche précise à un agent, le lancer et examiner son résultat."
     }
   },
   "fr:get-started/members": {
     "slug": "get-started/members",
     "locale": "fr",
     "frontmatter": {
-      "title": "Ton premier jour avec Tale",
-      "description": "Le parcours membre — discute avec un agent, donne un document à l’espace de travail et repère où vivent les projets et l’historique des chats."
+      "title": "Utiliser Tale avec ton équipe",
+      "description": "Retrouver tes conversations, choisir où ranger les informations et travailler dans un projet."
     }
   },
   "fr:get-started/quickstart": {
     "slug": "get-started/quickstart",
     "locale": "fr",
     "frontmatter": {
-      "title": "Démarrage rapide",
-      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message."
+      "title": "Envoyer ton premier message",
+      "description": "Te connecter à Tale, lancer un chat, choisir un modèle et vérifier sa réponse."
     }
   },
   "fr:index": {
@@ -2369,7 +2414,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documentation Tale",
-      "description": "Tale est l’orchestrateur pour agents IA. Commence par le démarrage rapide, suis le parcours de démarrage de ton rôle ou plonge dans la référence des fonctionnalités.",
+      "description": "Utilise Tale, crée des agents de projet, connecte des applications et exploite ton instance.",
       "kind": "index"
     }
   },
@@ -2377,8 +2422,8 @@
     "slug": "legal/privacy",
     "locale": "fr",
     "frontmatter": {
-      "title": "Politique de confidentialité",
-      "description": "Ce que Tale collecte, pourquoi, combien de temps c'est conservé, qui d'autre le traite, et les droits que tu as sur tes données.",
+      "title": "Confidentialité et données personnelles",
+      "description": "Trouve la politique applicable et le bon interlocuteur pour demander un accès, une rectification ou un effacement.",
       "noindex": true
     }
   },
@@ -2387,7 +2432,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Sous-traitants ultérieurs",
-      "description": "Les sous-traitants tiers que Tale Cloud utilise pour livrer le service, ce que chacun traite et où se déroule le traitement.",
+      "description": "Trouve la liste de référence de Tale Cloud et distingue hébergement, fournisseurs de modèles et intégrations de ton organisation.",
       "noindex": true
     }
   },
@@ -2404,31 +2449,31 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Clés API",
-      "description": "Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale."
+      "description": "Crée, vérifie, renouvelle et révoque les identifiants des logiciels qui appellent Tale."
     }
   },
   "fr:platform/admin/branding": {
     "slug": "platform/admin/branding",
     "locale": "fr",
     "frontmatter": {
-      "title": "Branding",
-      "description": "Logo, favicon et la couleur d’accentuation que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l’entreprise."
+      "title": "Personnalisation visuelle",
+      "description": "Modifie le logo, les icônes d’onglet et la couleur d’accentuation, et vérifie quand les changements s’appliquent."
     }
   },
   "fr:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "fr",
     "frontmatter": {
-      "title": "Changelog",
-      "description": "Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même."
+      "title": "Nouveautés",
+      "description": "Consulte les notes de version et repère les changements qui concernent ton équipe."
     }
   },
   "fr:platform/admin/connectors": {
     "slug": "platform/admin/connectors",
     "locale": "fr",
     "frontmatter": {
-      "title": "Identifiants d’connector",
-      "description": "Sous Paramètres > Connectors, une organisation ajoute, nomme, promeut, désactive et reconnecte les identifiants avec lesquels chaque connecteur livré s’authentifie."
+      "title": "Identifiants des connecteurs",
+      "description": "Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations."
     }
   },
   "fr:platform/admin/enterprise-sso": {
@@ -2436,23 +2481,23 @@
     "locale": "fr",
     "frontmatter": {
       "title": "SSO d’entreprise et provisionnement",
-      "description": "Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation."
+      "description": "Connecte ton fournisseur d’identité, teste la connexion et gère les rôles et équipes avec SSO ou SCIM."
     }
   },
   "fr:platform/admin/governance/audit-logs": {
     "slug": "platform/admin/governance/audit-logs",
     "locale": "fr",
     "frontmatter": {
-      "title": "Journaux d'audit",
-      "description": "Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand."
+      "title": "Journaux d’audit",
+      "description": "Retrouve les changements enregistrés, examine les événements, exporte les résultats et vérifie la chaîne d’audit."
     }
   },
   "fr:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "fr",
     "frontmatter": {
-      "title": "Contenu et modèles",
-      "description": "Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit."
+      "title": "Modèles",
+      "description": "Définis les modèles par défaut, limite leur accès et choisis le modèle qui lit les images pour les agents textuels."
     }
   },
   "fr:platform/admin/governance/data-subject-requests": {
@@ -2460,7 +2505,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Demandes des personnes concernées",
-      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences."
+      "description": "Dépose et examine une demande d’effacement, gère les approbations et délais, puis vérifie le reçu obtenu."
     }
   },
   "fr:platform/admin/governance/feedback-analytics": {
@@ -2468,7 +2513,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Analyse des retours",
-      "description": "Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle."
+      "description": "Compare les évaluations de chat et les verdicts d’arène, lis les commentaires et examine la qualité des réponses."
     }
   },
   "fr:platform/admin/governance/guardrails": {
@@ -2476,15 +2521,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Garde-fous",
-      "description": "Les trois couches de filtres — sécurité du contenu, détection PII et un fournisseur de modération — qui filtrent les entrées et sorties de chat avant et après le modèle. Les Administrateurs et Propriétaires lisent ceci quand un régulateur nomme une règle de contenu ou quand une fuite justifie une politique plus stricte."
+      "description": "Configure les filtres de chat, la protection des données personnelles et la modération, puis examine les détections et erreurs."
     }
   },
   "fr:platform/admin/governance/legal-hold": {
     "slug": "platform/admin/governance/legal-hold",
     "locale": "fr",
     "frontmatter": {
-      "title": "Conservation légale",
-      "description": "Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves."
+      "title": "Conservation juridique",
+      "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
     }
   },
   "fr:platform/admin/governance/policies-and-limits": {
@@ -2492,7 +2537,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités."
+      "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités et le routage des conversations entrantes."
     }
   },
   "fr:platform/admin/governance/trash": {
@@ -2500,15 +2545,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Corbeille",
-      "description": "La vue de récupération soft-delete pour les enregistrements mis à la corbeille par la rétention — threads de chat, documents, prompts, exécutions de workflow — avant suppression définitive à la fin de la fenêtre de grâce. Les Administrateurs et Propriétaires lisent ceci quand quelqu'un a besoin de récupérer un artefact supprimé."
+      "description": "Retrouve les enregistrements récupérables, comprends leur statut et restaure-les avant la suppression définitive."
     }
   },
   "fr:platform/admin/governance/usage-analytics": {
     "slug": "platform/admin/governance/usage-analytics",
     "locale": "fr",
     "frontmatter": {
-      "title": "Analyse d'utilisation",
-      "description": "Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents."
+      "title": "Analyse de l’usage",
+      "description": "Examine la consommation de tokens, les requêtes et les coûts enregistrés par modèle, assistant et personne."
     }
   },
   "fr:platform/admin/members-and-roles": {
@@ -2516,15 +2561,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membres et rôles",
-      "description": "Les six rôles que Tale ship et la matrice de permissions au niveau ressource qui dit qui peut faire quoi."
+      "description": "Ajoute des personnes, choisis leurs permissions et gère les accès aux comptes."
     }
   },
   "fr:platform/admin/overview": {
     "slug": "platform/admin/overview",
     "locale": "fr",
     "frontmatter": {
-      "title": "Admin",
-      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance."
+      "title": "Administration",
+      "description": "Configure les accès, les services IA, la sécurité et les paramètres de ton organisation."
     }
   },
   "fr:platform/admin/providers": {
@@ -2532,7 +2577,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Fournisseurs IA",
-      "description": "Relie ton organisation aux modèles qu’elle a le droit d’appeler — les connecteurs de fournisseurs livrés avec la plateforme, les identifiants que tu enregistres en face, et les défauts, listes autorisées et catalogues qui décident de ce que chacun pourra choisir."
+      "description": "Connecte les identifiants des fournisseurs, rends les modèles disponibles et résous les choix manquants."
     }
   },
   "fr:platform/admin/sandboxes": {
@@ -2548,15 +2593,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations."
+      "description": "Regroupe les personnes pour partager des ressources et attribuer les conversations."
     }
   },
   "fr:platform/admin/two-factor-authentication": {
     "slug": "platform/admin/two-factor-authentication",
     "locale": "fr",
     "frontmatter": {
-      "title": "Authentification à deux facteurs",
-      "description": "Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator."
+      "title": "Authentification à double facteur",
+      "description": "Protège ton compte avec une application ou un passkey, conserve tes codes de secours et configure la règle de ton organisation."
     }
   },
   "fr:platform/agents/concepts": {
@@ -2579,40 +2624,40 @@
     "slug": "platform/agents/skills",
     "locale": "fr",
     "frontmatter": {
-      "title": "Les skills sur les agents",
-      "description": "Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox."
+      "title": "Équiper les agents avec des skills",
+      "description": "Choisis des bundles de skills pour les agents de projet et les nœuds d’automatisation, vérifie leur accès et contrôle leur utilisation."
     }
   },
   "fr:platform/approvals/concepts": {
     "slug": "platform/approvals/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts d’approbation",
-      "description": "Une approbation est une étape en pause dans une exécution d’automatisation en cours — une écriture de connector qui attend sur la page de détail de l’exécution qu’une personne l’approuve ou la rejette. Cette page nomme ce qui en déclenche une, la décision qu’elle offre et ce qu’elle laisse derrière elle."
+      "title": "Comprendre les approbations d’actions",
+      "description": "Comprends pourquoi une écriture via un Connector attend, ce qu’autorise une approbation et où vérifier le résultat."
     }
   },
   "fr:platform/approvals/configure": {
     "slug": "platform/approvals/configure",
     "locale": "fr",
     "frontmatter": {
-      "title": "Configurer les approbations",
-      "description": "Là où les exigences d’approbation sont déclarées — par opération de connector, avec un fichier de politique par organisation qui déplace la ligne — et quelles portes humaines se tiennent hors de cette politique."
+      "title": "Décider quelles actions demandent une approbation",
+      "description": "Comprends les règles par défaut, demande une modification de politique et distingue les approbations des autres revues."
     }
   },
   "fr:platform/automations/approvals-in-workflows": {
     "slug": "platform/automations/approvals-in-workflows",
     "locale": "fr",
     "frontmatter": {
-      "title": "Approbations dans les workflows",
-      "description": "Là où une exécution en cours attend une personne — une écriture de connector en pause pour approbation, une question posée par un nœud agent — et comment une définition change et passe en service sans carte de proposition."
+      "title": "Répondre à un workflow en attente",
+      "description": "Retrouve une exécution en pause, vérifie une écriture prévue ou réponds à l’agent pour permettre la reprise."
     }
   },
   "fr:platform/automations/assistant": {
     "slug": "platform/automations/assistant",
     "locale": "fr",
     "frontmatter": {
-      "title": "Assistant d’automatisation",
-      "description": "Un agent de chat rattaché à une automatisation ne fait pas partie de cette version — tu modifies une automatisation sur sa propre page, et un modèle en rédige une par l’endpoint MCP."
+      "title": "Choisir comment créer une automation",
+      "description": "Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP."
     }
   },
   "fr:platform/automations/builtin": {
@@ -2620,7 +2665,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisations livrées",
-      "description": "Ce que fait chacune des huit automatisations livrées — synchronisation et tri du courrier pour Gmail, Outlook et IMAP, évaluation des issues et examen des pull requests pour GitHub — et le connector dont chacune a besoin avant sa mise en service."
+      "description": "Choisis un workflow de courrier ou GitHub et vérifie ses données, connexions et écritures avant sa mise en service."
     }
   },
   "fr:platform/automations/catalog": {
@@ -2644,7 +2689,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "L’éditeur de workflow",
-      "description": "Le manuel d’exploitation de la page d’une automatisation — lire le canvas, modifier un nœud, enregistrer une version, la lancer contre des simulations, la mettre en service et revenir en arrière."
+      "description": "Examine et modifie les nœuds, fournis les données de test, puis enregistre, déploie ou rétablis une version."
     }
   },
   "fr:platform/automations/execution-logs": {
@@ -2671,12 +2716,20 @@
       "description": "La comparaison de modèles côte à côte dans le Chat — comment elle s’affiche, comment choisir les concurrents, comment les verdicts alimentent l’analyse des retours et quand y recourir."
     }
   },
+  "fr:platform/chat/attachments": {
+    "slug": "platform/chat/attachments",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Poser des questions sur des fichiers et des images",
+      "description": "Joins un document, une image ou un enregistrement au chat et vérifie quand son contenu est prêt à être utilisé."
+    }
+  },
   "fr:platform/chat/basics": {
     "slug": "platform/chat/basics",
     "locale": "fr",
     "frontmatter": {
-      "title": "Bases du chat",
-      "description": "Ce qui se passe entre l’envoi et l’arrivée de la réponse — les choix de la zone de saisie, ce que le modèle reçoit, les trois outils de récupération, et comment lire le déroulé de réflexion et les sources."
+      "title": "Poser des questions dans le chat",
+      "description": "Envoie un message, choisis un modèle, vérifie les sources et conserve les conversations utiles."
     }
   },
   "fr:platform/chat/overview": {
@@ -2684,15 +2737,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chat",
-      "description": "Le chat sert à demander et à retrouver — envoie un message, laisse Auto choisir le modèle ou épingle le tien, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation."
+      "description": "Pose une question, examine la réponse et ses sources, puis retrouve facilement les conversations utiles."
     }
   },
   "fr:platform/chat/shared-threads": {
     "slug": "platform/chat/shared-threads",
     "locale": "fr",
     "frontmatter": {
-      "title": "Chats partagés",
-      "description": "Partager un chat avec le reste de l’organisation — le dialogue de partage et son lien, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage."
+      "title": "Partager un chat avec ton organisation",
+      "description": "Crée un instantané en lecture seule, ajoute les messages récents lorsque tu le souhaites et arrête le partage plus tard."
     }
   },
   "fr:platform/chat/voice-mode": {
@@ -2700,15 +2753,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Mode vocal",
-      "description": "Parler au lieu de taper — comment un enregistrement devient un message, comment une réponse est relue à voix haute, et quels fournisseurs touchent l’audio au passage."
+      "description": "Dicte un message, vérifie sa transcription avant l’envoi et écoute les réponses lorsque la sortie vocale est disponible."
     }
   },
   "fr:platform/connectors/mcp-servers": {
     "slug": "platform/connectors/mcp-servers",
     "locale": "fr",
     "frontmatter": {
-      "title": "Serveurs MCP",
-      "description": "Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version."
+      "title": "Connecter un client externe avec MCP",
+      "description": "Retrouve le point d’accès MCP de Tale et comprends comment un client externe peut l’utiliser."
     }
   },
   "fr:platform/connectors/overview": {
@@ -2732,7 +2785,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développeur",
-      "description": "Développeur est la surface développeur en-app — clés API pour l’API REST, l’endpoint MCP et les identifiants de connector avec lesquels une personne de rôle Développeur branche Tale à du code externe."
+      "description": "Crée des automatisations et connecte Tale à tes clients, scripts et services externes."
     }
   },
   "fr:platform/editor/overview": {
@@ -2740,7 +2793,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Éditeur",
-      "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent."
+      "description": "Entretiens les connaissances partagées et réalise le travail de contenu nécessaire à ton équipe."
     }
   },
   "fr:platform/index": {
@@ -2748,7 +2801,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Plateforme",
-      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé.",
+      "description": "Découvre Tale à partir de ton travail, du premier chat aux projets, automatisations et réglages de l’organisation.",
       "kind": "index"
     }
   },
@@ -2756,8 +2809,8 @@
     "slug": "platform/knowledge/crawling",
     "locale": "fr",
     "frontmatter": {
-      "title": "Exploration de sites web",
-      "description": "Comment Tale transforme un site web en connaissances — enregistrement du domaine, découverte des URL par sitemap, ré-analyses planifiées et vue des pages indexées."
+      "title": "Ajouter des sites aux connaissances",
+      "description": "Choisis les pages publiques à indexer, règle la fréquence des scans et examine les contenus absents ou périmés."
     }
   },
   "fr:platform/knowledge/documents": {
@@ -2765,7 +2818,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documents",
-      "description": "L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie."
+      "description": "Importe des fichiers de référence partagés, vérifie leur disponibilité dans la recherche et maintiens les imports et révisions approuvées."
     }
   },
   "fr:platform/knowledge/knowledge-entries": {
@@ -2773,31 +2826,31 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Entrées de connaissances",
-      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — ajoutés à la main ou par l’API — avec une seule version active par sujet et un historique complet des versions."
+      "description": "Enregistre une information courte dans les connaissances partagées, actualise-la et consulte ses versions précédentes."
     }
   },
   "fr:platform/knowledge/overview": {
     "slug": "platform/knowledge/overview",
     "locale": "fr",
     "frontmatter": {
-      "title": "Base de connaissances",
-      "description": "La base de connaissances est la bibliothèque partagée de l’organisation — documents, petits faits, sites web explorés et fiches typées — sur laquelle les agents ancrent leurs réponses. Cet aperçu nomme les onglets et pointe vers les pages par domaine."
+      "title": "Connaissances",
+      "description": "Choisis où conserver les informations partagées, prépare-les pour la recherche et vérifie les sources d’une réponse."
     }
   },
   "fr:platform/knowledge/structured-data": {
     "slug": "platform/knowledge/structured-data",
     "locale": "fr",
     "frontmatter": {
-      "title": "Données structurées",
-      "description": "La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents."
+      "title": "Choisir entre documents et fiches structurées",
+      "description": "Choisis où conserver les politiques, coordonnées, données produit et pages web pour que Tale retrouve les bonnes informations."
     }
   },
   "fr:platform/member/install-as-app": {
     "slug": "platform/member/install-as-app",
     "locale": "fr",
     "frontmatter": {
-      "title": "Installer en tant qu'app",
-      "description": "Comment installer Tale en tant que Progressive Web App sur ordinateur et mobile — le raccourci de menu dans les navigateurs Chromium, le chemin iOS Safari, et ce qui change une fois l'app installée."
+      "title": "Installer Tale comme application",
+      "description": "Ajouter Tale à l’écran d’accueil ou au bureau, comprendre les sessions et désinstaller l’application."
     }
   },
   "fr:platform/member/overview": {
@@ -2805,15 +2858,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée."
+      "description": "Commence avec Chat, les connaissances partagées et le travail que ton organisation met à ta disposition."
     }
   },
   "fr:platform/member/preferences": {
     "slug": "platform/member/preferences",
     "locale": "fr",
     "frontmatter": {
-      "title": "Préférences",
-      "description": "Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, tes mémoires, et déconnexion."
+      "title": "Gérer ton compte et tes préférences",
+      "description": "Modifie ton nom, protège ta connexion, choisis une langue et comprends les réglages personnels de Tale."
     }
   },
   "fr:platform/models": {
@@ -2836,16 +2889,16 @@
     "slug": "platform/projects/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts de projet",
-      "description": "Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé."
+      "title": "Comprendre les projets",
+      "description": "Comprends ce qu’un projet partage, quels chats restent personnels et quand y regrouper un travail suivi."
     }
   },
   "fr:platform/projects/manage-files": {
     "slug": "platform/projects/manage-files",
     "locale": "fr",
     "frontmatter": {
-      "title": "Gérer les fichiers du projet",
-      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, et comment les fichiers du projet restent scopés au projet."
+      "title": "Gérer les fichiers d’un projet",
+      "description": "Ajoute et classe les fichiers, vérifie leur indexation et distingue la suppression du déplacement vers les connaissances partagées."
     }
   },
   "fr:platform/projects/overview": {
@@ -2853,7 +2906,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Projets",
-      "description": "Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions et tâches autour d’un même travail."
+      "description": "Réunis les références, les conversations et les tâches de ton équipe autour d’un travail commun."
     }
   },
   "fr:platform/projects/project-agents": {
@@ -2868,8 +2921,16 @@
     "slug": "platform/projects/task-automation",
     "locale": "fr",
     "frontmatter": {
-      "title": "Automatisation des tâches",
-      "description": "Comment l’affectation d’une tâche à un agent la met au travail, la séparation Assigné/Relecteur, la revue directement via le statut En revue, les garde-fous et l’arrêt d’urgence."
+      "title": "Déléguer une tâche à un agent",
+      "description": "Lance un agent, examine son résultat, demande des modifications et reprends ou annule une exécution."
+    }
+  },
+  "fr:platform/projects/tasks": {
+    "slug": "platform/projects/tasks",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Gérer les tâches d’un projet",
+      "description": "Crée une tâche, désigne son responsable, suis sa progression et examine le résultat au même endroit."
     }
   },
   "fr:platform/workspace/skills": {
@@ -2877,15 +2938,23 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bibliothèque de skills",
-      "description": "La page Paramètres > Skills — des bundles de fichiers que tes agents lisent, créés par n'importe quel membre et partagés avec des équipes ou avec toute l'organisation."
+      "description": "Crée des instructions réutilisables, importe un bundle et choisis les équipes et agents de projet qui pourront l’utiliser."
+    }
+  },
+  "fr:self-hosted/configuration/approvals": {
+    "slug": "self-hosted/configuration/approvals",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Définir les règles d’approbation des automations",
+      "description": "Choisis les écritures de connectors qui demandent une validation humaine et vérifie la priorité des règles."
     }
   },
   "fr:self-hosted/configuration/authentication": {
     "slug": "self-hosted/configuration/authentication",
     "locale": "fr",
     "frontmatter": {
-      "title": "Authentification",
-      "description": "Les quatre modes de sign-in que Tale ship — mot de passe local, Microsoft Entra, OIDC générique et trusted headers — et comment un opérateur bascule entre eux."
+      "title": "Choisir l’authentification",
+      "description": "Configure des comptes locaux, le SSO d’entreprise ou un proxy d’authentification de confiance."
     }
   },
   "fr:self-hosted/configuration/config-releases": {
@@ -2917,8 +2986,8 @@
     "slug": "self-hosted/configuration/observability-config",
     "locale": "fr",
     "frontmatter": {
-      "title": "Configuration de l'observabilité",
-      "description": "Les variables d'env et flags qui activent les logs, les métriques et le suivi d'erreurs — et où chacune route quoi."
+      "title": "Configurer la supervision",
+      "description": "Consulter les journaux, collecter les métriques protégées et choisir la destination des rapports d’erreur."
     }
   },
   "fr:self-hosted/configuration/providers": {
@@ -2933,16 +3002,16 @@
     "slug": "self-hosted/configuration/retention",
     "locale": "fr",
     "frontmatter": {
-      "title": "Rétention",
-      "description": "Comment la rétention à l'échelle de l'organisation est configurée — bornes opérateur dans les variables d'env et contrôles UI sous Gouvernance pour les chats, documents, audit logs."
+      "title": "Définir les limites de conservation",
+      "description": "Fixe les limites par organisation, applique les changements après examen et comprends la suppression des données."
     }
   },
   "fr:self-hosted/configuration/secrets-with-sops": {
     "slug": "self-hosted/configuration/secrets-with-sops",
     "locale": "fr",
     "frontmatter": {
-      "title": "Secrets avec SOPS",
-      "description": "Comment Tale chiffre les clés de fournisseurs sur disque avec SOPS et age, les trois modes de stockage et le walk complet de rotation de clé."
+      "title": "Protéger les secrets de configuration avec SOPS",
+      "description": "Distingue le chiffrement des fichiers de celui de la base et change les clés age sans perdre l’accès."
     }
   },
   "fr:self-hosted/configuration/tls-and-domains": {
@@ -2965,8 +3034,8 @@
     "slug": "self-hosted/index",
     "locale": "fr",
     "frontmatter": {
-      "title": "Auto-hébergé",
-      "description": "Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau.",
+      "title": "Héberger Tale sur ton infrastructure",
+      "description": "Choisis une méthode d’installation, définis les responsabilités d’exploitation et retrouve les guides de configuration et de maintenance.",
       "kind": "index"
     }
   },
@@ -2982,16 +3051,16 @@
     "slug": "self-hosted/install/first-admin",
     "locale": "fr",
     "frontmatter": {
-      "title": "Créer le premier admin",
-      "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique."
+      "title": "Créer le premier compte propriétaire",
+      "description": "Termine la première configuration, vérifie le rôle propriétaire et prépare l’instance pour ton équipe."
     }
   },
   "fr:self-hosted/install/index": {
     "slug": "self-hosted/install/index",
     "locale": "fr",
     "frontmatter": {
-      "title": "Installation",
-      "description": "Deux façons de faire tourner Tale — la CLI, ou une stack que tu écris toi-même (Compose ou Kubernetes)."
+      "title": "Choisir une méthode d’installation",
+      "description": "Installe un environnement avec la CLI Tale ou mets en œuvre l’architecture documentée avec tes propres outils d’infrastructure."
     }
   },
   "fr:self-hosted/install/own-compose": {
@@ -3006,8 +3075,8 @@
     "slug": "self-hosted/install/quickstart",
     "locale": "fr",
     "frontmatter": {
-      "title": "Démarrage rapide auto-hébergé",
-      "description": "Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l’assistant de configuration fait de toi le Propriétaire."
+      "title": "Démarrer ta première instance auto-hébergée",
+      "description": "Installe la CLI, démarre un projet Tale local et vérifie une première réponse de modèle."
     }
   },
   "fr:self-hosted/operate/backups-and-restore": {
@@ -3054,40 +3123,40 @@
     "slug": "self-hosted/operate/release-notes/format",
     "locale": "fr",
     "frontmatter": {
-      "title": "Comment lire les notes de version",
-      "description": "La forme que suivent les notes de version de Tale — la promesse semver, où vivent les changements breaking et les obsolescences, comment les entrées de sécurité sont marquées et où vivent les notes de migration par version."
+      "title": "Examiner une version avant la mise à jour",
+      "description": "Trouve la version cible, évalue les changements pour ton installation et prépare la mise à jour."
     }
   },
   "fr:self-hosted/operate/security/advisories": {
     "slug": "self-hosted/operate/security/advisories",
     "locale": "fr",
     "frontmatter": {
-      "title": "Avis de sécurité",
-      "description": "Le flux d'avis de sécurité Tale — format CVE, échelle de sévérité à quatre niveaux, calendrier de divulgation auquel les mainteneurs s'engagent, et comment t'abonner."
+      "title": "Suivre les avis de sécurité",
+      "description": "Trouve les avis publiés, évalue les risques pour ton installation et signale une vulnérabilité en privé."
     }
   },
   "fr:self-hosted/operate/security/audit-log-integrity": {
     "slug": "self-hosted/operate/security/audit-log-integrity",
     "locale": "fr",
     "frontmatter": {
-      "title": "Alertes d’intégrité du journal d’audit",
-      "description": "Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte."
+      "title": "Examiner l’intégrité du journal d’audit",
+      "description": "Vérifie la chaîne d’audit, comprends les limites du contrôle et conserve les preuves en cas d’échec."
     }
   },
   "fr:self-hosted/operate/security/cryptography": {
     "slug": "self-hosted/operate/security/cryptography",
     "locale": "fr",
     "frontmatter": {
-      "title": "Cryptographie",
-      "description": "Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit."
+      "title": "Cryptographie et gestion des clés",
+      "description": "Identifie les clés de chiffrement, de session et d’audit dont dépend ton déploiement et prépare leur récupération."
     }
   },
   "fr:self-hosted/operate/security/hardening": {
     "slug": "self-hosted/operate/security/hardening",
     "locale": "fr",
     "frontmatter": {
-      "title": "Durcissement",
-      "description": "La checklist de durcissement pour une instance Tale en production — utilisateur non-root, firewall, TLS, stockage des secrets, rétention d'audit logs, backups."
+      "title": "Sécuriser un déploiement de production",
+      "description": "Protège l’accès à l’hôte, le réseau, les secrets et la restauration avant d’ouvrir Tale aux utilisateurs."
     }
   },
   "fr:self-hosted/operate/upgrades": {
@@ -3110,16 +3179,16 @@
     "slug": "tutorials/admin/connect-local-provider",
     "locale": "fr",
     "frontmatter": {
-      "title": "Brancher un fournisseur LLM local",
-      "description": "Déclare un serveur Ollama, LM Studio ou vLLM local comme connecteur de fournisseur maison sur une instance Tale auto-hébergée, enregistre son identifiant et vérifie qu'un chat l'atteint sans quitter ton réseau."
+      "title": "Connecter un serveur de modèles local",
+      "description": "Préparer l’endpoint avec l’opérateur, ajouter un accès fournisseur et vérifier une requête de modèle."
     }
   },
   "fr:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "fr",
     "frontmatter": {
-      "title": "Acheminer les transcriptions de réunions",
-      "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
+      "title": "Rendre une transcription de réunion consultable",
+      "description": "Importer une transcription vérifiée dans le bon projet, contrôler son indexation et préparer les imports récurrents."
     }
   },
   "fr:tutorials/developer/call-tale-from-a-script": {
@@ -3127,47 +3196,47 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Appeler Tale depuis un script",
-      "description": "Crée une clé API et appelle l'API REST de Tale depuis un script bash ou Python — le chemin de bout en bout le plus court du terminal à une réponse d'assistant."
+      "description": "Crée une clé API, choisis un modèle disponible et affiche une réponse terminée avec Python."
     }
   },
   "fr:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencher une automatisation par webhook",
-      "description": "Ajoute un déclencheur webhook à une automatisation et POSTe sur son URL depuis un système externe pour lancer une exécution de la version déployée."
+      "title": "Déclencher une automation par webhook",
+      "description": "Installe une automation déployée dans un projet, envoie un webhook et vérifie l’exécution terminée."
     }
   },
   "fr:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "fr",
     "frontmatter": {
-      "title": "Construire ton premier agent",
-      "description": "Mène un projet neuf de « je veux un agent » à un résultat de tâche relu — crée un agent de projet avec un harness, un modèle et un paragraphe d’instructions, confie-lui une vraie tâche et relis ce qui revient."
+      "title": "Créer ton premier agent",
+      "description": "Configure un agent de projet pour une petite tâche de texte, lance-le depuis le tableau et relis son résultat."
     }
   },
   "fr:tutorials/editor/workflow-with-approvals": {
     "slug": "tutorials/editor/workflow-with-approvals",
     "locale": "fr",
     "frontmatter": {
-      "title": "Construire un workflow avec approbation",
-      "description": "L’éditeur IA et sa carte de proposition ne font pas partie de cette version — un workflow avec une décision humaine se construit sur le canvas, et l’exécution attend cette décision sur sa page de détail."
+      "title": "Créer un workflow avec approbation",
+      "description": "Importe un petit workflow, teste l’e-mail proposé, puis examine et refuse l’approbation réelle sans envoyer le message."
     }
   },
   "fr:tutorials/member/chat-effectively": {
     "slug": "tutorials/member/chat-effectively",
     "locale": "fr",
     "frontmatter": {
-      "title": "Chatter efficacement",
-      "description": "Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait »."
+      "title": "Obtenir une réponse utile dans Chat",
+      "description": "Exerce-toi à poser une question précise, vérifier une citation et améliorer la réponse par une relance."
     }
   },
   "fr:tutorials/member/use-projects": {
     "slug": "tutorials/member/use-projects",
     "locale": "fr",
     "frontmatter": {
-      "title": "Utiliser les projets pour grouper fichiers et chats",
-      "description": "Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations."
+      "title": "Utiliser un projet pour partager le contexte",
+      "description": "Crée un projet, ajoute des fichiers et des instructions, puis pose une question sur ses connaissances."
     }
   },
   "fr:tutorials/overview": {
@@ -3175,7 +3244,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Tutoriels",
-      "description": "Des parcours de tâches indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat qui fonctionne."
+      "description": "Réalise une tâche complète avec des prérequis, des exemples et un résultat que tu peux vérifier."
     }
   },
   "fr:tutorials/videos/automations-and-approvals": {

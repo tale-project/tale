@@ -1,70 +1,95 @@
 # Contributing to Tale
 
-Thanks for helping build Tale. This page is the short, authoritative entry
-point; it links to the deeper guides rather than duplicating them.
+Start with a local instance, reproduce the behavior you want to change, and keep
+the code, tests and documentation together. The complete working contract lives in
+[`AGENTS.md`](../AGENTS.md) and [`.agents/repo.md`](../.agents/repo.md).
 
-## Get running (from a fresh clone)
+## Run the product locally
 
-Prerequisites: **Bun ≥ 1.3**
-([why and how](../docs/en/develop/contributor-setup.md#prerequisites)). Python 3.12 and
-uv are only needed for the full gate — `bun run check` / `bun run verify` shell out to
-`uvx ruff` and run the Python test suites — and for the bundled Python skills.
+Install Bun, a compatible Node.js runtime and Docker with Compose. The
+[contributor setup guide](../docs/en/develop/contributor-setup.md) gives the exact
+prerequisites, local login and startup troubleshooting.
 
-```bash
-bun install            # wire up every workspace
-bun run setup:check    # validate Bun, free ports, the Convex CLI
-bun run dev            # boot Convex + Vite (wait for the READY banner)
-```
-
-You do **not** need Docker for source development; `bun run dev` runs Convex
-directly. The `web` and `docs` sites need neither Docker nor Convex — run just
-one with `bun run --filter @tale/web dev` (or `@tale/docs`). The full guide,
-including port conflicts and hybrid Convex mode, is
-[Contributor setup](../docs/en/develop/contributor-setup.md).
-
-## Before you open a PR
-
-One gate decides merge: **`bun run check`** (format, lint, typecheck, and the
-full TypeScript + Python test suites). Green is the signal; red blocks.
+From the repository root:
 
 ```bash
-bun run verify         # one shot: format + lint + typecheck + tests + UI + knip + SAST
-bun run test:e2e       # Playwright (only if you touched a frontend service)
+bun install
+bun run setup:check
+bun run dev
 ```
 
-`verify` mirrors the blocking CI checks; run `bun run check` alone for the
-faster format/lint/typecheck/test subset while iterating.
+The pre-flight command checks Bun and the app/backend ports. Development starts
+Docker backing services, a Node application backend and Vite; wait for `READY`
+before opening `http://localhost:3000`. Real model calls need a configured provider.
 
-- **Docs & translations ship with the code.** Anything a user can see,
-  configure, or call needs its docs updated in all three base locales
-  (`docs/en`, `docs/de`, `docs/fr`) in the same PR. The PR template has the
-  decision tree.
-- **Conventional commits.** `bun run commit` walks you through a valid message;
-  CI lints it.
-- The complete engineering contract — code style, security rules, TypeScript and
-  React conventions, the full pre-PR checklist — is in
-  [`AGENTS.md`](../AGENTS.md). Read it once.
+For work confined to the marketing or documentation site, run its workspace:
 
-## Known issues
+```bash
+bun run --filter @tale/web dev
+bun run --filter @tale/docs dev
+```
 
-- **xlsx security vulnerability**: the project uses xlsx@0.18.5, which has known
-  vulnerabilities (Prototype Pollution and ReDoS). It is the latest released version —
-  no fix exists yet. The package parses Excel files in the documents feature.
-- **ENVIRONMENT_FALLBACK warning**: the platform build may print an
-  `ENVIRONMENT_FALLBACK` error. It is a Convex-specific warning and does not prevent
-  successful builds.
-- **GitHub Code Quality is disabled**: the `github-code-quality` default setup was
-  turned off (Settings → Security → Code quality, or
-  `PATCH /repos/.../code-quality/setup` with `state: not-configured`). It reported
-  persistent false positives on this repo (e.g. Convex `"use node"` as an unknown
-  directive). Keep it off; lint and SAST stay with oxlint and Opengrep
-  (`bun run check` / `bun run lint:sast`).
+These sites do not need the platform backend for their local content preview.
+Use a separate terminal for each service you want to keep running.
 
-## Reporting bugs & ideas
+## Make a reviewable change
 
-Use the [issue templates](ISSUE_TEMPLATE) (bug, feature, improvement, docs). For
-questions, open a [Discussion](https://github.com/tale-project/tale/discussions).
-For a vulnerability, **do not** open a public issue — use GitHub's private
-reporting (the repository's **Security** tab → **Report a vulnerability**).
+Find the existing implementation before adding another path. For a bug, reproduce
+it and add regression coverage for the cause. For UI work, learn the design system
+and test the result in a real browser. Use the repository generators for new
+services, packages, tools and migrations.
 
-Please keep interactions respectful and constructive.
+Keep changes scoped to the task. Do not reset databases, remove volumes or replace
+another contributor’s local configuration as a troubleshooting shortcut. Git
+worktrees share more than source: check which ports, services and state each one
+uses.
+
+## Run the checks
+
+Run focused checks while working and the shared gate before requesting review:
+
+```bash
+bun run check
+```
+
+It covers formatting, lint, types and automated tests. Install Python and `uv` for
+the Python formatting/test steps in the workspace. Run the broader verification
+when required by the repository or CI:
+
+```bash
+bun run verify
+```
+
+Browser changes also need the relevant Playwright or manual flow. Database
+changes need the real-Postgres integration check described by the
+[migration skill](../.agents/skills/create-migration/SKILL.md). Passing unit tests
+alone does not verify a deployment, a migration or a user journey.
+
+## Include docs and translations
+
+Document anything a person can see, configure or call. Update English, German and
+French together, including labels, captions and links. Follow the
+[docs contract](../docs/AGENTS.md),
+[writing skill](../.agents/skills/write-docs/SKILL.md) and
+[translation skill](../.agents/skills/write-translations/SKILL.md).
+
+Use reproducible captures for documentation screenshots. Change a documented
+command, path or configuration pattern and update its README or skill in the same
+contribution.
+
+## Submit the contribution
+
+Work on a branch from `main` and open a pull request. Describe the problem, the
+resulting behavior and the checks you actually ran. Use a Conventional Commit
+style PR title; squash merging uses it for the final commit. The repository’s PR
+template lists the remaining review requirements.
+
+## Report a problem
+
+Use the [issue templates](ISSUE_TEMPLATE) for bugs, features, improvements and docs.
+Include a minimal reproduction, the version, the relevant error code and what you
+expected. Remove credentials and personal data from logs and screenshots.
+
+For questions, use [Discussions](https://github.com/tale-project/tale/discussions).
+Report security vulnerabilities privately through the repository’s **Security**
+tab and **Report a vulnerability** action.

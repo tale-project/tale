@@ -3,7 +3,9 @@ title: Écrire Compose toi-même
 description: Le contrat compose de production — réseaux, alias, sondes, volumes — pour écrire la stack sans la CLI.
 ---
 
-Cette page est ce qu’une stack doit reproduire quand tu écris Compose ou Kubernetes toi-même au lieu de lancer `tale deploy` : quels services tiennent l’état, les noms DNS, les sondes, les volumes. Le chemin CLI reste dans [Démarrage rapide](/fr/self-hosted/install/quickstart) et [Montées de version](/fr/self-hosted/operate/upgrades).
+Utilise ce contrat lorsque ton équipe maintient elle-même le déploiement Compose ou Kubernetes. Il décrit les services, images, volumes, alias réseau, secrets et sondes qui doivent fonctionner ensemble.
+
+Tu prends aussi en charge ce que la CLI coordonne habituellement : versions compatibles, sauvegardes, migrations, déploiement et reprise. Pour une première installation sans contrainte d’orchestration existante, commence par le [démarrage CLI](/fr/self-hosted/install/quickstart).
 
 ## Quand ce chemin est le bon
 

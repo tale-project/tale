@@ -1,7 +1,7 @@
 /**
  * Docs screenshot capture runner. Every committed docs image is produced by
  * this script from the declarative manifest (`manifest.ts`) — no hand-captured
- * screenshot ever ships (builtin-configs/skills/write-docs/SCREENSHOTS.md).
+ * screenshot ever ships (.agents/skills/write-docs/SCREENSHOTS.md).
  *
  *   bun run docs:screenshots                 # bootstrap + seed + all shots
  *   bun run docs:screenshots -- --list       # enumerate shots
@@ -113,15 +113,7 @@ async function preflight(): Promise<void> {
     } catch (error) {
       console.error(
         `Preflight failed: the ${label} is not reachable at ${url} (${String(error)}).\n\n` +
-          `Bring up the Mode-A stack first (two terminals, from services/platform):\n` +
-          `  1) bun lib/mocks/start.ts\n` +
-          `  2) TALE_DEV_SKIP_DOCKER=1 TALE_DEV_OPEN=0 \\\n` +
-          `     TALE_CONFIG_DIR="$(pwd)/tests/e2e/fixtures/config" \\\n` +
-          `     TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/docs-demo" \\\n` +
-          `     TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \\\n` +
-          `     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \\\n` +
-          `     TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \\\n` +
-          `     bun scripts/dev.ts\n\n` +
+          `Start the mock gateway and platform with the database and object store available.\n` +
           `See tests/docs-screenshots/README.md for the full runbook.`,
       );
       process.exit(1);

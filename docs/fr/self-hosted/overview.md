@@ -41,9 +41,9 @@ Tout le reste est éphémère. Les conteneurs se remplacent sans perte de donné
 
 ## Secrets de fournisseur et couche SOPS
 
-Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` à l'intérieur du magasin de config. Chaque fournisseur a un `<name>.json` et un `<name>.secrets.json` ; le fichier de secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
+Les identifiants actuels des fournisseurs sont chiffrés dans la base applicative. `ENCRYPTION_SECRET_HEX` les protège, ainsi que d’autres secrets en base. Les définitions de fournisseurs sont des fichiers YAML distincts.
 
-Cette séparation existe pour deux raisons. Faire tourner une clé de fournisseur, c'est éditer un fichier, pas relancer le backend ; sauvegarder le fichier chiffré est sûr à committer aux côtés de l'infrastructure. Le mode texte clair (pas de SOPS, secrets en clair au mode 0600) est pris en charge pour les environnements strictement contrôlés où le disque lui-même est chiffré at rest.
+SOPS et age protègent les fichiers de secrets de configuration compatibles, notamment les connexions aux bases documentaires et au stockage objet externes. Conserve les deux familles de clés avec ton plan de sauvegarde et de reprise. [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) explique cette distinction et la rotation des clés de fichiers.
 
 ## Auth et sessions
 

@@ -46,6 +46,7 @@
             "self-hosted/configuration/config-releases",
             "self-hosted/configuration/video-ingestion",
             "self-hosted/configuration/authentication",
+            "self-hosted/configuration/approvals",
             "self-hosted/configuration/providers",
             "self-hosted/configuration/secrets-with-sops",
             "self-hosted/configuration/data-residency",
@@ -111,6 +112,7 @@
           "pages": [
             "platform/chat/overview",
             "platform/chat/basics",
+            "platform/chat/attachments",
             "platform/chat/arena-mode",
             "platform/chat/voice-mode",
             "platform/chat/shared-threads"
@@ -121,6 +123,7 @@
           "pages": [
             "platform/projects/overview",
             "platform/projects/concepts",
+            "platform/projects/tasks",
             "platform/projects/manage-files",
             "platform/projects/project-agents",
             "platform/projects/task-automation",

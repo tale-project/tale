@@ -11,6 +11,12 @@ A project's **Agents** tab is its crew: named agents you configure once and then
 
 </Frame>
 
+<Note>
+
+Before starting work, the chosen harness needs compatible provider credentials and an available sandbox. A model that answers in Chat does not establish that a coding harness can use the same credential. Ask an administrator to check [AI providers](/platform/admin/providers) and [Sandboxes](/platform/admin/sandboxes) if creation or a run is blocked.
+
+</Note>
+
 ## Create an agent
 
 <Steps>
@@ -23,7 +29,7 @@ Open the project's **Agents** tab and click **New agent**. Give it a **Name** yo
 
 <Step title="Pick the model — and with it, the provider">
 
-The **Model** list is searchable, and a model served by more than one provider appears once per provider, with the serving provider named under each entry. The pick is exact: the agent's runs call that model through that provider — and the spend lands on that provider's credential. When the picked provider can no longer serve the model, the run fails with the reason instead of quietly switching to another provider's bill.
+The **Model** list is searchable by model name or API ID, and a model served by more than one provider appears once per provider, with the serving provider named under each entry. The pick is exact: the agent's runs call that model through that provider — and the spend lands on that provider's credential. When the picked provider can no longer serve the model, the run fails with the reason instead of quietly switching to another provider's bill.
 
 Subscription-served entries — a Claude subscription, say — appear only while the **Agent type** is the harness that subscription drives, and a run on one authenticates with the vendor subscription instead of an organization API key.
 
@@ -33,7 +39,7 @@ Subscription-served entries — a Claude subscription, say — appear only while
 
 **Skills, connectors & tools** decide what the agent can reach beyond its workspace; the list follows the project's team access, not your personal visibility. Skills stage reference bundles into the sandbox; connectors broker a connected service; **platform tools** let the agent read and write your organization's own data — find and read tasks, contacts, products, documents, and knowledge, and (when you grant a write tool) create tasks, comment, move them between columns, sync an external item to a task, or save a document. A write tool is marked _Writes data_: granting it is the authorization, so an agent equipped with `Create tasks` files real tasks with no further approval. Reads and writes both stay scoped to the project — an agent never sees another project's board.
 
-**Secrets** hand the agent an API key as an environment variable — the escape hatch for a service that has no connector. Add one (a name like `GLITCHTIP_TOKEN` and the token), and the agent receives it in its shell and calls that service's API directly, reading the vendor's own docs. The value is stored encrypted and never shown again; store only low-privilege, rotatable tokens, because the running agent can read them. Secrets are owned by the organization, so the same one is reused across agents and rotated in one place.
+**Secrets** give a running agent environment variables it can read. Only an organization Owner or Admin can change these grants. Choose narrowly scoped, rotatable credentials for services that cannot be reached through a connector. Values are stored encrypted, referenced by name in the agent configuration, and injected into its run. A shared secret can be reused by several agents, so rotation or deletion affects each one.
 
 **Instructions** ride along on every run as a standing instruction — what this agent owns, how it should work, and the boundaries it must respect.
 

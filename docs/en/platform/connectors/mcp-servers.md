@@ -1,30 +1,30 @@
 ---
-title: MCP servers
-description: Registering external MCP servers for agents to call is not part of this version — Tale's one MCP surface is the inbound endpoint under Settings > API > MCP.
+title: Connect an external client with MCP
+description: Find Tale’s MCP endpoint and understand how external clients use it to work with Tale.
 ---
 
-This page used to describe an **Add MCP server** form: a transport, an authentication method, an allowed-agents list, and a discovered-tools table with per-tool approval flags. None of that exists in this version of Tale. There is no MCP servers panel, no registration form, and no agent toolbelt an external server could join — a capability that would route to an external MCP tool is refused at runtime with a readable reason. What ships is the opposite direction: Tale is itself an MCP server that clients outside it connect to.
+Tale exposes an MCP endpoint that lets an external coding assistant or other MCP client work with your organization. Use it to discover capabilities, author automations, and inspect runs through the client’s tools. Access follows the organization API key and its holder’s permissions.
 
-<Note>
+## Find your endpoint
 
-Outbound MCP servers are not available in this version. The former **Settings > MCP servers** address redirects to **Settings > Connectors**, which lists the connectors Tale ships and nothing MCP-specific.
+Open **Settings > API > MCP**. The page shows the deployment’s endpoint URL, the organization slug, available tool groups, and a request you can copy to check connectivity. Create a suitable key under **Settings > API** if you do not already have one.
 
-</Note>
+<Frame caption="The MCP settings page provides the endpoint, organization context, and available tools.">
 
-## The MCP surface that ships
-
-Tale exposes one MCP endpoint per deployment at `/api/v1/mcp`, authenticated with an organization API key. Twenty-two tools sit behind it in three groups — authoring and deploying automations, running them and reading their runs, and searching and invoking what the organization can do. **Settings > API > MCP** shows your deployment's endpoint URL, the inventory in those three groups, and under **Try it** a copyable `tools/list` request. [MCP endpoint](/develop/mcp-endpoint) is the reference — protocol, tool table, and what each role's key may do; [API keys](/platform/admin/api-keys) covers minting the key.
-
-<Frame caption="Settings > API > MCP — the endpoint URL to point a client at, the organization slug a multi-org key sends, the tool inventory in its three groups, and a request to try the key with.">
-
-![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, an Organization slug row, three rows listing tool names by group — Authoring, Run & trigger management, Capabilities & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key and the organization-slug header.](/images/platform/settings-mcp-endpoint.webp)
+![The MCP settings page shows an endpoint URL ending in /api/v1/mcp, an organization slug, tool groups, and a sample connectivity request.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 
-## Reach your own code from an agent today
+Follow [MCP endpoint](/develop/mcp-endpoint) for client configuration, authentication, and permission requirements. Store the key in the client’s credential settings; do not put it in a prompt or a shared document.
 
-Wrapping your own service so an agent can use it takes one of three shapes in this version. A [connector](/platform/connectors/overview) is the vendor-specific bridge Tale ships — reach for it when one exists for the target system. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes on a schedule or a webhook, and you upload it as a pack. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — so it can call a service that has no connector straight from its sandbox.
+## Choose the direction of the connection
 
-## Where this fits
+Tale’s MCP endpoint accepts connections from external clients. Tale does not provide a settings form for registering an external MCP server as equipment for its own project agents.
 
-The MCP surface in this version points inward: external clients drive Tale, not the other way round. When a model outside Tale should author automations or search the organization's knowledge, connect it to the [MCP endpoint](/develop/mcp-endpoint); when an agent inside Tale should reach your code, use a connector, an automation, or a project agent's secrets — the [Connectors overview](/platform/connectors/overview) opens that path.
+For an agent inside Tale that needs another service, check the [connector catalog](/platform/connectors/overview). When there is no suitable connector, a [project agent](/platform/projects/project-agents) can use an appropriately scoped secret to call a service from its sandbox. That grants the running agent access to the secret, so choose the scope for the specific job.
+
+## Verify access before authoring
+
+Start with the connectivity request on the MCP page and confirm that the client can list the tools. Then read the tool’s required permission before trying a write. Saving an automation and deploying it are separate operations; connecting a client does not bypass the deploy gate or approval rules.
+
+Use [API keys](/platform/admin/api-keys) for key rotation and revocation, and [Automation concepts](/platform/automations/concepts) for the save, test, and deploy lifecycle.

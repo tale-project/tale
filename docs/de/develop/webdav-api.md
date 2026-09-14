@@ -3,9 +3,9 @@ title: WebDAV-API
 description: Protokoll-Referenz für Tales WebDAV-Server — URL-Schema, Authentifizierung, unterstützte Methoden, Eigenschaftsliste, Sperrsemantik und Limits.
 ---
 
-Tale exponiert den Dokumentenspeicher unter `/dav/<orgSlug>/` als lese- und schreibfähigen WebDAV-Class-2-Endpunkt (RFC 4918). Diese Seite ist die Protokoll-Referenz — die Wire-Level-Oberfläche, die ein Client-Implementierer oder ein Drittanbieter-Werkzeug zur Connector braucht. Für den Endbenutzer-Einrichtungsleitfaden und Per-Client-Anweisungen siehe [Plattform > Connectors > WebDAV](/platform/connectors/webdav).
+Der WebDAV-Endpunkt stellt Tale-Dokumente unter `/dav/<orgSlug>/` für passende Dateiclients bereit. Diese Referenz beschreibt Methoden, Eigenschaften, Sperren und Fehler für die Client-Entwicklung. Zum Einbinden eines Ordners in einer vorhandenen Anwendung nutze die [WebDAV-Einrichtung](/de/platform/connectors/webdav).
 
-Der Berechtigungsnachweis ist von Hand angelegt: ein App-Passwort, das eine Person unter **Einstellungen > WebDAV** erzeugt. Nichts auf der API erzeugt eines, und ein API-Schlüssel wird auf dieser Oberfläche nicht akzeptiert — jede Methode außer `OPTIONS` antwortet ihm mit `401` —, ein skriptgesteuerter Probelauf, ein CI-Smoke-Test oder ein Onboarding-Runbook braucht also eine Person, die das Passwort zuerst anlegt und dem Client übergibt.
+Die Anmeldung verwendet ein App-Passwort aus den WebDAV-Einstellungen. REST-API-Schlüssel werden nicht akzeptiert; `/api/v1` erstellt keine WebDAV-Passwörter. Richte vor dem Client-Test die richtigen Zugangsdaten ein.
 
 ## URL-Schema
 

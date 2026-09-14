@@ -1,76 +1,57 @@
 ---
-title: Secrets mit SOPS
-description: Wie Tale Anbieter-Schlüssel auf Platte mit SOPS und age verschlüsselt, die drei Speicher-Modi und der vollständige Schlüssel-Rotations-Walk.
+title: Konfigurationsgeheimnisse mit SOPS schützen
+description: Unterscheide Datei- und Datenbankverschlüsselung und rotiere age-Schlüssel, ohne den Zugriff zu verlieren.
 ---
+Tale verwendet SOPS und age für unterstützte Geheimnisdateien der Konfiguration, unter anderem für Verbindungen zur Wissensdatenbank und zum Objektspeicher. Aktuelle Zugangsdaten für AI-Anbieter liegen dagegen in der Anwendungsdatenbank und verwenden `ENCRYPTION_SECRET_HEX`. Eine age-Schlüsselrotation ändert diese Datenbankzugangsdaten nicht.
 
-Tale speichert Anbieter-API-Schlüssel in `providers/*.secrets.json`-Dateien auf Platte. Der Default-Modus nach `tale init` verschlüsselt diese Dateien mit SOPS unter Verwendung eines age-Schlüssels; ein alternativer Modus liest mehrere Schlüssel aus einer Datei (der Rotations-Pfad); ein dritter Modus hält die Dateien als Klartext mit Dateimodus 0600 für Umgebungen, in denen die Platte at-rest verschlüsselt ist und die Rotation extern gehandhabt wird. Diese Seite ist der Operator-Durchgang durch die drei Modi und den sicheren Rotations-Pfad.
+## Das betroffene Geheimnis zuordnen
 
-Die Env-Vars, die die Modi steuern, sind `SOPS_AGE_KEY` und `SOPS_AGE_KEY_FILE` — ihre Referenz-Zeilen leben in [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#provider-secrets-encryption). Diese Seite ist die längere Geschichte.
+Die Speicherart bestimmt den passenden Schlüssel:
 
-## Die drei Modi
+| Speicherung | Verschlüsselung | Folge für den Betrieb |
+| --- | --- | --- |
+| SOPS-fähige Konfigurationsdatei `*.secrets.json` | `SOPS_AGE_KEY` oder `SOPS_AGE_KEY_FILE` | Bewahre einen Schlüssel auf, der alle erhaltenen Dateien und Backups entschlüsselt. |
+| Anbieterzugangsdaten und weitere Secret-Box-Werte in der Datenbank | `ENCRYPTION_SECRET_HEX` | Ein Austausch macht vorhandene Geheimnisse unlesbar; eine age-Rotation migriert sie nicht. |
+| Anbieterzugangsdaten aus einer Umgebungsvariablen | `TALE_PROVIDER_KEY_*` | Rotiere den Wert im Secret-Manager und starte die verwendenden Prozesse neu. |
 
-| Modus                | Env-Vars                           | Wann nutzen                                                              |
-| -------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| Inline age-Schlüssel | `SOPS_AGE_KEY=AGE-SECRET-KEY-1...` | Default nach `tale init`. Einzelner Host, einzelner Schlüssel.           |
-| Schlüssel-Datei      | `SOPS_AGE_KEY_FILE=/path/to/keys`  | Pflicht für Rotation. Ein age-Schlüssel pro Zeile, `#`-Kommentare.       |
-| Klartext bei 0600    | Beide unset                        | Platte at-rest verschlüsselt, oder externe Tooling schreibt die Dateien. |
+In alten Konfigurationsverzeichnissen kann noch `providers/<name>.secrets.json` liegen. Das bedeutet nicht, dass aktuelle Anbieterzugangsdaten diese Datei verwenden. Das heutige Modell beschreibt [Anbieter](/de/self-hosted/configuration/providers).
 
-Der Plattform-Container wählt den Modus beim Boot. Die Inline-Form ist die einfachste; die Datei-Form ist die einzige, die mehrere Leser unterstützt (was Rotation ohne Downtime möglich macht); die Klartext-Form überspringt SOPS ganz und vertraut dem Dateisystem.
+## Eine Quelle für den age-Schlüssel wählen
 
-## Verschlüsselter Modus beim ersten Boot
+Ein direkt gesetztes `SOPS_AGE_KEY` hat Vorrang vor `SOPS_AGE_KEY_FILE`. Wähle bewusst eine Quelle. Die Dateivariante akzeptiert einen privaten age-Schlüssel pro Zeile und ignoriert Leerzeilen sowie `#`-Kommentare. Beim Schreiben neuer SOPS-Geheimnisse berücksichtigt Tale alle konfigurierten Empfänger.
 
-`tale init` generiert ein age-Schlüsselpaar und schreibt die private Hälfte in `SOPS_AGE_KEY` in deiner `.env`. Anbieter-Secret-Dateien, die durch **Einstellungen > Anbieter** geschrieben werden, werden beim Speichern verschlüsselt:
+Der Pfad gilt innerhalb des lesenden Prozesses. Ein Hostpfad in `.env` reicht nicht aus: Binde die Datei in jeden benötigten Container ein, verwende den Pfad im Container und beschränke den Dateizugriff. Erstelle betroffene Container nach einer Umgebungsänderung neu; `docker compose restart` übernimmt keine geänderten Umgebungsdefinitionen.
 
-```bash
-# Inspizieren — die Datei ist SOPS-verschlüsseltes JSON, nicht der Klartext-API-Schlüssel
-cat providers/openai.secrets.json
-# {
-#   "apiKey": "ENC[AES256_GCM,data:...,iv:...,tag:...]",
-#   "sops": { ... }
-# }
-```
+Sind beide Variablen leer, schreibt der SOPS-Helfer unterstützte Geheimnisdateien als Klartext-JSON mit Modus `0600`. Vorhandene verschlüsselte Dateien erkennt er weiterhin und verweigert den Zugriff ohne Schlüssel. Das Entfernen der Variablen entschlüsselt keine vorhandenen Dateien.
 
-Entschlüsselung passiert in-process, wenn der Plattform-Container die Datei liest. Der age-Schlüssel verlässt den Speicher des Plattform-Containers nie.
+## Eine Rotation vorbereiten
 
-## Den age-Schlüssel rotieren
+Erfasse vor dem Schlüsseltausch alle SOPS-verschlüsselten Dateien und ihre Backups. Bewahre den alten Schlüssel geschützt auf und prüfe, ob sich eine repräsentative Datei entschlüsseln lässt, ohne ihren Inhalt auszugeben oder zu protokollieren.
 
-Rotation ist der eine Pfad, den die Inline-Form nicht abdeckt — nur `SOPS_AGE_KEY_FILE` erlaubt dir, Ciphertext anzunehmen, der sowohl mit dem alten als auch dem neuen Schlüssel während des Umschaltens lesbar ist. Der Walk:
+Erzeuge einen neuen age-Schlüssel mit deinem vorhandenen Werkzeug zur Geheimnisverwaltung. Erstelle eine geschützte Schlüsseldatei mit **dem bisherigen und dem neuen privaten Schlüssel**. Überschreibe die alte Datei nicht mit einem Befehl, der nur einen neuen Schlüssel erzeugt.
 
-```bash
-# 1. Generiere einen neuen age-Schlüssel
-age-keygen -o /etc/tale/age-keys.txt
+Binde diese Datei in der Bereitstellung ein und setze `SOPS_AGE_KEY_FILE`. Entferne den direkten Wert aus der Umgebung der betroffenen Prozesse, sonst behält er Vorrang. Rolle die Änderung aus und prüfe, ob vorhandene Verbindungen weiter funktionieren.
 
-# 2. Häng den neuen Schlüssel als zweite Zeile in der Datei an
-echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
+## Neu verschlüsseln und prüfen
 
-# 3. Richte .env auf die Datei und starte den Plattform-Container neu
-sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
-sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart platform backend-api backend-worker
-```
+Schreibe jede betroffene Geheimnisdatei über ihren unterstützten Speicherweg oder ein kontrolliertes SOPS-Verfahren neu. Tale verschlüsselt neue Dateien für alle aktuell konfigurierten Empfänger. Ein zusätzlicher Schlüssel allein ändert vorhandene Dateien nicht.
 
-Jetzt können sowohl der alte als auch der neue Schlüssel bestehende Dateien entschlüsseln. Speichere den API-Schlüssel jedes Anbieters unter **Einstellungen > Anbieter** neu — jedes Speichern erzeugt Ciphertext, der von beiden Schlüsseln lesbar ist. Sobald jeder Anbieter neu gespeichert wurde (die Spalte **Zuletzt rotiert** in der Anbieter-Tabelle sagt dir, welche noch alten Ciphertext halten), entferne den alten Schlüssel aus der Datei:
+<Warning>
 
-```bash
-# 4. Lass die alte Schlüssel-Zeile fallen und starte erneut neu
-sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart platform backend-api backend-worker
-```
+Entferne den alten Schlüssel erst, wenn jede aktive verschlüsselte Datei mit dem neuen Schlüssel allein geprüft wurde. Bewahre den alten Schlüssel weiterhin geschützt für historische Backups auf, die ihn noch benötigen.
 
-Die Reihenfolge ist tragend: Entfern den alten Schlüssel nie, bevor jede Datei neu verschlüsselt ist, oder der Plattform-Container scheitert beim Lesen der noch-alten Dateien bei der nächsten Entschlüsselung.
+</Warning>
 
-## Auf Klartext umsteigen
+Stelle danach eine Schlüsseldatei bereit, die nur den neuen Schlüssel enthält. Starte die betroffenen Prozesse neu, um entschlüsselte Zwischenspeicher zu leeren, und teste jede Verbindung. Ein gelungener Prozessstart beweist nicht, dass jede Datei lesbar ist.
 
-Wenn die Host-Platte at-rest verschlüsselt ist (LUKS, AWS-EBS-Verschlüsselung, GCP CSEK) und du keine zweite Schicht Schlüssel-Verwaltung willst, ist der Klartext-Modus die unterstützte Option. Kommentier sowohl `SOPS_AGE_KEY` als auch `SOPS_AGE_KEY_FILE` aus, starte neu und speichere jeden Anbieter neu — die Dateien sind jetzt JSON mit Modus 0600.
+## Entschlüsselungsfehler beheben
 
-Das Risikomodell verschiebt sich: Ein durchgesickerter Dateisystem-Dump ist jetzt ein durchgesickertes Credential-Dump. Wähl diesen Modus nur, wenn die Platten-Verschlüsselung echt ist (kein Häkchen), und auditiere die Backup-Story des Hosts, um zu bestätigen, dass kein Klartext-Snapshot entweicht.
+| Symptom | Prüfung |
+| --- | --- |
+| Verschlüsselte Datei ohne Schlüssel gefunden | Stelle die passende Schlüsselquelle wieder her; ausgeschaltete Verschlüsselung konvertiert die Datei nicht. |
+| Schlüsseldatei nicht lesbar | Prüfe Einbindung, Containerpfad, Eigentümer und Rechte. |
+| Alter Schlüssel wird weiter gewählt | Entferne das nicht leere `SOPS_AGE_KEY`, bevor du die Datei verwendest. |
+| Neuer Schlüssel kann eine Datei nicht lesen | Behalte den alten Schlüssel und verschlüssele die Datei vor Abschluss der Rotation neu. |
+| Anbieterzugangsdaten scheitern nach Änderung von `ENCRYPTION_SECRET_HEX` | Stelle den Zugriff auf Datenbankgeheimnisse wieder her; age-Schlüssel helfen hier nicht. |
 
-## Externe Secret-Stores
-
-Wenn deine Schlüssel schon in Vault, einem Cloud-Secret-Manager oder Kubernetes Secrets liegen, ist die Umgebungsvariablen-Schlüsselquelle das erstklassige Pattern: zeig jeden Anbieter mit `secretsEnv` auf eine **Umgebungsvariable** und lass deinen Secret-Store diese Variable befüllen. Keine Klartext-Datei landet auf der Platte, und die Präfix-Schranke hindert einen Config-Schreib-Akteur daran, ein fremdes Deployment-Secret zu lesen. Der vollständige Mechanismus — die `TALE_PROVIDER_KEY_`-Präfix-Schranke, die Auflösungs-Reihenfolge und das Neustart-bei-Änderung-Verhalten — lebt in [Anbieter](/de/self-hosted/configuration/providers#environment-variable-key-source).
-
-Der Datei-Mount-Ansatz ist die Legacy-Alternative: Schreib die Klartext-`*.secrets.json`-Dateien aus dem externen Store und betreib Tale im Klartext-Modus. Das funktioniert weiterhin, legt aber den Klartext-Schlüssel auf die Platte und bricht, wenn du einen Anbieter über die UI speicherst — die UI überschreibt den Mount. Bevorzuge die Umgebungsvariablen-Quelle, sofern dich kein Zwang zur Datei-Form drängt.
-
-## Wo das hingehört
-
-Diese Seite ist die vollständige Operator-Anleitung zur SOPS-Schicht; die Env-Var-Referenz-Zeilen sind in [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#provider-secrets-encryption), und das Anbieter-Dateiformat selbst in [Anbieter](/de/self-hosted/configuration/providers). Ist ein Schlüssel durchgesickert, ist die Rotation derselbe Walk oben, dringend ausgeführt.
+Für Geheimnisse aus Vault, Kubernetes oder einem anderen externen Speicher bevorzuge, soweit unterstützt, die [Schlüsselquelle aus Umgebungsvariablen](/de/self-hosted/configuration/providers#umgebungsvariable-als-schlüsselquelle). Bewahre Verschlüsselungsschlüssel mit deinem Wiederherstellungsplan auf, getrennt geschützt von den Backups, die sie entschlüsseln.

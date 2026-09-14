@@ -44,13 +44,13 @@ Wähl eine Node, und das Panel zeigt, was mit ihr passiert ist: die **Aufgelöst
 
 ### Auswirkungen
 
-Ein Lauf bewahrt außerdem die geordnete Liste von allem, was er außerhalb der Plattform verändert hat — jeder Eintrag nennt die verursachende Node, die aufgerufene Connector und die Eingabe, mit der sie aufgerufen wurde. Ein Lauf, der außerhalb der Plattform nichts verändert hat, sagt das ausdrücklich, und das ist eine echte Antwort statt eines leeren Abschnitts.
+Ein Lauf protokolliert die Connector-Schreibvorgänge in ihrer Reihenfolge, mit der auslösenden Node, dem Connector und der übergebenen Eingabe. Hat er keine solchen Auswirkungen, zeigt die Ansicht das ausdrücklich an.
 
-Die Liste der Auswirkungen macht einen Lauf nachträglich prüfbar. Wenn jemand fragt, ob eine Nachricht tatsächlich rausging, ist das die Liste, die antwortet — und sie bleibt dauerhaft beim Lauf.
+Die Liste der Auswirkungen macht einen Lauf nachträglich prüfbar. Prüfe darin die protokollierten Connector-Schreibvorgänge und ihre Eingaben. Die Einträge bleiben beim Lauf, bis Aufbewahrungsregeln oder eine Löschung ihn entfernen. Wenn die Zustellung entscheidend ist, prüfe sie zusätzlich beim empfangenden Dienst.
 
-## Warum ein langer Lauf sich nicht wiederholt
+## Wie ein langer Lauf fortgesetzt wird
 
-Ein Live-Lauf läuft nicht in einem Zug durch. Er geht Node für Node vor, und jede abgeschlossene Node wird festgehalten, bevor die nächste beginnt. Erreicht der Lauf das Zeitfenster der Plattform, gibt er sich zurück und setzt bei der letzten abgeschlossenen Node fort. Eine bereits gelaufene Node wird nie ein zweites Mal erreicht — das hindert einen unterbrochenen Lauf daran, dieselbe Nachricht zweimal zu senden.
+Ein Live-Lauf läuft nicht in einem Zug durch. Er geht Node für Node vor, und jede abgeschlossene Node wird festgehalten, bevor die nächste beginnt. Erreicht der Lauf das Zeitfenster der Plattform, gibt er sich zurück und setzt bei der letzten abgeschlossenen Node fort. Der Ablauf setzt nach den gespeicherten Checkpoints fort. Prüfe vor einem separaten neuen Lauf die protokollierten Auswirkungen: Ein neuer Lauf hat eigene Checkpoints und kann einen Schreibvorgang wiederholen.
 
 Dieselben Checkpoints decken einen Lauf ab, dessen Fortsetzung verloren ging. Ein Lauf, der über eine Schonfrist hinaus in einem nicht abgeschlossenen Zustand liegt, wird von selbst wieder aufgenommen und setzt dort fort, wo seine Checkpoints ihn verorten — statt neu zu starten oder für immer unfertig liegen zu bleiben.
 

@@ -1,48 +1,41 @@
 ---
 title: Tutorials
-description: Role-indexed task walks — Member, Editor, Developer, Admin. Each tutorial takes a fresh instance from "I want to do X" to a working result.
+description: Practice a complete task with prerequisites, sample inputs, and a result you can check.
 ---
 
-Tutorials are end-to-end walkthroughs: each takes a fresh instance from "I want to do X" to a working, verified result. They assume you have the right role and a running workspace; the concept pages under [Platform](/platform) explain the mental model, tutorials show the mechanic from start to finish.
+Choose a task you want to try in your workspace. Each tutorial gives you a starting point, example inputs, and checkpoints so you can tell whether it worked. If you have never used Tale, start with [your first chat](/get-started/quickstart).
 
-If you have not walked a [get-started journey](/get-started/quickstart) yet, start there — tutorials build on the day-one moves those cover.
-
-## Pick by role
+## Start with everyday work
 
 <CardGroup cols="2">
 
-<Card title="Video series" icon="play" href="/tutorials/videos">
+<Card title="Get a useful chat response" icon="message-circle" href="/tutorials/member/chat-effectively">
 
-Produced walkthroughs of the whole platform — grounding, agents, automations, governance — three minutes at a time, in three languages.
-
-</Card>
-
-<Card title="Member tutorials" icon="message-circle" href="/tutorials/member/chat-effectively">
-
-Chat effectively, work in projects, hold voice conversations.
+Give the model context, refine its answer, and check the result before using it.
 
 </Card>
 
-<Card title="Editor tutorials" icon="bot" href="/tutorials/editor/first-agent-end-to-end">
+<Card title="Organize work in a project" icon="folder" href="/tutorials/member/use-projects">
 
-Build a first project agent end to end, ship workflows with approvals.
-
-</Card>
-
-<Card title="Developer tutorials" icon="terminal" href="/tutorials/developer/call-tale-from-a-script">
-
-Call Tale from a script, trigger automations via webhooks.
-
-</Card>
-
-<Card title="Admin tutorials" icon="shield" href="/tutorials/admin/connect-local-provider">
-
-Connect a local provider, wire meeting transcription.
+Bring a task, a source file, and project instructions together. Choose what to share with your team.
 
 </Card>
 
 </CardGroup>
 
-## Where this fits
+## Build and connect
 
-Tutorials cite the feature references under [Platform](/platform) for the conceptual scaffolding; once you have walked one, the page worth re-reading is the underlying concept page. If you do not know which tutorial to pick, [Build your first agent](/tutorials/editor/first-agent-end-to-end) is the closest thing to a "hello world" for the product — most product capabilities you eventually touch appear in it.
+These tutorials need additional permissions or a configured service. Check the prerequisites on the tutorial before you start; an ordinary chat does not need an agent runtime.
+
+| Your goal | Tutorial | What you need |
+| --- | --- | --- |
+| Delegate a project task | [Run your first agent](/tutorials/editor/first-agent-end-to-end) | Permission to configure project agents, a model, and a working agent runtime |
+| Review a workflow action before it runs | [Build a workflow with approvals](/tutorials/editor/workflow-with-approvals) | Automation editing access and an eligible approver |
+| Send a message from your own program | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) | A running instance, a model, an API key, and Python |
+| Start an automation from another system | [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) | A published automation and a securely stored webhook credential |
+| Connect a local model server | [Connect a local provider](/tutorials/admin/connect-local-provider) | Administrative access and a model server reachable from Tale |
+| Turn meeting audio into text | [Set up meeting transcription](/tutorials/admin/meeting-transcription) | A configured speech-to-text service and permission to process the recording |
+
+## Find a reference while you work
+
+The [Platform guides](/platform) explain individual features and their limits. [Self-hosted documentation](/self-hosted) covers deployment and server configuration. The [developer documentation](/develop/overview) covers APIs and source contributions.

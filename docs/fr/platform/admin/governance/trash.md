@@ -1,49 +1,36 @@
 ---
 title: Corbeille
-description: La vue de récupération soft-delete pour les enregistrements mis à la corbeille par la rétention — threads de chat, documents, prompts, exécutions de workflow — avant suppression définitive à la fin de la fenêtre de grâce. Les Administrateurs et Propriétaires lisent ceci quand quelqu'un a besoin de récupérer un artefact supprimé.
+description: Retrouve les enregistrements récupérables, comprends leur statut et restaure-les avant la suppression définitive.
 ---
 
-Corbeille est la surface de récupération pour les lignes que la rétention a soft-supprimées sans encore les avoir hard-supprimées. Quand un thread de chat, un document, un modèle de prompt ou une exécution de workflow dépasse sa fenêtre de rétention, il se déplace ici pour la fenêtre de grâce configurée avant que la prochaine passe de nettoyage ne le retire pour de bon. Les Administrateurs et Propriétaires lisent cette page quand un membre redemande un artefact supprimé, quand un workflow a supprimé le mauvais élément, ou quand un audit doit savoir si une ligne est encore récupérable.
+En tant qu’admin ou propriétaire, ouvre **Paramètres > Gouvernance > Corbeille** pour récupérer les enregistrements encore stockés après une suppression provisoire. Une suppression définitive ne peut pas être annulée ici, et toutes les suppressions de Tale ne passent pas par la corbeille.
 
-## Une restauration mise en pratique
+## Restaurer un enregistrement
 
-Pour restaurer un thread d'historique de chat, ouvre **Paramètres > Gouvernance > Corbeille** et bascule le filtre **Catégorie** sur **Historique de chat**. Chaque ligne porte le type, le nom, le propriétaire, le statut et le moment de mise à la corbeille. Clique sur **Restaurer** sur la ligne, confirme dans la boîte de dialogue, et la ligne retourne dans sa liste source — les threads de chat réapparaissent dans la boîte de réception des conversations et les documents dans la base de connaissances. Restaurer une ligne expirée par la rétention demande de taper `restore` pour confirmer et est audité comme un dépassement de la politique de rétention.
+1. Ouvre la corbeille et utilise **Filtre > Catégorie** pour réduire la liste, ou garde la vue sans filtre pour voir tous les types pris en charge.
+2. Vérifie le nom, le propriétaire, le type et la date de suppression pour distinguer les enregistrements similaires.
+3. Choisis **Restaurer** sur la ligne et lis la confirmation.
+4. Pour un enregistrement expiré par rétention, saisis exactement `restore`. Confirme, puis retrouve l’enregistrement à son emplacement d’origine, par exemple dans sa liste de chats ou les connaissances.
 
-## Les deux statuts
+La ligne restaurée disparaît de la corbeille. Tale consigne la restauration dans le journal d’audit. Si elle n’est plus disponible, actualise la liste : le nettoyage l’a peut-être déjà supprimée définitivement.
 
-**Mis à la corbeille** est l'état soft-delete normal. La fenêtre de rétention de la ligne a expiré, elle s'est déplacée à la corbeille, et la fenêtre de grâce tourne encore. Restaurer ramène la ligne dans sa liste source sans dépasser la politique. La fenêtre de rétention repart de zéro au moment de la restauration — un thread de chat, un document ou une conversation externe restaurés comptent à partir de ce moment, et le prochain nettoyage le laisse tranquille au lieu de le faire expirer à nouveau.
+## Comprendre le statut
 
-**Expiré** est le second état — la fenêtre de grâce s'est écoulée et la ligne est en file pour suppression définitive au prochain nettoyage. Restaurer reste possible mais est un dépassement : la boîte de dialogue te demande de taper `restore` et le journal d'audit enregistre le dépassement avec ton nom.
+| Statut | Signification |
+| --- | --- |
+| **Mis à la corbeille** | L’enregistrement a été supprimé provisoirement et peut encore être restauré. |
+| **Expiré** | La règle de rétention a fait expirer l’enregistrement. Le restaurer déroge à cette règle, d’où la confirmation avec le mot `restore`. |
 
-## Les catégories
+**Expiré** ne signifie pas que le délai de récupération est déjà écoulé. La rétention marque les enregistrements comme expirés au début de leur délai de grâce ; le nettoyage définitif intervient après ce délai.
 
-La corbeille contient des lignes de nombreuses catégories. Le filtre de catégorie change la vue par onglet :
+Le filtre de catégorie comprend les chats, documents, fichiers, retours, contacts, conversations externes, exécutions de workflow et d’automatisation, données d’usage, entrées d’audit et événements de filtre de chat pris en charge. Certaines données sont supprimées directement ou avec leur parent et n’ont pas d’action de restauration séparée.
 
-- Historique de chat (threads)
-- Documents
-- Fichiers temporaires
-- Modèles de prompt
-- Retours sur messages
-- Contacts
-- Conversations externes
-- Métadonnées de message
-- Exécutions d'automatisation
-- Logs de déclencheur d'automatisation
-- Registre d'utilisation
-- Logs d'audit
-- Événements de filtre de chat
-- Audit de mémoire
+## Vérifier le délai de récupération
 
-Chaque catégorie respecte sa propre fenêtre de rétention et sa propre fenêtre de grâce — réglées dans la politique de rétention dans [politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+La règle de rétention de l’organisation définit le délai de grâce. S’il est positif, les enregistrements expirés pris en charge restent récupérables jusqu’au nettoyage. Zéro autorise un nettoyage définitif immédiat. Vérifie la règle active dans [Politiques et limites](/platform/admin/governance/policies-and-limits), sans supposer un nombre de jours fixe.
 
-## Interaction avec la conservation légale
+Une corbeille vide signifie qu’aucun enregistrement n’est récupérable dans cette vue. Elle ne prouve pas qu’aucune suppression n’a eu lieu. Efface les filtres de catégorie avant de conclure qu’un enregistrement manque.
 
-Les lignes sous conservation légale n'apparaissent pas dans la corbeille — le hold les épingle hors de portée de chaque étape de rétention. Quand tu tentes de supprimer une ligne sous hold depuis sa liste source, Tale refuse avec une erreur de conservation légale qui nomme le hold. Lever le hold laisse la rétention faire passer la ligne par la fenêtre de corbeille comme les autres catégories.
+## Tenir compte des gels juridiques
 
-## La fenêtre de grâce
-
-La fenêtre de grâce est configurable par catégorie dans la politique de rétention. Une grâce de zéro saute la corbeille entièrement — la passe de nettoyage hard-supprime la ligne immédiatement quand la rétention se déclenche. Une grâce au-dessus de zéro garde la ligne dans la corbeille ce nombre de jours et la fait apparaître ici pendant la fenêtre Administrateur où restaurer reste peu coûteux.
-
-## Où cela s'inscrit
-
-Corbeille est la seconde chance que la rétention donne à chaque catégorie avant que la passe de nettoyage ne retire une ligne pour de bon. Elle s'associe à [politiques et limites](/fr/platform/admin/governance/policies-and-limits) — la page rétention règle les fenêtres ; cette page est la vue de récupération que ces fenêtres alimentent. La page compagnon est [conservation légale](/fr/platform/admin/governance/legal-hold), le seul mécanisme qui bat la rétention avant qu'une ligne n'atterrisse dans la corbeille.
+Un [gel juridique](/platform/admin/governance/legal-hold) empêche la rétention ou l’effacement de supprimer les données couvertes. Il préserve les données encore présentes, sans récupérer celles déjà supprimées définitivement. Vérifie l’historique des gels et de la rétention pour comprendre pourquoi un enregistrement est arrivé, ou non, dans la corbeille.

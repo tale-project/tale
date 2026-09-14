@@ -1,9 +1,9 @@
 ---
-title: Guardrails
-description: Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen.
+title: Schutzregeln
+description: Richte Chatfilter, den Schutz personenbezogener Daten und Moderation ein und prüfe Erkennungen und Fehler.
 ---
 
-Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, die Tale auf jede Chat-Nachricht in deiner Organisation anwendet. Jede Nachricht durchläuft Inhaltssicherheit (Wortlisten und Admin-Regex), dann PII-Erkennung (eingebaute Muster plus eigene), dann einen optionalen externen Moderationsanbieter — in dieser festen Reihenfolge, auf dem Weg hinein und auf dem Weg hinaus. Admins und Inhaber lesen diese Seite, wenn ein Regulierer eine Inhaltsregel benennt, wenn ein Leck eine strengere Richtlinie rechtfertigt, oder wenn die Antworten eines Agents bereinigt werden müssen, bevor sie das Modell verlassen.
+Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Guardrails**, wie Chattexte vor und nach einem Modellaufruf geprüft werden. Aktivierte Schichten laufen in dieser Reihenfolge: Inhaltssicherheit, Erkennung personenbezogener Daten und externe Moderation. Beginne mit einer klaren Regel und prüfe ihre Wirkung, bevor du sie ausweitest.
 
 <Frame caption="Governance > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
 
@@ -11,30 +11,42 @@ Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, 
 
 </Frame>
 
-## Eine durchgespielte Schichtung
+## Eine Inhaltsregel hinzufügen
 
-Um die Ebenen zu konfigurieren, öffne **Einstellungen > Richtlinien > Guardrails**. Die Übersicht zeigt drei Status-Karten, eine pro Ebene — Inhaltssicherheit, PII-Erkennung, Moderation — und der Editor jeder Ebene sitzt weiter unten auf derselben Seite; dort wählst du, ob die Ebene auf Eingaben, Ausgaben oder beidem läuft und was sie bei einem Treffer tut. Auch die verpflichtenden Custom-Anweisungen der Organisation leben hier — sie binden jeden Agent und gehören darum zu den Inhalts-Kontrollen. Die Tabelle der letzten Ereignisse unter der Übersicht zeigt die letzten 50 Erkennungen, Blockaden und Anbieter-Fehler mit ihrer Ebene, ihrer Richtung und ihrer Treffer-Kategorie.
+1. Lege im Bereich der Inhaltssicherheit fest, ob Benutzereingaben, Modellausgaben oder beide geprüft werden.
+2. Wähle die Aktion zum Hinzufügen einer Kategorie, vergib eine erkennbare Bezeichnung und wähle den Modus.
+3. Füge die zu erkennenden Wörter oder Ausdrücke einzeln pro Zeile hinzu. Du kannst eine Textliste importieren; prüfe sie vor dem Anwenden.
+4. Speichere die Kategorie, aktiviere die gewünschte Kategorie und Schicht und speichere die ausstehenden Seitenänderungen.
+5. Teste mit erfundenem Text, der einen Treffer enthält, und mit normalem Text, der passieren soll. Prüfe die aktuellen Ereignisse und das sichtbare Ergebnis im Chat.
 
-## Inhaltssicherheit
+| Modus | Was bei einem Treffer passiert |
+| --- | --- |
+| Markieren | Protokolliert den Treffer und lässt die Nachricht durch. Hilfreich beim Abstimmen einer Regel. |
+| Maskieren | Ersetzt den Treffer durch den eingestellten Platzhalter. |
+| Blockieren | Lehnt die Nachricht ab. |
 
-Inhaltssicherheit ist die Ebene, die du selbst besitzt. Definiere eine oder mehrere Kategorien — Hassrede, Profanität, eine eigene Regex für einen internen Codenamen — und wähle einen Modus pro Kategorie: **Blockieren** lehnt die Nachricht ab, **Maskieren** ersetzt Treffer durch einen Platzhalter, **Markieren** vermerkt die Erkennung, ohne die Nachricht zu ändern. Blockieren schlägt Maskieren schlägt Markieren, wenn mehr als eine Kategorie greift.
+Treffen mehrere Kategorien zu, hat Blockieren Vorrang vor Maskieren und Markieren. Die Wortsuche ignoriert Groß- und Kleinschreibung. Prüfe wichtige Sprachvarianten und Fehlalarme. Ein erfolgreicher Test belegt keine vollständige Abdeckung.
 
-Die Wortlisten und Muster dieser Ebene verlassen das Deployment nie. Getroffener Text wird nicht gespeichert — nur die Kategorie, die Richtung (Eingabe oder Ausgabe) und die Trefferanzahl landen im Audit-Ereignis.
+## Personenbezogene Daten schützen
 
-## PII-Erkennung
+Der PII-Schutz erkennt konfigurierte Muster wie E-Mail-Adressen, Telefonnummern und Kennungen. Wähle passende eingebaute Typen und eigene Muster, danach das gewünschte Verhalten.
 
-PII-Erkennung bringt Muster für E-Mails, Telefonnummern, Behörden-IDs, Zahlungsnummern und eine lange Liste regionaler Formate mit. Füge eigene Muster hinzu, wenn dein Regulierer ein Format benennt, das die eingebauten verfehlen. Wähle einen Modus — Blockieren, Maskieren mit einem Platzhalter, oder Tokenisieren, das PII auf dem Hinweg gegen indizierte Token tauscht und sie in der Antwort des Modells wiederherstellt. Maskieren ist die typische Wahl, wenn das Modell Zugriff auf Datensätze mit PII bekommen hat, die es nicht zurückspielen soll.
+Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Blockieren lehnt einen Treffer ab. Tokenisierung ersetzt die Werte für das Modell durch nummerierte Tokens und stellt sie in der Antwort wieder her. Sie kann die Verarbeitung mit weniger offengelegten Daten unterstützen, verspricht aber keine Antwort ohne personenbezogene Daten.
 
-## Moderationsanbieter
+Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 
-Die Moderationsebene ist ein externer Klassifikator — OpenAI Moderation, Azure Content Safety, Perspective API oder ein eigener HTTP-Endpunkt. Konfiguriere den Endpunkt des Anbieters, einen API-Key und das Kategorie-zu-Aktion-Mapping (jeder Anbieter liefert seine eigene Taxonomie zurück; das Mapping entscheidet, welche Kategorien blockieren, maskieren oder markieren). Die Ebene ist optional — lass sie deaktiviert und nur die ersten zwei Ebenen laufen.
+## Externe Moderation ergänzen
 
-Der Anbieter sitzt auf dem Egress-Netzwerkpfad. Ausfälle sind pro Richtung konfigurierbar: Fail-open lässt die Nachricht durch, Fail-closed lehnt sie ab. Die Ansicht der letzten Ereignisse zeigt Anbieter-Fehler, HTTP-Statuscodes und Circuit-Open-Ereignisse, wenn die Ebene gerate-limited ist.
+Die Moderationsschicht sendet Text an einen konfigurierten Klassifikator, etwa OpenAI, Azure, Perspective oder einen eigenen Endpunkt. Richte Zugangsdaten, Kategorien und Aktionen ein und wähle, welche Richtung geprüft werden soll.
 
-## Letzte Ereignisse
+Lege das Verhalten bei Nichterreichbarkeit fest: Fail-open lässt die Nachricht durch, Fail-closed lehnt sie ab. Prüfe Anbieterfehler und Ereignisse einer geöffneten Schutzschaltung bei unerwarteten Ablehnungen oder ungefilterten Nachrichten. Diese Schicht ergänzt einen weiteren Dienst, der den Text verarbeitet. Verwende den für deine Organisation freigegebenen Anbieter und Endpunkt.
 
-Jede Erkennung, Blockade und jeder Anbieter-Fehler landet in der Tabelle der letzten Ereignisse — standardmäßig 90 Tage aufbewahrt, einstellbar auf der Seite zur Aufbewahrungsrichtlinie. Filtere nach Ebene oder nach Art; jede Zeile trägt die getroffenen Kategorien, den Akteur und den Zeitstempel. Getroffener Roh-Text wird nie gespeichert — die Ereignisse sind eine Tuning-Oberfläche, kein Inhalts-Archiv.
+## Organisationsanweisungen festlegen
 
-## Wo das hingehört
+Benutzerdefinierte Organisationsanweisungen werden vor den Agentenanweisungen eingefügt. Mitglieder können diese Organisationsrichtlinie nicht bearbeiten. Nutze sie für gemeinsames Verhalten und Begriffe. Für unabhängig durchzusetzende Einschränkungen verwendest du Zugriffsregeln und Filter, statt dich auf die Befolgung von Textanweisungen zu verlassen.
 
-Guardrails ist der Laufzeit-Filter zwischen Benutzer und Modell in beide Richtungen. Paare das mit [Inhalte und Modelle](/de/platform/admin/governance/content-models), sodass ein freigegebenes Modell auch den freigegebenen Inhaltsregeln unterliegt. Die Begleitseite ist das [Audit-Log](/de/platform/admin/governance/audit-logs) — jede Blockade und jede Maskierung der Guardrail-Ebenen landet dort als dauerhafte Aufzeichnung.
+## Prüfen und abstimmen
+
+Die aktuellen Ereignisse zeigen die letzten 50 Erkennungen, Blockierungen und Anbieterfehler. Filtere nach Schicht oder Ergebnis und prüfe Kategorie, Richtung und Zeitpunkt. Der erkannte Originaltext wird in diesen Ereignissen nicht gespeichert. Eine Zeile erklärt den Treffer, ohne seinen sensiblen Inhalt wiederzugeben.
+
+Ist eine Regel zu weit gefasst, passe Kategorie oder Muster an und wiederhole die Tests. Fehlt ein Treffer, prüfe, ob Schicht, Kategorie und gewünschte Richtung aktiv sind. Die Historie hängt von der [Aufbewahrungsrichtlinie](/platform/admin/governance/policies-and-limits) für Chat-Filterereignisse ab. Gehe nicht von einer festen Archivdauer aus.

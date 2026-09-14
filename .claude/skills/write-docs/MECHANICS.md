@@ -1,79 +1,55 @@
-# Mechanics
+# Source conventions
 
-Frontmatter, filenames, headings, code blocks, tables, lists, diagrams, links. The bookkeeping
-parts, applied uniformly. Repo-specific fields, commands, and opt-outs live in the repo's docs
-guide — check it first; these are the defaults.
+Use the nearest docs contract for exact fields, paths, and commands. These practices keep the
+content readable in the site, search results, source, and localized editions.
 
-## Frontmatter
+## Frontmatter and paths
 
-Required on every page:
+Supply a sentence-case `title` and a specific `description` that helps readers choose the page in
+search. Do not repeat “This page covers” in descriptions. Preserve supported metadata and any
+reasoned opt-outs. Regenerate derived search/frontmatter data when required by the repository.
 
-```yaml
----
-title: Sentence-case page title
-description: One sentence completing "This page is about…". Used by search; keep it specific.
----
-```
+Use lowercase dash-case filenames. Before moving a published page, inspect navigation and inbound
+links, add a redirect, and update every full locale. Do not rename slugs merely to translate a title.
 
-The repo may define opt-out fields (search exclusion, landing-page exemptions, per-page check
-opt-outs) — use them sparingly, each with a reason, and only after reading the repo's docs guide.
+## Headings and links
 
-## Filenames
+The site renders the frontmatter title as H1; start body sections at H2 and keep a logical hierarchy
+within the repository's H4 limit. Use action headings for procedures, symptom headings for
+troubleshooting, and precise noun headings for reference. A useful “Next steps” section is allowed;
+its value comes from its destinations, not an elaborate heading.
 
-Dash-case, lowercase. `api-reference.md`, never `api_reference.md` or `APIReference.md`. Filenames
-usually map to URL slugs verbatim — renaming a published page breaks every inbound link; check the
-repo's redirect mechanism before moving one.
+Use descriptive link text and link at the moment the reader needs the destination. Internal links
+in localized docs need that locale's prefix. Verify translated heading anchors in the rendered
+page. Keep external URLs fully qualified. Check links from READMEs and app help as well as docs.
 
-## Headings
+## Examples
 
-- **Sentence case** in every locale.
-- **Named for the outcome or decision**, not the container. `## Build one` beats `## Building`;
-  `## Invite your team` beats `## The members dialog`.
-- **H1 is the page title from frontmatter** — never write `# X` in the body when the site renders
-  the title.
-- **Maximum H4.** If you need H5, split the page.
+Fence code with a language identifier and any supported filename/tool label. Explain the purpose,
+prerequisites, values the reader must replace, and result when those are not clear from context.
+Show full runnable examples or label intentional fragments. Do not present ellipses as executable
+syntax. Use the observed output; label shortened or normalized output and preserve its meaning.
 
-## Code blocks
+Keep identifiers, routes, flags, JSON keys, and code comments identical across locale mirrors
+unless an example explicitly requires a localized input. Explain the code in localized prose.
+Never translate an enum or turn a decimal point into a comma inside JSON.
 
-- **Always carry a language identifier** — never a bare fence.
-- **Lead with their effect.** A sentence before the block names what it does, or the block ends
-  with one naming what changed. Naked code with no surrounding prose is the code-wall
-  anti-pattern.
-- **The output shown is the output you observed** — run the command, capture its real output.
-- **Comments inside code are part of the code** — never translated.
-- **Filename or label metadata on the fence** where the repo's renderer supports it — a labelled
-  block reads as a file, not a fragment.
+## Lists and tables
 
-## Tables
+Use bullets for parallel options or checks, and numbering where order matters. A list of two useful
+choices is valid. Keep entries grammatically parallel. Prefer a table when readers compare the
+same attributes across entries; introduce unfamiliar context, but do not add a filler sentence
+before a self-explanatory table. Keep cells concise and check narrow-screen readability.
 
-- **Sentence case in cells**, parallel structure in columns — every row the same grammatical
-  shape.
-- **One fixed column shape per page** for parameter tables.
-- **A prose sentence introduces every table** — what the set is, how to read it.
+## Typography and UI labels
 
-## Lists
+Use sentence case according to the language's grammar. Format visible UI labels in bold and match
+the shipped catalog exactly. Use inline code for technical identifiers, file paths, and literal
+values. Apply locale prose typography outside these exact tokens, following write-translations.
 
-- **Bullets for unordered sets of five or more parallel items** — fewer, write the sentence.
-- **Numbers only when order matters.**
-- **Parallel grammar** — all bullets start with a verb, or all with a noun; don't mix.
+## Scope boundaries
 
-## Diagrams
-
-- **Flow and architecture go in the repo's diagram syntax** (commonly Mermaid) — one concept per
-  diagram, sized for one screen.
-- **Node labels translate per locale; syntax and arrows don't.**
-
-## Links and anchors
-
-- **Anchor text describes the destination** — never `click here`, `this link`, `more info`.
-- **Internal links carry the locale prefix** in non-source-locale files where the repo's routing
-  localizes URLs.
-- **External links are fully qualified** (`https://…`) — a path-style link to an external site is
-  treated as in-site and 404s.
-- **Heading anchors differ per locale** — a translated heading has a translated slug; verify the
-  rendered anchor, don't assume the source-locale one.
-
-## What stays constant across locales
-
-Code, diagram syntax, brand and product names, filenames. Translation lives in frontmatter, body
-prose, alt text, captions, and diagram node labels — never in slugs or code.
+Separate product operation from deployment configuration where audiences differ. Link the
+canonical environment, permission, API, or error reference rather than copying facts that will
+drift. Keep legal and contractual meaning intact; stylistic cleanup does not authorize changing
+policy. Preserve user-excluded media or topics.

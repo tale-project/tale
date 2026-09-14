@@ -1,48 +1,41 @@
 ---
 title: Tutorials
-description: Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis.
+description: Erprobe eine vollständige Aufgabe mit Voraussetzungen, Beispieldaten und einem überprüfbaren Ergebnis.
 ---
 
-Tutorials sind Walkthroughs von Anfang bis Ende: Jedes bringt eine frische Instanz von „Ich möchte X tun" zu einem funktionierenden, verifizierten Ergebnis. Vorausgesetzt werden die passende Rolle und ein laufender Arbeitsbereich; die Konzept-Seiten unter [Plattform](/de/platform) erklären das mentale Modell, die Tutorials zeigen den Mechanismus von vorne bis hinten.
+Wähle eine Aufgabe, die du in deinem Arbeitsbereich ausprobieren möchtest. Jedes Tutorial nennt den Ausgangspunkt, liefert Beispiele und zeigt, woran du den Erfolg erkennst. Wenn du Tale noch nicht kennst, beginne mit [deinem ersten Chat](/de/get-started/quickstart).
 
-Bist du noch keinen [Einstieg](/de/get-started/quickstart) durchgegangen, fang dort an — die Tutorials bauen auf den Handgriffen des ersten Tages auf, die dort abgedeckt sind.
-
-## Wähl nach Rolle
+## Beginne mit der täglichen Arbeit
 
 <CardGroup cols="2">
 
-<Card title="Videoserie" icon="play" href="/de/tutorials/videos">
+<Card title="Eine hilfreiche Chatantwort erhalten" icon="message-circle" href="/de/tutorials/member/chat-effectively">
 
-Produzierte Rundgänge durch die ganze Plattform — Verankerung, Agenten, Automatisierungen, Richtlinien — je drei Minuten, in drei Sprachen.
-
-</Card>
-
-<Card title="Mitglieder-Tutorials" icon="message-circle" href="/de/tutorials/member/chat-effectively">
-
-Effektiv chatten, in Projekten arbeiten, Sprach-Konversationen führen.
+Gib dem Modell den nötigen Kontext, verfeinere die Antwort und prüfe das Ergebnis vor der Verwendung.
 
 </Card>
 
-<Card title="Redakteurs-Tutorials" icon="bot" href="/de/tutorials/editor/first-agent-end-to-end">
+<Card title="Arbeit in einem Projekt organisieren" icon="folder" href="/de/tutorials/member/use-projects">
 
-Einen ersten Projekt-Agenten von Anfang bis Ende bauen, Workflows mit Genehmigungen ausliefern.
-
-</Card>
-
-<Card title="Entwickler-Tutorials" icon="terminal" href="/de/tutorials/developer/call-tale-from-a-script">
-
-Tale aus einem Skript aufrufen, Automatisierungen per Webhook auslösen.
-
-</Card>
-
-<Card title="Verwaltungs-Tutorials" icon="shield" href="/de/tutorials/admin/connect-local-provider">
-
-Einen lokalen Anbieter verbinden, Meeting-Transkription verdrahten.
+Führe eine Aufgabe, eine Quelldatei und Projektanweisungen zusammen. Entscheide, was dein Team sehen soll.
 
 </Card>
 
 </CardGroup>
 
-## Wo das hingehört
+## Abläufe erstellen und Systeme verbinden
 
-Tutorials zitieren die Feature-Referenzen unter [Plattform](/de/platform) für das konzeptuelle Gerüst; sobald du eines durchgegangen bist, lohnt sich die zugehörige Konzept-Seite als zweite Lektüre. Weißt du nicht, welches Tutorial du wählen sollst: [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) ist das, was einem „Hallo Welt" für das Produkt am nächsten kommt — die meisten Produktfähigkeiten, die du später anfasst, tauchen dort schon auf.
+Für diese Tutorials brauchst du zusätzliche Rechte oder einen eingerichteten Dienst. Prüfe zuerst die Voraussetzungen auf der jeweiligen Seite. Ein gewöhnlicher Chat benötigt keine Agent-Laufzeit.
+
+| Dein Ziel | Tutorial | Voraussetzungen |
+| --- | --- | --- |
+| Eine Projektaufgabe delegieren | [Den ersten Agenten ausführen](/de/tutorials/editor/first-agent-end-to-end) | Rechte zum Einrichten von Projektagenten, ein Modell und eine funktionierende Agent-Laufzeit |
+| Eine Workflow-Aktion vor der Ausführung prüfen | [Einen Workflow mit Freigaben erstellen](/de/tutorials/editor/workflow-with-approvals) | Bearbeitungsrechte für Automatisierungen und eine freigabeberechtigte Person |
+| Eine Nachricht aus einem eigenen Programm senden | [Tale per Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) | Eine laufende Instanz, ein Modell, ein API-Schlüssel und Python |
+| Eine Automatisierung aus einem anderen System starten | [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) | Eine veröffentlichte Automatisierung und sicher gespeicherte Webhook-Zugangsdaten |
+| Einen lokalen Modellserver verbinden | [Einen lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider) | Verwaltungsrechte und ein von Tale erreichbarer Modellserver |
+| Besprechungsaudio in Text umwandeln | [Transkription einrichten](/de/tutorials/admin/meeting-transcription) | Ein eingerichteter Speech-to-Text-Dienst und die Erlaubnis, die Aufnahme zu verarbeiten |
+
+## Während der Arbeit nachschlagen
+
+Die [Plattformanleitungen](/de/platform) erklären einzelne Funktionen und ihre Grenzen. Die [Self-hosted-Dokumentation](/de/self-hosted) behandelt Betrieb und Serverkonfiguration. Die [Entwicklerdokumentation](/de/develop/overview) beschreibt APIs und Beiträge zum Quellcode.

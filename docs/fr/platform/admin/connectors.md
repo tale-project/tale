@@ -1,108 +1,62 @@
 ---
-title: Identifiants d’connector
-description: Sous Paramètres > Connectors, une organisation ajoute, nomme, promeut, désactive et reconnecte les identifiants avec lesquels chaque connecteur livré s’authentifie.
+title: Identifiants des connecteurs
+description: Connecte les comptes de services, choisis les accès par défaut et renouvelle les autorisations.
 ---
 
-Chaque connecteur est livré avec la plateforme, le travail d’administration ne consiste donc jamais à installer : il consiste à décider au nom de quels comptes Tale peut agir, puis à garder ces identifiants en bonne santé. Un connecteur porte autant de lignes que nécessaire — une par espace de travail, boutique, boîte mail ou bot — et l’une d’elles répond pour tout appelant qui n’en nomme aucune. Cette page est le versant exploitation : ce que la page affiche, comment se remplit chaque méthode d’authentification, et ce qui arrive quand tu promeus, désactives, supprimes ou reconnectes une ligne.
+Ajoute des identifiants de connecteur pour que Tale utilise une messagerie, un espace de fichiers ou un outil de suivi. Les propriétaires, admins et développeurs les gèrent dans **Paramètres > Connectors**. Choisis le service et le compte nécessaires ; le [catalogue des connecteurs](/fr/platform/connectors/overview) présente les actions disponibles.
 
-Le catalogue lui-même — les treize connecteurs, ce que chacun apporte, et comment leurs actions rejoignent les automatisations et les exécutions d’agent — est sur [Connectors](/fr/platform/connectors/overview). Le temps de lecture ici est mieux investi dans le cycle de vie des identifiants, parce que c’est la partie qui varie d’une organisation à l’autre et la partie qui casse.
+## Connecter un compte
 
-## Ce que la page affiche
+1. Sélectionne **Ajouter des identifiants**, puis le connecteur. Les connecteurs déjà configurés apparaissent en premier et peuvent recevoir d’autres identifiants.
+2. Renseigne un **Nom** reconnaissable pour la personne qui prépare l’automatisation, comme `Boîte support` ou `Boutique UE`.
+3. Complète la méthode d’authentification proposée. Pour OAuth, sélectionne **Connecter** et autorise l’accès chez le fournisseur.
+4. Termine le formulaire, puis vérifie la ligne créée : connecteur, compte ou instance, et statut.
 
-Ouvre **Paramètres > Connectors**. La page demande des droits Admin ou Développeur et c’est un tableau des identifiants que ton organisation détient — une ligne par identifiant, pas une par connecteur livré. Une ligne montre son nom, le connecteur qu’il authentifie, sa méthode d’authentification et ses coordonnées : un aperçu masqué du secret stocké, plus l’URL d’instance là où le connecteur en réclame une. Un badge **Par défaut** marque celui vers lequel une action retombe, un badge **Désactivé** ceux qui sont coupés.
+Le connecteur détermine les champs. Utilise les identifiants du compte externe, pas une clé API Tale.
 
-La recherche couvre à la fois le nom que tu as donné et le connecteur derrière ; le bouton de filtre réduit à un seul connecteur. Un lien `?connector=` réduit le tableau de la même façon, et c’est là que le détour OAuth te ramène.
+| Méthode | Informations nécessaires |
+| --- | --- |
+| Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. |
+| Token | Un token du service, comme un token d’accès personnel GitHub ou un token de bot Discord. |
+| Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
+| OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Deux avertissements apparaissent ici, et ils ne disent pas la même chose. _Aucun identifiant par défaut pour {connector}_ signifie que chaque ligne fonctionne mais que rien ne répond à un appelant qui n’en nomme aucune. **Reconnexion requise** sur une ligne signifie qu’une autorisation OAuth ne se renouvelle plus et redemande un consentement — l’identifiant lui-même est sain.
+Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
-## Ajouter des identifiants
+## Choisir les identifiants par défaut
 
-**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Configuré** ; tout le reste suit en dessous, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour** en ressort.
+Le tableau contient une ligne par jeu d’identifiants. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
 
-La configuration demande d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
+Sans choix par défaut, un connecteur qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
 
-Ce qui suit le nom dépend de la **Méthode d’authentification** que le connecteur accepte.
+La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connecteur de messagerie. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations.
 
-<Tabs>
+## Renouveler un secret ou suspendre l’accès
 
-<Tab title="Clé API">
+Utilise l’action de remplacement adaptée à la méthode, par exemple **Remplacer la clé API** ou **Remplacer le jeton**. Le nouveau secret remplace l’ancien tout en conservant le nom, le choix par défaut et les références. Vérifie ensuite une action appropriée du service.
 
-Un seul champ, **Clé API**. Ce sont les actions du connecteur qui décident par où la clé voyage — un en-tête imposé par le fournisseur, ou le corps de la requête là où le fournisseur l’exige. Shopify et Tavily sont les cas livrés.
-
-</Tab>
-
-<Tab title="Jeton">
-
-Un seul champ, **Jeton**, envoyé dans l’en-tête Authorization à chaque requête. GitHub prend ainsi un jeton d’accès personnel ; Discord prend un jeton de bot, que la plateforme envoie sous le schéma propre à Discord plutôt que sous le schéma habituel.
-
-</Tab>
-
-<Tab title="Nom d’utilisateur et mot de passe">
-
-Deux champs, **Nom d’utilisateur** et **Mot de passe**, envoyés en HTTP Basic. Le couple n’est pas toujours un login au sens courant : Confluence prend l’e-mail du compte avec un jeton d’API, Twilio prend l’Account SID avec l’Auth Token, et le connecteur WebDAV prend un mot de passe d’application WebDAV. IMAP / SMTP prend le login de la boîte elle-même.
-
-</Tab>
-
-<Tab title="OAuth">
-
-Aucun secret à saisir, donc l’étape de configuration se réduit au passage de relais : **Connecter** te mène à l’écran de consentement du fournisseur, et Tale range ce qui revient — jeton d’accès, jeton de rafraîchissement, expiration et portées accordées — dans une nouvelle ligne. Gmail, Google Drive, Outlook, Teams et Slack se connectent ainsi. Un connecteur qui accepte les deux propose les deux, avec **Connecter** en premier.
-
-**Connecter** a besoin d’une destination : une app OAuth doit exister pour le connecteur — configurée pour cette organisation (voir plus bas) ou enregistrée dans l’environnement du déploiement. Tant qu’il n’y en a aucune, la boîte de dialogue le dit au lieu de proposer le bouton.
-
-</Tab>
-
-</Tabs>
-
-Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même parcours une seconde fois — le connecteur apparaît simplement sous **Configuré** dans le catalogue. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
-
-<Note>
-
-Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’hôte unique côté fournisseur. Confluence veut l’adresse de ton site Atlassian — celle où tu ouvres Confluence. Shopify veut l’adresse `myshopify.com` de ta boutique, c’est-à-dire l’adresse d’administration et non le domaine de la vitrine. Cette valeur est stockée en clair à dessein, pour que le tableau puisse montrer sur quelle instance pointe chaque ligne.
-
-</Note>
-
-## Choisir l’identifiant par défaut
-
-Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation — ou l’appel d’un agent via le broker — ne nomme aucun identifiant. La sync mail est l’exception dans l’autre sens : `conversation.sync_mailbox` parcourt chaque identifiant _actif_ du connecteur, pour qu’une deuxième boîte IMAP (ou un deuxième compte Gmail) soit relevée sans que tu aies à la promouvoir. Chaque identifiant garde sa propre position dans sa propre boîte. Le triage de boîte se répartit de la même façon via `conversation.list_mailbox_messages`.
-
-Un connecteur avec plusieurs identifiants et aucun par défaut est une configuration qui marche, avec un trou dedans. Les appelants qui nomment une ligne continuent de tourner ; les autres ne peuvent pas choisir et échouent. Promeus une ligne et le trou se referme aussitôt.
-
-## Remplacer un secret
-
-Changer une clé est une modification de l’identifiant, pas une opération à part. Ouvre la ligne et choisis **Remplacer la clé API**, **Remplacer le jeton** ou **Remplacer le nom d’utilisateur et le mot de passe**, selon la méthode. Le secret stocké n’est jamais réaffiché, et en saisir un nouveau le remplace partout où cet identifiant est utilisé — chaque nœud d’automatisation qui pointe dessus reprend le nouveau secret sans qu’on y touche.
-
-L’identifiant garde son nom, son drapeau par défaut et son URL d’instance à travers un remplacement, rien n’a donc besoin d’être repointé en aval. **Modifier les identifiants** couvre l’autre sens : renommer une ligne, ou la déplacer vers une autre instance.
-
-## Désactiver et supprimer
-
-**Désactiver** retire un identifiant du service tout en gardant la ligne et tout ce qui y est configuré. L’identifiant apparaît comme **Désactivé** et plus rien ne se résout vers lui ; **Activer** le remet en jeu. Sers-t’en quand un compte est suspect plutôt que terminé, ou quand tu veux mettre une configuration de côté sans la perdre.
+**Désactiver** suspend les identifiants sans retirer leur configuration ; **Activer** les remet en service. **Modifier les identifiants** permet de changer les autres informations prises en charge, comme le nom ou l’adresse de l’instance.
 
 <Warning>
 
-**Supprimer** agit tout de suite et sans retour. Les automatisations et exécutions d’agent qui utilisent cet identifiant perdent l’accès à ce connecteur sur-le-champ — il n’y a pas de délai de grâce. Supprimer celui par défaut laisse le connecteur sans défaut jusqu’à ce qu’une autre ligne soit promue, et la confirmation le dit avant que tu valides.
+Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre les appelants et choisis un nouveau défaut si nécessaire. Rouvrir la même ligne ne permet pas d’annuler la suppression.
 
 </Warning>
 
-## Configurer les apps OAuth
+## Préparer une application OAuth
 
-La section **Apps OAuth** en bas de page — visible pour les admins et les propriétaires — décide contre quel enregistrement d’app du fournisseur s’exécute le consentement de chaque connecteur OAuth. Une app configurée ici appartient à cette organisation et prime sur celle de l’environnement du déploiement ; sans ni l’une ni l’autre, le connecteur ne peut pas se connecter et la liste indique **Non configurée**.
+Les propriétaires et les admins utilisent **Apps OAuth**, en bas de page, pour configurer les applications fournisseur utilisées pendant le consentement. Une application propre à l’organisation remplace celle du déploiement. Si aucune n’existe, le connecteur ne peut pas commencer l’autorisation et la page indique qu’il n’est pas configuré.
 
-**Configurer** prend l’ID client et le secret de l’enregistrement d’app du fournisseur, et pour une app Microsoft mono-tenant l’ID d’annuaire (tenant) — Tale autorise alors contre ce tenant. La boîte de dialogue liste les URI de redirection exactes à enregistrer côté fournisseur avant de connecter. Le secret est chiffré, ne s’affiche plus jamais, et une modification ultérieure peut laisser le champ vide pour le conserver. **Retirer** supprime l’app de l’organisation ; celle du déploiement prend le relais, si elle existe, et les connexions existantes continuent jusqu’à l’expiration de leurs jetons.
+Sélectionne **Configurer**, renseigne l’identifiant client et le secret du fournisseur, puis enregistre chez celui-ci les URI de redirection exactes affichées dans le dialogue. Une application Microsoft peut aussi demander l’identifiant du répertoire ou du locataire. Lors d’une modification ultérieure, laisse le champ du secret enregistré vide pour le conserver.
 
-Deux entrées dépassent cette page : l’app **Google Drive** est partagée avec l’import Google Drive de Connaissances (un seul client OAuth Google, les deux URI de redirection), et **OneDrive / SharePoint (import de connaissances)** n’existe que pour cet import — il n’a pas de connecteur propre. Slack est absent à dessein : son app reste dans l’environnement du déploiement, parce que la vérification de signature des événements entrants s’exécute avant qu’aucune organisation ne soit connue.
+L’application Google Drive sert aussi à l’import dans la base de connaissances. L’entrée OneDrive/SharePoint concerne cet import, sans connecteur distinct. L’opérateur du déploiement configure l’application Slack. Lis le [guide du connecteur](/fr/platform/connectors/overview) concerné avant d’attribuer les permissions fournisseur.
 
-Une organisation qui se connecte avec Microsoft Entra ID a déjà confié un enregistrement d’app à Tale — la ligne **OneDrive / SharePoint (import de connaissances)** propose alors aussi **Utiliser l’app SSO Entra ID**. L’action copie l’ID client et le secret de l’enregistrement SSO vers cette entrée côté serveur — le secret ne transite jamais par le navigateur — et la confirmation liste ce qui manque encore à cet enregistrement dans Entra avant que les membres se connectent : l’URI de redirection de l’import en type « Web », et les autorisations déléguées Microsoft Graph. La copie est volontairement ponctuelle ; si tu renouvelles le secret du SSO, copie-le à nouveau ici.
+Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscription SSO existante dans la configuration d’import. Cette copie est ponctuelle : après le renouvellement du secret SSO, refais-la et vérifie l’URI de redirection et les permissions déléguées indiquées dans la confirmation.
 
-## Reconnecter une autorisation cassée
+## Rétablir une connexion
 
-Un identifiant OAuth dont l’autorisation stockée a expiré ou a été révoquée affiche **Reconnexion requise** avec le motif. C’est un constat de la plateforme, pas une décision d’exploitant, et c’est pourquoi cela se lit autrement qu’un identifiant désactivé à la main : rien ne cloche dans la ligne, le fournisseur a seulement cessé d’honorer l’autorisation.
+**Reconnexion requise** signifie que l’autorisation OAuth enregistrée ne peut plus être renouvelée. Sélectionne **Reconnecter** et autorise à nouveau le compte. Le nom et les références restent les mêmes. Des identifiants volontairement désactivés demandent plutôt **Activer**.
 
-**Reconnecter** relance le consentement du fournisseur et rétablit l’accès sur la même ligne, en gardant son nom, son drapeau par défaut et toutes les références qui pointent dessus. Un identifiant que tu as désactivé toi-même ne se répare pas ainsi : là, c’est **Activer** qui règle la question, et reconnecter répondrait à la mauvaise.
+Si la connexion ne démarre pas, vérifie l’application OAuth. Si le fournisseur refuse le retour vers Tale, compare son URI de redirection enregistrée à celle que Tale affiche. Si une action échoue après la connexion, vérifie les droits du compte et les permissions requises pour cette action.
 
-## Connectors et serveurs MCP
-
-Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Enregistrer ton propre serveur MCP pour que les agents l’appellent ne fait pas partie de cette version — quand aucun connecteur n’existe pour un système, ton propre code l’atteint par les **Secrets** d’un agent de projet ou un nœud `transform` d’une automatisation, et la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) expose les deux.
-
-## Où cela s’inscrit
-
-Gérer les identifiants, c’est désormais toute l’administration des connectors, puisque plus rien ne s’installe : ajouter les comptes, les nommer correctement, garder un identifiant par défaut par connecteur, et reconnecter les lignes OAuth qui expirent. [Connectors](/fr/platform/connectors/overview) est le catalogue auquel ces identifiants s’attachent, [Agents de projet](/fr/platform/projects/project-agents) montre comment les actions qui en découlent arrivent dans l’équipement d’un agent, et [Configurer les approbations](/fr/platform/approvals/configure) est l’endroit où les actions en écriture attendent qu’une personne les libère.
+Pour les services sans connecteur intégré, consulte [MCP et les intégrations personnalisées](/fr/platform/connectors/mcp-servers). Cette page d’identifiants ne permet pas d’enregistrer n’importe quel serveur MCP sortant.

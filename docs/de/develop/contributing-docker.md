@@ -3,9 +3,9 @@ title: Zu Docker-Images beitragen
 description: Wie du die Docker-Images von Tale für Forks, vendored Builds oder Air-gapped-Distributionen baust und erweiterst.
 ---
 
-Jeder Container, den Tale ausliefert, hat sein Dockerfile im öffentlichen Quell-Repo. Forks, Air-gapped-Distributionen und einmalige Patches starten alle aus denselben Dateien; diese Seite ist der Operator-Durchgang durch das Selber-Bauen der Images, wo die Anpassungs-Nähte leben und wie du einen Fork mit Upstream synchron hältst, ohne bei den langweiligen Teilen abzudriften.
+Baue Tale-Images, wenn du Containeränderungen testen oder einen kontrollierten Build verteilen musst. Gehe von den Dockerfiles des Repositorys aus, damit Laufzeitabhängigkeiten, Startrollen und Gesundheitsprüfungen zusammenpassen.
 
-Die Container-Architektur lebt in [Container-Architektur](/de/self-hosted/operate/container-architecture); diese Seite ist das, was du liest, wenn die veröffentlichten Images nicht passen und du deine eigenen bauen musst.
+Diese Anleitung behandelt Build und Test. Den Bereitstellungsvertrag beschreibt [Compose selbst betreiben](/de/self-hosted/install/own-compose), den Lebenszyklus einer bestehenden Installation [Upgrades](/de/self-hosted/operate/upgrades).
 
 ## Was die Images sind
 

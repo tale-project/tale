@@ -3,7 +3,7 @@ title: Catalogue de modèles
 description: Quels modèles ton organisation peut choisir, d’où vient la liste de chaque fournisseur, et quoi vérifier quand un modèle attendu manque dans le sélecteur.
 ---
 
-Chaque sélecteur de modèle dans Tale propose la même chose — les modèles que ton organisation peut réellement joindre à cet instant. Cet ensemble se construit par fournisseur, à partir de la liste de modèles du connecteur et des identifiants que tu détiens en face, puis se resserre selon tes règles de gouvernance. Cette page explique d’où vient chaque morceau, pour que « pourquoi ce modèle manque-t-il » ait une réponse sur laquelle agir plutôt qu’une hypothèse.
+Le catalogue explique quels modèles ton organisation peut choisir et pourquoi un modèle attendu manque. La disponibilité dépend du fournisseur, d’identifiants utilisables, de leur liste de modèles autorisés et des règles d’accès de l’organisation.
 
 ## Le catalogue appartient au fournisseur
 
@@ -54,7 +54,7 @@ Partout ailleurs, le modèle est toujours nommé explicitement : sur un agent, s
 
 <Tip>
 
-Quand plusieurs modèles pourraient plausiblement faire le travail, le [Mode Arène](/fr/platform/chat/arena-mode) envoie le même prompt à plusieurs d’entre eux côte à côte, ce qui transforme le choix en comparaison plutôt qu’en intuition.
+Le [mode Arena](/fr/platform/chat/arena-mode) compare deux modèles sur la même question. Choisis une question et une source vérifiables, puis juge l’exactitude et l’utilité plutôt que la longueur seule.
 
 </Tip>
 

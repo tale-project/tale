@@ -1,9 +1,9 @@
 ---
 title: Demandes des personnes concernées
-description: Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences.
+description: Dépose et examine une demande d’effacement, gère les approbations et délais, puis vérifie le reçu obtenu.
 ---
 
-Demandes des personnes concernées est le workflow que Tale livre pour honorer l’article 17 du RGPD (droit à l’effacement) et le droit équivalent CCPA sous la loi californienne. Chaque demande devient un reçu : il nomme la personne concernée, le code de motif, l’échéance SLA et la cascade de lignes que le système a effacées dans les threads, documents, téléversements et les autres lignes qui identifient la personne. Les Administrateurs et Propriétaires lisent cette page quand une personne dépose une demande, quand une échéance approche, ou quand un audit demande le reçu d’un effacement passé.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Personnes concernées** pour traiter une demande d’effacement. Tale suit la demande, son approbation, son délai d’attente et le résultat de la suppression. Vérifie d’abord l’identité de la personne et le bon périmètre selon la procédure de ton organisation.
 
 <Frame caption="Gouvernance > Demandes des personnes concernées — la politique de gouvernance DSAR (fenêtre d’attente, double approbation, limite quotidienne), au-dessus de la liste des reçus de demandes avec Déposer une demande.">
 
@@ -11,35 +11,45 @@ Demandes des personnes concernées est le workflow que Tale livre pour honorer l
 
 </Frame>
 
-## Un dépôt mis en pratique
+## Déposer une demande
 
-Pour déposer une demande, ouvre **Paramètres > Gouvernance > Demandes des personnes concernées** et clique sur **Déposer une demande**. Choisis la personne, choisis un code de motif (consentement retiré, plus nécessaire, traitement illégal, obligation légale, opposition, mineur ou fin de contrat) et ajoute une narration libre. La demande entre dans une fenêtre d’attente avant l’exécution de la cascade — tout Administrateur peut annuler pendant la fenêtre. Une fois la fenêtre écoulée, la cascade efface les threads et documents de la personne (l’entrée de base de connaissances d’un document part avec lui), ses téléversements, préférences, notifications, feedbacks, mémoires et lignes d’usage, et caviarde ses identifiants dans la piste d’audit — le reçu enregistre un compteur par passe.
+1. Choisis **Déposer une demande** et recherche la **Personne concernée** par nom ou e-mail. Vérifie que tu as sélectionné le bon compte.
+2. Choisis le **Fondement légal** et explique la demande dans **Motif détaillé**, avec une référence à ton dossier interne.
+3. Saisis exactement `ERASE`, puis choisis **Déposer la demande**.
+4. Ouvre le reçu et vérifie le statut, l’échéance et la prochaine action requise.
 
-## Cycle de vie du statut
+L’effacement supprime définitivement les données couvertes ; il ne les déplace pas vers la corbeille. Le reçu indique les catégories et les nombres concernés : chats, documents et imports, préférences, retours, notifications, usage et nettoyage des identifiants personnels dans l’audit.
 
-| Nom                      | Par défaut      | Description                                                                                                                                                                      |
-| ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| En attente               | état initial    | La demande est déposée et attend la fenêtre d’attente ou la seconde approbation administrateur.                                                                                  |
-| En attente d’approbation | double contrôle | Un second Administrateur doit approuver avant que la cascade ne s’exécute — ou rejeter, ce qui annule la demande.                                                                |
-| En cours                 | mid-cascade     | La cascade est en cours ; les compteurs partiels se mettent à jour à mesure que chaque catégorie finit.                                                                          |
-| Terminée                 | terminal        | Chaque catégorie effacée sans erreur.                                                                                                                                            |
-| Partielle                | terminal        | Certaines lignes ont été ignorées (une conservation légale les a bloquées) ou une passe de la cascade a échoué — l’erreur du reçu nomme les passes en échec.                     |
-| Échouée                  | terminal        | La cascade est morte en plein vol — sur une erreur fatale, Réessayer la relance ; après un timeout du watchdog, dépose une nouvelle demande.                                     |
-| Bloquée                  | terminal        | Une conservation légale active bloque chaque étape de cascade.                                                                                                                   |
-| Annulée                  | terminal        | Un Administrateur a annulé avant l’exécution de la cascade, ou un second Administrateur a rejeté la double approbation. Une nouvelle demande peut être déposée pour la personne. |
+## Vérifier la règle avant le dépôt
 
-## Suivi du SLA
+| Réglage | Effet |
+| --- | --- |
+| **Délai de réflexion (heures)** | Attente de 0–72 heures avant l’exécution. Les admins peuvent annuler pendant ce délai. Zéro permet une exécution immédiate une fois les autres conditions remplies. |
+| **Exiger une approbation à double signature** | Un autre admin doit approuver avant le début du délai de réflexion. La personne qui dépose ne peut pas s’approuver elle-même. |
+| **Limite quotidienne par admin** | Limite chaque admin à 1–50 dépôts par jour. |
 
-Chaque demande porte une échéance niveau de service — par défaut, 30 jours depuis le dépôt. La liste des demandes affiche les jours restants ou un badge en retard par ligne. L’article 12(3) du RGPD autorise une prolongation unique pour les cas complexes ; l’action **Prolonger l'échéance** consigne la prolongation sur le reçu avec le nom de l’administrateur demandeur et une narration.
+Seul le propriétaire peut modifier cette règle. Les protections renforcées s’appliquent immédiatement ; les assouplissements attendent 24 heures pour permettre à tout admin de les annuler. Vérifie les réglages effectifs et les éventuels changements en attente avant de compter sur une nouvelle valeur.
 
-## Interaction avec la conservation légale
+## Suivre le reçu
 
-Les données d’une personne ne sont _pas_ effacées tant qu’elles sont sous conservation légale. Les lignes sous hold apparaissent comme **Ignorées par hold** dans les compteurs par catégorie du reçu ; lever le hold et relancer la demande termine l’effacement. Le statut Bloquée se déclenche quand un hold couvre toutes les catégories dès le départ — la cascade ne s’exécute pas, et le reçu reflète le blocage. Relancer une demande bloquée dès le dépôt suit la même politique qu’un nouveau dépôt — la fenêtre d’attente, ou l’approbation d’un second Administrateur en double contrôle. Tant qu’une personne a un reçu ouvert (en attente, en cours, bloqué ou partiel), une seconde demande pour elle est refusée : relance plutôt celle qui est ouverte (ou annule-la tant qu’elle est encore en attente).
+| État | Action utile |
+| --- | --- |
+| En attente / attend une approbation | Vérifie si un autre admin doit approuver ou si le délai doit se terminer. Annule ou rejette si la demande ne doit pas s’exécuter. |
+| En cours | Attends les résultats par catégorie ; ne dépose pas de doublon. |
+| Terminée | Vérifie les nombres enregistrés et conserve le reçu dans ton dossier. |
+| Partielle | Examine les catégories ignorées et les erreurs. Résous la cause avant de réessayer. |
+| Bloquée | Examine la [conservation juridique](/platform/admin/governance/legal-hold). Les données couvertes restent protégées. |
+| Échouée | Lis les détails. Utilise **Réessayer** si disponible ; un dépassement du délai de surveillance peut exiger une nouvelle demande. |
+| Annulée | Ce reçu ne prévoit plus d’exécution. Dépose une nouvelle demande si le dossier doit reprendre. |
 
-## Les catégories de cascade
+Un reçu ouvert peut empêcher un second dépôt pour la même personne. Reprends ce reçu au lieu de multiplier les demandes. Une demande bloquée dès le dépôt doit à nouveau respecter la règle actuelle d’approbation et d’attente lors d’un nouvel essai.
 
-Le reçu ventile les lignes effacées par passe — threads, documents, téléversements, préférences, notifications, abonnements, feedbacks, mémoires, registre d’usage et le caviardage de la piste d’audit. Lis le drawer pour voir les compteurs et la timeline d’audit ; le journal d’audit dans la même zone Gouvernance porte la chaîne d’événements complète (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
+## Gérer l’échéance
 
-## Où cela s’inscrit
+La liste montre le délai suivi et les éventuels retards. Utilise **Prolonger le délai** pour une prolongation justifiée tant que l’action est disponible. L’application autorise une prolongation avant l’expiration du délai initial et enregistre le motif ainsi que l’admin.
 
-Demandes des personnes concernées est le visage conformité de la rétention — le chemin audité, à double contrôle, qui efface une personne précise sur demande au lieu du balayage chronométré que la rétention applique à tous. La page compagnon est [conservation légale](/fr/platform/admin/governance/legal-hold) — elle couvre comment mettre la rétention et les cascades d’effacement en pause pour les litiges avant qu’elles ne s’exécutent.
+Cette échéance facilite le suivi. Ton organisation reste responsable de l’examen et des échanges avec la personne. Terminer un reçu Tale ne confirme pas, à lui seul, une suppression dans des systèmes externes indépendants ou des sauvegardes.
+
+## Vérifier le résultat
+
+Ouvre les compteurs par catégorie, les erreurs et la chronologie d’audit du reçu. Une action terminée, une catégorie sous gel et une étape échouée n’ont pas le même résultat. Note ces distinctions dans ton dossier. Consulte les [journaux d’audit](/platform/admin/governance/audit-logs) pour les événements administratifs associés.

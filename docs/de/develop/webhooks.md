@@ -3,9 +3,9 @@ title: Webhooks
 description: Eingehende Webhook-Trigger — poste an eine Token-URL und eine deployte Automatisierung läuft. Token-Handhabung, Rotation, Idempotenz und die Antwortcodes.
 ---
 
-Ein Webhook-Trigger macht aus einem POST deines Systems einen Lauf einer deployten Automatisierung — kein API-Schlüssel, kein SDK, nur eine URL, die Tale beim Binden des Triggers erzeugt. Das ist die richtige Naht, wenn der Aufrufer ein Drittprodukt ist — ein Zahlungsanbieter, ein Formular-Tool, ein CI-Job — das nur einen HTTP-Request an eine URL feuern kann, die du ihm gibst.
+Eine Webhook-URL lässt ein externes System eine veröffentlichte Automation per HTTP-POST starten. Nutze sie für Ereignisse wie eine Bestellmeldung oder ein abgesendetes Formular. Das geheime Token in der URL autorisiert die Zustellung.
 
-Lies das, wenn du ein externes System verdrahtest, das Automatisierungen starten soll. Für Aufrufe, bei denen du einen Wert zurückwillst oder einen API-Schlüssel hast, ist die [API-Referenz](/de/develop/api-reference) die synchrone Hälfte.
+Die Antwort bestätigt die Annahme und nennt eine Lauf-ID. Sie enthält noch kein fertiges Automationsergebnis. Sowohl Webhook- als auch API-Schlüssel-Aufrufe starten Läufe asynchron. Für die erste Zustellung folge der [Webhook-Anleitung](/de/tutorials/developer/trigger-automation-via-webhook).
 
 ## Ein Trigger, durchgespielt
 
@@ -56,12 +56,12 @@ curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automat
 # → 202 { "runId": "run_a", "duplicate": true }
 ```
 
-Wiederholen ist von deiner Seite damit sicher: Wiederhole Timeouts und Nicht-2xx-Antworten mit Backoff, halte die Zustellungs-ID über alle Versuche stabil und behandle jedes **202** als angenommen — `duplicate: true` sagt dir, dass der frühere Versuch schon gelandet war. Die Antwort sagt, ob der Lauf _gestartet_ ist, nicht ob er gelungen ist; verfolge ihn über `GET /api/v1/projects/{id}/runs/{runId}`. Ein **409** wird nicht gemerkt: Deploye eine Version und schick die Zustellung noch einmal.
+Wiederhole Netzwerkfehler und vorübergehende **5xx**-Antworten mit begrenzten, zunehmend längeren Pausen. Warte bei **429** mindestens die Zeit aus `Retry-After`. Behalte die Zustellungs-ID bei: Geht nur die Antwort verloren, entsteht innerhalb des Deduplizierungsfensters kein zweiter Lauf. Behebe bei **4xx** zuerst die Ursache: `AUTOMATION_NOT_DEPLOYED` braucht eine bereitgestellte Version, `AUTOMATION_PROJECT_SCOPE_REQUIRED` die Projekt-URL. Jede **202**-Antwort bestätigt die Annahme; den Erfolg erfährst du durch Abfragen des zurückgegebenen Laufs. Die Deduplizierung verhindert innerhalb ihres Zeitfensters einen zweiten Lauf für dieselbe Zustellung. Sie garantiert nicht, dass ein externes System jede Änderung genau einmal ausführt.
 
 ## Budgets
 
 Nichts authentifiziert einen Absender, also ist die Tür doppelt budgetiert. Jede Absenderadresse — wie die vertrauenswürdigen Proxys des Deployments sie melden — bekommt 120 Zustellungen pro Minute mit einem Burst von 240, belastet, bevor das Token überhaupt geprüft wird; eine Flut geratener URLs kostet die Tür darüber hinaus also nichts. Jeder verifizierte Trigger bekommt 20 Zustellungen pro Minute mit einem Burst von 40: eine Zustellung kostet einen ganzen durablen Lauf, denselben Preis, den ein Start mit Schlüssel zahlt. Darüber hinaus antwortet die Tür mit **429**, `Retry-After` in ganzen Sekunden und dem gewöhnlichen Fehlerumschlag; backe zurück, wie es die [Rate-Limits](/de/develop/rate-limits)-Seite beschreibt, halte die Zustellungs-ID über die Versuche stabil, und die Wiederholung liest sich als das Duplikat, das sie ist, statt als zweiter Lauf.
 
-## Wo das hingehört
+## Webhook oder API-Schlüssel wählen
 
-Der Webhook ist der Weg hinein ohne Schlüssel; alles andere läuft über einen API-Schlüssel. Die [Trigger-Seite](/de/platform/automations/triggers) behandelt die Produktseite — Zeitpläne, Events und Webhooks, wie der Automatisierungs-Editor sie zeigt. Die [API-Referenz](/de/develop/api-reference) behandelt das Starten von Läufen mit Schlüssel (`POST /api/v1/projects/{id}/automations/{name}/runs`) — die bessere Naht, wenn der Aufrufer dein eigener Code ist; sie kennt dieselbe `Idempotency-Key`-Idee, ein wiederholter Start dort ist also so sicher wie eine erneute Zustellung hier.
+Nutze einen Webhook, wenn der Absender eine feste URL für Ereignisse unterstützt. Ein API-Schlüssel eignet sich für eigene Programme, die zusätzlich Automatisierungen auflisten, Projekte auswählen oder Ergebnisse lesen. Halte beide Zugangsdaten geheim. [Auslöser](/platform/automations/triggers) erklärt die Einrichtung in der Oberfläche; die [API-Referenz](/develop/api-reference) beschreibt Laufstarts und Statusabfragen mit API-Schlüssel.

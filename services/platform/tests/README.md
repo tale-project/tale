@@ -1,41 +1,37 @@
-# Tale — connector & container tests
+# Platform tests
 
-Bun/TypeScript suites that build, validate, and smoke-test the Docker images and
-the running stack. They live inside `@tale/platform` (no separate workspace) and
-run with `bun` — no build step, no extra install; they use only Bun and `node:*`
-built-ins.
+Choose the layer that proves your change. Run workspace scripts from the repository root with
+`bun run --filter @tale/platform <script>`; root-level Docker scripts run from the repository root.
 
-> Automated suites live in [`connector/`](connector/); manual / AI-directed
-> exploratory test playbooks live in [`manual/`](manual/) (run by a human or an
-> AI agent against a running instance, not in CI).
+| Layer | What it proves | Entry point |
+| --- | --- | --- |
+| Server and library tests | Domain rules, request handling, parsing, and deterministic effects | `bun run --filter @tale/platform test` |
+| React interaction tests | Component behavior, validation, and accessibility semantics | `bun run --filter @tale/platform test:ui` |
+| Browser component tests | Behavior that depends on the browser engine | `bun run --filter @tale/platform test:browser` |
+| Backend integration | Real Postgres, migrations, transactions, auth, and API effects | `bun run --filter @tale/platform backend:integration` |
+| Full application | Browser journeys against a running platform | [E2E README](e2e/README.md) |
+| Manual review | Layout, focus, live interactions, and exploratory behavior | [Manual test guide](manual/readme.md) |
+| Documentation images | Repeatable captures of real UI with demo data | [Screenshot runbook](docs-screenshots/README.md) |
 
-## Suites
+The [backend README](../backend/README.md) explains integration prerequisites. Use a dedicated test
+database and configuration directory. A separate Git checkout alone does not isolate Postgres,
+object storage, or other backing services.
 
-All suite scripts live under [`connector/`](connector/). The `docker:test*` and
-`docker:e2e` convenience scripts are exposed at the **repo root** — run
-`bun run docker:test`, `bun run docker:test:web`, etc. from anywhere in the repo.
-CI invokes the suite files directly (`bun services/platform/tests/integration/<name>.ts`).
+## Container tests
 
-| Script                                        | What it does                                                                         | Run                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------- |
-| `connector/container-smoke-test.ts`           | Builds all images, brings the full stack up, waits for health, probes HTTP + sandbox | `bun run docker:test`                 |
-| `connector/container-image-test.ts`           | Image-only checks: OCI labels, non-root, no baked secrets, HEALTHCHECK, size budgets | `bun run docker:test:image`           |
-| `connector/container-web-test.ts`             | Builds + smoke-tests the marketing site (`services/web`)                             | `bun run docker:test:web`             |
-| `connector/container-docs-test.ts`            | Builds + smoke-tests the docs site (`services/docs`)                                 | `bun run docker:test:docs`            |
-| `connector/container-sandbox-runtime-test.ts` | Sandbox-runtime image conformance (one-shot + agent-session roles, playwright MCP)   | `bun run docker:test:sandbox-runtime` |
-| `connector/container-vulnerability-scan.ts`   | Trivy vulnerability scan per image (advisory by default)                             | `bun run docker:test:vulnerability`   |
-| `connector/master-e2e-test.ts`                | Runs the platform Vitest server + UI suites                                          | `bun run docker:e2e`                  |
+The Bun scripts under [`integration/`](integration/) build or inspect images and exercise container
+contracts. They require Docker and the dependencies described in each script's header.
 
-All suites accept the same env knobs the old shell scripts did
-(`SMOKE_TEST_TIMEOUT`, `SKIP_BUILD`, `KEEP_RUNNING`, `VULNERABILITY_*`, …) — see
-each file's header comment.
+| Root command | Script |
+| --- | --- |
+| `bun run docker:test` | `integration/container-smoke-test.ts` |
+| `bun run docker:test:image` | `integration/container-image-test.ts` |
+| `bun run docker:test:web` | `integration/container-web-test.ts` |
+| `bun run docker:test:docs` | `integration/container-docs-test.ts` |
+| `bun run docker:test:sandbox-runtime` | `integration/container-sandbox-runtime-test.ts` |
+| `bun run docker:test:vulnerability` | `integration/container-vulnerability-scan.ts` |
+| `bun run docker:e2e` | `integration/master-e2e-test.ts` |
 
-## Layout
-
-- `connector/` — the Bun/TypeScript suites above.
-- `connector/lib/` — shared helpers: `exec.ts` (typed `Bun.spawn` wrappers),
-  `docker.ts` (compose + `docker inspect` probes), `log.ts` (colors, headers,
-  the pass/fail/warn results box).
-- `connector/static-site-test.ts` — shared body for the web/docs suites.
-- `connector/fixtures/` — config fixtures mounted into the test stack (see `compose.test.yml`).
-- `manual/` — AI-directed manual testing guides.
+Read the selected script before using flags such as `SKIP_BUILD` or `KEEP_RUNNING`; availability and
+cleanup behavior belong to that script. Keep traces and local session evidence outside the clone.
+Published manual-round records follow the [round journal](manual/runs/readme.md).

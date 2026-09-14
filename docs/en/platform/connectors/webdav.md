@@ -33,7 +33,7 @@ Press **⌘K** (Connect to Server), paste the URL, and sign in with your email a
 
 <Tab title="Windows">
 
-In **This PC**, choose **Map network drive**, paste the URL as the folder, and pick **Connect using different credentials**. Windows caps WebDAV transfers at 50 MB per file by default — raise `FileSizeLimitInBytes` under the `WebClient\Parameters` registry key and restart the WebClient service. On a non-standard HTTPS port, set `BasicAuthLevel` to `2` under the same key.
+In **This PC**, choose **Map network drive**, paste the HTTPS URL, and select **Connect using different credentials**. Use your email and generated app-password. The Windows WebClient service must be available and running. If the mount or a large transfer fails, use a dedicated WebDAV client or ask IT to check the [Windows WebDAV client limits](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector). Keep authentication restricted to HTTPS; changing `BasicAuthLevel` to `2` permits unencrypted connections and does not fix a non-standard port.
 
 </Tab>
 
@@ -45,9 +45,9 @@ File managers with a split **Connect to Server** dialog (Nemo, Caja) build the a
 
 </Tab>
 
-<Tab title="iOS Files">
+<Tab title="iPhone and iPad">
 
-Tap the three-dot menu, choose **Connect to Server**, and enter the same URL and credentials. Files supports browsing and downloading; in-place editing works for formats with an iOS app.
+Use an app that explicitly supports WebDAV, with the HTTPS URL and a separate app-password for the device. Follow that client’s connection instructions; do not treat the Files app’s generic server dialog as a WebDAV setup guide. Direct WebDAV upload in Pages, Numbers, and Keynote is [no longer supported](https://support.apple.com/en-us/101948). For occasional access, use Tale’s Documents page in the browser.
 
 </Tab>
 

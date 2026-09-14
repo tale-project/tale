@@ -1,9 +1,9 @@
 ---
 title: Richtlinien und Limits
-description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff.
+description: Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen und die Zuordnung eingehender Konversationen fest.
 ---
 
-Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitglieder und Agents verbrauchen können. Budgets deckeln Tokens, Kosten und Anfragen pro Abrechnungsperiode; Feature-Kontrollen deckeln das Kontextfenster pro Bereich; Upload-Richtlinie regelt Dateitypen und Größen, die ein Mitglied anhängen darf; Aufbewahrungsrichtlinie entscheidet, wie lange jeder Datentyp lebt, bevor Cleanup eingreift. Admins und Inhaber lesen diese Seite, wenn eine Last über Budget ist, wenn eine Gruppe mit einem kleineren Kontextfenster arbeiten soll, oder wenn ein Regulierer ein Aufbewahrungsfenster benennt, das vom Default abweicht.
+Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtlinien & Limits** Ressourcenverbrauch und Datenverarbeitung. Wähle den Bereich für dein Anliegen: Ausgaben, Uploads, Aufbewahrung, Funktionsverfügbarkeit oder die Zuständigkeit für eingehende Konversationen.
 
 <Frame caption="Governance > Richtlinien & Limits — die Tabelle der Budget-Regeln über der Upload-Richtlinie und den Aufbewahrungs-Kontrollen.">
 
@@ -11,42 +11,54 @@ Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitgl
 
 </Frame>
 
-## Ein durchgespieltes Budget
+## Ein Ausgabenbudget hinzufügen
 
-Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen > Richtlinien > Richtlinien & Limits** und klick unter **Budgetregeln** auf **Regel hinzufügen**. Wähle **Rolle** als Bereich, **Redakteur** als Ziel, setze die Periode auf **Monatlich** und trage einen Höchstbetrag in USD ein. Speichern, und sobald die Perioden-Ausgaben eines Redakteurs das Limit überschreiten, blockiert der Chat-Composer neue Sendungen mit einem Budget-überschritten-Hinweis — und Sprach-Anfragen werden direkt verweigert. Ein verwalteter Agent-Lauf — die Aufgabe eines Projekt-Agenten, der Agent-Knoten einer Automation — wird beim Start genauso verweigert, und ein Lauf, der startet, darf nur ausgeben, was unter dem Deckel noch übrig ist. Eine Warnschwelle unter dem Limit zeigt vorher einen Warnhinweis. Engere Bereiche übersteuern weitere — eine Benutzerregel schlägt eine Team-Regel schlägt eine Rollen-Regel — und org-weite Limits wirken immer zusätzlich obendrauf.
+1. Wähle unter **Budgetregeln** die Aktion **Regel hinzufügen**.
+2. Wähle Bereich und Ziel. Nutze eine Rolle für eine Gruppe wie Bearbeiter, ein Team für gemeinsame Arbeit, eine Person für ein individuelles Limit, einen API-Schlüssel für einzelne Zugangsdaten oder die Organisation für eine gemeinsame Obergrenze.
+3. Wähle einen täglichen, wöchentlichen oder monatlichen Zeitraum. Setze mindestens ein positives Token-, Kosten- oder Anfragelimit. Kosten gibst du in USD an; ein leeres Feld begrenzt diese Größe durch die Regel nicht.
+4. Setze bei Bedarf **Warnschwelle (%)** zwischen 0 und 100, um vor Erreichen des Limits zu warnen.
+5. Wähle **Bestätigen**, speichere die ausstehenden Seitenänderungen und prüfe Bereich, Ziel, Zeitraum und Limits der gespeicherten Regel.
 
-## Die vier Richtlinienebenen
+Eine monatliche Rollenregel könnte Bearbeitern beispielsweise ein persönliches Ausgabenlimit von 50 USD geben, während eine Organisationsregel die gemeinsamen Ausgaben auf 500 USD begrenzt. Das sind Beispielbeträge, keine empfohlenen Standardwerte.
 
-**Budgets** sind Token-, Kosten- und Anfragen-Limits pro Bereich und Periode. Bereiche sind Organisation, Rolle, Team, Benutzer oder API-Schlüssel. Jede Regel trägt ein Token-Limit, ein Kosten-Limit in USD, ein optionales Anfragen-Limit und eine Warnschwelle als Prozentwert des Limits. Eine API-Schlüssel-Regel zielt auf einen einzelnen ausgestellten Schlüssel (wähle **API-Schlüssel** als Bereich, dann den Schlüssel aus **Einstellungen > API**) und deckelt nur den mit diesem Schlüssel authentifizierten Traffic — die REST-API — sodass du eine einzelne Connector messen kannst, ohne die In-App-Nutzung zu berühren. Bildgenerierung wird nach Kosten und Anzahl Anfragen gemessen, nicht nach Tokens — eine Bild-Anfrage meldet keine Tokens, also deckle Bild-Ausgaben mit dem Kosten- oder Anfragen-Limit, nicht mit dem Token-Limit.
+Budgets gelten für neue kostenpflichtige Arbeit, einschließlich Chat und verwalteter Agentenläufe. Bilderzeugung braucht Kosten- oder Anfragelimits, weil ihre Nutzung nicht in Texttokens gemessen wird. Untersuche Warnungen in der [Nutzungsanalyse](/platform/admin/governance/usage-analytics).
 
-**Feature-Kontrollen** deckeln die maximalen Kontext-Tokens für AI-Antworten pro Benutzer, Team oder Rolle. Schalter pro Feature gibt es nicht.
+## Verstehen, welche Grenzen gelten
 
-**Upload-Richtlinie** regelt Dateierweiterungen, MIME-Typen und Größen, die ein Mitglied anhängen darf. Sie deckelt zudem das Gesamtvolumen pro Benutzer — nützlich, wenn Speicher gemessen wird. Schalte die Richtlinie aus für einen permissiven Default; schalte sie ein, um die Listen durchzusetzen.
+Persönliche Limits werden für jede Größe aus der spezifischsten Regel ermittelt, die sie festlegt: zuerst Person, dann Team, Rolle und Standard. Organisationslimits gelten zusätzlich. Ein Teambudget begrenzt auch die gemeinsame Nutzung des Teams, selbst wenn ein Mitglied eine spezifischere persönliche Regel hat. API-Schlüssellimits begrenzen unabhängig die mit diesem Schlüssel authentifizierten Anfragen, nicht andere Arbeit in der Oberfläche.
 
-**Aufbewahrungsrichtlinie** entscheidet, wie lange jeder Datentyp (Chatverlauf, Dokumente, Prompts, Audit-Logs, Nutzungsbuch, Workflow-Läufe und mehr) bleibt, bevor der Cleanup-Lauf die Zeile entfernt. Die Seite zeigt die vom Betreiber gesetzten Grenzen, die Per-Org-Überschreibung innerhalb dieser Grenzen und ein Kulanzfenster vor der harten Löschung.
+Wird eine Anfrage unerwartet abgelehnt, prüfe alle passenden Grenzen und Zeiträume. Ein höheres persönliches Limit hebt keine Organisations-, Team- oder API-Schlüsselgrenze auf.
 
-## Vorrang
+## Uploads steuern
 
-Alle vier Ebenen teilen sich dieselbe Bereichsleiter: Benutzer > Team > Rolle > Organisation > Default. Die engste Regel gewinnt. Wo eine Ebene ein org-weites Limit trägt (Budgets), wirkt das Limit als zusätzliche Decke über jeder engeren Regel. Ein API-Schlüssel-Budget steht außerhalb der Leiter als eigener, unabhängiger Topf: Es bindet den Traffic des Schlüssels selbst, unabhängig von den Benutzer-, Team- oder Org-Limits des Inhabers, sodass ein einzelner Schlüssel enger gedeckelt werden kann als die Person, die ihn ausgestellt hat.
+Die Uploadrichtlinie legt erlaubte und gesperrte Dateiendungen, erlaubte MIME-Typen, die maximale Dateigröße in MB und das Gesamtvolumen pro Person in GB fest. Wähle die benötigten Typen und teste nach dem Speichern eine erlaubte und eine abgelehnte Datei.
 
-## Aufbewahrungs-Grenzen und Freigaben
+Dateiendung, Inhaltstyp und Größe sind getrennte Prüfungen. Vergleiche bei einem Fehler alle drei mit der Richtlinie. Prüfe den schon belegten Speicher der Person, wenn einzelne Dateien passen, weitere Uploads aber scheitern.
 
-Die Aufbewahrungsrichtlinie sitzt innerhalb von Grenzen, die der Betreiber gesetzt hat — der Selbsthosting-Betreiber setzt eine Untergrenze und eine Obergrenze pro Kategorie, und der Org-Wert klemmt auf diesen Bereich. Wenn der Betreiber eine engere Untergrenze oder eine niedrigere Obergrenze vorschlägt, erscheint die Änderung als Vorschlag, den Admins anwenden oder ablehnen können. Reduzierungen der Richtlinie landen mit einem Pending-Banner und einem Kulanzfenster, bevor sie wirken — dieselbe Kulanz gibt Admins die Möglichkeit, abzubrechen.
+## Aufbewahrung und Wiederherstellung festlegen
 
-## Sitzungs-Leerlaufzeit
+Wähle im Bereich der Aufbewahrungsrichtlinie **Bearbeiten** und richte die benötigten Kategorien ein. Die Übersicht zeigt wirksame Werte, deaktivierte Kategorien und die Bereinigung temporärer Dateien. Eine deaktivierte geplante Aufbewahrung verhindert keine ausdrückliche Löschung oder Löschanfrage.
 
-Die Sitzungs-Leerlaufzeit meldet Mitglieder nach einer Phase der Inaktivität ab — die sitzungsgebundene Kontrolle, die Compliance-Rahmenwerke verlangen (SOC 2 CC6.1). Öffne **Einstellungen > Richtlinien > Sicherheit**, schalte **Sitzungs-Leerlaufzeit aktivieren** ein und setze **Leerlaufzeit (Minuten)** (1–1440, Standard 30). Mitglieder sehen kurz vor dem Ablauf eine Warnung; danach meldet sich der aktive Tab ab, und die Anmeldeseite erklärt die Abmeldung, statt nur ein leeres Formular zu zeigen.
+Prüfe vor einer Änderung die Mindest- und Höchstgrenzen des Deployments. Änderungen mit Prüfung oder Wartezeit erscheinen als Vorschläge oder vorgemerkte Änderungen. Lies ihren Wirksamkeitszeitpunkt, statt von einer sofortigen Anwendung auszugehen.
 
-Das Fenster kann das installationsweite Limit nur verkürzen, niemals verlängern. Selbsthosting-Betreiber setzen diese harte Obergrenze per Umgebungsvariable (siehe die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference)); die Org-Richtlinie wirkt obendrauf, und das engere der beiden Fenster gewinnt. Ein Mitglied mehrerer Organisationen bekommt das engste Fenster über alle seine Organisationen.
+Die Schonfrist für Löschungen ist das Wiederherstellungsfenster unterstützter vorläufig gelöschter Datensätze. Ein positiver Wert lässt Zeit für die Wiederherstellung im [Papierkorb](/platform/admin/governance/trash); null erlaubt die sofortige endgültige Bereinigung. Nicht jede Kategorie lässt sich wiederherstellen. Ein [Legal Hold](/platform/admin/governance/legal-hold) schützt betroffene Daten vor Bereinigung.
 
-Die Durchsetzung hat zwei Hälften. Der Watchdog im Browser beendet offene, sichtbare Sitzungen auf die Minute. Geschlossene Tabs und liegen gelassene Geräte fängt serverseitig ein Widerrufs-Lauf ab, der etwa alle fünf Minuten läuft — eine Sitzung kann das Fenster also um einige Minuten überleben; wenn du die Kontrolle gegenüber einem Auditor benennst, rechne mit dem Fenster plus rund einer halben Stunde im schlechtesten Fall. Jeder serverseitige Widerruf landet als `session.idle_revoked` in den [Audit-Logs](/de/platform/admin/governance/audit-logs). Eine Einschränkung für Trusted-Headers-Deployments: dort besitzt der Reverse Proxy die Authentifizierung, eine widerrufene Sitzung entsteht also neu, sobald das Mitglied den Anmelde-Hinweis bestätigt — kombiniere die Richtlinie mit einer Leerlaufzeit auf Proxy- oder IdP-Seite für eine echte Sperre.
+Für selbst gehostete Deployments beschreibt die [Aufbewahrungskonfiguration](/self-hosted/configuration/retention) Betreiberkontrollen und Unterschiede zwischen Kategorien. Leite aus einer deaktivierten Richtlinie oder einem angezeigten Zeitraum allein keine Archivgarantie ab.
+
+## Funktionskontrollen prüfen
+
+Funktionskontrollen umfassen bereichsspezifische Kontextlimits und den organisationsweiten Schalter für Sprachausgabe. Ein Kontextlimit bestimmt, wie viel Kontext eine KI-Antwort erreicht. Es ist etwas anderes als ein Ausgabenbudget. Ist die Sprachausgabe ausgeschaltet, können Mitglieder sie weder über eigene Standardwerte noch einzelne Konversationen aktivieren.
+
+Die Standardschalter für benutzerdefinierte Anweisungen und Erinnerungen speichern Organisationsvorgaben. Ihre Anzeige bedeutet nicht, dass persönliche Anweisungen oder das Erzeugen von Erinnerungen bereits im Chat aktiv sind. Verbindliche Organisationsanweisungen stehen separat unter [Guardrails](/platform/admin/governance/guardrails).
 
 ## Konversations-Routing
 
-Eingehende Post landet unzugewiesen, sofern keine Routing-Regel sie beansprucht. Unter **Einstellungen > Governance > Richtlinien & Grenzen** öffnest du **Konversations-Routing** und legst eine Regel an, die eine Empfängeradresse einem Team, einer Person oder beiden zuordnet: Die nächste Konversation, die an dieser Adresse eintrifft, wird im Moment ihrer Erstellung zugewiesen, bevor jemand die Inbox öffnet. Eine Regel trifft auf die Adresse zu, an die die absendende Person geschrieben hat — das `An` der Konversation — und zwar unabhängig von Groß- und Kleinschreibung; eine Adresse ohne Regel bleibt unzugewiesen.
+Mit dem Konversations-Routing ordnest du neue eingehende Konversationen anhand der Empfängeradresse zu. Füge eine Regel hinzu, wähle ein Team, eine Person oder beides und speichere. Die Adressprüfung ignoriert Groß- und Kleinschreibung.
 
-Die Sichtbarkeit ist eingebaut: eine einem Team zugewiesene Konversation ist nur für dessen Mitglieder sichtbar, eine einer Person zugewiesene nur für diese Person (bei beiden die Vereinigung). Wirklich unzugewiesene Konversationen — weder Person noch Team — sehen nur Admins und Inhaber, die sie sichten. Mitglieder und Redakteure sehen nur Arbeit, die in ihre Person- oder Team-Warteschlange geroutet oder zugewiesen wurde. Kombiniere Routing mit der Steuerung **Zuständig** in der Kopfzeile, damit eingehende Post in der richtigen Warteschlange landet. Routing weist nur zu; eine Konversation, die bereits eine Inhaberin oder ein Team hat, wird nie neu zugewiesen — eine Antwort, die sich in einen bestehenden Thread einreiht, bleibt also unberührt. Eine Regel, die auf ein zwischenzeitlich gelöschtes Team oder eine gelöschte Person zeigt, wird übersprungen — die Konversation trifft trotzdem ein, nur unzugewiesen für die Admin-Sichtung.
+Bei Teamzuordnung sehen die Teammitglieder die Konversation, bei Personenzuordnung diese Person. Sind beide gesetzt, genügt eine der Zuordnungen für den Zugriff. Nicht zugewiesene Konversationen sortieren Admins und Inhaber ein.
 
-## Wo das hingehört
+Regeln greifen beim Eintreffen einer neuen Konversation. Sie ändern keine bestehende Zuordnung, wenn eine Antwort hinzugefügt wird. Verweist eine Regel auf eine gelöschte Person oder ein gelöschtes Team, kommt die Konversation trotzdem ohne diese Routing-Zuordnung an. Teste mit einer neuen Nachricht an die Empfängeradresse und prüfe die entstandene Zuständigkeit.
 
-Richtlinien und Limits ist die Budget- und Schleusen-Ebene, die die Organisation vor entgleitenden Ausgaben und unbeabsichtigtem Zugriff schützt. Paare das mit [Inhalte und Modelle](/de/platform/admin/governance/content-models), sodass das vom Budget gedeckelte Modell auch das ist, das die Zugriffsliste erlaubt, und mit [Aufbewahrungsrichtlinie auf derselben Seite](#aufbewahrungs-grenzen-und-freigaben), sodass die Daten, die die Organisation behält, ebenfalls begrenzt sind. Die Begleitseite ist [Audit-Logs](/de/platform/admin/governance/audit-logs) — jede Richtlinienänderung hier landet dort als dauerhafte Aufzeichnung.
+## Anmeldelimits separat einrichten
+
+Passwortanforderungen, Anmeldeversuchslimits, Sitzungs-Inaktivitätslimit und [Zwei-Faktor-Richtlinie](/platform/admin/two-factor-authentication) stehen unter **Einstellungen > Richtlinien > Sicherheit**. Ein Organisations-Inaktivitätslimit kann die Deployment-Grenze verschärfen. Bei Trusted-Header-Authentifizierung stimme das Sitzungsende mit Proxy oder Identitätsanbieter ab, da diese das Mitglied erneut authentifizieren können.

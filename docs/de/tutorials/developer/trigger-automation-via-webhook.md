@@ -1,58 +1,89 @@
 ---
-title: Eine Automatisierung per Webhook auslösen
-description: Häng einen Webhook-Trigger an eine Automatisierung und POSTe von einem externen System auf seine URL, um einen Lauf der deployten Version zu starten.
+title: Eine Automation per Webhook auslösen
+description: Installiere eine veröffentlichte Automation im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf.
 ---
+Verbinde ein externes Ereignis mit einer veröffentlichten Automation und prüfe Annahme und fertigen Lauf. Diese Anleitung verwendet einen Projekt-Webhook, einen API-Schlüssel für Einrichtung und Abfragen sowie curl für die Zustellung. Das externe System braucht nur die Webhook-URL.
 
-Ein Webhook-Trigger macht aus einer Automatisierung etwas, das ein externes System per JSON-POST feuern kann. Tale gleicht das Token in der URL gegen den Trigger ab, und der gestartete Lauf gehört zur deployten Version der Automatisierung — nie zu einem Entwurf, an dem gerade jemand arbeitet. Dieser Durchlauf bringt eine Automatisierung von „ich will sie von außen feuern“ zu „ein Bestellereignis kommt an und der Lauf taucht auf“ auf einer einzelnen Instanz.
+## Eine unkritische Testautomation vorbereiten
 
-Du brauchst die Rolle Entwickler in der Organisation, eine Automatisierung mit deployter Version und eine Shell mit `curl`. Der vollständige eingehende Vertrag — Statuscodes, Body-Behandlung, Größenlimits — steht in [Webhooks](/de/develop/webhooks); dieser Durchlauf ist die kleinste vollständige Nutzung davon.
+Wähle eine veröffentlichte Automation mit bestandenen Tests, deren erster Lauf weder Nachrichten sendet noch Kundendaten verändert oder andere externe Folgen hat. Eine Transformation, die ihre Eingabe zurückgibt, reicht aus. Erstelle und veröffentliche sie in der App oder über [MCP](/de/develop/mcp-endpoint). REST erstellt und veröffentlicht keine Automationsdefinitionen.
 
-## Bevor du beginnst
+Nutze ein aktives Projekt mit Bearbeitungszugriff und einen API-Schlüssel mit Entwicklerrechten. Setze `TALE_BASE_URL`, `TALE_API_KEY`, `TALE_ORG_SLUG`, `TALE_PROJECT_ID` und `TALE_AUTOMATION`. Der Organisationswert ist ein Slug, der Projektwert eine ID. Ersetze `/` innerhalb von Automationsnamen in URLs durch `__`.
 
-Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — eine einzelne `transform`-Node, auf dem Canvas gebaut, wie [Der Workflow-Editor](/de/platform/automations/editor) es beschreibt, oder über `save_automation` und `deploy_automation` des [MCP-Endpoints](/de/develop/mcp-endpoint) gespeichert und deployt. REST hat keine Tür zum Bauen — `POST /api/v1/automations` antwortet **405**; REST listet, liest, startet und verdrahtet Trigger für Automatisierungen, die anderswo gebaut wurden —, diese Voraussetzung erfüllst du also in der App oder über MCP, nie mit dem REST-Schlüssel allein.
+## Die Automation im Projekt installieren
 
-Wähle für die folgende Projektzustellung ein aktives Projekt, in dem die Automatisierung installiert ist. Projekt und Trigger müssen zur selben Organisation gehören. Die [API-Referenz](/de/develop/api-reference) erklärt das Installieren in einem Projekt.
-
-## Schritt 1 — Einen Webhook-Trigger anlegen
-
-Der erste Zug ist, einen Webhook-Trigger an die Automatisierung zu binden. Ohne ihn läuft die Automatisierung nur aus der UI oder per Zeitplan; mit ihm bekommt sie eine URL, auf die jedes System POSTen kann.
-
-Öffne die Detailseite der Automatisierung und suche rechts im Einstellungsbereich **Trigger**. Auf schmalen Bildschirmen liegt dieser Bereich unter dem Canvas. Wähle unter **Trigger-Typ** die Option **Webhook** und klicke auf **Einstellungen speichern**. Kopiere das Token, sobald es erscheint: Tale zeigt es nur einmal. Das Token in der URL berechtigt zur Zustellung; Tale speichert nur seinen Hash. Aus einem Skript ist dieselbe Bindung `PUT /api/v1/automations/{name}/triggers` mit `{"kind": "webhook"}` — die **200** trägt `token` genau einmal; ein späteres `{"kind": "webhook", "rotateToken": true}` erzeugt ein neues und tötet die alte URL, und einen Zeitplan oder ein Event darüber zu binden tötet die URL ebenfalls (die Antwort sagt `"revoked": "webhook"`).
-
-Der Trigger bindet an den **Namen** der Automatisierung, nicht an die Version, die du deployt hast. Deploy morgen eine neue Version und diese URL funktioniert weiter — genau dafür sind die beiden getrennt.
-
-Setze das gerade erzeugte Token in die Projekt-URL unten ein. Das Projekt steht im Pfad, nicht in den Daten des Anbieters oder einem Abfrageparameter `projectId`. Eine Zustellung ohne Projekt verwendet `/api/automations/webhook/{token}` und verlangt eine Automatisierung ganz ohne Projektbindungen.
+Für Webhook-Zustellungen muss die Automation in dem Projekt installiert sein, das die URL nennt. Installiere sie mit dem Namen im Pfad und einem leeren Anfrageinhalt:
 
 ```bash
-export TALE_TRIGGER_URL="https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>"
+curl --fail-with-body --silent --show-error --request POST \
+  "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/$TALE_AUTOMATION" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG" \
+  -H "Content-Type: application/json" --data '{}'
 ```
 
-## Schritt 2 — Ein Payload per curl POSTen
+Die erste Installation liefert `201`, eine Wiederholung `200`. Eine Anfrage an die Sammlung `/automations` installiert nichts. Lies vor der Zustellung den Eingabevertrag der veröffentlichten Version.
 
-Sende die Daten des Anbieters an die Projekt-URL. Der Lauf erhält `{ "trigger": "webhook", "payload": <body> }`; die Bestell-ID des Beispiels steht also unter `input.payload.orderId`. Ein definiertes `inputs`-Schema muss dieses umschließende Objekt beschreiben. Inhalte ohne JSON gelangen als Text zum Lauf.
+## Den Trigger erstellen und schützen
+
+Binde für die neue Testautomation einen Webhook-Trigger:
 
 ```bash
-curl -sS "$TALE_TRIGGER_URL" \
+curl --fail-with-body --silent --show-error --request PUT \
+  "$TALE_BASE_URL/api/v1/automations/$TALE_AUTOMATION/triggers" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG" \
+  -H "Content-Type: application/json" --data '{"kind":"webhook"}'
+```
+
+Kopiere das zurückgegebene `token` in die private Umgebungsvariable `TALE_WEBHOOK_TOKEN`. Tale zeigt den Klartext nur beim Erstellen oder Rotieren. Ein späterer Lesezugriff kann ihn nicht wiederherstellen.
+
+<Warning>
+
+Die URL ist ein Zugangsmittel. Wer sie kennt, kann Zustellungen senden. Halte sie aus Quellcode, Screenshots und öffentlichen Protokollen heraus. Ein Webhook ersetzt eine vorhandene Trigger-Art derselben Automation; verwende dafür die ausgewählte Testautomation.
+
+</Warning>
+
+Der Trigger folgt dem Automationsnamen und nutzt die veröffentlichte Version. Ein späterer Release kann deshalb ändern, was dieselbe URL ausführt. Rotiere oder entferne einen geleakten Trigger. Deaktivieren pausiert ihn nur; erneutes Aktivieren stellt dasselbe Token wieder her.
+
+## Eine Zustellung senden
+
+Sende das Testereignis mit einer stabilen Zustellungs-ID:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  "$TALE_BASE_URL/api/projects/$TALE_PROJECT_ID/automations/webhook/$TALE_WEBHOOK_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "orderId": "12345", "amount": 199.0 }'
+  -H "Idempotency-Key: order-12345-paid" \
+  --data '{"orderId":"12345","amount":199.0}'
 ```
 
-Ein angenommener Aufruf antwortet mit **202** und `{ "runId": "..." }`. Der Lauf arbeitet im benannten Projekt weiter. Lies seinen Status über `GET /api/v1/projects/{id}/runs/{runId}` mit einem API-Schlüssel, der das Projekt lesen darf, oder öffne die Laufliste der Automatisierung im Produkt.
+Die Annahme liefert `202` mit `runId`. Speichere die ID als `TALE_RUN_ID`. Die Automation erhält `{"trigger":"webhook","payload":<body>}`; die Bestell-ID liegt also unter `input.payload.orderId`. Ein Eingabeschema muss diese Hülle beschreiben.
 
-## Schritt 3 — Die Fehlerfälle lesen
+Wiederhole denselben Befehl. Innerhalb des Deduplizierungsfensters bleibt `runId` gleich und `duplicate: true` kommt hinzu; kein zweiter Lauf startet. IDs bleiben 24 Stunden gespeichert. Ohne ID-Kopfzeile werden identische Anfragebytes nur innerhalb von zwei Minuten zusammengefasst. Verwende für ein neues Ereignis eine neue ID.
 
-Sieben Status decken diesen Ablauf ab, und jede Ablehnung trägt einen stabilen `code` — verzweige auf `code`, nie auf den Satz: Der ist für Menschen geschrieben und kann sich ändern.
+## Das Laufergebnis prüfen
 
-- **202** — der Lauf ist gestartet (`{ "runId": "..." }`), oder diese Zustellung war schon angenommen und dieselbe `runId` kommt mit `"duplicate": true` zurück; einen zweiten Lauf gibt es nicht. Das ist der einzige Erfolg.
-- **400** `INVALID_QUERY` — ein Abfrageparameter `projectId`; das Projekt kommt aus dem URL-Pfad. **400** `AUTOMATION_INPUT_INVALID` — der Body passt nicht zum deklarierten `inputs`-Schema der Automatisierung; `data.issues` nennt jedes Problem. Korrigiere die Anfrage; kein Lauf ist gestartet.
-- **403** `AUTOMATION_PROJECT_FORBIDDEN` — die Automatisierung kann im URL-Projekt nicht laufen: Es existiert nicht, ist archiviert, oder die Automatisierung ist dort nicht installiert. Eine Antwort für alle drei, und sie nennt die Automatisierung nie, damit eine geleakte URL deine Projekt-ids nicht abtasten kann. Korrigiere die URL oder die Installation; ein erneuter Versuch ändert nichts.
-- **404** `NOT_FOUND` — das Token passt zu keinem aktiven Trigger: Es ist falsch, es wurde gelöscht oder widerrufen, oder der Trigger ist deaktiviert. Die Antwort sagt bewusst nie, welcher Fall zutrifft, damit jemand, der Tokens rät, aus dem Unterschied nichts lernt.
-- **409** `AUTOMATION_NOT_DEPLOYED` — die Automatisierung existiert, aber nichts ist live: Deploy eine Version, deren Tests grün sind, und derselbe Aufruf läuft. **409** `AUTOMATION_PROJECT_SCOPE_REQUIRED` — eine projektgebundene Automatisierung wurde über die globale URL `/api/automations/webhook/{token}` aufgerufen; nimm ihre Projekt-URL. **409** `AUTOMATION_DELIVERY_SCOPE_MISMATCH` — diese Zustellungs-id wurde zuerst über einen anderen URL-Scope angenommen.
-- **413** `BODY_TOO_LARGE` — der Body liegt über 256 KiB (262.144 Bytes); poste eine Referenz statt der Nutzlast.
-- **429** `RATE_LIMITED` — das Budget des Senders oder des Triggers ist aufgebraucht; warte die Sekunden aus `Retry-After` ab und sende mit derselben Zustellungs-id erneut, damit der Retry dieselbe Zustellung ist und kein zweiter Lauf.
+Lies den Lauf mit deinem API-Schlüssel im selben Projekt:
 
-Retries verdienen einen eigenen Satz: Der Endpunkt dedupliziert, ein wiederholter POST startet also keinen zweiten Lauf. Schick eine Zustellungs-ID mit — `Idempotency-Key` oder den eigenen Header deines Anbieters wie `X-GitHub-Delivery` — und eine Wiederholung innerhalb von 24 Stunden antwortet mit dem Lauf, den der erste Versuch gestartet hat, markiert mit `duplicate: true`; ohne ID gilt dasselbe für einen byteidentischen Body innerhalb von zwei Minuten. Halte die ID über alle Versuche stabil, dann ist eine hängende Anfrage gefahrlos wiederholbar. Der Lauf selbst setzt zusätzlich nach jedem abgeschlossenen Knoten einen Checkpoint, ein nach einer Unterbrechung wiederaufgenommener Lauf wiederholt einen bereits erzeugten Seiteneffekt also nie. Zustellungs-IDs und identische Inhalte werden innerhalb derselben Projekt-URL verglichen. Ein anderes installiertes Projekt hat eigene Zustellungen. Entfernst du die Bindung oder archivierst das Projekt, verweigert Tale weitere Zustellungen, auch gespeicherte Duplikatantworten.
+```bash
+curl --fail-with-body --silent --show-error \
+  "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$TALE_RUN_ID" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG"
+```
 
-## Wo das eingesetzt wird
+Warte auf einen Endstatus und prüfe `output` und `trace`. Bei der Testautomation, die Eingaben zurückgibt, müssen Bestell-ID und Betrag mit deiner Zustellung übereinstimmen. Die `202`-Antwort allein bestätigt dieses Ergebnis nicht.
 
-Webhook-Trigger sind die eingehende Naht der Automatisierungs-Engine — das, worauf dein CRM, dein Bestellsystem oder dein Monitoring POSTet. Greif dazu, wenn der Satz lautet „das ist bei uns passiert, lass bitte etwas dazu laufen“; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst. Die Trigger-seitige Konfiguration und die anderen drei Arten, dieselbe Automatisierung zu starten, stehen unter [Workflow-Trigger](/de/platform/automations/triggers).
+## Zustellungen wiederaufnehmen
+
+| Antwort | Behebung |
+| --- | --- |
+| `400` | Lies `code` und Eingabeprobleme. Korrigiere die Datenhülle oder entferne einen Query-Parameter `projectId`. |
+| `403` | Prüfe aktives Projekt und Installation der Automation darin. |
+| `404` | Prüfe Token und Aktivierung. Der Endpunkt verrät nicht, welches davon falsch ist. |
+| `409` | Lies `code`: Veröffentliche eine Version, korrigiere den URL-Kontext oder löse den Zustellungskonflikt. |
+| `413` | Verkleinere den Inhalt auf unter 256 KiB oder sende eine Referenz. |
+| `429` | Warte gemäß `Retry-After` und wiederhole mit derselben Zustellungs-ID. |
+
+Wiederhole Netzwerkfehler und vorübergehende Serverfehler mit begrenztem Backoff und derselben ID. Behebe andere Clientfehler zuerst; wiederholte ungültige Anfragen reparieren keine Konfiguration. Entferne den Testtrigger, wenn du seine URL nicht mehr brauchst. Die [Webhook-Referenz](/de/develop/webhooks) nennt alle ID-Kopfzeilen, Rotationsregeln und Limits.

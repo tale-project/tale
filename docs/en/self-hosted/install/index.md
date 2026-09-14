@@ -1,26 +1,24 @@
 ---
-title: Install
-description: Two ways to run Tale — the CLI, or a stack you write yourself (Compose or Kubernetes).
+title: Choose an installation method
+description: Use the Tale CLI for a workspace deployment, or run the documented service contract in your own infrastructure tooling.
 ---
 
-Installing Tale has two shapes. The CLI wraps Docker Compose so you never edit a file. Writing the stack yourself is the path when that wrapper is the thing you cannot run — one compose file, or a Kubernetes mapping of the same contract.
+Use the Tale CLI for the standard workspace installation. Choose a custom stack when your infrastructure tooling must own the service definitions. Both paths need the same application services and an operator responsible for configuration and maintenance.
 
-## The CLI
+## Install with the CLI
 
-Install the CLI, then `tale init` and either `tale dev` or `tale deploy`. The same project directory is the unit: a laptop trial becomes a production host without re-initialising.
+The [quickstart](/self-hosted/install/quickstart) takes you through the prerequisites, project creation, startup, and first sign-in. `tale init` prepares a project directory; `tale dev` starts a development instance and `tale deploy` deploys that workspace.
 
-- [Quickstart](/self-hosted/install/quickstart) — `tale init`, then `tale dev` or `tale deploy`.
-- After the first boot, [First admin](/self-hosted/install/first-admin) makes the first account the **Owner**. Everyone after that joins by invite.
-- [CLI install](/self-hosted/install/cli-install) is the installer and the remote-workstation half (`DOCKER_HOST`).
+The CLI manages container operations, but you still own the project's configuration, credentials, volumes, and updates. Keep the project directory and its deployment settings together. [Install the CLI](/self-hosted/install/cli-install) covers supported systems, remote Docker access, commands, and managed deployment options.
 
-## Write the stack yourself
+## Use your own service definitions
 
-No official Helm chart. The contract is the same whether you write Compose or Kubernetes: which services hold state, the DNS names, the probes, the volumes, and what a file you maintain does not do for you.
+[Run your own stack](/self-hosted/install/own-compose) describes the services, volumes, networking, readiness checks, and boot order you must preserve. Use it when maintaining Compose yourself or translating the contract into Kubernetes. Tale does not ship an official Helm chart.
 
-[Run Compose yourself](/self-hosted/install/own-compose) is that page.
+For changes to Tale's source code, follow [Contributor setup](/develop/contributor-setup) instead of starting with a production deployment.
 
-## Where this fits
+## Complete the first setup
 
-Pick by what you are willing to operate. The [quickstart](/self-hosted/install/quickstart) is the CLI path — laptop or production host. The compose-or-cluster path is for air-gap and existing automation.
+After the instance is ready, [create the first administrator](/self-hosted/install/first-admin), connect a provider, and test a chat. Add team members through [Members and roles](/platform/admin/members-and-roles), using the account and sign-in options available in your organization.
 
-Once installed, the [Configuration](/self-hosted/configuration/environment-reference) pages are every environment variable and provider file, and [Operate](/self-hosted/operate/container-architecture) covers upgrades, backups, and observability.
+Before using production data, configure TLS and backups, confirm the [environment settings](/self-hosted/configuration/environment-reference), and read the [operating architecture](/self-hosted/operate/container-architecture).

@@ -5,9 +5,9 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-The Tale API is the surface integrators use when they are outside the product and want to script it: knowledge resources, projects with their files and tasks, automations and their runs, chat threads, agents, and skills, all as JSON over HTTPS with an API key in a header. The same key also opens the [MCP endpoint](/develop/mcp-endpoint) — this page covers the REST half.
+The REST API lets you read and change Tale resources with an API key: projects, files, tasks, automations, runs and chat threads. Start with [your first API request](/get-started/developers) to verify access, then use the operation-specific sections below.
 
-This page is the canonical inventory of the surface, the auth model, and the error shape. Field-level request and response schemas live in the OpenAPI document your instance serves at `/openapi.json` — its `servers` entry names that instance, so a client generated from it targets the right host — and renders at `/docs`. Load it when you need every property; read this page to understand how the API behaves.
+Your instance serves the field-level OpenAPI schema at `/openapi.json` and an interactive reference at `/docs`. Use that instance’s schema when generating a client. This page explains permissions, scope, asynchronous work and errors that apply across those operations.
 
 ## A worked request
 

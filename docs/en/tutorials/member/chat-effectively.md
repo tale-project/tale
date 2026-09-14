@@ -1,34 +1,67 @@
 ---
-title: Chat effectively
-description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed".
+title: Get a useful answer from chat
+description: Practice asking a focused question, checking a citation, and improving the answer with a follow-up.
 ---
 
-Chatting effectively in Tale is not about clever prompts; it is about giving the assistant enough to read your intent the first time — and knowing which work does not belong in a chat at all. Five small habits — asking instead of commissioning, picking the right model, feeding Knowledge instead of pasting, reading the thought timeline, and checking the sources — turn the average reply from "thanks for the wall of text" into "exactly what I needed". This page walks the habits in order on a fresh chat.
+A useful chat answer starts with a clear question and ends with a source check. In this exercise, use a short document you are allowed to upload, ask about a fact in it, then test whether the assistant distinguishes what the document says from what it leaves open.
 
-You need a Member role — the floor for chat. The conceptual side lives in [Chat basics](/platform/chat/basics); this walk is the daily-driver mechanic.
+You need access to Chat and an available model. For document questions, your organization also needs working knowledge indexing. If you already have a suitable indexed document, you can use it instead of the example.
 
-## Habit 1 — Ask; don't commission
+## Prepare a small source
 
-Chat answers questions and retrieves material. It deliberately does not produce deliverables — ask for a presentation, a translated document, or a report, and the assistant sketches the short version and tells you to create a task instead. Work with that boundary rather than against it: when you catch yourself writing "create", "generate the file", or "translate this document", head for a task and assign it to an agent — you get an owner, a reviewable result, and a Done that a person controls. Translating a sentence you pasted is chat work; translating a file is task work.
+Save this text as `launch-brief.txt` on your device:
 
-## Habit 2 — Let Auto work; pin when you know better
+```text
+Website relaunch brief
+The customer review is on 18 September 2026.
+Maya Chen owns the review checklist.
+The launch date has not been approved.
+The review must cover accessibility, redirects, and the contact form.
+```
 
-The picker opens on **Auto**, which reads each message and matches a model to it — a quick lookup lands on a fast model, a long reasoning question on a strong one, and the reply's details name which one answered. That is the right default for most days. Pin a model from the list when you know something Auto cannot: the same model must answer a whole series, a specific model is the one being evaluated, or you want the reasoning-effort knob — the picker's second section, which appears for a pinned model that has one. Raise the effort for gnarly questions, and expect slower, costlier replies at the top level; hand the picker back to Auto when the series is done.
+Open a new chat and attach the file through **Add photos & files** in the composer menu. Wait until uploading and indexing have finished before asking about its text. [Chat attachments](/platform/chat/attachments) explains the status shown on the attachment.
 
-## Habit 3 — Feed Knowledge; don't paste walls
+## Ask for a specific result
 
-The assistant searches the organisation's knowledge — documents, knowledge entries, crawled websites, products, contacts — and its work, tasks and projects, and loads the full detail of what it finds. Where it looks follows where you chat: inside a project it reaches that project's files together with the organisation's knowledge hub and nothing from other projects; in the organisation chat it reaches the hub — open a project's chat to ask about that project's files. Work needs no feeding: it is already there because people run it here. That only works for material that is actually there: upload the price list or the policy document once under [Knowledge](/platform/knowledge/documents), and every future chat can find and cite it. Pasting a 200-page document into the message field fills the context budget and dilutes the answer; a specific question against uploaded material ("what does the refund policy say about opened boxes?") outperforms "tell me everything about refunds" every time.
+Send:
 
-## Habit 4 — Read the timeline, not just the answer
+```text
+Using launch-brief.txt, list the review date, the checklist owner, and the
+three review topics. Cite the source. Keep the answer to four bullets.
+```
 
-Above each reply, the thought timeline records what the assistant did: a collapsible thinking line, and one step row per search or page fetch — _Searching the workspace for "…"_, _Reading example.com_. Glance at it before trusting the answer. A reply with no search step behind a factual claim came from the model's own knowledge; a search step that reports nothing found tells you what is missing — including when a whole source is unavailable, such as documents not being searchable until an admin configures an embedding model. The timeline is also where a failed fetch says why, instead of the answer quietly working around it.
+The request names the source, the facts you need, and the output shape. It is easier to evaluate than “Tell me about the launch.” **Auto** is a reasonable starting point; choose a model explicitly when you need to compare its behavior with another one.
 
-## Habit 5 — Check the sources before you forward the summary
+<Frame caption="Keep the question visible while checking whether the answer meets it.">
 
-Below an answer that read something, **Sources** lists exactly the pages and documents the assistant loaded — derived from what actually ran, so an empty list means nothing was read. Open one before you act on the reply: the two-minute habit of confirming a source per reply catches the small subset where the summary overreached. A web source opens the live page in a new tab; a document source names the file to find under Knowledge.
+![A chat shows a focused question about onboarding feedback and a response organized into a table.](/images/platform/chat-thread-reply.webp)
 
-## Where this fits
+</Frame>
 
-Five habits, one chat, the same loop every time you open the Chat tab. The habits compound — asking inside chat's boundary keeps the answers crisp; fed Knowledge makes the searches land; the timeline and sources close the trust loop.
+## Check the answer against the file
 
-For the surface these habits live on, see [Chat basics](/platform/chat/basics). For the file side — what the assistant can search and cite — see [Knowledge](/platform/knowledge/overview).
+The review date should be **18 September 2026**, the owner **Maya Chen**, and the topics **accessibility, redirects, and the contact form**. Open the cited source and compare those values. Formatting can vary; the facts should not.
+
+If the answer lacks a source, ask it to cite the document rather than assuming the attached file was read. If it cannot find the content, check the attachment's indexing state and retry after it is ready. A fluent answer is not evidence of retrieval.
+
+## Ask a follow-up that exposes uncertainty
+
+In the same conversation, ask:
+
+```text
+What is the approved launch date? If the brief does not give one, say so.
+```
+
+The source does **not** give an approved launch date. A good answer preserves that distinction instead of using the review date as the launch date. When an answer makes an unsupported assumption, point to the conflicting sentence and request a correction.
+
+<Tip>
+
+Change one part of the request at a time. “Make it shorter” tests length; “separate confirmed dates from open decisions” tests interpretation. Changing the source, model, question, and format together makes it difficult to see what improved the result.
+
+</Tip>
+
+## Keep the useful context
+
+Continue the same chat for related questions. Start a new one for an unrelated topic so old assumptions do not distract from the new task. If several conversations need this brief, put it in a [project](/tutorials/member/use-projects) and use project chat.
+
+Before [sharing a chat](/platform/chat/shared-threads), read the messages and any source excerpts in the answer. If the next step is producing a deliverable that needs an owner and review, create a [project task](/platform/projects/tasks) with the verified facts and acceptance criteria.

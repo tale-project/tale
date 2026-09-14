@@ -33,8 +33,8 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 2880,
-      "height": 1800
+      "width": 768,
+      "height": 504
     },
     {
       "file": "images/get-started/settings-organization-members.webp",
@@ -71,6 +71,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800
+    },
+    {
+      "file": "images/platform/automation-run-input.webp",
+      "shot": "automation-run-input",
+      "route": "/dashboard/:orgId/automations/github-triage-issues",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1332
     },
     {
       "file": "images/platform/automations-catalog.webp",
@@ -119,6 +131,18 @@
       "dpr": 2,
       "width": 1538,
       "height": 348
+    },
+    {
+      "file": "images/platform/chat-document-attachment.webp",
+      "shot": "chat-document-attachment",
+      "route": "/dashboard/:orgId/chat?new=true",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 436
     },
     {
       "file": "images/platform/chat-shared-view.webp",
@@ -301,6 +325,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/project-task-detail.webp",
+      "shot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 1532
+    },
+    {
       "file": "images/platform/projects-task-board.webp",
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",
@@ -407,6 +443,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800
+    },
+    {
+      "file": "images/platform/skill-library-detail.webp",
+      "shot": "skill-library-detail",
+      "route": "/dashboard/:orgId/settings/skills",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 1532
     },
     {
       "file": "images/platform/websites-add-dialog.webp",

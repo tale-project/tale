@@ -3,9 +3,9 @@ title: Prometheus and Grafana
 description: A copy-paste Prometheus and Grafana stack that scrapes Tale's two metrics endpoints, plus a starter dashboard and a first alert rule.
 ---
 
-This is the worked example behind [Observability config](/self-hosted/configuration/observability-config): a Prometheus and Grafana pair you can drop next to Tale, pointed at the two bearer-token metrics endpoints, with a starter dashboard and one alert rule to build on. It's for self-hosted operators who have already set `METRICS_BEARER_TOKEN` and now want live graphs instead of a `curl` against `/metrics`.
+Collect Tale’s Prometheus metrics in your monitoring stack and use Grafana to inspect trends. This guide separates scrape targets from generated alert rules, then gives a starting dashboard and alert.
 
-The config-reference page lists the endpoints and the single scrape stanza; this page stands the whole stack up end to end. Everything here runs on the same host as Tale, so no metric leaves the box.
+You need access to the deployment’s metrics token and a Prometheus server that can reach the public metrics paths. Keep the token out of public configuration and restrict access to dashboards that expose operational detail.
 
 ## Before you start
 

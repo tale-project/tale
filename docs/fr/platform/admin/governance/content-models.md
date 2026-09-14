@@ -1,9 +1,9 @@
 ---
-title: Contenu et modèles
-description: Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit.
+title: Modèles
+description: Définis les modèles par défaut, limite leur accès et choisis le modèle qui lit les images pour les agents textuels.
 ---
 
-Contenu et modèles est la surface où tu décides quels LLMs les personnes de ton organisation peuvent atteindre et celui sur lequel chaque groupe atterrit par défaut. Elle associe une liste d’autorisation ou de blocage par scope (organisation, équipe, rôle) à une règle de modèle par défaut que le résolveur applique quand aucun choix explicite ne l’a outrepassée. Les Administrateurs et Propriétaires lisent cette page quand une règle de conformité épingle une charge à un modèle approuvé, quand une équipe doit avoir un modèle par défaut moins cher que le reste de l’organisation, ou quand un nouveau modèle d’un fournisseur existant doit être rendu joignable.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modèles** pour choisir les modèles proposés au départ et ceux que les membres peuvent utiliser. Les valeurs par défaut orientent le choix ; les règles d’accès imposent une restriction. Configure d’abord les [identifiants fournisseur](/platform/admin/providers) pour rendre les modèles souhaités disponibles.
 
 <Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par scope, avec la liste d’autorisation de l’accès aux modèles en dessous et le modèle de vision plus bas.">
 
@@ -11,32 +11,40 @@ Contenu et modèles est la surface où tu décides quels LLMs les personnes de t
 
 </Frame>
 
-## Un défaut mis en pratique
+## Définir un modèle par défaut
 
-Pour régler le modèle par défaut du rôle Éditeur, ouvre **Paramètres > Gouvernance > Modèles** et clique sur **Ajouter une règle** sous **Modèles par défaut**. Choisis **Rôle** comme scope, **Éditeur** comme cible, puis choisis le fournisseur et le modèle. Enregistre et le prochain chat qu’un Éditeur lance sans choix de modèle explicite atterrit sur le modèle de la règle. Les scopes plus étroits l’emportent — une règle équipe bat une règle rôle bat le défaut org.
+1. Sous **Modèles par défaut**, choisis **Ajouter une règle**.
+2. Choisis la portée par défaut comme base, un rôle ou une équipe. Sélectionne la cible si nécessaire.
+3. Choisis un fournisseur et un modèle, puis **Confirmer**. Enregistre les changements en attente dans l’en-tête.
+4. Démarre un chat en tant que membre du groupe cible, avec le modèle sur **Auto**, puis vérifie le modèle effectivement choisi.
 
-## Les deux couches
+Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi explicitement. Une règle d’équipe passe avant une règle de rôle, puis vient la valeur par défaut générale. Elle n’empêche pas de sélectionner un autre modèle autorisé.
 
-**Accès au modèle** est la liste d’autorisation ou de blocage qui régit quels modèles un scope peut utiliser tout court. Un modèle absent de la liste d’autorisation est refusé à la requête — le tour revient avec un refus qui nomme la politique, même si un agent l’a épinglé. Va vers la liste d’autorisation quand un régulateur nomme les modèles approuvés ; va vers la liste de blocage quand un seul modèle doit être hors-limites partout ailleurs.
+## Limiter l’accès aux modèles
 
-**Modèles par défaut** est la règle du résolveur qui choisit le modèle quand rien d’autre ne l’a fait — pas de choix explicite, pas de surcharge par conversation. Le défaut s’applique quand un chat tourne en **Auto** : le résolveur prend le défaut de gouvernance avant le choix automatique, et si ce défaut est lui-même refusé par l’accès aux modèles, il le saute et choisit automatiquement un modèle que l’appelant a le droit d’utiliser.
+Sous **Accès aux modèles**, choisis le mode et ajoute des règles pour les personnes, équipes, rôles ou la portée par défaut à couvrir.
 
-## Scopes et priorité
+| Mode | Effet d’une règle correspondante |
+| --- | --- |
+| Liste d’autorisation | Seuls les modèles autorisés dans la liste sont utilisables ; un modèle bloqué reste refusé. |
+| Liste de blocage | Les modèles sont permis sauf s’ils figurent parmi les modèles bloqués. |
 
-Les deux couches portent un scope : toute l’organisation, une équipe ou un rôle. Le résolveur évalue du plus étroit au plus large — une règle équipe l’emporte sur une règle rôle, qui l’emporte sur le défaut org. La couche d’accès au modèle se combine avec la couche de modèle par défaut ; le défaut que le résolveur choisit doit aussi passer le contrôle d’accès, sinon le résolveur le saute et choisit automatiquement un modèle que l’appelant a le droit d’utiliser.
+Les règles individuelles passent avant celles des équipes, puis des rôles et enfin la règle par défaut. Plusieurs règles d’équipe correspondantes combinent leurs listes ; un blocage explicite reste prioritaire pour le modèle. Si aucune règle ne correspond, la politique ne restreint pas cette personne. Ajoute une règle de base pour couvrir tout le monde.
 
-## Avertissements liste d’autorisation et liste de blocage
+L’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre défaut et accès. Corrige-les pour que le défaut prévu soit réellement utilisé.
 
-L’éditeur de modèles par défaut affiche un avertissement quand une règle nomme un modèle que la liste d’autorisation du même scope n’autorise pas, ou quand la liste de blocage du même scope le bloque. L’avertissement n’empêche pas d’enregistrer — le résolveur saute le défaut refusé à la requête — mais il signale l’incohérence pour que tu corriges l’une ou l’autre.
+<Tip>
+Après un changement, teste les deux cas pour le membre concerné : un modèle autorisé doit fonctionner et un modèle interdit doit être refusé. Tester uniquement avec un compte admin ne prouve pas une règle propre à un rôle.
+</Tip>
 
-## Le modèle qui lit les images
+## Choisir le modèle qui lit les images
 
-Tous les modèles ne voient pas. Quand un agent tournant sur un modèle texte seul ouvre une capture d’écran, une facture scannée ou une diapositive rendue, Tale confie cette image à un second modèle et rend la transcription à l’agent. Tout passe par la passerelle, donc aucune clé de fournisseur n’entre dans le sandbox — et un modèle qui lit déjà les images se passe entièrement du détour.
+Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la transcrit. Un agent dont le propre modèle lit les images n’utilise pas ce recours.
 
-**Modèle pour les images** décide qui fait ce travail. Laisse-le sur **Automatique** et Tale choisit à ta place : d’abord un modèle recommandé, sinon le moins cher que tes accès atteignent. La ligne sous le sélecteur nomme toujours le modèle qui lit les images en ce moment, et pourquoi celui-là — « quel modèle lit nos images » n’est donc jamais une devinette.
+Laisse la sélection du modèle de lecture sur automatique pour suivre le catalogue disponible. Tale préfère un modèle de vision recommandé, puis une option accessible peu coûteuse. Le texte sous la sélection indique le choix actuel et sa raison.
 
-Fixe un modèle quand tu veux que ce choix cesse de bouger. Automatique lit un catalogue de fournisseur vivant : le modèle le moins cher change à chaque nouvelle publication, alors qu’un modèle fixé tient la ligne sur celui que tu as testé. Seuls les modèles capables de transcrire sont proposés — les générateurs de médias et les accès gratuits sont écartés, car les deux acceptent une image puis refusent la requête. Si un modèle fixé devient inatteignable — accès renouvelé, liste d’autorisation resserrée, retrait par le fournisseur — Tale le consigne et revient à Automatique plutôt que de laisser tes agents sans lecture.
+Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles adaptés à la transcription. Si le modèle fixé devient indisponible, Tale revient à la sélection automatique. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
 
-## Où cela s’inscrit
+## Expliquer un choix inattendu
 
-Contenu et modèles est la porte que chaque chat et chaque agent franchissent à la requête. Associer accès au modèle et modèles par défaut permet de livrer une posture de conformité serrée sans forcer chaque auteur d’agent à se souvenir du modèle approuvé ce trimestre. La page compagnon est [politiques et limites](/fr/platform/admin/governance/policies-and-limits) — elle couvre les plafonds de coût et de requêtes qui s’appliquent au-dessus des choix de modèle faits ici.
+Vérifie les rôles et équipes du membre, le choix explicite dans le chat, le défaut correspondant, la règle d’accès et la liste de modèles des identifiants fournisseur. Une entrée au catalogue ne prouve pas que l’organisation dispose d’identifiants utilisables. Les plafonds de coût et de tokens continuent de s’appliquer via [Politiques et limites](/platform/admin/governance/policies-and-limits).

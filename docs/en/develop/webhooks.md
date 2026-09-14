@@ -3,9 +3,9 @@ title: Webhooks
 description: Inbound webhook triggers — POST to a token URL and a deployed automation runs. Token handling, rotation, idempotency, and the response codes.
 ---
 
-A webhook trigger turns a POST from your system into a run of a deployed automation — no API key, no SDK, just a URL that Tale mints when you bind the trigger. It is the right seam when the caller is a third-party product (a payment provider, a form tool, a CI job) that can only fire an HTTP request at a URL you give it.
+A webhook URL lets an external system start a deployed automation by sending an HTTP POST. Use it for events from a service that can call a configured URL, such as an order notification or form submission. The secret token in the URL authorizes the delivery.
 
-Read this when you are wiring an external system to start automations. For calls where you want a value back or you hold an API key, the [API reference](/develop/api-reference) is the synchronous half.
+The response confirms acceptance and supplies a run ID; it does not return the automation’s completed result. Both webhook and API-key run starts are asynchronous. For a first delivery, follow [the webhook tutorial](/tutorials/developer/trigger-automation-via-webhook).
 
 ## A worked trigger
 
@@ -56,12 +56,12 @@ curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automat
 # → 202 { "runId": "run_a", "duplicate": true }
 ```
 
-That makes retrying safe from your side: retry timeouts and non-2xx responses with backoff, keep the delivery id stable across attempts, and treat any **202** as accepted — `duplicate: true` tells you the earlier attempt had already landed. The response says whether the run _started_, not whether it succeeded; follow the run with `GET /api/v1/projects/{id}/runs/{runId}`. A **409** is not remembered: deploy a version and send the delivery again.
+Retry network failures and temporary **5xx** responses with bounded exponential backoff. For **429**, wait at least `Retry-After`. Keep the delivery ID unchanged so a lost response cannot create a second run within the deduplication window. Fix the cause of **4xx** responses before retrying: for example, `AUTOMATION_NOT_DEPLOYED` needs a deployed version, while `AUTOMATION_PROJECT_SCOPE_REQUIRED` needs the project URL. Any **202** means accepted; poll the returned run to learn whether it succeeded. Deduplication prevents a second run for the same delivery within its window; it does not guarantee that an external system applies every side effect exactly once.
 
 ## Budgets
 
 Nothing authenticates a sender, so the door is budgeted twice. Each sender address — as the deployment's trusted proxies report it — gets 120 deliveries a minute with a burst of 240, charged before the token is even checked, so a flood of guessed URLs costs the door nothing past that. Each verified trigger gets 20 deliveries a minute with a burst of 40: a delivery costs a whole durable run, the same price a key-authenticated start pays. Beyond either, the door answers **429** with `Retry-After` in whole seconds and the usual error envelope; back off as the [Rate limits](/develop/rate-limits) page describes, keep the delivery id stable across attempts, and the retry reads as the duplicate it is rather than a second run.
 
-## Where this fits
+## Choose webhook or API key
 
-The webhook is the credential-less way in; everything else goes through an API key. The [Triggers page](/platform/automations/triggers) covers the product side — schedules, events, and webhooks as the automation editor presents them. The [API reference](/develop/api-reference) covers starting runs with a key (`POST /api/v1/projects/{id}/automations/{name}/runs`), which is the better seam when the caller is your own code — it honours the same `Idempotency-Key` idea, so a retried start there is as safe as a redelivery here.
+Use a webhook when the sender supports a fixed event URL. Use an API key when your own client also needs to discover automations, choose projects or read results. Keep either credential private. [Triggers](/platform/automations/triggers) covers setup in the product; the [API reference](/develop/api-reference) documents authenticated run starts and polling.

@@ -1,43 +1,35 @@
 ---
-title: Créer le premier admin
-description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique.
+title: Créer le premier compte propriétaire
+description: Termine la première configuration, vérifie le rôle propriétaire et prépare l’instance pour ton équipe.
 ---
+Sur une instance vide, la configuration Tale crée le premier compte et la première organisation. Ce compte devient Propriétaire. Termine cette étape pendant que tu contrôles encore l’accès à l’instance, avant de partager son adresse.
 
-Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première personne qui l'ouvre déroule un assistant de configuration unique qui crée son compte, la connecte, en fait l'**Owner** et nomme la première organisation — aucune clé de bootstrap, aucune promotion manuelle. Ce parcours couvre ce premier lancement et comment les coéquipiers arrivent ensuite.
+## Vérifier que l’instance est prête
 
-La seule chose à désapprendre des anciennes instructions : la première inscription ne demande plus de clé admin. Tale est sur invitation seulement après le premier compte, donc il n'y a pas non plus de page d'inscription ouverte à verrouiller.
+Ouvre la `SITE_URL` configurée et vérifie le certificat et l’hôte. Pour un déploiement CLI, lance `tale status` ; pour une installation que tu maintiens, inspecte ses services et sondes. Un backend en échec nécessite un [dépannage](/fr/self-hosted/operate/observability/troubleshooting) avant la création du compte.
 
-## Avant de commencer
+Une page de connexion au lieu de la configuration indique généralement qu’un compte existe déjà. C’est normal dans un environnement de développement prérempli. Ne supprime pas la base pour récupérer l’accès : connecte-toi au compte existant ou demande une invitation à un admin.
 
-Aie l'instance qui tourne et joignable sur `SITE_URL`. Vérifie avec :
+## Terminer la configuration
 
-```bash
-docker compose ps
-```
+Ouvre l’URL de l’instance. Suis les étapes pour créer ton compte et nommer l’organisation. Conserve tes identifiants dans un gestionnaire de mots de passe.
 
-Chaque service devrait montrer `running` ou `healthy`. Si l'un est unhealthy, le [dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les quatre causes courantes.
+Configure le fournisseur de modèles pendant ce parcours ou plus tard sous **Paramètres > Fournisseurs IA**. Sans fournisseur, tu peux explorer l’application ; une vraie réponse exige encore des identifiants valides et un modèle disponible. Suis [Fournisseurs IA](/fr/platform/admin/providers) pour en connecter un.
 
-## Dérouler l'assistant de configuration
+## Confirmer le rôle propriétaire
 
-Ouvre `SITE_URL`. Comme il n'y a pas encore d'utilisateurs, Tale t'envoie directement dans l'assistant de configuration — il n'y a pas de page d'inscription séparée à chercher, car l'écran de connexion redirige automatiquement une instance vide vers la configuration. L'assistant crée ton compte et te connecte en plein flux, puis nomme ta première organisation.
+Ouvre **Paramètres > Membres** et vérifie que ton compte porte le rôle **Propriétaire**. Le nom de l’organisation et le compte doivent correspondre à l’instance que tu voulais initialiser.
 
-L'étape du fournisseur est optionnelle : saute-la et ajoute une clé plus tard sous **Paramètres > Fournisseurs IA**, ou connecte OpenRouter maintenant pour discuter tout de suite. Obtiens une clé sur [openrouter.ai/keys](https://openrouter.ai/keys). L'étape finale te dépose dans le tableau de bord.
+<Frame caption="Vérifie le propriétaire et les rôles des membres invités avant d’ouvrir l’accès à l’équipe.">
 
-## Confirmer que tu es l'Owner
+![La page des membres de l’organisation affiche les personnes et leurs rôles.](/images/get-started/settings-organization-members.webp)
 
-Le premier compte sur une instance neuve est automatiquement l'**Owner** — aucune clé à coller, aucune étape de promotion. Confirme sous **Paramètres > Personnes** que ta ligne porte le badge Owner.
+</Frame>
 
-## Comment les nouvelles personnes arrivent
+Déconnecte-toi puis reconnecte-toi pour tester les identifiants indépendamment de la session de configuration. Garde un autre accès administratif de secours déjà vérifié avant de modifier l’authentification.
 
-Il n'y a pas d'inscription en libre-service. Une fois qu'un Owner existe, `SITE_URL/sign-up` redirige les visiteurs vers l'écran de connexion, donc personne ne peut créer un compte de lui-même. Ajoute les coéquipiers par invitation sous **Paramètres > Personnes** ; chaque invitation porte le rôle avec lequel le nouveau membre démarre. Le modèle de rôles complet est dans [Membres et rôles](/fr/platform/admin/members-and-roles).
+## Inviter l’équipe
 
-## Dépannage
+Ajoute les personnes sous **Paramètres > Membres** et choisis leurs rôles délibérément. Après le premier compte, les comptes locaux se créent sur invitation, sans inscription publique. Le SSO d’entreprise et le provisionnement suivent leurs propres [règles de configuration et d’appartenance](/fr/platform/admin/enterprise-sso).
 
-- **L'assistant n'est pas apparu — tu atterris sur l'écran de connexion.** Des utilisateurs existent déjà sur cette instance ; l'assistant ne tourne que sur une instance vraiment vide. Connecte-toi à la place, ou fais-toi inviter par un Owner existant sous **Paramètres > Personnes**.
-- **Un service est unhealthy.** Le conteneur platform n'est pas entièrement monté. `docker compose ps` dit quel service échoue ; `docker compose logs platform` montre pourquoi.
-
-## Où ça s'utilise
-
-Tu as maintenant un Owner et une organisation, et tu sais que la clé admin est un outil d'inspection du backend, pas une partie de la connexion. Le premier lancement est sans clé par conception : ouvre l'URL, l'assistant te fait Owner, et tous les autres arrivent par invitation.
-
-Les étapes suivantes pour le calendrier sont d'inviter le reste des admins (sous **Paramètres > Personnes**), d'ajouter un fournisseur de modèles, et de publier le premier agent — le parcours [Onboarding Cloud](/fr/cloud/onboarding) est identique à partir d'ici, à l'URL près.
+Utilise [Membres et rôles](/fr/platform/admin/members-and-roles) pour choisir les accès. Puis [crée ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) et teste une vraie réponse. Un Dashboard accessible confirme l’accès à l’application, pas le fournisseur ni chaque service en arrière-plan.

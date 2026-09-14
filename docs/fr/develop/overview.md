@@ -1,66 +1,32 @@
 ---
-title: Développement
-description: Développement couvre la surface côté consommateur d’API — REST API, l’endpoint MCP, webhooks, connectors, workflow de développement assisté par IA, page de statut, limites de débit.
+title: Développer avec Tale
+description: Connecte un autre système à Tale, automatise un processus ou contribue au code de l’application.
 ---
 
-Développement est la section pour les intégrateurs et les contributeurs — tous ceux qui branchent Tale sur un autre système, construisent au-dessus de l’API ou livrent une modification du code source. Les pages ici décrivent la surface externe (REST, webhooks, l’endpoint MCP) et le workflow de contribution.
+Ces guides t’aident à écrire un client, à connecter un système externe ou à modifier Tale. Commence par une requête simple qui fonctionne, puis ajoute l’authentification, le périmètre d’accès et la gestion des erreurs nécessaires à ton intégration.
 
-Si tu es à l’intérieur du produit avec le rôle Développeur (doter des projets d’agents, construire des automatisations), l’onglet Plateforme couvre ton quotidien ; Développement sert quand tu es à l’extérieur du produit et que tu lui parles via le fil.
+## Choisir une tâche de développement
 
-Tu préfères regarder d’abord ? L’épisode bonus parcourt la surface développeur — clés, API, webhooks, harnesses — en deux minutes.
+| Ton objectif | Guide |
+| --- | --- |
+| Écrire un script qui envoie un message et lit la réponse | [Appeler Tale depuis un script](/tutorials/developer/call-tale-from-a-script) |
+| Construire un client pour les projets, tâches, fichiers ou autres ressources | [Référence de l’API](/develop/api-reference) |
+| Connecter un client MCP | [Point d’accès MCP](/develop/mcp-endpoint) |
+| Déclencher une automatisation depuis un autre système | [Webhooks](/develop/webhooks) |
+| Accéder aux documents avec un client de système de fichiers | [API WebDAV](/develop/webdav-api) |
+| Développer un Connector | [Développement de Connectors](/develop/connectors) |
+| Modifier le code applicatif de Tale | [Configurer l’environnement de développement](/develop/contributor-setup) |
+
+## Fiabiliser la première requête
+
+Crée une clé API distincte pour chaque intégration. Envoie-la uniquement à l’instance prévue et ne la conserve pas dans le dépôt de code. [Effectuer ta première requête API](/get-started/developers) explique les URL d’instance et le contexte d’organisation. Pour une opération longue, distingue l’acceptation de la requête de son résultat : consulte la ressource ou l’exécution et traite aussi les échecs.
+
+Lis les [limites de requêtes](/develop/rate-limits) avant d’ajouter des tentatives automatiques. En cas de problème de connexion, vérifie la [disponibilité de l’instance](/develop/status-page). La référence de l’API décrit le format des erreurs et la spécification générée pour la version actuelle du code.
+
+## Développer dans la plateforme
+
+Pour les agents, les projets et l’éditeur d’automatisations, consulte le [guide développeur](/platform/developer/overview). Le guide du [développement assisté par IA](/develop/ai-assisted-development) explique comment associer les outils de création à la validation et à la revue.
 
 <Video src="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.mp4" poster="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.webp" captions="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04)">
 
 </Video>
-
-## Pages de cette section
-
-<CardGroup cols="2">
-
-<Card title="Référence API" icon="code" href="/fr/develop/api-reference">
-
-Endpoints, authentification, pagination, modèle d’erreur, versionnage.
-
-</Card>
-
-<Card title="Endpoint MCP" icon="network" href="/fr/develop/mcp-endpoint">
-
-Pointer un client MCP vers Tale — un endpoint entrant, vingt-deux outils pour écrire et exécuter des automatisations.
-
-</Card>
-
-<Card title="Webhooks" icon="webhook" href="/fr/develop/webhooks">
-
-Déclencheurs webhook entrants (toi → Tale), gestion des tokens, idempotence, retraitements.
-
-</Card>
-
-<Card title="Développement assisté par IA" icon="sparkles" href="/fr/develop/ai-assisted-development">
-
-Utiliser les agents Tale pour écrire des workflows Tale, les fichiers de skill `.agents/`.
-
-</Card>
-
-<Card title="Connectors" icon="plug" href="/fr/develop/connectors">
-
-Connectors tierces vues côté développeur.
-
-</Card>
-
-<Card title="Page de statut" icon="activity" href="/fr/develop/status-page">
-
-Rapport d’incident pour Cloud, pointeurs de métriques pour auto-hébergé.
-
-</Card>
-
-<Card title="Limites de débit" icon="gauge" href="/fr/develop/rate-limits">
-
-Limites par clé, par IP, par organisation, et comment lire un 429.
-
-</Card>
-
-</CardGroup>
-
-## Où cela s’inscrit
-
-Développement est la section la plus petite, parce que la plupart des utilisateurs n’en ont jamais besoin ; le public se concentre sur deux rôles (Développeur dans le produit, contributeur en dehors), mais elle est porteuse pour les deux. Si tu branches quelque chose d’externe sur Tale, [Référence API](/fr/develop/api-reference) est la première lecture ; si tu contribues au code source, [Setup contributeur](/fr/develop/contributor-setup) et [Contribuer aux images Docker](/fr/develop/contributing-docker) sont la bonne lecture.

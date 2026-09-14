@@ -1,9 +1,9 @@
 ---
-title: Inhalte und Modelle
-description: Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet.
+title: Modelle
+description: Lege Standardmodelle fest, beschränke den Modellzugriff und wähle das Bildlesemodell für reine Textagenten.
 ---
 
-Inhalte und Modelle ist die Oberfläche, auf der du entscheidest, welche LLMs die Personen in deiner Organisation erreichen können und auf welchem jede Gruppe per Default landet. Sie verbindet eine Zulassungs- oder Sperrliste pro Bereich (Organisation, Team, Rolle) mit einer Default-Modell-Regel, die der Resolver anwendet, wenn keine explizite Wahl sie überschrieben hat. Admins und Inhaber lesen diese Seite, wenn eine Compliance-Regel eine Last an ein freigegebenes Modell bindet, wenn ein Team auf einem günstigeren Modell als der Rest der Organisation landen soll, oder wenn ein neues Modell eines bestehenden Anbieters erreichbar gemacht werden muss.
+Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
 
 <Frame caption="Einstellungen > Richtlinien > Modelle — die Default-Modell-Regeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
 
@@ -11,32 +11,40 @@ Inhalte und Modelle ist die Oberfläche, auf der du entscheidest, welche LLMs di
 
 </Frame>
 
-## Ein durchgespielter Default
+## Ein Standardmodell festlegen
 
-Um das Default-Modell für die Redakteur-Rolle zu setzen, öffne **Einstellungen > Richtlinien > Modelle** und klick unter **Standardmodelle** auf **Regel hinzufügen**. Wähle **Rolle** als Bereich, **Redakteur** als Ziel, dann wähle den Anbieter und das Modell. Speichern, und der nächste Chat, den ein Redakteur ohne explizite Modellwahl startet, landet auf dem Modell der Regel. Engere Bereiche gewinnen — eine Team-Regel schlägt eine Rollen-Regel schlägt den Org-Default.
+1. Wähle unter **Standardmodelle** die Aktion **Regel hinzufügen**.
+2. Wähle den Standardbereich als Grundlage, eine Rolle oder ein Team. Gib bei Bedarf das Ziel an.
+3. Wähle Anbieter und Modell, dann **Bestätigen**. Speichere die ausstehenden Seitenänderungen in der Kopfzeile.
+4. Starte als Mitglied der Zielgruppe einen Chat mit der Modellauswahl **Auto** und prüfe das tatsächlich verwendete Modell.
 
-## Die zwei Ebenen
+Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamregel hat Vorrang vor einer Rollenregel, danach gilt der allgemeine Standard. Ein Standard verhindert nicht, dass jemand ein anderes erlaubtes Modell wählt.
 
-**Modellzugriff** ist die Zulassungs- oder Sperrliste, die regelt, welche Modelle ein Bereich überhaupt nutzen darf. Ein Modell, das nicht auf der Zulassungsliste steht, wird zur Anfragezeit verweigert — der Turn kommt mit einer Ablehnung zurück, die die Richtlinie benennt, selbst wenn ein Agent es gepinnt hat. Greif zur Zulassungsliste, wenn ein Regulierer die freigegebenen Modelle benennt; greif zur Sperrliste, wenn ein einzelnes Modell überall sonst nicht erreichbar sein soll.
+## Den Modellzugriff begrenzen
 
-**Standardmodelle** ist die Resolver-Regel, die das Modell auswählt, wenn nichts anderes es getan hat — keine explizite Wahl, kein Per-Konversations-Override. Der Default wirkt, wenn ein Chat auf **Auto** läuft: Der Resolver nimmt den Governance-Default vor der automatischen Wahl, und ist der Default selbst vom Modellzugriff verweigert, überspringt er ihn und wählt automatisch ein Modell, das der Aufrufer nutzen darf.
+Wähle unter **Modellzugriff** den Modus und ergänze Regeln für Personen, Teams, Rollen oder den Standardbereich.
 
-## Bereiche und Vorrang
+| Modus | Wirkung einer passenden Regel |
+| --- | --- |
+| Allowlist | Nur aufgeführte erlaubte Modelle dürfen verwendet werden; ein gesperrtes Modell bleibt abgelehnt. |
+| Blocklist | Modelle sind erlaubt, solange sie nicht als gesperrt aufgeführt sind. |
 
-Beide Ebenen tragen einen Bereich: die ganze Organisation, ein Team oder eine Rolle. Der Resolver wertet von eng nach weit aus — eine Team-Regel schlägt eine Rollen-Regel schlägt den Org-Default. Die Modellzugriffs-Ebene kombiniert mit der Default-Modell-Ebene; der Default, den der Resolver wählt, muss auch die Zugriffsprüfung bestehen, andernfalls überspringt der Resolver ihn und wählt automatisch ein Modell, das der Aufrufer nutzen darf.
+Zuerst gelten Personenregeln, danach Teamregeln, Rollenregeln und der Standard. Mehrere passende Teamregeln kombinieren ihre Listen. Eine ausdrückliche Sperre hat für das Modell weiterhin Vorrang. Passt keine Regel, schränkt die Richtlinie diese Person nicht ein. Lege eine Standardregel an, wenn du alle abdecken willst.
 
-## Zulassungs- und Sperrlisten-Warnungen
+Der Zugriff wird bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
 
-Der Default-Modell-Editor zeigt eine Warnung, wenn eine Regel ein Modell nennt, das die Zulassungsliste für denselben Bereich nicht erlaubt, oder wenn die Sperrliste für denselben Bereich es blockiert. Die Warnung blockiert das Speichern nicht — der Resolver überspringt den verweigerten Default zur Anfragezeit — aber sie markiert die Diskrepanz, damit du das eine oder das andere korrigieren kannst.
+<Tip>
+Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktionieren, ein gesperrtes für das betroffene Mitglied abgelehnt werden. Ein Test nur als Admin belegt keine rollenspezifische Regel.
+</Tip>
 
-## Das Modell, das Bilder liest
+## Das Modell zum Lesen von Bildern wählen
 
-Nicht jedes Modell kann sehen. Öffnet ein Agent auf einem reinen Textmodell einen Screenshot, eine eingescannte Rechnung oder eine gerenderte Folie, gibt Tale dieses Bild an ein zweites Modell und liefert dem Agenten die Abschrift zurück. Das läuft über das Gateway, es gelangt also kein Provider-Schlüssel in die Sandbox — und Modelle, die Bilder ohnehin lesen, überspringen den Umweg ganz.
+Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell die Transkription übernimmt. Kann das eigene Agentenmodell Bilder lesen, nutzt es diesen Ersatz nicht.
 
-**Modell für Bilder** legt fest, wer diese Arbeit übernimmt. Bleibt es auf **Automatisch**, wählt Tale selbst: bevorzugt ein empfohlenes Modell für Bilder, sonst das günstigste, das deine Zugänge erreichen. Die Zeile unter der Auswahl nennt immer das Modell, das die Bilder gerade liest, und warum es gewählt wurde — die Frage „welches Modell liest unsere Bilder" bleibt damit nie offen.
+Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkatalog zu folgen. Tale bevorzugt ein empfohlenes Vision-Modell und wählt sonst eine erreichbare günstige Option. Der Text unter der Auswahl nennt das aktuelle Modell und den Grund.
 
-Lege ein Modell fest, wenn diese Wahl stehen bleiben soll. Automatisch liest einen aktuellen Provider-Katalog, das günstigste erreichbare Modell wechselt also mit jeder neuen Veröffentlichung — ein festgelegtes Modell hält die Strecke auf dem, das du getestet hast. Angeboten werden nur Modelle, die tatsächlich abschreiben können: Modelle, die Medien erzeugen, und kostenlose Zugänge fallen heraus, weil beide ein Bild annehmen und die Anfrage dann verweigern. Ist ein festgelegtes Modell später nicht mehr erreichbar — der Zugang wurde rotiert, die Zulassungsliste enger, der Provider hat es entfernt — protokolliert Tale das und fällt auf Automatisch zurück, statt deine Agenten blind arbeiten zu lassen.
+Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet für Transkription geeignete Modelle an. Ist das festgelegte Modell später nicht mehr verfügbar, wechselt Tale zur automatischen Auswahl. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
 
-## Wo das hingehört
+## Eine unerwartete Auswahl erklären
 
-Inhalte und Modelle ist die Schleuse, die jeder Chat und jeder Agent zur Anfragezeit durchläuft. Modellzugriff mit Standardmodellen zu kombinieren erlaubt dir, eine enge Compliance-Haltung auszuliefern, ohne jedem Agent-Autor das Modell aufzuzwingen, das in diesem Quartal genehmigt ist. Die Begleitseite ist [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) — sie deckt die Kosten- und Anfragen-Limits ab, die zusätzlich zu den hier getroffenen Modellwahlen gelten.
+Prüfe Rollen und Teams der Person, die ausdrückliche Chatauswahl, den passenden Standard, die Zugriffsregel und die Modellliste der Anbieter-Zugangsdaten. Ein Katalogeintrag beweist nicht, dass die Organisation nutzbare Zugangsdaten dafür besitzt. Kosten- und Tokenlimits gelten weiterhin über [Richtlinien und Limits](/platform/admin/governance/policies-and-limits).

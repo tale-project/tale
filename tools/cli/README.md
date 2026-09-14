@@ -1,475 +1,217 @@
 # Tale CLI
 
-A self-contained CLI for managing Tale instances and releasing client-owned
-automation configurations.
+The `tale` command installs and operates Tale instances, applies reviewed platform
+configuration and releases automation packs from client-owned repositories. Use
+the [CLI reference](../../docs/en/self-hosted/install/cli-install.md) for complete
+options and deployment specifications.
 
-## Features
+## Choose your task
 
-- **Blue-green deployments** - Zero-downtime deployments with automatic rollback capability
-- **Secure by default** - Only ports 80/443 exposed, all other ports are internal
-- **Single binary** - Easy deployment to any server
-- **Extensible** - Modular command structure for future features
+| Task | Start here |
+| --- | --- |
+| Try Tale locally | [Quickstart](../../docs/en/self-hosted/install/quickstart.md): `tale init`, then `tale dev`. |
+| Deploy a workspace | `tale deploy`; use `tale status` to inspect the result. |
+| Upgrade an existing workspace | [Upgrades](../../docs/en/self-hosted/operate/upgrades.md): `tale update`, then `tale deploy`. |
+| Deploy exact reviewed sources | `tale deploy prepare`, `verify-bundle`, then `deploy --bundle`. |
+| Change native organization settings | `tale config validate`, `plan`, `apply`, then `read`. |
+| Release an automation pack | [Configuration releases](../../docs/en/self-hosted/configuration/config-releases.md). |
+| Recover stored state | [Backups and restore](../../docs/en/self-hosted/operate/backups-and-restore.md). |
+| Run project tasks with a local coding agent | `tale daemon setup`, `start` and `status`. |
 
-## Installation
+## Install and inspect
 
-### Quick Install
+Install the published binary on macOS or Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-### From GitHub Releases
+For Windows and pinned versions, follow the
+[installation guide](../../docs/en/self-hosted/install/cli-install.md). Confirm the
+installed version and available commands before using a runbook:
 
 ```bash
-# Download latest binary
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
+tale --version
+tale --help
+tale deploy --help
+tale config --help
 ```
 
-### Build from Source
+The workspace instance commands align to the version recorded by `tale.json`.
+Managed bundle and configuration commands use an independently pinned CLI revision
+and explicit inputs. Do not assume that updating your workstation binary upgrades
+running containers.
+
+## Operate a workspace
+
+Run these commands from the initialized project directory:
 
 ```bash
-cd tools/cli
-bun install
-bun run build:linux
-# Binary at: dist/tale
-```
-
-`build:linux` targets `bun-linux-x64`, which requires AVX2. For a host whose CPU
-lacks it (Intel before Haswell, for example — the default binary dies there with
-`Illegal instruction`), run `bun run build:linux-baseline` instead: it compiles
-the same sources for Bun's `bun-linux-x64-baseline` target.
-
-## Usage
-
-### Deploy Commands
-
-```bash
-# Deploy the current CLI version (blue-green, zero-downtime)
-tale deploy
-
-# Also update the stop-gated tier (db, proxy) — brief downtime
-tale deploy --stop
-
-# Deploy specific services only (in-place update)
-tale deploy --services platform
-
-# Dry run to preview changes
+tale status
+tale logs platform --tail 100
 tale deploy --dry-run
+tale backup
 ```
 
-For workspace deployment, the deployed version matches the running CLI's version. The CLI keeps
-itself aligned to the instance automatically — instance-management commands check
-the workspace's recorded version and attempt to update the binary to match. To move to a
-new version, run `tale update` (updates the CLI + syncs project files), then
-`tale deploy` to roll the containers.
+`status` and `logs` inspect the deployment. `deploy --dry-run` previews the change;
+`backup` creates a snapshot. A backup is only useful when you have tested restoring
+it with the corresponding platform version and encryption secrets.
 
-### Managed Deployment Bundles
+`tale update` changes the CLI and project files, staying in the current `x.y` line
+unless you select another version. `tale deploy` rolls application containers;
+`--stop` also permits stop-gated updates with downtime. Blue-green rollout does not
+make every operation downtime-free.
 
-For exact source deployments, the same CLI prepares and applies a reviewed
-bundle. Client repositories own `tale/` packs and their business tests. Deployment
-automation owns destination choices, full source commits and credential
-references; Tale owns checkout, image verification, state adoption, snapshots,
-rollout, native identity/configuration provisioning and receipts.
+`tale rollback` is limited to a recorded compatible patch version. Recovery across
+minor or major migrations uses a snapshot and its matching version; see the
+[upgrade guide](../../docs/en/self-hosted/operate/upgrades.md) before crossing a
+release line. The 0.5 cutover requires a fresh deployment from earlier lines.
+
+Commands such as `reset`, `restore`, `--override` and `--override-all` change or
+replace state. Read their reference and preview what is available before using
+confirmation-bypass flags. They are not routine fixes for an unexplained failure.
+
+## Deploy a reviewed bundle
+
+Managed deployments select full source commits, a target, credentials and a pinned
+CLI revision. Preparation verifies source and image provenance; application keeps
+persistent deployment receipts and verifies native state.
 
 ```bash
 tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json
 tale deploy verify-bundle --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --json
 tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --dry-run --json
-tale deploy --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --yes --json
 ```
 
-Prepare on Linux with a compiled CLI from a clean committed checkout, matching
-the destination's architecture. Preparation verifies source and image provenance
-through Git and Docker. Transfer the complete bundle and apply it on the
-destination with its local Docker daemon and retained state directory. Optional
-`--deployment-ref` records orchestration provenance. The Linux/macOS ARM64 composite action
-`.github/actions/setup-cli` accepts the full Tale `revision`, builds with Bun
-1.4.2, exposes `executable` and adds it to `PATH`; pin both the action reference
-and its revision input. Its optional `linux-baseline: 'true'` input builds the
-baseline executable for x64 CPUs without AVX2 and is accepted on Linux x64
-runners only. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
-contains the specification and environment-reference example.
+After review, applying the same bundle with `--yes` authorizes the deployment.
+Prepare and apply managed bundles on Linux with a matching architecture; managed
+bundle commands require POSIX custody checks and are unavailable on Windows.
+Retain the bundle, source pins and receipts together. Serialize competing
+deployments externally: a local lock does not coordinate separate hosts.
 
-Set optional `runtime.containerPrefix` to a lowercase hyphenated slug of at most
-40 characters, such as `north-desk-prod`, for visible names like
-`north-desk-prod-db` and `north-desk-prod-backend-api`. Adding, changing or removing
-the prefix recreates the managed containers and can briefly interrupt service.
-Keep `name`, `composeProject` and `stateDirectory` unchanged on a retained
-deployment: they bind its volumes, credentials and recovery records. Service
-DNS names stay stable. Omit the prefix to retain source container names. Continue
-to run one complete managed runtime per Docker daemon; this option does not
-allocate separate ports, sandbox networks or host workspaces.
+### Name managed containers
 
-Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.
+Use `runtime.containerPrefix`, for example `north-desk-prod`, to give every managed
+service a visible `<prefix>-<service>` name. The prefix is a lowercase hyphenated
+slug of at most 40 characters. Service DNS names keep their existing meaning.
 
-The backend-local `deploy provision [--bundle <directory>]` phase reads bounded
-private JSON on stdin, proves the selected local account/organization, deploys
-the exact staged configurations and signs out. It returns only safe metadata.
-It refuses workspace flags and `--dry-run`; use read-only verification first.
-Exact `--cli-ref` and `--deployment-ref` expectations require `--bundle` and
-are checked before native login.
-Existing native client callbacks can converge without ID or secret rotation. On
-maintained 0.5 backends this uses a lazy adapter loading only the fixed native
-auth/SQL modules inside that backend when a change is required; both connections
-close afterward. It does not expose a remote update endpoint or accept module
-paths from input. Exact no-ops require no backend module loading.
+Changing or removing the prefix recreates containers and can briefly interrupt
+service. Keep `name`, `composeProject` and `stateDirectory` unchanged to retain the
+existing deployment, volumes, credentials and recovery records. Prepare and preview
+a new bundle; after an interrupted apply, retry the exact pending bundle.
 
-Fresh native targets are explicit: `identity.bootstrap: "fresh"` permits local
-account/organization creation; a configuration can use
-`project: { "key": "NORTH", "name": "Configuration" }` instead of `projectId`,
-and `skillOwner: "operator"` transfers verified source for compilation after
-the native operator is authenticated. The host independently verifies the
-owner-bound artifact. A native client chooses an existing `clientId` or
-`managed: true`; managed creation records intent before writing and returns only
-a private credential handoff path and SHA. Unknown acceptance holds; replay
-preserves IDs and secrets. Existing explicit-ID behavior is unchanged.
+Omit the option to use source container names. Continue to run one complete managed
+runtime per Docker daemon: naming does not allocate separate ports, sandbox networks
+or host workspaces. The [container-naming guide](../../docs/en/self-hosted/install/cli-install.md#choose-container-names)
+explains validation, identity and the transition back to source names.
 
-To rename a retained managed deployment, set its new `origin` and declare
+Client content belongs in its own repository under `tale/`. The shared CLI owns
+compilation, validation, deployment and readback; it does not contain client
+business rules. Ignore `.tale/`, which holds local coordination state.
+
+### Change a managed deployment hostname
+
+Set the deployment’s new `origin` and declare
 `identity.migrateOriginFrom: "https://old.example.org"` with the exact previous
-HTTPS origin. Keep `bootstrap: "fresh"` and the existing identity and client keys.
-Migration requires completed bootstrap, declared email-attestation and managed
-client journals, plus a ready native configuration receipt when configuration is
-declared. It authenticates the retained account and verifies client credentials
-before updating their origin bindings. Native configuration keeps the same
-organization ID and slug and verifies every resource through the normal plan and
-readback flow. A configuration write interrupted at the new origin resumes its
-exact pending plan; a pending receipt at the old origin blocks migration. It cannot create missing
-identities or replace secrets. Interrupted runs accept completed journals at
-either reviewed origin; replay finishes the migration. After a ready receipt,
-remove `migrateOriginFrom` from subsequent deployments and export new consumer
-configuration for the new issuer. To reverse a completed migration, swap the two
-origins explicitly and repeat the same verified deployment flow.
+HTTPS origin. The two origins must differ. Keep `bootstrap: "fresh"`, the same
+account and organization, and the same managed client keys: this reuses a completed
+managed identity, rather than creating a replacement account or rotating secrets.
 
-Fresh-only `identity.emailVerification: "operator-attested"` records the
-operator's assertion of the authenticated account's email ownership. The
-short-lived native verification preserves hooks without mailbox delivery,
-email changes or another session. Omit it for normal native verification;
-ready-state verification drift holds. Use `deploy export-client --bundle DIR
---client KEY --output NEW_PRIVATE_DIR --env-prefix TALE_OIDC --cli-ref FULL_SHA
---deployment-ref FULL_SHA --json` for a private credential handoff. The CLI
-verifies the ready deployment and emits regular `0600` JSON files under an
-owned `0700` directory; its parent must already be account-owned `0700` with
-trusted ancestors. Stdout exposes only safe metadata and hashes. The
-optional `consumer-env.json` is a literal map whose issuer includes `/api/auth`, never a shell script or public
-CI artifact. Partial/stale output holds without replacement.
+The CLI authenticates the retained account and verifies the managed clients before
+updating their origin bindings. Required recovery records are:
 
-Bundle deployment preserves supported existing state and verifies health; it
-does not inherit the workspace path's blue-green guarantees. The ready receipt
-is written only after native readback and session cleanup. Keep snapshots,
-stages and receipts for recovery, and coordinate all deployers sharing a target.
+- The completed bootstrap journal.
+- The completed email-attestation journal, if `emailVerification` is declared.
+- Completed journals for each declared managed client.
+- A ready native configuration receipt, if native configuration is declared.
 
-### Platform configuration
+Missing, pending or unrelated identity/client journals stop migration. Completed
+journals at either reviewed origin allow a retry to finish an interrupted change.
+Native configuration keeps the same organization ID and slug and checks every
+resource through its normal plan and readback flow. An interrupted configuration
+write at the new origin resumes the exact pending plan; a pending receipt at the
+old origin blocks migration.
 
-`config validate`, `config plan`, `config apply` and `config read` share one
-native configuration engine. A declaration selects branding, governance
-policies, custom providers, environment credential metadata, embedding
-configuration or instance deployment settings. Native schemas live in
-`@tale/shared/schemas/*`; the platform owns authorization, persistence, audit
-and domain effects. The CLI does not write arbitrary platform files.
+After a ready receipt, remove `migrateOriginFrom` from subsequent deployment
+specifications and export consumer configuration for the new issuer. To reverse a
+completed migration, explicitly swap the two origins and repeat the reviewed
+bundle deployment. This operation updates retained origin bindings; it does not
+move a database or replace the retained identity. See
+[managed origin migration](../../docs/en/self-hosted/install/cli-install.md#managed-origin-migration)
+for the complete specification and credential-export procedure.
 
-Save and review a plan before applying it with `--plan`, `--receipt` and
-`--yes`. The plan binds the exact target, declaration and native preimages.
-Native compare-and-set rejects concurrent edits. A failed operation retains a
-pending receipt for explicit recovery; completed earlier writes may remain.
-Undeclared resources are preserved. Secret values stay in environment
-variables. `read` compares the declared resources with native state.
+## Apply native configuration
 
-When a pending plan contains an endpoint that cannot be recovered, review a
-replacement declaration and a fresh plan. `config apply
---supersedes-pending-plan <sha256>` selects the exact retained plan by the
-SHA-256 of its canonical JSON (object keys sorted recursively, arrays preserved,
-no whitespace). Managed deployments select the same hash with
-`supersedesPendingConfigurationPlan`; `supersedesPendingBundle` alone does not
-replace native configuration intent. The replacement must keep the same target
-and resource identities. Each resource must still match its planned preimage,
-intended write, or verified result; an unrelated edit holds without mutation.
-The receipt keeps the complete superseded plan and verified subset in
-`superseded`, including after interruption and replay. Remove the one-shot
-selector from subsequent declarations after the replacement reaches `ready`.
+`config validate`, `plan`, `apply` and `read` use the same native configuration
+engine as managed deployments. Supported declarations include branding, governance,
+providers, environment credential metadata, embeddings and deployment settings.
 
-Managed deployments use the same engine through `configuration` after
-identity provisioning and before configuration releases. Their public
-`native.configuration` proof binds the declaration and deployment bundle.
-Managed boot-setting activation drains the verified sandbox spawner for up to
-five minutes, then restarts it and verifies the new boot, mounted configuration
-and health. Active sessions retain pending state. The `configurationActivation`
-receipt lets an interrupted apply reconcile an accepted restart without repeating
-it. Standalone boot-setting writes return `restartRequired`; native permissions,
-embedding migration requirements and explicit default-credential changes
-remain enforced. Model hardware and serving remain the endpoint operator’s
-responsibility. Pause uploads, synchronization and crawls during embedding
-changes; the CLI checks organization-wide document and website counts, but
-does not lock ingestion or migrate existing vectors.
+Review the saved plan before applying it with `--plan`, `--receipt` and `--yes`.
+The plan binds the destination, declaration and prior native state. Concurrent
+changes are rejected; a partially applied operation can retain earlier writes and
+a pending receipt. Follow the receipt’s recovery state rather than issuing an
+unrelated overwrite.
 
-Use the worked JSON examples and command reference in
-[CLI installation](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
-and the [provider reference](../../docs/en/self-hosted/configuration/providers.md).
+Secret values come from environment references. The CLI does not install model
+servers or migrate existing embedding vectors. Read the
+[configuration examples](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)
+for restart requirements, embedding preconditions and exact schemas.
 
-### Management Commands
+## Release a configuration pack
+
+Use `config build` and `verify --rebuild` to produce and reproduce reviewed
+artifacts, `stage` to prepare transfer, and `deploy` to install through the native
+API. `verify-native` reads the deployed content without importing or deploying it.
+The full source commit identifies a new release; owned skill slugs include that
+commit and the compiler binds their owner.
+
+Keep the native operator session in `TALE_CONFIG_COOKIE`, never in an argument,
+archive or public receipt. A stored receipt does not prove current native content;
+perform readback after deployment and operational tests. The
+[release guide](../../docs/en/self-hosted/configuration/config-releases.md) covers
+recovery and preserved historical release formats.
+
+## Connect a local runtime
+
+The daemon dispatches assigned Tale tasks to installed coding-agent CLIs:
 
 ```bash
-# Show current deployment status
-tale status
-
-# View service logs
-tale logs platform
-tale logs platform --follow
-tale logs db --tail 100
-
-# Snapshot all data volumes (also taken automatically before migrating deploys)
-tale backup
-
-# List snapshots / restore one (stack must be stopped; --stop stops it)
-tale restore
-tale restore <snapshot-id> --stop
-
-# Roll back to the previous patch version (minor/major recovery = tale restore)
-tale rollback
-
-# Remove inactive (non-current) color containers
-tale cleanup
-
-# Remove ALL blue-green containers (prompts unless --force)
-tale reset --force
-
-# Also remove stateful services
-tale reset --force --all
-```
-
-## Command Reference
-
-### `tale deploy`
-
-Without `--bundle`, deploy the current CLI version with the blue-green strategy. The deployed
-platform version always matches the running CLI. To move to a different version,
-use `tale update` first (updates the CLI + syncs project files), then `tale
-deploy` to roll the containers.
-
-| Option                  | Description                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `--stop`                | Also update the stop-gated tier (db, proxy) — brief downtime                                                  |
-| `-s, --services <list>` | Specific services to update (comma-separated)                                                                 |
-| `--override`            | Overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are preserved) |
-| `--override-all`        | Factory-reseed the builtin catalog into ALL orgs server-side; implies `--stop`                                |
-| `-q, --quiet`           | Suppress container logs during deployment                                                                     |
-| `-y, --yes`             | Non-interactive: auto-accept destructive confirmation prompts (e.g. `--override-all`)                         |
-| `--dry-run`             | Preview deployment without making changes                                                                     |
-| `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly)                                                 |
-| `--host <hostname>`     | Host alias for proxy (default: `localhost` or `$HOST`)                                                        |
-
-### `tale update`
-
-Move the CLI and your on-disk project files to a new version. Updates the CLI
-binary first, then syncs the project files to that version's templates. It does
-**not** roll the containers — run `tale deploy` afterwards for that. If the file
-sync fails, the CLI is rolled back to the workspace's previous version so the
-binary and `tale.json` never drift apart. With no `--version`, targets the
-latest release **in the current x.y release line** (a 0.3.x CLI moves to the
-newest 0.3.x). Line upgrades (e.g. 0.3.x → 0.4.0) can be breaking, so they
-never happen implicitly: when a newer line exists the command says so and
-stays put; move lines deliberately with `--version`.
-
-Workspace instance commands also align to the workspace version. Configuration
-and managed bundle commands use their independently pinned CLI revision and explicit inputs.
-
-| Option                | Description                                                                                    |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| `-v, --version <ver>` | Update to this exact version instead of the in-line latest (allows downgrade and line changes) |
-| `-f, --force`         | Force re-sync of locally modified project files                                                |
-| `--dry-run`           | Preview the version change and file sync without modifying                                     |
-
-### `tale status`
-
-Show current deployment status including active color, running containers, and health.
-
-### `tale logs <service>`
-
-View logs from a service.
-
-| Option                | Description                                           |
-| --------------------- | ----------------------------------------------------- |
-| `-c, --color <color>` | Deployment color (blue or green)                      |
-| `-f, --follow`        | Follow log output                                     |
-| `--since <duration>`  | Show logs since duration (e.g., 1h, 30m)              |
-| `-n, --tail <lines>`  | Number of lines to show from end                      |
-| `--raw`               | Stream raw, unfiltered log output (no classification) |
-
-### `tale backup`
-
-Snapshot all data volumes (db-data, config-data, object-store-data,
-caddy-data, caddy-config)
-into the project-scoped `backups` volume. The same
-snapshot is taken automatically before any deploy step that can migrate
-data. Containers using a volume are paused for the seconds the tar takes so
-the archive is crash-consistent.
-
-### `tale restore`
-
-List snapshots, or restore one into the data volumes. Restoring verifies
-the sha256 sidecars first, refuses while any project container is running,
-and asks for confirmation. After a restore, redeploy the version recorded
-in the snapshot (`tale update --version <version>` then `tale deploy --stop`).
-
-| Option      | Description                                      |
-| ----------- | ------------------------------------------------ |
-| `--stop`    | Stop running project containers before restoring |
-| `-y, --yes` | Non-interactive: skip the confirmation prompt    |
-
-### `tale rollback`
-
-Roll back to the recorded previous version. Gated to patch-level steps
-(the target must share `major.minor` with the running platform) — minor
-and major upgrades can run forward-only migrations, and their recovery
-path is `tale restore` plus a redeploy of the matching version.
-
-### `tale cleanup`
-
-Remove inactive (non-current) color containers.
-
-### `tale reset`
-
-Remove ALL blue-green containers.
-
-| Option        | Description                                                     |
-| ------------- | --------------------------------------------------------------- |
-| `-f, --force` | Skip the confirmation prompt                                    |
-| `-a, --all`   | Also remove stateful services (db, proxy, convex, sandbox tier) |
-| `--dry-run`   | Preview reset without making changes                            |
-
-### `tale config`
-
-`tale config show` retains its local-project behavior: print the resolved project
-directory and CLI version, or report no project with exit code 0. The release
-commands use explicit inputs and do not align to a local `tale.json`, invoke
-Docker or require a Tale source checkout beside the installed binary.
-
-```bash
-tale config --help
-tale config build --help
-tale config verify --help
-tale config stage --help
-tale config deploy --help
-tale config verify-native --help
-```
-
-Keep the client's descriptor, packs, retained release catalogue and domain tests in its
-own repository under `tale/`. The CLI owns the generic compiler, native validators
-and importer. Deployment automation selects the exact client source commit,
-runtime commit, Tale CLI revision and destination, then calls these commands.
-No client business rules or private fixtures belong in the shared tool.
-
-Ignore `.tale/` in the client repository: it holds the CLI's local coordination
-database. Maintained configuration uses `tale/` without the dot.
-
-`build --source-commit` defaults to manifest schema 4/compiler 3, with the full
-source SHA as `releaseRef`. Owned skill slugs carry the complete SHA and logical
-identity metadata. `verify --rebuild` requires identical archives; `stage
---config-ref` builds the exact source checkout into an external directory with a
-hashed transfer inventory, without a generated catalogue commit. Explicit
-`--config-version` retains the semantic catalogue compatibility path. `deploy`
-requires a persistent receipt and confirmation (`--yes` for
-an approved unattended run); `verify-native` reads current native content without
-uploading, deploying or writing a receipt. Both native commands take
-`TALE_CONFIG_COOKIE` from the environment only.
-
-The [configuration release journey](../../docs/en/self-hosted/configuration/config-releases.md)
-covers the descriptor, complete commands and recovery boundaries. The
-[CLI reference](../../docs/en/self-hosted/install/cli-install.md#configuration-releases)
-lists required options, optional stage-identity checks and retained-version
-verification. The parser and validator bundled with a CLI support their own
-native format; they do not make newer server capabilities available on an older
-target. Serialize managed deployments externally and retain the exact pins and
-receipts; the local lock is not a cross-host compare-and-swap guarantee.
-
-### `tale daemon`
-
-Run Tale board tasks on this machine with the coding-agent CLIs you already use
-(**Claude Code**, **Codex**, **OpenCode**, auto-detected on PATH). Agents bound
-to an external runtime get their tasks dispatched here instead of Tale's internal
-LLM loop; each run executes in an isolated git worktree and reports back as a task
-comment, parking the task at **In review**. Nothing is ever pushed. The effective
-permission is `min(server-configured, local ceiling)` — `safe` by default.
-
-```bash
-tale daemon setup    # base URL, API key, workspace, permission ceiling
-tale daemon start    # register + claim loop (Ctrl-C drains the current run)
-tale daemon status   # config, detected CLIs, server connectivity
-```
-
-Any `setup` answer can be passed as a flag (`--url`, `--key`, `--name`,
-`--workspace`, `--workspace-key`, `--ceiling`) to skip its prompt; add `--yes`
-to run unattended. This is what the **Generate key & copy command** button under
-**Settings → API → Runtimes** produces:
-
-```bash
-tale daemon setup --yes --url https://your-org.tale.dev --key <api-key>
+tale daemon setup
+tale daemon status
 tale daemon start
 ```
 
-Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
-`TALE_DAEMON_API_KEY` to keep the key out of the file.
+It runs work in isolated Git worktrees and reports results to the task. The local
+permission ceiling limits the server’s requested permissions. Keep the daemon API
+key in `TALE_DAEMON_API_KEY` when it should remain outside the configuration file;
+use `TALE_DAEMON_HOME` to select a separate configuration directory.
 
-## Environment Variables
+## Build and test this workspace
 
-| Variable                       | Description                                                                                                                                              | Default                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `GHCR_REGISTRY`                | Container registry                                                                                                                                       | `ghcr.io/tale-project/tale` |
-| `HEALTH_CHECK_TIMEOUT`         | Health check timeout (seconds)                                                                                                                           | `300`                       |
-| `DRAIN_TIMEOUT`                | Connection drain timeout (seconds)                                                                                                                       | `30`                        |
-| `TALE_PLATFORM_REPLICAS`       | Replicas of the web tier in a colour (1-16)                                                                                                              | `1`                         |
-| `TALE_BACKEND_API_REPLICAS`    | Replicas of the api in a colour (1-16)                                                                                                                   | `1`                         |
-| `TALE_BACKEND_WORKER_REPLICAS` | Replicas of the job runner in a colour (1-16)                                                                                                            | `1`                         |
-| `BACKUP_KEEP_COUNT`            | Snapshots kept regardless of age                                                                                                                         | `5`                         |
-| `BACKUP_KEEP_DAYS`             | Days a snapshot is kept regardless of count                                                                                                              | `14`                        |
-| `HOST`                         | Host alias for proxy                                                                                                                                     | `localhost`                 |
-| `TALE_DAEMON_API_KEY`          | `tale daemon` API key (keeps it out of the config file)                                                                                                  | _(unset)_                   |
-| `TALE_DAEMON_HOME`             | Override the `tale daemon` config directory                                                                                                              | `~/.tale-daemon`            |
-| `TALE_CONFIG_COOKIE`           | Native operator session cookie for `config deploy` and `config verify-native`; inject through a secret manager, never CLI arguments or release artifacts | _(unset)_                   |
-| `TALE_SOURCE_SSH_KEY`          | Read-only private-client SSH key contents for `deploy prepare` only; never included in bundles or runtime environments                                   | _(unset)_                   |
+From the repository root, install dependencies and generate the embedded catalog
+before running the source entry point:
 
-## Architecture
+```bash
+bun install
+bun run --filter @tale/cli generate
+bun tools/cli/src/index.ts --help
+bun run --filter @tale/cli test
+```
 
-### Services
+Compile the target you need:
 
-**Stop-gated (only updated with `tale deploy --stop`):**
+```bash
+bun run --filter @tale/cli build:mac
+bun run --filter @tale/cli build:linux
+```
 
-- `db` - TimescaleDB (PostgreSQL)
-- `object-store` - MinIO, the bundled blob store
-- `proxy` - Caddy reverse proxy
+These produce `tools/cli/dist/tale`; choose one target for an artifact rather than
+expecting both binaries at that path. Linux x64 CPUs without AVX2 need
+`build:linux-baseline`. Other target scripts are listed in `package.json`. The
+complete `build` script regenerates inputs, builds the backend-local bundle and
+release targets, then checks the compiled bundle.
 
-**Rolled in place on every deploy:**
-
-- `sandbox` / `sandbox-egress` - sandbox tier (drained before rolling); a
-  singleton because the spawner holds docker.sock and the session directory
-- `sandbox-llm-gateway` - LLM gateway for sandbox harnesses (owns
-  `llm-gateway-data`)
-
-**Rotatable — the stateless application tier, deployed as ONE colour:**
-
-- `platform` - the Tale app shell
-- `backend-api` - every application door, auth, the hint stream
-- `backend-worker` - the job runner
-
-All three share the platform image, so they can never version-skew from each
-other, and each is replicable (`TALE_*_REPLICAS`, default 1). A colour's
-containers carry no pinned `container_name` — that is what lets compose
-replicate them — so every lookup goes through the compose project/service
-labels.
-
-### Deployment Flow
-
-1. Pull images for the new version
-2. Migrate the config volume if it still lives under its retired name
-3. Roll the stateful tier in place (drained first where it has a drain door)
-4. Bring the idle colour up at the configured replica counts, and wait for
-   EVERY replica to be healthy
-5. Switch traffic (update the state file)
-6. Drain the old colour: refuse new chat turns on that colour only, wait for
-   its in-flight generations, then let the web tier's drain window elapse
-7. `docker network disconnect` the old colour from the serving networks —
-   after the drains, because it severs live connections
-8. Stop and remove the old colour, and clear the drain flag
-
-After successful deployment, the new version is live and the previous color's containers are cleaned up.
+Generated embedded files are build inputs, not hand-authored configuration. Change
+the source catalog or template and regenerate them. Run the repository gate before
+submitting a CLI change, and verify any changed command against an isolated
+instance with appropriate state and credentials.

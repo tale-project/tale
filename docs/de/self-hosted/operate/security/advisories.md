@@ -1,63 +1,39 @@
 ---
-title: Security-Advisories
-description: Der Tale-Security-Advisory-Feed — CVE-Format, die vierstufige Severity-Skala, die Disclosure-Timeline, der die Maintainer sich verpflichten, und wie du dich anmeldest.
+title: Sicherheitsmeldungen verfolgen
+description: Finde veröffentlichte Sicherheitshinweise, prüfe deine Betroffenheit und melde Schwachstellen vertraulich.
 ---
 
-Tale veröffentlicht ein Security-Advisory für jede Schwachstelle, die durch ein gepatchtes Release geschlossen wird. Der Feed lebt unter GitHub Security Advisories im Repository `tale-project/tale` und spiegelt auf einen RSS-Endpunkt, den Operator in ihr Alerting hängen können. Diese Seite deckt das Format ab, dem jedes Advisory folgt, die Severity-Skala, die Tale verwendet, die Disclosure-Timeline, der die Maintainer sich verpflichten, und die drei Subscription-Pfade.
+Prüfe bei einem Sicherheitsupdate die [GitHub Security Advisories von Tale](https://github.com/tale-project/tale/security/advisories) und die [Release-Hinweise](https://github.com/tale-project/tale/releases) der Zielversion. Die [Sicherheitsrichtlinie](https://github.com/tale-project/tale/security/policy) des Repositorys legt Meldeweg und unterstützte Versionen fest.
 
-Die Advisories sind die Langform-Aufzeichnung. Die Ein-Zeilen-Zusammenfassung plus Link erscheint im **Security**-Abschnitt jeder [Release-Note](/de/self-hosted/operate/release-notes/format).
+## Eine Meldung bewerten
 
-## Das Advisory-Format
+Lies zuerst, welche Versionen betroffen und welche korrigiert sind. Vergleiche sie mit dem laufenden System und seinen aktivierten Komponenten, nicht nur mit der CLI auf deinem Rechner.
 
-Jedes Advisory ist ein GitHub Security Advisory mit einem stabilen Identifier der Form `TAL-YYYY-NNN` (Tales interne ID) plus dem Upstream-`CVE-YYYY-NNNNN`, wenn eine zugewiesen wurde. Der Body ist dieselbe geordnete Abschnittsmenge, damit ein Operator die tragenden Fakten scannen kann, ohne die Prosa zu lesen.
+| Information | Was du klären solltest |
+| --- | --- |
+| Betroffene Versionen und Komponenten | Ob der verwundbare Code in deiner Installation vorhanden ist. |
+| Voraussetzungen und Auswirkungen | Ob deine Konfiguration den betroffenen Pfad zugänglich macht und welcher Zugriff möglich wäre. |
+| Korrigierte Versionen | Welches Release die Korrektur enthält. |
+| Schweregrad und gegebenenfalls CVSS-Vektor | Welche Auswirkungen und Annahmen bewertet wurden; ergänze deine eigene Expositionsanalyse. |
+| Übergangslösungen | Welche vorübergehenden Einschränkungen helfen, wenn das Update nicht sofort möglich ist. |
+| Kennung und Referenzen | Welchen dauerhaften Nachweis du im Vorfalls- und Deployment-Protokoll verwendest. |
 
-- **Summary** — ein Satz dazu, was ein Angreifer tun könnte und was der Fix ändert.
-- **Affected versions** — die Versions-Range, die die Schwachstelle enthält, in semver-Form (`>=0.8.0, <0.12.3`).
-- **Patched versions** — das erste Release, das den Fix enthält. Das Upgraden auf oder über diese Version schließt die Schwachstelle.
-- **Severity** — eine der vier Stufen unten, plus der CVSS-3.1-Vektor für Operator, die gegen ihr eigenes Threat-Model scoren.
-- **Workarounds** — was zu setzen, zu deaktivieren oder zu blockieren ist, um die Schwachstelle zu mitigieren, wenn ein sofortiges Upgrade nicht möglich ist. Leer, wenn kein Workaround existiert.
-- **Credits** — der Melder, wenn er namentlich genannt werden möchte.
+Ein privates Netzwerk allein beweist nicht, dass deine Installation sicher ist. Anmeldung, Connector-Verhalten und interne Zugriffe können weiterhin relevant sein. Bestimme die Dringlichkeit anhand der Meldung und deines Ablaufs für Sicherheitsvorfälle.
 
-Die Patched-Versions-Zeile ist die, auf der die meisten Operator zuerst landen; das Upgrade selbst ist die Zwei-Kommando-Sequenz aus [Upgrades](/de/self-hosted/operate/upgrades).
+## Die Korrektur einspielen und prüfen
 
-## Die Severity-Skala
+Tale ist ein fortlaufend aktualisiertes 0.x-Projekt. Sicherheitskorrekturen erscheinen nur in der neuesten Version; ältere Versionen erhalten keine Rückportierungen. Lies alle Release-Hinweise bis zum Ziel und folge der [Upgrade-Anleitung](/de/self-hosted/operate/upgrades), einschliesslich Backup und Wiederherstellungsvorbereitung.
 
-Tale nutzt vier Stufen. Die Stufe wird aus dem CVSS-Score und der Erreichbarkeit der verwundbaren Oberfläche auf einem Standard-Install gesetzt.
+Dokumentiere die installierte Korrektur und prüfe das betroffene Verhalten nach dem Deployment. Hebe eine vorübergehende Schutzmassnahme erst auf, wenn die korrigierte Runtime läuft und deine Prüfungen erfolgreich sind.
 
-| Stufe    | CVSS    | Was es bedeutet                                                                                                                      |
-| -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Critical | 9.0+    | Pre-authentifizierte Remote-Code-Execution oder unauthentifizierte Daten-Exfiltration. Patche innerhalb 24 Stunden.                  |
-| High     | 7.0–8.9 | Authentifizierte Eskalation, Sandbox-Ausbruch oder Cross-Tenant-Daten-Leak. Patche innerhalb einer Woche.                            |
-| Moderate | 4.0–6.9 | Informations-Disclosure, Denial of Service oder Eskalation, die seltene Vorbedingungen verlangt. Patche im nächsten Wartungsfenster. |
-| Low      | 0.1–3.9 | Defense-in-Depth-Fixes und Härtung ohne bekannten Exploit-Pfad. Patche, wenn es passt.                                               |
+## Eine Schwachstelle vertraulich melden
 
-Der CVSS-Vektor lässt dich gegen dein eigenes Deployment neu scoren — ein Advisory, das gegen ein öffentliches Install High ist, kann gegen ein air-gapped Install Low sein.
+Öffne im Repository den Tab **Security** und wähle **Report a vulnerability**. Falls du GitHub nicht nutzen kannst, schreibe an `security@tale.dev`. Veröffentliche eine noch nicht korrigierte Schwachstelle nicht in einem öffentlichen Issue.
 
-## Die Disclosure-Timeline
+Nenne Komponente und Version, Schritte zur Reproduktion und vermutete Auswirkungen. Nutze ein möglichst kleines Beispiel ohne Zugangsdaten, personenbezogene Daten oder unnötige Produktionsdatensätze. Auf Wunsch nennt die spätere Sicherheitsmeldung den Reporter.
 
-Die Maintainer verpflichten sich auf die folgende Timeline ab dem Moment, in dem ein Report bei `security@tale.dev` landet:
+Die Sicherheitsrichtlinie sieht Bestätigung und erste Bewertung innerhalb von 72 Stunden vor, eine vertraulich mit dem Reporter geteilte Korrektur oder Übergangslösung innerhalb von 14 Tagen sowie ein GitHub Security Advisory zur korrigierten Version. Stimme die Untersuchung über die vertrauliche Meldung ab.
 
-- **Innerhalb 72 Stunden** — Bestätigung, ein Triage-Call und ein zugewiesener TAL-Identifier.
-- **Innerhalb 14 Tagen** — ein Fix oder ein Workaround, privat an den Melder veröffentlicht, und die gepatchte Version geplant.
-- **Bei Fix-Release** — das Advisory wird auf GitHub veröffentlicht, die CVE-Zuweisung wird angefordert, und der Security-Abschnitt der Release-Notes trägt die Zusammenfassung.
-- **30 Tage nach Release** — das technische Detail im Advisory erweitert sich um den Reproducer (wenn das Reproduzieren in der Öffentlichkeit ungepatchte Installs nicht mehr gefährdet).
+## Die Prüfung regelmässig durchführen
 
-Melder können eine Verzögerung anfordern, wenn sie für die Offenlegung mehr Zeit brauchen; die Maintainer akzeptieren bis zu 90 Tage, bevor sie die Zusammenfassung trotzdem veröffentlichen.
-
-Auf der Engineering-Seite laufen Dependency-Fixes auf einem Fast Track, damit das gepatchte Release schnell erscheint: Renovate öffnet innerhalb von 24 Stunden nach einem Upstream-Advisory einen Security-Update-PR — am sonst üblichen Release-Age-Delay für Routine-Updates vorbei — und CI blockt jeden Merge, der ein bekanntes High- oder Critical-Advisory einführt. Ein offengelegter Dependency-CVE wird damit in Tagen zu einem gepatchten Tale-Release, nicht erst beim nächsten Routine-Zyklus.
-
-## Anmelden
-
-Drei Pfade zum selben Feed:
-
-```text
-GitHub-Watch     — github.com/tale-project/tale → Watch → Custom → Security alerts
-RSS              — https://github.com/tale-project/tale/security/advisories.atom
-E-Mail-Digest    — security-announce@tale.dev (eine Mail pro Advisory, kein Verkehr dazwischen)
-```
-
-Der RSS-Feed ist das, was die meisten Operator in Slack oder PagerDuty einhängen; der E-Mail-Digest ist für Ein-Personen-Teams, die keine Alerting-Pipeline betreiben.
-
-## Wo das hingehört
-
-Der Advisory-Feed ist einer der zwei Verträge, die Tale sicher selbst hostbar machen — Release-Notes nennen, was sich ändert, Advisories nennen, was falsch war. Die natürlichen nächsten Lesungen sind [Wie du Release-Notes liest](/de/self-hosted/operate/release-notes/format) für das passende Change-Log-Format und [Hardening](/de/self-hosted/operate/security/hardening) für die Checkliste, die Exposition begrenzt, bevor ein Advisory überhaupt feuert.
+Speichere die Seiten für Sicherheitsmeldungen und Releases und nimm sie in deine regelmässige Update-Prüfung auf. Halte fest, wer sie prüft, welche Installationen betroffen sind und wohin dringende Befunde eskaliert werden. Die [Release-Prüfung](/de/self-hosted/operate/release-notes/format) enthält den übergreifenden Ablauf; [Härtung](/de/self-hosted/operate/security/hardening) beschreibt Schutzmassnahmen zwischen Updates.

@@ -1,26 +1,24 @@
 ---
-title: Installation
-description: Zwei Wege, Tale zu betreiben — die CLI, oder ein Stack, den du selbst schreibst (Compose oder Kubernetes).
+title: Eine Installationsmethode wählen
+description: Installiere eine Umgebung mit der Tale-CLI oder setze die dokumentierte Dienstarchitektur mit deinen eigenen Infrastrukturwerkzeugen um.
 ---
 
-Tale zu installieren hat zwei Formen. Die CLI umhüllt Docker Compose, sodass du keine Datei editierst. Den Stack selbst zu schreiben ist der Weg, wenn genau dieser Wrapper das ist, was du nicht fahren kannst — eine Compose-Datei, oder ein Kubernetes-Mapping desselben Vertrags.
+Für eine gewöhnliche Installation nutzt du die Tale-CLI. Ein eigener Stack ist sinnvoll, wenn deine Infrastrukturwerkzeuge die Dienstdefinitionen verwalten müssen. Beide Wege brauchen dieselben Anwendungsdienste und eine verantwortliche Person für Konfiguration und Wartung.
 
-## Die CLI
+## Mit der CLI installieren
 
-Installier die CLI, dann `tale init` und entweder `tale dev` oder `tale deploy`. Dasselbe Projektverzeichnis ist die Einheit: ein Laptop-Trial wird ohne Neu-Init zum Produktions-Host.
+Der [Schnellstart](/self-hosted/install/quickstart) führt dich durch Voraussetzungen, Projekterstellung, Start und erste Anmeldung. `tale init` bereitet ein Projektverzeichnis vor. `tale dev` startet eine Entwicklungsinstanz; `tale deploy` führt das Deployment dieser Umgebung aus.
 
-- [Quickstart](/de/self-hosted/install/quickstart) — `tale init`, dann `tale dev` oder `tale deploy`.
-- Nach dem ersten Boot macht [Erster Admin](/de/self-hosted/install/first-admin) das erste Konto zum **Owner**. Alle danach kommen per Einladung.
-- [CLI installieren](/de/self-hosted/install/cli-install) ist der Installer und die Remote-Workstation-Hälfte (`DOCKER_HOST`).
+Die CLI übernimmt Containeraktionen. Für Konfiguration, Zugangsdaten, Volumes und Updates bleibst du verantwortlich. Bewahre das Projektverzeichnis zusammen mit seinen Deployment-Einstellungen auf. [CLI installieren](/self-hosted/install/cli-install) beschreibt unterstützte Systeme, den Zugriff auf einen entfernten Docker-Host, Befehle und verwaltete Deployments.
 
-## Den Stack selbst schreiben
+## Eigene Dienstdefinitionen verwenden
 
-Es gibt kein offizielles Helm-Chart. Der Vertrag ist derselbe, ob du Compose schreibst oder Kubernetes: welche Services Zustand halten, die DNS-Namen, die Probes, die Volumes, und was eine Datei, die du pflegst, nicht für dich tut.
+[Einen eigenen Stack betreiben](/self-hosted/install/own-compose) beschreibt Dienste, Volumes, Netzwerk, Bereitschaftsprüfungen und Startreihenfolge. Nutze die Anleitung, wenn du Compose selbst pflegst oder die Architektur in Kubernetes abbildest. Tale liefert kein offizielles Helm-Chart.
 
-[Compose selbst fahren](/de/self-hosted/install/own-compose) ist diese Seite.
+Für Änderungen am Tale-Quellcode richtest du eine [Entwicklungsumgebung](/develop/contributor-setup) ein, statt mit einem Produktionsdeployment zu beginnen.
 
-## Wo das hingehört
+## Die Ersteinrichtung abschließen
 
-Wähl danach, was du betreiben willst. Der [Quickstart](/de/self-hosted/install/quickstart) ist der CLI-Weg — Laptop oder Produktions-Host. Der Compose-oder-Cluster-Weg ist für Air-Gap und bestehende Automation.
+Sobald die Instanz bereit ist, [erstellst du das erste Administratorkonto](/self-hosted/install/first-admin), verbindest einen Anbieter und testest einen Chat. Weitere Nutzer fügst du über [Mitglieder und Rollen](/platform/admin/members-and-roles) hinzu. Welche Konto- und Anmeldeoptionen verfügbar sind, hängt von deiner Organisation ab.
 
-Einmal installiert, sind die [Konfigurations](/de/self-hosted/configuration/environment-reference)-Seiten jede Umgebungsvariable und Provider-Datei, und [Betrieb](/de/self-hosted/operate/container-architecture) deckt Upgrades, Backups und Observability ab.
+Richte vor der Arbeit mit Produktionsdaten TLS und Backups ein. Prüfe die [Umgebungseinstellungen](/self-hosted/configuration/environment-reference) und lies die [Betriebsarchitektur](/self-hosted/operate/container-architecture).

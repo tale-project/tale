@@ -7,9 +7,9 @@ i18nLintExclude:
   - style-numbers
 ---
 
-Tale lit sa configuration depuis un unique fichier `.env` à la racine du dépôt. Environ une douzaine de variables sont obligatoires au premier boot ; les autres ajustent le comportement. Cette page liste chaque variable que [`.env.example`](https://github.com/tale-project/tale/blob/main/.env.example) ship, sa valeur par défaut et la surface produit qui la consomme.
+Cette référence indique les variables de déploiement, leurs valeurs par défaut et les processus concernés. Le fichier `.env` du projet est une source possible ; l’environnement des conteneurs et un gestionnaire de secrets peuvent aussi fournir les valeurs. Le [fichier d’exemple](https://github.com/tale-project/tale/blob/main/.env.example) contient la configuration correspondante.
 
-Les groupes sont ordonnés selon le moment où tu en as besoin la première fois : identité de domaine, TLS, secrets, base de données, instance, observabilité, chiffrement des fournisseurs. Après avoir modifié `.env`, recrée les services concernés avec ta procédure de déploiement. `docker compose restart` conserve l’environnement existant du conteneur.
+Après une modification, recrée les services concernés avec ta procédure de déploiement. `docker compose restart` conserve l’environnement existant. Les fichiers de configuration d’organisation ont un cycle distinct.
 
 ## Comment lire cette page
 
@@ -107,12 +107,12 @@ Droits sur le bucket : le backend vérifie l’existence du bucket avec `HeadBu
 
 ## Signature du journal d'audit
 
-La chaîne de hachage d'audit est rendue inviolable par une signature HMAC-SHA256 sur ses checkpoints de rétention et de scrub PII (SOC 2 CC7.2, ISO 27001) ; le cron d'intégrité quotidien la vérifie. Une seconde clé pseudonymise les données personnelles qu'une connexion échouée laisse dans la chaîne.
+Le vérificateur PostgreSQL actuel contrôle les hachages SHA-256 et les liens entre les lignes d’audit, sans vérifier de points de contrôle signés par HMAC. La CLI génère et conserve encore les variables de signature pour compatibilité. Leur présence ne prouve pas que le backend actuel signe l’historique. Un pepper distinct pseudonymise les données personnelles enregistrées lors des connexions échouées.
 
 | Nom                               | Défaut                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | --------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_AUDIT_SIGNING_KEY`          | auto-généré par `tale init` | Clé HMAC hex de 64 caractères. Garde-la stable entre les déploiements et sauvegarde-la — une clé manquante ou changée déclenche l'alerte « Audit log integrity check failed ».                                                                                                                                                                                                                                                    |
-| `TALE_AUDIT_SIGNING_KEY_PREVIOUS` | non défini                  | La clé précédente pendant une fenêtre de rotation. Copie la clé actuelle ici, pose une nouvelle `TALE_AUDIT_SIGNING_KEY`, redéploie ; le vérificateur accepte les deux, puis retire celle-ci la fois suivante.                                                                                                                                                                                                                    |
+| `TALE_AUDIT_SIGNING_KEY` | auto-généré par `tale init` | Valeur hexadécimale de 64 caractères générée et conservée par la CLI pour compatibilité. Conserve les valeurs existantes avec les secrets du déploiement ; le vérificateur PostgreSQL actuel n’utilise pas cette clé. |
+| `TALE_AUDIT_SIGNING_KEY_PREVIOUS` | non défini | Variable de compatibilité pour une ancienne clé de signature. Le vérificateur PostgreSQL actuel ne l’utilise pas ; la définir n’active pas de vérification de signature. |
 | `TALE_AUDIT_PEPPER`               | auto-généré par `tale init` | Pepper (16 caractères ou plus) pour le hash HMAC-SHA256 de l'e-mail et du préfixe `/24` (IPv4) ou `/64` (IPv6) de l'IP qu'une connexion échouée écrit dans le journal d'audit — des lignes qui vivent 365 à 3650 jours, bien plus longtemps que la tentative elle-même. Sans lui, ces lignes portent l'e-mail et l'IP en clair et le backend journalise un avertissement `[SECURITY]`. Le faire tourner coupe la corrélation au passage de la frontière ; les anciennes lignes expirent avec la rétention. |
 
 Voir [Intégrité du journal d'audit](/fr/self-hosted/operate/security/audit-log-integrity) pour le modèle de vérification.
@@ -132,14 +132,16 @@ Définir `METRICS_BEARER_TOKEN` expose les endpoints de métriques derrière le 
 
 ## Chiffrement des secrets de fournisseur
 
-| Nom                 | Défaut     | Description                                                                                                                                                                   |
-| ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOPS_AGE_KEY`      | non défini | Clé secrète age inline. Chiffre `providers/*.secrets.json`. Mode par défaut après `tale init`. Plusieurs clés ne sont pas supportées en inline.                               |
-| `SOPS_AGE_KEY_FILE` | non défini | Chemin vers un fichier avec une ou plusieurs clés age (une par ligne ; commentaires `#` autorisés). Obligatoire pour la rotation. S'exclut mutuellement avec la forme inline. |
+SOPS protège les fichiers de secrets de configuration compatibles. Les identifiants actuels des fournisseurs en base utilisent `ENCRYPTION_SECRET_HEX`, décrit avec les secrets de sécurité plus haut.
 
-Si les deux clés age ne sont pas définies, Tale stocke `providers/*.secrets.json` en JSON clair en mode 0600. Atteins ce mode seulement si le disque hôte est chiffré au repos ou si les fichiers sont produits par un outillage externe (un montage de secret Kubernetes, un template Vault). Faire tourner une clé age, c'est ajouter la nouvelle clé, réenregistrer chaque fournisseur dans l'UI, puis retirer l'ancienne. Voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) pour la marche complète de rotation.
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `SOPS_AGE_KEY` | non défini | Une clé privée age directe. Prime sur le fichier de clés. |
+| `SOPS_AGE_KEY_FILE` | non défini | Chemin accessible au processus, avec une ou plusieurs clés privées age, une par ligne. Monte le fichier dans chaque conteneur concerné. |
 
-La source de clé par variable d'environnement ne nécessite aucun commutateur de déploiement : des identifiants peuvent porter seulement le _nom_ d'une variable d'environnement au lieu d'une clé stockée, tant que ce nom porte le préfixe réservé `TALE_PROVIDER_KEY_`. La barrière est fail-closed — tout autre nom est rejeté, donc le champ ne peut jamais pointer sur un secret de déploiement étranger — et les noms sont plafonnés à 40 caractères. Définis la variable ici ou dans ton gestionnaire de secrets pour que la plateforme et le backend puissent tous deux la lire ; le mécanisme complet est documenté dans [Fournisseurs](/fr/self-hosted/configuration/providers). Un identifiant de type courtier d'abonnement dispose d'un second espace de noms, distinct, pour le secret que Tale présente **au courtier** : ce champ accepte un nom de variable d'environnement sous le préfixe réservé `TALE_TOKEN_SOURCE_`, plafonné à 60 caractères. Les deux préfixes restent séparés à dessein — un secret de courtier n'est pas une clé API de fournisseur, et aucun des deux champs ne peut nommer une variable hors de son propre espace de noms.
+Sans clé age, le module SOPS écrit les fichiers compatibles en clair avec les permissions `0600`. Les fichiers déjà chiffrés exigent toujours leur clé. Lis [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) avant de modifier ces variables.
+
+Les identifiants de fournisseurs peuvent référencer une variable préfixée par `TALE_PROVIDER_KEY_` (40 caractères maximum). Les courtiers d’abonnement utilisent le préfixe distinct `TALE_TOKEN_SOURCE_` (60 maximum). Ces champs contiennent des noms de variables, pas les secrets. Injecte les valeurs dans les processus backend et recrée les conteneurs concernés après modification. [Fournisseurs](/fr/self-hosted/configuration/providers) décrit ce fonctionnement.
 
 ## Applications OAuth des connecteurs
 
@@ -199,7 +201,7 @@ Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaqu
 
 ## Réglage du retrieval RAG
 
-Réglages optionnels pour la recherche dans la base de connaissances. Le chemin RAG re-note les résultats avec un cross-encoder quand le re-ranking est activé. Tous portent le préfixe `RAG_` et sont lus par le backend au boot ; après un changement, lance `docker compose restart backend-api backend-worker` pour qu'il prenne effet.
+Ces variables facultatives `RAG_` règlent la recherche et le reclassement par cross-encoder. Les processus backend les lisent au démarrage. Après avoir modifié leur environnement de déploiement, recrée les conteneurs concernés ; `docker compose restart` conserve leur ancien environnement.
 
 | Nom                          | Défaut                                 | Description                                                                                                                                                                                  |
 | ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -336,7 +338,3 @@ Quand Tale ingère un lien vidéo, il récupère sa transcription pour l'agent. 
 | `VIDEO_INGEST_FFMPEG_LOCATION`   | `/usr/bin/ffmpeg`                          | Chemin absolu vers le ffmpeg que yt-dlp utilise pour la post-production (conversion des sous-titres, extraction audio). À surcharger quand ffmpeg vit ailleurs — p. ex. le `/opt/homebrew/bin/ffmpeg` de Homebrew sur une machine de dev macOS.                                                                                                              |
 
 Aucune de ces options ne garantit le succès face à la détection adaptative de YouTube. Les vidéos publiques ordinaires, les plateformes moins agressives ou un déploiement à IP résidentielle/auto-hébergé fonctionnent généralement sans elles.
-
-## Où cela s'inscrit
-
-Les variables ici sont la surface de contact de l'opérateur ; la surface UI qui en consomme la plupart vit sous [Plateforme administration](/fr/platform/admin/overview). Les clés de fournisseur sont la moitié-et-moitié : les clés elles-mêmes vivent dans `providers/*.secrets.json`, mais l'UI sous **Paramètres > Fournisseurs IA** est ainsi que tu les ajoutes et les fais tourner en pratique. La lecture suivante à mettre en file est [Fournisseurs](/fr/self-hosted/configuration/providers) — elle couvre les fichiers de connecteurs livrés et les variables réservées qui portent les clés de fournisseur.

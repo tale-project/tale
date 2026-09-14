@@ -5,9 +5,9 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Tale ist selbst ein MCP-Server. Richte einen beliebigen MCP-Client — ein Agent-Harness, eine IDE, deine eigene SDK-Schleife — auf einen Endpoint, und er kann Automatisierungen autorieren und betreiben, durchsuchen, was die Organisation kann, eine Capability aufrufen und Wissen abrufen — mit demselben API-Schlüssel wie die REST-Oberfläche. Wo REST die Connectorsnaht für deinen Code ist, ist der MCP-Endpoint die Naht für _Modelle_: jedes Tool antwortet Text, den ein Modell lesen und verwerten kann.
+Verbinde einen MCP-Client mit Tale, um Funktionen zu finden, Wissen abzurufen und Automationen zu erstellen oder auszuführen. Der Endpunkt verwendet dieselben API-Schlüssel und Organisationsgrenzen wie REST. Seine Tools stellen Operationen für Agentenclients bereit; `get_docs` liefert die unterstützte Automationsgrammatik.
 
-Lies das, um einen Client zu verbinden und das Tool-Inventar zu verstehen. Die Grammatik zum Autorieren von Automatisierungen ist hier bewusst nicht dupliziert — der Endpoint lehrt sie selbst, über `get_docs`.
+Hier findest du Verbindungseinstellungen, Tool-Auswahl und Berechtigungsgrenzen. Für eine klassische HTTP-Integration beginne mit der [REST-API](/de/develop/api-reference).
 
 ## Einen Client verbinden
 

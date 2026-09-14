@@ -3,9 +3,9 @@ title: Container-Architektur
 description: Welcher Container in einer laufenden Tale-Instanz welche Aufgabe besitzt, der Anfragepfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
 ---
 
-Eine Tale-Instanz besteht aus neun Containern, verdrahtet über docker compose, plus einem kleinen Video-Ingestion-Sidecar. Die Architekturseite behandelte, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welche Aufgabe besitzt, wie eine Chat-Nachricht durch sie fließt und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
+Hier findest du den zuständigen Dienst für Anfragen, Jobs und dauerhafte Speicher. Anfrageweg und Fehlertabelle helfen bei der Protokollauswahl im Störungsfall. Der Installationsvertrag legt Netze, Einbindungen und Prüfungen fest.
 
-Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen Container du bei einem Upgrade zuerst rollst.
+Die fertige Einzelhost-Bereitstellung führt Anwendungs- und Wissensdatenbank im Datenbankdienst zusammen. Entwicklungs-Compose kann eine getrennte Wissensdatenbank starten. Prüfe deshalb den tatsächlichen Aufbau, bevor du Container vergleichst.
 
 ## Die Container und ihre Aufgaben
 

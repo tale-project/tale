@@ -1,132 +1,118 @@
 ---
 name: write-docs
-description: Use this skill whenever you write or edit end-user documentation — a page under a docs content tree, a docs navigation or sidebar file, a docs landing or overview page, a screenshot or code example embedded in docs, or a failing docs structural check. It owns the journey-first method — organize every page around what the reader is trying to do, show the UI before describing it, prove behaviour with runnable examples, and use the docs component vocabulary (steps, tabs, code groups, callouts, frames, cards) with discipline instead of walls of prose. Before writing anything, discover the repo's own docs contract — its docs guide, its component registry, its structural test suite — and let that contract override this skill's defaults. Never write a docs page from imagination, never describe a UI you have not driven, and never ship a hand-captured screenshot. Page-type playbooks, component rules, screenshot doctrine, worked examples, and mechanics live in companion files here.
+description: Write, reorganize, or review end-user documentation, navigation, examples, and screenshots. Ground instructions in the running product, choose structure for the reader's task, and verify the rendered result. Use for docs content and its structural checks; use write-translations as well for localized content.
 ---
 
-# write-docs
+# Write documentation people can use
 
-A docs page exists to move a reader from an intent — "I want X" — to a verified outcome, and the
-docs read as **one narrator**: a calm, opinionated peer who shipped a similar product and is telling
-a capable stranger how this one works — not selling, not hand-holding, not spec-dumping. This skill
-owns the method for the source language; cross-locale authoring (translated labels, per-locale
-grammar) follows the repo's translation skill or conventions where present.
+Help the reader make progress from the situation they are in. A newcomer needs a guided first
+success; an experienced user needs the missing step; an administrator needs consequences and
+permissions; a developer needs exact inputs and outputs. Support these needs with connected pages,
+not one page that assumes every reader has the same knowledge.
 
-## When this applies
+## Discover before drafting
 
-Creating or editing any page in the repo's docs content tree, editing its navigation/sidebar config,
-adding or regenerating a docs screenshot or code example, reshaping a landing or overview page, or
-triaging a failing docs structural check.
+Read the repo contract, the guide nearest the docs tree, the renderer's component registry, and
+the checks for that content. In Tale, start with [docs/AGENTS.md](../../../docs/AGENTS.md).
+Find the existing owner of the topic and its neighboring pages before adding another explanation.
+Use the applicable locale's message catalogs for visible UI labels.
 
-## Discover the repo's contract first
+In the task's planning note outside the clone, record:
 
-Before the first edit, locate — in this order — and read what exists:
+- Reader, goal, starting knowledge, and the page's job: tutorial, how-to, explanation, reference,
+  troubleshooting, or navigation.
+- Current gaps and the facts that need checking: role, prerequisites, route, inputs, defaults,
+  limitations, result, and recovery.
+- Existing content to reuse or link, worthwhile visuals/examples, and affected locales and links.
 
-1. **The docs content tree** and its locale layout (which languages ship, which is the source).
-2. **The docs guide nearest the content** (`AGENTS.md`, `README`, `CONTRIBUTING`) — it names the
-   commands, the taxonomy, and the repo facts this skill deliberately does not carry.
-3. **The component registry the renderer actually supports** — never author a tag the renderer
-   doesn't register; an unregistered tag renders as broken text.
-4. **The structural test suite that gates docs** (and how to run it) — its rules are the floor.
-5. **The product's message catalogs** — UI labels in docs match the shipped strings
-   character-for-character.
+Keep the note proportional to the change. Reuse an existing task note; no separate notes skill is
+required. For a broad overhaul, map readers to their core tasks and record coverage and verification
+status. Page count and word count are not measures of completeness.
 
-The repo's tests and guide are the contract; this skill's rules are the defaults that apply where
-the repo is silent.
+## Establish the facts
 
-## Write a note first
+Drive the real UI before describing a workflow. Use a disposable, seeded local organization when
+available. Follow the documented starting point through the result; inspect relevant empty,
+loading, permission, and failure states. Check keyboard access for the controls you describe.
+Source and tests clarify hidden defaults, limits, and persistence; they do not replace using the UI.
+A delegated observer may provide a concrete route/action/result record with the relevant version.
 
-**Write a short planning note** and record your answers to this form before you write the page:
+Run actionable code examples in the documented environment. Preserve the actual shape of results;
+sanitize secrets and replace unstable IDs consistently. Label excerpts, placeholders, optional
+steps, and setup dependencies. Do not invent outputs, timings, permissions, guarantees, or causes
+to make prose sound complete. Record any verification limitation explicitly.
 
-- **Journey & audience:** Describe what the reader is trying to do when they land here, who they
-  are, and which page type (playbook) fits.
-- **Verified claims:** Describe which labels, defaults, routes, or limits you checked against the
-  running product or its source — and what surprised you.
-- **Visuals & code plan:** Describe which journey steps get a screenshot and which claims get
-  runnable examples.
-- **Ripple:** Describe which locales, nav entries, images, and sibling pages this touches.
+If observed behavior and docs disagree, identify which is wrong. Fix an in-scope defect with a
+regression test, then rerun the flow. Otherwise record the unresolved finding and document the
+verified limitation. Respect the user's authorized scope; a docs task alone is not permission to
+change production data or send invitations.
 
-## The doctrine
+## Write for the task
 
-Four rules fail review; each carries its why.
+Use [PLAYBOOKS.md](PLAYBOOKS.md) to choose a shape. The shape supports the work; it is not a
+mandatory section template.
 
-1. **Journey-first.** Pages are organized around what the reader is trying to do, not around the
-   feature's internal structure. Every section heading names an outcome or a decision; the page's
-   opening answers what the reader will have when they're done. A page that can't name its reader's
-   task is a reference page — shape it as one deliberately ([PLAYBOOKS.md](PLAYBOOKS.md)).
-2. **Show, then tell.** Every UI step the reader must perform is visualized — a screenshot in a
-   frame with a caption — before or beside the prose that describes it. A UI walkthrough with zero
-   screenshots fails review; so does a hand-captured one: every image is reproducible through the
-   repo's capture pipeline ([SCREENSHOTS.md](SCREENSHOTS.md)).
-3. **Prove with code.** Any claim a reader will act on programmatically ships as a runnable
-   example — a real request and its real response, a real command and its real output — never a
-   paraphrase. One verified example beats three paragraphs of description.
-4. **Truth over polish.** Every label, default, route, limit, and behaviour is verified against the
-   shipped product before the page is done. Drive the UI you describe; run the code you quote.
-   Voice covers how it reads; this covers whether it's true.
+- **Open with useful information.** State the outcome or the essential distinction directly. One
+  sentence can be enough. Add audience, prerequisites, or context where they resolve uncertainty.
+  Avoid introductions that only announce the page's contents.
+- **Make the path easy to follow.** Put conditions before dependent actions. Explain unfamiliar
+  terms where first needed. Keep the ordinary path visible; link deeper concepts and exhaustive
+  reference. Place a warning before the action whose consequence matters.
+- **Add detail where a reader would hesitate.** Explain what to enter, how to choose, what changes,
+  when to wait, how to recognize completion, and how to recover. Use a believable worked example
+  when an abstract explanation leaves the choice unclear.
+- **Use connected prose.** Address the reader as a calm peer. Prefer active verbs and concrete
+  nouns; vary sentence length naturally. Use imperatives for required actions and “you can” for a
+  real optional capability. Name the purpose once; do not repeat “To…” before every click.
+- **Stop when the reader has what they need.** A final result, a relevant next link, or the last
+  reference entry can be the ending. Add a recap only when it helps retain a complex idea. Do not
+  manufacture a closing heading or repeat the introduction.
 
-## The voice — see it first
+Avoid marketing claims, “simply”/“easy”/“just” judgments, status chatter, and exclamation marks in
+ordinary docs prose. Preserve literal UI strings and quoted technical syntax. Teach the reason for
+an action where it changes a decision; obvious controls do not need a paragraph of justification.
 
-| Version          | Sample                                                                                                                                                                          | Why it fails                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Marketing soft   | Simply click **Save** and you're all set! Feel free to add as many providers as you like.                                                                                       | "Simply", "all set", "Feel free to", `!`. |
-| First-person we  | We recommend you click **Save** after configuring each provider, since we sync them in the background.                                                                          | "we", missing why.                        |
-| Imperative naked | Click **Save**.                                                                                                                                                                 | No why — what does Save _do_ here?        |
-| **The voice**    | Click **Save**. The new provider is reachable from agents on the next request — there's no separate rollout step, and existing conversations keep their previous model binding. | Imperative, why present, no fluff.        |
+## Choose useful evidence and structure
 
-Three guardrails the voice always holds:
+Images should clarify a location, unfamiliar state, relationship, or result. Do not add a hero
+image or an image to every step by default. Keep the written instructions complete without the
+image. Read [SCREENSHOTS.md](SCREENSHOTS.md) before changing an asset; every shipped screenshot
+must be reproducible through the repository's capture pipeline.
 
-- **Second person, informal** where the language distinguishes — never "we", never "the user".
-- **Imperative for instructions** — `Run the command`, never `You can run…`, never `Please run…`.
-- **Why before what** — name the consequence (what it does, what breaks if you skip it), then the
-  step. Walkthroughs go _effect → location → action_: "To add a person, open **Settings >
-  Members** and click **Invite member**", never a click-trail with the purpose at the end.
+Use lists for parallel choices and numbered steps for sequences, regardless of item count. Use
+components when they improve scanning or comparison; [COMPONENTS.md](COMPONENTS.md) covers their
+tradeoffs. Keep prerequisites and recovery instructions visible. Do not turn every useful detail
+into a callout. Read [MECHANICS.md](MECHANICS.md) for links, examples, and Markdown conventions.
 
-Strike on sight: `simply`, `easy`, `just`, `seamless`, exclamation marks in prose, "we".
+## Localize the complete experience
 
-## Components with discipline
+Update every supported full locale in the same change, following
+[write-translations](../write-translations/SKILL.md). Preserve the reader's task, factual content,
+examples, warnings, and navigation. Sentence construction and paragraph boundaries should read
+naturally in each language. Tale's heading/component parity is a delivery guard, not a requirement
+to translate sentence by sentence. Verify localized labels, links, alt text, and captions.
 
-Prose is still the default. A component earns its place only when it beats the plain-markdown
-rendering of the same content — the full per-component rules are [COMPONENTS.md](COMPONENTS.md).
-Two failure directions, equally fatal: the **wall of text** (a UI journey with zero visuals or
-structure) and **component soup** (a page that's all boxes — stacked callouts, tabs hiding required
-reading, steps wrapping non-sequences).
+## Review and prove
 
-## Locales ship together
+Read the rendered page as someone entering from search, without the author's prior context.
+Complete the task from the instructions. Check whether a newcomer can locate the starting point,
+whether an experienced reader can find a specific answer, and whether all required facts are
+available without opening optional panels or interpreting an image.
 
-Where the docs tree is localized, every locale updates in the same change, mirrors the source
-page's structure (headings, fences, components), and is authored natively in the shared voice —
-never a word-for-word rendering. Code, filenames, and brand names stay identical across locales;
-prose, frontmatter, alt text, and captions translate. Follow the repo's translation skill where
-present.
+Run the repository's applicable content, locale, link, asset, and build checks. Inspect important
+pages at narrow and wide widths, including images, tables, code, keyboard focus, and heading order.
+Review prose separately from mechanical checks: a green suite does not prove accuracy, flow, or
+native translation. Report what was observed and any remaining limits.
 
-## Before you call the page done
+## References
 
-**Tick every box, or N/A with a reason — an unticked box means not done:**
+- [PLAYBOOKS.md](PLAYBOOKS.md): choosing page purpose and the needed level of detail.
+- [COMPONENTS.md](COMPONENTS.md): component decisions and accessible structure.
+- [SCREENSHOTS.md](SCREENSHOTS.md): visual selection, capture, and review.
+- [EXAMPLES.md](EXAMPLES.md): edits that improve flow without adding filler.
+- [MECHANICS.md](MECHANICS.md): source and formatting conventions.
 
-- [ ] **Repo contract discovered and obeyed** — docs guide read, component registry checked, test
-      suite located.
-- [ ] **The journey is named** — the note says what the reader is trying to do and which playbook
-      shape the page uses.
-- [ ] **Real opening and closing** — ≥2 sentences answering what/who/why before anything else; a
-      named closing that recaps and hands off, not a `## Next` stub.
-- [ ] **Every UI step visualized** — or N/A: the page describes no UI. No hand-captured images;
-      every screenshot regenerable from the repo's capture pipeline.
-- [ ] **Every code example executed** — the output shown is the output you observed.
-- [ ] **Every component justified** — it beats the plain-markdown alternative
-      ([COMPONENTS.md](COMPONENTS.md)).
-- [ ] **Every UI label verified** against the shipped strings, in every locale the docs ship.
-- [ ] **Every locale updated** in the same change, natively authored.
-- [ ] **The repo's docs test suite is green**, and the page was viewed rendered in the real docs
-      app — every screenshot legible at content width.
-
-## Companion files
-
-- [PLAYBOOKS.md](PLAYBOOKS.md) — read when you know the page type (journey, feature, reference,
-  overview, …) and want its shape contract + common failures.
-- [COMPONENTS.md](COMPONENTS.md) — read before reaching for steps, tabs, code groups, callouts,
-  frames, cards, or accordions.
-- [SCREENSHOTS.md](SCREENSHOTS.md) — read before adding, regenerating, or reviewing any image.
-- [EXAMPLES.md](EXAMPLES.md) — read when writing an opening, closing, walkthrough, or a
-  text-heavy→journey transformation and you want to see what passing looks like.
-- [MECHANICS.md](MECHANICS.md) — read for frontmatter, filenames, headings, code blocks, tables,
-  lists, diagrams, and links.
+This method draws on [Diátaxis](https://diataxis.fr/),
+[Google's procedure guidance](https://developers.google.com/style/procedures), and
+[Microsoft's accessible writing guidance](https://learn.microsoft.com/en-us/style-guide/accessibility/writing-all-abilities).
+The repository defines its implementation; these sources guide editorial judgment.

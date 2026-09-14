@@ -1,56 +1,46 @@
 ---
-title: Audit-Log-Integritätswarnungen
-description: Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst.
+title: Die Integrität des Audit-Protokolls untersuchen
+description: Prüfe die Audit-Kette, beachte die Grenzen der Prüfung und sichere Nachweise bei einem Fehler.
 ---
 
-Tale verifiziert die Audit-Log-Hash-Kette jeder Organisation nach Zeitplan und löst in dem Moment eine Warnung aus, in dem eine Verifizierung fehlschlägt. Diese Seite ist das Runbook für den Operator oder Admin, der diese Warnung erhalten hat: wie du den Befund liest, wie du ein echtes Manipulationssignal von einem gewöhnlichen Aufbewahrungs- oder Konfigurationsartefakt trennst und was du sicherst, bevor du irgendetwas anfasst. Die Warnung ist absichtlich laut, weil ein echter Bruch selten und ernst ist — aber die meisten Brüche, die in der Praxis feuern, haben eine alltägliche Erklärung, also besteht die Arbeit darin, diese methodisch auszuschließen, statt in Panik zu verfallen.
+Nutze diese Anleitung, wenn **Ketten-Integrität** einen Bruch meldet oder du eine Benachrichtigung zur Audit-Integrität erhältst. Für den beschriebenen Weg durch die Einstellungen brauchst du ein Admin- oder Owner-Konto. Ziehe für die Untersuchung der Datenbank den Betreiber deiner Installation hinzu.
 
-## Was sie auslöst
+## Den geprüften Bereich feststellen
 
-Ein täglicher Cron läuft die append-only Audit-Kette jeder Organisation samt ihrer Aufbewahrungs- und Scrub-Checkpoints ab. Wenn eine Kette nicht verifiziert, tut der Lauf zwei Dinge. Er schreibt eine In-Band-Audit-Zeile der Kategorie `security` — bei jedem fehlschlagenden Lauf, damit der dauerhafte Datensatz immer vollständig ist — und er löst eine Out-of-Band-Benachrichtigung an die Admins der Organisation aus, in der Benachrichtigungsglocke und in deinem Slack-Kanal, wenn einer verbunden ist.
+1. Öffne **Einstellungen > Governance > Protokolle** und suche **Ketten-Integrität**.
+2. Notiere Status und Zeitpunkt der letzten automatischen Prüfung. **Noch nicht geprüft** bedeutet, dass noch kein Ergebnis vorliegt; es bestätigt keine erfolgreiche Prüfung.
+3. Wähle **Jetzt prüfen**. Das Ergebnis nennt die Zahl der geprüften Einträge. Ein Aufruf prüft höchstens 1.000 Einträge ab dem Anfang der noch vorhandenen Kette.
+4. Ist das Ergebnis unvollständig, bitte den Betreiber, den restlichen Bereich zu prüfen. Ein erneuter Klick beginnt wieder am selben Anfang. Eine fehlerfreie erste Seite belegt nicht die Integrität des gesamten Verlaufs.
 
-Die Out-of-Band-Warnung ist dedupliziert. Du bekommst eine Benachrichtigung, wenn ein Bruch zuerst erkannt wird, und nur dann eine weitere, wenn er sich ändert — eine andere gebrochene Zeile oder ein anderer fehlschlagender Checkpoint — nicht jeden Tag einen frischen Alarm für denselben Bruch. Ein späterer sauberer Lauf räumt die Warnung von selbst ab; ein späterer, anderer Bruch löst eine neue aus.
+Das Ergebnis dieses Aufrufs und der Status der geplanten Prüfung sind getrennt. **Jetzt prüfen** aktualisiert den Zeitpunkt der letzten automatischen Prüfung nicht.
 
-## Manipulation oder Konfigurationslücke
+## Verstehen, was die Prüfung abdeckt
 
-Die Warnung kommt in zwei Formen, und der Titel sagt dir, welche. **Integritätsprüfung des Audit-Logs fehlgeschlagen** ist die kritische: Die Hash-Kette selbst verifiziert nicht, oder die Signatur eines signierten Checkpoints passt nicht zum konfigurierten Schlüssel. Behandle das als mögliches Manipulationssignal, bis du es erklärt hast.
+Das aktuelle PostgreSQL-Backend prüft den SHA-256-Hash jedes noch vorhandenen, nicht bereinigten Audit-Eintrags und die Verknüpfungen zwischen den Einträgen. Die erste erhaltene Zeile liefert den Ausgangswert. So lassen sich viele Änderungen innerhalb der Kette erkennen. Die Prüfung liefert jedoch keinen unabhängig signierten Nachweis aller früheren Daten.
 
-**Audit-Log-Signaturen können nicht überprüft werden** ist eine ruhige Warnung, kein Einbruch: Ein Checkpoint ist signiert, aber das Deployment hat keinen `TALE_AUDIT_SIGNING_KEY` konfiguriert, gegen den sich die Signatur prüfen ließe. Nichts wurde gefälscht — Tale kann nur nicht beweisen, dass der Checkpoint echt ist, bis du den Schlüssel wiederherstellst. Das Panel im Produkt spiegelt die Trennung: Eine gesunde Kette zeigt das grüne Badge **Verifiziert**, ein aktiver Vorfall das rote Badge **Integritätswarnung aktiv**, und eine Organisation, die der Cron noch nicht erreicht hat, zeigt **Noch nicht geprüft**.
+Die Aufbewahrungsregel kann den Anfang der Kette entfernen. Die geplante Prüfung setzt an ihrem gespeicherten Fortschritt fort. Wurde dieser Ausgangspunkt regulär durch die Aufbewahrung gelöscht, beginnt sie bei der ersten erhaltenen Verknüpfung. Fehlt ein Ausgangspunkt innerhalb des Aufbewahrungszeitraums, wird das nicht auf diese Weise akzeptiert.
 
-## Das Integritäts-Panel öffnen
+Bei Einträgen, deren personenbezogene Inhalte gelöscht wurden, prüft das Backend die Verknüpfung, ohne den Hash aus den gelöschten Inhalten neu zu berechnen. Es zählt ausserdem bereinigte Zeilen ohne passenden Löschantrag. Untersuche eine solche Warnung anhand der Löschvorgänge. Das aktuelle Backend prüft keine HMAC-signierten Prüfpunkte; ein Audit-Signaturschlüssel behebt diese Befunde nicht.
 
-Die Admins einer Organisation inspizieren die Kette unter **Einstellungen > Richtlinien > Audit-Logs**. Das Panel **Ketten-Integrität** oben auf der Seite zeigt das Status-Badge, den Zeitpunkt der letzten automatischen Prüfung und einen Knopf **Jetzt prüfen**, der dieselbe Verifizierung auf Abruf erneut fährt. Kommst du aus der Benachrichtigung, führt dich ein Klick auf die Warnung per Deep-Link direkt zur markierten Zeile in der Audit-Tabelle statt an den Anfang des Logs.
+<Warning title="Unabhängige Nachweise aufbewahren">
+Eine Hash-Kette verhindert weder Datenbankänderungen noch belegt sie, dass jede Aktion protokolliert wurde. Schütze den Datenbankzugriff und bewahre geeignete unabhängige Nachweise auf. Eine vollständig neu geschriebene Kette lässt sich mit dieser Prüfung allein nicht zuverlässig erkennen.
+</Warning>
 
-Fahre **Jetzt prüfen**, um den strukturierten Befund zu sehen. Bei einem Bruch der Hash-Kette zeigt das Panel **Ketten-Integrität verletzt** mit der **Eintrags-ID** der ersten fehlschlagenden Zeile, wann er **Aufgetreten** ist, dem **Erwarteter Hash** und dem **Gespeicherter Hash**, der nicht passte — plus einem Knopf **Diesen Eintrag öffnen**, der die Zeile in der Tabelle aufdeckt. Bei einem Checkpoint-Problem zeigt es **Checkpoint-Prüfung fehlgeschlagen** mit der **Checkpoint-ID** und einem **Grund**. Halte diese Details fest, bevor du irgendetwas änderst: Sie sind der Beweis.
+## Einen Fehler dokumentieren
 
-## Die harmlosen Ursachen ausschließen
+Bei einem abweichenden Hash oder einer fehlerhaften Verknüpfung zeigt das Panel **Ketten-Integrität verletzt**, die **Eintrags-ID**, den Zeitpunkt sowie **Erwarteter Hash** und **Gespeicherter Hash**. Über **Diesen Eintrag öffnen** untersuchst du das Ereignis.
 
-Ein Hash-Bruch ist nur dann ein Manipulationssignal, wenn nichts Legitimes ihn erklärt, und der Verifizierer kennt die drei gewöhnlichen Ereignisse bereits, die fast jede Warnung verursachen — sie zu bestätigen ist dein erster Zug.
+1. Sichere den Befund zusammen mit Organisation, Eintrags-ID, Zeitpunkt und bereitgestellter Version. Übernimm die Werte unverändert.
+2. Bewahre vor Reparaturen Datenbank-Snapshots sowie relevante Deployment-, Zugriffs- und Backup-Protokolle auf. Beschränke den Zugriff auf Kopien mit personenbezogenen Daten.
+3. Vergleiche den Zeitpunkt mit Aufbewahrung, Löschung, Wiederherstellung und Wartung. Zeitliche Nähe ist ein Ermittlungsansatz, kein Beweis für einen harmlosen Fehler.
+4. Folge deinem Ablauf für Sicherheitsvorfälle, wenn der Befund ungeklärt bleibt. Ändere oder lösche die betroffene Zeile nicht, nur damit die Prüfung erfolgreich wird.
 
-**Ein Aufbewahrungsschnitt.** Wenn die Aufbewahrung alte Zeilen endgültig löscht, zeigt der überlebende Kettenkopf auf eine Zeile, die nicht mehr existiert. Der Verifizierer verankert die Kette über den Schnitt hinweg neu, über einen signierten Aufbewahrungs-Checkpoint — ein sauberer Schnitt verifiziert also normal. Siehst du stattdessen **Audit-Log-Signaturen können nicht überprüft werden**, ist der Schnitt selbst in Ordnung — dem Deployment fehlt der `TALE_AUDIT_SIGNING_KEY`, der den Checkpoint beglaubigt. Das ist eine Konfigurationslücke, keine Manipulation.
+Die Anleitung zu [Audit-Protokollen](/de/platform/admin/governance/audit-logs) erklärt Felder und Export. Ein gefilterter Export mit Zeilenlimit ist weder ein vollständiges Backup noch zwingend eine vollständige Kette.
 
-**Ein DSGVO-Scrub.** Das Löschen einer betroffenen Person leert ihre Felder an Ort und Stelle, was die Hashes dieser Zeilen ändern würde — deshalb schreibt ein Scrub einen signierten Scrub-Checkpoint über die betroffenen Zeilen, und der Verifizierer vertraut ihnen auf dieser Grundlage. Ein Scrub sollte auf einem Deployment mit Signierschlüssel nie als Bruch auftauchen.
+## Die geplante Prüfung verfolgen
 
-**Alte Zeilen aus der Zeit vor der Kette.** Zeilen, die geschrieben wurden, bevor es die Audit-Hash-Verkettung gab, tragen keinen Integritäts-Hash. Der Verifizierer überspringt sie automatisch; sie sind kein Bruch.
+Ein täglicher Job prüft Organisationen mit Audit-Einträgen schrittweise. Ein erkannter Hash-Bruch aktiviert eine Integritätswarnung und benachrichtigt die Admins der Organisation. Wiederholte Prüfungen führen für denselben Befund nicht zu doppelten Benachrichtigungen. Ein veränderter Befund kann eine neue auslösen.
 
-Ein echtes Manipulationssignal ist ein Hash-Unterschied ohne jede dieser Erklärungen: kein Aufbewahrungsschnitt an dieser Stelle, kein Scrub über der Zeile, und der Signierschlüssel vorhanden und korrekt.
+Prüfe nach Reparatur oder Wiederherstellung, ob der betroffene Bereich wieder gültig ist. Eine anschliessende erfolgreiche geplante Prüfung hebt die aktive Warnung auf. Einem Kollegen den Fehler zu erklären oder eine Benachrichtigung zu schliessen repariert die Kette nicht.
 
-## Auf einen echten Bruch reagieren
-
-Übersteht der Befund diese Triage — ein Hash-Unterschied, den du nicht erklären kannst —, behandle ihn als Sicherheitsvorfall und sichere zuerst die Beweise. Audit-Zeilen sind absichtlich append-only; lösche oder bearbeite keine Zeile, auch nicht die markierte, denn das zerstört den Datensatz, von dem eine Untersuchung abhängt.
-
-1. Halte den Befund wörtlich fest — die **Eintrags-ID**, die Zeit unter **Aufgetreten**, **Erwarteter Hash** und **Gespeicherter Hash** (oder die **Checkpoint-ID** und den **Grund**) aus dem Panel. Kopiere sie oder mach einen Screenshot, statt dich allein auf die Warnung zu verlassen.
-2. Bestätige, ob der Signierschlüssel auf dem Host konfiguriert ist, damit du einen echten Unterschied von einem nicht verifizierbaren Checkpoint unterscheiden kannst. Das meldet die Anwesenheit, ohne das Geheimnis auszugeben:
-   ```bash
-   grep -q '^TALE_AUDIT_SIGNING_KEY=' .env && echo configured || echo missing
-   ```
-3. Korreliere den Zeitstempel des Bruchs mit jüngerer Aktivität — einem Aufbewahrungslauf, einem Scrub einer betroffenen Person, einem Deploy, einer Datenbank-Wiederherstellung oder direktem Datenbankzugriff. Ein Bruch, der mit einer Wartungsaktion zusammenfällt, hat meist eine gewöhnliche Ursache, die du jetzt benennen kannst.
-4. Erklärt ihn nichts, eskaliere über deine Security-Incident-Richtlinie und behandle die Datenbank als potenziell kompromittiert, bis das Gegenteil bewiesen ist. Bewahre je einen Backup-Snapshot von vor und nach dem erkannten Bruch für die Forensik auf.
-
-## Die Warnung abräumen
-
-Die Warnung ist vorfallbasiert, kein wiederkehrendes Ereignis. Sobald der Bruch behoben oder erklärt ist — der Schlüssel wiederhergestellt, das Aufbewahrungsartefakt verstanden, eine manipulierte Datenbank aus einem sauberen Backup neu aufgebaut —, verifiziert der nächste tägliche Lauf sauber und räumt die Warnung von selbst ab, und das Badge **Ketten-Integrität** kehrt zu **Verifiziert** zurück. Es gibt keinen Bestätigen- oder Verwerfen-Schritt, den du dir merken müsstest. Taucht später ein anderer Bruch auf, löst die Prüfung dafür eine frische Warnung aus — Stummschalten ist also nie nötig.
-
-## Wo das einzuordnen ist
-
-Eine Integritätswarnung ist eine Aufforderung zur Untersuchung, kein Urteil — die tägliche Prüfung läuft laut, damit sich ein seltener echter Bruch nicht zwischen den Logs verstecken kann, und dieses Runbook trennt diesen seltenen Fall von den Aufbewahrungs- und Scrub-Artefakten hinter den meisten Warnungen. Der Mechanismus, den der Verifizierer prüft — die SHA-256-Hash-Kette und die HMAC-signierten Checkpoints — ist in [Kryptografie](/de/self-hosted/operate/security/cryptography) dokumentiert, und die Aufbewahrungsschnitte, die sie legitim neu verankern, stehen in [Aufbewahrung](/de/self-hosted/configuration/retention). Das Panel, die Spalten und der Export, mit denen du eine markierte Zeile liest, leben in der Referenz [Audit-Logs](/de/platform/admin/governance/audit-logs); die Checkliste [Härtung](/de/self-hosted/operate/security/hardening) ist der Ort, an dem dieses Monitoring überhaupt erst eingeschaltet wird.
+Weitere Schutzmassnahmen findest du unter [Härtung](/de/self-hosted/operate/security/hardening). Welche alten Nachweise entfernt werden, regelt die [Aufbewahrung](/de/self-hosted/configuration/retention).

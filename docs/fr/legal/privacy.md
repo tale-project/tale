@@ -1,63 +1,34 @@
 ---
-title: Politique de confidentialité
-description: Ce que Tale collecte, pourquoi, combien de temps c'est conservé, qui d'autre le traite, et les droits que tu as sur tes données.
+title: Confidentialité et données personnelles
+description: Trouve la politique applicable et le bon interlocuteur pour demander un accès, une rectification ou un effacement.
 noindex: true
 ---
 
-Cette politique décrit comment Tale traite les données personnelles quand tu utilises Tale Cloud, le site de docs, le site marketing ou les fonctionnalités dans le produit. La forme est la même que tu sois utilisateur final, admin d'org ou visiteur lisant les docs — des surfaces différentes collectent des données différentes, et chacune est nommée plus bas. La politique s'applique à Tale Cloud ; les instances auto-hébergées sont opérées par l'organisation qui les fait tourner, et le responsable de traitement est cette organisation, pas Tale.
+La [politique de confidentialité de Tale](https://tale.dev/fr/legal/privacy-policy) explique comment Ruler GmbH traite les données personnelles lors d'une visite de son site ou d'une prise de contact. Pour les données que Tale Cloud traite au nom de ton organisation, consulte ton contrat de service et l'[accord de traitement des données (DPA)](https://tale.dev/fr/legal/data-processing-agreement). Cette page t'aide à trouver le document et la procédure adaptés.
 
-Lis ceci quand tu veux savoir ce que Tale conserve à ton sujet, pourquoi, et comment l'enlever. Reviens-y quand la politique change — les changements substantiels sont annoncés sur la page de statut et envoyés par courriel aux Propriétaires d'org.
+## Trouver les informations applicables
 
-## Ce que nous collectons
+| Ta situation | Par où commencer |
+| --- | --- |
+| Tu as visité le site, demandé une démo ou contacté Tale | La [politique de confidentialité](https://tale.dev/fr/legal/privacy-policy) indique le responsable, les finalités, les catégories de données et le moyen de contact. |
+| Ton organisation utilise Tale Cloud | Ses informations de confidentialité et le DPA expliquent les responsabilités du responsable du traitement et du sous-traitant. |
+| Ton organisation héberge Tale | Demande à l'exploitant les informations de confidentialité, les fournisseurs, les règles de conservation et la procédure de demande. |
+| Tu évalues un prestataire | Consulte le [guide des sous-traitants ultérieurs](/fr/legal/subprocessors) et [Confiance et conformité](/fr/cloud/trust-and-compliance). |
 
-Trois seaux de données existent, chacun avec sa propre règle de conservation :
+## Comprendre les données concernées
 
-- **Données de compte.** Nom, courriel, organisation, rôle et identifiants avec lesquels tu te connectes. Nécessaires pour opérer le service.
-- **Données produit.** Tout ce que tu mets dans le produit — agents, workflows, documents, conversations, entrées de base de connaissances, identifiants de connector. Stockées tant que l'org parente existe ; supprimées à la suppression de l'org ou via le flux de demande de la personne concernée.
-- **Données opérationnelles.** Journaux serveur, pistes d'audit, contenu des tickets de support, métriques de performance. Liées à ton compte ou à ton org tant que la donnée sert à la sécurité, au débogage et à la conformité — typiquement jusqu'à 90 jours pour les journaux et indéfiniment pour les pistes d'audit.
+Tale conserve les informations de compte, l'appartenance à une organisation et les contenus créés ou importés dans la plateforme. Selon les fonctions utilisées, il peut s'agir de chats, documents, tâches, entrées de connaissances, définitions d'automatisations et journaux d'exécution. Les données opérationnelles, comme les événements d'audit, répondent à un autre besoin et peuvent suivre d'autres règles de conservation.
 
-Nous ne vendons pas de données personnelles. Nous n'utilisons pas les données produit pour entraîner des modèles — tes conversations et tes documents ne font partie d'aucun jeu d'entraînement de modèle, ni le nôtre ni celui d'aucun fournisseur, sauf quand tu as explicitement activé une fonctionnalité qui le requiert et confirmé l'invite de consentement.
+Un fournisseur de modèles, un connector ou un autre service externe peut recevoir des données lorsque tu utilises une fonction qui l'appelle. Héberger Tale ne rend pas ces appels locaux. Demande à ton administration quels services sont activés. Le [guide de résidence des données](/fr/cloud/data-residency) distingue l'hébergement des lieux de traitement.
 
-Les statistiques agrégées facultatives utilisent Umami auto-hébergé sur les sites de Tale et sur les déploiements dont l’opérateur active la collecte. Elles enregistrent les chemins publics connus ou les modèles de routes privées, les origines de provenance, la langue du navigateur, la taille de l’écran, les données du navigateur et de l’appareil, ainsi que la localisation approximative. L’adresse IP sert à déduire la localisation et à regrouper brièvement les visites, sans stockage en clair. Aucun cookie, identifiant persistant dans le navigateur, identité entre sites, titre de page, paramètre de recherche, contenu de formulaire, identifiant d’organisation ou de ressource, ni relecture de session n’est collecté. Do Not Track et Global Privacy Control désactivent cette collecte. Le site marketing compte les demandes de contact et de démo abouties sans leur contenu.
+## Demander un accès, une rectification ou un effacement
 
-## Pourquoi nous le collectons
+Adresse-toi d'abord à l'organisation responsable de ton compte et de ton espace de travail. Décris les données et ta demande par le canal sécurisé qu'elle prévoit. Ne joins pas de justificatifs sensibles à une issue publique. Pour les demandes concernant le site de Tale ou tes échanges avec l'entreprise, utilise le contact indiqué dans la politique de confidentialité.
 
-La base légale de chaque seau est l'une de :
+Tu peux modifier les informations de compte et les contenus auxquels tes droits te donnent accès. L'administration peut traiter une demande d'effacement dans [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests), selon les droits applicables et les mesures de conservation légale. Déposer une demande ne t'accorde pas de droits administratifs d'export ou d'effacement.
 
-- **Nécessité contractuelle.** Les données de compte et les données produit que tu crées existent parce que tu nous as demandé de fournir le service. Nous ne pouvons pas opérer la plateforme sans elles.
-- **Intérêt légitime.** Les données opérationnelles sont collectées pour garder la plateforme sûre, déboguer les pannes et respecter les SLA contractuels.
-- **Consentement.** Les communications marketing, toute fonctionnalité qui traite des données au-delà du contrat sont fondées sur le consentement — opt-in, révocable et tracé.
+Supprimer un enregistrement dans l'interface ne prouve pas que toutes ses copies ont disparu des sauvegardes ou des services externes. Le responsable du traitement et l'exploitant doivent suivre le contrat applicable, les obligations de conservation et les procédures des fournisseurs. La [configuration de conservation](/fr/self-hosted/configuration/retention) décrit les réglages d'une instance auto-hébergée, sans fixer les durées contractuelles de Tale Cloud.
 
-La ventilation de la base légale par catégorie de donnée vit dans l'Accord de Traitement de Données disponible aux clients entreprise sur demande.
+## Consulter les engagements contractuels
 
-## Combien de temps nous le gardons
-
-| Donnée                      | Conservation                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| Données de compte           | Vie de l'org plus 30 jours après suppression                                    |
-| Données produit             | Vie de l'org ; effacement immédiat à la suppression de l'org                    |
-| Documents et téléversements | Vie de l'enregistrement parent ; enregistrements soft-deleted purgés à 30 jours |
-| Journaux serveur            | 90 jours                                                                        |
-| Journaux d'audit            | Plancher configurable par l'org ; défaut 365 jours, pas de plafond              |
-| Sauvegardes                 | 30 jours, chiffrées au repos                                                    |
-
-L'effacement suit le flux de demande de la personne concernée documenté dans le produit — voir la page gouvernance dans le produit pour la surface opérateur.
-
-## Sous-traitants ultérieurs
-
-Tale Cloud utilise un petit nombre de tiers pour livrer le service. Chacun est nommé, localisé et périmétré sur la page [Sous-traitants ultérieurs](/fr/legal/subprocessors). Les changements substantiels à la liste des sous-traitants sont annoncés 30 jours avant prise d'effet ; les Propriétaires d'org peuvent s'opposer via le support et faire résilier le contrat si le nouveau sous-traitant n'est pas acceptable.
-
-## Tes droits
-
-Tu as les droits accordés par le RGPD (et les droits FADP équivalents pour les personnes concernées suisses) : accès, rectification, effacement, restriction, portabilité et opposition. La mécanique :
-
-- **Accès et portabilité.** Exporte tes données depuis le produit ou via l'API ; les exports bruts des données au périmètre org sont disponibles sur demande.
-- **Rectification.** Édite les données de compte et les données produit depuis le produit. Pour les données que tu n'atteins pas (journaux serveur, entrées d'audit avec ton ID utilisateur), soumets une demande via le support.
-- **Effacement.** Utilise le flux de demande de la personne concernée sous **Paramètres > Gouvernance > Demandes des personnes concernées**. L'effacement traverse chaque service qui détient la donnée, y compris les sauvegardes via destruction de clé.
-- **Restriction et opposition.** Soumets via le support ; Tale accuse réception sous cinq jours ouvrés.
-
-Contact : `privacy@tale.dev`. Pour les plaintes, l'autorité de contrôle est l'autorité de protection des données du pays où tu résides.
-
-## Où cela s'inscrit
-
-La confidentialité est le contrat de traitement des données ; [Confiance et conformité](/fr/cloud/trust-and-compliance) est la preuve opérationnelle qui en découle. Si tu veux savoir quels tiers touchent tes données, [Sous-traitants ultérieurs](/fr/legal/subprocessors) est la liste ; si tu opères en auto-hébergé, la donnée ne quitte pas ton infrastructure, et cette politique ne s'applique qu'à ton usage des surfaces propres à Tale (les sites de docs et marketing).
+Le DPA couvre les instructions de traitement, les mesures de sécurité, les sous-traitants ultérieurs, les demandes des personnes concernées, les audits et la restitution ou l'effacement des données. Sa section sur l'IA précise l'engagement de ne pas utiliser les données pour entraîner les modèles. Toute dérogation exige un accord écrit distinct ; un réglage du produit ne le remplace pas. Consulte le DPA actuel et ton contrat signé pour le périmètre exact et les délais.

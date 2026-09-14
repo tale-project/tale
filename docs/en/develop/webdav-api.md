@@ -3,9 +3,9 @@ title: WebDAV API
 description: Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits.
 ---
 
-Tale exposes the document store under `/dav/<orgSlug>/` as a read-write WebDAV Class 2 endpoint (RFC 4918). This page is the protocol reference — the wire-level surface a client implementer or a third-party tool needs to integrate. For the end-user setup guide and per-client instructions, see [Platform > Connectors > WebDAV](/platform/connectors/webdav).
+The WebDAV endpoint exposes Tale documents under `/dav/<orgSlug>/` for compatible file clients. This reference covers methods, properties, locks and errors for client implementers. For mounting a folder in an existing application, use the [WebDAV setup guide](/platform/connectors/webdav).
 
-The credential is human-minted: an app-password a person creates under **Settings > WebDAV**. Nothing on the API mints one, and an API key is not accepted on this surface — every method but `OPTIONS` answers `401` to it — so a scripted trial, a CI smoke test or an onboarding runbook needs a person to mint the password first and hand it to the client.
+Authentication uses an app password created in the WebDAV settings. A REST API key is not accepted, and `/api/v1` does not create WebDAV passwords. Provision the correct credential before testing a client.
 
 ## URL scheme
 

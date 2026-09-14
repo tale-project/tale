@@ -1,9 +1,9 @@
 ---
 title: Garde-fous
-description: Les trois couches de filtres — sécurité du contenu, détection PII et un fournisseur de modération — qui filtrent les entrées et sorties de chat avant et après le modèle. Les Administrateurs et Propriétaires lisent ceci quand un régulateur nomme une règle de contenu ou quand une fuite justifie une politique plus stricte.
+description: Configure les filtres de chat, la protection des données personnelles et la modération, puis examine les détections et erreurs.
 ---
 
-Garde-fous est la surface où tu configures les trois couches de filtres que Tale applique à chaque message de chat dans ton organisation. Chaque message traverse la sécurité du contenu (listes de mots et regex administrateur), puis la détection PII (motifs intégrés plus personnalisés), puis un fournisseur de modération externe optionnel — dans cet ordre fixe, à l’entrée et à la sortie. Les Administrateurs et Propriétaires lisent cette page quand un régulateur nomme une règle de contenu, quand une fuite justifie une politique plus stricte, ou quand les réponses d’un agent doivent être assainies avant de quitter le modèle.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Garde-fous** pour contrôler la vérification des textes avant et après un appel au modèle. Les couches actives s’exécutent dans cet ordre : sécurité du contenu, détection des données personnelles, puis modération externe. Commence par une règle claire et vérifie son effet avant de l’élargir.
 
 <Frame caption="Gouvernance > Garde-fous — les trois cartes de statut des couches de filtres (sécurité du contenu, détection PII, fournisseur de modération), au-dessus du journal des événements récents.">
 
@@ -11,30 +11,42 @@ Garde-fous est la surface où tu configures les trois couches de filtres que Tal
 
 </Frame>
 
-## Un layering mis en pratique
+## Ajouter une règle de contenu
 
-Pour configurer les couches, ouvre **Paramètres > Gouvernance > Garde-fous**. L’aperçu affiche trois cartes de statut, une par couche — sécurité du contenu, détection PII, modération — et l’éditeur de chaque couche se trouve plus bas sur la même page ; tu y choisis si la couche tourne sur l’entrée, sur la sortie ou les deux, et ce qu’elle fait à un match. Les instructions personnalisées obligatoires de l’organisation vivent ici aussi — elles contraignent chaque agent, donc elles siègent avec les autres contrôles de contenu. Le tableau des événements récents sous l’aperçu affiche les 50 dernières détections, blocages et erreurs fournisseur avec leur couche, leur direction et leur catégorie de match.
+1. Dans la sécurité du contenu, choisis de vérifier les saisies des utilisateurs, les réponses du modèle ou les deux.
+2. Ajoute une catégorie, donne-lui un libellé reconnaissable et choisis son mode.
+3. Ajoute les mots ou expressions à détecter, une entrée par ligne. Tu peux importer une liste texte ; relis-la avant de l’appliquer.
+4. Enregistre la catégorie, active la catégorie et la couche voulues, puis enregistre les changements de la page.
+5. Teste avec un texte fictif contenant une correspondance, puis un texte normal qui doit passer. Vérifie les événements récents et le résultat visible dans le chat.
 
-## Sécurité du contenu
+| Mode | Effet d’une correspondance |
+| --- | --- |
+| Signaler | Enregistre la détection et laisse passer le message. Utile pour affiner une règle. |
+| Masquer | Remplace le texte détecté par le substitut configuré. |
+| Bloquer | Refuse le message. |
 
-La sécurité du contenu est la couche que tu possèdes toi-même. Définis une ou plusieurs catégories — discours haineux, profanité, une regex personnalisée pour un nom de code interne — et choisis un mode par catégorie : **Bloquer** refuse le message, **Masquer** remplace les matches par un placeholder, **Marquer** consigne la détection sans changer le message. Bloquer l’emporte sur Masquer l’emporte sur Marquer quand plusieurs catégories matchent.
+Si plusieurs catégories correspondent, bloquer passe avant masquer, puis signaler. La recherche de mots ignore la casse. Vérifie les variantes et faux positifs importants dans tes langues. Un test réussi ne démontre pas une couverture complète.
 
-Les listes de mots et motifs de cette couche ne quittent jamais le déploiement. Le texte trouvé n’est pas stocké — seule la catégorie, la direction (entrée ou sortie) et le nombre de matches finissent dans l’événement d’audit.
+## Protéger les données personnelles
 
-## Détection PII
+La protection PII détecte des formats configurés, comme les adresses e-mail, numéros de téléphone et identifiants. Sélectionne les types intégrés utiles et les motifs personnalisés, puis le comportement souhaité.
 
-La détection PII embarque des motifs pour les e-mails, téléphones, IDs gouvernementaux, numéros de paiement et une longue traîne de formats régionaux. Ajoute des motifs personnalisés si ton régulateur nomme un format que les motifs intégrés ratent. Choisis un mode — Bloquer, Masquer avec un placeholder, ou Tokeniser, qui échange les PII contre des jetons indexés à l’aller et les restaure dans la réponse du modèle. Masquer est le choix typique quand le modèle a eu accès à des enregistrements contenant des PII qu’il ne doit pas répéter.
+Le masquage retire les valeurs détectées du texte transmis. Le blocage refuse une correspondance. La tokenisation remplace les valeurs par des tokens numérotés pour le modèle, puis les restaure dans sa réponse. Elle réduit l’exposition pendant le traitement, sans garantir une réponse finale dépourvue de données personnelles.
 
-## Fournisseur de modération
+Teste tes formats réels avec des valeurs fictives. La détection peut manquer des formats inhabituels et signaler à tort du texte ordinaire. Vérifie séparément l’entrée et la sortie.
 
-La couche modération est un classifieur externe — OpenAI Moderation, Azure Content Safety, Perspective API, ou un endpoint HTTP personnalisé. Configure l’endpoint du fournisseur, une clé API et le mapping catégorie-vers-action (chaque fournisseur renvoie sa propre taxonomie ; le mapping décide quelles catégories bloquent, masquent ou marquent). La couche est optionnelle — laisse-la désactivée et seules les deux premières couches tournent.
+## Ajouter une modération externe
 
-Le fournisseur se trouve sur le chemin d’egress réseau. Les pannes sont configurables par direction : fail-open laisse passer le message, fail-closed le refuse. La vue des événements récents affiche les erreurs fournisseur, les statuts HTTP et les événements circuit-open quand la couche est rate-limited.
+La couche de modération envoie du texte à un classificateur configuré, comme OpenAI, Azure, Perspective ou un point de terminaison personnalisé. Configure ses identifiants, catégories et actions, puis les directions à inspecter.
 
-## Événements récents
+Décide du comportement si le fournisseur est indisponible : fail-open laisse passer le message, fail-closed le refuse. Examine les erreurs fournisseur et les événements de circuit ouvert en cas de refus inattendus ou de messages non filtrés. Cette couche ajoute un service qui traite le texte. Utilise le fournisseur et l’adresse approuvés pour ton organisation.
 
-Chaque détection, blocage et erreur fournisseur atterrit dans le tableau des événements récents — gardé 90 jours par défaut, ajustable sur la page de politique de rétention. Filtre par couche ou par type ; chaque ligne porte les catégories trouvées, l’acteur et l’horodatage. Le texte brut trouvé n’est jamais stocké — les événements sont une surface de réglage, pas une archive de contenu.
+## Définir les instructions de l’organisation
 
-## Où cela s’inscrit
+Les instructions personnalisées de l’organisation sont ajoutées avant celles des agents. Les membres ne peuvent pas modifier cette règle d’organisation. Utilise-les pour le comportement et le vocabulaire communs. Pour les restrictions à imposer indépendamment du respect d’un texte par le modèle, utilise les règles d’accès et les filtres.
 
-Garde-fous est le filtre runtime entre l’utilisateur et le modèle dans les deux sens. Associe-le à [contenu et modèles](/fr/platform/admin/governance/content-models), pour qu’un modèle approuvé soit aussi soumis aux règles de contenu approuvées. La page compagnon est le [journal d’audit](/fr/platform/admin/governance/audit-logs) — chaque blocage et chaque masquage que les couches garde-fous appliquent y atterrit comme enregistrement permanent.
+## Examiner et ajuster
+
+Les événements récents affichent les 50 dernières détections, blocages et erreurs fournisseur. Filtre par couche ou résultat et examine la catégorie, la direction et la date. Le texte brut détecté n’est pas conservé dans ces événements : la ligne explique la détection sans reproduire la valeur sensible.
+
+Si une règle est trop large, ajuste sa catégorie ou ses motifs et répète les tests fictifs. Si une détection manque, vérifie l’activation de la couche, de la catégorie et de la direction voulue. L’historique dépend de la [règle de rétention](/platform/admin/governance/policies-and-limits) des événements de filtre de chat ; ne suppose pas une durée d’archivage fixe.

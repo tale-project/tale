@@ -1,32 +1,39 @@
 ---
-title: Concepts d’approbation
-description: Une approbation est une étape en pause dans une exécution d’automatisation en cours — une écriture de connector qui attend sur la page de détail de l’exécution qu’une personne l’approuve ou la rejette. Cette page nomme ce qui en déclenche une, la décision qu’elle offre et ce qu’elle laisse derrière elle.
+title: Comprendre les approbations d’actions
+description: Comprends pourquoi une écriture via un Connector attend, ce qu’autorise une approbation et où vérifier le résultat.
 ---
 
-Une approbation est la couture entre l’initiative d’une automatisation et ton jugement. Quand une exécution réelle atteint une écriture de connector que la politique de ton organisation retient — envoyer un courrier, poster un message, ouvrir un ticket —, l’étape ne s’exécute pas : l’exécution se met en pause, et sa page de détail montre une carte avec l’opération et l’entrée exacte avec laquelle l’étape appellerait, jusqu’à ce qu’une personne décide. Rien ne part tant que la carte est en attente, et une étape rejetée fait échouer l’exécution au lieu d’être retentée dans ton dos.
+Une approbation te permet de vérifier une écriture prévue via un Connector avant son exécution. Une automatisation peut, par exemple, préparer un e-mail puis attendre que tu vérifies le destinataire et le contenu avant l’envoi.
 
-Cette page est le modèle mental — ce qui déclenche une approbation, où elle apparaît et ce qu’une décision laisse derrière elle. L’endroit où l’exigence est déclarée vit sur [Configurer les approbations](/fr/platform/approvals/configure) ; l’autre endroit où une exécution attend une personne — la question qu’un nœud agent pose en cours de route — vit sur [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
+## Quand une écriture attend
 
-## Ce qui déclenche une approbation
+Une exécution réelle se met en pause lorsqu’elle atteint une écriture via un Connector que la politique de l’organisation soumet à approbation. Par défaut, les écritures vers des systèmes externes demandent une approbation ; celles qui passent par des Connectors internes authentifiés par la plateforme n’en demandent pas. L’organisation peut modifier cette règle pour un Connector ou une action précise. Consulte [Configurer les approbations](/fr/platform/approvals/configure).
 
-Une seule chose : une **écriture de connector dans une exécution réelle** pour laquelle la politique d’approbation exige une décision. La ligne par défaut est de savoir si l’écriture quitte ton locataire — le courrier, Slack, GitHub et WebDAV demandent ; une tâche déplacée ou un document déposé sur la surface de Tale ne demande pas — et `governance/approval-policy.yml` déplace cette ligne par connecteur ou par action. Les lectures ne demandent jamais. Les essais ne demandent jamais non plus : en mode simulation, les connectors renvoient des doublures et rien hors de la plateforme n’est touché.
+Les lectures ne demandent pas d’approbation. **Essai** utilise des Connectors simulés : il n’effectue pas l’écriture externe et n’affiche pas sa carte d’approbation réelle. Un test réussi ne prouve pas que l’action prévue convient à la situation.
 
-Rien d’autre ne produit une carte d’approbation dans cette version. L’assistant de chat ne peut écrire nulle part — ses trois outils récupèrent et chargent —, il n’y a donc aucune carte dans un chat ; les appels de connector d’un agent de projet passent en lecture seule par son broker, une exécution de tâche n’atteint donc jamais la porte ; et il n’existe aucun drapeau d’approbation par outil sur un serveur MCP, puisque les serveurs MCP sortants ne font pas partie de cette version.
+## Vérifier l’action prévue
 
-## La décision sur la carte
+Ouvre la [liste des exécutions](/fr/platform/automations/execution-logs) de l’automatisation, puis celle au statut **En attente**. La carte d’approbation nomme l’action, par exemple `imap-smtp.send`, et le nœud qui la demande. **L'étape appellerait avec** montre les entrées exactes.
 
-Ouvre l’exécution — depuis la liste des exécutions de l’automatisation, où elle apparaît **En attente** — et la carte affiche **En attente de ton approbation**, nomme l’opération sous la forme `<connecteur>.<action>` et le nœud qui l’a demandée, et montre l’entrée exacte avec laquelle l’étape appellerait. Deux décisions : **Approuver** laisse l’étape en pause agir au prochain poll et l’exécution repart ; **Rejeter** fait échouer l’étape et arrête l’exécution. Il n’y a pas de troisième voie — tu ne peux ni modifier les paramètres ni demander à l’automatisation de revoir l’appel ; un appel erroné est rejeté et la définition se corrige sur le canvas.
+Compare la destination, les destinataires, le contenu et les identifiants à la tâche prévue. Vérifie aussi les informations sensibles dans les entrées avant de choisir :
+
+- **Approuver** autorise cette action lorsque l’exécution reprend.
+- **Rejeter** empêche l’action et fait échouer l’étape ainsi que l’exécution.
+
+La carte ne permet pas de modifier l’action. Si une entrée est incorrecte, rejette la demande, corrige le workflow ou ses entrées, puis lance une nouvelle exécution.
 
 <Note>
 
-Les approbations n’ont pas de boîte de réception dans cette version. La carte vit sur la page de détail de l’exécution, et quiconque peut ouvrir cette page décide — il n’y a ni routage vers un groupe d’approbateurs ni file personnelle. La seule décision qui exige un Admin est la seconde signature d’une demande d’effacement, couverte dans [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests).
+Les membres de l’organisation peuvent décider des approbations d’actions de Connector. Ces cartes ne sont pas attribuées à une personne ou à un groupe de validation précis : la décision se prend dans le détail de l’exécution. D’autres types de validation peuvent exiger des droits plus stricts.
 
 </Note>
 
-## Les états et la trace
+## Vérifier le résultat
 
-Une carte passe d’en attente à en exécution quand elle est approuvée — l’étape agit au prochain poll et l’enregistrement se fixe sur terminé — ou à rejeté. La décision appartient à l’opération pour laquelle elle a été demandée : assouplir la politique ensuite ne libère pas une carte déjà en attente, et une exécution qui repasse par la même opération lit la même réponse au lieu de demander deux fois. Chaque décision atterrit dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) avec l’acteur et l’horodatage, et l’exécution garde l’issue dans son propre détail. Une carte décidée ne se rouvre pas — une exécution rejetée est terminée, et la nouvelle tentative est une exécution neuve.
+L’approbation autorise l’exécution ; elle ne garantit pas que le Connector réussira. Vérifie ensuite le statut, le résultat du nœud et les effets produits. Une exécution rejetée indique le refus comme cause de l’échec. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) conserve la décision et son auteur.
 
-## Où cela s’inscrit
+Une approbation en attente reste ouverte si la politique est assouplie. La même action dans la même exécution conserve sa décision ; une nouvelle exécution est évaluée à nouveau. Une exécution terminée ou annulée ne peut plus utiliser une approbation encore ouverte pour effectuer son écriture.
 
-Les approbations sont la façon dont une automatisation atteint des systèmes extérieurs sans agir seule : l’écriture attend, une personne lit l’appel exact, et le registre dit qui a autorisé quoi. Lis [Configurer les approbations](/fr/platform/approvals/configure) pour voir où passe la ligne entre demander et ne pas demander, et [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) pour l’autre endroit où une exécution attend une personne.
+## Distinguer une approbation d’une question
+
+Un nœud agent peut aussi se mettre en pause parce qu’il lui manque une information. Ta réponse fournit une entrée ; elle n’approuve pas une écriture via un Connector. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique les deux interactions. Les validations de tâches, de documents contrôlés et de demandes d’effacement ont leurs propres [règles de validation](/fr/platform/approvals/configure).

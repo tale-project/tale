@@ -3,7 +3,7 @@ title: Execution logs
 description: How to read an automation's runs — the statuses, the mode, what started each one, the per-node results and effects, and a worked session that finds a failure.
 ---
 
-Every start of an automation opens a run, and the run keeps writing to itself until it finishes. It records what started it, which version it used, what it received, what each node produced, and everything it changed outside the platform. This is the surface every other automations page points at when something did not happen the way you expected, so it is worth knowing how to read one before you need to.
+Every start of an automation opens a run, and the run keeps writing to itself until it finishes. It records what started it, which version it used, what it received, what each node produced, and recorded connector writes. This is the surface every other automations page points at when something did not happen the way you expected, so it is worth knowing how to read one before you need to.
 
 ## The run list
 
@@ -44,13 +44,13 @@ Skipped nodes are worth reading rather than glossing over, because the reason di
 
 ### Effects
 
-A run also keeps the ordered list of everything it changed outside the platform — each entry naming which node caused it, which connector was called, and the input it was called with. A run that changed nothing outside the platform says so explicitly, which is a real answer rather than an empty section.
+A run also keeps an ordered list of recorded connector writes — each entry naming which node caused it, which connector was called, and the input it was called with. A run that changed nothing outside the platform says so explicitly, which is a real answer rather than an empty section.
 
-The effects list is what makes a run auditable after the fact. When someone asks whether a message actually went out, this is the list that answers, and it stays with the run permanently.
+The effects list is what makes a run auditable after the fact. Use it to inspect recorded connector writes and their inputs. The records remain with the run until retention or deletion removes it; confirm final delivery with the receiving service when that matters.
 
-## Why a long run does not repeat itself
+## How a long run resumes
 
-A live run does not execute in one go. It steps node by node, and every completed node is checkpointed before the next one starts, so when a run reaches the platform's time window it hands itself back and resumes from the last completed node. A node that already ran is never reached a second time, which is what stops an interrupted run from sending the same message twice.
+A live run does not execute in one go. It steps node by node, and every completed node is checkpointed before the next one starts, so when a run reaches the platform's time window it hands itself back and resumes from the last completed node. The engine resumes after completed checkpoints. Before starting a separate run, inspect the recorded effects: a new run has its own checkpoints and may repeat a write.
 
 The same checkpoints cover a run whose continuation was lost. A run left in a non-terminal state past a grace period is picked back up automatically and continues from where its checkpoints say it got to, rather than restarting or sitting unfinished forever.
 

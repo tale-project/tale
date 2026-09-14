@@ -3,9 +3,9 @@ title: Troubleshooting
 description: Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben.
 ---
 
-Diese Seite ist das symptomorientierte Nachschlagen, wenn jetzt gerade etwas falsch ist. Jeder Abschnitt fängt mit dem an, was der Benutzer tatsächlich meldet — was der Browser zeigt, woran der Agent scheitert, was der Upload-Bildschirm sagt — und geht zurück zur Ursache und zum Fix. Alles, was hier nicht gelistet ist, ist ein Kandidat für einen neuen Abschnitt, sobald es zweimal aufgetaucht ist.
+Beginne mit dem sichtbaren Symptom und prüfe dann den zuständigen Dienst. Halte Zeitpunkt, URL oder Aktion und Fehlercode fest, bevor du Dienste neu startest. Diese Angaben verbinden Browser-Verhalten mit Backend-Protokollen.
 
-Die proaktive Seite — Signale, auf die zu alarmieren sich lohnt, was in Prometheus zu verdrahten ist — lebt in [Operations](/de/self-hosted/operate/observability/operations). Diese Seite ist für den Moment, nachdem die Page gefeuert hat.
+Nutze `tale status` für den Bereitstellungszustand und `tale logs <service>` für die betroffene Komponente. Setze keine Daten zurück und ersetze keine Geheimnisse, um einen ungeklärten Fehler zu untersuchen.
 
 ## Browser sieht 502 oder „Bad Gateway"
 

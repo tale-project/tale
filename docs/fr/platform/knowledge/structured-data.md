@@ -1,53 +1,45 @@
 ---
-title: Données structurées
-description: La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents.
+title: Choisir entre documents et fiches structurées
+description: Choisis où conserver les politiques, coordonnées, données produit et pages web pour que Tale retrouve les bonnes informations.
 ---
 
-La base de connaissances de Tale embarque deux formes côte à côte. Les documents sont du texte dont l’agent récupère des fragments ; les fiches structurées sont des lignes typées dont l’agent lit les champs. La forme que tu choisis est la décision la plus lourde dans la façon dont un agent exploitera tes connaissances — trompe-toi et l’agent dilue une réponse claire, ou devine une valeur que tu as pourtant en stock.
+Utilise des documents quand l’information demande une explication en plusieurs paragraphes, comme un contrat ou un compte rendu. Choisis une fiche structurée quand elle tient dans des champs nommés, comme l’adresse e-mail d’un contact ou la référence d’un produit. Les deux se complètent : la fiche identifie le sujet, les documents apportent son contexte.
 
-Cette page te donne le modèle mental pour savoir quand chaque forme est la bonne. Lis-la avant de charger un dossier de fichiers ; reviens-y quand tu es tenté de téléverser un tableur en PDF.
+## Choisir où ranger l’information
 
-## Documents ou fiches structurées
+| Information | Emplacement | Intérêt |
+| --- | --- | --- |
+| Politique, contrat, manuel ou compte rendu | **Documents** | Tale recherche dans le texte et en extrait les passages pertinents. |
+| Information courte avec son propre historique | **Entrées de connaissances** | Un sujet possède une version courante, et les versions précédentes sont conservées. |
+| Personne ou organisation avec laquelle tu travailles | **Contacts** | Les champs regroupent les coordonnées dans une fiche modifiable. |
+| Produit et ses caractéristiques | **Produits** | Les données restent dans des champs au lieu d’être enfouies dans un fichier. |
+| Pages d’un site public | **Sites web** | Tale les explore et actualise leur contenu consultable à intervalle régulier. |
+| Fichiers de référence pour un projet | Onglet **Connaissances** du projet | L’accès dépend du projet, et ses chats peuvent retrouver les fichiers. |
 
-Un document est libre : le pipeline d’indexation extrait le texte, le découpe, calcule les embeddings et sert des passages par récupération au moment de répondre. L’agent voit des passages et les cite par source. C’est la bonne forme quand le contenu est de la prose — contrats, manuels, articles de base de connaissances, comptes rendus de réunion.
+Le mode de stockage détermine la façon dont Tale retrouve l’information. Trouver un passage ne signifie pas que tout le document a été examiné. Lire les champs d’une fiche fournit leurs valeurs à Tale, sans garantir qu’elles sont à jour ni que la réponse qui en découle est correcte.
 
-Une fiche structurée est typée : l’entité a des champs connus (un contact a un nom, un e-mail, un secteur ; un produit a un SKU, un prix, un stock). L’agent lit les champs directement, croise les entités entre elles et répond avec la valeur. C’est la bonne forme quand la source est une ligne de base de données — comptes, commandes, pièces, fiches fournisseurs.
+## Associer les fiches aux documents utiles
 
-## Les trois entités intégrées
+Pour préparer un appel avec Acme, conserve ses coordonnées dans **Contacts** et son contrat ainsi que les comptes rendus dans **Documents**, ou dans l’onglet **Connaissances** du projet concerné.
 
-Trois onglets structurés côtoient **Documents** et **Entrées de connaissances** dans la base de connaissances :
+Demande à l’assistant de retrouver la fiche d’Acme et de résumer les questions ouvertes dans les dernières notes. Vérifie l’adresse e-mail dans la fiche et les décisions dans les notes citées. Si les fichiers appartiennent à un projet, démarre le chat dans ce projet.
 
-- **Contacts** — les personnes et organisations avec qui tu fais affaire, clients comme fournisseurs. L’annuaire réunit les deux, si bien qu’un fournisseur est un contact chez qui tu achètes.
-- **Produits** — ce que tu vends.
-- **Sites web** — des sites publics qu’un crawler va chercher selon un planning ; la fiche porte le domaine et les réglages d’analyse, les pages indexées portent le contenu ([Exploration de sites web](/fr/platform/knowledge/crawling)).
+<Tip>
 
-Les fiches structurées partagent les leviers de portée par équipe de la base de connaissances : une fiche limitée à une équipe est invisible hors de l’équipe, exactement comme un document limité à une équipe.
+Garde le même nom de société ou de produit dans les fiches et les fichiers associés. Ajoute une date aux comptes rendus et un numéro de révision aux politiques pour distinguer les sources actuelles des anciennes.
 
-## Des modèles de contenu pour les formes sur mesure
+</Tip>
 
-Quand les trois entités intégrées ne conviennent pas, les modèles de contenu te laissent définir un type de fiche structurée sur mesure : nomme l’entité, déclare ses champs, règle l’accès champ par champ, et le nouveau type apparaît à côté des types intégrés. Les définitions vivent dans les [modèles de contenu de la gouvernance](/fr/platform/admin/governance/content-models).
+## Vérifier l’accès et l’actualité
 
-<Note>
+Une fiche ou un document n’est utile qu’aux personnes qui y ont accès. Vérifie les équipes associées lorsqu’un collègue ne trouve pas une information. Les fichiers d’un projet suivent les droits du projet, et non les équipes de la bibliothèque documentaire ; consulte [Fichiers du projet](/fr/platform/projects/manage-files).
 
-Les modèles de contenu coûtent de l’attention de gouvernance — l’accès et la politique de conservation de chaque champ sont à ta charge. Choisis-les quand la donnée est réellement une forme nouvelle, pas une variation légère d’une des trois entités intégrées.
+Mets à jour la fiche de référence lorsqu’une donnée change. Après la révision d’un document, attends la fin de l’indexation avant de tester une question sur le nouveau texte. Le contenu d’un site suit son intervalle d’exploration et peut donc différer de la page en ligne.
 
-</Note>
+## Utiliser les types de fiches disponibles
 
-## En pratique — un agent CRM
+L’espace de connaissances propose Contacts, Produits et Sites web. **Paramètres > Gouvernance > Modèles** règle l’accès aux modèles d’AI et les choix par défaut. Cette page ne crée ni types de fiches personnalisés ni champs de base de données.
 
-Un agent CRM qui répond à « où en est-on avec Acme ? » utilise les deux formes. L’entité Contacts tient la fiche canonique — nom, contact principal, secteur, statut. Les documents tiennent les notes d’appel et les contrats. L’agent lit directement les champs du contact, récupère des passages dans les documents et répond avec les deux : le statut structuré depuis Contacts, le contexte le plus frais depuis la dernière note d’appel.
+Si les champs disponibles ne conviennent pas, conserve les détails dans un document et rattache ton processus à la fiche appropriée. Pour importer des données par programme et connaître les champs acceptés, consulte la [référence API](/fr/develop/api-reference).
 
-Sans fiches structurées, l’agent doit retrouver Acme par son nom à travers des PDF et risque de confondre deux contacts aux noms proches. Sans documents, l’agent connaît le statut d’Acme mais ne peut pas te dire ce qui s’est passé pendant l’appel de mardi.
-
-## Quand y recourir
-
-| Choisis … quand                                             | Documents | Fiche structurée |
-| ----------------------------------------------------------- | --------- | ---------------- |
-| La source est de la prose libre                             | ✓         |                  |
-| La source a des champs typés et tu veux des valeurs exactes |           | ✓                |
-| Tu dois croiser de nombreuses fiches                        |           | ✓                |
-| L’agent doit citer des passages par leur emplacement        | ✓         |                  |
-
-## Où cela s’inscrit
-
-Les données structurées sont la couture entre tes données opérationnelles et la surface agent. Utilise les trois entités intégrées pour ce qu’elles couvrent ; passe aux [modèles de contenu](/fr/platform/admin/governance/content-models) quand une quatrième forme apparaît. La lecture suivante à mettre en file est [Documents](/fr/platform/knowledge/documents) — le pipeline d’indexation qui sert la moitié non structurée.
+La page [Documents](/fr/platform/knowledge/documents) explique comment importer et vérifier un fichier. [Entrées de connaissances](/fr/platform/knowledge/knowledge-entries) couvre la mise à jour d’une information, et [Exploration de sites](/fr/platform/knowledge/crawling) le suivi des pages publiques.

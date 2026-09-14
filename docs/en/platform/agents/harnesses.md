@@ -5,7 +5,7 @@ description: Coding CLIs that run a model in an isolated sandbox — which harne
 
 A **Harness** is a shipped coding CLI — Claude Code, Codex, Cursor, and peers — that runs your chosen model inside an isolated container instead of the ordinary chat loop. The harness plans, writes files, runs commands, installs packages, and reports back. You never pick a harness from the chat composer: chat selects a **model** only. The harness is chosen when you create a **project agent** — its dialog calls the field **Agent type** — or an automation **agent** node, where it is labeled **Harness**.
 
-This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > AI providers** also has a **Harnesses** section that shows how each harness would resolve for the organization.
+This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > AI providers** also has a **Agent runtimes** section that shows how each harness would resolve for the organization.
 
 ## Where you pick a harness
 
@@ -27,7 +27,7 @@ Nine harnesses ship with the platform. They differ in how they take a prompt, wh
 
 | Harness     | Credentials it accepts | Worth knowing                                                                                                  |
 | ----------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Claude Code | Managed or your own    | The most capable: steerable mid-turn — a task comment reaches it while the work is still going. Takes the MCP channel. |
+| Claude Code | Managed or your own    | Steerable mid-turn — a task comment reaches it while the work is still going. Takes the MCP channel. |
 | Codex       | Managed or your own    | One-shot turns. Takes the MCP channel.                                                                                 |
 | Cursor      | Your own only          | One-shot turns. Its CLI cannot route through the platform gateway, so a managed credential is refused.         |
 | Gemini CLI  | Managed or your own    | One-shot turns. Takes the MCP channel.                                                                                 |
@@ -57,9 +57,9 @@ A harness turn always names a concrete harness. Nothing guesses one for you: the
 
 A project agent works in a standing workspace that persists across its tasks; it starts empty. The task's attachments are mirrored read-only under `/agent/inputs/<task>/attachments/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes into its delivery box under `/agent/output/<task>/` is collected when the turn ends and attached to the task as **Deliverables**; an automation agent node collects `/agent/output/` as the step's output. Outbound network is open by default with the dangerous targets always blocked — the cloud metadata endpoint and private address ranges — so the agent can install packages and clone repositories while never reaching the host network; a self-hosted operator can tighten egress to a hostname allowlist at the deployment level.
 
-Connected connectors reach the agent through a broker rather than through the box. When the agent calls one, the request goes back to Tale, which runs it with the stored credential and hands back only the result, so a compromised container cannot read your keys. The broker carries read actions only: a write — posting a message, sending mail, opening an issue — is refused with a readable reason, so an agent cannot change an outside system from its sandbox; that step belongs to an automation's connector node. GitHub is the deliberate exception: `git` and the `gh` CLI need a token locally, so while the agent has the GitHub connector equipped each run receives a scoped token — injected per run, gone when it ends.
+Connected connectors reach the agent through a broker rather than through the box. When the agent calls one, the request goes back to Tale, which runs it with the stored credential and hands back only the result, so a compromised container cannot read your keys. The broker carries read actions only: a write — posting a message, sending mail, opening an issue — is refused with a readable reason, so an agent cannot make those writes through the broker. Use an automation's connector node for that operation. GitHub is the deliberate exception: `git` and the `gh` CLI need a token locally, so while the agent has the GitHub connector equipped each run receives a scoped token — injected per run, gone when it ends.
 
-Skills bound to the agent are staged into the session as files rather than fetched through a tool, and a skill the checked-out repository ships wins over the copy Tale would stage — [Agent skills](/platform/agents/skills) covers that precedence rule. The other values a run receives are the organization's **Secrets** the agent is equipped with — an API key as an environment variable, injected per run and gone when it ends — which is how a token for a service with no connector reaches the work; [Project agents](/platform/projects/project-agents) covers them.
+Equipped skill bundles are staged as files in the sandbox and named in the turn’s instructions. Review their instructions and supporting scripts; they can guide the agent’s use of its available tools. [Skills on agents](/platform/agents/skills) explains scope and staging. Granted organization **Secrets** arrive as environment variables for the run; see [Project agents](/platform/projects/project-agents).
 
 ## Cost and metering
 

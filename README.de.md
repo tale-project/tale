@@ -5,135 +5,92 @@
   <img alt="Tale" src=".github/assets/logo-light.svg" width="150">
 </picture>
 
-### Der Orchestrator für KI-Agents
-
-Verbinde **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, **Gemini CLI**, **OpenCode** und **Pi**.<br/>
-Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreibst.
-
 [![Build](https://github.com/tale-project/tale/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/build.yml)
-[![Test](https://github.com/tale-project/tale/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/checks.yml)
-[![Release](https://img.shields.io/github/v/release/tale-project/tale)](https://github.com/tale-project/tale/releases)
-[![Lizenz: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-tale.dev-0a0a0a.svg)](https://tale.dev/docs/de)
-[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](https://tale.dev/docs/de/self-hosted/install/quickstart)
+[![Tests](https://github.com/tale-project/tale/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/checks.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[Loslegen](#loslegen) · [Tale in Aktion](#tale-in-aktion) · [Was steckt drin](#was-steckt-drin) · [Docs](https://tale.dev/docs/de) · [Mitwirken](#mitwirken)
-
-**Lies das auf:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+[English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
 
 </div>
 
----
+# Tale
 
-<table>
-  <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Der Arena-Modus lässt zwei Modelle denselben Prompt nebeneinander beantworten" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Aufgaben-Board eines Projekts mit Karten in allen sechs Spalten, von Backlog bis Cancelled" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/project-agents"><img src=".github/assets/readme-gallery-project-agents.webp" alt="Der Tab Agenten eines Projekts mit zwei benannten Agenten, jeder mit Harness, Provider und Modell" width="100%"></a></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><b>Chat & Arena</b> — ein Prompt, zwei Modelle nebeneinander</sub></td>
-    <td align="center"><sub><b>Aufgaben</b> — eine Karte läuft los, sobald du sie einem Agent zuweist</sub></td>
-    <td align="center"><sub><b>Agents</b> — Anweisungen, Wissen, Tools und Modell als eine Einheit</sub></td>
-  </tr>
-  <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Die Automatisierungs-Werkbank mit den typisierten Schritten eines Workflows auf dem Canvas und dem Node-Inspektor daneben" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Der Dialog Zugangsdaten hinzufügen mit dem Connector-Katalog — Tavily, Confluence, Discord, GitHub, Gmail, Google Drive und mehr" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Status-Karten für Inhaltssicherheit, PII-Erkennung und Moderations-Anbieter über dem Feed der letzten Ereignisse" width="100%"></a></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><b>Workflow-Editor</b> — typisierte Schritte, Zeitpläne und Genehmigungstore</sub></td>
-    <td align="center"><sub><b>Connectors</b> — Slack, Gmail, GitHub, MCP-Server und mehr</sub></td>
-    <td align="center"><sub><b>Governance</b> — Guardrails, PII-Filter, Audit-Trail, Ausgabenlimits</sub></td>
-  </tr>
-</table>
+Tale verbindet KI-Chat, Projektarbeit, Wissen und Automatisierungen in einem Arbeitsbereich. Stelle Fragen zu deinen Dokumenten, gib einem Agenten eine konkrete Aufgabe und prüfe das Ergebnis mit deinem Team. Du wählst die Modellanbieter und betreibst Tale auf eigener Infrastruktur oder nutzt den verwalteten Cloud-Dienst.
 
-<p align="center"><a href="SCREENSHOTS.md"><b>Die ganze Screenshot-Galerie ansehen →</b></a></p>
+Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
 
-Tale ist eine selbstgehostete Open-Source-Plattform, die KI-Agents orchestriert. Sie verbindet die Agents und CLIs, die dein Team bereits nutzt, bündelt ihr Wissen in einer gemeinsamen, kontrollierten Wissensdatenbank und lässt Automatisierungen mit menschlicher Genehmigung laufen — auf deiner eigenen Infrastruktur oder in einer verwalteten Cloud. Tale ist kein weiteres Chat-UI, sondern die Orchestrierungs-, Wissens- und Governance-Schicht über den Agents, die du schon einsetzt. Alles steht unter MIT-Lizenz, und die kostenlose Community-Edition bringt denselben Funktionsumfang mit.
+![Ein Tale-Projektboard mit Aufgaben nach Status, vom Backlog bis zum Abschluss.](.github/assets/readme-gallery-tasks.webp)
 
-- **Selbst gehostet als Standard** — läuft in deiner VPC, on-premises oder komplett air-gapped; mit lokalen Modellen verlassen keine Daten dein Netzwerk.
-- **Vollständig Open Source** — der gesamte Code ist öffentlich unter MIT-Lizenz. Lies ihn, auditier ihn, ändere, was du brauchst.
-- **Security eingebaut** — Human-in-the-Loop-Genehmigungen, Audit-Logs, Guardrails, PII-Filter und Budget-Kontrollen; zertifiziert nach ISO 27001 und SOC 2 Type II, DSGVO-konform.
-- **Anbieterneutral** — OpenRouter out of the box, jeder OpenAI-kompatible Anbieter, eigene Modelle, wenn du willst.
+## Finde deinen Einstieg
 
-## Loslegen
+| Dein Ziel | Passende Anleitung |
+| --- | --- |
+| Einen vorhandenen Arbeitsbereich nutzen | [Deine erste Nachricht senden](https://tale.dev/docs/de/get-started/quickstart) |
+| Tale installieren | [Schnellstart für den Eigenbetrieb](https://tale.dev/docs/de/self-hosted/install/quickstart) |
+| Eine verwaltete Instanz erhalten | [Demo anfragen](https://tale.dev/request-demo) |
+| Einen Agenten für ein Projekt erstellen | [Projektagent erstellen und testen](https://tale.dev/docs/de/get-started/editors) |
+| Eine andere Anwendung anbinden | [Einstieg in die API](https://tale.dev/docs/de/get-started/developers) |
+| Den Quellcode ändern | [Entwicklungsumgebung einrichten](docs/de/develop/contributor-setup.md) |
 
-### Selbst hosten mit drei Befehlen
+### Eine lokale Instanz starten
 
-Keine Voraussetzungen: Die CLI installiert Docker, falls es fehlt, und generiert jedes Secret. Ein [OpenRouter](https://openrouter.ai)-Key (oder ein beliebiger OpenAI-kompatibler Anbieter) ist optional — du fügst ihn später in der App hinzu.
+Installiere die Tale-CLI, lege ein Projekt an und starte die Entwicklungsumgebung:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-tale init my-project && cd my-project
+tale init my-project
+cd my-project
 tale dev
 ```
 
-Unter Windows installierst du die CLI mit `irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex` (PowerShell).
+Die Umgebung benötigt Docker. Folge den Einrichtungshinweisen der CLI und warte, bis Docker läuft, bevor du Tale startest. Beim ersten Start lädt die CLI Container-Images herunter und zeigt anschließend die Adresse an. Erstelle im Einrichtungsassistenten das erste Konto und die Organisation. Verbinde danach einen KI-Anbieter, damit Modelle antworten können.
 
-Bereit für einen Server? `tale deploy` liefert Blue-Green-Deployments ohne Downtime — siehe [Self-hosted-Quickstart](https://tale.dev/docs/de/self-hosted/install/quickstart) und [CLI-Referenz](tools/cli/README.md).
+Die [Installationsanleitung](https://tale.dev/docs/de/self-hosted/install/quickstart) beschreibt Windows, Voraussetzungen und die Fehlersuche beim Start. Befehle und Optionen stehen in der [CLI-Referenz](tools/cli/README.md). Lies vor dem Umzug auf einen Server die [Bereitstellungsanleitung](https://tale.dev/docs/de/self-hosted/install/cli-install).
 
-### Oder nutz Tale Cloud
+### Aus dem Quellcode entwickeln
 
-Lass Tale den Stack betreiben: Jede Organisation bekommt ihre eigene verwaltete Instanz, mit Daten in einer Region, die du bestimmst. Frag deine an unter [tale.dev/request-demo](https://tale.dev/request-demo).
-
-### Oder starte aus dem Quellcode
-
-Bun ≥ 1.3 ist die einzige Voraussetzung — kein Docker, kein Cloud-Konto. Siehe [Mitwirken](#mitwirken).
+Du brauchst die Bun-Version aus [package.json](package.json), eine kompatible Node.js-Version und Docker für die unterstützenden Dienste. Für alle Repository-Prüfungen kommen Python und uv hinzu. Die [Einrichtungsanleitung](docs/de/develop/contributor-setup.md) beschreibt Versionen, Umgebungsvariablen und Ports.
 
 ```bash
-bun install
+bun install --frozen-lockfile
 bun run setup:check
 bun run dev
 ```
 
-## Tale in Aktion
+Warte auf die Bereitschaftsmeldung der Plattform und öffne die angezeigte Adresse. Der Einrichtungscheck prüft nur einen Teil der Umgebung. Auch bei grünem Ergebnis müssen Datenbanken, Speicher und Modellanbieter eingerichtet sein.
 
-<img src=".github/assets/readme-tour.webp" alt="Tale-Produkttour durch die Agenten eines Projekts, sein Taskboard, die Automatisierungs-Werkbank, den Connector-Katalog und die Governance-Guardrails" width="100%">
+Für die Arbeit an der Dokumentation allein brauchst du weder eine Plattform-Datenbank noch einen Modellanbieter:
 
-Agents → Projekte → Automatisierungen → Connectors → Governance — eine Runde durch die Plattform. Die volle Tour findest du in den [Docs](https://tale.dev/docs/de).
+```bash
+bun run --filter @tale/docs dev
+```
 
-## Was steckt drin
+## Was du mit Tale tun kannst
 
-- **[Chat](https://tale.dev/docs/de/platform/chat/overview)** — der tägliche Einstieg: Agents, Anhänge, Zitate, Voice — und Arena, das einen Prompt durch zwei Modelle nebeneinander laufen lässt.
-- **[Projekte](https://tale.dev/docs/de/platform/projects/overview)** — geteilte Arbeitsbereiche, die Chats, Dateien, Anweisungen und Diskussionen rund um ein Vorhaben bündeln — mit projekteigenen Agents.
-- **[Aufgaben](https://tale.dev/docs/de/platform/projects/task-automation)** — Kanban-Boards, auf denen eine Aufgabe losläuft, sobald du sie einem Agent zuweist — mit Triage, menschlichem Review-Gate, Budgets und Notausschalter.
-- **[Wissen](https://tale.dev/docs/de/platform/knowledge/overview)** — Dokumente, gecrawlte Websites und typisierte Datensätze, die Agents abrufen und zitieren, damit Antworten deine Realität spiegeln.
-- **[Agents](https://tale.dev/docs/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools und Modell als eine Einheit; lass sie auf der Plattform laufen oder dock Claude Code, Codex und Cursor in isolierten Sandboxes an.
-- **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts)** — typisierte Workflows (LLM-, Action-, Condition-, Loop- und Sandbox-Schritte) auf Zeitplänen, Webhooks und Events — mit Genehmigungstoren für Menschen.
-- **[Connectors](https://tale.dev/docs/de/platform/connectors/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify und MCP-Server.
-- **[Gemeinsamer Posteingang](https://tale.dev/docs/de/platform/automations/builtin)** — mach aus einem geteilten Postfach (Gmail, Outlook, IMAP/SMTP) einen Team-Posteingang mit KI-gestützten Antworten.
-- **[Governance](https://tale.dev/docs/de/platform/approvals/concepts)** — Genehmigungen, bevor Aktionen rausgehen, ein lückenloser Audit-Trail, Guardrails, PII-Filter und Ausgabenlimits — plus SSO über [Microsoft Entra ID oder Trusted Headers](https://tale.dev/docs/de/platform/admin/enterprise-sso).
+- **[Chat](https://tale.dev/docs/de/platform/chat/basics):** Texte entwerfen, Zusammenhänge klären und Informationen im Gespräch bearbeiten. Vergleiche Modelle in Arena und prüfe Quellen bei Antworten aus der Wissensdatenbank.
+- **[Projekte](https://tale.dev/docs/de/platform/projects/overview):** Aufgaben, Dateien, Anweisungen und Chats zusammenhalten. Du entscheidest, welche Chats du mit dem Projekt teilst.
+- **[Projektagenten](https://tale.dev/docs/de/platform/projects/project-agents):** Anweisungen, Laufzeit, Modell und Werkzeuge festlegen. Weise eine Aufgabe zu, starte den Agenten und prüfe sein Ergebnis.
+- **[Wissen](https://tale.dev/docs/de/platform/knowledge/overview):** Dokumente, Wissenseinträge und Website-Inhalte für die Suche aufbereiten. Hochladen und Indexieren sind getrennte Schritte.
+- **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts):** Schritte zu einem Workflow verbinden, ihn testen und manuell oder über konfigurierte Auslöser starten.
+- **[Konnektoren](https://tale.dev/docs/de/platform/connectors/overview):** Externe Dienste und MCP-Werkzeuge mit den Zugangsdaten deines Arbeitsbereichs anbinden.
+- **[Verwaltung](https://tale.dev/docs/de/platform/admin/overview):** Mitglieder, Rollen, Anbieter, Richtlinien, Nutzung und Audit-Einträge verwalten.
+
+Welche Funktionen du nutzen kannst, hängt von deiner Rolle und der Konfiguration ab. Ein lokales Modell hält die Inferenz auf deiner Infrastruktur; angebundene Dienste und externe Werkzeuge haben weiterhin eigene Datenflüsse. Lies vor der Wahl deiner Betriebsumgebung die Hinweise zur [Datenresidenz](https://tale.dev/docs/de/self-hosted/configuration/data-residency).
 
 ## Dokumentation
 
-Die Docs erscheinen auf Englisch, Deutsch und Französisch — starte unter [tale.dev/docs/de](https://tale.dev/docs/de).
+Die Dokumentation gibt es auf [Englisch](https://tale.dev/docs), [Deutsch](https://tale.dev/docs/de) und [Französisch](https://tale.dev/docs/fr).
 
-- [Quickstart](https://tale.dev/docs/de/get-started/quickstart) — die ersten Schritte, für jede Rolle
-- [Plattform-Referenz](https://tale.dev/docs/de/platform) — jedes Feature, Modul für Modul
-- [Einen Agent bauen](https://tale.dev/docs/de/tutorials/editor/first-agent-end-to-end) — spezialisierte Assistenten von Anfang bis Ende
-- [Self-hosted-Betrieb](https://tale.dev/docs/de/self-hosted/overview) — Architektur, Installation, Upgrades
-- [Developer-Oberfläche](https://tale.dev/docs/de/develop/overview) — REST-API, Webhooks, MCP-Endpoint
-- [CLI-Referenz](tools/cli/README.md) — jeder `tale`-Befehl mit allen Flags
+Beginne mit einer angeleiteten Aufgabe. Die Plattformseiten begleiten die tägliche Arbeit, die Betriebs- und API-Referenzen liefern genaue Konfigurationsangaben. Die [Screenshot-Galerie](SCREENSHOTS.md) zeigt die wichtigsten Ansichten. Wenn du die Dokumentation verbessern möchtest, lies die [README des Docs-Workspaces](services/docs/README.md).
 
-## Community und Support
+## Mitwirken und Hilfe finden
 
-- **Fragen und Ideen** — [GitHub Discussions](https://github.com/tale-project/tale/discussions)
-- **Bugs** — [GitHub Issues](https://github.com/tale-project/tale/issues)
-- **Sicherheitslücken** — nutz die [private Meldung](https://github.com/tale-project/tale/security), nie ein öffentliches Issue
+Lies vor Codeänderungen [CONTRIBUTING.md](.github/CONTRIBUTING.md) und den [Repository-Vertrag](AGENTS.md). Führe vor einem Pull Request `bun run check` aus. Weitere Prüfungen richten sich nach deiner Änderung und stehen im Beitragsleitfaden.
 
-## Mitwirken
-
-Tale entsteht offen und freut sich über Beiträge. Bun allein bootet den ganzen Stack (`bun install && bun run dev`); Python 3.12 und uv brauchst du nur für das volle Gate und die mitgelieferten Python-Skills. Lass `bun run check` vor jedem PR durchlaufen.
-
-Starte mit dem [Contributing-Guide](.github/CONTRIBUTING.md) und dem [Contributor-Setup](docs/de/develop/contributor-setup.md); [`AGENTS.md`](AGENTS.md) ist der Engineering-Vertrag für alle Workspaces.
+- Stelle Fragen in [GitHub Discussions](https://github.com/tale-project/tale/discussions).
+- Melde reproduzierbare Fehler in [GitHub Issues](https://github.com/tale-project/tale/issues), mit Version, Schritten sowie erwartetem und tatsächlichem Ergebnis.
+- Melde Sicherheitslücken über die [vertrauliche Sicherheitsmeldung](https://github.com/tale-project/tale/security).
 
 ## Lizenz
 
-Tale ist [MIT-lizenziert](LICENSE).
-
----
-
-## Star-History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=tale-project/tale&type=date&legend=top-left)](https://www.star-history.com/#tale-project/tale&type=date&legend=top-left)
+Tale steht unter der [MIT-Lizenz](LICENSE).

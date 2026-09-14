@@ -1,33 +1,31 @@
 ---
-title: Analyse d'utilisation
-description: Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents.
+title: Analyse de l’usage
+description: Examine la consommation de tokens, les requêtes et les coûts enregistrés par modèle, assistant et personne.
 ---
 
-Analyse d'utilisation est le dashboard qui agrège chaque appel AI facturable dans une vue unique de tokens, coût et volume de requêtes. Il découpe par utilisateur, équipe, rôle, modèle, agent et temps, pour que la ligne inattendue sur la facture soit traçable jusqu'à la charge qui l'a portée. Les Administrateurs et Propriétaires lisent cette page quand une facture est inattendue, quand la direction veut la forme approximative des dépenses AI, ou quand une alerte de budget se déclenche et la question suivante est _qui et quoi_.
+En tant qu’admin ou propriétaire, ouvre **Paramètres > Métriques > Utilisation** pour comprendre quelles tâches consomment des ressources d’IA. Choisis d’abord la période, puis les répartitions utiles pour expliquer une variation de coût ou de volume.
 
-## Un drill-down mis en pratique
+## Examiner une hausse d’usage
 
-Ouvre **Paramètres > Métriques > Utilisation**. La vue par défaut sont les 30 derniers jours, org-wide, avec les compteurs phares — requêtes, tokens, coût et utilisateurs actifs — au-dessus de la tendance d'utilisation. Lis **Utilisation par utilisateur** pour trouver les plus gros consommateurs, **Principaux modèles** pour comparer un primaire coûteux à un repli moins cher, ou **Principaux assistants** pour trouver l'assistant qui porte la charge. Le sélecteur de période (7, 30 ou 90 jours) pilote toutes les sections à la fois.
+1. Ouvre **Filtre** et choisis une **Période** de 7, 30 ou 90 jours. La vue initiale couvre 30 jours.
+2. Compare les requêtes, les tokens, le coût total et les utilisateurs actifs. Une hausse du nombre de requêtes et des réponses plus longues ont des causes différentes.
+3. Choisis la mesure et la granularité du graphique dans le menu de filtre pour repérer le début du changement.
+4. Examine les tableaux par assistant, par modèle et par personne. Sélectionne un assistant ou un modèle pour réduire la vue ; retire sa pastille de filtre pour revenir à la vue plus large.
 
-## Les dimensions
+Les noms d’assistants peuvent inclure des tâches auxiliaires, comme la création des titres de chat. Le nombre de requêtes ne correspond donc pas toujours au nombre de messages envoyés. La synthèse vocale possède son propre tableau de modèles vocaux.
 
-- **Utilisateur** — chaque membre qui a déclenché un appel facturable, avec ses tokens, son coût et ses requêtes.
-- **Modèle** — chaque modèle qui a produit une réponse ; les modèles vocaux gardent leur propre classement.
-- **Assistant** — chaque assistant avec de l'utilisation attribuée.
-- **Temps** — la courbe de tendance suit la fenêtre choisie : 7, 30 ou 90 jours.
+## Lire les coûts avec les tokens
 
-## Le modèle de coût
+Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la voix ou la génération d’images peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts.
 
-Le coût est une estimation. Chaque requête atterrit dans le registre d'utilisation avec les tokens d'entrée, les tokens de sortie, le prix publié du modèle par million de tokens et la durée wall-clock. Le dashboard multiplie tokens par prix ; les appels de génération d'images atterrissent avec un coût par image que le fournisseur renvoie. La ligne du registre est la source de vérité, et le [journal d'audit](/fr/platform/admin/governance/audit-logs) porte l'acteur et l'horodatage de la ligne pour le recoupement.
+Lis le coût affiché comme l’usage enregistré par l’application, pas comme une facture du fournisseur. Tarifs, abonnements, crédits et appels non mesurés peuvent modifier la comparaison. Un zéro affiché ne prouve pas que le fournisseur n’a rien facturé.
 
-## Budgets et utilisation
+## Réagir à une alerte de budget
 
-Les budgets vivent dans [politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; ce dashboard est l'endroit où tu retraces ce qui les a portés. Quand un avertissement de budget ou un avis budget-dépassé se déclenche dans le chat, les tableaux par utilisateur et par modèle répondent ici à la question suivante — qui a dépensé, sur quel modèle, sur quels jours.
+Utilise la même période et la tâche concernée pour examiner une alerte. Identifie la personne, l’assistant ou le modèle à l’origine de la hausse. Décide ensuite de modifier le fonctionnement, de choisir un autre modèle ou d’ajuster un plafond dans [Politiques et limites](/platform/admin/governance/policies-and-limits).
 
-## Rétention des lignes d'utilisation
+Consulte l’[analyse des retours](/platform/admin/governance/feedback-analytics) avant de changer de modèle uniquement pour son coût : dépenser moins reste utile si les résultats répondent toujours au besoin.
 
-Le registre d'utilisation a sa propre fenêtre de rétention dans [politiques et limites](/fr/platform/admin/governance/policies-and-limits). Le défaut est 365 jours ; raccourcis-le et le graphique historique se tronque en conséquence. Le dashboard reflète ce que tient le registre — il n'y a pas de couche d'archive en dessous.
+## Comprendre un historique incomplet
 
-## Où cela s'inscrit
-
-Analyse d'utilisation est le côté dépense et volume de la même charge que [analyse des retours](/fr/platform/admin/governance/feedback-analytics) lit pour la qualité. Ensemble elles répondent à _cet agent vaut-il son coût_. La page compagnon est [politiques et limites](/fr/platform/admin/governance/policies-and-limits) — la page où les budgets que ce dashboard superpose sont configurés.
+Les graphiques reflètent les données d’usage que Tale conserve encore. Les règles de l’organisation et du déploiement déterminent l’historique disponible ; il n’existe pas de garantie universelle de 365 jours. Vérifie la période, les filtres et la rétention du registre d’usage si une activité attendue manque.

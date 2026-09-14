@@ -3,9 +3,9 @@ title: Rate limits
 description: REST and MCP rate limits — the buckets, the 429 response and its Retry-After, and how to retry without making things worse.
 ---
 
-The API is rate-limited with token buckets keyed on the key holder — the user your API key acts as — so a budget always belongs to an identifiable caller and no network header can mint a fresh one: bursts pass, sustained hammering answers **429**. Every key a user mints draws from that user's budget; a worker fleet that needs a budget of its own gets a machine user of its own. A key that fails to authenticate is throttled per source IP instead (20 requests a minute, burst 40), so strangers never draw from a key holder's budget, and a request without a key costs nothing at all. The budgets are sized so a normal connector never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
+Tale limits API traffic per key holder. All keys belonging to the same person share a budget, so adding a key does not increase throughput. Design your client to handle bursts, wait after `429` responses and leave capacity for retries and other integrations.
 
-Read this when you are wiring a client that calls the API on a schedule or under load.
+Invalid keys are limited by source IP instead: 20 requests per minute, with a burst of 40. Webhook deliveries have separate sender and trigger budgets, listed below.
 
 ## The buckets
 

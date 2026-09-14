@@ -1,23 +1,29 @@
 ---
-title: Self-hosted
-description: Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing.
+title: Run Tale on your infrastructure
+description: Choose an installation path, understand your operating responsibilities, and find the configuration and maintenance guides.
 kind: index
 ---
 
-Self-hosted Tale runs on your own infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing, and no traffic that crosses to Tale's servers unless you point a provider at one.
+Self-hosted Tale gives your organization control of the deployment, storage, and model connections. The open-source platform provides the same product functionality used in the enterprise edition. Your team operates the infrastructure and decides which external services it may contact.
 
-This section is for operators: the people who decide where Tale runs, install it, configure it, keep it patched, and pick up the pager when something goes wrong. End users of self-hosted instances mostly read the Platform tab — the product surface is identical between editions.
+## Choose your starting point
 
-## Pages in this section
+| What you need | Start here |
+| --- | --- |
+| Try a local instance or install a new workspace | [Installation quickstart](/self-hosted/install/quickstart) |
+| Understand services, data, and network connections | [Architecture overview](/self-hosted/overview) |
+| Supply your own Compose or Kubernetes deployment | [Run your own stack](/self-hosted/install/own-compose) |
+| Change the application source | [Contributor setup](/develop/contributor-setup) |
+| Use an instance someone else operates | [Send your first message](/get-started/quickstart) |
 
-**[Architecture overview](/self-hosted/overview)** — what each container does, where data lives on disk, what talks to what.
+## Plan what your team will operate
 
-**[Install](/self-hosted/install)** — the CLI (`tale init` / `tale dev` / `tale deploy`), or a stack you write yourself.
+Assign responsibility for access, TLS, upgrades, backups, monitoring, and incident response before inviting users. Configure an AI provider and, when you need searchable documents, an embedding model and knowledge storage. Test an upload and a complete chat before treating the instance as ready.
 
-**[Configuration](/self-hosted/configuration/environment-reference)** — every environment variable, provider files, authentication modes, TLS, storage, retention, SOPS-encrypted secrets, observability.
+Hosting the application yourself does not keep every request on the same network. A configured model provider, connector, web crawler, or external monitoring destination can receive data. Review the actual destinations in [Security hardening](/self-hosted/operate/security/hardening) and your provider configuration. An isolated deployment needs locally available images, models, credentials, and dependencies.
 
-**[Operate](/self-hosted/operate/container-architecture)** — upgrades, backups and restore, observability and troubleshooting, security advisories, hardening, release notes format.
+## Configure and maintain the instance
 
-## Where this fits
+Use the [environment reference](/self-hosted/configuration/environment-reference) for deployment variables and the configuration guides for organization settings. The [container architecture](/self-hosted/operate/container-architecture) explains operational dependencies; [Backups and restore](/self-hosted/operate/backups-and-restore) covers recovery planning.
 
-Self-hosted is the edition where the operator owns more of the stack. If your team is small and the operational overhead would crowd out product work, [Cloud](/cloud) is the other shape of the same product. If you're standing up a fresh instance right now, [Quickstart](/self-hosted/install/quickstart) is the right next read.
+If your team wants Tale to operate the service, read [Tale Cloud](/cloud). Platform guides apply to both hosting options.

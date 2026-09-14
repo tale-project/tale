@@ -3,9 +3,9 @@ title: TLS and domains
 description: How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups.
 ---
 
-The `tale-proxy` container is Caddy. It owns TLS termination, host routing, and the metrics auth gate; every browser-facing request lands here first. The three modes — self-signed, Let's Encrypt, external — cover the three deployment shapes most operators reach for, and the variable that switches between them is `TLS_MODE` in your `.env`.
+Choose the public hostname and where TLS terminates before inviting users or configuring SSO. Tale can use a local self-signed certificate, obtain a public certificate through the proxy, or sit behind a proxy you already operate.
 
-The env-var reference rows live in [Environment reference](/self-hosted/configuration/environment-reference#tls). This page is the per-mode walkthrough and the recipes for custom domains and bring-your-own certificates.
+Use the matching setup below, then verify the actual browser URL and certificate. A working container health check does not confirm public DNS or certificate trust.
 
 ## Self-signed (default)
 

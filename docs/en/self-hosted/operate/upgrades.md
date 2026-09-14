@@ -3,7 +3,7 @@ title: Upgrades
 description: How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story.
 ---
 
-Workspace upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern—the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
+Upgrade a workspace deployment in two stages: `tale update` changes the CLI and workspace files, then `tale deploy` applies that version to the running services. Read the release notes, keep an off-host backup and check the deployment preview before starting. Application replicas overlap during a blue-green deployment, but snapshots can pause services, draining can refuse new chat turns, and `--stop` recreates stateful services with downtime. Plan a maintenance window appropriate to the change.
 
 **One hard exception:** there is no upgrade path onto 0.5 from an earlier line. 0.5 is a breaking cutover that requires a fresh deployment — see [0.4 → 0.5: breaking cutover](#04--05-breaking-cutover) before anything else if your instance is on 0.4.x or older (0.4 itself was the previous such cutover, severing 0.3.x).
 
@@ -21,7 +21,7 @@ Use `tale update` to choose another workspace instance version. For a managed de
 
 Two things are worth confirming first:
 
-- Your off-host copy of the `backups` volume is current — see [Backups and restore](/self-hosted/operate/backups-and-restore). `tale update` snapshots the data volumes automatically before any step that can migrate data, but the snapshot lives on the same host; the off-host copy is what survives a dead disk.
+- Your off-host backup is current and restorable — see [Backups and restore](/self-hosted/operate/backups-and-restore). `tale deploy` takes a local snapshot before a version-changing deployment or a host-config override, unless you opt out with `--skip-backup`. That snapshot does not replace an off-host copy; `tale update` does not take it.
 - The release notes for the target version do not name a breaking change. The notes are linked from the GitHub release page; breaking changes are flagged as such at the top.
 
 If the upgrade crosses a major version (1.x → 2.x), read the migration notes end-to-end before starting. Major versions are where schema migrations and config-file format changes land.
@@ -45,7 +45,7 @@ tale update --dry-run
 
 `tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
 
-- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy with zero downtime, as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_PLATFORM_REPLICAS` in `.env` (range `1`–`16`). Raise the worker first. A deploy doubles every count for the drain. Stores and the sandbox plane stay singletons.
+- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_PLATFORM_REPLICAS` in `.env` (range `1`–`16`). Raise the worker first. A deploy doubles every count for the drain. Stores and the sandbox plane stay singletons.
 - **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rolls on every deploy too, but **in place**: the spawner holds the Docker socket, the session directory and the gateway volume, so it is a singleton by construction. The deploy drains its in-flight agent runs first, so the brief restart doesn't cut a live one.
 - **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 

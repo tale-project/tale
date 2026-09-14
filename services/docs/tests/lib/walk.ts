@@ -72,20 +72,6 @@ export function discoverLocales(): string[] {
 }
 
 /**
- * Locale of a content-relative path. The first segment of every path produced
- * by `walkDocs` is the locale (`en/...`, `de/...`); when the segment is not a
- * known locale (which should never happen for a well-formed corpus) we fall
- * back to `en` so callers don't crash on a stray file at the content root.
- */
-export function localeOf(
-  relPath: string,
-  locales: string[] = discoverLocales(),
-): string {
-  const first = relPath.split(path.sep)[0];
-  return locales.includes(first) ? first : 'en';
-}
-
-/**
  * Every page under a given locale, returned with the locale prefix stripped so
  * callers can directly diff trees across locales (`platform/agents/concepts.md`).
  */

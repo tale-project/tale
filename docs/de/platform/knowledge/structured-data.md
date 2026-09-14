@@ -1,53 +1,45 @@
 ---
-title: Strukturierte Daten
-description: Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten.
+title: Dokumente oder strukturierte Datensätze wählen
+description: Finde den passenden Ort für Richtlinien, Kontaktdaten, Produktangaben und Website-Inhalte, damit Tale die benötigten Informationen findet.
 ---
 
-Tales Wissensdatenbank führt zwei Formen nebeneinander. Dokumente sind Text, aus dem der Agent Chunks abruft; strukturierte Datensätze sind typisierte Zeilen, aus denen der Agent Felder liest. Die Form, die du wählst, ist die wichtigste Entscheidung dafür, wie ein Agent dein Wissen nutzt — liegst du falsch, verwässert der Agent entweder eine klare Antwort oder rät bei einem Wert, den du längst vorliegen hast.
+Nutze Dokumente für Inhalte, die eine Erklärung in ganzen Absätzen brauchen, etwa Verträge oder Gesprächsnotizen. Strukturierte Datensätze eignen sich für Angaben mit festen Feldern, etwa die E-Mail-Adresse eines Kontakts oder eine Produktkennung. Meist brauchst du beides: Der Datensatz hält die Stammdaten fest, die Dokumente liefern die Zusammenhänge.
 
-Diese Seite gibt dir das mentale Modell dafür, wann welche Form die richtige ist. Lies sie, bevor du einen Ordner voller Dateien lädst; komm zurück, wenn du versucht bist, eine Tabelle als PDF hochzuladen.
+## Den passenden Ort wählen
 
-## Dokumente gegenüber strukturierten Datensätzen
+| Information | Ablage | Grund |
+| --- | --- | --- |
+| Richtlinie, Vertrag, Handbuch oder Gesprächsnotiz | **Dokumente** | Tale durchsucht den Text und ruft passende Abschnitte ab. |
+| Kurze Information mit eigenem Änderungsverlauf | **Wissenseinträge** | Pro Thema gilt eine aktuelle Version; frühere Versionen bleiben erhalten. |
+| Person oder Organisation, mit der du arbeitest | **Kontakte** | Feste Felder bündeln die Angaben in einem bearbeitbaren Datensatz. |
+| Produkt und seine Eigenschaften | **Produkte** | Produktangaben stehen in Feldern und verschwinden nicht im Fließtext. |
+| Seiten einer öffentlichen Website | **Websites** | Tale erfasst die Seiten und aktualisiert die durchsuchbaren Inhalte regelmäßig. |
+| Referenzdateien für ein einzelnes Projekt | **Wissen** im Projekt | Der Projektzugriff bestimmt die Sichtbarkeit; Projektchats können die Dateien abrufen. |
 
-Ein Dokument ist frei geformt: Die Indexierungs-Pipeline extrahiert Text, chunked ihn, bettet die Chunks ein und serviert zur Antwortzeit Passagen über den Abruf. Der Agent sieht Passagen und zitiert sie nach Quelle. Das ist die richtige Form, wenn der Inhalt Prosa ist — Verträge, Handbücher, Wissensdatenbank-Artikel, Meeting-Notizen.
+Die Ablage bestimmt, wie Tale Informationen abruft. Ein gefundener Dokumentabschnitt bedeutet nicht, dass die gesamte Datei geprüft wurde. Beim Lesen eines Datensatzes erhält Tale dessen Feldwerte. Ob diese noch aktuell sind und die daraus abgeleitete Antwort stimmt, musst du weiterhin prüfen.
 
-Ein strukturierter Datensatz ist typisiert: Die Entität hat bekannte Felder (ein Kontakt hat einen Namen, eine E-Mail, eine Branche; ein Produkt hat eine SKU, einen Preis, einen Bestand). Der Agent liest die Felder direkt, verknüpft über Entitäten hinweg und antwortet mit dem Wert. Das ist die richtige Form, wenn die Quelle eine Datenbankzeile ist — Konten, Bestellungen, Teile, Lieferantendaten.
+## Datensätze mit Dokumenten ergänzen
 
-## Die drei eingebauten Entitäten
+Du bereitest zum Beispiel ein Gespräch mit Acme vor. Pflege die Kontaktdaten unter **Kontakte** und lege Vertrag und Gesprächsnotizen unter **Dokumente** oder im Bereich **Wissen** des zugehörigen Projekts ab.
 
-Drei strukturierte Tabs sitzen im Wissensbereich neben **Dokumente** und **Wissenseinträge**:
+Bitte den Chat-Assistenten, den Kontakt zu Acme zu finden und die offenen Fragen aus den letzten Notizen zusammenzufassen. Prüfe die E-Mail-Adresse im Datensatz und die Entscheidungen in den zitierten Notizen. Liegen die Dateien in einem Projekt, starte auch den Chat dort.
 
-- **Kontakte** — die Menschen und Organisationen, mit denen du Geschäfte machst, Kunden wie Lieferanten; das Verzeichnis vereint beide, ein Lieferant ist also ein Kontakt, bei dem du einkaufst.
-- **Produkte** — die Dinge, die du verkaufst.
-- **Websites** — öffentliche Seiten, die ein Crawler nach Zeitplan holt; der Datensatz hält Domain und Scan-Einstellungen, die indexierten Seiten halten den Inhalt ([Crawling](/de/platform/knowledge/crawling)).
+<Tip>
 
-Strukturierte Datensätze teilen die Team-Bindungshebel der Wissensdatenbank: Ein team-gebundener Datensatz ist außerhalb des Teams genauso unsichtbar wie ein team-gebundenes Dokument.
+Verwende in Datensätzen und zugehörigen Dateien denselben eindeutigen Firmen- oder Produktnamen. Ergänze Gesprächsnotizen um ein Datum und Richtlinien um eine Revisionskennung, damit aktuelle und ältere Quellen erkennbar bleiben.
 
-## Content-Modelle für eigene Formen
+</Tip>
 
-Wenn die drei eingebauten Entitäten nicht passen, definierst du mit Content-Modellen einen eigenen strukturierten Datensatztyp: die Entität benennen, ihre Felder deklarieren, Zugriff pro Feld setzen — und der neue Typ erscheint neben den eingebauten. Die Definitionen liegen bei den [Content-Modellen](/de/platform/admin/governance/content-models) der Governance.
+## Zugriff und Aktualität prüfen
 
-<Note>
+Ein Datensatz oder Dokument hilft nur Personen, die darauf zugreifen dürfen. Prüfe die Team-Zuordnung, wenn jemand einen Eintrag nicht findet. Bei Projektdateien gilt der Projektzugriff statt der Team-Zuordnung der Dokumentbibliothek; siehe [Projektdateien](/de/platform/projects/manage-files).
 
-Content-Modelle kosten Governance-Aufmerksamkeit — Zugriff und Aufbewahrung jedes Feldes liegen bei dir. Greif dazu, wenn die Daten wirklich eine neue Form sind, nicht eine leichte Variante einer der drei eingebauten.
+Ändert sich eine Angabe, aktualisiere den maßgeblichen Datensatz. Warte nach einer Dokumentänderung auf die abgeschlossene Indexierung, bevor du eine Frage zum neuen Inhalt testest. Website-Inhalte folgen dem eingestellten Scan-Intervall und können deshalb hinter der Live-Seite zurückliegen.
 
-</Note>
+## Mit den vorhandenen Datentypen arbeiten
 
-## Alles zusammen — ein CRM-Agent
+Der Wissensbereich bietet Kontakte, Produkte und Websites. **Einstellungen > Governance > Modelle** steuert den Zugriff auf AI-Modelle und deren Vorauswahl. Dort legst du keine eigenen Datentypen oder Datenbankfelder an.
 
-Ein CRM-Agent, der „Wo stehen wir mit Acme?“ beantwortet, nutzt beide Formen. Die Entität Kontakte hält den kanonischen Datensatz — Name, Hauptkontakt, Branche, Status. Dokumente halten die Gesprächsnotizen und Verträge. Der Agent liest die Felder des Kontakts direkt, ruft Passagen aus den Dokumenten ab und antwortet mit beidem: dem strukturierten Status aus Kontakten, dem jüngsten Kontext aus der letzten Gesprächsnotiz.
+Passen die vorhandenen Felder nicht zu deinem Inhalt, halte die Details in einem Dokument fest und ordne den Ablauf dem passenden Datensatz zu. Welche Felder sich programmatisch importieren lassen, steht in der [API-Referenz](/de/develop/api-reference).
 
-Ohne strukturierte Datensätze muss der Agent Acme namentlich über PDFs hinweg suchen und riskiert, zwei ähnlich benannte Kontakte zu verwechseln. Ohne Dokumente kennt der Agent Acmes Status, kann dir aber nicht sagen, was im Gespräch am Dienstag passiert ist.
-
-## Wann du wozu greifst
-
-| Nimm … wenn                                                        | Dokumente | Strukturierter Datensatz |
-| ------------------------------------------------------------------ | --------- | ------------------------ |
-| Die Quelle ist freie Prosa                                         | ✓         |                          |
-| Die Quelle hat typisierte Felder und du willst exakte Werte zurück |           | ✓                        |
-| Du musst über viele Datensätze hinweg verknüpfen                   |           | ✓                        |
-| Der Agent soll Passagen nach Fundstelle zitieren                   | ✓         |                          |
-
-## Wo das hingehört
-
-Strukturierte Daten sind die Naht zwischen deinen operativen Daten und der Agenten-Fläche. Nimm die drei eingebauten Entitäten für das, was sie abdecken; greif zu [Content-Modellen](/de/platform/admin/governance/content-models), wenn eine vierte Form auftaucht. Die nächste Lektüre, die sich lohnt, ist [Dokumente](/de/platform/knowledge/documents) — die Indexierungs-Pipeline, die die unstrukturierte Hälfte bedient.
+Unter [Dokumente](/de/platform/knowledge/documents) erfährst du, wie du eine Datei hochlädst und prüfst. [Wissenseinträge](/de/platform/knowledge/knowledge-entries) erklärt die Pflege einzelner Informationen; [Crawling](/de/platform/knowledge/crawling) beschreibt die regelmäßige Erfassung öffentlicher Seiten.

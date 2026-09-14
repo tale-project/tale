@@ -3,9 +3,9 @@ title: AI-assisted development
 description: How a coding agent edits a Tale project — the AGENTS.md and CLAUDE.md the CLI writes, the source mirror under .tale/reference/, and the org-first layout of the configuration files.
 ---
 
-A Tale project is a directory of plain configuration files — agents, skills, branding, providers, connectors — laid out per organization, and that layout edits well with a coding agent once the agent knows the rules. The CLI writes those rules for you: an `AGENTS.md` at the project root with the full guidance, a `CLAUDE.md` that points at it, and a read-only mirror of the platform's source under `.tale/reference/` that both tell the agent to read before it touches a config.
+A coding agent can help edit a Tale project when it has the configuration schemas and project instructions. `tale init` supplies `AGENTS.md`, a `CLAUDE.md` pointer and a source reference under `.tale/reference/`. Use these files to keep proposed configuration aligned with the installed version.
 
-Read this when you want to change a Tale project with Claude Code or any other agent that reads `AGENTS.md`, without typing the configuration by hand. Come back when the agent invents fields — the fix is almost always to have it read `.tale/reference/` again, or to refresh the mirror with `tale update`.
+Review the agent’s changes and test them locally before deployment. Generated examples are a catalog; not every file is active in an organization.
 
 ## A worked setup
 

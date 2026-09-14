@@ -1,100 +1,62 @@
 ---
-title: Hardening
-description: The hardening checklist for a production Tale instance — non-root user, firewall, TLS, secret storage, audit-log retention, backups.
+title: Harden a production deployment
+description: Protect host access, network exposure, secrets and recovery before opening Tale to users.
 ---
 
-The defaults Tale ships with are safe for development and reasonable for a small production install. Going from "reasonable" to "ready for the regulator" is a checklist, not a configuration flag — every row below tightens one specific attack surface. Walk the list once before opening the URL to real users, and run it again after every major upgrade.
+Review these controls before launch and after changes to your host, network or identity setup. You need operator access to the deployment and a recovery route that remains available while you change access rules.
 
-The reference detail for each row lives elsewhere — TLS in [TLS and domains](/self-hosted/configuration/tls-and-domains), backups in [Backups and restore](/self-hosted/operate/backups-and-restore), retention in [Retention](/self-hosted/configuration/retention). This page is the index that names what to harden and points at the page that walks it.
+## Restrict host administration
 
-## Host
+Use named operator accounts, SSH keys and a supported, patched operating system. Limit access to the host, configuration directory, backups and Docker socket to the people who operate the deployment.
 
-| Item                           | Why it matters                                          |
-| ------------------------------ | ------------------------------------------------------- |
-| Non-root operator user         | Limits blast radius if the platform user is compromised |
-| SSH key auth only              | Password auth is the open door bots scan for            |
-| Unattended security updates    | Patches the OS without waiting for a maintenance window |
-| Host firewall (ufw / nftables) | Closes everything that is not 22, 80, 443               |
-| Disk encryption at rest        | Required if you run SOPS in plaintext mode              |
+Membership in the `docker` group grants root-level capabilities through the Docker daemon. Running the CLI as a non-root account does not remove that authority. Treat Docker access as privileged administration, as described in [Docker’s post-installation guidance](https://docs.docker.com/engine/install/linux-postinstall/).
 
-The non-root user is the one most teams skip. Tale's containers run their own non-root processes inside, but the docker daemon itself runs as root — operating that daemon as the operator user (member of the `docker` group, not as root) is the cheapest tightening on this page.
+## Check public exposure
 
-## Network
+Allow the intended public proxy ports and restrict administrative access to trusted sources. Keep databases, object-store administration, backend internals and sandbox services off the public network unless a separately reviewed design requires them.
 
-The proxy is the only inbound surface. Block everything else.
+Inspect the ports published by your actual Compose configuration and verify reachability from outside the host. Host firewall rules alone can be misleading because Docker manages forwarding and port-publication rules; follow [Docker’s firewall guidance](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
+If you use trusted-header authentication, only the trusted upstream proxy may reach the application. That proxy must remove caller-supplied identity headers before setting its own. See [Authentication](/self-hosted/configuration/authentication).
+
+## Verify TLS at the public address
+
+Use a trusted certificate for the address people actually open. Configure `TLS_MODE=letsencrypt` for the bundled public TLS path, or `TLS_MODE=external` when your edge terminates TLS. A self-signed local setup does not establish public certificate trust.
+
+Check the certificate chain, expiry and renewal process, then exercise sign-in and callbacks through the public address. [TLS and domains](/self-hosted/configuration/tls-and-domains) explains the configuration.
+
+## Protect secrets and keys
+
+Replace the example values before production. Give each deployment its own database password, authentication secrets and encryption key. Restrict `.env` and secret files to the operator; store recovery copies in your secret-management system.
+
+Use [SOPS](/self-hosted/configuration/secrets-with-sops) for supported file-based secrets when appropriate. SOPS does not encrypt every application record or the whole disk. Preserve the matching keys for retained backups. Rotate deliberately using [Cryptography](/self-hosted/operate/security/cryptography); an arbitrary key replacement can invalidate sessions or make stored credentials unreadable.
+
+Set `TALE_AUDIT_PEPPER` for failed-sign-in pseudonymization. Audit retention is organization-scoped: review each organization’s applied policy and your required evidence period in [Retention](/self-hosted/configuration/retention).
+
+## Prove recovery
+
+Choose a backup frequency and retention period that match the data loss your organization can tolerate. Include database, configuration, object storage and the secrets needed to restore them. External storage needs its own coordinated backup.
+
+Keep protected copies off the deployment host and restore to an isolated destination periodically. Verify sign-in, files and essential workflows after recovery. [Backups and restore](/self-hosted/operate/backups-and-restore) explains the CLI snapshot’s scope and service interruptions.
+
+## Limit sandbox destinations
+
+The sandbox egress proxy allows public HTTPS destinations by default while enforcing its private-address and metadata-address restrictions. Set `SANDBOX_EGRESS_ALLOWLIST` to restrict hostnames further. This example belongs in the project’s `.env` and permits two Python package hosts:
+
+```dotenv .env
+SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
-If you run trusted-headers auth, the platform port must not be reachable directly from anywhere except the upstream proxy — anything that can hit it with the right headers becomes that user. A Docker network or a host firewall rule both work; pick one and verify it from outside the host.
+Recreate the egress service with the updated environment. Confirm required destinations work and an unlisted destination is refused. Add other registries or source hosts only when your workloads need them. Model traffic uses the separate sandbox model gateway, so this allowlist is not a policy for every outbound connection in Tale.
 
-## TLS
+## Monitor and investigate
 
-`TLS_MODE=selfsigned` is for development. Production runs `letsencrypt` (or `external` if you front Tale with your own TLS-terminating proxy). The renewal cron is automatic; the alert that fires when renewal fails is what saves you 90 days later. See [TLS and domains](/self-hosted/configuration/tls-and-domains).
+Configure authenticated metrics access with `METRICS_BEARER_TOKEN` and connect your monitoring system. Test that an alert reaches the responsible operator. [Operations](/self-hosted/operate/observability/operations) covers useful signals.
 
-## Secrets
+A daily job verifies retained audit rows incrementally and notifies admins of detected hash-chain breaks. **Verify now** under **Settings > Governance > Logs > Chain integrity** checks at most 1,000 entries. Follow [Audit-log integrity](/self-hosted/operate/security/audit-log-integrity) for the limits and evidence-preservation procedure.
 
-Every secret in `.env` is sensitive — the auth signing secret, the encryption key, the database password, the age key, the metrics bearer token. The minimum bar:
+## Check the deployed response
 
-- `.env` is mode 0600 and owned by the operator user.
-- `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` are rotated off the example values that ship in `.env.example`.
-- `DB_PASSWORD` is changed from the default placeholder.
-- `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` is set — leaving both unset is supported but reserved for disk-encrypted hosts with external secret management.
-- `TALE_AUDIT_PEPPER` is set — without it, every failed sign-in leaves the plaintext email and IP in the audit log for the whole retention window. `tale init` generates it; a hand-written `.env` needs it added.
+Inspect security headers at the public address after proxy changes. A proxy can alter the headers produced by Tale, so source configuration alone is insufficient. Check content-security policy, framing restrictions, HTTPS transport policy and content-type handling alongside actual sign-in behavior.
 
-The full SOPS walk and rotation procedure lives in [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
-
-## Audit logs
-
-Audit logs are immutable and retention-bound. Compliance frameworks expect at least a year; the bound is enforced per-deployment, so the strictest org's setting is what actually runs. Set the floor in your operator config to match the loosest framework you support, and make sure backups capture audit-log rows along with the rest of the database. The retention reference lives in [Retention](/self-hosted/configuration/retention).
-
-## Backups
-
-A backup that has not been restored is a hope, not a backup. The minimum: daily Postgres dumps written by the `tale-db` cron, copied off-host within the hour, and a quarterly restore drill that rebuilds a working instance from the snapshot. The full procedure is in [Backups and restore](/self-hosted/operate/backups-and-restore).
-
-## Sandbox isolation
-
-Run-code is the riskiest surface in the product — the only place where user-supplied input becomes executed code. `tale-sandbox` runs with no privileged caps, its network is internal-only, and `tale-sandbox-egress` is its only outbound path. At the hostname layer that path is open by default: sandboxed code reaches any public host over HTTPS, while cloud-metadata endpoints and private address ranges are always blocked at the IP layer — that floor holds in every configuration.
-
-The hardening lever is `SANDBOX_EGRESS_ALLOWLIST`. Set it in `.env` to a pipe-separated list of hostname regexes and recreate `tale-sandbox-egress`, and the proxy flips to default-deny — only matching hosts are reachable. A registry-only lockdown that keeps pip, npm, uv, and git-over-HTTPS working:
-
-```bash
-SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
-```
-
-Keep the list short and prefer specific hosts over wildcards.
-
-## Monitoring
-
-`METRICS_BEARER_TOKEN` is unset in `.env.example` — that is intentional, so a fresh install does not leak metrics. Set the token, scrape from your Prometheus, and the alert thresholds in [Operations](/self-hosted/operate/observability/operations) cover the customer-impacting signals.
-
-The audit-log hash chain is verified automatically every night by a scheduled integrity check. A genuine break raises a critical security alert to the organisation's admins — in the notification bell, and in your Slack channel when one is connected — so tampering surfaces even when nobody is watching the logs; a signed checkpoint that can't be verified because `TALE_AUDIT_SIGNING_KEY` is unset alerts more calmly, as the configuration gap it is. The alert fires once when a break is first detected or when it changes, not every day for the same break. Admins re-run the verification on demand from the **Chain integrity** panel on **Settings > Governance > Logs** — a status badge, the last-check time, and a **Verify now** button. When one fires, work the [audit-log integrity runbook](/self-hosted/operate/security/audit-log-integrity) to tell a real break from a benign retention or configuration artifact.
-
-## HTTP security headers
-
-Every HTML response carries a strict set of security headers, and the set is locked by tests so an upgrade cannot silently drop one. The platform web client (`services/platform`) sends a nonce-based Content-Security-Policy with no `unsafe-inline` scripts, HSTS on HTTPS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` alongside CSP `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and `X-Permitted-Cross-Domain-Policies: none`. It scores A+ on the MDN HTTP Observatory, and that grade is asserted by the CI test suite — the scoring is re-implemented in tests that fail the build on any regression. The marketing site and the docs site ship the same header family, adding `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` set to `same-origin`.
-
-Verify it against your own deployment:
-
-- `curl -sI https://<your-host>/ | grep -iE 'content-security|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin'`
-- Scan the host on [securityheaders.com](https://securityheaders.com) or the [MDN HTTP Observatory](https://developer.mozilla.org/en-US/observatory).
-
-<!--
-  The MDN Observatory UI is only localized in some languages. When adding a new
-  docs language, check whether developer.mozilla.org/<lang>/observatory exists
-  and fall back to the en-US analyze links if it does not.
--->
-
-The public demo is the live reference for what a correct deployment reports: the [Observatory scan of demo.tale.dev](https://developer.mozilla.org/en-US/observatory/analyze?host=demo.tale.dev) came back A+ on 15 July 2026 — score 115/100, all ten tests passed. The one header the report lists as not implemented, `Cross-Origin-Resource-Policy`, costs no points; it is the deliberate exception described below.
-
-Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app: `Cross-Origin-Opener-Policy: same-origin` would sever the live window handle an OAuth sign-in popup uses to hand the finished sign-in back to the app, and `Cross-Origin-Resource-Policy` would block branding assets loaded from a second host. The content sites, which do neither, enable both. HSTS is emitted only when `SITE_URL` is `https://`, with a one-year `max-age` and without `includeSubDomains` or `preload`: self-hosted deployments run on varied domains — an apex with plain-HTTP siblings included — and a preload listing is the operator's own submission.
-
-## Where this fits
-
-Hardening is not a one-pass task — the list above is what to walk before launch, and re-walk after every upgrade or after every change to the network shape. The next thing worth reading after this is whichever row above you have not done yet.
+Do not copy cross-origin isolation or HSTS preload settings from another deployment without reviewing your callbacks, external assets and subdomains. Keep the results with your deployment record and repeat the checks after upgrades.

@@ -5,9 +5,9 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Die Tale-API ist die Oberfläche für alle, die außerhalb des Produkts stehen und es skripten wollen: Wissensressourcen, Projekte mit ihren Dateien und Aufgaben, Automatisierungen und ihre Läufe, Chat-Threads, Agenten und Skills — alles als JSON über HTTPS, mit einem API-Schlüssel im Header. Derselbe Schlüssel öffnet auch den [MCP-Endpoint](/de/develop/mcp-endpoint) — diese Seite behandelt die REST-Hälfte.
+Die REST-API liest und verändert Tale-Ressourcen mit einem API-Schlüssel: Projekte, Dateien, Aufgaben, Automationen, Läufe und Chat-Threads. Prüfe den Zugriff mit [deiner ersten API-Anfrage](/de/get-started/developers) und nutze danach die passenden Abschnitte unten.
 
-Diese Seite ist das kanonische Inventar der Oberfläche, des Auth-Modells und der Fehlerform. Request- und Response-Schemas auf Feldebene liefert das OpenAPI-Dokument deiner Instanz unter `/openapi.json` — sein `servers`-Eintrag nennt genau diese Instanz, ein daraus generierter Client zielt also auf den richtigen Host — und `/docs` rendert es. Lade es, wenn du jede Property brauchst; lies diese Seite, um zu verstehen, wie sich die API verhält.
+Deine Instanz stellt das OpenAPI-Schema mit allen Feldern unter `/openapi.json` und eine interaktive Referenz unter `/docs` bereit. Erzeuge Clients aus dem Schema dieser Instanz. Diese Seite erklärt Berechtigungen, Geltungsbereiche, asynchrone Arbeit und Fehler über die einzelnen Operationen hinweg.
 
 ## Eine erste Anfrage
 

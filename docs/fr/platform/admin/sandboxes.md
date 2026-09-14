@@ -19,7 +19,7 @@ Modifie une limite, puis clique sur **Enregistrer** en haut de la page. **Abando
 
 | Travail | Valeur par défaut | Ce qui occupe un quota |
 | --- | --- | --- |
-| Sessions d'agent de projet | 2 | L’espace d’un agent au démarrage ou pendant le travail ; le même agent le réutilise pour ses tâches suivantes. |
+| Sessions d’agent de projet | 2 | L’espace d’un agent au démarrage ou pendant le travail ; le même agent le réutilise pour ses tâches suivantes. |
 | Sessions de workflow | 2 | L’espace d’une exécution, partagé par ses étapes d’agent et de script. |
 | Sessions de rendu | 2 | Les environnements temporaires qui rendent les pages web pendant l’exploration. |
 

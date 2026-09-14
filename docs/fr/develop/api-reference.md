@@ -5,9 +5,9 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-L'API de Tale est la surface des intégrateurs qui se tiennent hors du produit et veulent le scripter : ressources de connaissances, projets avec leurs fichiers et leurs tâches, automatisations et leurs exécutions, threads de chat, agents et skills — le tout en JSON sur HTTPS, avec une clé API dans un header. La même clé ouvre aussi l'[endpoint MCP](/fr/develop/mcp-endpoint) — cette page couvre la moitié REST.
+L’API REST permet de lire et modifier les ressources Tale avec une clé API : projets, fichiers, tâches, automations, exécutions et threads. Vérifie l’accès avec [ta première requête API](/fr/get-started/developers), puis utilise les sections consacrées aux opérations.
 
-Cette page est l'inventaire canonique de la surface, du modèle d'authentification et de la forme d'erreur. Les schémas de requête et de réponse champ par champ vivent dans le document OpenAPI que ton instance sert sous `/openapi.json` — son entrée `servers` nomme cette instance, donc un client généré à partir de lui vise le bon hôte — et que `/docs` affiche. Charge-le quand il te faut chaque propriété ; lis cette page pour comprendre comment l'API se comporte.
+Ton instance sert le schéma OpenAPI détaillé sur `/openapi.json` et une référence interactive sur `/docs`. Utilise son schéma pour générer un client. Cette page explique les droits, le périmètre, les traitements asynchrones et les erreurs communs à ces opérations.
 
 ## Une première requête
 

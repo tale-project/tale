@@ -11,6 +11,12 @@ L'onglet **Agents** d'un projet, c'est son équipe : des agents nommés que tu c
 
 </Frame>
 
+<Note>
+
+Avant de démarrer, le harness choisi doit disposer d’identifiants compatibles et d’une sandbox disponible. Un modèle utilisable dans Chat ne prouve pas qu’un harness de code peut employer les mêmes identifiants. En cas de blocage, demande à un administrateur de vérifier les [fournisseurs d’IA](/fr/platform/admin/providers) et les [Sandboxes](/fr/platform/admin/sandboxes).
+
+</Note>
+
 ## Créer un agent
 
 <Steps>
@@ -23,6 +29,8 @@ Ouvre l'onglet **Agents** du projet et clique sur **Nouvel agent**. Donne-lui un
 
 <Step title="Choisis le modèle — et avec lui le fournisseur">
 
+Sous **Modèle**, cherche par nom ou identifiant API. Si plusieurs fournisseurs proposent le même modèle, chacun apparaît dans une entrée distincte avec son nom.
+
 La liste **Modèle** se filtre à la saisie ; un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur, le nom du fournisseur sous chaque entrée. Le choix est exact : les runs de l'agent appellent ce modèle via ce fournisseur — et la dépense atterrit sur son accès. Si le fournisseur choisi ne peut plus servir le modèle, le run échoue en le disant, au lieu de basculer en silence sur la facture d'un autre.
 
 Les entrées servies par abonnement — un abonnement Claude, par exemple — n'apparaissent que lorsque le **Harness** est celui que cet abonnement pilote ; le run s'authentifie alors avec l'abonnement du fournisseur plutôt qu'avec une clé API de l'organisation.
@@ -33,7 +41,7 @@ Les entrées servies par abonnement — un abonnement Claude, par exemple — n'
 
 **Skills, connectors & outils** décident de ce que l'agent atteint au-delà de son espace de travail ; la liste suit l'accès des équipes du projet, pas ta visibilité personnelle. Les skills fournissent des bundles de référence dans la sandbox, les connectors relaient un service connecté, et les **outils de la plateforme** laissent l'agent lire et écrire les données de ton organisation — trouver et lire des tâches, contacts, produits, documents et connaissances, et, quand tu accordes un outil d'écriture, créer des tâches, les commenter, les déplacer entre colonnes, synchroniser un élément externe vers une tâche ou enregistrer un document. Un outil d'écriture est marqué _Écrit des données_ : l'accorder vaut autorisation, un agent équipé de `Créer des tâches` crée donc de vraies tâches sans autre validation. Lecture et écriture restent limitées au projet — un agent ne voit jamais le tableau d'un autre projet.
 
-Les **secrets** remettent à l'agent une clé API sous forme de variable d'environnement — l'échappatoire pour un service sans connector. Ajoutes-en un (un nom comme `GLITCHTIP_TOKEN` et le jeton), et l'agent le reçoit dans son shell et appelle l'API de ce service directement, avec la doc du fournisseur. La valeur est stockée chiffrée et n'est plus jamais affichée ; ne stocke que des jetons peu privilégiés et renouvelables, car l'agent en cours d'exécution peut les lire. Les secrets appartiennent à l'organisation, le même est donc réutilisé entre agents et renouvelé à un seul endroit.
+Les **Secrets** fournissent à l’agent en cours d’exécution des variables d’environnement lisibles. Seuls un Propriétaire ou un Admin peuvent modifier ces autorisations. Choisis des identifiants limités et renouvelables pour les services sans connecteur adapté. Les valeurs sont stockées chiffrées, référencées par nom dans la configuration et injectées dans l’exécution. Plusieurs agents peuvent utiliser un même secret : sa rotation ou suppression les affecte tous.
 
 Les **Instructions** accompagnent chaque run comme consigne permanente — ce que cet agent prend en charge, comment il doit travailler et les limites à respecter.
 

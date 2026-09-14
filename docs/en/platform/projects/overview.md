@@ -1,62 +1,48 @@
 ---
 title: Projects
-description: A project is a shared workspace that bundles chats, files, instructions, and tasks around one piece of work.
+description: Bring a team's reference material, conversations, and tasks together around a shared piece of work.
 ---
 
-A project is a shared workspace that bundles everything one piece of work needs — the chats, the reference files, the instructions, and the task board — so the context follows the work instead of being re-pasted into every chat. Where a single chat answers one question, a project is where a team keeps a contact, a launch, or a long-running investigation moving.
-
-Prefer to watch first? Episode 6 walks a live project in two and a half minutes — including a task an agent picks up on camera.
+A project keeps the files, instructions, conversations, and tasks for one piece of work together. Use one when context needs to last beyond a single chat or when a result needs an owner and a review. Start with [Use projects](/tutorials/member/use-projects) to create a project and ask a question about its reference file.
 
 <Video src="/videos/en/tutorials/ep6-projects/ep6-projects.en.mp4" poster="/videos/en/tutorials/ep6-projects/ep6-projects.en.webp" captions="/videos/en/tutorials/ep6-projects/ep6-projects.en.vtt" lang="en" title="Episode 6 — Projects with AI" caption="Episode 6 — Projects with AI (2:21)">
 
 </Video>
 
-<Frame caption="A project's task board — one of the five tabs every project carries.">
+<Frame caption="The task board makes proposed work, work in progress, and results awaiting review visible together.">
 
-![A kanban task board inside the Website relaunch project, with seven task cards spread across the Backlog, To do, In progress, In review, Done, and Cancelled columns.](/images/platform/projects-task-board.webp)
+![Website relaunch shows task cards across Backlog, To do, In progress, In review, Done, and Cancelled.](/images/platform/projects-task-board.webp)
 
 </Frame>
 
-## The parts of a project
-
-Every project opens on **Tasks** (the board), then the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Knowledge** (the project's files, in a folder tree), and **Agents** (the project's own task agents) — plus **Automations** once one is bound to the project, and **Environment** for project administrators. Apps installed into the project add their own tabs after these.
-
-## Pages in this section
+## Find the next step
 
 <CardGroup cols="2">
 
-<Card title="Project concepts" icon="compass" href="/platform/projects/concepts">
-
-The mental model — what a project owns, when it beats a stand-alone chat, and how sharing works.
-
+<Card title="Understand project access" icon="compass" href="/platform/projects/concepts">
+Learn what the project shares, which chats stay personal, and how teams control access.
 </Card>
 
-<Card title="Manage files" icon="folder-open" href="/platform/projects/manage-files">
-
-The Knowledge tab — uploading files into folders, index status, and how project files stay scoped to the project.
-
+<Card title="Manage reference files" icon="folder-open" href="/platform/projects/manage-files">
+Upload and organize files, check indexing, and manage controlled revisions.
 </Card>
 
-<Card title="Project agents" icon="bot" href="/platform/projects/project-agents">
-
-The project's own agents — harness, model and serving provider, equipment, standing instructions — and how tasks put them to work.
-
+<Card title="Create and track tasks" icon="list-checks" href="/platform/projects/tasks">
+Set an owner, reviewer, dates, and acceptance criteria; follow progress on the board.
 </Card>
 
-<Card title="Task automation" icon="workflow" href="/platform/projects/task-automation">
-
-Assigning board tasks to agents — the execution loop, the review gate, and the guardrails.
-
+<Card title="Configure a project agent" icon="bot" href="/platform/projects/project-agents">
+Choose a harness, model, tools, and instructions for an agent that can take tasks.
 </Card>
 
-<Card title="Backlog" icon="gauge" href="/platform/projects/backlog">
+<Card title="Run and review agent work" icon="workflow" href="/platform/projects/task-automation">
+Start a task, review the result, request rework, and recover a failed run.
+</Card>
 
-Proposed tasks an automation or teammate synced in — Start onto the board or Close them off.
-
+<Card title="Triage proposed work" icon="gauge" href="/platform/projects/backlog">
+Use Backlog to review ideas before committing them to the team's work.
 </Card>
 
 </CardGroup>
 
-## Where this fits
-
-Projects sit beside Chat in the sidebar, and the handover is natural: a question starts in Chat, turns out to be bigger than one chat, and moves into a project — the chat's **Move to project…** action carries an existing chat across. If you are new to projects, start with [Project concepts](/platform/projects/concepts) for the model, then walk [Use projects](/tutorials/member/use-projects) end to end on a fresh one.
+**General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. A bound automation adds an **Automations** surface, and project administrators can configure **Environment**. Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.

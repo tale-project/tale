@@ -3,9 +3,9 @@ title: Architecture des conteneurs
 description: Quel conteneur possède quel rôle dans une instance Tale en fonctionnement, le chemin de requête d'un message de chat, et à quoi ressemble une panne de chaque conteneur.
 ---
 
-Une instance Tale, ce sont neuf conteneurs câblés par docker compose, plus un petit sidecar d'ingestion vidéo. La page d'architecture a couvert à quoi sert chaque conteneur ; cette page est la version opérateur — quel conteneur possède quel rôle, comment un message de chat les traverse, et à quoi ressemble le mode de défaillance quand l'un d'eux meurt.
+Cette référence identifie le service responsable d’une requête, d’un job ou d’un stockage durable. Le parcours des requêtes et le tableau des pannes aident à choisir les logs ; le contrat d’installation définit réseaux, montages et sondes.
 
-Lis ceci quand tu es d'astreinte. Reviens-y quand tu décides quel conteneur rouler en premier pendant un upgrade.
+Le déploiement fourni sur un hôte réunit les bases applicative et documentaire dans son service de base. Compose pour le développement peut séparer la base documentaire : vérifie la topologie réelle avant de comparer les conteneurs.
 
 ## Les conteneurs et leurs rôles
 

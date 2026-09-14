@@ -3,7 +3,7 @@ title: Model catalog
 description: Which models your organisation can pick, where each provider's list comes from, and what to check when a model you expected is missing from the picker.
 ---
 
-Every model picker in Tale offers the same thing — the models your organisation can actually reach right now. That set is assembled per provider, from the connector's own model list and the credentials you hold against it, then narrowed by your governance rules. This page explains where each piece comes from, so "why is that model missing" has an answer you can act on rather than guess at.
+Use the model catalog to understand which models your organization can select and why an expected model is missing. Availability depends on a provider, a usable credential, its model allowlist, and your organization’s access rules.
 
 ## The catalog is per provider
 
@@ -54,7 +54,7 @@ Everywhere else the model is always named explicitly: on an agent, on any workfl
 
 <Tip>
 
-When more than one model could plausibly do the job, [Arena Mode](/platform/chat/arena-mode) runs the same prompt against several of them side by side, which turns the choice into a comparison instead of a hunch.
+[Arena Mode](/platform/chat/arena-mode) compares two models on the same question. Use a question and source you can evaluate, then judge factual accuracy and usefulness rather than length alone.
 
 </Tip>
 

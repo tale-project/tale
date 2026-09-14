@@ -3,9 +3,9 @@ title: Operations
 description: What to alert on, which metrics matter, and the oncall checklist when a Tale instance starts behaving badly.
 ---
 
-The operations page is the alert playbook — which signals are worth waking someone for, which can ride out a coffee, and what the first five minutes of an incident look like. Tale's metrics surface lives behind `METRICS_BEARER_TOKEN`; this page assumes you have wired up Prometheus and Grafana per [Observability config](/self-hosted/configuration/observability-config) and now need to know which numbers to watch.
+Monitor the instance at several levels: public availability, backend and storage health, background work, and the user actions that matter to your team. An endpoint answering HTTP does not prove that a chat turn, upload or automation finishes.
 
-The symptom-first index is at [Troubleshooting](/self-hosted/operate/observability/troubleshooting). This page is the proactive side — signals first, oncall checklist second.
+Use the signals below to choose alerts and a first response. Configure their collection in [Observability config](/self-hosted/configuration/observability-config) and use [Troubleshooting](/self-hosted/operate/observability/troubleshooting) when a specific flow fails.
 
 ## Signals worth alerting on
 

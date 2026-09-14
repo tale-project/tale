@@ -41,9 +41,9 @@ Everything else is ephemeral. Containers can be replaced without data loss as lo
 
 ## Provider secrets and the SOPS layer
 
-Provider keys (OpenAI, Anthropic, Azure, Ollama, etc.) live on disk in a `providers/` directory inside the config store. Each provider has a `<name>.json` and a `<name>.secrets.json`; the secrets file is encrypted with SOPS and the [`SOPS_AGE_KEY`](/self-hosted/configuration/environment-reference) variable.
+Current provider credentials live encrypted in the application database. `ENCRYPTION_SECRET_HEX` protects these and other database secrets; provider definitions are separate YAML configuration files.
 
-This split exists for two reasons. Rotating a provider key is editing one file, not re-running the backend; backing up the encrypted file is safe to commit alongside infrastructure. The plaintext mode (no SOPS, secrets in cleartext at mode 0600) is supported for tightly controlled environments where the disk itself is encrypted at rest.
+SOPS and age protect supported configuration secret sidecars, such as external knowledge and object-storage connection files. Preserve both key families with your backup and recovery plan. [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops) explains the distinction and file-key rotation.
 
 ## Auth and sessions
 

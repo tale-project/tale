@@ -1,44 +1,61 @@
 ---
 title: Manage project files
-description: The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, and how project files stay scoped to the project.
+description: Upload and organize reference files, check indexing, and understand the difference between deleting a file and moving it to Knowledge.
 ---
 
-A project's **Knowledge** tab is the shared file area every chat inside the project can reach. Upload a file once and every chat in the project — and every agent that runs inside it — can read it without re-uploading. This page covers the folder tree, the upload mechanic, pinning, and the limits.
+The project’s **Knowledge** tab holds files that its chats can retrieve. Upload a reference once and use it across conversations in that project. You need project edit access to add, organize, or remove files.
 
-The Knowledge tab is not the org-wide knowledge base in the [Documents](/platform/knowledge/documents) sense. Its files are scoped to one project and never appear in the org-wide library or over WebDAV; deleting the project deletes the files. For org-wide reference material, use [Documents](/platform/knowledge/documents) and bind it to agents. The two places have two access levers: who sees a hub document is decided by its team tags, who sees a project file is decided by project access alone — an org-wide project means every member, a team project its owning and shared teams, and owners and admins see every project. A project file never carries team tags, and a document lives in exactly one of the two places.
+<Frame caption="Files belong to the project, and their indexing badges show whether chat can search their text.">
 
-<Frame caption="The Knowledge tab — the project's file tree, every file scoped to this project and indexed for retrieval.">
-
-![The Knowledge tab of the Website relaunch project showing two indexed files in the file tree, a New folder button, and the Add file dropzone.](/images/platform/project-knowledge-files.webp)
+![The Knowledge tab of Website relaunch contains two indexed files, a New folder button, and file and folder upload controls.](/images/platform/project-knowledge-files.webp)
 
 </Frame>
 
-## Folders
+## Upload into the right folder
 
-Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. **Add folder** uploads a whole folder from disk: pick a directory and its files land with the subfolder structure recreated under the selected folder — files the upload gate refuses are skipped and reported, and one pick is capped at 200 files / 200 MB. Deleting a folder deletes everything in it, including the files' entries in the retrieval index; the confirmation says so before anything happens. Folders here are project-scoped: a same-named folder in the org-wide library is a different folder.
+1. Open the project and select **Knowledge**.
+2. Select a folder, or leave the root selected.
+3. Click **Add file** or drop files onto the upload area.
+4. Check that each file appears in the intended folder and finishes indexing.
 
-## A worked upload
+**New folder** creates a folder at the root. A folder’s **New folder inside** action creates a subfolder. **Add folder** imports a folder from your device and recreates its structure under the selected location. A folder upload is limited to 200 files and 200 MB; split larger folders and check the report for skipped files.
 
-Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that names the topic and the assistant retrieves it, loading the full text when a snippet is not enough. A file that arrived through the [REST API](/develop/api-reference#mirror-an-external-system-into-a-project) is listed too but reads **Not indexed**: a search never finds it until you click **Index now** on its row, though the assistant still reads a plain-text file on request when you name it.
+## Check whether chat can read a file
 
-## Replacing and deleting
+| Status | Meaning and action |
+| --- | --- |
+| **Queued** | The file is waiting to be processed. |
+| **Indexing…** | Tale is preparing its text for search. |
+| **Indexed** | The text is searchable; verify a question against the original file. |
+| **Failed** | Open the failure detail when available and use **Retry indexing**. Ask an admin if the failure returns. |
+| **Not indexed** | The file is stored but not searchable. Use **Index now** when offered, or convert a format without a text extractor. |
 
-Replacing a file uploads a new copy under the same name; the earlier version moves to the project's version history. Citations from earlier chats keep pointing at the version that was active when the chat referenced it. Deleting a file removes it from the picker immediately; existing chats keep their citations, but the underlying file moves to [Trash](/platform/admin/governance/trash) with the rest of the project's retention cohort.
+An integration can upload a file without indexing it. Such a file is still visible in the tree; a supported plain-text file can be read directly when named, but it will not appear in text search until indexed.
 
-## Locking a file behind review
+Per-file and storage limits may be restricted further by organization policy. When an upload fails, first try a small supported file. An admin can check [Policies and limits](/platform/admin/governance/policies-and-limits), storage, and the embedding model.
 
-When an approval must stay tied to the exact file a reviewer saw — an SOP, a validation plan — open the file row's menu and click **Mark as controlled**. The row gains a `v1 · Draft` badge and walks the same lifecycle as a controlled document in the org-wide library: **Submit for review** freezes the file for a named reviewer, approving locks the version immutably, and **New revision** opens the next draft. The full lifecycle, including replacing a draft's file, is on [Documents](/platform/knowledge/documents#revising-a-controlled-document). Scope does not change — a controlled project file is still a project file, visible only inside the project.
+## Ask about the files from a project chat
 
-## Size limits
+Open **Chats** in this project, start a chat, and ask about the file by name or topic. The assistant can retrieve this project’s files and the organization’s Knowledge documents that you can access. It cannot retrieve another project’s files from here.
 
-Per-file and per-project limits are set by the org under [Policies and limits](/platform/admin/governance/policies-and-limits). Hitting a per-file limit fails the upload with a toast; hitting a per-project limit fails it with a different toast that names the policy. Members hitting a limit cannot raise it themselves — an Admin adjusts the policy, or the project owner deletes older files.
+The organization’s general chat does not search project files. Files also stay out of the organization’s document list and WebDAV library while they belong to the project. Project access determines who can read them; project files do not have separate team tags.
 
-## Surfacing in chats
+## Replace a controlled file without losing its review history
 
-A chat started inside a project automatically has access to every file in the project's Knowledge tab. The assistant's tools see this project's files alongside the organization's knowledge hub as you see it — and nothing from other projects: the boundary is set by the server for every chat in the project, not by what the assistant decides to search. Asking for the project's documents lists them beside the hub's, each marked with where it lives and whether it is indexed; a file that is not indexed is still readable on request when it is plain text. The organization chat outside any project reaches the hub only — a project's files are read from the project's own chat. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
+Uploading another file with the same name creates a separate document; a matching filename is not a revision link. For a file whose approval must remain tied to exact bytes, use the row menu’s **Mark as controlled** action.
 
-There is no `@` picker in the composer in this version — a message names the topic, retrieval finds the file, and the assistant loads the full text with its fetch tool when it needs more than a snippet. A project agent working a board task gets its files another way: the task's attachments are mirrored read-only into its sandbox under `/agent/inputs/<task>/attachments/`, so a coding harness opens the real bytes rather than a retrieval snippet — [Harnesses](/platform/agents/harnesses) covers that path.
+A controlled record starts as a draft. **Replace file** updates a draft or opens the next draft from an approved version while preserving that approved version. **Submit for review** freezes the draft for the named reviewer. See [Controlled documents](/platform/knowledge/documents#revising-a-controlled-document) for the complete lifecycle and reviewer rules.
 
-## Where this fits
+## Move to Knowledge or delete
 
-Manage files is the operational page for the Knowledge tab — the conceptual framing is on [Project concepts](/platform/projects/concepts), and the agent-bound equivalent across the whole org is [Documents](/platform/knowledge/documents). If you find yourself re-uploading the same files into many projects, that is the signal to move them to Documents and bind an agent to them instead.
+**Remove from project** moves the file to the organization’s Knowledge library. It does not delete the file.
+
+<Warning>
+
+Removing a file from the project makes it visible to everyone in the organization. Use this only when you intend to publish it to that wider audience. Read the confirmation before proceeding.
+
+</Warning>
+
+To remove a file entirely, use **Delete** in its row menu and read the deletion confirmation. Folder deletion removes its contained files and subfolders as well as their search entries. These actions cannot be undone through the file tree. Legal holds and protected controlled records can block deletion.
+
+If a file serves several unrelated projects, consider keeping an appropriately scoped copy in the [Knowledge library](/platform/knowledge/documents). Avoid maintaining several conflicting copies of the same policy.

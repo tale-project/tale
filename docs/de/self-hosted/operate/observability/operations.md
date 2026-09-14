@@ -3,9 +3,9 @@ title: Operations
 description: Worauf zu alarmieren ist, welche Metriken zählen, und die Oncall-Checkliste, wenn sich eine Tale-Instanz schlecht zu benehmen anfängt.
 ---
 
-Die Operations-Seite ist das Alert-Playbook — welche Signale es wert sind, jemanden zu wecken, welche eine Kaffee-Runde überstehen können und wie die ersten fünf Minuten eines Vorfalls aussehen. Die Metrik-Oberfläche von Tale lebt hinter `METRICS_BEARER_TOKEN`; diese Seite nimmt an, dass du Prometheus und Grafana gemäss [Observability-Konfiguration](/de/self-hosted/configuration/observability-config) verdrahtet hast und jetzt wissen musst, welche Zahlen du beobachtest.
+Überwache mehrere Ebenen: öffentliche Erreichbarkeit, Backend und Speicher, Hintergrundarbeit sowie die für dein Team wichtigen Aktionen. Eine HTTP-Antwort beweist noch nicht, dass Chat, Upload oder Automation fertig werden.
 
-Der symptomorientierte Index ist in [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting). Diese Seite ist die proaktive Seite — Signale zuerst, Oncall-Checkliste zweitens.
+Wähle anhand der folgenden Signale Alarme und erste Maßnahmen. [Beobachtbarkeit konfigurieren](/de/self-hosted/configuration/observability-config) beschreibt die Erfassung, [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) einzelne fehlgeschlagene Abläufe.
 
 ## Signale, auf die zu alarmieren sich lohnt
 

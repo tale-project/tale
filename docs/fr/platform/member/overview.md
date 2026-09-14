@@ -1,58 +1,40 @@
 ---
 title: Membre
-description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée.
+description: Commence avec Chat, les connaissances partagées et le travail que ton organisation met à ta disposition.
 ---
 
-Membre est le rôle par défaut que portent la plupart des personnes dans la plupart des orgs. C’est la surface utilisateur final de Tale — chatter avec l’assistant, parcourir la base de connaissances, répondre au courriel client dans la Boîte de réception d’une automatisation installée, et laisser des retours sur les réponses. Les Membres ne construisent pas d’agents, ne configurent pas de fournisseurs, n’installent pas d’automatisations. Ils utilisent le produit que les Éditeurs et Développeurs ont bâti pour eux.
+En tant que Membre, tu poses des questions dans Chat et lis les connaissances et contenus de projet partagés avec toi. La configuration de l’organisation et tes équipes déterminent les ressources visibles. Tu peux aussi entretenir tes préférences de compte et créer des skills réutilisables.
 
-Cette vue d’ensemble nomme ce qu’un Membre peut faire et pointe vers les pages par fonctionnalité. Les Membres atterrissent typiquement d’abord sur Chat ; le reste de cette page est ce qu’il faut lire quand chat seul ne suffit pas — quand tu veux savoir d’où vient une citation, où se décide une approbation, ou ce qu’empaquette un projet.
-
-## Ce que couvre Membre
-
-La surface Membre est volontairement étroite. Les trois seaux sont :
-
-- **Chat** — choisir un modèle (ou le laisser sur **Auto**), envoyer un message, lire la réponse. Le chat expose les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canevas quand une réponse produit plus que le chat peut tenir en ligne.
-- **Connaissance** — parcourir les documents, contacts, produits, sites web que l’org a chargés. Lecture seule pour les Membres ; la curation arrive du côté Éditeur.
-- **Boîte de réception** — répondre dans l’onglet **Boîte de réception** qu’ajoute une automatisation d’e-mail installée. Les Membres répondent quand un agent leur rend une conversation ; installer l’automatisation elle-même est une action d’admin.
-
-Les approbations ne sont pas une surface Membre dans cette version. Une écriture de connector qui a besoin d’un accord met l’exécution d’automatisation en pause, et la décision se prend sur la page de détail de cette exécution — par la personne qui l’ouvre. [Concepts d’approbation](/fr/platform/approvals/concepts) explique la carte.
-
-Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et Notifications.
-
-Un lien de notification ouvre la tâche, le document ou la conversation concernés. Si tu dois d’abord te connecter, Tale conserve cette destination et l’ouvre après la connexion. Tu dois toujours avoir accès à l’organisation et au contenu lié. Pour un déploiement privé, rejoins d’abord le réseau requis.
-
-## Pages dans cette section
-
-Cette section est courte — la surface Membre est l’intersection des pages que les Éditeurs construisent et que tout le monde utilise. La lecture plus profonde vit dans les zones par fonctionnalité.
+## Commencer ta journée
 
 <CardGroup cols="2">
 
-<Card title="Chat" icon="message-circle" href="/fr/platform/chat/overview">
+<Card title="Poser une question utile" icon="message-circle" href="/fr/tutorials/member/chat-effectively">
 
-Le point d’entrée quotidien — chat, agents, pièces jointes, citations.
-
-</Card>
-
-<Card title="Connaissance" icon="library" href="/fr/platform/knowledge/overview">
-
-La fenêtre lecture seule sur ce que l’org a chargé.
+Exerce-toi avec une source, vérifie les faits et pose une relance.
 
 </Card>
 
-<Card title="Automatisations livrées" icon="inbox" href="/fr/platform/automations/builtin">
+<Card title="Lire les connaissances partagées" icon="library" href="/fr/platform/knowledge/overview">
 
-Les automatisations d’e-mail qui ajoutent un onglet Boîte de réception — et ce que fait chacune.
+Retrouve documents, informations et fiches, et comprends pourquoi une source peut manquer.
 
 </Card>
 
-<Card title="Approbations" icon="check-check" href="/fr/platform/approvals/concepts">
+<Card title="Comprendre les projets" icon="folder-open" href="/fr/platform/projects/concepts">
 
-Où une écriture de connector attend une décision, et ce que font Approuver et Rejeter.
+Distingue les fichiers et conversations du projet des chats qui restent personnels.
+
+</Card>
+
+<Card title="Gérer ton compte" icon="user" href="/fr/platform/member/preferences">
+
+Modifie ton profil et comprends les préférences enregistrées et la gestion des chats.
 
 </Card>
 
 </CardGroup>
 
-## Où cela s’inscrit
+## Si une action manque
 
-Membre est le rôle qui consomme ce que l’Éditeur construit et que l’Administrateur gouverne. La première lecture naturelle est [Chat](/fr/platform/chat/overview) — c’est là que chaque Membre passe le plus de temps, et la plupart des autres surfaces Membre se déploient depuis un chat qui voulait faire plus.
+Les Membres lisent la bibliothèque commune ; les Éditeurs et rôles supérieurs en entretiennent le contenu. Les automatisations et réglages techniques nécessitent des droits de Développeur ou d’administrateur. Demande l’accès adapté à ta tâche : une ressource visible n’est pas forcément modifiable. [Membres et rôles](/fr/platform/admin/members-and-roles) explique les différences.

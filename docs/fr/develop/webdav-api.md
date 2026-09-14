@@ -3,9 +3,9 @@ title: API WebDAV
 description: Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites.
 ---
 
-Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Connectors > WebDAV](/fr/platform/connectors/webdav).
+L’endpoint WebDAV expose les documents Tale sous `/dav/<orgSlug>/` aux clients de fichiers compatibles. Cette référence décrit méthodes, propriétés, verrous et erreurs pour les développeurs de clients. Pour monter un dossier dans une application existante, suis le [guide WebDAV](/fr/platform/connectors/webdav).
 
-L’identifiant est créé par un humain : un mot de passe d’application qu’une personne crée sous **Paramètres > WebDAV**. Rien sur l’API n’en frappe un, et une clé API n’est pas acceptée sur cette surface — chaque méthode sauf `OPTIONS` lui répond `401` —, un essai scripté, un smoke test de CI ou un runbook d’onboarding a donc besoin qu’une personne crée d’abord le mot de passe et le remette au client.
+L’authentification utilise un mot de passe d’application créé dans les paramètres WebDAV. Une clé REST n’est pas acceptée et `/api/v1` ne crée pas ces mots de passe. Prépare le bon identifiant avant de tester ton client.
 
 ## Schéma d’URL
 

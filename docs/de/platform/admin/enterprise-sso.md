@@ -1,85 +1,90 @@
 ---
 title: Enterprise-SSO und Bereitstellung
-description: Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren.
+description: Verbinde deinen Identitätsanbieter, teste die Anmeldung und verwalte Rollen und Teams über SSO oder SCIM.
 ---
 
-Mit Enterprise-SSO melden sich deine Mitglieder über deinen Identitätsanbieter (IdP) an, statt mit einem Tale-Passwort, und SCIM lässt den IdP Mitglieder und Gruppen automatisch anlegen, aktualisieren und deaktivieren — ohne manuelle Einladungen. Eine Verbindung pro Organisation trägt das Anmeldeprotokoll, die Bereitstellungsrichtlinie und das SCIM-Token gemeinsam. Alles liegt auf einer Seite: **Einstellungen > Enterprise-SSO** (nur Administratoren).
+Mit Enterprise-SSO melden sich Mitglieder über deinen Identitätsanbieter (IdP) an. Über SCIM kann er Mitglieder anlegen, aktualisieren und deaktivieren, ohne auf deren Anmeldung zu warten. Jede Organisation hat eine Verbindung. Als Admin oder Inhaber kannst du unter **Einstellungen > Enterprise-SSO** die Anmeldung, die Bereitstellung oder beides aktivieren.
 
-Tale spricht vier Protokolle: **OIDC**, einfaches **OAuth2**, **SAML 2.0** für die Anmeldung und **SCIM 2.0** für die Bereitstellung. Du kannst Anmeldung, Bereitstellung oder beides aktivieren.
+## Bevor du beginnst
 
-<Frame caption="Einstellungen > Enterprise-SSO — Protokoll-Auswähler und Anmeldefelder auf einer Seite; die Redirect-URL zum Registrieren im IdP steht bereit zum Kopieren.">
+Du brauchst die Berechtigung, beim IdP eine Anwendung zu registrieren, deren Client-Zugangsdaten oder SAML-Metadaten sowie die öffentliche Tale-Adresse deiner Mitglieder. Lass während der Tests eine funktionierende Admin-Sitzung offen, damit du die Verbindung bei einem Anmeldefehler korrigieren kannst.
 
-![Die Einstellungsseite Enterprise-SSO mit dem Protokoll-Dropdown auf Microsoft Entra ID und passendem Anzeigename, dazu ein Anmeldebereich mit der zu registrierenden Redirect-URL, einer Issuer-URL und einer Client-ID aus der App-Registrierung, einem leeren Client-Secret und den angeforderten Scopes.](/images/platform/settings-enterprise-sso.webp)
+Trage unter **Anzeigename** einen Namen ein, den Mitglieder erkennen. Er erscheint in der Organisationsauswahl auf der öffentlichen Anmeldeseite. Verwende dafür keine vertraulichen oder rein internen Angaben.
+
+<Frame caption="Wähle zuerst das Protokoll. Tale zeigt die passenden Felder und die Callback-Adresse für deinen Identitätsanbieter.">
+
+![Enterprise-SSO-Einstellungen mit Microsoft Entra ID, Weiterleitungs-URL sowie Feldern für Issuer und Client-Zugangsdaten.](/images/platform/settings-enterprise-sso.webp)
 
 </Frame>
 
-## Protokoll wählen
+## Das Protokoll wählen
 
-Öffne **Einstellungen > Enterprise-SSO**, wähle ein **Protokoll** und fülle nur die Felder dieses Protokolls aus — die übrigen bleiben ausgeblendet. Ein **Einrichtungsleitfaden** auf derselben Seite listet die genauen Schritte auf und zeigt die URLs, die du in deinen IdP einfügst. Verwende **Verbindung testen** vor dem Speichern, um die Konfiguration zu prüfen, und **Speichern**, um die Anmeldung zu aktivieren.
+| Protokoll | Wann es passt | Was du vorbereitest |
+| --- | --- | --- |
+| **Microsoft Entra ID** | Deine Organisation nutzt Entra; die optionale Team-Synchronisierung verwendet Microsoft Graph. | Tenant-spezifische Issuer-URL, Client-ID, Client-Secret. |
+| **Generisches OIDC** | Dein Anbieter unterstützt OpenID-Connect-Discovery. | Issuer-URL, Client-ID, Client-Secret. |
+| **OAuth2** | Dein Anbieter hat kein OIDC-Discovery-Dokument. | Client-Zugangsdaten und URLs für Autorisierung, Token und Userinfo. |
+| **SAML 2.0** | Dein IdP verwendet SAML-Assertions. | IdP-Metadaten oder Entity-ID, Anmelde-URL und Signaturzertifikat. |
 
-- **Microsoft Entra ID** — Microsofts OIDC, mit Gruppe-zu-Team-Synchronisierung über Microsoft Graph.
-- **Generisches OIDC** — jeder OpenID-Connect-Anbieter (Google, Okta, Auth0, Keycloak, …). Endpunkte werden vom Issuer erkannt.
-- **OAuth2** — Anbieter ohne OIDC-Discovery; Autorisierungs-, Token- und Userinfo-Endpunkt konfigurierst du manuell.
-- **SAML 2.0** — XML-basiertes SSO; du tauschst Metadaten mit dem IdP aus.
+## Einen OIDC- oder OAuth2-Anbieter verbinden
 
-## Microsoft Entra ID
+1. Wähle das Protokoll in Tale und öffne den **Einrichtungsleitfaden**, um die Callback-URL zu finden.
+2. Registriere beim IdP eine Webanwendung. Kopiere die Callback-URL exakt, einschließlich Schema, Host und Pfad. Registriere auch jede zusätzliche Callback-URL, die Tale für weitere Deployment-Domains anzeigt.
+3. Trage Client-ID und Client-Secret in Tale ein. Bei OIDC gibst du die Issuer-URL an; Tale ermittelt die Endpunkte. Bei OAuth2 trägst du die drei Endpunkt-URLs selbst ein.
+4. Prüfe **Scopes** und **Erweitert**. Fordere die Identitäts-Claims an, die deine Bereitstellungsregeln brauchen. Ordne abweichende Claim-Namen bei Bedarf zu. Claim-Pfade können Punkte enthalten, etwa `realm_access.roles`.
+5. Wähle **Verbindung testen**, behebe mögliche Fehler und wähle oben **Speichern**. Teste danach eine echte Anmeldung wie unten beschrieben.
 
-1. Melde dich im [Microsoft Entra Admin Center](https://entra.microsoft.com) mindestens als Anwendungsentwickler an.
-2. Geh zu **Entra ID > App-Registrierungen > Neue Registrierung**, benenne sie und wähle **Einzelner Mandant**.
-3. Wähle unter **Umleitungs-URI** die Plattform **Web**, füge die auf der Tale-Seite angezeigte **Weiterleitungs-URL** ein und klicke auf **Registrieren**.
-4. Kopiere auf der **Übersicht** die **Anwendungs-(Client-)ID** und die **Verzeichnis-(Mandanten-)ID**. Deine Issuer-URL lautet `https://login.microsoftonline.com/{tenant-id}/v2.0`.
-5. Öffne **Zertifikate & Geheimnisse > Neues Clientgeheimnis** und kopiere den **Wert** des Geheimnisses (nicht die Geheimnis-ID).
-6. Wähle in Tale **Microsoft Entra ID** und gib Client-ID, Clientgeheimnis und Issuer-URL ein.
-7. Für die Gruppe-zu-Team-Synchronisierung füge unter **API-Berechtigungen** die Microsoft-Graph-Berechtigung **GroupMember.Read.All** hinzu und erteile die Administratorzustimmung.
-8. OneDrive- und SharePoint-Dateiimport gehört **nicht** zum SSO. Mitglieder autorisieren ihn unter **Wissen → Dokumente → Von Microsoft 365 → Microsoft 365 verbinden** — dort fragt Tale Graph **Files.Read** und **Sites.Read.All** an. Trage diese Scopes nicht in das SSO-Feld **Scopes** ein.
+Verwende für Entra eine Tenant-spezifische Issuer-URL wie `https://login.microsoftonline.com/{tenant-id}/v2.0`, registriere den Callback als Web-Weiterleitungs-URI und kopiere den Wert des Client-Secrets statt seiner ID. Microsoft erklärt die Einrichtung in der [Anleitung zur App-Registrierung](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app). Die Gruppen-Team-Synchronisierung braucht die Microsoft-Graph-Berechtigung `GroupMember.Read.All` und Admin-Zustimmung.
 
-## Google
+Wähle für Google **Generisches OIDC** mit dem Issuer `https://accounts.google.com`; siehe Googles [OpenID-Connect-Einrichtung](https://developers.google.com/identity/openid-connect/openid-connect). Googles Standard-OIDC liefert keine Gruppenmitgliedschaften. Eine Google-Anmeldung allein ermöglicht deshalb keine Gruppen-Team-Synchronisierung.
 
-Google wird als generischer OIDC-Anbieter konfiguriert.
+<Note>
+Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge `Files.Read` oder `Sites.Read.All` nicht zu den SSO-Scopes hinzu, wenn Mitglieder sich nur anmelden sollen. Richte den Import über [OAuth-Apps für Konnektoren](/platform/admin/connectors) ein.
+</Note>
 
-1. Öffne in der [Google Cloud Console](https://console.cloud.google.com) **APIs & Dienste > Anmeldedaten > Anmeldedaten erstellen > OAuth-Client-ID**.
-2. Wähle den Anwendungstyp **Webanwendung**.
-3. Füge unter **Autorisierte Weiterleitungs-URIs** die auf der Tale-Seite angezeigte **Weiterleitungs-URL** hinzu und speichere.
-4. Kopiere **Client-ID** und **Clientgeheimnis** oben auf der Client-Seite.
-5. Wähle in Tale **Generisches OIDC**, gib Client-ID und Geheimnis ein und setze die Issuer-URL auf `https://accounts.google.com`. Die Endpunkte werden automatisch erkannt.
+## Einen SAML-Anbieter verbinden
 
-Das Standard-OIDC von Google liefert **keine** Gruppenmitgliedschaften, daher ist die Gruppe-zu-Team-Synchronisierung mit Google allein nicht verfügbar — sie benötigt das Admin SDK / die Cloud Identity API mit einem Workspace-Administrator. Anmeldung und Rollenzuordnung per Claim funktionieren normal.
+1. Wähle **SAML 2.0**. Übernimm **SP-Metadaten-URL** und **ACS-URL (Antwort)** in die SAML-Anwendung deines IdP. Verwende die Service-Provider-Metadaten für Entity-ID/Audience und die E-Mail-Adresse als Name-ID-Format.
+2. Importiere unter **IdP-Metadaten importieren** die Metadaten-URL des IdP oder wähle **XML hochladen**. Prüfe die übernommenen Werte für Entity-ID, Anmelde-URL und Signaturzertifikat. Du kannst sie auch manuell eintragen.
+3. Ordne unter **Erweitert** E-Mail, Name und Gruppen zu, falls der IdP andere Attributnamen nutzt. Lass **Signierte Assertions verlangen** aktiviert.
+4. Speichere die Verbindung und teste eine Anmeldung über den IdP.
 
-## Generisches OIDC und OAuth2
+Verschlüsselt dein IdP Assertions, ergänze unter **Erweitert** ein passendes **SP-Zertifikat (PEM)** und **Privater SP-Schlüssel (PEM)**. Das Zertifikat erscheint in den SP-Metadaten; der private Schlüssel wird als Secret gespeichert und nicht erneut angezeigt. Richte die Verschlüsselung im IdP ein, bevor du **Verschlüsselte Assertions verlangen** aktivierst. Tale akzeptiert diese Einstellung nur mit einem Entschlüsselungsschlüssel und weist danach unverschlüsselte Assertions ab.
 
-Für jeden anderen OIDC-Anbieter (Okta, Auth0, Keycloak) wähle **Generisches OIDC**, füge die **Issuer-URL** sowie Client-ID/Geheimnis ein — Tale liest die Autorisierungs-, Token- und Userinfo-Endpunkte aus dem `.well-known/openid-configuration` des Issuers.
+SAML kann vom IdP oder von Tale aus gestartet werden. Wenn du in Tale beginnst, schließe die Anmeldung im selben Browser ab. So kann der Callback das zu Beginn angelegte Cookie prüfen.
 
-Wenn ein Anbieter OAuth2, aber kein Discovery-Dokument bietet, wähle **OAuth2** und gib die URLs für **Autorisierungs-**, **Token-** und **Userinfo**-Endpunkt manuell ein. Verwendet der Anbieter abweichende Claim-Namen, ordne **E-Mail**, **Name** und **Gruppen** in den erweiterten Feldern der Verbindung zu (Dot-Pfade werden unterstützt, z. B. `realm_access.roles`).
+## Rollen und Teams bei der Anmeldung zuweisen
 
-## SAML 2.0
+| Einstellung | Was sie steuert |
+| --- | --- |
+| **Standardrolle** | Rolle für neu angelegte Mitglieder, wenn keine Rollenregel passt; anfangs Mitglied. |
+| **Rollen automatisch vom IdP zuweisen** | Ordnet Gruppen, App-Rollen, Jobtitel oder Claims Tale-Rollen zu. Prüfe vor dem Aktivieren, wer eine Admin-Regel erfüllen könnte. |
+| **IdP-Gruppen mit Teams synchronisieren** | Erstellt Teams oder fügt Mitglieder bei der Anmeldung anhand ihrer Gruppen hinzu. |
+| **Gruppen ausschließen** | Kommagetrennte Gruppennamen, die die Team-Synchronisierung auslässt. |
 
-1. Wähle in Tale **SAML 2.0**. Die Seite zeigt deine **SP-Metadaten-URL** und **ACS-URL (Antwort)** — kopiere diese.
-2. Erstelle in deinem IdP eine neue SAML-2.0-Anwendung. Setze deren **ACS-URL** und **Entity-ID/Audience** auf die angezeigten SP-Werte (oder lade die SP-Metadaten-URL hoch) und das **Name-ID**-Format auf E-Mail-Adresse.
-3. Füge unter **IdP-Metadaten importieren** die Föderations-Metadaten-URL deines IdP ein und klick auf **Importieren** — oder klick auf **XML hochladen**, falls dein IdP nur eine Datei zum Herunterladen anbietet. Tale liest die Metadaten aus und füllt Entity-ID, Anmelde-URL und Signaturzertifikat in den Feldern darunter, ohne dass du etwas abtippen musst. Alle drei Felder bleiben bearbeitbar — prüfe die importierten Werte (oder trag sie von Hand ein, falls dein IdP keine Metadaten veröffentlicht), bevor du speicherst.
-4. Ordne die Attribute für **E-Mail**, **Name** und **Gruppe** in deinem IdP zu; weichen die Namen von den Standardwerten ab, öffne **Erweitert** und trag die passenden Namen unter **E-Mail-Attribut**, **Namensattribut** und **Gruppenattribut** ein.
+Verschwinden Gruppen, entfernt die Synchronisierung die zuvor von ihr vergebenen Mitgliedschaften. Von ihr erstellte Teams löscht sie, sobald diese leer sind. Manuell oder über SCIM angelegte Mitgliedschaften bleiben erhalten; ausgeschlossene Gruppen bleiben unberührt. Die manuelle Verwaltung beschreibt [Teams](/platform/admin/teams).
 
-Tale unterstützt sowohl IdP-initiiertes SAML (der IdP sendet eine Assertion an die ACS-URL) als auch SP-initiiertes SAML (ein Mitglied klickt auf **Mit SSO anmelden** und Tale leitet zum IdP weiter). Signierte Assertions sind erforderlich (**Signierte Assertions verlangen**, standardmäßig an). Für verschlüsselte Assertions fügst du unter **Erweitert** ein **SP-Zertifikat (PEM)** und den zugehörigen **Privaten SP-Schlüssel (PEM)** ein — das Zertifikat landet in den SP-Metadaten, damit dein IdP dafür verschlüsselt, der Schlüssel wird als Secret gespeichert und nie wieder angezeigt — und schaltest **Verschlüsselte Assertions verlangen** ein, sobald der IdP verschlüsselt. Eine Verbindung, die sie verlangt, weist jede unverschlüsselt eintreffende Assertion ab, und Tale speichert diesen Schalter nicht ohne einen Schlüssel zum Entschlüsseln.
+## Mitglieder über SCIM bereitstellen
 
-Eine Anmeldung, die Tale startet — SP-initiiertes SAML sowie jede OIDC- und OAuth2-Anmeldung — ist an den Browser gebunden, in dem sie beginnt: Tale setzt beim Weiterleiten zum IdP ein kurzlebiges Cookie und weist eine Antwort ab, die in einem anderen Browser ankommt. Ein abgefangener Anmelde-Link meldet so niemand anderen an. Eine IdP-initiierte Assertion beantwortet keine Anfrage von Tale und trägt deshalb keine solche Bindung. Erfährt ein Mitglied, dass die Anmeldung nicht in dem Browser gelandet ist, in dem sie begonnen hat, hat sein Browser dieses Cookie verworfen — meist durch eine Datenschutzeinstellung, die Cookies bei seitenübergreifenden Weiterleitungen blockiert; eine neue Anmeldung aus einem Browser, der es behält, löst das.
+1. Wähle unter **SCIM-Bereitstellung** die Aktion **Token generieren** und kopiere das Token sofort. Es wird nur einmal angezeigt.
+2. Hinterlege das Token als Bearer-Zugangsdaten und die angezeigte **SCIM-Basis-URL** in der Bereitstellungskonfiguration deines IdP.
+3. Stelle einen Testbenutzer und eine Testgruppe bereit. Prüfe, ob Mitglied und Team in Tale erscheinen, und teste Aktualisierung und Deaktivierung, bevor du weitere Personen einbeziehst.
 
-## Mehrere Organisationen auf einem Deployment
+SCIM-Users werden zu Mitgliedern, Groups zu Teams. Eine Deaktivierung (`active: false`) sperrt den Zugang des Mitglieds; die Reaktivierung stellt seine vorherige Rolle wieder her. Das Löschen eines SCIM-Users entfernt seine Organisationsmitgliedschaft, erhält aber sein Konto. Bei erneuter Bereitstellung gilt die Standardrolle der Verbindung.
 
-Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherbergen. Klicke auf der Anmeldeseite auf **Weiter mit SSO** und wähle deine Organisation aus der Liste — jeder Eintrag zeigt den **Anzeigenamen** der Verbindung. Dieser Name ist auf der Anmeldeseite für alle sichtbar; setze in **Einstellungen > Enterprise-SSO** pro Verbindung einen klaren Anzeigenamen.
+Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen dürfen nur Mitglieder dieser Organisation enthalten. Eine Änderung des Benutzernamens wird abgelehnt, wenn die neue E-Mail-Adresse schon vergeben ist oder das Konto mehreren Organisationen angehört. So bleibt seine gemeinsame Anmeldeidentität geschützt.
 
-## Bereitstellung: Rollen und Teams
+## Prüfen und Fehler beheben
 
-Jedes Protokoll teilt sich eine Bereitstellungsrichtlinie:
+Öffne eine separate Browsersitzung, wähle **Weiter mit SSO** und dann die Organisation anhand ihres Anzeigenamens. Melde dich an und prüfe Rolle und Teammitgliedschaften. **Verbindung testen** prüft die Verbindungsdaten, aber nicht, ob eine echte Person die vorgesehenen Zugriffsrechte erhält.
 
-- **Standardrolle** — die Rolle, die ein neu bereitgestelltes Mitglied erhält (standardmäßig Mitglied).
-- **Rollen automatisch vom IdP zuweisen** — wenn aktiv, ordnen Rollenregeln einen Jobtitel, eine App-Rolle, eine Gruppe oder einen Claim einer Plattformrolle zu; trifft nichts zu, gilt die Standardrolle.
-- **IdP-Gruppen mit Teams synchronisieren** — wenn aktiv, wird jede IdP-Gruppe des Benutzers bei der Anmeldung zu einem gleichnamigen Team (oder tritt ihm bei); **Gruppen ausschließen** überspringt störende Gruppen (kommagetrennt). Die Synchronisierung nimmt nur zurück, was sie selbst hinzugefügt hat: Verschwindet eine Gruppe aus dem Claim des Benutzers, entfernt sie die Mitgliedschaft, die sie vergeben hat, und löscht ein Team, das sie selbst angelegt hat, sobald es leer ist. Teams und Mitgliedschaften, die Admins oder SCIM angelegt haben, bleiben unangetastet; ausgeschlossene Gruppen lässt sie vollständig in Ruhe.
+| Symptom | Was du prüfst |
+| --- | --- |
+| Abweichende Weiterleitung, etwa `AADSTS50011` | Vergleiche den registrierten Callback exakt mit Tales URL: Domain, Schema, Pfad und abschließender Schrägstrich. |
+| Verbindungstest schlägt fehl | Prüfe Issuer/Endpunkte, Client-ID, Wert und Ablaufdatum des Secrets sowie nötige Zustimmungen beim Anbieter. |
+| Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
+| Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, Rollenregeln, Ausschlüsse und Gruppenberechtigungen. |
+| SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
+| Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/self-hosted/configuration/authentication) zu prüfen. |
 
-## SCIM-Bereitstellung (Benutzer und Gruppen)
-
-Mit SCIM überträgt dein IdP Änderungen, ohne dass sich jemand anmelden muss. Klicke im Abschnitt **SCIM-Bereitstellung** auf **Token generieren** — kopiere es einmalig (es wird nicht erneut angezeigt) — und füge es zusammen mit der angezeigten **SCIM-Basis-URL** in die Bereitstellungseinstellungen deines IdP ein. Der IdP authentifiziert sich mit dem Token als Bearer-Anmeldedaten; Tale ermittelt die Organisation aus dem Token, das damit die Mandantengrenze bildet.
-
-Tale implementiert SCIM 2.0 **Users** und **Groups**: anlegen, lesen, auflisten (mit `userName`/`displayName`-Filtern), ersetzen, patchen und löschen. Bereitgestellte Benutzer entsprechen Organisationsmitgliedern, Gruppen entsprechen Teams. **Die Deaktivierung ist sanft** — setzt der IdP einen Benutzer inaktiv (`active: false`), wird die Rolle des Mitglieds auf `disabled` gesetzt (was den Zugriff entzieht), und eine Reaktivierung stellt die vorherige Rolle wieder her. Ein SCIM-**Löschen** entfernt die Mitgliedschaft aus der Organisation; das Benutzerkonto selbst bleibt bestehen, und eine erneute Bereitstellung fügt es mit der Standardrolle der Verbindung wieder hinzu. Der Inhaber der Organisation kann über SCIM nie entfernt oder deaktiviert werden. Gruppenmitglieder müssen Mitglieder der Organisation sein — einen Benutzer aus einer anderen Organisation weist Tale ab. Eine Änderung des `userName` greift nur, wenn die Adresse frei ist und das Konto ausschließlich zu dieser Organisation gehört; ein Konto, das auch anderswo Mitglied ist, behält die Adresse, mit der es sich anmeldet, und der IdP erhält stattdessen eine Ablehnung.
-
-## Überprüfung
-
-Verwende **Verbindung testen** für OIDC/OAuth2, um Discovery und Anmeldedaten vor dem Speichern zu bestätigen. Für SAML lade die SP-Metadaten in deinen IdP und führe eine Testanmeldung durch. Für SCIM bieten die meisten IdPs eine „Test"- oder „Jetzt bereitstellen"-Aktion, die einen Beispielbenutzer anlegt — prüfe, ob er unter **Einstellungen > Mitglieder** erscheint. Eine End-to-End-SSO-Anmeldung prüfst du am besten gegen deinen echten IdP in einer Staging-Organisation.
+**Anmeldung deaktivieren** stoppt neue SSO-Anmeldungen; aktive Sitzungen bleiben bestehen. **Entfernen** löscht die Verbindungskonfiguration samt Zugangsdaten. Sorge vor beiden Aktionen für eine andere funktionierende Anmeldemethode.

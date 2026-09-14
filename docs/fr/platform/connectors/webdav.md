@@ -33,7 +33,7 @@ Appuie sur **⌘K** (Se connecter au serveur), colle l’URL et connecte-toi ave
 
 <Tab title="Windows">
 
-Dans **Ce PC**, choisis **Connecter un lecteur réseau**, colle l’URL comme dossier et coche **Se connecter à l’aide d’informations d’identification différentes**. Windows plafonne les transferts WebDAV à 50 Mo par fichier par défaut — augmente `FileSizeLimitInBytes` sous la clé de registre `WebClient\Parameters` et redémarre le service WebClient. Sur un port HTTPS non standard, règle `BasicAuthLevel` à `2` sous la même clé.
+Dans **Ce PC**, choisis **Connecter un lecteur réseau**, colle l’URL HTTPS et sélectionne **Se connecter à l’aide d’informations d’identification différentes**. Utilise ton e-mail et le mot de passe d’application généré. Le service Windows WebClient doit être disponible et démarré. Si la connexion ou un transfert volumineux échoue, utilise un client WebDAV ou demande à l’équipe informatique de vérifier les [limites du client Windows](https://learn.microsoft.com/en-us/iis/publish/using-webdav/using-the-webdav-redirector). Garde HTTPS : `BasicAuthLevel: 2` autorise des connexions non chiffrées et ne corrige pas un port inhabituel.
 
 </Tab>
 
@@ -45,9 +45,9 @@ Les gestionnaires de fichiers dont la boîte de dialogue **Se connecter au serve
 
 </Tab>
 
-<Tab title="Fichiers iOS">
+<Tab title="iPhone et iPad">
 
-Touche le menu à trois points, choisis **Se connecter au serveur** et saisis la même URL et les mêmes identifiants. Fichiers prend en charge la navigation et le téléchargement ; la modification sur place fonctionne pour les formats dotés d’une app iOS.
+Utilise une application qui prend explicitement en charge WebDAV, avec l’URL HTTPS et un mot de passe d’application propre à l’appareil. Suis ses instructions ; le dialogue serveur générique de Fichiers n’est pas un guide de connexion WebDAV. L’envoi direct par WebDAV dans Pages, Numbers et Keynote [n’est plus pris en charge](https://support.apple.com/en-us/101948). Pour un accès occasionnel, ouvre Documents dans Tale depuis le navigateur.
 
 </Tab>
 

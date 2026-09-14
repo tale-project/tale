@@ -3,9 +3,9 @@ title: TLS et domaines
 description: Comment le proxy Caddy termine TLS — auto-signé pour développement, Let's Encrypt pour production, externe pour un proxy amont — plus les setups domaine personnalisé et certificat personnalisé.
 ---
 
-Le conteneur `tale-proxy` est Caddy. Il possède la terminaison TLS, le routage par hôte et la barrière d'auth des métriques ; chaque requête venue du navigateur y atterrit en premier. Les trois modes — auto-signé, Let's Encrypt, externe — couvrent les trois formes de déploiement que la plupart des opérateurs choisissent, et la variable qui bascule entre eux est `TLS_MODE` dans ton `.env`.
+Choisis le nom d’hôte public et l’endroit où TLS se termine avant d’inviter des membres ou de configurer le SSO. Tale peut utiliser un certificat local autosigné, obtenir un certificat public via son proxy ou fonctionner derrière ton proxy existant.
 
-Les lignes de référence des variables d'env vivent dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference#tls). Cette page est le walkthrough mode par mode et les recettes pour les domaines personnalisés et bring-your-own certificats.
+Suis la configuration adaptée, puis vérifie l’URL et le certificat dans le navigateur. Une sonde de conteneur positive ne valide ni le DNS public ni la confiance du certificat.
 
 ## Auto-signé (défaut)
 

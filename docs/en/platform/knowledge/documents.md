@@ -1,21 +1,74 @@
 ---
 title: Documents
-description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle.
+description: Upload shared reference files, check whether they can be searched, and keep imports and approved revisions current.
 ---
 
-The Documents tab is the knowledge base's file surface. Editors upload files, Tale runs each one through the indexing pipeline — extract the text, chunk it, embed the chunks, store them — and agents whose knowledge scope covers the document retrieve relevant passages at reply time and cite them. This page covers the operator side: uploading, the status column, team scoping, folders, and the document lifecycle.
+Use **Knowledge > Documents** for files that belong in the shared library: policies, guides, reports, and supporting evidence. Members read documents within their access; Editors and higher roles can upload and manage them. For material that belongs to one project, use that project's [Knowledge tab](/platform/projects/manage-files).
 
-<Frame caption="The Documents table — size, source, RAG status, and team scope per file.">
+<Frame caption="The document list brings together the original file, its source, indexing status, and team access.">
 
-![The Knowledge area's Documents tab listing three uploaded text files and the three markdown documents behind the knowledge entries, with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
+![The Documents tab displays shared files with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-## Uploading
+## Upload from your device
 
-Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device**, **From Microsoft 365**, and **From Google Drive**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text, and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload.
+1. Open **Knowledge > Documents** and the folder where the files should go. Use **New folder** if you need one.
+2. Choose **Upload documents > From your device** and select the files.
+3. Wait for the upload to finish, then find each row in the table.
+4. Open a document to check its preview and details. Check the **RAG status** before asking the assistant about its content.
 
-Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
+Use a descriptive filename and include a date or revision when it helps distinguish sources. Uploading another file with the same name creates a separate document; it does not replace the existing one.
+
+## Understand upload and search support
+
+A stored file and a searchable file are different states. Tale needs to extract text before it can index a document for knowledge search.
+
+| Format | What to expect |
+| --- | --- |
+| PDF with embedded text, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, plain text | Supported for text extraction and indexing. Check the result for the particular file. |
+| Legacy Office `.doc`, `.xls`, `.ppt` | Can be stored and downloaded; convert to a modern format for indexing. |
+| Images such as JPG, PNG, GIF, WEBP | Can be stored and downloaded; the knowledge index does not extract text from them. |
+| Scanned PDF without readable text | Supply an OCR-processed or text version if search needs its content. |
+
+Unsupported formats are not made searchable by repeatedly reindexing. For a question about an image, see [Chat attachments](/platform/chat/attachments), where an available vision model may read it directly.
+
+## Read the indexing status
+
+| Status | What it means and what to do |
+| --- | --- |
+| **Queued** | Waiting for an indexing slot. A busy library processes files in batches. |
+| **Indexing** | Text is being prepared for search. Wait before testing the source. |
+| **Indexed** | Indexing completed. Test a specific question and open its citation. |
+| **Needs reindex** | The index is stale. Choose **Reindex** in the row menu. |
+| **Failed** | Inspect the error, resolve its cause, then retry. |
+| **Unsupported** | This format has no supported text extractor. Convert the source. |
+| **Not indexed** | No completed index is available. Check the file and start indexing where offered. |
+
+Interrupted jobs recover in the background or report a failure with a retry option. If a status does not progress, give an administrator the document name and error. They can check indexing services and the embedding configuration. Failed and unsupported files still use storage until removed.
+
+## Choose who can read it
+
+Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.
+
+Folders organize the library. Check the **Teams** cell for access and the **Source** column for where a file came from. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
+
+## Import from Microsoft 365 or Google Drive
+
+Choose **From Microsoft 365** or **From Google Drive** under **Upload documents**. On first use, connect your account and authorize the import. If Tale reports that import is not configured, an administrator must set up the service under [Connectors](/platform/admin/connectors) before you can continue.
+
+Select files or folders, then choose the import mode:
+
+| Mode | Result |
+| --- | --- |
+| **One-time import** | Copies the selection once and preserves its folder structure. Later source changes do not update the copy. |
+| **Sync import** | Keeps the supported selection current. New files arrive on a later sync; changed files reindex; deleted source files are removed from the mirror. |
+
+For Microsoft 365, choose **My OneDrive** or **SharePoint Sites**. Sync is available for personal OneDrive folders; SharePoint selections import once. For Google Drive, select from My Drive. Native Google Docs, Sheets, and Slides are skipped: export them to PDF or Office formats first.
+
+If a folder is too large to list completely, Tale refuses that import. Select smaller subfolders or use sync where supported. If the selected source folder or file is deleted, its mirror is removed and the sync ends.
+
+To keep the imported files without further updates, use **Stop syncing** on the file or folder row. Deleting the imported item also stops its sync. These actions leave the originals in OneDrive or Google Drive untouched. **Disconnect Google Drive** in the import dialog revokes that connection; reconnect when you need to import again.
 
 ## Revising a controlled document
 
@@ -49,44 +102,14 @@ Open the document preview and confirm that it shows the replacement. Then open t
 
 </Steps>
 
-## Importing from Microsoft 365
+## Delete with the contents in mind
 
-**From Microsoft 365** is always on the upload menu. The first time you use it, Tale asks you to authorize OneDrive and SharePoint for importing into Documents. If the dialog reports that import is not set up yet, an org admin first configures the OAuth app under **Settings > Connectors > OAuth apps** (or the operator registers one on the deployment) — an organization that signs in with Microsoft Entra ID can copy its SSO app registration there instead of registering a new one. After you connect, pick files or folders from **My OneDrive** or **SharePoint Sites**, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace — when the synced folder or file itself is deleted at the source, Tale removes its mirror and ends the sync. Both modes preserve the folder structure of your selection: a synced folder lands as a folder of the same name, and a file the workspace already holds when you start a folder sync — an earlier one-time import, say — is adopted by the sync and moved under that folder, unchanged. Sync covers personal OneDrive folders — a SharePoint selection always imports once. A folder that holds more items than one import can list is refused rather than imported in part — import its subfolders one at a time, or use a sync import.
-
-To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in OneDrive are untouched.
-
-## Importing from Google Drive
-
-**From Google Drive** is always on the upload menu. The first time you use it, Tale asks you to authorize Google Drive for importing into Documents. If the dialog reports that import is not set up yet, an org admin first configures the OAuth app under **Settings > Connectors > OAuth apps** (or the operator registers one on the deployment). After you connect, pick files or folders from My Drive, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the Drive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace — when the synced folder or file itself is deleted or trashed in Drive, Tale removes its mirror and ends the sync. Both modes preserve the folder structure of your selection: a synced folder lands as a folder of the same name, and a file the workspace already holds when you start a folder sync — an earlier one-time import, say — is adopted by the sync and moved under that folder, unchanged. Native Google Docs, Sheets, and Slides are skipped — export them to PDF or Office formats first if you need them in Documents. A folder that holds more items than one import can list is refused rather than imported in part — import its subfolders one at a time, or use a sync import.
-
-To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in Google Drive are untouched.
-
-Use **Disconnect Google Drive** in the import dialog header to revoke the grant; connect again when you want to import more.
-
-## Scoping, folders, sources
-
-Each row carries a **Teams** cell — **Organization-wide** by default, or the teams you pick via **Assign team** in the row menu. A team-scoped document is invisible to members and agents outside the team; this is the knowledge base's access lever. Project files are outside this model entirely: a project's **Knowledge** tab holds files scoped to that one project, and they never appear in this library or in its team scoping — teams decide who sees a hub document, project access decides who sees a project file, and a document lives in exactly one of the two places — see [Manage files](/platform/projects/manage-files).
-
-**New folder** keeps large libraries navigable, and connectors bring their own structure: documents synced from OneDrive, SharePoint, or Google Drive land under sync folders and show their origin in the **Source** column, which keeps citations traceable to the upstream system.
+**Delete** removes the document and its indexed content. The confirmation explains the impact; keep a copy if you will need the file later. Re-uploading creates a new document.
 
 <Warning>
 
-Deleting a folder permanently deletes every file and subfolder inside it. Deleting a OneDrive or Google Drive sync folder also removes its auto-sync configuration and history — though never the files in OneDrive or Google Drive itself.
+Deleting a folder permanently deletes its files and subfolders. For a synced folder, it also removes the sync configuration and history. The originals in Microsoft 365 or Google Drive remain untouched.
 
 </Warning>
 
-## Reindex and delete
-
-**Reindex** (row menu) re-runs the pipeline on the stored file — the right move after an indexing failure or when a document shows **Needs reindex**. **Delete** removes the document and its indexed chunks; the confirmation says it plainly — the action cannot be undone. Re-uploading the same file brings the content back as a fresh document. A controlled record stops being deletable the moment any of its versions is approved — in review, approved, or drafting the next revision, the menu entry reads **Protected controlled record** instead, and a folder holding such a record refuses folder deletion the same way. The approved snapshot is a retained record; that is the point of the lifecycle.
-
-Each document shows a status: **Queued** (waiting its turn — a busy organization indexes a few files at a time and the rest queue), **Indexing**, **Indexed**, **Failed**, or **Unsupported** (a legacy format such as `.doc`/`.ppt`/`.xls`, or an image such as `.png`/`.jpg` — it stores and downloads fine but has no text extractor, so it is never indexed for search). An indexing job interrupted by a timeout or a backend restart recovers on its own within a few minutes — it is retried or marked **Failed** with a retry option, never left stuck. If your organization enforces a per-user storage quota, failed and unsupported files still count against it until deleted, so freeing space means removing files you no longer need.
-
-Clicking a document opens the preview, with a sidebar showing size, source, RAG status, teams, uploader, and modification date — the fastest way to check what a citation actually points at.
-
-## Documents versus structured data
-
-Documents are the unstructured half of the knowledge base. When the content is a list of things with the same fields — contacts, products, suppliers — a typed record serves agents better than a spreadsheet upload: exact values instead of retrieved passages. The decision rules live in [Structured data](/platform/knowledge/structured-data).
-
-## Where this fits
-
-Documents are the most-used corner of the knowledge base — most citations in most replies point here. The retrieval side — how the chat assistant and project agents read what is indexed here — is the [Knowledge overview](/platform/knowledge/overview); the fact-sized sibling surface is [Knowledge entries](/platform/knowledge/knowledge-entries), which rides this same pipeline one document at a time.
+A controlled document with an approved version is protected from deletion, including while a later draft is being prepared. Its menu shows **Protected controlled record**. A folder containing such a record cannot be deleted either. Legal holds can also block changes or deletion; ask an administrator to check the specific restriction rather than uploading duplicates to work around it.

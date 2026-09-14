@@ -3,7 +3,7 @@ title: Modellkatalog
 description: Welche Modelle deine Organisation auswählen kann, woher die Liste jedes Anbieters stammt und was du prüfst, wenn ein erwartetes Modell in der Auswahl fehlt.
 ---
 
-Jeder Modell-Picker in Tale bietet dasselbe an — die Modelle, die deine Organisation gerade wirklich erreichen kann. Diese Menge entsteht pro Anbieter, aus der Modellliste des Connectors und den Zugangsdaten, die du dagegen hältst, und wird danach von deinen Governance-Regeln eingeengt. Diese Seite erklärt, woher jedes Stück kommt, damit „warum fehlt dieses Modell“ eine Antwort hat, mit der du etwas anfangen kannst.
+Der Modellkatalog erklärt, welche Modelle deine Organisation wählen kann und warum ein erwartetes Modell fehlt. Verfügbarkeit hängt vom Provider, nutzbaren Zugangsdaten, deren Modell-Freigabeliste und den Zugriffsregeln der Organisation ab.
 
 ## Der Katalog gehört zum Anbieter
 
@@ -54,7 +54,7 @@ Der Chat startet auf **Auto**: Tale liest jede Nachricht und wählt ein Modell d
 
 <Tip>
 
-Wenn mehrere Modelle die Aufgabe plausibel erledigen könnten, schickt [Arena-Modus](/de/platform/chat/arena-mode) denselben Prompt nebeneinander an mehrere davon — aus der Wahl wird ein Vergleich statt eines Bauchgefühls.
+Der [Arena-Modus](/de/platform/chat/arena-mode) vergleicht zwei Modelle mit derselben Frage. Wähle eine Frage und Quelle, die du beurteilen kannst. Vergleiche Richtigkeit und Nutzen statt nur die Antwortlänge.
 
 </Tip>
 

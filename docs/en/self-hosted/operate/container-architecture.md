@@ -3,9 +3,9 @@ title: Container architecture
 description: Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like.
 ---
 
-A Tale instance is nine containers wired by docker compose, plus a small video-ingestion sidecar. The architecture page covered what each container is for; this page is the operator's version — which container owns which job, how a chat message flows through them, and what the failure mode looks like when one of them dies.
+Use this reference to identify which service owns a request, job or persistent store. The request path and failure table help you choose logs during an incident; the install contract defines the networks, mounts and probes needed to run those services.
 
-Read this when you are on call. Come back when you are deciding which container to roll first during an upgrade.
+The packaged single-host deployment combines application and knowledge databases in its database service. Contributor Compose can run a separate knowledge database, so compare the deployment you are inspecting before counting containers.
 
 ## The containers, with their jobs
 

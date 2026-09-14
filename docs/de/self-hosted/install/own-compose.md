@@ -3,7 +3,9 @@ title: Compose selbst fahren
 description: Der Produktions-Compose-Vertrag — Netze, Aliase, Probes, Volumes — damit du den Stack ohne CLI selbst schreibst.
 ---
 
-Diese Seite ist, was ein Stack reproduzieren muss, wenn du Compose oder Kubernetes selbst schreibst statt `tale deploy` zu laufen: welche Services Zustand halten, die DNS-Namen, die Probes, die Volumes. Der CLI-Weg bleibt in [Quickstart](/de/self-hosted/install/quickstart) und [Upgrades](/de/self-hosted/operate/upgrades).
+Nutze diesen Vertrag, wenn dein Infrastrukturteam Compose oder Kubernetes selbst verwaltet. Er beschreibt die Dienste, Images, Volumes, Netzwerk-Aliasse, Geheimnisse und Gesundheitsprüfungen, die zusammenarbeiten müssen.
+
+Du übernimmst auch die Aufgaben, die sonst die CLI koordiniert: passende Versionen, Backups, Migrationen, Bereitstellung und Wiederherstellung. Für eine erste Installation ohne bestehende Orchestrierungsvorgaben beginne mit dem [CLI-Schnellstart](/de/self-hosted/install/quickstart).
 
 ## Wann dieser Weg der richtige ist
 

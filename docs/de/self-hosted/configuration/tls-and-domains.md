@@ -3,9 +3,9 @@ title: TLS und Domains
 description: Wie der Caddy-Proxy TLS terminiert — selbst signiert für Development, Let's Encrypt für Produktion, external für einen vorgelagerten Proxy — plus Custom-Domain- und Custom-Cert-Setups.
 ---
 
-Der `tale-proxy`-Container ist Caddy. Er besitzt die TLS-Terminierung, das Host-Routing und das Metric-Auth-Gate; jede Browser-seitige Anfrage landet zuerst hier. Die drei Modi — selbst signiert, Let's Encrypt, external — decken die drei Deployment-Formen ab, nach denen die meisten Operator greifen, und die Variable, die zwischen ihnen umschaltet, ist `TLS_MODE` in deiner `.env`.
+Lege den öffentlichen Hostnamen und die TLS-Terminierung fest, bevor du Mitglieder einlädst oder SSO einrichtest. Tale kann ein lokales selbstsigniertes Zertifikat verwenden, über den Proxy ein öffentliches Zertifikat beziehen oder hinter einem vorhandenen Proxy laufen.
 
-Die Env-Var-Referenz-Zeilen leben in [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#tls). Diese Seite ist der per-Modus-Walkthrough und die Rezepte für Custom Domains und Bring-your-own-Zertifikate.
+Wähle unten den passenden Aufbau und prüfe danach Browser-URL und Zertifikat. Ein gesunder Container bestätigt weder öffentliches DNS noch Zertifikatsvertrauen.
 
 ## Selbst signiert (Default)
 

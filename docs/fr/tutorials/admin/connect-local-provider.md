@@ -1,71 +1,49 @@
 ---
-title: Brancher un fournisseur LLM local
-description: Déclare un serveur Ollama, LM Studio ou vLLM local comme connecteur de fournisseur maison sur une instance Tale auto-hébergée, enregistre son identifiant et vérifie qu'un chat l'atteint sans quitter ton réseau.
+title: Connecter un serveur de modèles local
+description: Préparer l’endpoint avec l’opérateur, ajouter un accès fournisseur et vérifier une requête de modèle.
 ---
+Connecte un serveur local pour utiliser un modèle hébergé sur l’infrastructure de ton organisation. Il te faut un endpoint d’inférence actif, l’identifiant exact du modèle, l’accès à **Paramètres > Fournisseurs IA** et un opérateur capable de configurer la politique réseau du déploiement. Tale n’installe pas le serveur et ne charge pas ses modèles.
 
-Un fournisseur local, c'est la voie pour faire tourner des modèles dans ton propre périmètre — aucun appel API sortant, aucune facture au token, aucune transcription chez un tiers. Ce parcours mène une instance Tale auto-hébergée de « j'ai un point de terminaison Ollama, LM Studio ou vLLM » à « un chat de l'organisation appelle un modèle local et la réponse arrive en streaming ». Il s'adresse à un Administrateur sur une installation auto-hébergée ; les organisations Cloud n'atteignent pas ton réseau et sautent cette page.
+Un fournisseur de chat local détermine la destination de cette requête de modèle. Les embeddings, la parole, les outils et les autres fournisseurs ont leurs propres parcours. Cette connexion ne maintient donc pas automatiquement tout le trafic de l’organisation sur son réseau.
 
-Il te faut le rôle Administrateur dans Tale, un serveur d'inférence local joignable depuis le conteneur `tale-platform` en TLS, et un modèle déjà chargé sur ce serveur. Le format du connecteur et le modèle d'identifiants sont documentés dans [Fournisseurs](/fr/self-hosted/configuration/providers) ; cette page déroule un chemin complet et en vérifie le résultat.
+## Préparer l’endpoint avec l’opérateur
 
-## Avant de commencer
+Demande le nom du fournisseur, le format d’API compatible, l’URL de base, les identifiants des modèles et la méthode d’authentification. L’adresse doit être joignable depuis les processus backend, pas seulement depuis ton navigateur. Dans un conteneur, `localhost` désigne ce conteneur.
 
-Vérifie quatre choses. Ton rôle est Administrateur ou Propriétaire — **Paramètres > Fournisseurs IA** est masqué en dessous. Ton serveur d'inférence local répond à `GET /v1/models` (ou l'équivalent Ollama `GET /api/tags`) depuis l'intérieur du réseau Docker de Tale. Au moins un modèle est chargé — côté Ollama tu as lancé `ollama pull llama3.1:8b` ou équivalent, côté LM Studio un modèle est chargé dans l'onglet serveur, côté vLLM le serveur est démarré avec `--model` pointé sur un checkpoint. Et le serveur est joignable en `https://` : l'URL de base d'un connecteur doit être une URL HTTPS, alors termine le TLS devant le serveur d'inférence — un reverse proxy avec un certificat interne est la réponse habituelle — plutôt que de l'exposer en clair.
+Pour un déploiement auto-hébergé, l’opérateur suit [Endpoints de fournisseurs locaux](/self-hosted/configuration/providers#endpoints-de-fournisseurs-locaux). Les hôtes privés exigent une activation explicite dans le déploiement. Les endpoints publics nécessitent HTTPS ; les adresses privées prises en charge peuvent utiliser HTTP si l’opérateur accepte cette configuration réseau. Un nom de proxy ne contourne pas la politique des hôtes privés.
 
-## Étape 1 — Rendre le serveur d'inférence joignable depuis Tale
+Ollama, LM Studio et vLLM peuvent exposer des API compatibles, mais cela dépend des fonctions activées et du modèle. Vérifie la liste réelle des modèles et un appel de chat pris en charge avant de configurer Tale.
 
-Le premier geste consiste à confirmer que `tale-platform` joint le serveur d'inférence par son nom d'hôte en TLS. Sans cela, chaque appel de modèle remonte une erreur de connexion et aucun modèle n'est appelable.
+## Ajouter l’accès de l’organisation
 
-Quand le serveur d'inférence tourne derrière un proxy du même réseau Docker, le nom d'hôte joignable est le nom de service de ce proxy. Lance un curl unique depuis le conteneur `tale-platform` avant d'écrire la moindre configuration :
+1. Ouvre **Paramètres > Fournisseurs IA** et choisis **Ajouter des identifiants**.
+2. Sélectionne la définition de fournisseur préparée par l’opérateur.
+3. Donne un nom utile à cet accès et choisis une méthode d’authentification proposée.
+4. Saisis le vrai jeton du serveur ou la référence de variable d’environnement fournie. Si le serveur ignore l’authentification, conviens de la valeur de remplacement avec son opérateur ; ne réutilise pas un autre secret.
+5. Vérifie la **Liste de modèles autorisés**, puis enregistre. Définis cet accès par défaut pour le fournisseur si les appels ordinaires doivent l’utiliser.
 
-```bash
-docker compose exec platform curl -sf https://ollama.internal/api/tags
-```
+<Frame caption="L’accès fournisseur appartient à l’organisation ; sa valeur par défaut et sa liste de modèles influencent la sélection.">
 
-Une liste JSON des modèles chargés est le signal de succès. Une erreur de connexion signifie un mauvais nom d'hôte, un certificat non approuvé, ou un serveur d'inférence qui n'écoute pas sur l'interface que le conteneur atteint.
+![La page Fournisseurs IA présente un accès fournisseur avec son indicateur par défaut.](/images/get-started/settings-providers.webp)
 
-## Étape 2 — Déclarer le connecteur
+</Frame>
 
-Les connecteurs livrés couvrent les fournisseurs publics ; une machine de ton propre réseau est un connecteur maison — un fichier YAML dans l'arbre de configuration de l'organisation. Le fichier dit à Tale où envoyer les requêtes, quel dialecte le point de terminaison parle et d'où vient sa liste de modèles.
+Avec un catalogue, une liste vide autorise les modèles de ce catalogue. Sans catalogue, il faut des identifiants de modèle explicites. Utilise **Actualiser les catalogues** après un changement des modèles disponibles sur le serveur. La politique d’accès aux modèles de l’organisation s’applique aussi.
 
-Écris `$TALE_CONFIG_DIR/<orgSlug>/providers/local-ollama.yml`. Le `name` doit correspondre à la racine du nom de fichier, et il ne doit entrer en collision avec aucun connecteur livré :
+## Prouver qu’une requête atteint le serveur
 
-```yaml
-name: local-ollama
-displayName: Local Ollama
-apiFormat: openai
-baseUrl: https://ollama.internal/v1
-catalog:
-  source: models-endpoint
-auth:
-  - method: api-key
-  - method: env
-```
+Commence un chat et sélectionne explicitement le modèle local. Garde **Auto** pour plus tard : ce contrôle exige un fournisseur et un modèle connus. Envoie une courte demande sans contenu sensible, comme « Réponds par prêt. »
 
-`apiFormat: openai` convient à Ollama, LM Studio et vLLM — les trois exposent la forme OpenAI Chat Completions. `catalog.source: models-endpoint` dit à Tale de lister les modèles via `GET {baseUrl}/models` au lieu d'embarquer une liste statique, ce que tu veux quand les modèles chargés changent. Un fichier qui ne valide pas est ignoré et la raison est journalisée : lis le log de la plateforme si le connecteur n'apparaît pas.
+Demande à l’opérateur de confirmer la requête dans les journaux du serveur d’inférence prévu. Vérifie que Tale affiche une réponse complète. Enregistrer un accès ou obtenir une liste de modèles prouve moins qu’une génération terminée. Sa durée dépend du modèle, du matériel et de la charge.
 
-## Étape 3 — Enregistrer l'identifiant
+## Comprendre un échec
 
-Un connecteur seul n'appelle rien. Ce qui autorise une requête, c'est un identifiant enregistré sur ce connecteur, et un connecteur en porte autant que nécessaire.
+| Symptôme | Vérification |
+| --- | --- |
+| Fournisseur absent de la sélection | Emplacement et validation de sa définition, organisation concernée. |
+| Hôte privé refusé | Activation explicite des fournisseurs privés dans le déploiement ; un nom DNS ne change pas la règle. |
+| Liste de modèles vide | Découverte des modèles, modèles chargés, liste autorisée et politique de modèles. |
+| Erreur de connexion ou de certificat | Accès réseau depuis le backend, nom du conteneur et confiance TLS. |
+| Modèle refusé ou aucune réponse | Identifiant exact, authentification, compatibilité de l’API et capacité du serveur. |
 
-Ouvre **Paramètres > Fournisseurs IA**. Le nouveau connecteur s'affiche à côté des connecteurs livrés ; clique sur **Ajouter un identifiant** dessus. Choisis **Clé API** et colle le token qu'attend ton serveur — LM Studio ignore la valeur, vLLM veut le token passé à `--api-key`. Nomme l'identifiant d'après la machine qu'il atteint (`Machine GPU, baie 2`), et laisse la **Liste blanche de modèles** vide pour exposer tout ce que le serveur liste, ou choisis le sous-ensemble que l'organisation peut appeler. Le premier identifiant d'un connecteur en devient le défaut.
-
-Tu préfères que la clé vive sur le déploiement ? Choisis **Variable d'environnement** et nomme une variable de déploiement sous le préfixe réservé `TALE_PROVIDER_KEY_`. Le secret n'entre alors jamais dans le stockage de Tale, et ton équipe d'exploitation possède la rotation.
-
-## Étape 4 — Vérifier avec un chat
-
-La preuve que le câblage tient, c'est une réponse de chat en streaming venue du serveur local. Sans cette étape, tu sais seulement que la configuration se parse.
-
-Ouvre un nouveau chat, ouvre le sélecteur de modèle et choisis l'un des modèles locaux par son nom — ne laisse pas le sélecteur sur **Auto**, qui pourrait router ce message vers un autre fournisseur ; cette étape exige que la réponse vienne de la machine que tu regardes. Envoie un prompt court (`Réponds par le seul mot "prêt"`). La réponse arrive en quelques secondes.
-
-Suis le log du serveur d'inférence sur l'hôte pendant l'envoi — Ollama journalise la ligne de requête, LM Studio imprime un résumé de requête, vLLM la latence de génération. Voir la requête arriver sur le serveur local, c'est la vérification que le trafic reste dans ton réseau au lieu de rebondir par une API externe.
-
-## Dépannage
-
-- **Symptôme :** le connecteur n'apparaît jamais dans **Paramètres > Fournisseurs IA**. **Cause :** le YAML n'a pas validé, ou son `name` ne correspond pas à la racine du nom de fichier. **Correctif :** lis le log de la plateforme — un connecteur rejeté y est journalisé avec le fichier et la raison — puis corrige le fichier.
-- **Symptôme :** le connecteur apparaît mais sa liste de modèles reste vide. **Cause :** le serveur d'inférence est joignable mais n'a aucun modèle chargé, ou son point de terminaison `/models` a répondu une erreur. **Correctif :** charge un modèle, puis clique sur **Actualiser les catalogues** sur la page des fournisseurs. Les catalogues ne se mettent à jour que quand tu les actualises.
-- **Symptôme :** le fichier est rejeté parce que l'URL de base n'est pas en HTTPS, ou pointe sur `localhost`, `127.0.0.1` ou une IP privée. **Cause :** les URL de base de connecteur sont HTTPS uniquement, et la politique d'hôtes bloque le loopback et les adresses privées. **Correctif :** place un reverse proxy qui termine le TLS devant le serveur d'inférence et utilise son nom d'hôte interne.
-- **Symptôme :** la réponse du chat est une erreur qui nomme le modèle. **Cause :** l'identifiant du modèle ne correspond pas à celui de l'amont. **Correctif :** rechoisis dans le sélecteur de modèle — les tags Ollama comme `:latest` comptent en amont et doivent correspondre exactement.
-
-## Où cela s'inscrit
-
-Un fournisseur local est la couture entre Tale et tes propres GPU — la même forme connecteur-et-identifiant qu'un fournisseur public, mais aucun trafic ne quitte ton réseau. Les lectures suivantes naturelles sont [Fournisseurs](/fr/self-hosted/configuration/providers) pour le format complet du connecteur et la voie par variable d'environnement, et [Durcissement](/fr/self-hosted/operate/security/hardening) pour les garanties de sortie qui empêchent un agent d'atteindre un modèle cloud que tu n'avais pas prévu.
+[Fournisseurs IA](/platform/admin/providers) explique le remplacement des accès et les valeurs par défaut. Documente l’endpoint et le modèle dans les consignes d’exploitation pour qu’un autre administrateur puisse répéter le test après une modification du serveur.

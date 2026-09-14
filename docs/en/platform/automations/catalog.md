@@ -15,7 +15,7 @@ This page covers where automations come from and what an uploaded package may co
 
 ## What the list shows
 
-Each row is one automation: its name — with the glyph and the catalog chips its pack declared, when it came from one — how many versions it has, and either the live version or **Not deployed**. Search filters the list. **Create automation** sits in the table toolbar with the other list pages — **From a goal**, **Blank (trigger + agent)**, or **Upload package**. The row menu offers **Delete** without opening the editor. The org page lists organization-level automations; an automation that belongs to a project lives on that project's **Automations** tab instead — where an automation appears is decided once, by its first save, and never moves. Click a row to land on the automation's page and work with it as [The workflow editor](/platform/automations/editor) describes.
+Each row shows the automation name, project bindings, version count, and deployed version or **Not deployed**. Use **New automation** to start **From a goal**, **Blank (trigger + agent)**, or **Upload package**. Open a row to inspect its workflow; use the row menu to delete it. Project bindings make an automation available on the relevant boards and can be changed in the editor’s **Projects** panel.
 
 **Create automation** offers two ways to start from scratch: **From a goal** hands your description to the builder, which authors the nodes for you; **Blank (trigger + agent)** scaffolds a one-agent automation you wire yourself — name it, pick the agent's model, and the rest (the prompt, the granted tools and secrets, the trigger) is yours to set on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
 
@@ -53,7 +53,7 @@ Uploading an existing automation's pack again appends the next version — the s
 
 ## Skills the package carries
 
-A zip may ship the skills its document leans on — the bundles an agent node loads or a script step runs from. The manifest must name them, and the declaration is checked in both directions: a `skills/` folder the manifest doesn't declare refuses the upload, and so does a declared slug the zip doesn't carry.
+A zip may ship the skills its document leans on — the instruction bundles and supporting files an agent node uses. The manifest must name them, and the declaration is checked in both directions: a `skills/` folder the manifest doesn't declare refuses the upload, and so does a declared slug the zip doesn't carry.
 
 ```yaml
 # automation.yml

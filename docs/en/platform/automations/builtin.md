@@ -1,49 +1,69 @@
 ---
 title: Built-in automations
-description: What each of the eight shipped automations does — mail sync and triage for Gmail, Outlook, and IMAP, and issue scoring and pull-request review for GitHub — and the connector each needs before you deploy it.
+description: Choose a shipped mail or GitHub workflow, check its inputs and connections, and understand what it reads or writes before deployment.
 ---
 
-Tale ships eight automations, and every organization starts with all of them in place: three that pull a mailbox into the shared **Inbox**, three that digest what arrived there, and two for GitHub — one that scores open issues, one that reviews open pull requests. Each arrives as version 1 with its schedule already bound and the **Not deployed** badge on, so nothing runs until an Owner, Admin, or Developer connects the connector it needs and deploys it. This page names what each pack does, how often it runs, and what it needs; the mechanics of deploying live on [The workflow editor](/platform/automations/editor).
+Tale includes eight automation packages: three mailbox syncs, three inbox digests, and two GitHub workflows. Each starts as version 1 with a schedule and **Not deployed**. Use them as starting points: inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
 
-<Frame caption="The Automations page on a fresh organization — each seeded pack is one version wearing Not deployed until you deploy it.">
+<Frame caption="The Automations catalog shows package names, version counts, and deployment status.">
 
-![The Automations page listing seeded automations named github-review-pull-requests, github-triage-issues, gmail-triage-inbox, imap-smtp-triage-inbox, and outlook-triage-inbox, each with one version and a Not deployed badge, below the Upload package and New automation buttons.](/images/platform/automations-catalog.webp)
+![The Automations catalog lists GitHub and mail packages with one version and Not deployed status.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## How the packs arrive
+## Start with one package
 
-The packs are seeded when the organization is created, not installed from a catalog. Seeding is careful about what is already there: a pack the organization already holds any version of is left alone — only its shipped name and description refresh — and a pack you deleted stays deleted, so a later deploy never brings it back. Open a pack like any automation to read its document on the canvas, follow its [run list](/platform/automations/execution-logs), change its [trigger](/platform/automations/triggers), or edit it — an edit becomes a new version you deploy when ready.
+Open **Automations**, select a package, and inspect its nodes in the [workflow editor](/platform/automations/editor). Check that the required connector is connected and that the model used by any `llm` node is available. A test run uses mock responses; it validates the flow without proving access to your real mailbox or repository.
 
-## Sync a mailbox into the Inbox
+The packages are added when an organization is created. Existing versions are preserved when the shipped package changes; only its shipped name and description refresh. A deleted package stays deleted. Your edits create new versions, which you deploy separately.
 
-**Sync Gmail emails**, **Sync Outlook emails**, and **Sync emails via SMTP/IMAP** are the same automation three times, one per mailbox kind. Each pulls new messages into conversations every five minutes and declares the **Inbox** view: once one of them is deployed, **Inbox** appears in the navigation and the compose form offers the connected mailbox — until then the Inbox page points you to **Automations**. Each needs its mail connector connected first.
+## Sync mail into the Inbox
 
-| Automation                | Requires  | Schedule        |
-| ------------------------- | --------- | --------------- |
-| Sync Gmail emails         | Gmail     | Every 5 minutes |
-| Sync Outlook emails       | Outlook   | Every 5 minutes |
+These workflows pull new messages into conversations every five minutes. Each declares the **Inbox** view: deploying one makes that view available in navigation and offers its connected mailbox in the compose form. Before deployment, the Inbox page points to **Automations**.
+
+| Automation | Required connector | Schedule |
+| --- | --- | --- |
+| Sync Gmail emails | Gmail | Every 5 minutes |
+| Sync Outlook emails | Outlook | Every 5 minutes |
 | Sync emails via SMTP/IMAP | IMAP/SMTP | Every 5 minutes |
 
-## Digest what arrived
+Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in Inbox.
 
-**Triage the Gmail inbox**, **Triage the Outlook inbox**, and **Triage the IMAP inbox** read the newest messages from every connected mailbox of their kind every six hours and write one digest: a short summary of what came in and the messages that plainly need a reply today. The digest is the run's output — open the run in the [run list](/platform/automations/execution-logs) to read it. Nothing is written back to the mailbox and no conversation changes state.
+## Read a digest of recent mail
 
-| Automation               | Requires  | Schedule      |
-| ------------------------ | --------- | ------------- |
-| Triage the Gmail inbox   | Gmail     | Every 6 hours |
-| Triage the Outlook inbox | Outlook   | Every 6 hours |
-| Triage the IMAP inbox    | IMAP/SMTP | Every 6 hours |
+These workflows read recent messages from every connected mailbox of their kind every six hours. They return a summary and identify messages that appear to need a reply today. The digest is the run’s output: open the run to read it. They do not write back to the mailbox or change conversation status.
 
-## Score issues and review pull requests on GitHub
+| Automation | Required connector | Schedule |
+| --- | --- | --- |
+| Triage the Gmail inbox | Gmail | Every 6 hours |
+| Triage the Outlook inbox | Outlook | Every 6 hours |
+| Triage the IMAP inbox | IMAP/SMTP | Every 6 hours |
 
-**Triage GitHub issues** lists a repository's open issues once a day at 07:00 UTC, scores each one for whether it is actionable and how urgent it is, and returns a ranked shortlist with a one-sentence reason per issue. It reads only: nothing is written to GitHub, and no task is created on any board — the shortlist is a report a person acts on. **Review GitHub pull requests** reads every open pull request's diff every thirty minutes, reviews it, and posts the findings as a review comment on the pull request. It never approves and never merges; a person still does that. Both need the GitHub connector connected.
+## Review GitHub work
 
-| Automation                  | Requires | Schedule           | Writes                                        |
-| --------------------------- | -------- | ------------------ | --------------------------------------------- |
-| Triage GitHub issues        | GitHub   | Daily at 07:00 UTC | Nothing — the ranked list is the run's output |
-| Review GitHub pull requests | GitHub   | Every 30 minutes   | One review comment per open pull request      |
+**Triage GitHub issues** reads open issues, scores whether they are actionable and their priority, and returns a ranked shortlist with reasons. It does not write to GitHub or create project tasks. Its default limit is 50 issues per run.
 
-## Where this fits
+**Review GitHub pull requests** reads open pull-request diffs and posts findings as review comments. Its default limit is 10 pull requests per run. It does not approve or merge a pull request. Review the target repository before running it live, because a repeat run can add another comment.
 
-Eight packs, two families: mail pulled into the Inbox and digested, GitHub scored and reviewed — each a normal automation you deploy, edit, and version like your own. [Add automations](/platform/automations/catalog) covers authoring on the canvas and uploading packs of your own; [The workflow editor](/platform/automations/editor) covers taking a version live; [Project Backlog](/platform/projects/backlog) explains the board status that proposed work uses — and why nothing shipped fills it automatically.
+| Automation | Required connector | Shipped schedule | Writes |
+| --- | --- | --- | --- |
+| Triage GitHub issues | GitHub | Daily at 07:00 UTC | None; read the run output |
+| Review GitHub pull requests | GitHub | Every 30 minutes | A review comment per processed pull request |
+
+Both workflows require `owner` and `repo`. In **Test run**, supply **Run input (JSON)** using your repository’s values:
+
+```json
+{
+  "owner": "your-organization",
+  "repo": "your-repository",
+  "limit": 5
+}
+```
+
+<Note>
+
+The shipped GitHub schedules do not supply `owner` and `repo`; deploying alone does not make those scheduled runs valid. A schedule sends `trigger` and `firedAt`, which the unmodified workflow’s input schema rejects. Run manually with the required input, or adapt the workflow’s schema and repository configuration before enabling scheduled execution. A refused scheduled start appears as `start_refused` on the [trigger](/platform/automations/triggers).
+
+</Note>
+
+Before deploying, read the resolved input and output of the test run. For a live run, also check connector permissions and any approval requirements. [Execution logs](/platform/automations/execution-logs) explains waiting, failure, and the recorded writes.

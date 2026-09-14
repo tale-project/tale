@@ -44,13 +44,13 @@ Les nœuds ignorés méritent d’être lus plutôt que survolés, car la raison
 
 ### Effets
 
-Une exécution conserve aussi la liste ordonnée de tout ce qu’elle a changé hors de la plateforme — chaque entrée nommant le nœud responsable, l’connector appelée et l’entrée avec laquelle elle a été appelée. Une exécution qui n’a rien changé hors de la plateforme le dit explicitement, et c’est une vraie réponse plutôt qu’une section vide.
+Une exécution conserve les écritures des connectors dans leur ordre, avec le nœud, le connector et les données transmis. La vue indique explicitement quand aucune écriture de ce type n’a été enregistrée.
 
-La liste des effets est ce qui rend une exécution vérifiable après coup. Quand quelqu’un demande si un message est vraiment parti, c’est cette liste qui répond, et elle reste attachée à l’exécution en permanence.
+La liste des effets permet d’examiner les écritures des connectors et leurs données. Ces enregistrements restent liés à l’exécution jusqu’à son retrait par une règle de conservation ou une suppression. Si la livraison compte, vérifie aussi sa confirmation auprès du service destinataire.
 
-## Pourquoi une longue exécution ne se répète pas
+## Comment reprend une exécution longue
 
-Une exécution réelle ne se déroule pas d’un seul tenant. Elle avance nœud par nœud, et chaque nœud terminé est enregistré comme point de reprise avant que le suivant ne commence : quand l’exécution atteint la fenêtre de temps de la plateforme, elle se rend la main et repart du dernier nœud terminé. Un nœud déjà exécuté n’est jamais atteint une seconde fois, et c’est ce qui empêche une exécution interrompue d’envoyer deux fois le même message.
+Une exécution réelle ne se déroule pas d’un seul tenant. Elle avance nœud par nœud, et chaque nœud terminé est enregistré comme point de reprise avant que le suivant ne commence : quand l’exécution atteint la fenêtre de temps de la plateforme, elle se rend la main et repart du dernier nœud terminé. Le moteur reprend après les points de reprise enregistrés. Avant de lancer une nouvelle exécution distincte, examine les effets : cette nouvelle exécution aura ses propres points de reprise et pourra répéter une écriture.
 
 Ces mêmes points de reprise couvrent une exécution dont la continuation a été perdue. Une exécution restée dans un état non terminal au-delà d’un délai de grâce est reprise automatiquement et continue là où ses points de reprise la situent, plutôt que de redémarrer ou de rester inachevée pour toujours.
 

@@ -3,9 +3,9 @@ title: Release client configurations
 description: Build, verify and deploy a versioned automation pack from a client repository with the Tale CLI, then verify its native workflow and skill bytes.
 ---
 
-The Tale CLI releases automation packs from a client's own repository to an existing organization and project. The full source commit identifies each new release, so you can reproduce its workflow and owned skill files without committing generated archives. Client repositories own their content and correctness tests; deployment automation selects the destination, source commits and CLI revision, then calls Tale's deployment commands.
+Release an automation pack from its client repository into an existing Tale organization and project. Each new release is identified by its full source commit, so reviewed workflow and owned skill files can be rebuilt and compared with the deployed content.
 
-This guide covers configuration alone. To deploy the instance and its configuration together, use the [managed deployment commands](/self-hosted/install/cli-install#managed-deployments); the CLI also owns runtime preparation, rollout and native provisioning.
+This guide covers configuration releases. For a new instance or a deployment that includes runtime changes, use [managed deployments](/self-hosted/install/cli-install#managed-deployments). Keep client correctness tests with the client repository; format validation alone does not prove the business result.
 
 ## Before you begin
 

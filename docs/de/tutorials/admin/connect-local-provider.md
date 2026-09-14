@@ -1,71 +1,49 @@
 ---
-title: Einen lokalen LLM-Anbieter anbinden
-description: Deklariere einen lokalen Ollama-, LM-Studio- oder vLLM-Server als eigenen Provider-Connector auf einer selbst gehosteten Tale-Instanz, hinterleg seine Zugangsdaten und verifiziere, dass ein Chat ihn erreicht, ohne dein Netzwerk zu verlassen.
+title: Einen lokalen Modellserver verbinden
+description: Den Endpunkt mit dem Betreiber abstimmen, Zugangsdaten einrichten und eine Modellanfrage prüfen.
 ---
+Verbinde einen lokalen Modellserver, wenn deine Organisation ein Modell auf eigener Infrastruktur verwenden möchte. Du brauchst einen laufenden Inferenzendpunkt, die genaue Modell-ID, Zugriff auf **Einstellungen > KI-Anbieter** und einen Betreiber, der die Netzwerkrichtlinie der Installation konfigurieren kann. Tale installiert oder lädt den Modellserver nicht für dich.
 
-Ein lokaler Anbieter ist der Weg, Modelle im eigenen Perimeter laufen zu lassen — keine ausgehenden API-Aufrufe, keine Rechnung pro Token, kein Transkript bei Dritten. Dieser Durchlauf bringt eine selbst gehostete Tale-Instanz von „ich habe einen Ollama-, LM-Studio- oder vLLM-Endpunkt“ zu „ein Chat in der Organisation ruft ein lokales Modell auf und die Antwort streamt zurück“. Der Durchlauf ist für Admins einer selbst gehosteten Installation; Cloud-Organisationen greifen nicht in dein Netzwerk und überspringen diese Seite.
+Ein lokaler Chatanbieter bestimmt das Ziel dieser Modellanfrage. Embeddings, Sprache, Werkzeuge und andere Anbieter haben eigene Wege. Diese Verbindung hält deshalb nicht automatisch den gesamten Organisationsverkehr lokal.
 
-Du brauchst die Admin-Rolle in Tale, einen lokalen Inferenz-Server, den der `tale-platform`-Container über TLS erreicht, und ein bereits geladenes Modell auf diesem Server. Das Connector-Format und das Zugangsdaten-Modell stehen in [Anbieter](/de/self-hosted/configuration/providers); diese Seite geht einen vollständigen Weg ab und verifiziert das Ergebnis.
+## Den Endpunkt mit dem Betreiber abstimmen
 
-## Bevor du beginnst
+Lass dir Anbietername, kompatibles API-Format, Basis-URL, Modell-IDs und Anmeldemethode geben. Die Adresse muss aus den Backend-Prozessen erreichbar sein, nicht nur aus deinem Browser. Innerhalb eines Containers bezeichnet `localhost` diesen Container.
 
-Prüf vier Dinge. Deine Rolle ist Admin oder Inhaber — **Einstellungen > KI-Anbieter** ist darunter ausgeblendet. Dein lokaler Inferenz-Server beantwortet `GET /v1/models` (oder das Ollama-Pendant `GET /api/tags`) aus dem Tale-Docker-Netz heraus. Mindestens ein Modell ist geladen — Ollama-Nutzer haben `ollama pull llama3.1:8b` oder Ähnliches laufen lassen, LM-Studio-Nutzer haben im Server-Tab ein Modell geladen, vLLM-Nutzer haben den Server mit `--model` auf einen Checkpoint gestartet. Und der Server ist über `https://` erreichbar: Die Base-URL eines Connectors muss eine HTTPS-URL sein, also terminiere TLS vor dem Inferenz-Server — ein Reverse-Proxy mit internem Zertifikat ist die übliche Antwort — statt ihn im Klartext freizulegen.
+Für eine selbst gehostete Installation folgt der Betreiber [Lokale Anbieterendpunkte](/self-hosted/configuration/providers#lokale-anbieterendpunkte). Private Hosts brauchen eine ausdrückliche Freigabe in der Bereitstellung. Öffentliche Endpunkte erfordern HTTPS; unterstützte private Adressen dürfen HTTP verwenden, wenn der Betreiber diese Netzwerkkonfiguration freigibt. Ein Proxyhostname umgeht die Richtlinie für private Hosts nicht.
 
-## Schritt 1 — Den Inferenz-Server aus Tale erreichbar machen
+Ollama, LM Studio und vLLM können kompatible APIs anbieten. Entscheidend sind aber die aktivierten Serverfunktionen und das Modell. Prüfe die tatsächliche Modellliste und eine unterstützte Chatanfrage, bevor du Tale einrichtest.
 
-Der erste Zug ist die Bestätigung, dass `tale-platform` den Inferenz-Server per Hostname über TLS erreicht. Ohne das quittiert jeder Modellaufruf einen Verbindungsfehler und kein Modell ist aufrufbar.
+## Zugangsdaten für die Organisation hinzufügen
 
-Läuft der Inferenz-Server hinter einem Proxy im selben Docker-Netz, ist der erreichbare Hostname der Service-Name dieses Proxys. Setz ein einmaliges curl aus dem `tale-platform`-Container ab, bevor du irgendeine Konfiguration schreibst:
+1. Öffne **Einstellungen > KI-Anbieter** und wähle **Zugangsdaten hinzufügen**.
+2. Wähle die vom Betreiber vorbereitete Anbieterdefinition.
+3. Gib den Zugangsdaten einen passenden Namen und wähle eine unterstützte Anmeldemethode.
+4. Trage den echten Servertoken oder die vom Betreiber genannte Umgebungsvariablenreferenz ein. Ignoriert der Inferenzserver die Anmeldung, stimme den nötigen Platzhalter mit seinem Betreiber ab; verwende kein fremdes Geheimnis dafür.
+5. Prüfe die **Modell-Freigabeliste** und speichere. Lege die Zugangsdaten als Standard des Anbieters fest, wenn normale Aufrufe sie verwenden sollen.
 
-```bash
-docker compose exec platform curl -sf https://ollama.internal/api/tags
-```
+<Frame caption="Anbieterzugangsdaten gehören zur Organisation; Standardauswahl und Modell-Freigabeliste beeinflussen die Modellauswahl.">
 
-Eine JSON-Liste geladener Modelle ist das Erfolgssignal. Ein Verbindungsfehler heißt: falscher Hostname, nicht vertrauenswürdiges Zertifikat, oder der Inferenz-Server lauscht nicht auf der Schnittstelle, die der Container erreicht.
+![Die Seite KI-Anbieter zeigt Zugangsdaten eines Anbieters mit Standardkennzeichnung.](/images/get-started/settings-providers.webp)
 
-## Schritt 2 — Den Connector deklarieren
+</Frame>
 
-Die mitgelieferten Connectors decken die öffentlichen Anbieter ab; eine Maschine in deinem eigenen Netz ist ein selbst definierter Connector — eine YAML-Datei im Config-Baum der Organisation. Die Datei sagt Tale, wohin Anfragen gehen, welchen Wire-Dialekt der Endpunkt spricht und woher seine Modellliste kommt.
+Bei vorhandenem Modellkatalog erlaubt eine leere Freigabeliste dessen Modelle. Ohne Katalog sind konkrete Modell-IDs nötig. Nutze **Kataloge aktualisieren**, wenn sich die auf dem Server verfügbaren Modelle ändern. Die Modellzugriffsrichtlinie der Organisation gilt zusätzlich.
 
-Schreib `$TALE_CONFIG_DIR/<orgSlug>/providers/local-ollama.yml`. Der `name` muss dem Dateinamen-Stamm entsprechen und darf mit keinem mitgelieferten Connector kollidieren:
+## Eine Anfrage auf dem Server nachweisen
 
-```yaml
-name: local-ollama
-displayName: Local Ollama
-apiFormat: openai
-baseUrl: https://ollama.internal/v1
-catalog:
-  source: models-endpoint
-auth:
-  - method: api-key
-  - method: env
-```
+Beginne einen Chat und wähle das lokale Modell ausdrücklich aus. Verwende **Auto** erst später: Für diesen Test müssen Anbieter und Modell feststehen. Sende eine kurze, harmlose Anfrage, etwa „Antworte mit bereit.“
 
-`apiFormat: openai` passt für Ollama, LM Studio und vLLM — alle drei sprechen die OpenAI-Chat-Completions-Form. `catalog.source: models-endpoint` weist Tale an, Modelle über `GET {baseUrl}/models` zu listen statt eine statische Liste mitzubringen; genau das willst du, wenn sich die geladenen Modelle ändern. Eine Datei, die nicht validiert, wird übersprungen und der Grund geloggt — lies also das Plattform-Log, wenn der Connector nicht auftaucht.
+Lass den Betreiber die Anfrage im Protokoll des gewünschten Inferenzservers bestätigen. Prüfe, ob Tale eine vollständige Antwort zeigt. Gespeicherte Zugangsdaten oder eine gefüllte Modellliste beweisen weniger als eine abgeschlossene Generierung. Die Dauer hängt von Modellgröße, Hardware und Auslastung ab.
 
-## Schritt 3 — Die Zugangsdaten hinterlegen
+## Einen fehlgeschlagenen Test eingrenzen
 
-Ein Connector allein ruft nichts auf. Was eine Anfrage autorisiert, sind Zugangsdaten an diesem Connector, und ein Connector hält so viele, wie du brauchst.
+| Symptom | Prüfen |
+| --- | --- |
+| Anbieter fehlt in der Auswahl | Speicherort und Validierung der Definition sowie Organisationszuordnung. |
+| Privater Host wird abgewiesen | Ausdrückliche Freigabe privater Anbieter in der Bereitstellung; ein DNS-Name allein ändert die Regel nicht. |
+| Leere Modellliste | Modellerkennung des Servers, geladene Modelle, Freigabeliste und Modellrichtlinie. |
+| Verbindungs- oder Zertifikatsfehler | Erreichbarkeit aus dem Backend, Containerhostname und TLS-Vertrauen. |
+| Modell abgewiesen oder keine Antwort | Genaue Modell-ID, Anmeldung, API-Kompatibilität und Serverkapazität. |
 
-Öffne **Einstellungen > KI-Anbieter**. Der neue Connector steht neben den mitgelieferten; klicke dort auf **Zugangsdaten hinzufügen**. Wähl **API-Schlüssel** und füg das Token ein, das dein Server erwartet — LM Studio ignoriert den Wert, vLLM will das Token, das du an `--api-key` übergeben hast. Benenne den Eintrag nach der Maschine, die er erreicht (`GPU-Kiste, Rack 2`), und lass die **Modell-Allowlist** leer, um alles freizugeben, was der Server listet, oder wähl die Teilmenge, die die Organisation aufrufen darf. Der erste Eintrag an einem Connector wird sein Standard.
-
-Soll der Schlüssel lieber auf dem Deployment liegen? Wähl **Umgebungsvariable** und benenne eine Deployment-Variable unter dem reservierten Präfix `TALE_PROVIDER_KEY_`. Das Geheimnis landet dann nie in Tales eigenem Speicher, und dein Betriebsteam besitzt die Rotation.
-
-## Schritt 4 — Mit einem Chat verifizieren
-
-Der Beweis, dass die Verdrahtung sitzt, ist eine gestreamte Chat-Antwort vom lokalen Server. Ohne diesen Schritt weißt du nur, dass die Konfiguration parst.
-
-Öffne einen neuen Chat, öffne die Modell-Auswahl und wähl eines der lokalen Modelle namentlich — lass die Auswahl nicht auf **Auto** stehen, das diese Nachricht womöglich zu einem anderen Anbieter lenkt; dieser Schritt braucht die Antwort von genau der Maschine, auf die du schaust. Sende einen kurzen Prompt (`Antworte nur mit dem Wort "bereit"`). Die Antwort streamt binnen Sekunden herein.
-
-Verfolg dabei das Log des Inferenz-Servers auf dem Host — Ollama loggt die Request-Zeile, LM Studio druckt eine Request-Zusammenfassung, vLLM die Generierungslatenz. Die Anfrage auf dem lokalen Server auflaufen zu sehen ist die Verifikation, dass der Verkehr in deinem Netz bleibt statt über eine externe API zu springen.
-
-## Troubleshooting
-
-- **Symptom:** Der Connector taucht unter **Einstellungen > KI-Anbieter** nie auf. **Ursache:** Das YAML validiert nicht, oder sein `name` entspricht nicht dem Dateinamen-Stamm. **Behebung:** Lies das Plattform-Log — ein abgelehnter Connector wird mit Datei und Grund geloggt — und korrigier die Datei.
-- **Symptom:** Der Connector erscheint, seine Modellliste bleibt leer. **Ursache:** Der Inferenz-Server ist erreichbar, hat aber kein Modell geladen, oder sein `/models`-Endpunkt hat einen Fehler geantwortet. **Behebung:** Lad ein Modell und klicke dann auf der Anbieter-Seite auf **Kataloge aktualisieren**. Kataloge aktualisieren sich nur, wenn du sie aktualisierst.
-- **Symptom:** Die Datei wird abgelehnt, weil die Base-URL kein HTTPS ist oder auf `localhost`, `127.0.0.1` oder eine private IP zeigt. **Ursache:** Connector-Base-URLs sind HTTPS-only, und die Host-Policy blockt Loopback- und private Adressen. **Behebung:** Stell einen TLS-terminierenden Reverse-Proxy vor den Inferenz-Server und nimm dessen internen Hostnamen.
-- **Symptom:** Die Chat-Antwort ist ein Fehler, der das Modell nennt. **Ursache:** Die Modell-ID passt nicht zur Upstream-ID. **Behebung:** Wähl in der Modell-Auswahl neu — Ollama-Tags wie `:latest` zählen upstream und müssen exakt stimmen.
-
-## Wo das hingehört
-
-Ein lokaler Anbieter ist die Naht zwischen Tale und deinen eigenen GPUs — dieselbe Connector-und-Zugangsdaten-Form wie bei einem öffentlichen Anbieter, aber kein Verkehr verlässt dein Netz. Die natürlichen nächsten Lektüren sind [Anbieter](/de/self-hosted/configuration/providers) für das Connector-Format in voller Länge und den Weg über Umgebungsvariablen, und [Härtung](/de/self-hosted/operate/security/hardening) für die Egress-Garantien, die einen Agent davon abhalten, ein Cloud-Modell zu erreichen, das du nicht vorgesehen hast.
+[KI-Anbieter](/platform/admin/providers) erklärt Austausch und Standardauswahl der Zugangsdaten. Halte Endpunkt und Modell-ID in der Betriebsübergabe fest, damit ein anderer Admin diesen Test nach einer Serveränderung wiederholen kann.

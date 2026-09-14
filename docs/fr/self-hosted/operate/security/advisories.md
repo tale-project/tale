@@ -1,63 +1,39 @@
 ---
-title: Avis de sécurité
-description: Le flux d'avis de sécurité Tale — format CVE, échelle de sévérité à quatre niveaux, calendrier de divulgation auquel les mainteneurs s'engagent, et comment t'abonner.
+title: Suivre les avis de sécurité
+description: Trouve les avis publiés, évalue les risques pour ton installation et signale une vulnérabilité en privé.
 ---
 
-Tale publie un avis de sécurité pour chaque vulnérabilité qui se ferme par une release patchée. Le flux vit sous GitHub Security Advisories sur le dépôt `tale-project/tale` et se miroite vers un endpoint RSS que les opérateurs peuvent brancher dans leur alerting. Cette page couvre le format que suit chaque avis, l'échelle de sévérité que Tale utilise, le calendrier de divulgation auquel les mainteneurs s'engagent, et les trois chemins d'abonnement.
+Pour examiner une mise à jour de sécurité, consulte les [avis de sécurité GitHub de Tale](https://github.com/tale-project/tale/security/advisories) et les [notes de version](https://github.com/tale-project/tale/releases) de la cible. La [politique de sécurité](https://github.com/tale-project/tale/security/policy) du dépôt définit le signalement et les versions prises en charge.
 
-Les avis sont l'enregistrement long format. Le résumé d'une ligne plus un lien apparaît dans la section **Sécurité** de chaque [note de version](/fr/self-hosted/operate/release-notes/format).
+## Évaluer un avis
 
-## Le format des avis
+Commence par les versions affectées et corrigées. Compare-les au runtime en cours d’exécution et aux composants activés, pas seulement à la CLI installée sur ton ordinateur.
 
-Chaque avis est un GitHub Security Advisory avec un identifiant stable de la forme `TAL-YYYY-NNN` (ID interne de Tale) plus le `CVE-YYYY-NNNNN` upstream s'il en a un d'attribué. Le corps est le même ensemble ordonné de sections pour qu'un opérateur scanne les faits porteurs sans lire la prose.
+| Information | Ce qu’il faut déterminer |
+| --- | --- |
+| Versions et composants affectés | Si le code vulnérable est présent dans ton installation. |
+| Conditions et conséquences | Si ta configuration expose le chemin vulnérable et quels accès il pourrait permettre. |
+| Versions corrigées | Quelle version contient le correctif. |
+| Gravité et éventuel vecteur CVSS | Les conséquences et hypothèses de l’évaluation, à compléter avec ta propre exposition. |
+| Solutions de contournement | Les restrictions temporaires possibles si tu ne peux pas déployer le correctif immédiatement. |
+| Identifiant et références | Le document stable à conserver dans les comptes rendus d’incident et de déploiement. |
 
-- **Résumé** — une phrase nommant ce qu'un attaquant pourrait faire et ce que le fix change.
-- **Versions affectées** — la plage de versions qui contient la vulnérabilité, en forme semver (`>=0.8.0, <0.12.3`).
-- **Versions patchées** — la première release qui contient le fix. Monter à ou au-delà de cette version ferme la vulnérabilité.
-- **Sévérité** — un des quatre niveaux ci-dessous, plus le vecteur CVSS 3.1 pour les opérateurs qui scorent contre leur propre threat model.
-- **Contournements** — quoi régler, désactiver ou bloquer pour mitiger la vulnérabilité quand une montée de version immédiate n'est pas possible. Vide quand aucun contournement n'existe.
-- **Crédits** — le rapporteur, quand il a demandé à être nommé.
+Un réseau privé ne suffit pas à garantir que l’installation est à l’abri. L’authentification, le comportement des connecteurs et les accès internes peuvent rester pertinents. Détermine la priorité à partir de l’avis et de ta procédure d’incident.
 
-La ligne des versions patchées est celle sur laquelle la plupart des opérateurs atterrissent en premier ; la montée de version elle-même est la séquence à deux commandes de [Montées de version](/fr/self-hosted/operate/upgrades).
+## Appliquer et vérifier le correctif
 
-## L'échelle de sévérité
+Tale est un projet 0.x mis à jour en continu. Les correctifs de sécurité paraissent uniquement dans la dernière version, sans rétroportage vers les anciennes. Lis les notes de toutes les versions intermédiaires, puis suis [Mises à jour](/fr/self-hosted/operate/upgrades), avec la préparation des sauvegardes et de la restauration.
 
-Tale utilise quatre niveaux. Le niveau est posé à partir du score CVSS et de l'accessibilité de la surface vulnérable sur un install par défaut.
+Note le correctif installé et vérifie le comportement concerné après le déploiement. Si tu avais appliqué une protection temporaire, retire-la seulement lorsque le runtime corrigé est en service et que tes vérifications réussissent.
 
-| Niveau   | CVSS    | Ce que ça veut dire                                                                                                                     |
-| -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Critical | 9.0+    | Exécution de code à distance pré-authentifiée ou exfiltration de données non authentifiée. Patche sous 24 heures.                       |
-| High     | 7.0–8.9 | Escalade authentifiée, évasion de sandbox ou fuite de données cross-tenant. Patche sous une semaine.                                    |
-| Moderate | 4.0–6.9 | Divulgation d'information, déni de service ou escalade demandant des préconditions rares. Patche à la prochaine fenêtre de maintenance. |
-| Low      | 0.1–3.9 | Fixes de défense en profondeur et durcissement sans chemin d'exploitation connu. Patche quand ça t'arrange.                             |
+## Signaler une vulnérabilité en privé
 
-Le vecteur CVSS te laisse re-scorer contre ton propre déploiement — un avis noté High contre un install public peut être Low contre un air-gappé.
+Ouvre l’onglet **Security** du dépôt et choisis **Report a vulnerability**. Si tu ne peux pas utiliser GitHub, écris à `security@tale.dev`. Ne révèle pas une vulnérabilité non corrigée dans une issue publique.
 
-## Le calendrier de divulgation
+Indique le composant et la version, les étapes de reproduction et les conséquences probables. Fournis un exemple minimal sans identifiants, données personnelles ni données de production inutiles. Tu peux demander à être crédité dans l’avis publié.
 
-Les mainteneurs s'engagent sur le calendrier suivant à partir du moment où un rapport atterrit à `security@tale.dev` :
+La politique de sécurité prévoit un accusé de réception et une première évaluation sous 72 heures, un correctif ou une solution de contournement partagé en privé avec le rapporteur sous 14 jours, puis un avis GitHub publié avec la version corrigée. Coordonne l’enquête dans le signalement privé.
 
-- **Sous 72 heures** — accusé de réception, un triage call et un identifiant TAL attribué.
-- **Sous 14 jours** — un fix ou un contournement publié en privé au rapporteur, et la version patchée planifiée.
-- **À la sortie du fix** — l'avis est publié sur GitHub, l'attribution du CVE est demandée, et la section sécurité des notes de version porte le résumé.
-- **30 jours après la sortie** — le détail technique dans l'avis s'étend avec le reproducteur (quand reproduire en public ne met plus en risque les installs non patchés).
+## Organiser un suivi régulier
 
-Les rapporteurs peuvent demander un délai s'ils ont besoin de plus de temps pour divulguer ; les mainteneurs acceptent jusqu'à 90 jours avant de publier le résumé malgré tout.
-
-Côté ingénierie, les correctifs de dépendances passent par une voie rapide pour que la version corrigée arrive vite : Renovate ouvre une PR de mise à jour de sécurité dans les 24 heures suivant un advisory amont — en contournant le délai d'âge de version appliqué aux mises à jour de routine — et la CI bloque tout merge introduisant un advisory connu noté High ou Critical. Un CVE de dépendance divulgué devient ainsi une version Tale corrigée en quelques jours, et non au prochain cycle de routine.
-
-## S'abonner
-
-Trois chemins vers le même flux :
-
-```text
-Watch GitHub     — github.com/tale-project/tale → Watch → Custom → Security alerts
-RSS              — https://github.com/tale-project/tale/security/advisories.atom
-Digest courriel  — security-announce@tale.dev (un courriel par avis, pas de trafic entre)
-```
-
-Le flux RSS est ce que la plupart des opérateurs branchent dans Slack ou PagerDuty ; le digest courriel est pour les équipes d'une personne qui ne font pas tourner de pipeline d'alerting.
-
-## Où cela s'inscrit
-
-Le flux des avis est un des deux contrats qui rendent Tale auto-hébergeable sereinement — les notes de version nomment ce qui change, les avis nomment ce qui n'allait pas. Les prochaines lectures naturelles sont [Comment lire les notes de version](/fr/self-hosted/operate/release-notes/format) pour le format de changelog correspondant et [Durcissement](/fr/self-hosted/operate/security/hardening) pour la checklist qui limite l'exposition avant qu'un avis ne tire.
+Ajoute les pages des avis et des versions à tes favoris et à ta revue régulière des mises à jour. Précise qui les consulte, quelles installations sont couvertes et à qui transmettre les urgences. L’[examen des versions](/fr/self-hosted/operate/release-notes/format) donne la procédure générale ; le [renforcement de la sécurité](/fr/self-hosted/operate/security/hardening) décrit les protections à maintenir entre les mises à jour.

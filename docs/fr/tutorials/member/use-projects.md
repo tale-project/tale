@@ -1,48 +1,79 @@
 ---
-title: Utiliser les projets pour grouper fichiers et chats
-description: Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations.
+title: Utiliser un projet pour partager le contexte
+description: Crée un projet, ajoute des fichiers et des instructions, puis pose une question sur ses connaissances.
 ---
 
-Un projet est ce vers quoi tu te tournes la deuxième fois que tu te surprends à coller le même contexte dans un chat. Il regroupe fichiers, instructions et chats autour d'une seule chose à faire — un contact, un lancement, une longue enquête — pour que chaque nouvelle conversation démarre avec le contexte déjà chargé. Ce parcours mène un projet neuf de « je recharge sans cesse le même brief » à « chaque chat dans ce projet connaît déjà le brief » sur une seule instance.
-
-Il te faut un rôle Membre (le plancher pour créer un projet) et trois ou quatre fichiers que tu référence régulièrement. Le côté conceptuel vit dans [Concepts de projet](/fr/platform/projects/concepts) ; ce parcours est le mécanisme de bout en bout.
+Crée un projet lorsque plusieurs chats ont besoin des mêmes documents. Dans ce parcours, tu vas préparer un espace de travail, ajouter un fichier et vérifier qu’un chat du projet peut l’utiliser. Prévois environ dix minutes, auxquelles s’ajoute le temps d’indexation du fichier.
 
 ## Avant de commencer
 
-Confirme deux choses. Ton rôle est au moins Membre — la création de projet est verrouillée à Membre et au-dessus. Tu as trois à quatre fichiers qui reviennent dans les chats que tu as eus — un brief, une transcription, une liste de prix, une politique. Ils deviennent l'ensemble de travail du projet.
+Il te faut le rôle **Membre** ou supérieur et un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
 
-## Étape 1 — Créer le projet
+Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un document sans données sensibles pour ce parcours. Si ton projet doit être restreint, choisis son équipe propriétaire sous **Général > Partage** avant d’importer ses fichiers. Les chats du projet restent personnels tant que tu ne les partages pas.
 
-Le projet est le conteneur dans lequel vivent les autres pièces. Ouvre **Projets > Créer un projet** et règle :
+## Créer le projet
 
-- **Nom** — `Compte Acme` (ou ce qui nomme la chose à faire)
-- **Description** — une phrase sur l'objet du projet
-- **Membres** — laisse en privé pour l'instant ; tu pourras ajouter des coéquipiers après que le premier chat marche
+1. Ouvre **Projets** et clique sur **Créer un projet**.
+2. Renseigne **Nom du projet** avec un nom reconnaissable, par exemple `Refonte du site`.
+3. Vérifie la **Clé du projet**, le préfixe des identifiants de tâches tels que `WEB-1`. Elle ne peut plus être modifiée après la création.
+4. Ajoute une **Description** si nécessaire, puis clique sur **Créer le projet**.
 
-Enregistre. Le projet apparaît dans la sidebar ; un clic ouvre le tableau **Tâches**, avec des onglets pour Général, Chats, Connaissances et Agents.
+Le projet s’ouvre sur **Tâches**. Sa navigation comprend aussi **Général**, **Chats**, **Connaissances** et **Agents**. Tu n’as pas besoin de créer un agent pour utiliser le chat du projet.
 
-## Étape 2 — Charger les fichiers une seule fois
+## Ajouter un fichier de référence
 
-Les fichiers du projet sont visibles pour chaque chat dans le projet, donc ce chargement se fait une fois et se rembourse à chaque chat ultérieur. Ouvre l'onglet **Connaissances** et glisse les trois ou quatre fichiers confirmés dans les prérequis.
+Ouvre **Connaissances** dans le projet et clique sur **Ajouter un fichier**, ou dépose le fichier dans la zone d’import. Il apparaît dans l’arborescence du projet. Attends le statut **Indexé** avant de te fier à la recherche ; **En file d'attente** et **Indexation…** indiquent que la préparation continue.
 
-Chaque fichier atterrit dans le stockage du projet et s'indexe comme un document de base de connaissances. Une fois le statut **Prêt**, n'importe quel chat démarré dans le projet peut atteindre les fichiers.
+<Frame caption="L’onglet Connaissances conserve les fichiers du projet. Le statut de chaque fichier indique s’il est consultable.">
 
-## Étape 3 — Ajouter les instructions du projet
+![L’onglet Connaissances du projet Website relaunch affiche deux fichiers indexés et les commandes pour ajouter des fichiers et des dossiers.](/images/platform/project-knowledge-files.webp)
 
-Les instructions du projet encadrent chaque chat dans le projet. Elles composent avec les propres instructions de l'agent : le projet cadre le travail, l'agent cadre la réponse. Ouvre l'onglet **Instructions** et règle :
+</Frame>
 
-`You are working on the Acme account. The contract and the call notes in the Knowledge tab are the source of truth; cite them when you make a claim. The customer's voice is conservative — drafts should not promise dates we have not confirmed.`
+Un fichier ajouté ici appartient à ce projet. Pose tes questions à son sujet dans un chat du projet. Le chat général de l’organisation ne recherche pas dans les fichiers des projets.
 
-Enregistre. Chaque nouveau chat du projet tournera désormais avec ce préambule en plus des propres instructions de l'agent.
+## Donner des instructions à tous les chats du projet
 
-## Étape 4 — Démarrer un chat et vérifier que le contexte suit
+Ouvre **Général**, puis décris dans **Instructions** le contexte ou les contraintes que chaque chat doit suivre. Par exemple :
 
-Ouvre l'onglet **Threads** et clique **Nouveau chat**. Laisse le sélecteur de modèle sur **Auto** — il n'y a pas d'agent à choisir dans le chat — et pose une question à laquelle un des fichiers du projet répond (`What does the contract say about the renewal clause?`). La réponse doit citer le contrat ; la citation ouvre le fichier depuis l'onglet Connaissances du projet, pas depuis la bibliothèque de l'organisation.
+> Utilise les fichiers du projet pour répondre aux questions sur ce lancement. Cite la source des dates et des décisions. Si la date de lancement n’a pas été approuvée, indique qu’elle reste à confirmer.
 
-Si l'assistant répond sans citer, le fichier n'a pas été récupéré — le plus souvent parce que l'indexation n'est pas terminée. Vérifie que sa ligne dans l'onglet **Connaissances** indique **Indexed**, puis repose la question.
+Clique sur **Enregistrer** en haut de la page. Ces instructions font partie du contexte des chats du projet. Elles ne remplacent ni l’import des documents ni leur consultation par l’assistant.
 
-## Où ça s'utilise
+<Frame caption="Les instructions se trouvent dans Général, avec le nom et la description du projet.">
 
-Un projet avec fichiers, instructions et threads est la plus petite unité utile de contexte partagé dans Tale. La même forme passe à l'échelle — ajoute des membres pour qu'une équipe travaille le projet ensemble, ajoute un agent à périmètre projet pour verrouiller la voix, archive le projet quand le travail est livré.
+![L’onglet Général contient le nom du projet, sa description, l’éditeur d’instructions et la section Partage, avec Enregistrer et Abandonner dans l’en-tête.](/images/platform/project-general-tab.webp)
 
-Pour le modèle plus profond de ce qu'est un projet et de quand on s'en sert, voir [Concepts de projet](/fr/platform/projects/concepts). Pour les agents à périmètre projet, voir [Agents de projet](/fr/platform/projects/project-agents).
+</Frame>
+
+## Poser une question et vérifier la source
+
+Ouvre **Chats** et clique sur **Nouveau chat**. Garde **Auto** lorsqu’il est proposé, puis pose une question dont la réponse figure dans ton fichier. Pour un brief de lancement, essaie :
+
+> Lis le brief de lancement. Qui est responsable de la revue, et quelles dates sont confirmées ? Cite le fichier et distingue les dates confirmées des décisions encore ouvertes.
+
+Consulte les étapes de recherche et de lecture au-dessus de la réponse, puis compare les informations avec le fichier. Une réponse fluide sans source pertinente ne prouve pas que Tale a utilisé ton document. Rouvre **Connaissances** pour examiner l’original si nécessaire.
+
+<Tip>
+
+Nomme le document et pose une question précise. « Quelle date de revue est confirmée dans le brief de lancement ? » donne une cible plus claire que « Parle-moi du projet ».
+
+</Tip>
+
+## Partager une conversation utile
+
+L’onglet **Chats** sépare **Tes chats** et **Partagés avec le projet**. Active **Partager avec le projet** lorsqu’un chat doit être lisible par les personnes ayant accès au projet. Ajouter des fichiers au projet ne partage pas automatiquement tes chats.
+
+Pour envoyer un lien vers un instantané aux membres de l’organisation, suis [Chats partagés](/fr/platform/chat/shared-threads). Relis la conversation avant de la partager : elle peut reprendre des informations issues de sources dont l’accès est plus restreint.
+
+## Si le fichier manque dans la réponse
+
+| Ce que tu observes | Vérification |
+| --- | --- |
+| L’import échoue avant qu’une ligne apparaisse | Réessaie avec un petit fichier dans un format accepté. Si l’échec se répète, demande à un admin de vérifier le stockage et la politique d’import. |
+| **En file d'attente** ou **Indexation…** | Attends la fin du traitement, puis repose la question. |
+| **Échec** | Utilise **Réessayer l'indexation**. Si le problème revient, demande à un admin de vérifier le modèle d’embedding et le service de connaissances. |
+| **Non indexé** | Utilise **Indexer maintenant** lorsque cette action est proposée. Pour un ancien fichier Office sans extracteur compatible, enregistre-le dans le format récent. |
+| **Indexé**, mais aucune source pertinente dans la réponse | Vérifie que le chat appartient au projet, nomme le fichier et demande une information précise. Compare la réponse avec l’original. |
+
+Les sources et les conversations du projet ont maintenant un emplacement commun. Ajoute une tâche au [tableau du projet](/fr/platform/projects/tasks) lorsque le travail demande un responsable, une échéance ou un résultat à examiner.

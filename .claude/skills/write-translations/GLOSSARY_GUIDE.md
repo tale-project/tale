@@ -1,92 +1,55 @@
-# Glossary workflow
+# Keep terminology consistent
 
-The glossary lives at
-[`packages/ui/src/i18n/tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml).
-It is test data, not human-facing documentation — Claude and the tests read it; the doctrine files
-reference it.
+The source of truth is
+[glossary.yml](../../../packages/ui/src/i18n/tests/glossary/glossary.yml). Avoid copying its term
+inventory or role table into this skill; those copies drift when the product changes.
 
-## Adding a term
+## Adding or correcting a term
 
-Append to `terms`:
+Find the concept and its current UI usage first. Determine whether the name is a brand, identifier,
+loanword, translated product term, or ordinary vocabulary using [BUCKETS.md](BUCKETS.md). Inspect
+nearby glossary entries and the loader schema, then add the smallest entry that expresses the
+actual rule. Required fields are `key`, `category`, and `en`; locale fields are `de`, `fr`, and
+`de_CH`. Omitted locale forms may mean the term stays English; check the category and fallback.
 
-```yaml
-- key: MyNewFeature
-  category: feature
-  en: MyNewFeature
-  de: MeineNeueFunktion
-  fr: MaNouvelleFonction
-  _note: feature shipped 2026-Q2
-```
+Use `_note` for context that affects a decision, such as a domain-specific meaning or a deliberate
+UI exception. A new feature name needs its catalog keys and docs updated in every full locale.
+Do not add every ordinary noun to the glossary or use an English token to avoid making a language
+decision.
 
-Required: `key`, `category`, `en`. Locale fields (`de`, `fr`, `de_CH`) are optional — omit them when
-the term stays English in that locale (loanwords, brands).
+## UI disagreements and exceptions
 
-## Choosing a category
+A walkthrough must name the control the reader sees. If the glossary disagrees with the shipped
+label, verify the intended owner and correct the catalog/glossary/docs together where authorized.
+Use `_lintExclude` only for a specific locale and documented mismatch that cannot be resolved in
+the current change. Explain why and what would remove the exception in `_note`; do not invent a
+future date or promise a follow-up that has no owner.
 
-Decide the bucket ([BUCKETS.md](BUCKETS.md)), then pick the matching category:
+A glossary exception does not exempt untranslated prose, missing ICU arguments, or factual drift.
+Run the relevant terminology tests and inspect affected uses in context. Patterns for shared
+terms need negative fixtures so a fix does not reject legitimate code or an unrelated meaning.
 
-| Bucket                | Categories                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------- |
-| Always English        | `brand`, `acronym`, `codeIdentifier`, `abbreviation`                                    |
-| Established loanwords | `loanword`, `gitDomain`                                                                 |
-| Translate-bucket      | `translateBucket`                                                                       |
-| Translate by default  | `feature`, `role`, `knowledgeEntity`, `technicalVocab`, `actionVerb`, `deploymentVocab` |
+## Supporting notes
 
-The "translate by default" categories cover product vocabulary with a natural target-language form.
-Whether the tests enforce the translation depends on the locale form differing from EN —
-`loadGlossary().shouldEnforce(term, locale)` returns false when the forms match.
+Read a locale's `glossary-notes.md` when it provides needed domain context. Put ordinary choices in
+the canonical entry; use a companion note only when the explanation is too substantial for
+`_note`. Test modes and current term forms belong in their implemented owners, not repeated tables.
 
-## The `_lintExclude` field
+The legacy `services/docs/scripts/glossary-audit.ts` can identify candidate mismatches, but writes
+reports inside the clone and has no output-directory option. Prefer read-only searches for normal
+work and record results in the global task note. Treat an unmatched glossary term as a lead to
+investigate, not proof of incorrect translation: some terms occur only in docs.
 
-When the UI ships English for a term the bucket says should translate (a deferred fix, a deliberate
-carve-out), exclude that locale:
+## Adding a locale
 
-```yaml
-- key: FooBar
-  category: translateBucket
-  en: FooBar
-  de: Eigenes-FooBar
-  _lintExclude:
-    de: true
-  _note: shipping the EN form until the FooBar redesign lands (Q3 2026); flip de to false then
-```
+Inspect the current runtime and test registries before editing. The work spans:
 
-`shouldEnforce` honours `_lintExclude`. Every `true` is a deliberate decision; a `_note` explaining the
-deferral is required at review.
+- `packages/ui/src/i18n/locales.ts`, locale fallback behavior, service catalogs, and docs routing.
+- The corresponding `packages/ui/src/i18n/tests/locales/<locale>/` style, voice, terminology,
+  grammar, and pattern data, plus planted fixtures and registration.
+- Full translated content and navigation labels, unless the locale is explicitly a regional
+  overlay; key and page parity remain required for base locales.
+- A locale guide in this skill and updates to its entrypoint links.
 
-## When the UI and the glossary disagree
-
-The shipped UI string wins. Update the glossary in the same PR that updates the UI; the
-`terminology-ui-label` and `terminology-loanword` checks catch the divergence on the next run. Old
-forms remain valid only via `_lintExclude` with a dated `_note` planning the cleanup.
-
-## Role names
-
-Roles ship per locale (`category: "role"`):
-
-| EN        | DE          | FR           |
-| --------- | ----------- | ------------ |
-| Owner     | Inhaber     | Propriétaire |
-| Admin     | Admin       | Admin        |
-| Developer | Entwickler  | Développeur  |
-| Editor    | Redakteur   | Éditeur      |
-| Member    | Mitglied    | Membre       |
-| Disabled  | Deaktiviert | Désactivé    |
-
-`Admin` stays English in DE/FR (no locale field). `Disabled` is rare — a disabled account can't access
-Tale; the term appears mostly in admin-page member tables.
-
-## The audit script
-
-A non-test utility at
-[`services/docs/scripts/glossary-audit.ts`](../../../services/docs/scripts/glossary-audit.ts)
-cross-references the glossary against `services/platform/messages/*.yml` and writes three reports to
-`services/docs/scripts/audit-output/`:
-
-- `stale-glossary.md` — entries whose declared locale form has zero hits in the shipped UI.
-- `ui-string-leaks.md` — DE/FR UI strings carrying the English form of a `translateBucket` entry
-  (platform-UI bugs the docs tests can't fix).
-- `missing-from-glossary.md` — frequent capitalised English words not in the glossary (candidates for
-  new entries).
-
-Run: `bun services/docs/scripts/glossary-audit.ts`.
+Verify fallback, plural forms, formatting, rendered layouts, links, and search in the new locale.
+Do not infer jurisdiction, billing currency, or access rights from the language code.

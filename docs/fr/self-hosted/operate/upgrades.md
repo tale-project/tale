@@ -3,7 +3,7 @@ title: Montées de version
 description: Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
 ---
 
-Les montées de version d’un workspace Tale auto-hébergé passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l’ancienne, les healthchecks passent, le trafic bascule, l’ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
+Mets à jour un déploiement de travail en deux étapes : `tale update` modifie la CLI et les fichiers du déploiement, puis `tale deploy` applique cette version aux services. Lis les notes de version, conserve une sauvegarde hors de l’hôte et vérifie l’aperçu du déploiement avant de commencer. Les réplicas de l’application se chevauchent pendant un déploiement blue-green, mais les sauvegardes peuvent suspendre des services, l’arrêt progressif peut refuser de nouveaux messages et `--stop` recrée les services avec état en interrompant leur disponibilité. Prévois une fenêtre de maintenance adaptée.
 
 **Une exception dure :** il n'existe aucun chemin de montée de version vers la 0.5 depuis une ligne antérieure. La 0.5 est une rupture qui exige un déploiement neuf — lis [0.4 → 0.5 : rupture de version](#04--05--rupture-de-version) avant toute chose si ton instance est en 0.4.x ou plus ancienne (la 0.4 était la rupture précédente du même genre, qui a coupé la 0.3.x).
 
@@ -21,7 +21,7 @@ Utilise `tale update` pour changer la version d’une instance de workspace. Pou
 
 Deux choses valent la peine d'être confirmées d'abord :
 
-- Ta copie hors-hôte du volume `backups` est à jour — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). `tale update` snapshotte automatiquement les volumes de données avant toute étape qui peut migrer des données, mais le snapshot vit sur le même hôte ; la copie hors-hôte est ce qui survit à un disque mort.
+- Ta sauvegarde hors de l’hôte est à jour et peut être restaurée — voir [Sauvegardes et restauration](/self-hosted/operate/backups-and-restore). `tale deploy` crée un instantané local avant un changement de version ou un remplacement de configuration, sauf avec `--skip-backup`. Cet instantané ne remplace pas une copie externe ; `tale update` ne le crée pas.
 - Les notes de version pour la version cible ne nomment pas un changement breaking. Les notes sont liées depuis la page de release GitHub ; les changements breaking sont flaggés comme tels en haut.
 
 Si la montée de version traverse une version majeure (1.x → 2.x), lis les notes de migration de bout en bout avant de commencer. Les versions majeures sont où atterrissent les migrations de schéma et les changements de format de fichier de config.
@@ -45,7 +45,7 @@ tale update --dry-run
 
 `tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
 
-- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, sans downtime, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_PLATFORM_REPLICAS` dans `.env` (plage `1`–`16`). Monte le worker d’abord. Un déploiement double chaque nombre le temps du drain. Les stores et le plan sandbox restent des singletons.
+- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_PLATFORM_REPLICAS` dans `.env` (plage `1`–`16`). Monte le worker d’abord. Un déploiement double chaque nombre le temps du drain. Les stores et le plan sandbox restent des singletons.
 - **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roule à chaque déploiement lui aussi, mais **en place** : le spawner tient le socket Docker, le répertoire de sessions et le volume du gateway, c'est donc un singleton par construction. Le déploiement draine d'abord ses runs d'agent en cours pour que le bref redémarrage n'en coupe pas un vivant.
 - **Étage à arrêt requis** — `db`, `object-store`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres, le store de blobs ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
 

@@ -3,9 +3,9 @@ title: Publier les configurations d’un client
 description: Créer, vérifier et déployer un paquet d’automatisation versionné depuis un repository client avec la CLI Tale, puis vérifier les octets du workflow et des skills natifs.
 ---
 
-La CLI Tale publie les paquets d’automatisation du repository d’un client dans une organisation et un projet existants. Le commit source complet identifie chaque nouvelle release : tu peux reproduire son workflow et ses propres fichiers de skills sans committer les archives générées. Le repository client garde les contenus et leurs tests métier. Ton automatisation choisit la destination, les commits source et la révision de CLI, puis appelle les commandes Tale.
+Publie un pack d’automation depuis son dépôt client vers une organisation et un projet Tale existants. Chaque nouvelle version est identifiée par son commit source complet : les workflows et skills du pack peuvent être reconstruits et comparés au contenu déployé.
 
-Ce guide traite uniquement la configuration. Pour déployer l’instance et sa configuration ensemble, utilise les [commandes de déploiement géré](/fr/self-hosted/install/cli-install#deploiements-geres) ; la CLI prend aussi en charge la préparation du runtime, le déploiement et le provisionnement natif.
+Ce guide concerne les versions de configuration. Pour une nouvelle instance ou une modification du runtime, utilise les [déploiements gérés](/fr/self-hosted/install/cli-install). Garde les tests métier dans le dépôt client ; valider le format ne prouve pas le résultat métier.
 
 ## Avant de commencer
 

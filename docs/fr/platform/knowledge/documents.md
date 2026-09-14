@@ -1,21 +1,74 @@
 ---
 title: Documents
-description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie.
+description: Importe des fichiers de référence partagés, vérifie leur disponibilité dans la recherche et maintiens les imports et révisions approuvées.
 ---
 
-L’onglet Documents est la surface fichiers de la base de connaissances. Les éditeurs téléversent des fichiers, Tale fait passer chacun par le pipeline d’indexation — extraire le texte, le découper, calculer les embeddings, les stocker — et les agents dont le périmètre de connaissances couvre le document récupèrent les passages pertinents au moment de répondre et les citent. Cette page couvre le côté opérateur : le téléversement, la colonne de statut, la portée par équipe, les dossiers et le cycle de vie d’un document.
+Utilise **Connaissances > Documents** pour les fichiers de la bibliothèque commune : politiques, guides, rapports et justificatifs. Les membres lisent les documents auxquels ils ont accès. Les rôles Éditeur et supérieurs peuvent les importer et les gérer. Les contenus propres à un seul projet appartiennent à son [onglet Connaissances](/fr/platform/projects/manage-files).
 
-<Frame caption="La table des documents — taille, source, statut RAG et portée d’équipe par fichier.">
+<Frame caption="La liste réunit le fichier original, sa provenance, son indexation et l’accès par équipe.">
 
-![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés et les trois documents Markdown des entrées de connaissances, avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
+![L’onglet Documents présente les fichiers partagés avec leur taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
 </Frame>
 
-## Téléverser
+## Importer depuis ton appareil
 
-Ouvre **Connaissances > Documents** et clique sur **Téléverser des documents** — le menu propose **Depuis ton appareil**, **Depuis Microsoft 365** et **Depuis Google Drive**. Le portail de téléversement accepte les formats qui couvrent l’essentiel des connaissances d’une organisation : PDF, Word (`.doc`, `.docx`), texte OpenDocument (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, texte brut et images (JPG, PNG, GIF, WEBP). Tout le reste est refusé dès le téléversement.
+1. Ouvre **Connaissances > Documents** et le dossier de destination. Crée-le avec **Nouveau dossier** si nécessaire.
+2. Choisis **Téléverser des documents > Depuis ton appareil**, puis les fichiers.
+3. Attends la fin de l’import et retrouve les lignes dans le tableau.
+4. Ouvre un document pour vérifier son aperçu et ses détails. Consulte le **Statut RAG** avant de poser une question sur son contenu.
 
-Téléverser et indexer sont deux faits distincts, et la colonne **Statut RAG** suit le second : **Indexation** pendant que le pipeline tourne, **Indexé** quand les agents peuvent récupérer le contenu, **Échoué** quand le pipeline a rencontré une erreur, et **Réindexation nécessaire** quand les fragments stockés sont périmés. Les formats modernes s’indexent ; le trio Office historique (`.doc`, `.xls`, `.ppt`) se téléverse et reste téléchargeable mais affiche **Non indexé** — les agents ne peuvent pas récupérer son contenu tant que tu ne l’as pas réenregistré au format moderne.
+Choisis un nom de fichier explicite, avec une date ou une révision si cela aide à distinguer les sources. Importer un autre fichier du même nom crée un document séparé ; cela ne remplace pas l’existant.
+
+## Distinguer stockage et recherche
+
+Un fichier enregistré n’est pas forcément interrogeable. Tale doit pouvoir en extraire le texte avant de l’indexer pour la recherche dans les connaissances.
+
+| Format | Résultat attendu |
+| --- | --- |
+| PDF avec texte intégré, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, texte brut | Extraction et indexation prises en charge. Vérifie le résultat pour le fichier concerné. |
+| Anciens formats Office `.doc`, `.xls`, `.ppt` | Stockage et téléchargement possibles. Convertis-les dans un format moderne pour l’indexation. |
+| Images comme JPG, PNG, GIF, WEBP | Stockage et téléchargement possibles. L’index de connaissances n’en extrait pas le texte. |
+| PDF scanné sans texte lisible | Fournis une version traitée par OCR ou contenant du texte pour rendre le contenu recherchable. |
+
+Réindexer plusieurs fois un format non pris en charge ne le rend pas interrogeable. Pour une question sur une image, consulte [Pièces jointes du chat](/fr/platform/chat/attachments) : un modèle de vision disponible peut y lire l’image directement.
+
+## Lire le statut d’indexation
+
+| Statut | Signification et action |
+| --- | --- |
+| **En file** | Attend une place d’indexation. Une bibliothèque chargée traite les fichiers progressivement. |
+| **Indexation** | Le texte est préparé pour la recherche. Attends avant de tester la source. |
+| **Indexé** | L’indexation est terminée. Pose une question précise et ouvre sa citation. |
+| **Réindexation nécessaire** | L’index est périmé. Choisis **Réindexer** dans le menu de la ligne. |
+| **Échoué** | Lis l’erreur, résous sa cause, puis réessaie. |
+| **Non pris en charge** | Aucun extracteur de texte adapté à ce format. Convertis la source. |
+| **Non indexé** | Aucun index terminé n’est disponible. Vérifie le fichier et lance l’indexation lorsque l’action est proposée. |
+
+Les traitements interrompus reprennent en arrière-plan ou signalent un échec avec une option de relance. Si le statut n’avance pas, transmets le nom du document et l’erreur à un administrateur. Il peut vérifier les services d’indexation et la configuration des embeddings. Les fichiers échoués ou non pris en charge occupent toujours du stockage jusqu’à leur suppression.
+
+## Choisir qui peut lire le document
+
+Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.
+
+Les dossiers organisent la bibliothèque. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
+
+## Importer depuis Microsoft 365 ou Google Drive
+
+Choisis **Depuis Microsoft 365** ou **Depuis Google Drive** sous **Téléverser des documents**. À la première utilisation, connecte ton compte et autorise l’import. Si Tale indique qu’il n’est pas configuré, un administrateur doit préparer le service dans [Connecteurs](/fr/platform/admin/connectors).
+
+Sélectionne les fichiers ou dossiers, puis le mode d’import :
+
+| Mode | Résultat |
+| --- | --- |
+| **Importation unique** | Copie une fois la sélection en conservant les dossiers. Les changements ultérieurs de la source ne modifient pas cette copie. |
+| **Importation synchronisée** | Maintient la sélection prise en charge à jour. Les nouveaux fichiers arrivent lors d’un prochain passage ; les fichiers modifiés sont réindexés ; ceux supprimés à la source disparaissent de la copie. |
+
+Pour Microsoft 365, choisis **Mon OneDrive** ou **Sites SharePoint**. La synchronisation concerne les dossiers OneDrive personnels ; SharePoint s’importe une seule fois. Pour Google Drive, sélectionne dans Mon Drive. Les Docs, Sheets et Slides natifs sont ignorés : exporte-les d’abord en PDF ou au format Office.
+
+Si un dossier est trop grand pour être listé entièrement, Tale refuse l’import. Sélectionne des sous-dossiers plus petits ou utilise la synchronisation lorsqu’elle est disponible. Si le dossier ou le fichier source sélectionné est supprimé, sa copie est retirée et la synchronisation prend fin.
+
+Pour conserver les fichiers sans nouvelles mises à jour, choisis **Arrêter la synchronisation** sur la ligne du fichier ou du dossier. Supprimer l’élément importé arrête aussi sa synchronisation. Ces actions ne touchent pas les originaux dans OneDrive ou Google Drive. **Déconnecter Google Drive** dans le dialogue d’import révoque la connexion ; reconnecte-toi pour importer à nouveau.
 
 ## Réviser un document maîtrisé
 
@@ -49,44 +102,14 @@ Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplace
 
 </Steps>
 
-## Importer depuis Microsoft 365
+## Examiner le contenu avant de supprimer
 
-**Depuis Microsoft 365** est toujours dans le menu de téléversement. La première fois, Tale te demande d’autoriser OneDrive et SharePoint pour importer dans Documents. Si la boîte de dialogue indique que l’import n’est pas encore configuré, un admin de l’organisation configure d’abord l’app OAuth sous **Paramètres > Connectors > Apps OAuth** (ou l’opérateur en enregistre une sur le déploiement) — une organisation qui se connecte avec Microsoft Entra ID peut y reprendre son enregistrement d’app SSO au lieu d’en créer un nouveau. Ensuite, choisis des fichiers ou des dossiers sous **Mon OneDrive** ou **Sites SharePoint**, puis le mode d’importation. **Importation unique** apporte les fichiers une fois — ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d’un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l’espace de travail — si le dossier ou le fichier synchronisé lui-même est supprimé à la source, Tale retire sa copie et met fin à la synchronisation. Les deux modes préservent la structure de dossiers de ta sélection : un dossier synchronisé arrive comme un dossier du même nom, et un fichier que l’espace de travail contient déjà quand tu lances la synchronisation d’un dossier — une importation unique antérieure, par exemple — est adopté par la synchronisation et déplacé sous ce dossier, sans changement. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s’importe toujours une seule fois. Un dossier qui contient plus d’éléments qu’un import ne peut en lister est refusé plutôt qu’importé en partie — importe ses sous-dossiers un par un, ou passe par l’importation synchronisée.
-
-Pour arrêter la synchronisation — d’un dossier synchronisé entier ou d’un seul fichier synchronisé — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l’espace de travail et cessent d’être mis à jour. Supprimer un dossier ou un fichier synchronisé arrête aussi sa synchronisation. Dans tous les cas, les fichiers dans OneDrive restent intacts.
-
-## Importer depuis Google Drive
-
-**Depuis Google Drive** est toujours dans le menu de téléversement. La première fois, Tale te demande d’autoriser Google Drive pour importer dans Documents. Si la boîte de dialogue indique que l’import n’est pas encore configuré, un admin de l’organisation configure d’abord l’app OAuth sous **Paramètres > Connectors > Apps OAuth** (ou l’opérateur en enregistre une sur le déploiement). Ensuite, choisis des fichiers ou des dossiers dans Mon Drive, puis le mode d’importation. **Importation unique** apporte les fichiers une fois — ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection alignée : les nouveaux fichiers du dossier Drive apparaissent au prochain passage de sync, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l’espace de travail — si le dossier ou le fichier synchronisé lui-même est supprimé ou mis à la corbeille dans Drive, Tale retire sa copie et met fin à la synchronisation. Les deux modes préservent la structure de dossiers de ta sélection : un dossier synchronisé arrive comme un dossier du même nom, et un fichier que l’espace de travail contient déjà quand tu lances la synchronisation d’un dossier — une importation unique antérieure, par exemple — est adopté par la synchronisation et déplacé sous ce dossier, sans changement. Les Docs, Sheets et Slides natifs Google sont ignorés — exporte-les d’abord en PDF ou format Office si tu en as besoin dans Documents. Un dossier qui contient plus d’éléments qu’un import ne peut en lister est refusé plutôt qu’importé en partie — importe ses sous-dossiers un par un, ou passe par l’importation synchronisée.
-
-Pour arrêter la synchronisation — un dossier synchronisé entier ou un fichier synchronisé seul — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l’espace de travail et cessent de se mettre à jour. Supprimer un dossier ou un fichier synchronisé arrête aussi sa sync. Dans tous les cas, les originaux dans Google Drive ne sont pas touchés.
-
-Utilise **Déconnecter Google Drive** dans l’en-tête du dialogue d’importation pour révoquer l’autorisation ; reconnecte-toi quand tu veux importer d’autres fichiers.
-
-## Portée, dossiers, sources
-
-Chaque ligne porte une cellule **Équipes** — **Toute l'organisation** par défaut, ou les équipes que tu choisis via **Assigner une équipe** dans le menu de la ligne. Un document limité à une équipe est invisible pour les membres et les agents hors de cette équipe ; c’est le levier d’accès de la base de connaissances. Les fichiers de projet sont entièrement hors de ce modèle : l’onglet **Connaissances** d’un projet contient des fichiers scopés à ce seul projet, et ils n’apparaissent ni dans cette bibliothèque ni dans sa portée par équipe — les équipes décident qui voit un document du hub, l’accès au projet décide qui voit un fichier de projet, et un document vit à un seul des deux endroits — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
-
-**Nouveau dossier** garde les grandes bibliothèques navigables, et les connectors apportent leur propre structure : les documents synchronisés depuis OneDrive, SharePoint ou Google Drive atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
+**Supprimer** retire le document et son contenu indexé. La confirmation explique les conséquences ; garde une copie si tu auras besoin du fichier plus tard. Un nouvel import crée un nouveau document.
 
 <Warning>
 
-Supprimer un dossier supprime définitivement chaque fichier et sous-dossier qu’il contient. Supprimer un dossier de synchronisation OneDrive ou Google Drive retire aussi sa configuration de synchronisation automatique et son historique — mais jamais les fichiers dans OneDrive ou Google Drive eux-mêmes.
+Supprimer un dossier retire définitivement ses fichiers et sous-dossiers. Pour un dossier synchronisé, cela retire aussi la configuration et l’historique de synchronisation. Les originaux dans Microsoft 365 ou Google Drive restent intacts.
 
 </Warning>
 
-## Réindexer et supprimer
-
-**Réindexer** (menu de la ligne) refait passer le pipeline sur le fichier stocké — le bon geste après un échec d’indexation ou quand un document affiche **Réindexation nécessaire**. **Supprimer** retire le document et ses fragments indexés ; la confirmation le dit sans détour — l’action est irréversible. Retéléverser le même fichier ramène le contenu sous la forme d’un nouveau document. Un document maîtrisé cesse d’être supprimable dès qu’une de ses versions est approuvée — en relecture, approuvé ou avec le brouillon suivant ouvert, l’entrée du menu affiche **Document maîtrisé protégé**, et un dossier qui en contient un refuse la suppression du dossier de la même façon. L’instantané approuvé est un enregistrement conservé ; c’est précisément le rôle du cycle de vie.
-
-Chaque document affiche un statut : **En file** (en attente — une organisation chargée indexe quelques fichiers à la fois et le reste patiente), **Indexation**, **Indexé**, **Échoué** ou **Non pris en charge** (un ancien format comme `.doc`/`.ppt`/`.xls`, ou une image comme `.png`/`.jpg` — ça se stocke et se télécharge sans souci mais n’a pas d’extracteur de texte, donc jamais indexé pour la recherche). Une indexation interrompue par un délai dépassé ou un redémarrage du backend se rétablit d’elle-même en quelques minutes — elle est relancée ou marquée **Échoué** avec une option de reprise, jamais laissée bloquée. Si ton organisation applique un quota de stockage par utilisateur, les fichiers échoués et non pris en charge comptent toujours dedans jusqu’à leur suppression : libérer de l’espace revient donc à retirer les fichiers dont tu n’as plus besoin.
-
-Cliquer sur un document ouvre l’aperçu, avec un panneau latéral qui montre la taille, la source, le statut RAG, les équipes, l’auteur du téléversement et la date de modification — le moyen le plus rapide de vérifier ce que vise réellement une citation.
-
-## Documents ou données structurées
-
-Les documents sont la moitié non structurée de la base de connaissances. Quand le contenu est une liste d’éléments partageant les mêmes champs — contacts, produits, fournisseurs — une fiche typée sert mieux les agents qu’un tableur téléversé : des valeurs exactes au lieu de passages récupérés. Les règles de décision vivent dans [Données structurées](/fr/platform/knowledge/structured-data).
-
-## Où cela s’inscrit
-
-Les documents sont le coin le plus utilisé de la base de connaissances — la plupart des citations, dans la plupart des réponses, pointent ici. Le volet récupération — comment l’assistant de chat et les agents de projet lisent ce qui est indexé ici — est l’[aperçu des connaissances](/fr/platform/knowledge/overview) ; la surface sœur au format fait est [Entrées de connaissances](/fr/platform/knowledge/knowledge-entries), qui emprunte le même pipeline un document à la fois.
+Un document maîtrisé avec une version approuvée est protégé contre la suppression, y compris pendant la préparation d’un nouveau brouillon. Son menu affiche **Document maîtrisé protégé**. Un dossier qui en contient un ne peut pas non plus être supprimé. Une conservation légale peut également bloquer les modifications ou la suppression. Demande à un administrateur de vérifier la restriction au lieu de la contourner par des imports en double.

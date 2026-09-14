@@ -3,7 +3,7 @@ title: Installer la CLI tale
 description: Installer la CLI tale sur macOS, Linux ou Windows — et la configurer contre ton instance auto-hébergée pour les déploiements et les mises à jour.
 ---
 
-La CLI `tale` est la façon recommandée de faire tourner et d'exploiter Tale. Le [démarrage rapide](/fr/self-hosted/install/quickstart) l'utilise déjà pour monter une instance en local avec `tale init` et `tale dev` ; cette page est l'autre moitié — installer la CLI sur une station de travail pour qu'elle puisse piloter une instance _distante_ : déployer de nouvelles versions, lancer des migrations et capturer des diagnostics sans que tu aies à te souvenir de chaque invocation `docker compose`.
+La CLI `tale` permet d’installer Tale, de le déployer et d’en assurer l’exploitation. Installe-la sur la machine où tu exécuteras tes commandes, puis suis le [démarrage rapide en local](/fr/self-hosted/install/quickstart) ou la procédure de déploiement ci-dessous.
 
 La même CLI gère les opérations du workspace sur les conteneurs, les déploiements depuis des commits source exacts et les releases de configuration client. Ton automatisation choisit la destination, les références et les références d’identifiants, puis appelle la CLI. [Publier les configurations d’un client](/fr/self-hosted/configuration/config-releases) traite les contenus conservés dans son propre repository.
 
@@ -11,10 +11,11 @@ La même CLI gère les opérations du workspace sur les conteneurs, les déploie
 
 Il te faut :
 
-- Une station de travail sous macOS, Linux ou Windows 10+.
-- Un accès SSH à l'hôte où tourne ton instance Tale, avec l'utilisateur opérateur capable de lancer `docker compose`.
+- Un ordinateur sous macOS, Linux ou Windows avec PowerShell.
+- Pour les conteneurs en local : Docker avec Compose et un daemon Docker en cours d’exécution.
+- Pour un workspace distant : l’accès à son daemon Docker, généralement par un contexte Docker SSH. Le compte utilisé sur l’hôte distant doit pouvoir exécuter Docker.
 
-L'installeur télécharge un binaire de release depuis GitHub. Les réseaux d'entreprise qui bloquent les téléchargements de contenu brut doivent autoriser `raw.githubusercontent.com` et `github.com`.
+L’installeur télécharge l’exécutable depuis GitHub. Il doit pouvoir joindre `raw.githubusercontent.com`, `api.github.com`, `github.com` et les destinations de téléchargement vers lesquelles GitHub le redirige.
 
 ## Étape 1 — Lancer install-cli.sh ou install-cli.ps1
 
@@ -30,7 +31,11 @@ Sur Windows PowerShell :
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Les deux installeurs détectent l'OS et l'architecture CPU, récupèrent le binaire de release correspondant depuis la dernière release GitHub, et le déposent sur le `PATH` (`/usr/local/bin/tale` ou `%LOCALAPPDATA%\Programs\tale\tale.exe`) — quand le répertoire d'installation n'est pas accessible en écriture, l'installeur demande `sudo`. Les binaires de release existent pour macOS sur Apple Silicon et Intel, et pour Linux sur x86_64 et arm64 ; les machines Windows-on-ARM exécutent le binaire x64 via l'émulation intégrée. Sur une architecture sans binaire de release, l'installeur s'arrête avec un message clair et renvoie vers la compilation depuis les sources. Pour fixer une version, règle la variable d'environnement `VERSION` avant de piper dans l'installeur ; pour choisir toi-même le répertoire d'installation, règle `INSTALL_DIR`.
+L’installeur Unix choisit l’exécutable adapté au système et au processeur. Par défaut, il remplace un exécutable `tale` déjà présent dans le `PATH`, ou l’installe dans `/usr/local/bin`. Il demande `sudo` seulement si l’écriture dans ce répertoire le nécessite. Sous Windows, il utilise `%LOCALAPPDATA%\Programs\tale` par défaut et ajoute ce répertoire au `PATH` de ton compte.
+
+Des exécutables sont disponibles pour macOS avec Apple Silicon ou Intel, Linux x86_64 ou arm64, et Windows x64. Windows ARM nécessite l’émulation x64. Si une architecture Unix n’est pas prise en charge, l’installeur indique comment compiler depuis les sources.
+
+Définis `VERSION` pour choisir une version précise et `INSTALL_DIR` pour changer le répertoire de destination. Dans un shell Unix, **exporte** ces variables avant de lancer le pipeline pour que le processus `bash` les reçoive. Une affectation placée uniquement avant `curl` ne les transmet pas à l’installeur. Dans PowerShell, utilise `$env:VERSION` et `$env:INSTALL_DIR`.
 
 | OS      | Script d'installeur       |
 | ------- | ------------------------- |
@@ -44,11 +49,11 @@ Les deux installeurs détectent l'OS et l'architecture CPU, récupèrent le bina
 tale --version
 ```
 
-La CLI imprime sa version. Si la commande n'est pas trouvée, l'installeur a déposé le binaire hors du `PATH` — la sortie de l'installeur nomme le répertoire de destination.
+La CLI affiche la version installée. Si la commande est introuvable, vérifie le répertoire indiqué par l’installeur et ajoute-le au `PATH`. Sous Windows, ouvre un nouveau terminal après l’installation. Si le téléchargement échoue, vérifie l’accès aux destinations réseau ci-dessus. La variable d’environnement facultative `GITHUB_TOKEN` authentifie la recherche de version lorsque GitHub limite les appels anonymes à son API.
 
 ## Étape 3 — Vérifier la configuration
 
-Pour les opérations du workspace sur les conteneurs, utilise le projet créé par `tale init`. La CLI cherche son fichier `tale.json` en remontant les répertoires ; vérifie le projet résolu avec :
+Pour les commandes qui gèrent les conteneurs, utilise le workspace créé avec `tale init` dans le [démarrage rapide](/fr/self-hosted/install/quickstart). La CLI recherche `tale.json` dans le répertoire courant puis dans ses parents. Vérifie le projet sélectionné avant de le modifier :
 
 ```bash
 tale config show

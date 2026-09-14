@@ -3,7 +3,7 @@ title: Install the tale CLI
 description: Install the tale CLI on macOS, Linux, or Windows — and configure it against your self-hosted instance for deploys and upgrades.
 ---
 
-The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale dev`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
+The `tale` CLI installs, deploys and operates Tale. Install it on the machine where you will run operator commands, then choose the [local quickstart](/self-hosted/install/quickstart) or the deployment workflow below.
 
 The same CLI owns workspace container operations, managed deployments from exact source commits, and client configuration releases. Your deployment automation selects destination, pins and credential references, then calls the CLI. [Release client configurations](/self-hosted/configuration/config-releases) covers content from the client's own repository.
 
@@ -11,10 +11,11 @@ The same CLI owns workspace container operations, managed deployments from exact
 
 You need:
 
-- A workstation running macOS, Linux, or Windows 10+.
-- SSH access to the host your Tale instance runs on, with the operator user able to run `docker compose`.
+- A workstation running macOS, Linux, or Windows with PowerShell.
+- For local container operations: Docker with Compose and a running Docker daemon.
+- For a remote workspace: access to its Docker daemon, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
-The installer downloads a release binary from GitHub. Corporate networks that block raw-content downloads need to allow `raw.githubusercontent.com` and `github.com`.
+The installer downloads a release binary from GitHub. It needs access to `raw.githubusercontent.com`, `api.github.com`, `github.com` and the release download destinations that GitHub redirects to.
 
 ## Step 1 — Run install-cli.sh or install-cli.ps1
 
@@ -30,7 +31,11 @@ On Windows PowerShell:
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Both installers detect the OS and CPU architecture, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`) — asking for `sudo` when the install directory is not writable. Release binaries ship for macOS on Apple Silicon and Intel, and for Linux on x86_64 and arm64; Windows-on-ARM machines run the x64 binary through the built-in emulation. On an architecture without a released binary, the installer exits with a clear message and points you at building from source. To pin a version, set the `VERSION` environment variable before piping into the installer; to pick the install directory yourself, set `INSTALL_DIR`.
+The Unix installer selects the binary for your OS and CPU. By default, it replaces an existing `tale` executable found on `PATH`, or installs into `/usr/local/bin`; it requests `sudo` only when needed to write there. The Windows installer uses `%LOCALAPPDATA%\Programs\tale` by default and updates your user `PATH`.
+
+Release binaries cover macOS on Apple Silicon and Intel, Linux on x86_64 and arm64, and Windows x64. Windows ARM requires x64 emulation. An unsupported Unix architecture produces a build-from-source message.
+
+Set `VERSION` to a release version to pin the install, and `INSTALL_DIR` to choose another destination. In a Unix shell, **export** these variables before running the pipeline so the `bash` process receives them; setting them only before `curl` does not pass them to the installer. In PowerShell, use `$env:VERSION` and `$env:INSTALL_DIR`.
 
 | OS      | Installer script          |
 | ------- | ------------------------- |
@@ -44,11 +49,11 @@ Both installers detect the OS and CPU architecture, pull the matching release bi
 tale --version
 ```
 
-The CLI prints its version. If the command is not found, the installer dropped the binary outside the `PATH` — the installer output names the destination directory.
+The CLI prints its installed version. If the command is not found, check the destination in the installer output and ensure that directory is on `PATH`. On Windows, open a new terminal after installation. If the download fails, check the network destinations above; an optional `GITHUB_TOKEN` environment variable authenticates the release lookup when anonymous GitHub API requests are rate limited.
 
 ## Step 3 — Confirm configuration
 
-For workspace container operations, use the project created by `tale init`. The CLI walks up the directory tree to find its `tale.json`; check the resolved project with:
+For workspace container operations, use the project created by `tale init` in the [quickstart](/self-hosted/install/quickstart). The CLI walks up the directory tree to find its `tale.json`; check the selected project before operating on it:
 
 ```bash
 tale config show

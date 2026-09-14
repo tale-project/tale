@@ -1,44 +1,56 @@
 ---
 title: API keys
-description: Personal bearer credentials that let external code call Tale's REST API. Admins and Developers create, rotate, and revoke them under Settings > API > REST.
+description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-API keys are the credentials Tale issues so external code can call its REST API without a human in the loop. A key authenticates the caller as the person who minted it and carries that person's role in the organisation. Admins and Developers manage keys; other roles cannot see the page. This is the reference for what a key is, how to create one, how it is scoped, and how to retire it without breaking anything that depends on it.
-
-The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a browser; API keys are long-lived and meant for unattended callers. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party connector to Tale; reach for the in-product UI when a person is at the keyboard.
+Create an API key when a script or service needs to call Tale's REST API. The key acts as the person who created it and follows that person's current permissions in the organization. Owners, Admins, and Developers manage their keys under **Settings > API > REST**.
 
 <Frame caption="Settings > API > REST — where keys are created, rotated, and revoked.">
 
-![The REST API keys settings page listing two keys, each showing only its prefix, the date it was added, and a Never used marker, beside a Create API key button.](/images/get-started/settings-api-keys.webp)
+![The Create API key dialog asks for a descriptive name and an expiry before a key is generated.](/images/get-started/settings-api-keys.webp)
 
 </Frame>
 
-## Creating a key
+## Create a key
 
-Open **Settings > API > REST** and click **Create API key**. Give the key a name that says who or what will use it (`Billing sync`, `Slack relay`, `ops-cron`) and pick the expiration — 7, 30, or 90 days, a year, or never; the default is 30 days. Tale shows the secret exactly once on creation — copy it into your password manager or your deployment system before you close the dialog. After that, the table shows only a masked fragment of it.
+1. Select **Create API key**.
+2. Enter a **Key name** that identifies the caller, such as `Billing sync` or `Document import`.
+3. Choose **Expiration**: 7, 30, or 90 days, one year, or never. The form starts at 30 days.
+4. Create the key and copy its secret into the caller's approved secret store before closing the confirmation.
 
-Keys are minted here, not by the API: nothing under `/api/v1` creates, lists, rotates or revokes one, so an unattended connector cannot roll its own credential. What it can do is see the expiry coming — `GET /api/v1/me` answers the key's `name` and `expiresAt` — and alert a person in time for the overlap described under [Rotating a key](#rotating-a-key).
+The complete secret is shown once. The table later shows only a masked fragment, the creation date, and when the key was last used. It lists your keys, not your teammates' keys.
 
-The key acts as you: every request it makes carries your role in the organisation. A key minted by a Developer can read every resource and write to most; there is no way to mint a key more powerful than its creator. Since keys are exactly as dangerous as the role behind them, let the least-privileged account that can do the job mint the key.
+<Warning>
 
-## What the table shows
+Anyone holding a key can act with its owner's permissions. Keep it out of source code, chat messages, screenshots, and logs. Use an account with only the access the integration needs.
 
-The table lists the keys you created — teammates' keys are not visible here — each by name, a masked fragment of the secret (the first and last few characters), the date it was added, and the last-used timestamp. The fragment is enough to match a row against the key you hold without exposing it. The last-used timestamp updates on every successful request the key makes; a key that has not been used for weeks is usually safe to retire.
+</Warning>
 
-There is no search or filter row — an org holds a handful of keys, and a deliberate naming scheme keeps the table scannable.
+## Verify the caller
 
-## Rotating a key
+Follow the authenticated request in the [API quickstart](/get-started/developers). Confirm the returned identity and organization before starting a write or import. After an authenticated request, check **Last used** in the key table.
 
-To rotate, create the new key first, deploy it to the system that uses the old one, verify the new key works (the last-used timestamp updates), and only then revoke the old one. Tale does not auto-rotate keys; the discipline of overlap is yours to keep. Rotation is the right move whenever a key is suspected of having leaked, whenever someone with access to the key leaves the organisation, or on whatever cadence your security policy mandates.
+A successful authentication does not guarantee permission for every resource. Project access and the key owner's current role still apply. If a request fails, use the API's error response to distinguish an expired or revoked key from missing resource permissions.
 
-## Revoking a key
+## Rotate without an outage
 
-Open the key's row menu and click **Revoke key**, then confirm. A revoked key stops authenticating immediately — any in-flight request completes, but the next one fails with `401` — and the row disappears from the table. There is no undo for revocation; if you revoke the wrong key, mint a new one.
+1. Create a replacement key before the old one expires.
+2. Update the caller's secret store and restart or reload it as its configuration requires.
+3. Run an authenticated request with the replacement and check that it works.
+4. Revoke the old key only after every dependent caller has moved.
 
-## Scopes and limits
+Tale does not automatically rotate keys. Key creation and revocation happen in this UI, not through `/api/v1`. A caller can inspect its key's name and expiry through `GET /api/v1/me` and alert the responsible person before expiration.
 
-Each key carries the permissions of its creator's role at the time of every request, not the time of creation. Change the person's role — or disable their membership — and every key they minted inherits the change on the next request. Requests through the REST API are rate-limited per key holder — the person the key acts as, never the calling address — so spreading a connector across several keys minted by the same person, or across egress addresses, buys no headroom; give a busy connector its own machine user instead. Only a request whose key fails to authenticate is charged to its source address. The budgets themselves are on [Rate limits](/develop/rate-limits), and a [governance budget rule](/platform/admin/governance/policies-and-limits) can cap what a single key spends on models.
+## Revoke a key
 
-## Where this fits
+Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate. Revocation cannot be undone; create a new key if you revoke the wrong one.
 
-API keys are the bridge between Tale and external code; they sit beside [Connectors](/platform/admin/connectors) (third-party systems Tale calls out to) and [Automation webhook triggers](/platform/automations/triggers) (systems that call into Tale on events). The natural next read is the REST API itself — see the API reference in the Develop tab for the surface a key authenticates against, and see [Members and roles](/platform/admin/members-and-roles) for the role-to-permission map every key inherits.
+Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
+
+## Understand permissions and limits
+
+Role changes take effect for existing keys on subsequent requests. Disabling the owner's membership removes their access; a key does not preserve the role it had when created.
+
+REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally limit model spending for an individual key.
+
+API keys authenticate software calling Tale. [Connector credentials](/platform/admin/connectors) serve the other direction: they let Tale call an external service.

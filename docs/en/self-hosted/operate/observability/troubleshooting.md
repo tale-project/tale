@@ -3,9 +3,9 @@ title: Troubleshooting
 description: Symptom-first index for the issues operators have actually hit on Tale instances — what the user reports, what is broken, and what to do about it.
 ---
 
-This page is the symptom-first lookup when something is wrong right now. Each section starts with what the user actually reports — what the browser shows, what the agent fails on, what the upload screen says — and walks back to the cause and the fix. Anything not listed here is a candidate for a new section once it has shown up twice.
+Start with the symptom you can observe, then inspect the service that owns it. Record the time, affected URL or action, and any error code before restarting services; those details help connect browser behavior with backend logs.
 
-The proactive side — signals worth alerting on, what to wire into Prometheus — lives in [Operations](/self-hosted/operate/observability/operations). This page is for the moment after the page fired.
+Use `tale status` for the deployment state and `tale logs <service>` for the failing component. Do not reset data or replace secrets to diagnose an unexplained failure.
 
 ## Browser sees 502 or "Bad Gateway"
 

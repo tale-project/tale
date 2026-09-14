@@ -70,7 +70,7 @@ An event raised by an automation's own run never fires triggers. An automation t
 
 ## What each kind carries into the run
 
-The input an automation receives says which kind started it, so a single document can serve more than one trigger and branch on the difference.
+A trigger adds its kind and event data to the run's input. Match the workflow’s input schema to the selected trigger; an automation still has only one configured trigger at a time.
 
 | Kind       | The run's input                                           |
 | ---------- | --------------------------------------------------------- |
@@ -84,7 +84,7 @@ Declare the shape you expect in the document's `inputs` schema and the reference
 
 ## Deploying does not disturb them
 
-Because a trigger names the automation rather than a version, the whole set survives every deploy and every rollback. Publish a webhook URL to a partner, deploy eleven more versions, roll back twice, and that URL keeps working and keeps hitting whatever is live at the time.
+Because the configured trigger names the automation rather than a version, it survives deployments and rollbacks. Publish a webhook URL to a partner, deploy eleven more versions, roll back twice, and that URL keeps working and keeps hitting whatever is live at the time.
 
 The same holds in the other direction: adding, editing, or removing a trigger changes nothing about the document or its versions. Triggers and versions are two independent things about the same automation.
 

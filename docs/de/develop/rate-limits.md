@@ -3,9 +3,9 @@ title: Rate-Limits
 description: REST- und MCP-Rate-Limits — die Buckets, die 429-Antwort mit ihrem Retry-After und wie du wiederholst, ohne es schlimmer zu machen.
 ---
 
-Die API limitiert mit Token-Buckets, die am Schlüsselinhaber hängen — dem Benutzer, als der dein API-Schlüssel handelt. Ein Budget gehört so immer einem erkennbaren Aufrufer, und kein Netzwerk-Header kann ein frisches prägen: Bursts gehen durch, Dauerfeuer antwortet **429**. Jeder Schlüssel, den ein Benutzer erstellt, zieht aus dem Budget dieses Benutzers; eine Worker-Flotte, die ein eigenes Budget braucht, bekommt einen eigenen Maschinenbenutzer. Ein Schlüssel, der sich nicht authentifizieren lässt, wird stattdessen pro Quell-IP gedrosselt (20 Anfragen pro Minute, Burst 40) — Fremde ziehen also nie aus dem Budget eines Schlüsselinhabers, und eine Anfrage ohne Schlüssel kostet gar nichts. Die Budgets sind so bemessen, dass eine normale Connector sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
+Tale begrenzt API-Verkehr je Schlüsselinhaber. Alle Schlüssel derselben Person teilen ein Budget; ein zusätzlicher Schlüssel erhöht den Durchsatz nicht. Plane Lastspitzen, Wartezeiten nach `429` und freie Kapazität für Wiederholungen sowie andere Integrationen ein.
 
-Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter Last aufruft.
+Ungültige Schlüssel werden nach Quell-IP begrenzt: 20 Anfragen pro Minute, kurzzeitig bis zu 40. Für Webhooks gelten die unten aufgeführten getrennten Budgets je Absender und Trigger.
 
 ## Die Buckets
 

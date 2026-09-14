@@ -1,49 +1,36 @@
 ---
 title: Papierkorb
-description: Die Soft-Delete-Wiederherstellungsansicht für durch Aufbewahrung verworfene Datensätze — Chat-Threads, Dokumente, Prompts, Workflow-Läufe — bevor sie am Ende des Kulanzfensters endgültig gelöscht werden. Admins und Inhaber lesen das, wenn jemand ein gelöschtes Artefakt zurückbraucht.
+description: Finde wiederherstellbare Datensätze, verstehe ihren Status und hole sie vor der endgültigen Löschung zurück.
 ---
 
-Papierkorb ist die Wiederherstellungsoberfläche für die Zeilen, die die Aufbewahrung soft-gelöscht, aber noch nicht hart-gelöscht hat. Wenn ein Chat-Thread, ein Dokument, eine Prompt-Vorlage oder ein Workflow-Lauf sein Aufbewahrungsfenster überschreitet, wandert er für das konfigurierte Kulanzfenster hierhin, bevor der nächste Cleanup-Lauf ihn endgültig entfernt. Admins und Inhaber lesen diese Seite, wenn ein Mitglied ein gelöschtes Artefakt zurückbittet, wenn ein Workflow das Falsche gelöscht hat, oder wenn ein Audit wissen muss, ob eine Zeile noch wiederherstellbar ist.
+Als Admin oder Inhaber kannst du unter **Einstellungen > Richtlinien > Papierkorb** Datensätze wiederherstellen, die nach einer vorläufigen Löschung noch gespeichert sind. Endgültig gelöschte Daten lassen sich hier nicht zurückholen. Nicht jede Löschung in Tale führt über den Papierkorb.
 
-## Eine durchgespielte Wiederherstellung
+## Einen Datensatz wiederherstellen
 
-Um einen Chat-Verlauf-Thread wiederherzustellen, öffne **Einstellungen > Richtlinien > Papierkorb** und stelle den Filter **Kategorie** auf **Chatverlauf**. Jede Zeile trägt den Typ, den Namen, den Eigentümer, den Status und wann sie verworfen wurde. Klick auf **Wiederherstellen** in der Zeile, bestätige im Dialog, und die Zeile kehrt in ihre Quellliste zurück — Chat-Threads erscheinen wieder im Konversations-Posteingang und Dokumente in der Wissensdatenbank. Eine durch Aufbewahrung abgelaufene Zeile wiederherzustellen verlangt das Tippen von `restore` zur Bestätigung und wird als Überschreibung der Aufbewahrungsrichtlinie auditiert.
+1. Öffne den Papierkorb und grenze die Liste mit **Filter > Kategorie** ein. Ohne Filter siehst du alle unterstützten Typen.
+2. Prüfe Name, Eigentümer, Typ und Löschzeitpunkt. Damit unterscheidest du ähnlich benannte Datensätze.
+3. Wähle in der Zeile **Wiederherstellen** und lies die Bestätigung.
+4. Gib bei einem durch Aufbewahrung abgelaufenen Datensatz exakt `restore` ein. Bestätige und suche den Datensatz anschließend an seinem ursprünglichen Ort, etwa in der Chatliste oder im Wissensbereich.
 
-## Die zwei Status
+Die wiederhergestellte Zeile verschwindet aus dem Papierkorb. Tale protokolliert die Wiederherstellung im Audit-Log. Ist die Zeile nicht mehr verfügbar, aktualisiere die Liste: Die Bereinigung könnte sie bereits endgültig gelöscht haben.
 
-**Verworfen** ist der normale Soft-Delete-Zustand. Das Aufbewahrungsfenster der Zeile ist abgelaufen, sie ist in den Papierkorb gewandert, und das Kulanzfenster tickt noch. Wiederherstellen führt die Zeile in ihre Quellliste zurück, ohne die Richtlinie zu überschreiben. Das Aufbewahrungsfenster beginnt dabei von vorn — ein wiederhergestellter Chat-Thread, ein Dokument oder eine externe Konversation zählt ab dem Moment der Wiederherstellung, und der nächste Cleanup lässt die Zeile in Ruhe, statt sie erneut ablaufen zu lassen.
+## Den Status verstehen
 
-**Abgelaufen** ist der zweite Zustand — das Kulanzfenster ist abgelaufen und die Zeile ist für die endgültige Löschung im nächsten Cleanup vorgemerkt. Wiederherstellen ist weiterhin möglich, aber es ist eine Überschreibung: der Dialog verlangt, dass du `restore` tippst, und das Audit-Log dokumentiert die Überschreibung mit deinem Namen.
+| Status | Bedeutung |
+| --- | --- |
+| **Verworfen** | Der Datensatz wurde vorläufig gelöscht und lässt sich noch wiederherstellen. |
+| **Abgelaufen** | Die Aufbewahrungsrichtlinie hat den Datensatz ablaufen lassen. Eine Wiederherstellung übergeht diese Richtlinie und verlangt deshalb die Eingabe `restore`. |
 
-## Die Kategorien
+**Abgelaufen** bedeutet nicht, dass die Wiederherstellungsfrist schon vorbei ist. Die Aufbewahrung markiert Datensätze zu Beginn der Schonfrist als abgelaufen. Nach deren Ende folgt die endgültige Bereinigung.
 
-Der Papierkorb hält Zeilen aus vielen Kategorien. Der Kategoriefilter wechselt die Ansicht pro Tab:
+Der Kategoriefilter umfasst unterstützte Chats, Dokumente, Dateien, Feedback, Kontakte, externe Konversationen, Workflow- und Automatisierungsläufe, Nutzungsdaten, Audit-Einträge und Chat-Filterereignisse. Manche Daten werden direkt oder zusammen mit übergeordneten Datensätzen gelöscht und haben keine eigene Wiederherstellungsaktion.
 
-- Chatverlauf (Threads)
-- Dokumente
-- Temporäre Dateien
-- Prompt-Vorlagen
-- Nachrichten-Feedback
-- Kontakte
-- Externe Konversationen
-- Nachrichten-Metadaten
-- Automatisierungsläufe
-- Automatisierungs-Trigger-Logs
-- Nutzungsbuch
-- Audit-Logs
-- Chat-Filter-Ereignisse
-- Memory-Audit
+## Die Wiederherstellungsfrist prüfen
 
-Jede Kategorie respektiert ihr eigenes Aufbewahrungsfenster und ihr eigenes Kulanzfenster — gesetzt in der Aufbewahrungsrichtlinie unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
+Die Aufbewahrungsrichtlinie der Organisation legt die Schonfrist fest. Bei einer positiven Frist bleiben unterstützte abgelaufene Datensätze bis zur Bereinigung wiederherstellbar. Null erlaubt die sofortige endgültige Bereinigung. Prüfe die aktive Richtlinie unter [Richtlinien und Limits](/platform/admin/governance/policies-and-limits), statt von einer festen Anzahl Tage auszugehen.
 
-## Interaktion mit Legal Hold
+Ein leerer Papierkorb bedeutet, dass es in dieser Ansicht keine wiederherstellbaren Datensätze gibt. Er beweist nicht, dass nie etwas gelöscht wurde. Entferne Kategoriefilter, bevor du einen Datensatz als fehlend einstufst.
 
-Zeilen unter Legal Hold erscheinen nicht im Papierkorb — der Hold heftet sie außer Reichweite jedes Aufbewahrungs-Schritts. Wenn du versuchst, eine gehaltene Zeile aus ihrer Quellliste zu löschen, lehnt Tale mit einem Legal-Hold-Fehler ab, der den Hold benennt. Den Hold aufheben lässt die Aufbewahrung die Zeile durch das Papierkorb-Fenster laufen, wie andere Kategorien fließen.
+## Aufbewahrungssperren berücksichtigen
 
-## Das Kulanzfenster
-
-Das Kulanzfenster ist pro Kategorie in der Aufbewahrungsrichtlinie konfigurierbar. Ein Kulanz-Wert von null überspringt den Papierkorb komplett — der Cleanup-Lauf löscht die Zeile hart, sobald die Aufbewahrung auslöst. Ein Wert über null hält die Zeile diese Anzahl Tage im Papierkorb und zeigt sie hier für das Admin-Fenster, in dem Wiederherstellen noch billig ist.
-
-## Wo das hingehört
-
-Papierkorb ist die zweite Chance, die die Aufbewahrung jeder Kategorie gibt, bevor der Cleanup-Lauf eine Zeile endgültig entfernt. Er paart mit [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) — die Aufbewahrungsseite setzt die Fenster; diese Seite ist die Wiederherstellungsansicht, in die diese Fenster speisen. Die Begleitseite ist [Legal Hold](/de/platform/admin/governance/legal-hold) — der einzige Mechanismus, der die Aufbewahrung schlägt, bevor eine Zeile überhaupt im Papierkorb landet.
+Ein [Legal Hold](/platform/admin/governance/legal-hold) schützt betroffene Daten vor Löschung durch Aufbewahrung oder Löschanfragen. Er bewahrt noch vorhandene Daten, kann aber endgültig gelöschte Daten nicht zurückholen. Prüfe Sperren und Aufbewahrungshistorie, wenn du klärst, warum ein Datensatz im Papierkorb gelandet ist oder dort fehlt.

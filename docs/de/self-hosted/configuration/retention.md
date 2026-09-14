@@ -1,54 +1,60 @@
 ---
-title: Retention
-description: Wie organisationsweite Retention konfiguriert wird — Operator-Grenzen in Env-Vars und UI-Controls unter Governance für Chats, Dokumente, Audit-Logs und Ledger-Zeilen.
+title: Aufbewahrungsgrenzen festlegen
+description: Lege Aufbewahrungsgrenzen je Organisation fest, prüfe Änderungen und verstehe die Datenbereinigung.
 ---
+Die Aufbewahrungsrichtlinie bestimmt, wie lange Tale einzelne Datenkategorien behält. Betreiber legen die zulässigen Grenzen fest; Organisationsadmins aktivieren Kategorien und wählen eine Dauer innerhalb dieser Grenzen. Eine kürzere Dauer kann vorhandene Historie löschen. Prüfe deshalb die Folgen vor der Übernahme.
 
-Retention in Tale ist die Policy, die alte Daten nach einem Zeitplan löscht — Chats, Dokumente, Audit-Logs, Workflow-Ausführungen, Token-Nutzungs-Ledger-Zeilen. Der Operator setzt Grenzen (Minimum und Maximum) pro Kategorie; der Admin jeder Organisation wählt das tatsächliche Retention-Fenster innerhalb dieser Grenzen über **Einstellungen > Governance > Retention-Policy**. Die Trennung existiert, damit ein Hosting-Team Compliance-Untergrenzen durchsetzen kann, ohne jede Mandantin im Detail zu mikromanagen.
+## Grenzen und Richtlinie unterscheiden
 
-Diese Seite deckt die Operator-Oberfläche ab. Die Admin-seitigen Controls und die per-Kategorie-Beschreibungen leben in [Governance > Retention-Policy](/de/platform/admin/governance/policies-and-limits).
+Zwei Dateien unter `TALE_CONFIG_DIR/<orgSlug>/governance/` erfüllen unterschiedliche Aufgaben:
 
-## Wie die Grenzen funktionieren
+| Datei | Zweck |
+| --- | --- |
+| `retention.yml` | Grenzen und Standardwerte des Betreibers für jede Kategorie. JSON wird ebenfalls akzeptiert. |
+| `retention-policy.yml` | Aktivierte Kategorien und gewählte Fristen der Organisation. Die Governance-Einstellungen verwalten diese Datei. |
 
-Jede Retention-Kategorie — Chat-Threads, Dokumente, Kontakte, Lieferanten, Prompt-Templates, Ledger-Zeilen, Audit-Logs, Workflow-Ausführungen, Workflow-Trigger-Logs, Login-Versuche — hat ein `min` und ein `max`. Ein Org-Admin setzt einen Wert innerhalb dieses Fensters. Den Boden über eine bestehende Instanz hinweg anzuziehen ist ein mehrstufiger Flow: Operator schlägt die neue Grenze vor, jeder betroffene Admin sieht ein Banner, die Änderung greift, sobald sie akzeptiert ist.
+Jede Organisation erhält bei ihrer Erstellung eigene Dateien. Eine Änderung an einer Organisation ändert nicht die Richtlinie einer anderen. Fehlt ihre Grenzdatei, greift Tale nicht auf eine Organisation namens `default` zurück.
 
-| Kategorie                 | Typische Untergrenze | Warum                                           |
-| ------------------------- | -------------------- | ----------------------------------------------- |
-| Chat-Verlauf              | 30 T                 | Die meisten wollen jüngsten Kontext, nicht ewig |
-| Dokumente                 | 1 J                  | Wissen veraltet langsam                         |
-| Audit-Logs                | 1 J Minimum          | Compliance-Frameworks erwarten ein Jahr         |
-| Token-Nutzungs-Ledger     | 90 T                 | Analytics und Budget-Berichte hängen an Zeilen  |
-| Workflow-Ausführungs-Logs | 30 T                 | Debugging reicht selten weiter zurück           |
-| Login-Versuche            | 30 T                 | Brute-Force-Untersuchung braucht die Audit-Spur |
+Jede Kategorie enthält `min`, `max`, `default` und `unit`. Ein höheres `min` verlangt eine längere Aufbewahrung; ein niedrigeres `max` begrenzt die zulässige Dauer. Keiner der beiden Werte aktiviert allein die Bereinigung. Dafür ist die angewendete Richtlinie maßgeblich.
 
-Die mitgelieferten Defaults sind locker; zieh sie an, je nach deiner Compliance-Haltung.
+## Grenzen einer Organisation ändern
 
-## Wo du Grenzen setzt
+Gehe von der vorhandenen vollständigen Datei aus und behalte unveränderte Kategorien bei. Dieser Ausschnitt zeigt eine einzelne Kategorie; er ersetzt nicht die gesamte Datei:
 
-Unter dem Org-first-Layout sind Retention-Grenzen **pro Org**: editiere `retention.json` direkt im Unterbaum einer Org unter `TALE_CONFIG_DIR` (default `/app/data/` im Plattform-Container, also liegt die Datei unter `/app/data/<org>/retention.json`, z. B. `/app/data/default/retention.json`). Jede Org hat ihre eigene Datei; die `default`-Datei ist die Vorlage, die eine neue Installation beim ersten Start aufgreift.
-
-```json
-{
-  "chatHistory": { "min": 30, "max": 730, "unit": "days" },
-  "documents": { "min": 1, "max": 3650, "unit": "days" },
-  "auditLog": { "min": 365, "max": 3650, "unit": "days" },
-  "tokenLedger": { "min": 90, "max": 1095, "unit": "days" }
-}
+```yaml
+chatHistory:
+  min: 30
+  max: 730
+  default: 90
+  unit: days
 ```
 
-Der Plattform-Container beobachtet die Datei; Änderungen schlagen ein Grenzen-Update für jede bestehende Org vor. Admins sehen den Vorschlag in ihrem **Retention-Policy**-Bildschirm und wenden ihn selbst an. Der Vorschlagen-dann-anwenden-Schritt ist Absicht: Eine Untergrenze anzuziehen kürzt Historie, was eine destruktive Aktion ist, die kein Operator stillschweigend bei jeder Mandantin landen sollte.
+Die meisten Kategorien verwenden Tage; `userTempHours` und `agentTempHours` verwenden Stunden. Die Kategorie für den Tokenverbrauch heißt `usageLedger`. Verwende die Bezeichner aus der vorhandenen Datei, damit die Validierung Fehler erkennen kann.
 
-Die vom Admin gewählten Aufbewahrungsfenster liegen in einer separaten Datei, `retention-policy.json`, neben den Grenzen im selben `governance/`-Ordner. Sie enthält flache Felder `<Kategorie>Enabled` / `<Kategorie>RetentionDays` (z. B. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), nicht die `min`/`max`-Grenzen. Diese Datei schreibt **Einstellungen > Governance > Retention-Policy** in der App, Admins bearbeiten sie also normalerweise nie von Hand — halte sie getrennt von der vom Operator verwalteten Grenzen-Datei.
+Umgebungsvariablen werden ausdrücklich in `_metadata.envNames` an der Dateiwurzel zugeordnet, optional mit `_metadata.envPrefix`. Die mitgelieferte Datei ordnet beispielsweise `TALE_RETENTION_AUDIT_MIN` dem Feld `auditLog.min` zu. Eine Mindestgrenze darf über die Umgebung nur steigen, eine Höchstgrenze nur sinken. Starte die Backend-Prozesse nach Änderungen ihrer Umgebung neu.
 
-## Der Retention-Sweep
+## Änderung prüfen und übernehmen
 
-Ein geplanter Job in `tale-backend-worker` führt die tatsächliche Löschung aus. Jede Kategorie wird unabhängig gesweept — ein langsamer Lauf einer blockiert die anderen nicht. Löschungen sind audited (jede Kategorie hat ihr eigenes `*.retention_deleted`-Event), und eine Entität in ihrem Gnaden-Fenster wiederherzustellen ist von **Papierkorb** möglich, bevor der finale Sweep läuft.
+Bitte nach der Änderung den Organisationsadmin, den Vorschlag unter [Richtlinien und Grenzen](/de/platform/admin/governance/policies-and-limits) zu prüfen. Die Bereinigung verwendet den übernommenen Stand der Grenzen. Eine Dateiänderung des Betreibers aktiviert neue Grenzen nicht stillschweigend.
 
-Audit-Log-Einträge unterliegen selbst der Retention, aber ihre Untergrenze wird pro Deployment durchgesetzt, nicht pro Org: Die strengste (kürzeste) Audit-Log-Retention über alle Orgs ist das, was tatsächlich läuft. Eine strengere Mandantin zieht alle enger — denk daran auf Multi-Tenant-Instanzen.
+Prüfe aktivierte Kategorien, bisherige und neue Fristen sowie eine mögliche Schonfrist. `auditLogRetentionDays: 730` ist eine gewählte Dauer; `auditLog.min: 365` ist eine Mindestgrenze. Unterscheide diese Bedeutungen beim Prüfen eines Diffs.
 
-## Legal Hold
+<Tip>
 
-Ein Legal Hold friert die Retention für einen bestimmten Scope ein: einen einzelnen Thread, einen Kunden-Datensatz oder eine ganze Organisation. Gehaltene Entitäten überspringen den Sweep, bis der Hold gelöst wird. Der Hold selbst ist audited; org-weite Holds sind laut genug, dass die UI eine Bestätigung anzeigt, bevor sie greifen.
+Teste kürzere Fristen zunächst mit synthetischen Daten. Prüfe, ob Daten innerhalb der Frist erhalten bleiben, abgelaufene Daten der jeweiligen Löschregel folgen und gesperrte Daten geschützt bleiben.
 
-## Wo das hingehört
+</Tip>
 
-Die Grenzen-Datei ist der Hebel des Operators; die per-Kategorie-Fenster, die der Admin sieht, sind in [Retention-Policy](/de/platform/admin/governance/policies-and-limits) dokumentiert. Setzt du Grenzen gegen ein Compliance-Framework (DSGVO, HIPAA, SOC 2), ist die Audit-Log-Untergrenze meist das, was Auditoren zuerst prüfen.
+## Ergebnis der Bereinigung verstehen
+
+Der Backend-Worker bereinigt Daten nach Zeitplan und getrennt je Organisation. Threads, Dokumente, Kontakte und externe Konversationen durchlaufen einen Lebenszyklus. Kategorien mit einzelnen Datensätzen können nach Aufbewahrungs- und Schonfrist direkt gelöscht werden. Nicht jeder gelöschte Datensatz erscheint im Papierkorb.
+
+Auch Audit-Einträge werden je Organisation aufbewahrt. Die Bereinigung entfernt den ältesten zulässigen zusammenhängenden Anfang ihrer Audit-Kette und stoppt an einem Eintrag, den eine Aufbewahrungssperre schützt. Eine kürzere Frist eines Mandanten verkürzt nicht die Historie eines anderen.
+
+`TALE_RETENTION_DISABLED=true` pausiert die geplante Aufbewahrungsbereinigung für ein Wartungsfenster. Die Variable stellt keine Daten wieder her und verhindert keine anderen Löschwege. Halte ihre Aktivierung fest und entferne sie nach der Wartung.
+
+## Gesperrte Daten bewahren
+
+Aufbewahrungssperren haben für ihren unterstützten Geltungsbereich Vorrang vor der Richtlinie. Eine organisationsweite Sperre schützt die Organisation; engere Sperren schützen die zugeordneten Objekte oder Personen. Lies den [Ablauf für Aufbewahrungssperren](/de/platform/admin/governance/legal-hold), bevor du eine betroffene Richtlinie änderst.
+
+Eine Sperre ersetzt kein Backup. Sind Daten außerhalb einer Sperre bereits gelöscht, bringt eine längere Frist sie nicht zurück. Dafür brauchst du ein erhaltenes Backup und den dazu passenden Bereitstellungsstand.

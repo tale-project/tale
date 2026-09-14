@@ -3,9 +3,9 @@ title: Connectors
 description: How a connector is declared, what one of its actions promises a caller, and where your own code goes when no connector fits.
 ---
 
-Connectors are the vendor-specific half of how Tale reaches other systems, and they are part of the platform rather than something an organisation assembles. Each one is a YAML file in the source tree that declares who it talks to, how it authenticates, and every action it can perform — which is why the catalog is identical in every deployment and why an upgrade is all it takes to move it forward. Read this when you want to know what a connector actually promises a caller, or when you are deciding between contributing one and reaching your own service from a project agent or an automation.
+A connector describes how Tale calls a particular service: permitted hosts, authentication and typed actions. Connector definitions ship with the platform, while each organization manages its own credentials. Use this reference when inspecting an action’s contract or contributing a connector.
 
-The organisation-facing side — adding credentials, defaults, reconnecting a lapsed grant — is [Connector credentials](/platform/admin/connectors), and the catalog itself is [Connectors](/platform/connectors/overview).
+To connect an account through the app, follow [Connector credentials](/platform/admin/connectors). To choose an existing integration, browse the [connector catalog](/platform/connectors/overview).
 
 ## How a connector is declared
 

@@ -1,70 +1,65 @@
 ---
 title: Chat
-description: Le chat sert à demander et à retrouver — envoie un message, laisse Auto choisir le modèle ou épingle le tien, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation.
+description: Pose une question, examine la réponse et ses sources, puis retrouve facilement les conversations utiles.
 ---
 
-Le chat est le point d’entrée quotidien à Tale. Tu poses ta question, l’assistant cherche dans les connaissances de l’organisation ou va chercher une page quand la question le demande, et la réponse arrive en streaming, chaque étape et chaque source à l’affiche. Le chat ne fait délibérément qu’un seul travail — les questions et la récupération. Le travail qui demande un responsable et un résultat à relire — une présentation, un document traduit, un export de données — vit sur une tâche ; un processus fixe vit dans une automatisation. L’assistant connaît cette frontière et te renvoie vers une tâche dès qu’une demande la franchit, si bien que rien de lourd ne reste à moitié bâti dans un chat.
+Chat permet de poser rapidement une question sur un document, de comprendre un sujet ou de préciser une réponse par des questions complémentaires. L’assistant peut rechercher dans les connaissances accessibles et consulter des pages publiques si la question le nécessite. Vérifie les sources avant de t’appuyer sur une réponse factuelle, surtout lorsque l’information peut avoir changé.
 
-<Frame caption="Un chat avec une réponse en streaming — la question, les étapes de l’assistant et la réponse.">
+<Frame caption="La question reste à côté de sa réponse pour préciser la demande sans recommencer.">
 
-![Un fil de chat montrant une question d’utilisateur sur des retours d’onboarding et une réponse de l’assistant contenant un tableau markdown de trois thèmes.](/images/platform/chat-thread-reply.webp)
-
-</Frame>
-
-## Les parties de l’écran
-
-La barre latérale liste chaque chat que tu peux reprendre, rangé sous tes dossiers de projet, favoris épinglés en tête, avec la recherche et les chats archivés en dessous. La colonne de conversation porte l’échange : au-dessus de chaque réponse, une ligne de réflexion repliable consigne ce que l’assistant a fait — le raisonnement, puis chaque recherche de connaissances ou récupération de page, dans l’ordre — et sous la réponse, **Sources** liste ce qu’il a réellement lu. La zone de saisie, en bas, est le champ de message plus un sélecteur unique pour le modèle — **Auto** par défaut, chaque modèle listé à épingler, et l’effort de raisonnement pour un modèle épinglé qui en a un ; le menu `+` porte la lecture à voix haute et le Mode Arène, et le micro dicte. Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt.
-
-Un chat tout neuf s’ouvre sur quatre suggestions de départ. Clique sur l’une d’elles : elle devient ton premier message — le moyen le plus rapide de voir toute la boucle tourner une fois.
-
-<Frame caption="Un nouveau chat : le message d’accueil, les quatre suggestions de départ et la zone de saisie.">
-
-![L’écran d’un nouveau chat encore vide, avec le message d’accueil, quatre boutons de suggestions de conversation et la zone de saisie en dessous.](/images/platform/chat-starters-empty.webp)
+![Un chat présente une question sur les retours d’onboarding et une réponse organisée en tableau de thèmes.](/images/platform/chat-thread-reply.webp)
 
 </Frame>
 
-## Chat, tâche ou automatisation ?
+## Commencer par une question utile
 
-Fais correspondre le travail à la surface — chaque type de travail a exactement une place.
+Ouvre **Chat**, écris dans le champ de message et envoie. Une suggestion peut t’aider à démarrer. Indique le résultat attendu et la source pertinente : « À partir du guide d’onboarding, liste les étapes qu’un nouveau client doit terminer. Cite le guide. »
 
-| Type de travail                                                         | Où il vit      | Pourquoi                                                                                                 |
-| ----------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
-| Interroger les connaissances, les documents ou une page web publique    | Chat           | Une conversation aux étapes et aux sources visibles ; rien à faire valider                               |
-| Produire un livrable — une présentation, une traduction, un rapport     | Tâche          | Il faut un responsable et une relecture ; un agent fait le travail, une personne marque la tâche Terminé |
-| Un processus fixe, avec des portes de validation et des étapes humaines | Automatisation | Le processus est le produit ; personnes et agents agissent à l’intérieur                                 |
+Le sélecteur de modèle démarre sur **Auto**. Choisis un modèle nommé pour décider quel modèle disponible répondra, et ajuste l’effort de raisonnement lorsqu’il est pris en charge. Tu peux joindre un fichier pour poser une question sur son contenu, ou ouvrir un chat de projet pour des références récurrentes.
 
-L’assistant fait respecter la première ligne lui-même : demande-lui une dissertation de 2 000 mots et il t’en donne une esquisse courte, puis te dit de créer une tâche et de l’assigner à un agent. C’est voulu — un livrable produit directement dans le chat n’aurait ni étape de relecture ni responsable.
+<Frame caption="Les suggestions proposent une première question ; le champ de message accepte aussi la tienne.">
 
-## Les pages de cette section
+![Un nouveau chat affiche le message d’accueil, quatre suggestions de conversation et le champ de saisie.](/images/platform/chat-starters-empty.webp)
+
+</Frame>
+
+## Choisir l’espace adapté au travail
+
+| Tu souhaites | Commence dans |
+| --- | --- |
+| Poser une question, comparer des informations ou clarifier une réponse | **Chat** |
+| Réutiliser les mêmes fichiers et instructions dans plusieurs conversations | Un **chat de projet** |
+| Produire un livrable avec un responsable et une relecture | Une **tâche** de projet |
+| Exécuter un processus répétable selon un horaire ou un événement | Une **automatisation** |
+
+Chat se concentre sur la conversation et la recherche d’informations. Pour un livrable conséquent, l’assistant peut t’orienter vers une tâche : un agent travaille alors dans une sandbox et une personne relit le résultat. Consulte [Tâches](/fr/platform/projects/tasks) et [Automatisations](/fr/platform/automations/concepts).
+
+## Bien utiliser la conversation
 
 <CardGroup cols="2">
 
-<Card title="Bases du chat" icon="message-circle" href="/fr/platform/chat/basics">
-
-Ce qui se passe entre l’envoi et l’arrivée de la réponse — la zone de saisie, les trois outils de récupération, le déroulé de réflexion et les sources.
-
+<Card title="Premiers pas dans Chat" icon="message-circle" href="/fr/platform/chat/basics">
+Envoie un message, choisis un modèle, lis les sources et reprends une conversation.
 </Card>
 
-<Card title="Mode Arène" icon="swords" href="/fr/platform/chat/arena-mode">
-
-La comparaison de modèles côte à côte, et comment les verdicts remontent dans l’analyse des retours.
-
+<Card title="Joindre des fichiers" icon="paperclip" href="/fr/platform/chat/attachments">
+Ajoute un document ou une image et comprends les états d’import et d’indexation.
 </Card>
 
-<Card title="Mode vocal" icon="mic" href="/fr/platform/chat/voice-mode">
-
-Parler au lieu de taper — les passations STT et TTS et la frontière de confidentialité.
-
+<Card title="Comparer les modèles dans Arena" icon="swords" href="/fr/platform/chat/arena-mode">
+Compare deux réponses à la même question et conserve celle qui convient le mieux.
 </Card>
 
-<Card title="Chats partagés" icon="share-2" href="/fr/platform/chat/shared-threads">
+<Card title="Utiliser ta voix" icon="mic" href="/fr/platform/chat/voice-mode">
+Dicte un message ou écoute une réponse, avec la configuration de fournisseur nécessaire.
+</Card>
 
-Partager un instantané en lecture seule d’un chat avec le reste de l’organisation, et arrêter le partage plus tard.
+<Card title="Partager un chat" icon="share-2" href="/fr/platform/chat/shared-threads">
+Publie un instantané en lecture seule pour l’organisation et arrête le partage plus tard.
+</Card>
 
+<Card title="T’exercer sur une vraie source" icon="book-open" href="/fr/tutorials/member/chat-effectively">
+Pose une question précise, vérifie sa source et formule une relance utile.
 </Card>
 
 </CardGroup>
-
-## Où cela s’inscrit
-
-Le chat est la surface qui pose les questions ; le reste de la plateforme est ce qu’il interroge. La base de connaissances alimente ses recherches, et les [projets](/fr/platform/projects/overview) classent son historique et portent les tâches qui reprennent tout ce que le chat refuse délibérément de bâtir sur place. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin de l’envoi à la réponse, chaque autre page du chat se lit comme une variation autour.

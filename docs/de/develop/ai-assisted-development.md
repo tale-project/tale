@@ -3,9 +3,9 @@ title: AI-gestützte Entwicklung
 description: Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien.
 ---
 
-Ein Tale-Projekt ist ein Verzeichnis aus reinen Konfigurationsdateien — Agenten, Skills, Branding, Provider, Connectors —, angelegt pro Organisation, und diese Struktur bearbeitet sich gut mit einem Coding-Agenten, sobald er die Regeln kennt. Die CLI schreibt dir diese Regeln: eine `AGENTS.md` im Projekt-Root mit der vollständigen Anleitung, eine `CLAUDE.md`, die darauf verweist, und einen schreibgeschützten Spiegel des Plattform-Quellcodes unter `.tale/reference/`, den beide Dateien den Agenten lesen lassen, bevor er eine Config anfasst.
+Ein Coding-Agent kann ein Tale-Projekt bearbeiten, wenn er Konfigurationsschemas und Projektanweisungen kennt. `tale init` liefert `AGENTS.md`, einen Verweis in `CLAUDE.md` und Quellcodereferenzen unter `.tale/reference/`. Diese Dateien helfen, Änderungen an der installierten Version auszurichten.
 
-Lies das, wenn du ein Tale-Projekt mit Claude Code oder einem anderen Agenten ändern willst, der `AGENTS.md` liest, ohne die Konfiguration von Hand zu tippen. Komm zurück, wenn der Agent Felder erfindet — die Lösung ist fast immer, ihn `.tale/reference/` noch einmal lesen zu lassen oder den Spiegel mit `tale update` aufzufrischen.
+Prüfe die Änderungen des Agenten und teste sie lokal vor der Bereitstellung. Erzeugte Beispiele bilden einen Katalog; nicht jede Datei ist in einer Organisation aktiv.
 
 ## Ein durchgespieltes Setup
 

@@ -3,7 +3,7 @@ title: Connectors
 description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs.
 ---
 
-A connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one waits in the **Add credential** catalog under **Settings > Connectors** for its first credential.
+A connector defines the actions Tale can call in an external service. Your organization adds credentials for the accounts it wants to use: a mailbox, store, workspace, or bot. Start in **Settings > Connectors** to inspect the available services; a Developer or administrator manages credentials.
 
 Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
 
@@ -110,10 +110,6 @@ Write actions change something in the other system: a message posted, an issue o
 
 ## When no connector fits
 
-Thirteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. Registering your own MCP server for agents to call is not part of this version — what bridges that gap is your own code in one of two places. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — and calls the service straight from its sandbox. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes, on a schedule or a webhook.
+A project agent can call a service directly from its sandbox using narrowly scoped **Secrets**. An automation can also use an equipped `agent` node for work that needs a shell or network access. A `transform` node only reshapes data: it cannot call an external API.
 
-The one MCP surface Tale ships points the other way: your MCP client connects to Tale under **Settings > API > MCP**, as [MCP servers](/platform/connectors/mcp-servers) explains.
-
-## Where this fits
-
-Connectors are how Tale reaches the systems your work already lives in, and credentials are how you decide which accounts it may act as. From here, [Connector credentials](/platform/admin/connectors) is the operations side — adding, replacing, disabling, and reconnecting the rows under each connector. [Project agents](/platform/projects/project-agents) shows how a connector's actions arrive in an agent's equipment, [Configure approvals](/platform/approvals/configure) holds the write ones, and [MCP servers](/platform/connectors/mcp-servers) says what replaced outbound MCP servers in this version.
+For an external client calling Tale, use the [MCP endpoint](/develop/mcp-endpoint) or [REST API](/develop/api-reference). The [connection guide](/platform/connectors/mcp-servers) helps choose the direction and authorization.

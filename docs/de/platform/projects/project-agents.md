@@ -11,6 +11,12 @@ Der Tab **Agenten** eines Projekts ist seine Crew: benannte Agenten, die du einm
 
 </Frame>
 
+<Note>
+
+Vor dem Start braucht der gewählte Harness passende Provider-Zugangsdaten und eine verfügbare Sandbox. Ein funktionierendes Chat-Modell belegt nicht, dass ein Coding-Harness denselben Zugang nutzen kann. Lass bei Problemen [KI-Provider](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes) von einem Administrator prüfen.
+
+</Note>
+
 ## Einen Agenten anlegen
 
 <Steps>
@@ -23,7 +29,7 @@ Der Tab **Agenten** eines Projekts ist seine Crew: benannte Agenten, die du einm
 
 <Step title="Modell wählen — und damit den Provider">
 
-Die Liste unter **Modell** ist durchsuchbar; ein Modell, das mehrere Provider anbieten, erscheint einmal pro Provider, mit dem Provider unter jedem Eintrag. Die Wahl ist exakt: Die Läufe des Agenten rufen dieses Modell über diesen Provider auf — und die Kosten landen auf dessen Zugang. Kann der gewählte Provider das Modell nicht mehr bedienen, schlägt der Lauf mit der Begründung fehl, statt still auf die Rechnung eines anderen Providers auszuweichen.
+Suche unter **Modell** nach Modellname oder API-ID. Bieten mehrere Provider dasselbe Modell an, erscheint ein Eintrag pro Provider mit dessen Namen. Die Wahl ist exakt: Die Läufe des Agenten rufen dieses Modell über diesen Provider auf — und die Kosten landen auf dessen Zugang. Kann der gewählte Provider das Modell nicht mehr bedienen, schlägt der Lauf mit der Begründung fehl, statt still auf die Rechnung eines anderen Providers auszuweichen.
 
 Abo-Einträge — etwa ein Claude-Abo — erscheinen nur, solange die **Agent-Laufzeit** das Harness ist, das dieses Abo antreibt; ein Lauf darauf authentifiziert sich mit dem Abo des Anbieters statt mit einem API-Schlüssel der Organisation.
 
@@ -33,7 +39,7 @@ Abo-Einträge — etwa ein Claude-Abo — erscheinen nur, solange die **Agent-La
 
 **Skills, Connectors & Tools** bestimmen, was der Agent jenseits seines Workspace erreicht; die Liste folgt dem Team-Zugriff des Projekts, nicht deiner persönlichen Sichtbarkeit. Skills stellen Referenz-Bundles in die Sandbox, Connectors vermitteln einen verbundenen Dienst, und **Plattform-Tools** lassen den Agenten die eigenen Daten deiner Organisation lesen und schreiben — Aufgaben, Kontakte, Produkte, Dokumente und Wissen finden und lesen und, wenn du ein Schreib-Tool gibst, Aufgaben erstellen, kommentieren, zwischen Spalten verschieben, ein externes Element mit einer Aufgabe abgleichen oder ein Dokument speichern. Ein Schreib-Tool ist mit _Schreibt Daten_ markiert: Das Gewähren ist die Berechtigung, ein Agent mit `Aufgaben erstellen` legt also ohne weitere Freigabe echte Aufgaben an. Lesen und Schreiben bleiben auf das Projekt beschränkt — ein Agent sieht nie das Board eines anderen Projekts.
 
-**Secrets** geben dem Agenten einen API-Schlüssel als Umgebungsvariable — der Ausweg für einen Dienst ohne Connector. Lege eines an (ein Name wie `GLITCHTIP_TOKEN` und das Token), und der Agent erhält es in seiner Shell und ruft die API dieses Dienstes direkt auf, mit der Doku des Anbieters. Der Wert wird verschlüsselt gespeichert und nie wieder angezeigt; hinterlege nur gering privilegierte, rotierbare Tokens, denn der laufende Agent kann sie lesen. Secrets gehören der Organisation, dasselbe wird also über mehrere Agenten hinweg genutzt und an einer Stelle rotiert.
+**Secrets** stellen dem laufenden Agenten lesbare Umgebungsvariablen bereit. Nur Owner und Admin der Organisation dürfen diese Zuordnungen ändern. Wähle eng begrenzte, rotierbare Zugangsdaten für Dienste ohne passenden Connector. Werte werden verschlüsselt gespeichert, in der Agentenkonfiguration über ihren Namen referenziert und in den Lauf eingebunden. Mehrere Agenten können dasselbe Secret verwenden; Austausch oder Löschung betrifft dann jeden davon.
 
 **Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er einhalten muss.
 

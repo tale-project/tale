@@ -3,7 +3,7 @@ title: Automation concepts
 description: The model behind every automation — one workflow document, a version history that never changes, a single deployed version, the triggers that start it, and the runs it records.
 ---
 
-An automation is one saved workflow document under a name, plus everything the platform keeps around it: the history of that document's versions, the single version that is live, the triggers allowed to start it, and the record of every run. Open **Automations** in the sidebar and each row is one of those names, with the version that is live beside it. Three ideas on this page decide how the rest of the surface behaves — versions never change, deploying is a separate act, and a trigger binds to the name rather than to a version — so read them before you build anything.
+Use an automation for work that follows a repeatable process. Its workflow describes the steps; saved versions preserve each revision, deployment chooses the version used for live runs, and a trigger can start it on a schedule or event. You can inspect each run to see its input, results, and operations.
 
 Prefer to watch first? Episode 5 opens the triage automation end to end and decides an approval card on camera, captions included — recorded on the earlier version, where the card sat in chat; in this version it sits on the run's detail page.
 
@@ -92,7 +92,7 @@ A version becomes deployable only once its own tests pass. Tests are stored with
 
 <Note>
 
-An automation with no deployed version cannot be started at all — not by a trigger, not by hand. Save a version, then deploy it.
+A live run needs a deployed version. You can still test a saved draft with **Test run** before deployment.
 
 </Note>
 
@@ -114,17 +114,16 @@ Runs come in two modes. **Mock** never touches the outside world and is the fast
 
 A run that needs an approval does not fail and does not restart. It pauses in `waiting`, and when the approval is answered it re-enters at the node it stopped on, carrying the answer forward. A run waiting on human input behaves the same way. `waiting` is also where a run parks while an agent turn is still working or a node polls until its condition holds — those need nobody, and the run names which kind of wait it is in (`waitingFor`: `approval`, `ask`, `agent` or `repeat`), so "needs a person" is never read off the status alone. [Approvals in workflows](/platform/automations/approvals-in-workflows) covers the gates and what each decision leaves behind.
 
-## Choosing the right unit
+## Choose a chat, task, or automation
 
-| Reach for …                                                        | Automation | Agent | Agent webhook |
-| ------------------------------------------------------------------ | ---------- | ----- | ------------- |
-| Work with several steps, branches, schedules, or approvals between | ✓          |       |               |
-| Something that must run on a clock or answer a webhook             | ✓          |       |               |
-| A recurring question in chat, with no external system involved     |            | ✓     |               |
-| One agent reply per incoming POST                                  |            |       | ✓             |
+| Need | Use |
+| --- | --- |
+| Ask a question and discuss the answer | Chat |
+| Produce a reviewed result with an owner | A project task, optionally assigned to an agent |
+| Run several dependent steps or react to a schedule, webhook, or event | An automation |
 
-Check the catalog before building — the automation you need may already ship. A [webhook trigger](/platform/automations/triggers) is the inbound seam; reach for it when an external payload should start a run.
+Check the [built-in automations](/platform/automations/builtin) before building. A webhook starts an automation; it is not a separate kind of project agent.
 
 ## Putting the model to work
 
-An automation is one document, kept as an unbroken chain of versions, with exactly one of them deployed and a set of triggers bound to its name rather than to any version — which is what makes editing safe, rollback cheap, and a failed run reproducible. [The workflow editor](/platform/automations/editor) is the hands-on manual for saving, testing, deploying, and rolling back; [Browse and install automations](/platform/automations/catalog) is the route to the ones that already ship.
+The workflow, versions, deployment, and trigger are separate parts of one automation. Follow [The workflow editor](/platform/automations/editor) to test and deploy a change; use [Execution logs](/platform/automations/execution-logs) to inspect what happened.

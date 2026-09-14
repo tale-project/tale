@@ -70,7 +70,7 @@ Un événement émis par l’exécution d’une automatisation ne déclenche jam
 
 ## Ce que chaque sorte transporte dans l’exécution
 
-L’entrée que reçoit une automatisation dit quelle sorte l’a lancée : un même document peut donc servir plusieurs déclencheurs et se brancher sur la différence.
+Un déclencheur ajoute son type et ses données à l’entrée de l’exécution. Adapte le schéma d’entrée au déclencheur choisi : une automatisation ne possède toujours qu’un seul déclencheur configuré à la fois.
 
 | Sorte      | L’entrée de l’exécution                                                |
 | ---------- | ---------------------------------------------------------------------- |
@@ -84,7 +84,7 @@ Déclare la forme attendue dans le schéma `inputs` du document, et la référen
 
 ## La mise en service ne les dérange pas
 
-Parce qu’un déclencheur nomme l’automatisation plutôt qu’une version, l’ensemble survit à chaque mise en service et à chaque retour arrière. Publie une URL de webhook auprès d’un partenaire, mets onze versions de plus en service, reviens deux fois en arrière : cette URL continue de fonctionner et atteint chaque fois ce qui est en service à ce moment-là.
+Le déclencheur configuré reste en place à chaque mise en service ou retour arrière, car il nomme l’automatisation et non une version précise. Publie une URL de webhook auprès d’un partenaire, mets onze versions de plus en service, reviens deux fois en arrière : cette URL continue de fonctionner et atteint chaque fois ce qui est en service à ce moment-là.
 
 L’inverse est vrai aussi : ajouter, modifier ou retirer un déclencheur ne change rien au document ni à ses versions. Déclencheurs et versions sont deux choses indépendantes à propos de la même automatisation.
 

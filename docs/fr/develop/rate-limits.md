@@ -3,9 +3,9 @@ title: Limites de débit
 description: Limites de débit REST et MCP — les buckets, la réponse 429 et son Retry-After, et comment relancer sans empirer la situation.
 ---
 
-L'API limite avec des token buckets rattachés au détenteur de la clé — l'utilisateur au nom duquel ta clé API agit — si bien qu'un budget appartient toujours à un appelant identifiable et qu'aucun en-tête réseau ne peut en fabriquer un neuf : les rafales passent, le martèlement continu répond **429**. Chaque clé qu'un utilisateur crée puise dans le budget de cet utilisateur ; une flotte de workers qui a besoin de son propre budget reçoit son propre utilisateur machine. Une clé qui échoue à s'authentifier est freinée par IP source à la place (20 requêtes par minute, rafale de 40) : les inconnus ne puisent donc jamais dans le budget d'un détenteur de clé, et une requête sans clé ne coûte rien du tout. Les budgets sont taillés pour qu'une connector normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
+Tale limite le trafic API par titulaire de clé. Toutes les clés d’une même personne partagent un budget ; en ajouter une n’augmente pas le débit. Prévois les pics, l’attente après une réponse `429` et une marge pour les reprises et les autres intégrations.
 
-Lis ceci quand tu câbles un client qui appelle l'API sur un planning ou sous charge.
+Les clés invalides sont limitées par IP source : 20 requêtes par minute, avec une rafale de 40. Les webhooks ont des budgets distincts par expéditeur et déclencheur, détaillés ci-dessous.
 
 ## Les buckets
 

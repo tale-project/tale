@@ -3,7 +3,7 @@ title: Concepts d’automatisation
 description: Le modèle derrière chaque automatisation — un document de workflow, un historique de versions qui ne change jamais, une seule version en service, les déclencheurs qui la lancent et les exécutions qu’elle enregistre.
 ---
 
-Une automatisation, c’est un document de workflow enregistré sous un nom, plus tout ce que la plateforme conserve autour : l’historique des versions de ce document, la seule version en service, les déclencheurs autorisés à la lancer, et la trace de chaque exécution. Ouvre **Automatisations** dans la barre latérale et chaque ligne est l’un de ces noms, avec à côté la version en service. Trois idées de cette page commandent tout le reste — les versions ne changent jamais, la mise en service est un geste distinct, et un déclencheur se rattache au nom plutôt qu’à une version —, alors lis-les avant de construire quoi que ce soit.
+Utilise une automatisation pour un travail qui suit un processus répétable. Le workflow décrit les étapes ; les versions enregistrées conservent les révisions, le déploiement choisit la version exécutée en réel et un déclencheur peut la lancer selon un horaire ou un événement. Chaque exécution permet d’examiner les données, les résultats et les opérations.
 
 Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une carte de validation à l’écran, sous-titres compris — enregistré sur l’ancienne version, où la carte se trouvait dans le chat ; dans cette version, elle se trouve sur la page de détail de l’exécution.
 
@@ -92,7 +92,7 @@ Une version ne devient éligible qu’une fois ses propres tests réussis. Les t
 
 <Note>
 
-Une automatisation sans version en service ne peut pas être lancée du tout — ni par un déclencheur, ni à la main. Enregistre une version, puis mets-la en service.
+Une exécution réelle nécessite une version en service. Tu peux tester un brouillon enregistré avec **Essai** avant son déploiement.
 
 </Note>
 
@@ -114,17 +114,16 @@ Les exécutions ont deux modes. **Essai** ne touche jamais l’extérieur et c�
 
 Une exécution qui a besoin d’une validation ne tombe pas en échec et ne repart pas de zéro. Elle se met en pause au statut `waiting`, et dès que la validation est répondue, elle repart exactement au nœud où elle s’était arrêtée en emportant la réponse. Une exécution qui attend une saisie humaine se comporte pareil. `waiting` est aussi là où une exécution se gare pendant qu’un tour d’agent travaille encore ou qu’un nœud interroge jusqu’à ce que sa condition tienne — ceux-là n’ont besoin de personne, et l’exécution nomme dans quel genre d’attente elle est (`waitingFor` : `approval`, `ask`, `agent` ou `repeat`), si bien que « a besoin d’une personne » ne se lit jamais sur le seul statut. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) couvre ces portes et ce que chaque décision laisse derrière elle.
 
-## Choisir la bonne unité
+## Choisir un chat, une tâche ou une automatisation
 
-| Choisis …                                                                   | Automatisation | Agent | Webhook d’agent |
-| --------------------------------------------------------------------------- | -------------- | ----- | --------------- |
-| Un travail à plusieurs étapes, avec branches, planifications ou validations | ✓              |       |                 |
-| Quelque chose qui doit tourner à l’heure ou répondre à un webhook           | ✓              |       |                 |
-| Une question qui revient dans le chat, sans système externe en jeu          |                | ✓     |                 |
-| Une réponse d’agent par POST entrant                                        |                |       | ✓               |
+| Besoin | Utilise |
+| --- | --- |
+| Poser une question et discuter de la réponse | Chat |
+| Produire un résultat relu avec un responsable | Une tâche de projet, éventuellement assignée à un agent |
+| Enchaîner des étapes ou réagir à un horaire, webhook ou événement | Une automatisation |
 
-Vérifie le catalogue avant de construire — l’automatisation dont tu as besoin est peut-être déjà livrée. Un [déclencheur webhook](/fr/platform/automations/triggers) est la couture entrante ; recours-y quand une charge utile externe doit lancer une exécution.
+Consulte les [automatisations fournies](/fr/platform/automations/builtin) avant de créer la tienne. Un webhook démarre une automatisation ; ce n’est pas un type distinct d’agent de projet.
 
 ## Mettre le modèle en pratique
 
-Une automatisation est un document, tenu comme une chaîne ininterrompue de versions dont une seule est en service, avec des déclencheurs rattachés à son nom plutôt qu’à une version — et c’est précisément ce qui rend la modification sûre, le retour arrière bon marché et une exécution en échec reproductible. [L’éditeur de workflow](/fr/platform/automations/editor) est le manuel pratique pour enregistrer, tester, mettre en service et revenir en arrière ; [Parcourir et installer des automatisations](/fr/platform/automations/catalog) mène à celles qui sont déjà livrées.
+Workflow, versions, déploiement et déclencheur sont des éléments distincts d’une même automatisation. Suis [L’éditeur de workflow](/fr/platform/automations/editor) pour tester et mettre un changement en service, puis les [Journaux d’exécution](/fr/platform/automations/execution-logs) pour examiner son résultat.

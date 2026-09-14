@@ -3,9 +3,9 @@ title: Connectors
 description: Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient.
 ---
 
-Les connecteurs sont la moitié propre aux fournisseurs de la façon dont Tale atteint d’autres systèmes, et ils font partie de la plateforme plutôt que d’un assemblage à la charge d’une organisation. Chacun est un fichier YAML dans l’arbre des sources qui déclare à qui il parle, comment il s’authentifie et chaque action qu’il sait exécuter — d’où un catalogue identique dans tous les déploiements, qu’une mise à jour suffit à faire avancer. Lis cette page pour savoir ce qu’un connecteur promet réellement à un appelant, ou quand tu hésites entre contribuer un connecteur et atteindre ton propre service depuis un agent de projet ou une automatisation.
+Un connector décrit les appels de Tale vers un service : hôtes autorisés, authentification et actions typées. Les définitions sont livrées avec la plateforme ; chaque organisation gère ses identifiants. Utilise cette référence pour examiner le contrat d’une action ou contribuer un connector.
 
-Le versant organisation — ajouter des identifiants, choisir celui par défaut, relancer une autorisation expirée — est [Identifiants d’connector](/fr/platform/admin/connectors), et le catalogue lui-même est [Connectors](/fr/platform/connectors/overview).
+Pour connecter un compte dans l’application, suis [Identifiants de connectors](/fr/platform/admin/connectors). Pour choisir une intégration existante, consulte le [catalogue](/fr/platform/connectors/overview).
 
 ## Comment un connecteur est déclaré
 

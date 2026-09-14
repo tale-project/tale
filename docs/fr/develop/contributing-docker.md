@@ -3,9 +3,9 @@ title: Contribuer aux images Docker
 description: Comment construire et étendre les images Docker de Tale pour des forks, des builds vendorisés ou des distributions air-gapped.
 ---
 
-Chaque conteneur que Tale ship a son Dockerfile dans le repo source public. Les forks, distributions air-gapped et patches one-off partent tous des mêmes fichiers ; cette page est le walk opérateur à travers la construction des images toi-même, où les coutures de personnalisation vivent, et comment garder un fork en sync avec l'amont sans diverger sur les parties ennuyeuses.
+Construis les images Tale pour tester une modification de conteneur ou distribuer une compilation maîtrisée. Pars des Dockerfiles du dépôt pour conserver la cohérence des dépendances, rôles de démarrage et sondes.
 
-L'architecture des conteneurs vit dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) ; cette page est ce que tu lis quand les images publiées ne vont pas et qu'il te faut construire les tiennes.
+Ce guide couvre la construction et les tests. [Exécuter ton propre Compose](/fr/self-hosted/install/own-compose) décrit le contrat de déploiement et [Mises à niveau](/fr/self-hosted/operate/upgrades) le cycle d’une installation existante.
 
 ## Quelles sont les images
 

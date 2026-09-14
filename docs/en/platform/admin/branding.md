@@ -1,11 +1,9 @@
 ---
 title: Branding
-description: Logo, favicon, and the accent colour your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette.
+description: Change the organization logo, tab icons, and accent color, and understand when changes apply.
 ---
 
-Branding is the surface that swaps Tale's default chrome for your organisation's own. The page covers the assets the platform skins — logo, favicon, and the accent colour the palette derives from — and explains where each one shows up so you can preview before you save. The product name itself follows your organisation's name automatically, so there is no separate field to fill. Admins reach for branding when a self-hosted instance ships to an external audience or when an internal rollout needs to feel native to the company.
-
-Only Admins and Owners can edit branding. Everyone else sees the result; the form itself is hidden from Editors, Developers, and Members.
+Give an organization its own logo, browser-tab icons, and accent color under **Settings > Branding**. Owners and Admins can edit these settings. They apply to the organization you have open, so check the organization name before changing shared branding.
 
 <Frame caption="Settings > Branding — the logo, favicon, and colour controls beside a live preview of the sidebar.">
 
@@ -13,32 +11,36 @@ Only Admins and Owners can edit branding. Everyone else sees the result; the for
 
 </Frame>
 
-## Where branding lives
+## Choose the assets
 
-Open **Settings > Branding**. The form has three sections (logo upload, favicon upload, accent colour) and a live preview that mirrors the sidebar with the values you are editing. Save commits the change for every member of _that_ organisation on their next page load — there is no per-user override.
+| Setting | What to prepare |
+| --- | --- |
+| **Logo** | A mark that stays readable at sidebar size and works on light and dark backgrounds. SVG is preferred; raster images should be at least 64 × 64 pixels. |
+| **Favicon** | A small, recognizable tab icon. You can provide separate light and dark variants. |
+| **Accent color** | Your brand's hex color, then a visual check in both themes. Tale derives the displayed palette for the current theme. |
 
-Branding is scoped to one organisation. Each organisation keeps its own logo, favicon, and accent colour, so switching organisations swaps the chrome to that organisation's branding rather than carrying the previous one's over. Editing here changes only the organisation you are currently in.
+The organization name supplies the text wordmark when there is no logo. Change that name under **Settings > Organization**; there is no separate application-name field on Branding.
 
-## The product name
+## Upload a logo or favicon
 
-There is no "app name" or "text logo" field. The wordmark in the sidebar header and the name in the browser tab title are your organisation's own name, which you set on the **Settings > Organization** page. Rename the organisation and the chrome follows on the next page load. Upload a logo image (below) and it takes the wordmark's place; with no logo, the organisation name is rendered as the text wordmark.
+Use the corresponding upload field and select the image. Uploading or removing an image takes effect immediately; it is not held until you select Save. The preview and organization branding refresh after the operation succeeds.
 
-## The assets
+When no explicit favicon is configured, Tale can derive one from the uploaded logo. Provide an explicit icon when the full logo becomes hard to recognize at tab size. Check the tab icon and sidebar after uploading, including in the other theme.
 
-**Logo** is an image — PNG, SVG, JPG, WebP, or ICO. The platform renders it at sidebar height; aim for a transparent background and a wordmark that reads at roughly 32 pixels tall. The logo is a single upload used on both themes, so pick a mark that reads on light and dark backgrounds. With no logo, the chrome falls back to your organisation's name as a text wordmark.
+<Note>
 
-**Favicon** is the tab icon. Upload a light and a dark variant so the icon stays legible whichever theme the operating system has chosen — or leave it blank and Tale derives one from your logo the moment you upload it, so a single upload skins both the sidebar and the browser tab. An explicit favicon always wins over the auto-derived one.
+The header's Discard action applies to pending form edits. It does not undo an image that has already been uploaded or removed.
 
-**Accent colour** is the single colour the branded palette derives from — buttons, focus rings, selection states, and the sidebar's active row all take their tone from it. It accepts any hex value, picked once for both light and dark mode; Tale derives a legible palette per theme, so a colour that would be hard to read against one theme's background is nudged into contrast for that theme only while the other stays untouched — the same brand reads cleanly on both. The preview reflects the derived palette for the theme you are currently viewing.
+</Note>
 
-## A worked rebrand
+## Change the accent color
 
-To rebrand an instance for `Acme Corp`, first set the organisation's name to `Acme Corp` on the **Settings > Organization** page — that name becomes the sidebar wordmark and the browser tab title. Then open **Settings > Branding**, upload the company wordmark as the logo, and paste the brand hex (`#3B82F6` for the example) into the accent colour field. Leave the favicon blank and Tale generates one from the logo. The preview pane on the right updates as you type. Save commits the change; the sidebar, the browser tab, and the favicon reflect the new branding immediately.
+Edit **Accent color** and inspect the preview. Select **Save** in the settings header to persist the change, or **Discard** to return to the saved value. The color field reflects the current theme, so a derived dark-theme color may differ from the stored light-theme value.
 
-## The custom login screen
+After saving, reload the page and check a selected navigation item, a button, and keyboard focus. A color that looks good as a large swatch may be hard to recognize in a small control.
 
-The sign-in, sign-up, and password-reset screens render before you have picked an organisation, so there is no organisation in scope to brand them with. They show the platform's default branding rather than any single organisation's; per-organisation branding takes over the moment you land inside that organisation's workspace. Sign out and reload the login URL to verify which assets the pre-auth screens use.
+## Check where branding appears
 
-## Where this fits
+Organization branding applies inside that workspace. Switching organizations loads the destination organization's branding. Sign-in screens appear before an organization is selected and use the platform's default branding.
 
-Branding is the visual layer that sits above every other admin surface; SSO, email, and audit logs all carry the branded chrome to your members. Because the product name is the organisation's own name, keep it sharp on the [organization](/platform/admin/members-and-roles) settings. Pair branding with [providers](/platform/admin/providers) so the model names that show in the chat header match the chrome around them, and with [members and roles](/platform/admin/members-and-roles) so the people who can edit branding are the same people who own the rest of the org's chrome.
+If you still see an old browser icon, reload the page and check the explicit favicon fields. An explicit favicon takes precedence over one derived from the logo. Use **Reset** only when you intend to remove the organization's configured branding, and read the confirmation first.

@@ -3,7 +3,7 @@ title: Connectors
 description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen.
 ---
 
-Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon wartet im Katalog hinter **Zugangsdaten hinzufügen** unter **Einstellungen > Connectors** auf seinen ersten Eintrag.
+Ein Connector legt fest, welche Aktionen Tale in einem externen Dienst aufrufen kann. Deine Organisation hinterlegt die Zugangsdaten für die gewünschten Konten: Postfach, Shop, Arbeitsbereich oder Bot. Unter **Einstellungen > Connectoren** siehst du die verfügbaren Dienste. Ein Developer oder Administrator verwaltet die Zugangsdaten.
 
 Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
 
@@ -110,10 +110,6 @@ Schreibende Aktionen verändern etwas im anderen System: eine gepostete Nachrich
 
 ## Wenn kein Connector passt
 
-Dreizehn Connectoren decken die Systeme ab, zu denen die meisten Teams greifen — und sie decken keine interne API ab, kein selbstgebautes Tool und keinen Anbieter, für den niemand einen Connector geschrieben hat. Einen eigenen MCP-Server zu registrieren, den Agenten aufrufen, gibt es in dieser Version nicht — die Lücke schließt dein eigener Code an einer von zwei Stellen. Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt **Secrets** — einen API-Schlüssel, den er als Umgebungsvariable bekommt — und ruft den Dienst direkt aus seiner Sandbox auf. Eine [Automatisierung](/de/platform/automations/catalog) ruft Connector-Aktionen auf und führt dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook.
+Ein Projektagent kann einen Dienst aus seiner Sandbox direkt aufrufen und dafür eng begrenzte **Secrets** nutzen. Eine Automatisierung kann für Shell- oder Netzwerkzugriff ebenfalls einen passend ausgestatteten `agent`-Knoten verwenden. Ein `transform`-Knoten formt nur Daten um; er kann keine externe API aufrufen.
 
-Die einzige MCP-Oberfläche, die Tale mitbringt, zeigt in die Gegenrichtung: Dein MCP-Client verbindet sich unter **Einstellungen > API > MCP** mit Tale, wie [MCP-Server](/de/platform/connectors/mcp-servers) erklärt.
-
-## Wo das hingehört
-
-Connectoren sind der Weg, auf dem Tale die Systeme erreicht, in denen deine Arbeit ohnehin stattfindet; Zugangsdaten sind die Entscheidung darüber, als welche Konten Tale dabei handelt. Von hier aus zeigt [Zugangsdaten für Connectors](/de/platform/admin/connectors) die Betriebsseite — Einträge anlegen, ersetzen, deaktivieren und neu verbinden. [Projekt-Agenten](/de/platform/projects/project-agents) zeigt, wie die Aktionen eines Connectors in der Ausrüstung eines Agents ankommen, [Genehmigungen konfigurieren](/de/platform/approvals/configure) hält die schreibenden zurück, und [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was in dieser Version an die Stelle ausgehender MCP-Server getreten ist.
+Soll ein externer Client Tale aufrufen, nutze den [MCP-Endpunkt](/de/develop/mcp-endpoint) oder die [REST-API](/de/develop/api-reference). Der [Verbindungsleitfaden](/de/platform/connectors/mcp-servers) hilft bei Richtung und Autorisierung.

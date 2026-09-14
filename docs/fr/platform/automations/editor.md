@@ -1,111 +1,74 @@
 ---
 title: L’éditeur de workflow
-description: Le manuel d’exploitation de la page d’une automatisation — lire le canvas, modifier un nœud, enregistrer une version, la lancer contre des simulations, la mettre en service et revenir en arrière.
+description: Examine et modifie les nœuds, fournis les données de test, puis enregistre, déploie ou rétablis une version.
 ---
 
-Cette page est la moitié pratique des automatisations : ce que tu cliques, et dans quel ordre, pour transformer une idée en la version que tes déclencheurs exécutent. Le modèle en dessous — un document, des versions immuables, une seule en service, des déclencheurs rattachés au nom — vit dans les [concepts d’automatisation](/fr/platform/automations/concepts), et cette page le suppose acquis. Enregistrer, tester et mettre en service sont trois gestes distincts ici, et c’est cette séparation qui te laisse modifier une automatisation en service sans déranger la moindre exécution en cours.
+L’éditeur de workflow permet de modifier le comportement d’une automatisation et de choisir sa version active. Il faut les droits Développeur, Admin ou Propriétaire pour apporter des changements. Enregistrer, tester et mettre en service sont des étapes distinctes : modifier un brouillon laisse la version déployée en place.
 
-## Où vit une automatisation
+Ouvre **Automatisations**, puis sélectionne une automatisation. Pour en créer une d’abord, consulte [Ajouter des automatisations](/fr/platform/automations/catalog).
 
-Ouvre **Automatisations** dans la barre latérale. La liste montre chaque automatisation de l’organisation avec son nombre de versions et soit la version en service, soit **Pas en service** tant qu’il n’y en a aucune. Clique sur l’une d’elles et tu arrives sur sa page.
+<Frame caption="Sélectionne un nœud pour examiner ses champs. L’en-tête réunit test, enregistrement et mise en service.">
 
-Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée. Le changement t’amène sur l’onglet que tu avais ouvert.
+![L’éditeur montre les nœuds connectés, les réglages du nœud sélectionné et les commandes de version et d’exécution.](/images/platform/automation-editor-canvas.webp)
 
-Cette page a trois onglets, comme un projet : **Éditeur**, **Versions** et **Exécutions** ; elle s’ouvre sur **Éditeur**. Le nom porte le badge **En service** quand la version à l’écran est en service. **Version**, **Essai**, **Exécuter en réel**, **Abandonner** et **Enregistrer** sont au bout droit de la barre d’onglets — **Mettre cette version en service** se place à côté de **Version** quand le choix n’est pas en service. À côté du canvas, le panneau montre **Déclencheur** et **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — jusqu’à ce que tu cliques sur une boîte. Le panneau a la hauteur du canvas, qui remplit la fenêtre sous les onglets. Quand tu sélectionnes un nœud, le canvas ne s’agrandit pas — les champs en trop défilent dans le panneau. Clique sur **Fermer**, appuie sur Échap, clique à nouveau sur la boîte sélectionnée, ou sur le canvas vide, pour les retrouver. **Versions** liste chaque version enregistrée et **Exécutions** chaque exécution — chacune dans son onglet.
+</Frame>
+
+Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée.
 
 ## Lire le canvas
 
-Le canvas dessine la version affichée. Chaque boîte est un nœud, étiqueté avec son id et son type, et les boîtes qui lisent la sortie d’un autre nœud le disent : une ligne **Lit** nomme les nœuds dont elles dépendent. Les flèches entre les boîtes ne sont pas quelque chose que tu traces — une flèche existe parce que le champ d’un nœud référence la sortie d’un autre. Le graphe correspond donc toujours au document.
+Chaque bloc est un nœud. Son libellé indique l’étape et le type ; **Lit** désigne les nœuds dont il utilise la sortie. Les flèches viennent des références, comme `{{ nodes.draft.output.text }}`. Modifie la référence pour changer la dépendance ; dessiner une flèche ne crée pas de dépendance.
 
-Le contrôle du flux apparaît en badge sur la boîte concernée, dans le même vocabulaire que le document : `si …`, `sinon de …`, `pour chaque …`, `répéter jusqu’à …` (avec le plafond quand il y en a un) et `continuer en cas d’erreur`. Rien de la forme du graphe ne se cache dans un écran de réglages à part.
-
-Deux états valent la peine d’être reconnus. Une version sans nœud le dit et t’invite à en ajouter un au document. Une version dont les nœuds se référencent en boucle t’avertit que l’ordre affiché est celui dans lequel ils sont écrits, pas un ordre que le moteur pourrait exécuter, et te demande de retirer l’une des références pour rompre la boucle.
-
-Un agent qui nomme un modèle sans fournisseur épinglé affiche un avertissement sur sa boîte. Épingle le fournisseur sur le nœud, enregistre, puis mets la nouvelle version en service.
-
-<Note>
-
-Le canvas sert à lire et à sélectionner. Tu relies des nœuds en les référençant, pas en tirant une liaison entre deux boîtes.
-
-</Note>
+Les badges indiquent les conditions et boucles : `when`, `else of`, `for each`, `repeat until` et `continue on error`. Un avertissement de cycle signifie que plusieurs nœuds dépendent les uns des autres. Supprime la référence circulaire avant d’enregistrer une version exécutable.
 
 ## Modifier un nœud
 
-Clique sur une boîte et le panneau à côté du canvas passe de **Déclencheur** aux champs de ce nœud. Clique sur **Fermer**, appuie sur Échap (quand tu ne tapes pas dans un champ), clique à nouveau sur la boîte, ou sur le canvas vide, pour revenir. Les champs affichés dépendent du type : **Code** pour un `transform`, **Prompt**, **Prompt système**, **Modèle** et **Schéma de sortie** pour un `llm`, **Automatisation** pour une `subautomation`, et un `agent` ajoute son équipement — **Harness**, **Skills**, **Connectors**, **Outils de la plateforme**, **Secrets** et **Fichiers fournis** — au prompt et au modèle qu’il partage avec `llm`. **Entrée** apparaît partout où il y en a une, et les champs propres au type se trouvent au-dessus.
+Sélectionne un bloc pour ouvrir ses champs. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
 
-**Entrée** est un objet JSON, et c’est là que vivent les références. Une valeur texte peut référencer la sortie d’un autre nœud, et c’est précisément cette référence qui trace la flèche sur le canvas. Tant que le JSON est incomplet, le panneau te dit qu’il n’est pas encore valide et laisse le nœud inchangé : une modification à moitié tapée ne peut donc jamais être enregistrée par accident.
+Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour revenir aux réglages du déclencheur et des projets. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
 
-Ouvre **Contrôle du flux** pour **Si**, **Sinon de**, **Pour chaque** et **Répéter jusqu’à**. Ce sont les mêmes champs que reflètent les badges du canvas : en régler un ici change le badge immédiatement. Le groupe s’ouvre dès qu’un de ces champs est déjà renseigné.
+## Enregistrer et tester une version
 
-## Enregistrer, lancer, mettre en service
+1. Modifie les champs nécessaires et clique sur **Enregistrer**.
+2. Explique le changement dans le **Message de version**, puis choisis **Enregistrer la version**. Cela ajoute une version et conserve les précédentes.
+3. Clique sur **Essai**. Si le workflow déclare un schéma d’entrée, remplis **Données de l’exécution (JSON)** dans le dialogue. Déplie **Schéma des données** pour vérifier les champs obligatoires et leurs types. Un JSON invalide ou non conforme au schéma empêche le démarrage.
+4. Lance le test et ouvre sa ligne dans **Exécutions**. Compare les données résolues, la sortie et les opérations prévues au résultat attendu.
 
-Les trois gestes sont volontairement distincts. Parcours-les dans l’ordre la première fois et la séparation cesse de ressembler à du travail en plus.
+Pour un workflow qui exige `owner` et `repo`, les données pourraient être :
 
-<Steps>
-
-<Step title="Enregistrer une version">
-
-Les modifications affichent la mention **Modifications non enregistrées** jusqu’à ce que tu enregistres. Clique sur **Enregistrer**, écris une **Note de version** qui dit ce qui a changé — cette note sera plus tard la seule chose qui distingue deux versions dans la liste — puis confirme **Enregistrer une version**. L’enregistrement ajoute une version et laisse chaque précédente exactement telle qu’elle était. Si rien n’a changé, le bouton te le dit au lieu de créer une version identique.
-
-</Step>
-
-<Step title="La lancer contre des simulations">
-
-**Essai** lance une exécution en mode simulé : les connecteurs renvoient leurs valeurs déterministes et rien hors de la plateforme n’est touché. Tu peux appuyer autant de fois que tu veux, et c’est ce qui en fait la boucle où travailler tant qu’un nœud prend encore forme.
-
-Quand l’automatisation est liée à plus d’un projet, un sélecteur de **portée du projet** se place à côté des commandes d’exécution. Il vaut « toute l’organisation » par défaut ; choisis l’un des projets liés pour que l’exécution — et les outils de tâches et de documents de ses agents — n’agisse que dans ce projet.
-
-</Step>
-
-<Step title="Mettre en service la version voulue">
-
-Quand la version du canvas n’est pas en service, **Mettre cette version en service** à côté de **Version** met en service celle à l’écran. Celle en service porte le badge **En service** dans **Versions**, et en mettre une autre en service déplace ce badge sans toucher au contenu d’aucune version.
-
-</Step>
-
-</Steps>
-
-<Note>
-
-Le bouton de lancement de cette page exécute toujours contre des simulations. Une exécution autorisée à atteindre le monde extérieur est lancée par un déclencheur ou par un appel programmatique, et cela demande un droit de développeur.
-
-</Note>
-
-## Les tests et la porte de mise en service
-
-Les tests font partie du document, pas d’un panneau séparé. Chacun porte un nom, une entrée et des attentes sur la sortie comme sur les effets que l’exécution doit produire, et ils voyagent avec la version comme n’importe quel autre champ.
-
-```yaml
-tests:
-  - name: relance un mauvais payeur
-    input: { invoiceId: 'inv-1' }
-    expect:
-      effects:
-        - connector: email.send
+```json
+{
+  "owner": "your-organization",
+  "repo": "your-repository"
+}
 ```
 
-Le résultat des tests d’une version est consigné à l’enregistrement, et l’onglet **Versions** l’affiche en badge **Tests réussis** ou **Tests en échec**. La mise en service lit ce fait : une version enregistrée avec des tests en échec est refusée, et la page indique qu’elle n’a pas été mise en service plutôt que de ne rien faire en silence. Corrige la cause et enregistre une nouvelle version — un résultat consigné est un fait sur cette version-là et ne change jamais.
+Utilise le schéma réel du workflow. Un champ numérique attend un nombre JSON, pas une chaîne entre guillemets. Vérifie aussi le périmètre lorsqu’un sélecteur de projet est proposé.
 
-## Revenir en arrière
+**Essai** utilise la version enregistrée sélectionnée et des simulations déterministes. Aucun e-mail n’est envoyé et aucune fiche externe n’est modifiée. Un brouillon peut être testé avant sa mise en service. Une simulation réussie ne vérifie pas les identifiants réels ni les services externes.
 
-Revenir en arrière, c’est mettre en service une version plus ancienne. Choisis-la dans **Version**, dans la barre d’onglets — ou ouvre **Versions**, lis sa note et clique sur la ligne, qui ouvre l’éditeur sur cette version — puis clique sur **Mettre cette version en service**. Le badge se déplace, les versions plus récentes restent intactes dans la liste, et aucun document n’est réécrit.
+<Frame caption="Pour un workflow avec des données d’entrée, saisis le JSON et vérifie le schéma avant le test.">
 
-C’est pour cela que les notes de version comptent plus qu’il n’y paraît. Six versions plus tard, c’est la note qui te dit laquelle était le dernier bon état : écris-la donc pour la personne qui la lira pendant un incident.
+![Le dialogue de test montre les valeurs JSON owner et repo et le schéma des données déplié.](/images/platform/automation-run-input.webp)
 
-## Supprimer une automatisation
+</Frame>
 
-La suppression porte sur l’automatisation entière : toutes les versions, le déploiement, le déclencheur et les liens avec les projets partent ensemble — une planification ne se déclenche plus, une URL de webhook cesse de fonctionner immédiatement. Tu le fais depuis la liste, pas depuis cette page : ouvre **Automatisations**, le menu de la ligne, et clique **Supprimer**. La confirmation (**Supprimer l’automatisation**) la nomme d’abord. Les exécutions passées restent lisibles jusqu’à ce que la rétention les supprime : ce que l’automatisation a fait reste vérifiable après coup.
+## Mettre en service et exécuter en réel
 
-Deux garde-fous. Une exécution encore en file, en cours ou en attente bloque la suppression — annule-la ou laisse-la se terminer. Et un pack intégré supprimé reste supprimé au fil des mises à jour de la plateforme ; recrée une automatisation sous le même nom et le nom revit.
+Choisis la version testée sous **Version** et clique sur **Mettre cette version en service**. Le badge **En service** indique la version déployée. Une version dont les tests enregistrés ont échoué ne peut pas être déployée ; corrige la cause et enregistre une nouvelle version.
 
-## Lire la dernière exécution sur le canvas
+**Exécuter en réel** lance la version déployée, même si tu en consultes une autre. La confirmation montre le périmètre et, si nécessaire, les **Données de l’exécution (JSON)** pour cette version déployée. Vérifie les deux avant de confirmer. Les exécutions réelles peuvent agir sur les systèmes connectés et attendre une [approbation](/fr/platform/approvals/concepts).
 
-Dès qu’une automatisation s’est exécutée, **Afficher la dernière exécution** superpose cette exécution au canvas depuis une icône sur le canvas (elle devient **Masquer la dernière exécution** tant que la superposition est active). Chaque boîte reprend le statut que l’exécution lui a donné — **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, ou **Pas encore atteint** tant que l’exécution continue. Un échec devient ainsi une position dans le graphe plutôt qu’une ligne à chercher dans un log.
+Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es prêt pour des exécutions répétées ou démarrées par un système externe ; consulte [Déclencheurs d’automatisation](/fr/platform/automations/triggers).
 
-Sélectionne un nœud avec la superposition active et le panneau ajoute une section **Dans cette exécution** : l’**Entrée résolue** que le nœud a réellement reçue une fois tous les templates évalués, sa **Sortie**, et les effets qu’il a produits, ou une note disant qu’il n’a rien changé hors de la plateforme. L’entrée résolue est en général la réponse la plus rapide à la question de savoir pourquoi un nœud a fait ce qu’il a fait : elle montre la valeur qu’une référence a produite, pas la référence que tu as écrite.
+## Examiner un résultat
 
-Ouvre **Exécutions** et clique sur une ligne : la page de cette exécution s’ouvre — les onglets restent, **Exécutions** actif — et le même canvas y côtoie son entrée, sa sortie et la liste complète des effets. [Journaux d’exécution](/fr/platform/automations/execution-logs) lit cette page de bout en bout.
+**Afficher la dernière exécution** superpose les états au canvas. Sélectionne un nœud pour consulter les données de cette exécution : entrée résolue, sortie et effets. Cela suffit souvent à trouver une référence incorrecte. Compare l’entrée du nœud échoué à la sortie de sa source.
 
-## Où cela s’inscrit
+Ouvre une ligne dans **Exécutions** pour le détail complet. Vérifie s’il s’agissait d’un test ou d’une exécution réelle et examine les opérations déjà réalisées avant de relancer. [Journaux d’exécution](/fr/platform/automations/execution-logs) explique les attentes, échecs, relances automatiques et arrêts.
 
-La boucle est courte une fois les trois gestes bien séparés : modifier un nœud, enregistrer une version avec une note qui vaut la peine d’être lue, la lancer contre des simulations jusqu’à ce qu’elle fasse ce que tu voulais, puis la mettre en service — et mettre en service une version plus ancienne quand il faut défaire. [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle que cette page manœuvre ; [Déclencheurs de workflow](/fr/platform/automations/triggers) est ce qui lancera la version en service une fois que tu en seras content.
+## Revenir à une version ou supprimer
+
+Pour revenir en arrière, sélectionne une ancienne version et clique sur **Mettre cette version en service**. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
+
+Pour supprimer l’automatisation, retourne à la liste, ouvre le menu de sa ligne et choisis **Supprimer**. Lis la confirmation qui la nomme. Les versions, le déploiement, le déclencheur et les liens aux projets sont retirés. Une exécution inachevée bloque la suppression : arrête-la ou attends sa fin. Les anciennes exécutions restent soumises à la conservation. Supprimer l’automatisation n’annule pas les actions déjà réalisées.

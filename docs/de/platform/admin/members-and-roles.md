@@ -1,13 +1,9 @@
 ---
 title: Mitglieder und Rollen
-description: Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf.
+description: Füge Personen hinzu, wähle ihre Rechte und verwalte den Kontozugriff.
 ---
 
-Mitglieder sind die Personen in deiner Organisation, die sich bei Tale anmelden können. Rollen kontrollieren, was jedes Mitglied tun darf — lesen, schreiben, konfigurieren, regeln. Diese Seite ist die kanonische Referenz für die sechs Rollen und die Berechtigungen pro Ressource, die jede Rolle trägt.
-
-Sechs Rollen decken nahezu jedes Team ab, an das Tale ausgeliefert wird. Admins und Inhaber lesen diese Seite, wenn sie ein Team zum ersten Mal aufsetzen, wenn ein Audit fragt, wer welchen Zugriff hat, oder wenn sie wissen müssen, ob sie einem neuen Kollegen Redakteur oder Entwickler geben.
-
-Lieber erst zusehen? Episode 8 geht in gut zwei Minuten durch Besetzung, Rollenleiter und Teamwände — mit Untertiteln.
+Unter **Einstellungen > Mitglieder** fügst du Personen hinzu und wählst die passende Rolle für ihre Arbeit. Die Rolle bestimmt erlaubte Aktionen. Projektzugriff, Teams und Zuweisungen von Konversationen bestimmen, welche Ressourcen jemand erreichen kann.
 
 <Video src="/videos/de/tutorials/ep8-people/ep8-people.de.mp4" poster="/videos/de/tutorials/ep8-people/ep8-people.de.webp" captions="/videos/de/tutorials/ep8-people/ep8-people.de.vtt" lang="de" title="Episode 8 — Menschen, Rollen & Teams" caption="Episode 8 — Menschen, Rollen & Teams (2:35)">
 
@@ -19,65 +15,53 @@ Lieber erst zusehen? Episode 8 geht in gut zwei Minuten durch Besetzung, Rollenl
 
 </Frame>
 
-## Ein Mitglied hinzufügen
+## Eine Person hinzufügen
 
-Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Mitglieder** und klick auf **Mitglied hinzufügen**. Trag **Name**, **E-Mail** und **Rolle** ein und vergib ein **Passwort** — Tale verschickt keine Einladungs-E-Mail, deshalb ist ein Passwort erforderlich, um ein neues Konto zu erstellen. (Gehört die E-Mail bereits zu einem Tale-Konto, wird kein Passwort verlangt: die Person meldet sich mit ihren bestehenden Zugangsdaten an und wird einfach dieser Organisation hinzugefügt.)
+Zum Verwalten von Mitgliedern brauchst du ein Konto mit der Rolle Inhaber oder Admin.
 
-Beim **Mitglied hinzufügen** zeigt Tale die neuen Zugangsdaten **einmalig** an, mit dem Hinweis, sie jetzt zu speichern — sie werden nicht erneut angezeigt. Gib sie dem neuen Mitglied auf einem anderen Weg weiter; es gibt keine Reset-E-Mail. Wer sein Passwort später vergisst, wendet sich an einen Admin, der auf derselben Seite ein neues setzen kann.
+1. Öffne **Einstellungen > Mitglieder** und wähle **Mitglied hinzufügen**.
+2. Gib die **E-Mail**-Adresse ein. Das Feld **Name** ist optional.
+3. Wähle eine **Rolle**. Für die tägliche Nutzung eignet sich Mitglied; die Tabelle unten zeigt, wann mehr Rechte sinnvoll sind.
+4. Lege für ein neues Tale-Konto ein **Passwort** fest, das die angezeigten Anforderungen erfüllt. Gehört die Adresse bereits zu einem Konto, verwendet Tale dessen Zugangsdaten und blendet das Passwortfeld aus.
+5. Wähle **Mitglied hinzufügen**. Sichere bei einem neuen Konto die Zugangsdaten aus der Bestätigung, bevor du sie schließt. Gib sie über den dafür vorgesehenen Kanal deiner Organisation weiter.
 
-Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder zu ändern ist eine Ein-Klick-Änderung auf derselben Seite.
+Die Person erscheint in der Mitgliederliste. Tale verschickt in diesem Ablauf weder eine Einladung noch eine E-Mail zum Zurücksetzen des Passworts. Ist die Adresse bereits Mitglied dieser Organisation, zeigt das Formular einen Hinweis und legt keinen zweiten Eintrag an.
 
-## Die sechs Rollen
+<Tip>
 
-**Inhaber** hat jede Berechtigung, die Admin hat, plus die eine, die Admin fehlt: Eigentum übertragen und die Organisation löschen. Die meisten Teams haben genau einen Inhaber; manche behalten zwei für Kontinuität.
+Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allein gewährt weder den Projektzugriff eines Teams noch Zugang zu dessen Konversationen.
 
-**Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Connectors, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
+</Tip>
 
-**Entwickler** baut: Agents, Workflows, Connectors, API-Keys. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
+## Eine Rolle wählen
 
-**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Connectors lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Connectorsebene zu berühren.
+| Rolle | Typische Aufgaben | Organisationsverwaltung |
+| --- | --- | --- |
+| **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen. |
+| **Admin** | Personen, Dienste, Richtlinien und die Arbeit des Teams verwalten | Voller Zugriff auf Organisationseinstellungen; keine Übertragung der Inhaberschaft. |
+| **Entwickler** | Agents, Automatisierungen und Integrationen erstellen | Technische Einstellungen wie Anbieter, Connectors und API-Zugriff; keine Mitgliederverwaltung. |
+| **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; Workflow- und Connector-Ressourcen nur lesen. |
+| **Mitglied** | Chat nutzen und freigegebene Ressourcen lesen | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
+| **Deaktiviert** | Kein aktiver Zugriff | Der Mitgliedschaftseintrag bleibt bestehen, ohne Rechte zu gewähren. |
 
-**Mitglied** nutzt: Chat, durchsucht die Wissensdatenbank und liest Konversationen und Genehmigungen. Konversationen sind zuweisungsbezogen sichtbar: Mitglieder sehen Threads, die ihnen zugewiesen oder in die Warteschlange ihrer Teams gelegt sind; wirklich unzugewiesene Post sichten nur Admins — nutze [Konversations-Routing](/de/platform/admin/governance/policies-and-limits#konversations-routing), damit eingehende Post beim Eintreffen in eine Team-Warteschlange landet. Mitglieder schreiben nur an Nachrichten-Feedback (Daumen hoch / runter). Greif zu Mitglied als Default — die meisten Benutzer in den meisten Organisationen sind Mitglieder.
+Die Rolle beschreibt Befugnisse, nicht die Sichtbarkeit jedes Datensatzes. Konversationen folgen ihrer Zuweisung: Eine Person sieht Arbeit, die ihr oder ihren Teams zugewiesen ist. Nicht zugewiesene Konversationen bleiben Inhabern und Admins zur Sichtung vorbehalten. Siehe [Konversationen zuweisen](/de/platform/admin/governance/policies-and-limits#konversations-routing).
 
-**Deaktiviert** hat keine Berechtigungen. Nutz das, um Zugriff zu entziehen, ohne den Account zu löschen; Transkripte und Audit-Historie bleiben intakt, und ein Reaktivieren stellt die vorherige Rolle wieder her.
+Nur Inhaber und Admins können Audit-Protokolle lesen. Aktionen anderer Rollen können trotzdem Einträge erzeugen. Einen Eintrag auszulösen berechtigt nicht dazu, das Protokoll zu öffnen.
 
-## Die Berechtigungs-Matrix
+## Rolle ändern oder Passwort zurücksetzen
 
-| Ressource                 | Inhaber | Admin | Entwickler | Redakteur | Mitglied | Deaktiviert |
-| ------------------------- | ------- | ----- | ---------- | --------- | -------- | ----------- |
-| Agents                    | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Dokumente                 | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Produkte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Kontakte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Lieferanten               | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Projekte                  | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Websites                  | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Konversationen            | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Konversations-Nachrichten | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Genehmigungen             | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Workflow-Ausführungen     | R / W   | R / W | R / W      | R         | R        | —           |
-| Workflow-Processing       | R / W   | R / W | R / W      | R         | R        | —           |
-| Connectors                | R / W   | R / W | R / W      | R         | R        | —           |
-| OneDrive-Sync-Konfigs     | R / W   | R / W | R / W      | R         | R        | —           |
-| Google-Drive-Sync-Konfigs | R / W   | R / W | R / W      | R         | R        | —           |
-| Audit-Logs                | R / W   | R / W | R / W      | R / W     | R        | —           |
-| Governance-Richtlinien    | R / W   | R / W | R          | R         | R        | —           |
-| Nachrichten-Feedback      | R / W   | R / W | R / W      | R / W     | R / W    | —           |
+Öffne das Zeilenmenü der Person, wähle **Bearbeiten** und ändere die **Rolle**. Wähle **Speichern** und prüfe anschließend die Rolle in der Liste. Um ein deaktiviertes Mitglied wieder freizuschalten, wählst du ausdrücklich die gewünschte Rolle.
 
-R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Beschreibung, was jede Rolle über die Ressourcen tun kann, die Tale verfolgt; die Zeilen sind dieselbe Menge, die das In-Produkt-Berechtigungssystem zur Request-Zeit nutzt. Die Audit-Log-Seiten selbst sehen nur Admins und Inhaber, egal was die Matrix-Zeile über Lesen sagt.
+Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schreibgeschützt. Für ein neues Passwort aktivierst du **Passwort aktualisieren**, gibst ein Passwort gemäß den angezeigten Anforderungen ein und speicherst. Prüfe die Identität der Person nach dem Verfahren deiner Organisation, bevor du ihr Konto zurücksetzt.
 
-## Die Einstellungs-Oberfläche und das Menü
+Deine eigene Rolle lässt sich über dieses Menü nicht ändern. Inhaber lässt sich nicht im Rollenfeld vergeben, und der letzte Administrator darf nicht herabgestuft werden. Auch bestehende Inhaber und der Ersteller der Organisation haben geschützte Rollen. Prüfe bei einer Ablehnung das betroffene Konto, bevor du eine andere Rolle versuchst.
 
-Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre persönlichen Einstellungen plus die Skill-Bibliothek der Organisation. Entwickler sehen die Entwickler-Oberfläche (KI-Anbieter, Connectors, Sandboxes, den API-Bereich), aber nicht den Governance-Unterzweig. Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Benachrichtigungen — jede Rolle), **Organisation** (Teams, Mitglieder, KI-Anbieter, Branding, Governance, Metriken und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Erweitert** (die API-, Enterprise-SSO- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
+## Inhaberschaft übertragen
 
-## Randfälle
+Als Inhaber kannst du im Zeilenmenü eines anderen Mitglieds **Inhaberschaft übertragen** wählen. Lies die Bestätigung sorgfältig: Die gewählte Person wird Inhaber, du selbst wirst Admin. Verwende diese Aktion für eine Übergabe der Verantwortung, nicht für eine normale Rollenänderung.
 
-**Eigentum übertragen** liegt im Zeilenmenü des Mitglieds — bestätige, und die Zielperson wird Inhaber, während du zu Admin herabgestuft wirst, mit sofortiger Wirkung.
+## Zugriff entziehen oder wiederherstellen
 
-**Der letzte Admin bleibt.** Tale verweigert, den letzten Admin herabzustufen — die Änderung kommt mit _Der letzte Admin kann nicht herabgestuft werden_ zurück. Zwei weitere Wächter stehen daneben: Die Inhaber-Rolle wandert nur über **Eigentum übertragen**, und die Rolle der Person, die die Organisation angelegt hat, ist unveränderlich.
+Wähle **Deaktiviert**, wenn der Zugriff enden, die Mitgliedschaft aber bestehen bleiben soll. **Löschen** im Zeilenmenü entfernt die Mitgliedschaft aus dieser Organisation. Prüfe vorher geteilte Arbeit und Teamverantwortungen. Eine Mitgliedschaft zu entfernen ist keine [Löschanfrage einer betroffenen Person](/de/platform/admin/governance/data-subject-requests).
 
-**Zwei-Faktor zurücksetzen** liegt auf der Zeile des Mitglieds auf der Seite Mitglieder. Zurücksetzen entfernt den zweiten Faktor; der nächste Sign-in registriert neu.
-
-## Wo das hingehört
-
-Rollen sind die Zugriffsoberfläche, die jede andere Admin-Seite berührt: SSO authentifiziert sie, API-Keys gehören ihnen, Audit-Logs benennen sie, Governance-Richtlinien grenzen Verhalten nach Rolle ein. Die nächste Lektüre hängt davon ab, was du als Nächstes tust. Wenn du Sign-in an deinen Identitätsanbieter verdrahtest, behandelt [Authentifizierung](/de/self-hosted/configuration/authentication) die vier Sign-in-Modi. Wenn du Zugriff nach Team statt nur nach Rolle eingrenzt, deckt [Teams](/de/platform/admin/teams) die Team-Ebene dieser Eingrenzung ab.
+Hat ein Mitglied seinen Authenticator oder Passkey verloren, öffne **Bearbeiten** und nutze die jeweiligen Sicherheitsfunktionen. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Wiederherstellung, Zurücksetzen und die Folgen für aktive Sitzungen.

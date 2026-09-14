@@ -1,40 +1,45 @@
 ---
-title: Les skills sur les agents
-description: Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox.
+title: Équiper les agents avec des skills
+description: Choisis des bundles de skills pour les agents de projet et les nœuds d’automatisation, vérifie leur accès et contrôle leur utilisation.
 ---
 
-Un agent n'atteint un skill que s'il est équipé — et l'équipement se choisit dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l'organisation. Cette page parle des surfaces qui y puisent : les agents d'un projet et les nœuds agent d'une automatisation. Une seule règle décide de ce qu'elles peuvent choisir : **c'est la visibilité du projet lui-même qui compte, jamais celle du membre qui configure.**
+Équipe un agent avec un skill lorsqu’il a besoin d’une procédure réutilisable ou de références provenant de la [bibliothèque de skills](/fr/platform/workspace/skills) de l’organisation. La bibliothèque conserve le bundle ; l’équipement de l’agent détermine les bundles disponibles pendant ses exécutions.
 
-## Ce que décide l'équipement
+## Choisir un skill adapté à la tâche
 
-Un skill équipé est proposé au modèle par sa description. Quand le modèle juge cette description pertinente pour ta demande, il lit le corps de la `SKILL.md`, puis ouvre les fichiers du bundle là où le corps pointe vers eux. Rien n'est exécuté et rien n'est collé d'avance — un skill ne coûte du contexte que sur les tours où le modèle va réellement le chercher.
+Un skill utile explique quand l’utiliser, comment procéder et à quoi ressemble un bon résultat. Par exemple, équipe l’agent chargé des notes de version avec le skill correspondant. Fournis-lui quelques changements, puis vérifie que sa réponse respecte le format attendu.
 
-Un bundle dont le frontmatter porte `disable-model-invocation: true` se comporte autrement. Il reste équipé et lisible, mais le modèle ne doit pas y aller de lui-même ; il attend un tour où quelqu'un le nomme.
+Le bundle contient `SKILL.md` et peut inclure des références, des ressources ou des scripts. L’import ne lance pas ces fichiers. Une fois le skill équipé, ses instructions peuvent toutefois guider un agent de programmation disposant d’un shell ou d’autres outils, y compris pour exécuter un script du bundle. Vérifie tout le contenu avant utilisation : un skill ne constitue pas une limite de permission supplémentaire.
 
-## Équiper les agents d'un projet
+## Équiper un agent de projet
 
-Un [agent de projet](/fr/platform/projects/project-agents) porte son propre équipement, choisi dans le menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les anciens skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
+Ouvre l’[agent de projet](/fr/platform/projects/project-agents) et sélectionne les skills nécessaires dans son équipement. La liste dépend de l’accès du projet, même si tu peux personnellement lire davantage de skills :
 
-La même règle tient à l'exécution. Un run de tâche charge les skills de l'agent en tant que projet ; une automatisation au niveau de l'organisation charge en tant qu'organisation. Un skill qui devient invisible pour ce périmètre fait échouer le run en le nommant, plutôt que de tourner sans lui en silence — un équipement choisi qui manque sans bruit est pire qu'un run raté.
+| Accès du projet | Skills disponibles |
+| --- | --- |
+| Projet ouvert à toute l’organisation | Skills de l’organisation |
+| Projet partagé avec des équipes | Skills de l’organisation et skills d’équipe partagés avec au moins une équipe du projet |
 
-## Les skills dans une session sandbox
+Les anciens skills privés ne peuvent pas équiper un agent de projet. La même règle d’accès est vérifiée au démarrage d’une tâche : sélectionner un skill ne donne pas au projet un accès permanent à celui-ci.
 
-Quand un tour s'exécute dans une sandbox, les bundles équipés n'arrivent pas par un appel d'outil. Ils sont chargés dans la session comme des fichiers, dans la disposition que le runtime sait déjà découvrir : le harness les trouve comme il trouverait un skill sur n'importe quelle machine où il travaille.
+## Utiliser des skills dans une automatisation
 
-Une règle gouverne les collisions : le dépôt gagne. Si le dépôt extrait embarque un skill sous le même slug qu'un skill que Tale chargerait, Tale retient sa copie et la version du dépôt reste. Un dépôt peut toujours remplacer ce que la plateforme apprendrait sinon à l'agent, et la session ne tient jamais deux bundles qui revendiquent le même nom.
+Les nœuds agent d’une automatisation déclarent les skills dont ils ont besoin. Une exécution liée à un projet utilise l’accès de ce projet. Une exécution au niveau de l’organisation peut seulement utiliser les skills de l’organisation. Ton appartenance personnelle à d’autres équipes n’élargit pas ces accès.
 
-## Skill ou instructions
+Lors de la préparation de la sandbox, Tale met les bundles équipés à disposition sous forme de fichiers et indique à l’agent les chemins de leurs instructions `SKILL.md`. Les fichiers complémentaires se trouvent à côté. Limite l’équipement aux besoins de la tâche et précise quelle procédure utiliser. La disponibilité d’un skill ne prouve pas à elle seule que le résultat suit ses instructions.
 
-| Prends … quand                                                  | Skill | Instructions d'agent |
-| --------------------------------------------------------------- | ----- | -------------------- |
-| Le motif se répète sur plusieurs agents                         | ✓     |                      |
-| Le comportement a besoin de fichiers de référence avec la prose | ✓     |                      |
-| Le comportement est la voix de cet agent-là                     |       | ✓                    |
-| Une modification doit atteindre tous ceux qui l'utilisent       | ✓     |                      |
-| Les instructions de l'agent tiennent encore sur un écran        |       | ✓                    |
+## Vérifier les skills manquants ou modifiés
 
-Les instructions sont la bonne forme pour le caractère propre d'un agent. Un skill est la bonne forme dès que le même comportement apparaît chez un deuxième puis un troisième agent et que garder leurs instructions au pas commence à te coûter.
+Si un skill requis manque ou n’est plus partagé avec le périmètre de l’exécution, sa mise à disposition échoue en indiquant son nom. Vérifie son slug, sa visibilité, les équipes du projet et une éventuelle suppression ou un remplacement. Rétablis l’accès prévu ou retire l’équipement obsolète avant de réessayer.
 
-## Où cela s'inscrit
+Les modifications d’un bundle partagé s’appliquent à ses prochaines mises à disposition. Vérifie les remplacements et teste l’agent avec une entrée connue après un changement important. Ne suppose pas qu’un skill de même nom dans le dépôt remplace le bundle équipé.
 
-Équiper est la moitié étroite des skills : la bibliothèque décide de ce qui existe et de qui le voit ; le dialogue d'agent d'un projet et les nœuds agent d'une automatisation décident où cela sert — toujours à travers la visibilité du projet ou de l'organisation elle-même. Garde les listes d'équipement courtes, préfère remplacer un bundle plutôt que le cloner, et laisse un dépôt remplacer ce que la plateforme chargerait quand un agent travaille dedans. L'autre moitié de l'histoire — écrire une `SKILL.md`, téléverser un dossier, partager un bundle — c'est la [bibliothèque de skills](/fr/platform/workspace/skills).
+## Choisir entre skills et instructions de l’agent
+
+| Utilise un skill lorsque… | Utilise les instructions de l’agent lorsque… |
+| --- | --- |
+| plusieurs agents partagent la même procédure. | elles définissent le rôle ou le ton de cet agent. |
+| la procédure nécessite des fichiers de référence ou des scripts. | il s’agit d’une règle courte et stable pour cet agent. |
+| la procédure doit être maintenue à un seul endroit. | elles expliquent comment cet agent doit utiliser ses skills. |
+
+Le [guide de la bibliothèque de skills](/fr/platform/workspace/skills) explique comment créer, importer, modifier et partager un bundle.

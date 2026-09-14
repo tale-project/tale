@@ -1,143 +1,104 @@
 ---
 name: write-translations
-description: Use this skill whenever you edit any non-English file under services/*/messages/ (e.g. de.yml, fr.yml), packages/ui/src/i18n/messages/, or any page under docs/<locale>/, add a locale, or touch a glossary term — Tale ships as one narrator written natively per language, never a word-for-word render of the English. Load it before touching any non-English string; never translate by rendering the source words. Per-locale voice doctrine lives in locales/<locale>/AGENTS.md; the loanword buckets in BUCKETS.md, the conventions template in CONVENTIONS.md, the glossary workflow in GLOSSARY_GUIDE.md.
+description: Author or review localized Tale UI messages, documentation, regional overrides, and glossary terms. Preserve meaning and exact UI labels while writing naturally in each locale, and verify key, content, and ICU parity. Read before editing non-English messages or docs or adding a locale.
 ---
 
-# write-translations
+# Write each language for its readers
 
-Tale ships one calm, opinionated, second-person-informal narrator in three languages — the German page
-is the same voice written natively in German, never a German rendering of the English. This file is the
-cross-locale contract; the data that changes between languages (strike lists, drift patterns, gender
-maps, formal-pronoun denylists) lives in the framework's per-locale test data under
-[`packages/ui/src/i18n/tests/locales/`](../../../packages/ui/src/i18n/tests/locales/) and the
-per-locale voice files. Read this first, then the locale file for the locale you're in.
+Tale addresses readers as a helpful peer: `you` in English, `du` in German and Swiss German, and
+`tu` in French. Preserve that relationship and the complete meaning. A good translation uses the
+syntax and vocabulary a reader expects in their language; it does not preserve English sentence
+shapes merely because they came first.
 
-## When this applies
+## Establish scope and sources
 
-Editing any non-English value under `services/*/messages/` (e.g. `de.yml`, `fr.yml`),
-`packages/ui/src/i18n/messages/`, or any page under `docs/<locale>/`. Then read
-[`locales/<locale>/AGENTS.md`](locales/) for that language's voice doctrine and drift catalogue. The
-two reliable failure modes are bureaucratic German (passive present, sentence-final `erfolgreich`,
-third-person `Sie`) and marketed French (`Découvrez`, `N'hésitez pas à`, stacked nominal phrases) —
-both translate the words and lose the voice.
+Read the repo contract, then the applicable locale guide:
+[English](locales/en/AGENTS.md), [German](locales/de/AGENTS.md),
+[French](locales/fr/AGENTS.md), or [Swiss German](locales/de-CH/AGENTS.md).
+For docs, also follow [write-docs](../write-docs/SKILL.md) and
+[docs/AGENTS.md](../../../docs/AGENTS.md).
 
-## Write a note first
+In the task's note outside the clone, identify the files, reader's task, meaning to preserve,
+terminology to verify, and likely language risks. Reuse an existing planning note; no additional
+notes skill is needed. For a broad change, track coverage by page and locale, including what has
+actually received a native-language read-through.
 
-**Invoke `write-notes`** and record your answers to this form before you translate:
+Use these sources for different questions:
 
-- **Locale & files:** Describe the locale and files, and the source meaning you must convey (not the words).
-- **Voice risk:** Describe this locale's drift mode to avoid (bureaucratic German / marketed French) and how you'll keep the native voice.
-- **Must-match:** Describe the UI labels and compound terms that must stay exact, and how you confirmed them against the shipped strings.
-- **Risks & unknowns:** Describe where the translation might read non-natively or drift from the source meaning.
+- **Product behavior:** the observed running product, supported by current source and tests.
+- **Visible UI wording:** the relevant service's message catalog plus shared UI messages, resolved
+  through locale fallback. Match the exact displayed string when naming a control.
+- **Approved terminology:** [the glossary](../../../packages/ui/src/i18n/tests/glossary/glossary.yml)
+  and its context notes. Read [BUCKETS.md](BUCKETS.md) when a term may stay English.
+- **Typography and checks:** [CONVENTIONS.md](CONVENTIONS.md), the locale guide, and
+  [the i18n test framework](../../../packages/ui/src/i18n/tests/). Inspect actual check modes;
+  advisory findings are not proof of correctness.
 
-## The rules
+When the source is ambiguous or wrong, resolve the meaning before translating. If the UI label is
+wrong, fix it and its dependent docs within scope, or describe the shipped label and record the
+issue. Do not silently invent a better label that readers cannot find.
 
-These four fail review. The first is reviewer-caught (voice doesn't lint cleanly); the rest are
-enforced by the i18n test suite (see Patterns).
+## Separate facts from language
 
-- **Same voice across locales.** Translation is a rewrite of the same narrator in another language, not
-  a render of the source words — translate meaning, not words. Sentence structure, idiom, and noun
-  choice all differ: the German equivalent of an English three-clause sentence is often one sentence
-  with a verb-final subordinate clause; the French equivalent of a stacked English noun phrase is often
-  a relative clause. A page that reads calmly in English and bureaucratically in German has a tone bug;
-  fix the wording. The drift modes are language-specific — your per-locale file names yours. (reviewer-caught)
+Preserve permissions, scope, prerequisites, conditions, negation, defaults, limits, units,
+quantities, supported states, warnings, and recovery. “May”, “must”, and “can” are different claims.
+Keep brands and technical identifiers exact: message keys, placeholders, routes, filenames,
+environment variables, flags, enums, error codes, and JSON keys.
 
-- **Informal pronoun, always.** `du` in DE and de-CH, `tu` in FR. Never `Sie`, never `vous` — formal
-  pronouns put distance between Tale and the reader. The carve-out for sentence-initial DE `Sie`
-  (third-person feminine) is built into the check. (enforced by `pronouns-formal`)
+Locale is not jurisdiction or billing configuration. Never change a currency, amount, time zone,
+legal authority, certification, retention period, or contract promise to make it look local.
+Format a fact for the reader without changing the fact. If a style heuristic objects, inspect its
+scope and use the documented narrow exception with a reason; do not alter reality to pass lint.
 
-- **The shipped UI string is the source of truth.** Every button, menu, panel, or feature name in a
-  translated page matches `services/platform/messages/<locale>.yml` exactly. When the message file and a glossary
-  or doc disagree, the message file wins — the contract bends to what ships. Half-translated walkthroughs
-  (`Öffne **Settings > Members**`) are the most common bug. (enforced by `terminology-ui-label`)
+For docs, preserve equivalent headings, warnings, components, code examples, images, links, and
+reader outcomes under the repository's parity checks. Rewrite sentences and paragraph breaks
+naturally inside that structure. All full locales ship together. `de-CH` remains a sparse overlay,
+not a fourth copied catalog.
 
-- **Compound terms are whole or kept whole.** `Pull Request` stays English in DE/FR; `Knowledge Base`
-  translates whole to `Wissensdatenbank` / `Base de connaissances`. Half is always wrong — `Pull
-Anfrage`, `Code Review-Prozess`, `Merge-Anfrage` fail. Whether a compound stays English or translates
-  is a bucket decision (see [BUCKETS.md](BUCKETS.md)); whether it's a half is the rule. (enforced by
-  `terminology-half-compound`)
+## Draft from meaning
 
-## Patterns
+Read a complete section, understand what readers need, then write it in the target language.
+Split a dense sentence, combine choppy ones, or move a qualifier when that improves clarity while
+preserving its scope. Use informal imperatives for instructions; use natural declarative sentences
+for explanations. Do not force every sentence to start with a verb or a purpose clause.
 
-**A correct translation that correctly does not translate one thing:**
+Keep terminology stable, but distinguish a UI label from an ordinary noun. A bold control name
+must match the catalog; a surrounding sentence still needs the target language's normal grammar.
+Translate navigation paths segment by segment. Do not leave English nouns scattered through a
+French or German explanation merely because a glossary includes a similar technical term.
 
-> EN: _Open a pull request from your feature branch. The CI pipeline runs against the head of the
-> branch; the merge into `main` is gated on green._
->
-> DE: _Öffne einen Pull Request aus deinem Feature-Branch. Die CI-Pipeline läuft gegen den Kopf des
-> Branches; der Merge in `main` ist erst möglich, wenn die Pipeline grün ist._
->
-> `Pull Request`, `Feature-Branch`, `CI`, `Pipeline`, `Merge`, `Branch` stay English (Git-domain
-> loanwords; bucket 2). `du`, never `Sie`. No `erfolgreich`, no `Wird X…`. The English-kept terms are
-> the words a German-speaking developer uses without thinking — not lazy translation.
+Use [the glossary workflow](GLOSSARY_GUIDE.md) for a missing, contradictory, or context-dependent
+term. Prefer native wording a reader understands; approved loanwords should support comprehension,
+not replace it. A term can require different treatment in code, a quoted label, and ordinary prose.
+Do not apply broad search-and-replace to repair language.
 
-**The shipped UI read back to the reader:**
+## Review messages and docs differently
 
-> Drift: _Open **Settings > Members** und klicke auf **Invite member**._
->
-> Target: _Öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied einladen**._
+**UI messages:** inspect the component and state that uses the key. Distinguish a button action,
+loading state, completion notice, empty state, and error. Match space and punctuation conventions
+for that surface. Preserve interpolation and ICU selectors; check zero, one, and multiple items,
+as well as grammatical agreement around substituted names. Never translate placeholder names.
+Preview changed controls for clipping, wrapping, accessible names, and focus behavior.
 
-The reader sees the German UI; the page must echo it. Specifics: code identifiers stay English
-everywhere (CLI flags `tale deploy --detach`, env vars `TALE_CONFIG_DIR`, file paths, API paths `POST
-/api/v1/documents`); role names ship per locale (Owner / Inhaber / Propriétaire); parenthetical lists
-translate (`(Products, Customers, Vendors)` → `(Produkte, Kunden, Lieferanten)`); navigation paths
-translate segment by segment (`Settings > Members` → `Einstellungen > Mitglieder`, never
-`Einstellungen > Members`).
+**Documentation:** read each translated section without looking at the English. Does it sound like
+native instructions, and could the reader complete the task? Then compare against the source for
+omissions, additions, altered conditions, and misleading claims. Check title, description, search
+terms, alt text, captions, component attributes, localized link prefixes, and translated anchors.
+Shared English screenshots do not license English control names in localized instructions.
 
-**Three buckets, summary** (full lists + assignment in [BUCKETS.md](BUCKETS.md)):
+For substantial rewrites, use an independent locale review when available. Give the reviewer the
+reader's task and the draft; ask for meaning, flow, terminology, and usability findings, not a
+literal back-translation. Resolve findings and track pages actually reviewed.
 
-| Bucket                | Examples                                                              | Behaviour                                                        |
-| --------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Always English        | `Tale`, `Convex`, `AI`, `LLM`, `MCP`, env vars, CLI flags             | Never translates — brand, acronym, code identifier.              |
-| Established loanwords | `Workflow`, `Dashboard`, `Webhook`, `Pull Request`, `Branch`, `Merge` | Stays English in DE/FR; hyphenated in DE compounds.              |
-| Translate-bucket      | `Header → Kopfzeile`, `Request → Anfrage`, `Email → E-Mail`           | Must translate in DE/FR/de-CH; caught by `terminology-loanword`. |
+## Verify and hand off
 
-The bucket lives on each term's entry in
-[`tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml). Moving a
-term between buckets is a glossary PR, not a skill PR.
+Run applicable locale/key/ICU and docs checks, then inspect the rendered result. Review report-mode
+findings as well as failures. Fix factual or grammatical defects; document a narrow exception only
+when a check is wrong for the context. Never weaken parity to make an unfinished translation pass.
 
-**What the suite catches** — two layers run on every `bun run check`: parity + usage (sibling test
-files in each consumer's `lib/i18n/` — key parity, orphan detection), and the centralized
-[`@tale/ui/i18n/tests`](../../../packages/ui/src/i18n/tests/) — 26 checks (the registry's 28 entries in
-[`tests/registry.ts`](../../../packages/ui/src/i18n/tests/registry.ts) minus parity + usage) over
-terminology, voice, grammar, style, ICU parity, heuristics, and markdown. Most start in `report` mode
-during rollout; flip to `enforce` after findings clear. **Not caught — reviewer territory:** subtler
-calques past the small denylist, tone drift inside passing prose, sentence flow across clauses, ICU
-plural correctness within branches, idiomatic word choice (Duden-correct ≠ native-sounding).
+The handoff states which locales and surfaces changed, the observed flows and checks, and remaining
+uncertainty. A fluent-looking page and a green suite do not establish native quality on their own.
 
-**Adding a locale** (e.g. Italian) — three concerns:
-
-1. **Runtime registry** — add `it` to `SUPPORTED_LOCALES` in
-   [`packages/ui/src/i18n/locales.ts`](../../../packages/ui/src/i18n/locales.ts).
-2. **Test framework data** — create `packages/ui/src/i18n/tests/locales/it/` with `index.ts`,
-   `style.ts`, `voice.ts`, `terminology.ts`, `grammar.ts`, `patterns.ts`, and a `planted/` folder of
-   positive/negative fixtures per applicable check; register it. The startup-drift assertion in
-   `locales/index.ts` keeps the runtime and test registries in sync. Optionally extend `glossary.yml`
-   with `it` forms on translating terms.
-3. **Doctrine** — create `locales/it/AGENTS.md` per the template in the existing locale files, and add
-   its row to Companion files below.
-
-## Before you call the translation done
-
-**Tick every box, or N/A with a reason:**
-
-- [ ] **Same voice as the source** — rewritten natively, not word-rendered; no bureaucratic German, no marketed French.
-- [ ] **Informal pronoun throughout** — `du` (DE/de-CH), `tu` (FR); never `Sie`/`vous`.
-- [ ] **Every UI label matches `services/platform/messages/<locale>.yml` exactly** — no half-translated walkthroughs.
-- [ ] **Compound terms whole or kept whole** — no `Pull Anfrage` / `Merge-Anfrage`; bucket decisions honoured.
-- [ ] **`en.yml` parity** — every key present, dead keys removed everywhere; `de-CH` holds only overrides.
-- [ ] **The i18n suite is green** — `bun run check`.
-
-## Companion files
-
-- [`locales/<locale>/AGENTS.md`](locales/) — read when editing that locale's messages or docs: the voice
-  doctrine and language-specific drift catalogue (`en`, `de`, `fr`, and the `de-CH` Swiss overlay of
-  differences-from-DE only).
-- [BUCKETS.md](BUCKETS.md) — read when deciding whether an English term translates, stays English, or
-  matches the UI verbatim; holds the full per-bucket lists, the assignment workflow, and the
-  half-compound denylists.
-- [CONVENTIONS.md](CONVENTIONS.md) — read when handling quotes, apostrophes, dates, numbers, currency,
-  percent, NBSP, dashes, or ß: the 14-row conventions template every locale fills.
-- [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md) — read when adding a glossary term, choosing its category, or
-  using `_lintExclude` to defer a UI-vs-bucket mismatch; also documents the role table and the audit
-  script.
+For new locales, see [GLOSSARY_GUIDE.md](GLOSSARY_GUIDE.md#adding-a-locale).
+This workflow follows [Microsoft's global communication guidance](https://learn.microsoft.com/en-us/style-guide/global-communications/)
+while retaining Tale's own informal voice and product terminology.
