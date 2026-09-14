@@ -93,6 +93,8 @@ function mount(
     /** Whether any version of the named automation was ever saved. */
     exists?: boolean;
     boundProjectIds?: string[];
+    /** The root folder a `setupFolderName` lookup finds — `null` for none. */
+    setupFolderId?: string | null;
   } = {},
 ) {
   const queries: Captured[] = [];
@@ -146,6 +148,13 @@ function mount(
                     : null,
               },
             ],
+      );
+    }
+    if (text.includes('FROM app.folders')) {
+      return Promise.resolve(
+        options.setupFolderId === null
+          ? []
+          : [{ id: options.setupFolderId ?? 'folder-setup' }],
       );
     }
     if (text.includes('FROM app.automations WHERE')) {
@@ -329,6 +338,95 @@ describe('project-scoped task intake', () => {
       externalUrl: 'https://crm.example/items/4711',
     });
     expect(ok.status).toBe(201);
+  });
+
+  /**
+   * The desks' binding convention, on the machine door: a folder-driven
+   * automation reads its Setup folder's id off `input.task.externalUrl`,
+   * which the app's `from-external-issue` door resolves from a name — and
+   * the REST intake could not, `externalUrl` being an http(s) URL by
+   * contract (a folder id sent there was refused as one). `setupFolderName`
+   * resolves the project's root folder of that name inside the intake
+   * transaction, without regard to case, and stores its id as the task's
+   * `externalUrl`; the name itself never reaches the domain.
+   */
+  it('binds the Setup folder by name: the root folder’s id becomes the task’s externalUrl', async () => {
+    const { request, queries, tx } = mount({ setupFolderId: 'folder-setup' });
+    const res = await request(collection, 'POST', {
+      ...input,
+      setupFolderName: '  Client Setup ',
+    });
+    expect(res.status).toBe(201);
+    const lookup = queries.find((query) =>
+      query.text.includes('FROM app.folders'),
+    );
+    expect(lookup?.inTransaction).toBe(true);
+    expect(lookup?.text).toContain('parent_id IS NULL');
+    expect(lookup?.text).toContain('lower(name) = $?');
+    expect(lookup?.values).toEqual(['org-1', 'p-1', 'client setup']);
+    expect(service.upsertTaskByExternalRef).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ ...input, externalUrl: 'folder-setup' }),
+    );
+    expect(
+      service.upsertTaskByExternalRef.mock.calls[0]?.[1],
+    ).not.toHaveProperty('setupFolderName');
+  });
+
+  it('resolves the folder again on a repeat, so the binding stays fresh', async () => {
+    service.findTaskByExternalRef.mockResolvedValue({ id: 't-1' });
+    service.upsertTaskByExternalRef.mockResolvedValue({
+      taskId: 't-1',
+      created: false,
+    });
+    const { request } = mount({ setupFolderId: 'folder-setup-2' });
+    const res = await request(collection, 'POST', {
+      ...input,
+      setupFolderName: 'Setup',
+    });
+    expect(res.status).toBe(200);
+    expect(service.upsertTaskByExternalRef.mock.calls[0]?.[1]).toMatchObject({
+      externalUrl: 'folder-setup-2',
+    });
+  });
+
+  it('refuses a setupFolderName no root folder carries with 400 SETUP_FOLDER_MISSING, creating nothing', async () => {
+    const { request } = mount({ setupFolderId: null });
+    const res = await request(collection, 'POST', {
+      ...input,
+      setupFolderName: 'Setup',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'Folder "Setup" does not exist in this project yet',
+      code: 'SETUP_FOLDER_MISSING',
+    });
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('refuses setupFolderName beside externalUrl by field, before any lookup', async () => {
+    const { request, queries } = mount();
+    const res = await request(collection, 'POST', {
+      ...input,
+      setupFolderName: 'Setup',
+      externalUrl: 'https://crm.example/items/4711',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          expect.objectContaining({
+            path: 'setupFolderName',
+            message: 'cannot be sent together with externalUrl',
+          }),
+        ],
+      },
+    });
+    expect(
+      queries.some((query) => query.text.includes('FROM app.folders')),
+    ).toBe(false);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
   it('carries the external lifecycle state into the intake, open by default', async () => {
@@ -875,6 +973,7 @@ describe('project-scoped task door — keys, run ids, URL order, archival', () =
     ['externalSystem', { ...input, externalSystem: '\n' }, 'must not be blank'],
     ['title', { ...input, title: '   ' }, undefined],
     ['labels.0', { ...input, labels: ['  '] }, undefined],
+    ['setupFolderName', { ...input, setupFolderName: '   ' }, undefined],
   ])(
     'refuses a whitespace-only %s by name with 400 INVALID_BODY',
     async (path, body, message) => {

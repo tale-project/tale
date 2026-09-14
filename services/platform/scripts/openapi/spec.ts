@@ -3204,7 +3204,13 @@ export function buildSpec(): Json {
         'An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` ' +
         '(a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the ' +
         'execute bucket before intake, in addition to the general REST bucket. Scope ' +
-        'selectors such as projectId are refused in the body.',
+        'selectors such as projectId are refused in the body. `setupFolderName` binds ' +
+        'the task to a root folder of the project by name (matched without regard to ' +
+        'case): that folder’s id is stored as the task’s `externalUrl` — the ' +
+        'Setup-folder binding a folder-driven automation reads off its task input — ' +
+        'on the create and again on every repeat. It cannot be sent beside ' +
+        '`externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project ' +
+        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.',
       operationId: 'createTask',
       security: sec,
       parameters: taskCollectionParameters,
@@ -3261,7 +3267,22 @@ export function buildSpec(): Json {
             maxLength: 2048,
             description:
               'An absolute http(s) URL to the source item, rendered as a ' +
-              'link; any other scheme is refused. Changes only when supplied.',
+              'link; any other scheme is refused. Changes only when supplied. ' +
+              'Not beside `setupFolderName`, which fills the same field with ' +
+              'a folder id.',
+          },
+          setupFolderName: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255,
+            description:
+              'The name of a root folder of this project (trimmed, matched ' +
+              'without regard to case) whose id is stored as the task’s ' +
+              '`externalUrl` — the Setup-folder binding a folder-driven ' +
+              'automation reads off its task input, resolved on every ' +
+              'intake. Refused beside `externalUrl` (400 `INVALID_BODY`); a ' +
+              'name no root folder carries is 400 `SETUP_FOLDER_MISSING`, ' +
+              'nothing created.',
           },
           externalState: {
             type: 'string',
@@ -3309,6 +3330,11 @@ export function buildSpec(): Json {
           '`automationSlug` names an automation with no deployed version (`AUTOMATION_NOT_DEPLOYED`) — deploy it, then assign',
         ),
         ...standardErrors,
+        // Richer than the standard 400: the Setup-folder binding's own
+        // refusal lands here too, with its code.
+        '400': errorResponse(
+          'Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), or `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`)',
+        ),
       },
     },
   };

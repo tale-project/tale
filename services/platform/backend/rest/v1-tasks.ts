@@ -26,6 +26,7 @@ import {
 } from '../domains/tasks/comments.ts';
 import {
   findTaskByExternalRef,
+  resolveSetupFolderId,
   startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from '../domains/tasks/external-ref.ts';
@@ -71,12 +72,21 @@ const taskIntakeBody = z
       .max(TASK_LABELS_MAX)
       .optional(),
     // Rendered as a link to the source item — http(s) only, so a
-    // stored `javascript:` URL can never reach an anchor.
+    // stored `javascript:` URL can never reach an anchor. A folder id
+    // never travels here: `setupFolderName` is how a desk binds one.
     externalUrl: z
       .string()
       .max(2048)
       .refine(isHttpUrl, { message: 'must be an absolute http(s) URL' })
       .optional(),
+    // The desks' binding convention (`resolveSetupFolderId`): the name of
+    // a ROOT folder of the project, matched without regard to case, whose
+    // id becomes the task's `externalUrl` — what a folder-driven automation
+    // reads off `input.task.externalUrl`. The app's `from-external-issue`
+    // door takes the same name under `ensureFolder`; this door could not
+    // bind a folder at all once `externalUrl` became an http(s) URL by
+    // contract. Either this or `externalUrl`, never both.
+    setupFolderName: z.string().trim().min(1).max(255).optional(),
     // The source item's lifecycle: `closed` parks the task for review
     // (done, when the actor may complete it), `open` reopens a done
     // task — the domain's external-state rule, exposed as the mirror
@@ -85,7 +95,15 @@ const taskIntakeBody = z
     runWorkflowSlug: z.string().min(1).max(200).optional(),
     automationSlug: z.string().min(1).max(200).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (body) =>
+      body.setupFolderName === undefined || body.externalUrl === undefined,
+    {
+      message: 'cannot be sent together with externalUrl',
+      path: ['setupFolderName'],
+    },
+  );
 const taskCommentBody = z
   .object({ body: z.string().trim().min(1).max(TASK_COMMENT_MAX) })
   .strict();
@@ -275,7 +293,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const limited = await chargeLane(deps.sql, c, 'rest:execute');
         if (limited) return limited;
       }
-      const { externalState, runWorkflowSlug, ...intake } = body;
+      const { externalState, runWorkflowSlug, setupFolderName, ...intake } =
+        body;
       const result = await transactSerializable(deps.sql, async (tx) => {
         await loadRestProject(tx, auth, projectId, { write: true });
         // A repeat is a reconcile of the existing task, and the docs ask
@@ -299,8 +318,20 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             ? { ...intake, runWorkflowSlug }
             : { automationSlug: intake.automationSlug },
         );
+        // A named Setup folder is resolved in this transaction on every
+        // intake — a repeat keeps the binding fresh — and only its id
+        // reaches the domain, as `externalUrl`; the name never does.
+        const externalUrl =
+          setupFolderName === undefined
+            ? intake.externalUrl
+            : await resolveSetupFolderId(tx, {
+                organizationId: auth.organizationId,
+                projectId,
+                setupFolderName,
+              });
         return upsertTaskByExternalRef(tx, {
           ...intake,
+          ...(externalUrl !== undefined ? { externalUrl } : {}),
           ...(existing === null && runWorkflowSlug !== undefined
             ? { runWorkflowSlug }
             : {}),
