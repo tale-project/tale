@@ -1,15 +1,15 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Field } from '@tale/ui/field';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Select } from '@/app/components/ui/forms/select';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 

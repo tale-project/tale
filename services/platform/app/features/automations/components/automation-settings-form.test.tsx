@@ -27,7 +27,7 @@ vi.mock('../hooks/use-settings-values', () => ({
 }));
 
 const toastMock = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 import { AutomationSettingsForm } from './automation-settings-form';
 

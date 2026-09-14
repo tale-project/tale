@@ -12,7 +12,7 @@ vi.mock('./mutations', () => ({
   useUpsertGovernancePolicy: () => ({ mutateAsync, isPending }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => toastMock(...args),
 }));
 

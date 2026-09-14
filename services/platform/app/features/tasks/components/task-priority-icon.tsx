@@ -1,5 +1,6 @@
+import { cn } from '@tale/ui/cn';
+
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { TaskPriority } from '../lib/display';
 

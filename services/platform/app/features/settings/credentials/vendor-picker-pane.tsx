@@ -3,11 +3,11 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Stack } from '@tale/ui/layout';
+import { SearchInput } from '@tale/ui/search-input';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 
 import {

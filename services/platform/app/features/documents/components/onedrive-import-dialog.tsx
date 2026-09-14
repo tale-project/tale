@@ -1,12 +1,12 @@
 'use client';
 
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { toast } from '@tale/ui/use-toast';
 import { useMemo, useCallback, useState, useEffect } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';

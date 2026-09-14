@@ -21,11 +21,15 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
+import { Sheet } from '@tale/ui/sheet';
+import { SubPanel } from '@tale/ui/sub-panel';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Archive,
@@ -44,9 +48,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { SubPanel } from '@/app/components/layout/sub-panel';
-import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { QuestionFlow } from '@/app/components/question-flow';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
@@ -59,7 +61,6 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
@@ -67,7 +68,6 @@ import {
   formatAnswerSetForModel,
   type QuestionAnswer,
 } from '@/lib/shared/schemas/questions';
-import { cn } from '@/lib/utils/cn';
 
 import { useArenaActions } from '../data/arena-actions';
 import { useBranchActions } from '../data/branch-actions';

@@ -3,7 +3,7 @@ import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useEffect, useRef, useState } from 'react';
 
-import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { LogoLink } from '@/app/components/logo/logo-link';
 import type { TwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { backendFetch } from '@/app/lib/backend/api-client';
 import { authClient } from '@/lib/auth-client';

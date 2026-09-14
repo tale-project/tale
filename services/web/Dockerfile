@@ -13,6 +13,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/e2e/package.json ./packages/e2e/
+COPY packages/marketing-ui/package.json ./packages/marketing-ui/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
 COPY services/platform/package.json ./services/platform/
@@ -39,7 +40,9 @@ WORKDIR /app
 
 COPY tsconfig.base.json ./
 COPY tsconfig.dom.json ./
+COPY tsconfig.vite.json ./
 COPY packages/ui ./packages/ui
+COPY packages/marketing-ui ./packages/marketing-ui
 COPY services/web ./services/web
 
 ARG WEB_DOCS_URL=https://docs.tale.dev

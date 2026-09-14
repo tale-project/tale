@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
@@ -8,7 +9,6 @@ import { useCallback, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { TeamCreateDialog } from './team-create-dialog';
 

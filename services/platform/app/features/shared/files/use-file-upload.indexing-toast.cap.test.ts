@@ -1,9 +1,9 @@
+import { toast } from '@tale/ui/use-toast';
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { toast } from '@/app/hooks/use-toast';
 
 import { useFileUpload } from './use-file-upload';
 
@@ -37,9 +37,9 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 

@@ -50,7 +50,7 @@ vi.mock('./automation-breadcrumbs', () => ({
   ),
 }));
 
-vi.mock('@/app/components/layout/page-layout', () => ({
+vi.mock('@tale/ui/page-layout', () => ({
   PageLayout: ({
     header,
     children,
@@ -65,7 +65,7 @@ vi.mock('@/app/components/layout/page-layout', () => ({
   ),
 }));
 
-vi.mock('@/app/components/layout/adaptive-header', () => ({
+vi.mock('@tale/ui/adaptive-header', () => ({
   AdaptiveHeaderRoot: ({
     children,
     showBorder,
@@ -80,7 +80,7 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
   AdaptiveHeaderTabActionsSlot: () => <div data-testid="tab-actions-slot" />,
 }));
 
-vi.mock('@/app/components/ui/editor', () => ({
+vi.mock('@tale/ui/editor', () => ({
   ActiveEditorProvider: ({ children }: { children: ReactNode }) => (
     <>{children}</>
   ),
@@ -90,7 +90,7 @@ vi.mock('@/app/components/ui/editor', () => ({
 
 // Render the strip as plain links so the test reads what a user would see,
 // keeping the trailing children (the actions slot) where the strip puts them.
-vi.mock('@/app/components/ui/navigation/tab-navigation', () => ({
+vi.mock('@/app/components/navigation/tab-navigation', () => ({
   TabNavigation: ({
     items,
     ariaLabel,

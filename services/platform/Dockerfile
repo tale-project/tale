@@ -30,6 +30,7 @@ COPY package.json bun.lock bunfig.toml ./
 COPY packages/e2e/package.json ./packages/e2e/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/marketing-ui/package.json ./packages/marketing-ui/
 COPY services/platform/package.json ./services/platform/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
@@ -203,6 +204,7 @@ COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp
 COPY --from=workspace-deps /app/packages/e2e/package.json /tmp/workspace/packages/e2e/
 COPY --from=workspace-deps /app/packages/shared/package.json /tmp/workspace/packages/shared/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
+COPY --from=workspace-deps /app/packages/marketing-ui/package.json /tmp/workspace/packages/marketing-ui/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/

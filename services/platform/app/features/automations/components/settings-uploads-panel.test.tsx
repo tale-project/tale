@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
 const toastMock = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 const convexMutation = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-backend-mutation', () => ({

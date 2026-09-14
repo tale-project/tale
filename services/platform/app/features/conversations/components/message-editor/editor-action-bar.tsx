@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
+import { Tooltip } from '@tale/ui/tooltip';
 import {
   LoaderCircleIcon,
   PaperclipIcon,
@@ -10,7 +11,6 @@ import {
 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 
 import type { AttachedFile } from './types';

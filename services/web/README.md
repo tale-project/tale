@@ -9,7 +9,9 @@ bun run --filter @tale/web typecheck
 bun run --filter @tale/web test
 ```
 
-Stack: Vite · TanStack Router · React 19 · Tailwind v4 (extends `@tale/ui/tailwind-preset`) · framer-motion · Zod · Vitest.
+Stack: Vite · TanStack Router · React 19 · `@tale/marketing-ui` (the marketing design language — site chrome, primitives, feature and demo frames — on `@tale/ui`) · Tailwind v4 (`app/globals.css` imports `@tale/marketing-ui/globals.css`, which layers on `@tale/ui/globals.css`) · framer-motion · Zod · Vitest.
+
+The site keeps every business and content decision — copy, routes, the platform-page registry, CTAs, demo scenarios — and feeds them to the package's frames: `app/components/marketing/index.ts` binds the primitives to the typed route table, `app/routes/__root.tsx` mounts `MarketingRouterProvider`, and `lib/i18n/i18n.ts` merges the package catalog next to `@tale/ui`'s.
 
 ## Configuration
 

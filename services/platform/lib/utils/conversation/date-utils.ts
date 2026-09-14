@@ -1,6 +1,6 @@
-import { dayjs } from '@/lib/utils/date/format';
+import { dayjs } from '@tale/ui/date';
 
-export * from '@/lib/utils/date/format';
+export * from '@tale/ui/date';
 
 interface MessageGroup<T> {
   date: string;

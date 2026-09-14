@@ -1,14 +1,14 @@
 'use client';
 
+import {
+  EntityRowActions,
+  useEntityRowDialogs,
+} from '@tale/ui/entity/entity-row-actions';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { Archive, ArchiveRestore, Copy, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import {
-  EntityRowActions,
-  useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

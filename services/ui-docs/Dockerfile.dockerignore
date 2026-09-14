@@ -1,0 +1,141 @@
+# =============================================================================
+# Tale UI Docs (design-system docs site) — Dockerfile.dockerignore
+# =============================================================================
+# BuildKit picks this file (adjacent to the Dockerfile) over the root
+# .dockerignore. It does NOT merge — so this file must list everything we want
+# excluded from the ui-docs image's build context.
+#
+# Build (from repo root):
+#   docker build -f services/ui-docs/Dockerfile .
+
+# =============================================================================
+# Local environment files
+# =============================================================================
+**/.env
+**/.env.*
+
+# =============================================================================
+# Git
+# =============================================================================
+.git
+.gitignore
+.gitattributes
+
+# =============================================================================
+# CI / tooling
+# =============================================================================
+.github/
+.husky/
+.claude/
+.agents/
+.vscode/
+.idea/
+.ruff_cache/
+.turbo/
+.trivyignore
+.oxlintrc.json
+.oxfmtrc.json
+
+# =============================================================================
+# IDE / OS
+# =============================================================================
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =============================================================================
+# Node
+# =============================================================================
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+*.tsbuildinfo
+**/dist/
+**/build/
+**/.output/
+**/.vinxi/
+storybook-static/
+
+# =============================================================================
+# Testing
+# =============================================================================
+tests/
+**/coverage/
+.nyc_output/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# =============================================================================
+# Storybook
+# =============================================================================
+.storybook/
+**/.storybook/
+**/*.stories.tsx
+**/*.stories.ts
+**/*.stories.jsx
+**/*.stories.js
+
+# =============================================================================
+# Logs / temp / cache / misc
+# =============================================================================
+*.log
+*.tmp
+*.temp
+.cache/
+.playwright-mcp/
+knip-results.json
+design/sources/
+
+# =============================================================================
+# Docker files
+# =============================================================================
+docker-compose.yml
+docker-compose.*.yml
+compose.yml
+compose.*.yml
+.dockerignore
+**/Dockerfile.dockerignore
+
+# =============================================================================
+# UI-docs-specific: image needs only services/ui-docs + packages/ui +
+# packages/marketing-ui workspaces. All other service trees stay out of the
+# build context — `bun install` only needs each workspace's package.json
+# (re-included below).
+# =============================================================================
+services/platform/
+services/web/
+services/docs/
+services/convex/
+services/db/
+services/proxy/
+services/sandbox/
+services/sandbox-egress/
+services/sandbox-runtime/
+!services/sandbox-runtime/daemon/package.json
+packages/shared/
+tools/
+builtin-configs/
+
+# `bun install` needs every workspace package.json present at its declared
+# path so the workspace graph resolves. Re-include just the manifests —
+# source trees stay excluded by the rules above.
+!services/platform/package.json
+!services/web/package.json
+!services/docs/package.json
+!services/db/package.json
+!services/proxy/package.json
+!services/sandbox/package.json
+!packages/shared/package.json
+!tools/cli/package.json
+!tools/plop/package.json
+!tools/opengrep/package.json

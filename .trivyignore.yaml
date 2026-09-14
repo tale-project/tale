@@ -14,6 +14,16 @@ misconfigurations:
   # AVD-DS-0002: "Image user should not be 'root'"
   - id: AVD-DS-0002
     paths:
+      - 'services/platform/Dockerfile'
+    statement: |
+      The platform entrypoint needs root to install the SSRF egress firewall
+      and repair ownership of existing org-config volumes. It then re-execs
+      through gosu as uid 1001 (app) before starting any application role.
+      The privilege-drop guard executes this startup path and proves a failed
+      gosu cannot fall through to the application. Only the local dev image
+      explicitly opts out via TALE_DEV_NO_PRIVDROP.
+  - id: AVD-DS-0002
+    paths:
       - 'services/sandbox/Dockerfile'
     statement: |
       Sandbox spawner needs root inside the container to talk to the mounted

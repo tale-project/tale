@@ -3,11 +3,11 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { cn } from '@tale/ui/cn';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { TaskStatus } from '../lib/display';
 import { TaskCard, type TaskRow } from './task-card';

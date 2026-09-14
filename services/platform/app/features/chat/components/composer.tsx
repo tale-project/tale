@@ -21,8 +21,14 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { FileUpload } from '@tale/ui/file-upload';
+import { EnterKeyIcon } from '@tale/ui/icons/enter-key-icon';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { Tooltip } from '@tale/ui/tooltip';
+import { toast } from '@tale/ui/use-toast';
 import { ArrowUp, CircleStop, Loader2 } from 'lucide-react';
 import {
   forwardRef,
@@ -34,20 +40,14 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { FileIndexingInfo } from '@/app/features/chat/hooks/use-file-indexing-status';
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
-import { toast } from '@/app/hooks/use-toast';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import {

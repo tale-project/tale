@@ -63,10 +63,12 @@ export {
   Tooltip,
   TooltipContent,
   TooltipProvider,
+  TooltipRoot,
   TooltipTrigger,
   TOOLTIP_DELAY_MS,
   TOOLTIP_SKIP_DELAY_MS,
   tooltipContentClassName,
+  type TooltipProps,
 } from './components/overlays/tooltip';
 
 export { TaleLogo, type TaleLogoProps } from './logo/tale-logo';

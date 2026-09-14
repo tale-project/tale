@@ -1,9 +1,9 @@
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ProjectFilesSkeleton } from '@/app/features/projects/components/project-tab-skeletons';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const searchSchema = z.object({
   folderId: z.string().optional(),

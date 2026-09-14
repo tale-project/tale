@@ -8,7 +8,7 @@ import { render, screen } from '@/tests/utils/render';
 
 // The component's `useT` is mocked to a fixed EN map so the assertions stay
 // independent of the catalog loader; values mirror `messages/en.yml`.
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {

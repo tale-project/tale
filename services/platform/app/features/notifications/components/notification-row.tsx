@@ -1,13 +1,13 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { IconButton } from '@tale/ui/icon-button';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { NotificationTarget } from '../lib/notification-target';
 

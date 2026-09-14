@@ -16,7 +16,7 @@ vi.mock('@/lib/auth-client', () => ({
 vi.mock('@/app/lib/backend/api-client', () => ({
   backendFetch: () => Promise.resolve({ authenticated: true, decision: 'ok' }),
 }));
-vi.mock('@/app/components/ui/logo/logo-link', () => ({
+vi.mock('@/app/components/logo/logo-link', () => ({
   LogoLink: () => <a href="/">Tale</a>,
 }));
 

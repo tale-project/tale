@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,7 +10,6 @@ import {
 
 import type { ErasureStatus } from '@/backend/core/governance/erasure_constants';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 const DAY_MS = 86_400_000;
 const URGENT_MS = 7 * DAY_MS;

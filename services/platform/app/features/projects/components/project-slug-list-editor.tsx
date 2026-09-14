@@ -2,18 +2,15 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
+import { ReorderList, type ReorderItem } from '@tale/ui/reorder-list';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  ReorderList,
-  type ReorderItem,
-} from '@/app/components/ui/forms/reorder-list';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
 import { useT } from '@/lib/i18n/client';
 
 /**

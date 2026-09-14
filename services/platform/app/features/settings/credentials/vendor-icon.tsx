@@ -1,9 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Plug } from 'lucide-react';
 import { useState } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 /**
  * A vendor's shipped icon — a connector's or an AI provider's — falling back to

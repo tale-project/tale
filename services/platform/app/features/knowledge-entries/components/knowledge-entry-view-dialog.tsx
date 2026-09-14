@@ -3,16 +3,16 @@
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { CopyableTimestamp } from '@tale/ui/copyable-timestamp';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Heading } from '@tale/ui/heading';
 import { HStack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useMemo } from 'react';
 
-import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import { useKnowledgeEntryVersions } from '../hooks/queries';

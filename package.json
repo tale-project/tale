@@ -42,6 +42,7 @@
     "docker:test:image": "bun services/platform/tests/integration/container-image-test.ts",
     "docker:test:web": "bun services/platform/tests/integration/container-web-test.ts",
     "docker:test:docs": "bun services/platform/tests/integration/container-docs-test.ts",
+    "docker:test:ui-docs": "bun services/platform/tests/integration/container-ui-docs-test.ts",
     "docker:test:sandbox-runtime": "bun services/platform/tests/integration/container-sandbox-runtime-test.ts",
     "docker:test:vulnerability": "bun services/platform/tests/integration/container-vulnerability-scan.ts",
     "docker:e2e": "bun services/platform/tests/integration/master-e2e-test.ts",
@@ -51,6 +52,7 @@
     "commit": "bunx cz",
     "storybook": "bunx turbo run storybook",
     "storybook:ui": "bun run --filter @tale/ui storybook",
+    "storybook:marketing-ui": "bun run --filter @tale/marketing-ui storybook",
     "storybook:platform": "bun run --filter @tale/platform storybook",
     "storybook:web": "bun run --filter @tale/web storybook",
     "storybook:docs": "bun run --filter @tale/docs storybook",
@@ -67,9 +69,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
-    "@radix-ui/react-checkbox": "1.3.3",
-    "@radix-ui/react-label": "2.1.8",
-    "@radix-ui/react-tooltip": "1.2.8",
     "@tailwindcss/postcss": "4.2.2",
     "@tanstack/react-router": "1.168.10",
     "i18next": "26.0.4",
@@ -120,8 +119,7 @@
     "turbo": "2.10.11",
     "typescript": "6.0.2",
     "vite": "8.0.16",
-    "vitest": "4.1.10",
-    "vitest-axe": "1.0.0-pre.5"
+    "vitest": "4.1.10"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "4.2.2"

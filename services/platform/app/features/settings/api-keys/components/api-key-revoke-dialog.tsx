@@ -1,9 +1,9 @@
 'use client';
 
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
+import { toast } from '@tale/ui/use-toast';
 import { useCallback } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';

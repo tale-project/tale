@@ -1,25 +1,22 @@
 'use client';
 
+import {
+  AdaptiveHeaderRoot,
+  AdaptiveHeaderTabActionsSlot,
+} from '@tale/ui/adaptive-header';
+import { ContentArea } from '@tale/ui/content-area';
+import { ActiveEditorProvider, useActiveEditor } from '@tale/ui/editor';
 import { EmptyState } from '@tale/ui/empty-state';
+import { PageLayout } from '@tale/ui/page-layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { SearchX } from 'lucide-react';
 import { useEffect, useMemo, type ReactNode } from 'react';
 
 import {
-  AdaptiveHeaderRoot,
-  AdaptiveHeaderTabActionsSlot,
-} from '@/app/components/layout/adaptive-header';
-import { ContentArea } from '@/app/components/layout/content-area';
-import { PageLayout } from '@/app/components/layout/page-layout';
-import {
-  ActiveEditorProvider,
-  useActiveEditor,
-} from '@/app/components/ui/editor';
-import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/app/components/ui/navigation/tab-navigation';
+} from '@/app/components/navigation/tab-navigation';
 import { clearNavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 

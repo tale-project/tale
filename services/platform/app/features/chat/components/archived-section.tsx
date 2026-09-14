@@ -10,6 +10,7 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -19,7 +20,6 @@ import { useState } from 'react';
 import { ChatRowsSkeleton } from '@/app/components/layout/chat-history-skeleton';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useArchivedThreads } from '../data/chat-backend';
 import { dropZoneClassName, useArchiveDropZone } from './thread-dnd';

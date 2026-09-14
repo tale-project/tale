@@ -1,9 +1,9 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { Input } from '@tale/ui/input';
+import { Textarea } from '@tale/ui/textarea';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
 

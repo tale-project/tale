@@ -1,13 +1,13 @@
-import { Check, Minus } from 'lucide-react';
-import { type ReactNode } from 'react';
-
 import {
   CompareTable,
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/app/components/blocks/compare-table';
-import { MarketingSection } from '@/app/components/blocks/marketing-section';
+} from '@tale/marketing-ui/compare-table';
+import { MarketingSection } from '@tale/marketing-ui/marketing-section';
+import { Check, Minus } from 'lucide-react';
+import { type ReactNode } from 'react';
+
 import { MarketingButton, MarketingLink } from '@/app/components/marketing';
 import { CONTACT_PATH } from '@/app/content/site-ctas';
 import { EXTERNAL_LINKS } from '@/lib/external-links';

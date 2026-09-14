@@ -13,7 +13,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true }),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (params) {

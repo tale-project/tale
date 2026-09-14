@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,

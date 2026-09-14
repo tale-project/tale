@@ -50,7 +50,7 @@ vi.mock('@/app/hooks/use-react-query-client', () => ({
 
 // The page calls the bare `toast` export; the verify step's CopyableField
 // pulls `useToast` via `useCopy`.
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),
 }));

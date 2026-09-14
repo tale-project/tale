@@ -2,11 +2,11 @@
 
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { toast } from '@tale/ui/use-toast';
 import { useCallback } from 'react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 

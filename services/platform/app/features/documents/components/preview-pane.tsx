@@ -1,7 +1,6 @@
+import { cn } from '@tale/ui/cn';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-
-import { cn } from '@/lib/utils/cn';
 
 import { documentPageClasses } from './document-prose-classes';
 

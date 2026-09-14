@@ -2,9 +2,9 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 

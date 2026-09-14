@@ -1,13 +1,13 @@
 'use client';
 
 import { Heading } from '@tale/ui/heading';
+import { LabeledValue } from '@tale/ui/labeled-value';
 import { HStack, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useMemo } from 'react';
 
-import { Field } from '@/app/components/ui/forms/field';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -80,7 +80,7 @@ export function ContactInformation({ contact }: ContactInformationProps) {
       <StatGrid items={items} />
 
       {address && (
-        <Field label={t('labels.address')}>
+        <LabeledValue label={t('labels.address')}>
           <Stack gap={1} className="text-sm">
             {address.street && <p>{address.street}</p>}
             {(address.city || address.state) && (
@@ -93,11 +93,11 @@ export function ContactInformation({ contact }: ContactInformationProps) {
             {address.postalCode && <p>{address.postalCode}</p>}
             {address.country && <p>{address.country}</p>}
           </Stack>
-        </Field>
+        </LabeledValue>
       )}
 
       {tags && tags.length > 0 && (
-        <Field label={t('labels.tags')}>
+        <LabeledValue label={t('labels.tags')}>
           <HStack gap={2} className="flex-wrap">
             {tags.map((tag) => (
               <span key={tag} className="bg-muted rounded-md px-2 py-1 text-xs">
@@ -105,13 +105,13 @@ export function ContactInformation({ contact }: ContactInformationProps) {
               </span>
             ))}
           </HStack>
-        </Field>
+        </LabeledValue>
       )}
 
       {notes && (
-        <Field label={t('labels.notes')}>
+        <LabeledValue label={t('labels.notes')}>
           <Text>{notes}</Text>
-        </Field>
+        </LabeledValue>
       )}
     </Stack>
   );

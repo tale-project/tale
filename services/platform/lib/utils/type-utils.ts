@@ -70,24 +70,6 @@ export function narrowStringUnion<T extends string>(
   return validValues.find((v) => v === value);
 }
 
-/**
- * Build a `Record<K, V>` from an array of keys and a value factory.
- *
- * Replaces the common `keys.reduce((acc, k) => ({ ...acc, [k]: fn(k) }), {} as Record<K, V>)`
- * pattern which requires an unsafe type assertion on the empty initial value.
- */
-export function buildRecord<K extends string, V>(
-  keys: readonly K[],
-  valueFn: (key: K) => V,
-): Record<K, V> {
-  const result: Partial<Record<K, V>> = {};
-  for (const k of keys) {
-    result[k] = valueFn(k);
-  }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Partial→full is safe since every key is assigned in the loop above
-  return result as Record<K, V>;
-}
-
 /** Parse a `Response` body as typed JSON. */
 export async function fetchJson<T>(response: Response): Promise<T> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Response.json() is inherently `any`

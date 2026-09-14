@@ -2,20 +2,20 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { ArrowLeft, ArrowRightLeft } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { ComparisonResults } from '@/app/features/documents/components/document-comparison/comparison-results';
 import { useDocumentComparison } from '@/app/features/documents/hooks/use-document-comparison';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useDocumentVersions } from '../hooks/queries';
 

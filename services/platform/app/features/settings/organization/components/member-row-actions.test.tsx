@@ -5,7 +5,7 @@ import { render } from '@/tests/utils/render';
 
 import { MemberRowActions } from './member-row-actions';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),
 }));

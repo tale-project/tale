@@ -1,4 +1,5 @@
-import { LogoCloudSection } from '@/app/components/blocks/logo-cloud-section';
+import { LogoCloudSection } from '@tale/marketing-ui/logo-cloud-section';
+
 import { AGENTS } from '@/app/content/agents';
 import { useT } from '@/lib/i18n/client';
 

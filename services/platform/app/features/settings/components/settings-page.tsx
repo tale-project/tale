@@ -1,9 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { FIELD_LAYOUT_ROW } from '@tale/ui/field-shell';
 import type { HTMLAttributes, ReactNode } from 'react';
-
-import { FIELD_LAYOUT_ROW } from '@/app/components/ui/forms/field-shell';
-import { cn } from '@/lib/utils/cn';
 
 /**
  * The section-divider rule for configuration surfaces: every

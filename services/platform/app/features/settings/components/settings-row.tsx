@@ -1,9 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 interface SettingsRowProps extends Omit<
   HTMLAttributes<HTMLDivElement>,

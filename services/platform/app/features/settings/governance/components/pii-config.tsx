@@ -1,14 +1,14 @@
 'use client';
 
+import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
+import { useToast } from '@tale/ui/use-toast';
 import { lazy, useCallback, useRef, useState } from 'react';
 
-import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

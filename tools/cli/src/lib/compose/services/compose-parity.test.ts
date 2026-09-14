@@ -472,13 +472,13 @@ describe('service → image parity', () => {
     }
   });
 
-  test('a content-site release publishes only web/docs and skips platform release jobs', () => {
+  test('a content-site release publishes all three sites and skips platform release jobs', () => {
     const releaseYml = readFileSync(
       resolve(repoRoot, '.github/workflows/release.yml'),
       'utf8',
     );
     const resolved = resolveRelease(releaseYml, true);
-    expect(resolved.services).toEqual(['web', 'docs']);
+    expect(resolved.services).toEqual(['web', 'docs', 'ui-docs']);
     expect(resolved.version).toBe('0.5.15-sites.1');
     const workflow = parse(releaseYml) as {
       jobs: Record<string, { if?: string }>;

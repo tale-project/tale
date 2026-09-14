@@ -1,13 +1,13 @@
+import { RouteProgressBar } from '@tale/ui/route-progress-bar';
+import { ThemeAssets } from '@tale/ui/theme/assets';
+import { Toaster } from '@tale/ui/toaster';
 import {
   HeadContent,
   Outlet,
   createRootRouteWithContext,
 } from '@tanstack/react-router';
 
-import { RouteProgressBar } from '@/app/components/layout/route-progress-bar';
 import { SkipLink } from '@/app/components/layout/skip-link';
-import { ThemeAssets } from '@/app/components/theme/theme-assets';
-import { Toaster } from '@/app/components/ui/feedback/toaster';
 import { useFileEvents } from '@/app/hooks/use-file-events';
 import type { RouterContext } from '@/app/router';
 import { seo } from '@/lib/utils/seo';

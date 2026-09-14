@@ -56,13 +56,3 @@ export async function checkAccessibility(
     throw new Error(`Accessibility violations:\n${violationMessages}`);
   }
 }
-
-/**
- * Assert element is focusable
- */
-export function expectFocusable(element: HTMLElement) {
-  element.focus();
-  if (document.activeElement !== element) {
-    throw new Error(`Expected element to be focusable, but it is not`);
-  }
-}

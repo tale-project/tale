@@ -1,8 +1,8 @@
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ProjectThreadsSkeleton } from '@/app/features/projects/components/project-tab-skeletons';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 // Skeletonized layout frame shown while the tab's JS chunk loads — the real
 // tab (with its own data-loading mask) takes over once the chunk resolves.

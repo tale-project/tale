@@ -15,7 +15,7 @@ A loading spinner component.
 
 ## Usage
 \`\`\`tsx
-import { Spinner } from '@/app/components/ui/feedback';
+import { Spinner } from '@tale/ui/spinner';
 
 <Spinner />
 <Spinner size="lg" label="Saving changes" />

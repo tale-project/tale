@@ -1,4 +1,6 @@
 import { buttonVariants } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
+import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { Stack } from '@tale/ui/layout';
 import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -7,8 +9,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen, FileJson } from 'lucide-react';
 import { lazy, useMemo } from 'react';
 
-import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
-import { ContentArea } from '@/app/components/layout/content-area';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 

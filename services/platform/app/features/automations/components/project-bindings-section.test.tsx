@@ -25,7 +25,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     isLoading: false,
   }),
 }));
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) =>
       params === undefined

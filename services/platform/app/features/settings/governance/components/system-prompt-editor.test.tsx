@@ -1,16 +1,16 @@
-import { act, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   useActiveEditor,
   type EditorController,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { act, fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
 import { render, screen } from '@/tests/utils/render';
 
 import { SystemPromptEditor } from './system-prompt-editor';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
   toast: vi.fn(),
 }));

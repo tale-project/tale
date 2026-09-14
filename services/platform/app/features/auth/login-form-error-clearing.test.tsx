@@ -19,7 +19,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (_ns: string) => ({ t: (key: string) => key }),
 }));
 
@@ -39,7 +39,7 @@ vi.mock('@/app/hooks/use-react-query-client', () => ({
 }));
 
 // ── Toast ────────────────────────────────────────────────────────────────────
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 // ── Auth client ──────────────────────────────────────────────────────────────
 const { mockSignInEmail } = vi.hoisted(() => ({

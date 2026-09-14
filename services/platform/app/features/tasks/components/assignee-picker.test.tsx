@@ -7,7 +7,7 @@ import { render, screen } from '@/tests/utils/render';
 import type { AssignableAgent } from '../hooks/use-actor-directory';
 import { AssigneePicker } from './assignee-picker';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
   }),

@@ -1,14 +1,14 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
-import { useMemo } from 'react';
-
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
-import { toast } from '@/app/hooks/use-toast';
+} from '@tale/ui/entity/entity-row-actions';
+import { toast } from '@tale/ui/use-toast';
+import { Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteAutomation } from '../hooks/mutations';

@@ -7,16 +7,13 @@ import {
   loginPolicyConfigSchema,
   type LoginPolicyConfig,
 } from '@tale/shared/schemas/governance';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   SettingsFieldList,
   SettingsFieldRow,

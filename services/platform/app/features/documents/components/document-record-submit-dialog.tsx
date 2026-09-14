@@ -1,17 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
-import { useMemo, useState } from 'react';
-
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
+} from '@tale/ui/searchable-select';
+import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
+import { useMemo, useState } from 'react';
+
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSubmitRecordForReview } from '../hooks/mutations';

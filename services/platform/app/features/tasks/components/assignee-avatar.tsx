@@ -1,7 +1,7 @@
+import { cn } from '@tale/ui/cn';
 import { Bot, User, Workflow } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { TaskCreatorType } from '../lib/display';
 

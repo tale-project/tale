@@ -23,7 +23,7 @@ vi.mock('../hooks/integrity', () => ({
   useVerifyIntegrity: () => state.verify,
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
   toast: toastSpy,
 }));

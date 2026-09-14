@@ -3,16 +3,16 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
-import { useToast } from '@/app/hooks/use-toast';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';

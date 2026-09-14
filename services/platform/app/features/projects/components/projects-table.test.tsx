@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
-
 import {
   ACTIONS_COLUMN_SIZE,
   SELECT_COLUMN_SIZE,
-} from '@/app/components/ui/data-table/column-builders';
+} from '@tale/ui/data-table/column-builders';
+import { describe, expect, it, vi } from 'vitest';
+
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (params) {

@@ -1,6 +1,6 @@
 # Manual tests
 
-The manual layer of the docs site's test suite. The docs already have a strong **static** gate — the vitest content suite validates links, images, videos, navigation entries, redirects, locale mirrors, frontmatter and page structure at build time, and the Playwright smoke spec checks the rendered shell. What no automation covers is the reader-facing runtime: search quality, scroll-spy, copy buttons, theme, the mobile drawer. That is what these suites exercise.
+The manual layer of the docs site's test suite. The docs already have a strong **static** gate — the vitest content suite validates links, images, videos, navigation entries, redirects, locale mirrors, frontmatter and page structure at build time, and the Playwright smoke spec checks the rendered shell. What no automation covers is the reader-facing runtime: search quality, scroll-spy, copy buttons, theme, the phone drawer. That is what these suites exercise.
 
 **Suites and rounds are separate things.** The files under [`suites/`](suites)
 are the tests: evergreen, re-runnable, and **never ticked in place**.
@@ -29,16 +29,16 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-100 boxes across 6 suites. Every suite declares the ID prefix its
+104 boxes across 6 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
-| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep (theme, image zoom, video player, PWA banner) | 14 |
+| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep (theme, image zoom, video player, PWA banner) | 15 |
 | [content](suites/content.md) | `CONT-` | code blocks + copy buttons, heading deep links, markdown components, images + zoom, videos, page actions | 29 |
 | [locale](suites/locale.md) | `LOC-` | `/de` + `/fr` trees, `de-CH` overlay, language switcher, translated chrome | 12 |
-| [navigation](suites/navigation.md) | `NAV-` | sidebar integrity, breadcrumbs, prev/next, TOC scroll-spy, 404s, moved-page 301s, PWA offline/update | 19 |
+| [navigation](suites/navigation.md) | `NAV-` | rail integrity, breadcrumbs, prev/next, outline scroll-spy, phone drawer, 404s, moved-page 301s, PWA offline/update | 22 |
 | [search](suites/search.md) | `SEARCH-` | search dialog, shortcuts, results, recents, per-locale index, index freshness | 14 |
 | [seo](suites/seo.md) | `SEO-` | prerendered head, JSON-LD, sitemap, robots, llms + `.md` endpoints, security headers, legal noindex, OG | 12 |
 
@@ -80,7 +80,7 @@ Change-scoped, by area:
 | cross-cutting WCAG 2.1 AA sweep (theme | [accessibility](suites/accessibility.md) (`A11Y-`) |
 | code blocks + copy buttons | [content](suites/content.md) (`CONT-`) |
 | `/de` + `/fr` trees | [locale](suites/locale.md) (`LOC-`) |
-| sidebar integrity | [navigation](suites/navigation.md) (`NAV-`) |
+| rail integrity | [navigation](suites/navigation.md) (`NAV-`) |
 | search dialog | [search](suites/search.md) (`SEARCH-`) |
 | prerendered head | [seo](suites/seo.md) (`SEO-`) |
 
@@ -92,7 +92,7 @@ A fast "is this build even drivable" pass. Green ⇒ proceed; red ⇒ stop and f
 
 | Box | Proves |
 |---|---|
-| `NAV-F1` | the shell and the sidebar render |
+| `NAV-F1` | the shell and the rail render |
 | `CONT-F1` | a page renders with its components |
 | `SEARCH-F1` | search returns a result |
 | `LOC-F1` | each locale tree resolves |

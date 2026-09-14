@@ -1,6 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Table, TableBody, TableCell } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -14,9 +16,7 @@ import {
   type ReactElement,
 } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface PaginatedMarkdownTableProps {
   children?: ReactNode;

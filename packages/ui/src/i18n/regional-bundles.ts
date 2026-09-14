@@ -3,11 +3,11 @@ type Bundle = Record<string, Record<string, unknown>>;
 /** Matches `xx-YY` locale codes only (lowercase language, uppercase region). */
 const REGIONAL_TAG = /^[a-z]{2}-[A-Z]{2}$/;
 
-/** Pulls the locale code (`de-CH`) out of `…/messages/de-CH.json`-shaped paths. */
-const FILE_LOCALE = /\/([^/]+)\.json$/;
+/** Pulls the locale code (`de-CH`) out of `…/messages/de-CH.yml`-shaped paths. */
+const FILE_LOCALE = /\/([^/]+)\.(?:ya?ml|json)$/;
 
 /**
- * Maps the result of `import.meta.glob('messages/*-*.json', { eager: true, import: 'default' })`
+ * Maps the result of `import.meta.glob('messages/*-*.yml', { eager: true, import: 'default' })`
  * into a `{ 'de-CH': bundle, ... }` map keyed by locale code, dropping anything
  * that doesn't match the `xx-YY` shape.
  *

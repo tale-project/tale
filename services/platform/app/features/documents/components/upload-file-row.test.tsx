@@ -29,7 +29,7 @@ function lookup(ns: string, key: string): string {
   return typeof cursor === 'string' ? cursor : `${ns}.${key}`;
 }
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, vars?: Record<string, unknown>) => {
       let out = lookup(ns, key);

@@ -13,6 +13,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
   allowlistDisplayPath: 'services/web/lib/i18n/keys-dynamic.yml',
+  // The design-system catalogs the site merges at runtime
+  // (`initServiceI18n({ packages })`): the app language's shared vocabulary
+  // and the marketing language's own strings (the demo-window chrome).
+  packageCatalogs: [
+    path.resolve(HERE, '../../../../packages/ui/src/i18n/messages'),
+    path.resolve(HERE, '../../../../packages/marketing-ui/src/i18n/messages'),
+  ],
   modes: {
     'pronouns-formal': 'report',
     'terminology-loanword': 'report',

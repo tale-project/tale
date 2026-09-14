@@ -16,11 +16,11 @@
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { FieldShell } from '@tale/ui/field-shell';
+import { Label } from '@tale/ui/label';
 import { Blocks, ChevronDown } from 'lucide-react';
 import { useId, useMemo, type ReactNode } from 'react';
 
-import { FieldShell } from '@/app/components/ui/forms/field-shell';
-import { Label } from '@/app/components/ui/forms/label';
 import { useT } from '@/lib/i18n/client';
 
 /** One skill, connector, or tool on offer. */

@@ -1,3 +1,4 @@
+import { Button } from '@tale/ui/button';
 import { GitPullRequestArrow } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -22,16 +23,16 @@ export function EditOnGithub({ contentPath }: EditOnGithubProps) {
   // Source files on disk are `.md` (not `.mdx`). Normalise any extension the
   // caller passes so the GitHub edit URL points at the real file.
   const normalisedPath = contentPath.replace(/\.mdx?$/, '') + '.md';
-  const label = t('editOnGithub');
+
   return (
-    <a
-      href={`${REPO_BASE}${normalisedPath}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated focus-visible:ring-fg-base/40 inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-    >
-      <GitPullRequestArrow aria-hidden className="size-4" />
-      <span>{label}</span>
-    </a>
+    <Button asChild variant="ghost" size="sm" icon={GitPullRequestArrow}>
+      <a
+        href={`${REPO_BASE}${normalisedPath}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {t('editOnGithub')}
+      </a>
+    </Button>
   );
 }

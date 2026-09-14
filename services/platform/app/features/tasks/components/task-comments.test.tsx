@@ -105,14 +105,14 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatRelative: () => 'just now',
     formatDate: () => 'Jan 1, 2026',
   }),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => key,
   }),

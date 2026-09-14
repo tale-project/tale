@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen } from '@/tests/utils/render';
 import type { Message as MessageType } from '../types';
 import { Message } from './message';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     // Echo the key, appending interpolation params so the countdown's live
     // seconds value is assertable.
@@ -18,15 +18,15 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({ formatDate: () => '10:00' }),
 }));
 
-vi.mock('@/app/components/ui/data-display/email-preview', () => ({
+vi.mock('@tale/ui/email-preview', () => ({
   EmailPreview: ({ html }: { html: string }) => <div>{html}</div>,
 }));
 
-vi.mock('@/app/components/ui/data-display/image', () => ({
+vi.mock('@/app/components/image', () => ({
   Image: () => null,
 }));
 

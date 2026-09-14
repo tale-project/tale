@@ -1,11 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { Stack } from '@tale/ui/layout';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 const sectionVariants = cva('flex flex-col', {
   variants: {

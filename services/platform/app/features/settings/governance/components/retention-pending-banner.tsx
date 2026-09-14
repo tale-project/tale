@@ -4,11 +4,11 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
+import { useToast } from '@tale/ui/use-toast';
 import { Clock } from 'lucide-react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

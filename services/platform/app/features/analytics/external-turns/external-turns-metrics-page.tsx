@@ -1,6 +1,12 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@tale/ui/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import {
@@ -15,12 +21,6 @@ import { Text } from '@tale/ui/text';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import {
-  parseMetricsPeriodDays,
-  type MetricsPeriodDays,
-} from '@/app/components/metrics/metrics-period';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { ReturnsOf } from '@/app/lib/backend/contract';

@@ -1,9 +1,8 @@
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { SkeletonCircle } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 export function ConversationDateHeader({ children }: { children: ReactNode }) {
   return (

@@ -1,9 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { toast } from '@tale/ui/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetTaskMuted, useSubscribeToTask } from '../hooks/mutations';

@@ -1,3 +1,7 @@
+import { MarketingSection } from '@tale/marketing-ui/marketing-section';
+import { ProgressBar } from '@tale/marketing-ui/progress-bar';
+import { SegmentedRadio } from '@tale/marketing-ui/segmented-radio';
+import { TierCard } from '@tale/marketing-ui/tier-card';
 import { formatCurrency } from '@tale/ui/format';
 
 import {
@@ -12,11 +16,7 @@ import {
   type LeasingTerm,
   type TierMetrics,
 } from '@/app/components/blocks/hardware-specs';
-import { MarketingSection } from '@/app/components/blocks/marketing-section';
-import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
-import { TierCard } from '@/app/components/blocks/tier-card';
 import { MarketingButton, MarketingLink } from '@/app/components/marketing';
-import { ProgressBar } from '@/app/components/progress-bar';
 import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import type {
   HardwareBilling,

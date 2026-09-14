@@ -17,7 +17,7 @@ A full-area empty state component with an optional icon, title, description, and
 
 ## Usage
 \`\`\`tsx
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
+import { EmptyState } from '@tale/ui/empty-state';
 import { Inbox } from 'lucide-react';
 
 <EmptyState

@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import { ZoomPanViewer } from '@tale/ui/zoom-pan-viewer';
 import { useCallback, useEffect, useState } from 'react';
 
-import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   PreviewContentSkeleton,

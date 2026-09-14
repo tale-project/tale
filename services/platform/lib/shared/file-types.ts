@@ -1045,3 +1045,18 @@ export function shouldRagIndexOnUpload(
   if (ext === undefined || IMAGE_EXTENSIONS.has(ext)) return false;
   return RAG_INDEXABLE_EXTENSIONS.has(ext);
 }
+
+/**
+ * The extension a `DocumentIcon` should draw for a document: the authoritative
+ * content type first (a synced Confluence page titled "Overview" stored as
+ * `text/plain` still gets the right glyph), the filename suffix as a fallback.
+ */
+export function documentIconExtension(
+  fileName: string,
+  mimeType?: string,
+): string | undefined {
+  return (
+    (mimeType ? mimeToExtension(mimeType) : undefined) ??
+    extractExtension(fileName)
+  );
+}

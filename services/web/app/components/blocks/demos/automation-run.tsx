@@ -1,3 +1,5 @@
+import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import {
@@ -17,8 +19,6 @@ import {
   type RunTone,
   useAutomationScenario,
 } from './demo-scenarios';
-import { DemoShell } from './demo-shell';
-import { useDemoTimeline } from './use-demo-timeline';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

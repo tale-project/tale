@@ -1,9 +1,9 @@
 'use client';
 
+import { toast } from '@tale/ui/use-toast';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import {
   cancelVideoLinkRequest,

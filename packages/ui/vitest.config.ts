@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,12 @@ import { defineConfig } from 'vitest/config';
 import { yamlImports } from './src/vite/yaml';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Component tests hold a heavy jsdom + axe + React heap each, so the worker
+// count is the memory/speed knob: a floor of 2 keeps CI's 2-core runner
+// unchanged, the cap of 6 bounds peak heap on a wide dev machine.
+const cpuCount = os.availableParallelism?.() ?? os.cpus().length;
+const unitMaxWorkers = Math.max(2, Math.min(cpuCount - 1, 6));
 
 export default defineConfig({
   plugins: [yamlImports(), react()],
@@ -22,6 +29,13 @@ export default defineConfig({
     },
   },
   test: {
+    // jsdom logs "Not implemented: getComputedStyle … pseudo-elements" on
+    // every axe pseudo-element probe; drop the known noise so the buffered
+    // console output stays small. Inherited by every project via `extends`.
+    onConsoleLog(log: string) {
+      if (log.includes('Not implemented:')) return false;
+      return undefined;
+    },
     projects: [
       {
         extends: true,
@@ -30,7 +44,28 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
           globals: true,
-          include: ['src/**/*.test.{ts,tsx}'],
+          pool: 'threads',
+          maxWorkers: unitMaxWorkers,
+          include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
+          // `*.browser.test.tsx` are real-Chromium component tests owned by
+          // the `browser` project: they assert things jsdom fakes (layout,
+          // focus trapping), so they must not run under jsdom.
+          exclude: ['node_modules', 'dist', '**/*.browser.test.{ts,tsx}'],
+          css: true,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+          },
+          include: ['src/**/*.browser.test.{ts,tsx}'],
+          exclude: ['node_modules', 'dist'],
         },
       },
       {

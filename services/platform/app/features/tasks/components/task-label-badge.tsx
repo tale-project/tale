@@ -1,7 +1,7 @@
 'use client';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
 
 import type { TaskLabelRef } from '../lib/display';
 import { asLabelColor, LABEL_DOT_CLASS, labelColor } from '../lib/labels';

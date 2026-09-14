@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo } from '@/types/documents';
 

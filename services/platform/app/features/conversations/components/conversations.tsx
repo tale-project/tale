@@ -1,9 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
+import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
+import { SearchInput } from '@tale/ui/search-input';
+import { Tooltip } from '@tale/ui/tooltip';
 import { useNavigate } from '@tanstack/react-router';
 import {
   ArchiveIcon,
@@ -17,13 +21,9 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import { useBulkActions } from '../hooks/use-bulk-actions';

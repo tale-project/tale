@@ -1,6 +1,7 @@
 'use client';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Dialog } from '@tale/ui/dialog/dialog';
+
 import { useT } from '@/lib/i18n/client';
 
 import { SkillUploadPane } from './skill-upload/skill-upload-pane';

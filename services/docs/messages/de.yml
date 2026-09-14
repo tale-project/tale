@@ -66,6 +66,7 @@ docs:
   editOnGithub: Auf GitHub bearbeiten
   previous: Zurück
   next: Weiter
+  pagination: Seitennavigation
   readingTime: '{minutes} Min. Lesezeit'
   lastUpdated: Zuletzt aktualisiert am {date}
   notFoundTitle: Seite nicht gefunden

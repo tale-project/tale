@@ -1,15 +1,15 @@
 'use client';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@tale/ui/data-table/column-builders';
 import { HStack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import {
-  ACTIONS_COLUMN_SIZE,
-  createSelectColumn,
-} from '@/app/components/ui/data-table/column-builders';
 import { useT } from '@/lib/i18n/client';
 
 import { TeamRowActions } from '../components/team-row-actions';

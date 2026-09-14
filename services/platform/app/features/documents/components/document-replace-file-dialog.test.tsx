@@ -35,7 +35,7 @@ let capturedUploadOptions:
     }
   | undefined;
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (namespace: string) => ({
     t: (key: string, values?: Record<string, unknown>) => {
       translationCalls.push({ namespace, key, values });
@@ -48,7 +48,7 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 

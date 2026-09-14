@@ -1,10 +1,10 @@
 'use client';
 
+import { ContentArea } from '@tale/ui/content-area';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { useId } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomation, useAutomationVersions } from '../hooks/queries';

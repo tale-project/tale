@@ -1,14 +1,14 @@
 'use client';
 
-import { CloudOff, RefreshCw, Trash2, Users } from 'lucide-react';
-import { useMemo, useCallback, useRef } from 'react';
-
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
+} from '@tale/ui/entity/entity-row-actions';
+import { toast } from '@tale/ui/use-toast';
+import { CloudOff, RefreshCw, Trash2, Users } from 'lucide-react';
+import { useMemo, useCallback, useRef } from 'react';
+
 import { useAbility } from '@/app/hooks/use-ability';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 

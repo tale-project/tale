@@ -74,7 +74,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
-vi.mock('@/app/hooks/use-is-mac', () => ({
+vi.mock('@tale/ui/use-is-mac', () => ({
   useIsMac: () => false,
 }));
 

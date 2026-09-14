@@ -1,14 +1,14 @@
 'use client';
 
-import { KeyRound, Pencil, Power, Star, Trash2 } from 'lucide-react';
-
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import {
   EntityRowActions,
   useEntityRowDialogs,
   type EntityRowAction,
-} from '@/app/components/ui/entity/entity-row-actions';
-import { useToast } from '@/app/hooks/use-toast';
+} from '@tale/ui/entity/entity-row-actions';
+import { useToast } from '@tale/ui/use-toast';
+import { KeyRound, Pencil, Power, Star, Trash2 } from 'lucide-react';
+
 import { useT } from '@/lib/i18n/client';
 
 import {

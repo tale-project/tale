@@ -1,5 +1,11 @@
+import {
+  AdaptiveHeaderRoot,
+  AdaptiveHeaderTitle,
+} from '@tale/ui/adaptive-header';
 import { Button } from '@tale/ui/button';
+import { ContentWrapper } from '@tale/ui/content-wrapper';
 import { EmptyState } from '@tale/ui/empty-state';
+import { PageLayout } from '@tale/ui/page-layout';
 import {
   createFileRoute,
   Link,
@@ -12,12 +18,6 @@ import {
 import { Inbox, SquarePen } from 'lucide-react';
 import { useEffect } from 'react';
 
-import {
-  AdaptiveHeaderRoot,
-  AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { ContentWrapper } from '@/app/components/layout/content-wrapper';
-import { PageLayout } from '@/app/components/layout/page-layout';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
 import { useComposeContactName } from '@/app/features/conversations/hooks/queries';

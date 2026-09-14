@@ -1,11 +1,11 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

@@ -40,4 +40,26 @@ describe('SkipLink', () => {
       'custom-class',
     );
   });
+
+  it('moves focus into the target on activation', async () => {
+    const { user } = render(
+      <>
+        <SkipLink targetId="main-content">Skip to main content</SkipLink>
+        <main id="main-content" tabIndex={-1}>
+          main
+        </main>
+      </>,
+    );
+    await user.click(
+      screen.getByRole('link', { name: 'Skip to main content' }),
+    );
+    expect(document.getElementById('main-content')).toHaveFocus();
+  });
+
+  it('leaves the navigation alone when the target is missing', async () => {
+    const { user } = render(<SkipLink targetId="nowhere">Skip</SkipLink>);
+    const link = screen.getByRole('link', { name: 'Skip' });
+    await user.click(link);
+    expect(link).toHaveAttribute('href', '#nowhere');
+  });
 });

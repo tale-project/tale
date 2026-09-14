@@ -1,11 +1,11 @@
+import { LogoCloudSection } from '@tale/marketing-ui/logo-cloud-section';
 import {
-  Tooltip,
+  TooltipRoot,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@tale/ui/tooltip';
 
-import { LogoCloudSection } from '@/app/components/blocks/logo-cloud-section';
 import type { BrandIcon } from '@/app/components/icons/types';
 import {
   INTEGRATION_LOGOS,
@@ -78,7 +78,7 @@ function LogoTile({
   // provider) intermittently miss pointer events.
   return (
     <TooltipProvider delayDuration={150}>
-      <Tooltip>
+      <TooltipRoot>
         <TooltipTrigger asChild>
           <button
             type="button"
@@ -93,7 +93,7 @@ function LogoTile({
           </button>
         </TooltipTrigger>
         <TooltipContent side="top">{tooltip}</TooltipContent>
-      </Tooltip>
+      </TooltipRoot>
     </TooltipProvider>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { useToast } from '@/app/hooks/use-toast';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { useToast } from '@tale/ui/use-toast';
+
 import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';

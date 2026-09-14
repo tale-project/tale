@@ -57,6 +57,8 @@ export interface CheckContext {
   readonly allowlistPath?: string;
   /** Display path for the allowlist in usage-check failure messages. */
   readonly allowlistDisplayPath?: string;
+  /** Package message directories whose keys count as defined (see config). */
+  readonly packageCatalogs?: ReadonlyArray<string>;
   /** Lazy glossary handle. Cached for the run. */
   readonly glossary: () => GlossaryHandle;
   /** Scanner used to iterate fragments. */

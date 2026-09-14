@@ -1,19 +1,16 @@
 'use client';
 
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@tale/shared/schemas/projects';
+import { cn } from '@tale/ui/cn';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { FormSection } from '@tale/ui/form-section';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
 import { useCallback, useMemo } from 'react';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { cn } from '@/lib/utils/cn';
 
 import { useUpdateProjectInstructions } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';

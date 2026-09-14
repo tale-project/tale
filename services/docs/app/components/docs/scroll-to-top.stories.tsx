@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
 
 import { ScrollToTop } from './scroll-to-top';
 
@@ -24,14 +25,19 @@ type Story = StoryObj<typeof meta>;
  */
 export const Default: Story = {
   render: () => (
-    <div className="bg-bg-base text-fg-base min-h-[2400px] p-8">
-      <h1 className="text-2xl font-semibold">Scroll down…</h1>
-      <p className="text-fg-muted mt-2 max-w-prose text-sm">
-        The floating &ldquo;back to top&rdquo; button appears once you scroll
-        past about 600&nbsp;px. The story canvas is tall enough to exercise the
-        threshold without leaving Storybook.
-      </p>
-      <ScrollToTop />
-    </div>
+    // The control is an `IconButton`, so it renders a hover tooltip — which
+    // needs a provider. The app gets one from `AppShell`; a story supplies
+    // its own.
+    <TooltipProvider>
+      <div className="bg-background text-foreground min-h-[2400px] p-8">
+        <h1 className="text-2xl font-semibold">Scroll down…</h1>
+        <p className="text-muted-foreground mt-2 max-w-prose text-sm">
+          The floating &ldquo;back to top&rdquo; button appears once you scroll
+          past about 600&nbsp;px. The story canvas is tall enough to exercise
+          the threshold without leaving Storybook.
+        </p>
+        <ScrollToTop />
+      </div>
+    </TooltipProvider>
   ),
 };

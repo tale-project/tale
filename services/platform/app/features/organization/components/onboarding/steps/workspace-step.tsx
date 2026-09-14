@@ -1,13 +1,13 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Input } from '@tale/ui/input';
+import { toast } from '@tale/ui/use-toast';
+import { WizardStep } from '@tale/ui/wizard/wizard';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useAuth } from '@/app/hooks/use-session-user';
-import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { authClient } from '@/lib/auth-client';

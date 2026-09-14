@@ -1,10 +1,20 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
+import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@tale/ui/file-tree-primitives';
+import { FileUpload } from '@tale/ui/file-upload';
+import { FormSection } from '@tale/ui/form-section';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import {
   ChevronDown,
@@ -22,15 +32,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  iconForPath,
-  TreeRowButton,
-  treeNavigationKeyDown,
-} from '@/app/components/ui/data-display/file-tree-primitives';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { FormSection } from '@/app/components/ui/forms/form-section';
 import { DocumentDeleteDialog } from '@/app/features/documents/components/document-delete-dialog';
 import { DocumentHistoryDialog } from '@/app/features/documents/components/document-history-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
@@ -49,7 +50,6 @@ import {
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {

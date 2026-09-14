@@ -1,20 +1,20 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { useToast } from '@tale/ui/use-toast';
 import { ScrollText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { useToast } from '@/app/hooks/use-toast';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useAuditLogTableConfig,

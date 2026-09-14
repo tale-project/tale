@@ -7,6 +7,8 @@ import { Button } from '@tale/ui/button';
 import { InlineCode } from '@tale/ui/inline-code';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { useToast } from '@tale/ui/use-toast';
 import {
   CheckCircle2,
   ShieldAlert,
@@ -15,8 +17,6 @@ import {
 } from 'lucide-react';
 import { useCallback, type ReactNode } from 'react';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

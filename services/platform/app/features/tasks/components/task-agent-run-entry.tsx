@@ -23,12 +23,12 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

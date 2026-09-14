@@ -1,12 +1,12 @@
 'use client';
 
+import { useToast } from '@tale/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { useToast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { useT } from '@/lib/i18n/client';
 import {

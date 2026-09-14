@@ -1,21 +1,21 @@
 'use client';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@tale/ui/data-table/column-builders';
+import {
+  DataTable,
+  type DataTableAddAction,
+} from '@tale/ui/data-table/data-table';
+import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { Stack, HStack } from '@tale/ui/layout';
+import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
 
-import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
-import {
-  ACTIONS_COLUMN_SIZE,
-  createSelectColumn,
-} from '@/app/components/ui/data-table/column-builders';
-import {
-  DataTable,
-  type DataTableAddAction,
-} from '@/app/components/ui/data-table/data-table';
-import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';

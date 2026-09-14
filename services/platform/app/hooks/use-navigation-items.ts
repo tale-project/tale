@@ -1,5 +1,6 @@
 'use client';
 
+import { useIsMac } from '@tale/ui/use-is-mac';
 import {
   MessageCircle,
   BrainIcon,
@@ -14,8 +15,6 @@ import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inb
 import { type NavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
-
-import { useIsMac } from './use-is-mac';
 
 export interface NavItem {
   label: string;

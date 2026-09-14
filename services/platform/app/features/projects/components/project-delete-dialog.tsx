@@ -1,13 +1,13 @@
 'use client';
 
+import { Checkbox } from '@tale/ui/checkbox';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Input } from '@/app/components/ui/forms/input';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

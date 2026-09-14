@@ -1,7 +1,6 @@
+import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import type { LucideIcon } from 'lucide-react';
-
-import { cn } from '@/lib/utils/cn';
 
 interface RulesTableEmptyStateProps {
   icon?: LucideIcon;

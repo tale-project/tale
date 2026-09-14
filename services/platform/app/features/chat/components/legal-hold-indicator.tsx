@@ -1,11 +1,11 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Lock } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface LegalHoldIndicatorProps {

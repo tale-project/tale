@@ -1,15 +1,18 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { SwUpdateListener } from '@tale/ui/pwa/sw-update-listener';
+import { Text } from '@tale/ui/text';
 import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 /**
- * Docs PWA wiring. Renders a small fixed banner when a new service
- * worker is waiting, prompting the reader to reload for the latest
- * docs. Offline-ready announcements are surfaced as a one-shot toast
- * removed automatically after a few seconds.
+ * Docs PWA wiring. Renders a small fixed card when a new service worker is
+ * waiting, prompting the reader to reload for the latest docs. Offline-ready
+ * announcements are surfaced as a one-shot card removed automatically after a
+ * few seconds.
  */
 export function SwUpdateBanner() {
   const { t } = useT('pwa');
@@ -49,43 +52,42 @@ export function SwUpdateBanner() {
         }}
       />
       {updateAction ? (
-        <div
+        <Card
           role="status"
           aria-live="polite"
-          className="border-border-base bg-bg-base fixed right-4 bottom-4 z-50 flex max-w-sm flex-col gap-3 rounded-lg border p-4 shadow-lg"
+          padding="md"
+          shadow="md"
+          className="fixed right-4 bottom-4 z-50 flex max-w-sm flex-col gap-3"
         >
           <div className="flex flex-col gap-1">
-            <p className="text-fg-base text-sm font-medium">
-              {updateAction.title}
-            </p>
-            <p className="text-fg-muted text-xs">{updateAction.description}</p>
+            <Text variant="label">{updateAction.title}</Text>
+            <Text variant="caption">{updateAction.description}</Text>
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => setUpdateAction(null)}
-              className="text-fg-muted hover:text-fg-base inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
             >
               {t('dismiss')}
-            </button>
-            <button
-              type="button"
-              onClick={updateAction.onUpdate}
-              className="bg-fg-base text-bg-base inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors hover:opacity-90"
-            >
+            </Button>
+            <Button type="button" size="sm" onClick={updateAction.onUpdate}>
               {updateAction.buttonLabel}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       ) : null}
       {offlineReady ? (
-        <div
+        <Card
           role="status"
           aria-live="polite"
-          className="border-border-base bg-bg-base fixed right-4 bottom-4 z-50 max-w-sm rounded-lg border px-4 py-3 shadow-lg"
+          padding="md"
+          shadow="md"
+          className="fixed right-4 bottom-4 z-50 max-w-sm"
         >
-          <p className="text-fg-base text-sm font-medium">{offlineReady}</p>
-        </div>
+          <Text variant="label">{offlineReady}</Text>
+        </Card>
       ) : null}
     </>
   );

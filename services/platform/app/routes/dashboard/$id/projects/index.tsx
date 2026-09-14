@@ -1,10 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
-
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { PageLayout } from '@/app/components/layout/page-layout';
+} from '@tale/ui/adaptive-header';
+import { PageLayout } from '@tale/ui/page-layout';
+import { createFileRoute } from '@tanstack/react-router';
+
 import { ProjectsTable } from '@/app/features/projects/components/projects-table';
 import { projectsOverviewArgs } from '@/app/features/projects/hooks/queries';
 import { projectsOverviewQuery } from '@/app/lib/backend/projects';

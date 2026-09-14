@@ -20,7 +20,9 @@
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { SubPanelSectionHeader } from '@tale/ui/sub-panel-list';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
 import { useNavigate } from '@tanstack/react-router';
 import {
   FolderPlus,
@@ -33,8 +35,6 @@ import {
   ChatRowsSkeleton,
   ProjectRowsSkeleton,
 } from '@/app/components/layout/chat-history-skeleton';
-import { SubPanelSectionHeader } from '@/app/components/layout/sub-panel-list';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ChatSearchTrigger } from '@/app/features/chat/components/chat-search-trigger';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';

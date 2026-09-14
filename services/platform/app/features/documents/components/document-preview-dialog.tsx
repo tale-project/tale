@@ -2,6 +2,9 @@
 
 import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { DocumentIcon } from '@tale/ui/document-icon';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
@@ -9,20 +12,18 @@ import { Separator } from '@tale/ui/separator';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { useToast } from '@tale/ui/use-toast';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFileUrl } from '@/app/features/shared/files/use-file-url';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
+import { documentIconExtension } from '@/lib/shared/file-types';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import type { Document } from '../hooks/queries';
@@ -275,7 +276,7 @@ export function DocumentPreviewDialog({
               <HStack gap={3} className="min-w-0">
                 <DocumentIcon
                   fileName={displayName}
-                  mimeType={doc?.mimeType}
+                  extension={documentIconExtension(displayName, doc?.mimeType)}
                   className="size-8 shrink-0"
                 />
                 <Stack gap={1} className="min-w-0">
@@ -327,7 +328,7 @@ export function DocumentPreviewDialog({
               <HStack gap={3} className="min-w-0">
                 <DocumentIcon
                   fileName={displayName}
-                  mimeType={doc?.mimeType}
+                  extension={documentIconExtension(displayName, doc?.mimeType)}
                   className="size-8 shrink-0"
                 />
                 <Stack gap={1} className="min-w-0">

@@ -2,12 +2,12 @@
 
 import type { StorableAuthMethodName } from '@tale/shared/schemas/connectors';
 import { Button } from '@tale/ui/button';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { Link2, RefreshCw } from 'lucide-react';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   looseMutation,
   type CredentialAdapter,

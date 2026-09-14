@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -49,11 +49,11 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: canMock }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatDate: (date: Date) => date.toISOString(),
   }),

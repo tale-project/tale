@@ -1,10 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { GoogleIcon } from '@tale/ui/icons/google-icon';
 import { RefreshCw } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
-import { GoogleIcon } from '@/app/components/icons/google-icon';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';

@@ -1,10 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
-
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
-} from '@/app/components/layout/adaptive-header';
-import { PageLayout } from '@/app/components/layout/page-layout';
+} from '@tale/ui/adaptive-header';
+import { PageLayout } from '@tale/ui/page-layout';
+import { createFileRoute } from '@tanstack/react-router';
+
 import { AutomationsList } from '@/app/features/automations/components/automations-list';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';

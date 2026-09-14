@@ -1,10 +1,10 @@
 'use client';
 
 import { Card } from '@tale/ui/card';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useT } from '@/lib/i18n/client';
 
 function downloadBackupCodes(codes: string[]) {

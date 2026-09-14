@@ -19,19 +19,19 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { IconButton } from '@tale/ui/icon-button';
+import { LabeledValue, LabeledValueGroup } from '@tale/ui/labeled-value';
 import { Row, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useCopyButton } from '@tale/ui/use-copy';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
-import { useCopyButton } from '@/app/hooks/use-copy';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { messageVoiceUsageQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
@@ -337,7 +337,7 @@ export function MessageInfoDialog({
         size="md"
         className="md:max-w-[500px]"
       >
-        <FieldGroup gap={4} className="min-w-0 shrink-0">
+        <LabeledValueGroup gap={4} className="min-w-0 shrink-0">
           <div>
             <Button
               size="sm"
@@ -349,7 +349,7 @@ export function MessageInfoDialog({
               {tCommon('actions.back')}
             </Button>
           </div>
-          <Field label={t('messageInfo.ttftBreakdown')}>
+          <LabeledValue label={t('messageInfo.ttftBreakdown')}>
             <StatGrid className="text-sm" items={breakdownItems} />
             <Text
               as="div"
@@ -358,8 +358,8 @@ export function MessageInfoDialog({
             >
               {t('messageInfo.ttftBreakdownHint')}
             </Text>
-          </Field>
-        </FieldGroup>
+          </LabeledValue>
+        </LabeledValueGroup>
       </Dialog>
     );
   }
@@ -375,17 +375,17 @@ export function MessageInfoDialog({
     >
       {/* shrink-0, not overflow-hidden: hidden on a flex child zeroes
           min-height and clips the clocks the body should scroll. */}
-      <FieldGroup gap={4} className="min-w-0 shrink-0">
-        <Field label={t('messageInfo.timestamp')}>
+      <LabeledValueGroup gap={4} className="min-w-0 shrink-0">
+        <LabeledValue label={t('messageInfo.timestamp')}>
           <Text as="div">
             {formatDate(new Date(message.createdAt), 'long')}
           </Text>
           <Text as="div" variant="muted" className="text-xs">
             {formatRelativeTime(message.createdAt, locale, serverEpochNow())}
           </Text>
-        </Field>
+        </LabeledValue>
 
-        <Field label={t('messageInfo.messageId')}>
+        <LabeledValue label={t('messageInfo.messageId')}>
           <Row gap={1}>
             <Text
               as="div"
@@ -402,10 +402,10 @@ export function MessageInfoDialog({
               onClick={handleCopyId}
             />
           </Row>
-        </Field>
+        </LabeledValue>
 
         {message.model !== undefined && (
-          <Field label={t('messageInfo.model')}>
+          <LabeledValue label={t('messageInfo.model')}>
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant="outline">{message.model}</Badge>
               {message.providerSlug !== undefined && (
@@ -414,17 +414,17 @@ export function MessageInfoDialog({
                 </Text>
               )}
             </div>
-          </Field>
+          </LabeledValue>
         )}
 
         {tokenItems.length > 0 && (
-          <Field label={t('messageInfo.tokenUsage')}>
+          <LabeledValue label={t('messageInfo.tokenUsage')}>
             <StatGrid className="text-sm" items={tokenItems} />
-          </Field>
+          </LabeledValue>
         )}
 
         {hasPerf && (
-          <Field label={t('messageInfo.performance')}>
+          <LabeledValue label={t('messageInfo.performance')}>
             {yourWaitItems.length > 0 && (
               <div>
                 <Text as="div" variant="label" className="mb-1">
@@ -450,11 +450,11 @@ export function MessageInfoDialog({
                 {t('messageInfo.performanceHint')}
               </Text>
             )}
-          </Field>
+          </LabeledValue>
         )}
 
         {voiceUsage != null && voiceUsage.breakdown.length > 0 && (
-          <Field label={t('messageInfo.voiceOutput')}>
+          <LabeledValue label={t('messageInfo.voiceOutput')}>
             <Stack gap={2}>
               {voiceUsage.breakdown.map((entry, index) => (
                 <div
@@ -496,32 +496,32 @@ export function MessageInfoDialog({
                 </Text>
               )}
             </Stack>
-          </Field>
+          </LabeledValue>
         )}
 
         {toolCalls.length > 0 && (
-          <Field label={t('messageInfo.toolCalls')}>
+          <LabeledValue label={t('messageInfo.toolCalls')}>
             <Stack gap={2}>
               {toolCalls.map((call) => (
                 <ToolCallCard key={call.callId} call={call} t={t} />
               ))}
             </Stack>
-          </Field>
+          </LabeledValue>
         )}
 
         {message.blockedReason !== undefined && (
-          <Field label={t('messageInfo.blockedReason')}>
+          <LabeledValue label={t('messageInfo.blockedReason')}>
             <Text as="div" className="text-sm">
               {message.blockedReason}
             </Text>
-          </Field>
+          </LabeledValue>
         )}
         {message.error !== undefined && (
-          <Field label={t('messageInfo.error')}>
+          <LabeledValue label={t('messageInfo.error')}>
             <Text as="div" className="text-sm">
               {message.error}
             </Text>
-          </Field>
+          </LabeledValue>
         )}
 
         {noMetadata && (
@@ -529,7 +529,7 @@ export function MessageInfoDialog({
             {t('messageInfo.noMetadata')}
           </Text>
         )}
-      </FieldGroup>
+      </LabeledValueGroup>
     </Dialog>
   );
 }

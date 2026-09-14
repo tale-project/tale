@@ -54,6 +54,7 @@ export function defineI18nTests(config: I18nTestsConfig): void {
     scanRoots: config.scanRoots,
     allowlistPath: config.allowlistPath,
     allowlistDisplayPath: config.allowlistDisplayPath,
+    packageCatalogs: config.packageCatalogs,
     glossary: () => {
       if (!glossaryHandle) glossaryHandle = loadGlossary();
       return glossaryHandle;

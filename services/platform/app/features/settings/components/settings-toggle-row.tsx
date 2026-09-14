@@ -1,11 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
+import { Switch } from '@tale/ui/switch';
 import { forwardRef, useId, type ComponentRef, type ReactNode } from 'react';
-
-import { Switch } from '@/app/components/ui/forms/switch';
-import { cn } from '@/lib/utils/cn';
 
 interface SettingsToggleRowProps {
   /** Row label (e.g. "Voice output"). Wired to the Switch via aria-labelledby. */

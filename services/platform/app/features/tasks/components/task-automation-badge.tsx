@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
 import { Workflow } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useTaskSubjectContract,

@@ -2,14 +2,14 @@
 
 import { type ModerationResponseShape } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { FormSection } from '@tale/ui/form-section';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
+import { Textarea } from '@tale/ui/textarea';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomJsonPathSection } from './moderation-custom-json-path-section';

@@ -10,9 +10,15 @@ import {
 } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { HStack, Stack } from '@tale/ui/layout';
+import { MultiSelect } from '@tale/ui/multi-select';
+import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import {
   Table,
   TableBody,
@@ -22,15 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { useToast } from '@tale/ui/use-toast';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { MultiSelect } from '@/app/components/ui/forms/multi-select';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -43,7 +44,6 @@ import {
   ModelInfoPopover,
 } from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 

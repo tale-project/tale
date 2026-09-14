@@ -1,10 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Tooltip } from '@tale/ui/tooltip';
 import { Search } from 'lucide-react';
 
 import { useOptionalSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 
 export interface ChatSearchTriggerProps {

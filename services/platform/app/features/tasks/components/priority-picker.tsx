@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+} from '@tale/ui/searchable-select';
+import { Tooltip } from '@tale/ui/tooltip';
+
 import { useT } from '@/lib/i18n/client';
 
 import { TASK_PRIORITY_ORDER, type TaskPriority } from '../lib/display';

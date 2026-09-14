@@ -1,3 +1,4 @@
+import { pickFilterOption } from '@tale/ui/testing/filters';
 import { useState, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,7 +7,6 @@ import {
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { pickFilterOption } from '@/tests/utils/filters';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
@@ -133,7 +133,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: toastSpy,
   useToast: () => ({ toast: toastSpy }),
 }));

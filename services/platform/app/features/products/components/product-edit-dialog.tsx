@@ -1,17 +1,17 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { Grid } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
+import { Textarea } from '@tale/ui/textarea';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { toast } from '@/app/hooks/use-toast';
 import {
   isIso4217Currency,
   PRODUCT_CATEGORY_MAX,

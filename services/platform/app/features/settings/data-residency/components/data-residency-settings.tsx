@@ -32,10 +32,10 @@
  * on dev/deploy).
  */
 
+import { EditorGroup } from '@tale/ui/editor';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';

@@ -1,11 +1,11 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Ban, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { parseMentionTokens } from '@/backend/core/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useMentionTriggerPreview } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';

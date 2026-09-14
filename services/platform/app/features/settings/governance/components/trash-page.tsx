@@ -1,21 +1,21 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import {
   SOFT_DELETE_RESOURCE_TYPES,
   type SoftDeleteResourceType,

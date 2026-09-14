@@ -2,6 +2,9 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { cn } from '@tale/ui/cn';
+import { ContentArea } from '@tale/ui/content-area';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -9,10 +12,7 @@ import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { ChevronRight, Plus } from 'lucide-react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { BOARD_TASK_STATUSES } from '../lib/display';
 import type { TaskView } from '../lib/view';

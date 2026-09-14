@@ -1,5 +1,6 @@
 'use client';
 
+import { formatFileSize } from '@tale/ui/format';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
@@ -15,7 +16,6 @@ import {
 } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
-import { formatFileSize } from '@/lib/utils/format/file';
 
 import { useChatQueryClient } from '../data/chat-backend';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';

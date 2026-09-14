@@ -1,0 +1,107 @@
+seo:
+  siteTitle: Das Tale Design-System
+  ogImageAlt: Tale — Der Orchestrator für KI-Agents
+nav:
+  homeAriaLabel: Startseite des Tale Design-Systems
+  skipToMain: Zum Hauptinhalt springen
+  sidebarAriaLabel: Dokumentation des Design-Systems
+  openSearch: Suche öffnen
+  openMenu: Navigationsmenü öffnen
+  closeMenu: Navigationsmenü schließen
+  docs: Doku
+  components: Komponenten
+  github: GitHub
+  groups:
+    gettingStarted: Erste Schritte
+    foundations: Grundlagen
+    components: Komponenten
+    patterns: Muster
+    marketingUi: Marketing UI
+docs:
+  onThisPage: Auf dieser Seite
+  breadcrumbs: Brotkrumennavigation
+  home: Doku
+  editOnGithub: Diese Seite auf GitHub bearbeiten
+  previous: Zurück
+  next: Weiter
+  pagination: Seitennavigation
+  readingTime: '{minutes} Min. Lesezeit'
+  searchTrigger: Suchen
+  notFoundTitle: Seite nicht gefunden
+  notFoundBody: Diese Seite gehört nicht zur Design-System-Doku. Fang bei der
+    Einführung an oder such nach der Komponente, die du brauchst.
+  notFoundBackHome: Zurück zur Einführung
+  pageActions:
+    copyPage: Seite kopieren
+    copied: Kopiert
+    viewMarkdown: Als Markdown anzeigen
+    openIn: Öffnen in
+    openChatGpt: In ChatGPT öffnen
+    openClaude: In Claude öffnen
+    openCursor: In Cursor öffnen
+demo:
+  preview: Live-Beispiel
+  showCode: Code
+  hideCode: Code ausblenden
+  missingTitle: Unbekanntes Beispiel
+  missingBody: Unter „{name}“ ist kein Beispiel registriert. Leg
+    app/demos/{name}.tsx an und verlinke es aus einer Seite.
+home:
+  heroTitle: Das Tale Design-System
+  heroDescription: Zwei Designsprachen, ein System — @tale/ui baut das Produkt,
+    @tale/marketing-ui die Website drumherum. Jede Komponente auf dieser Seite
+    ist echt und läuft in deinem Browser.
+  heroPrimary: Zur Doku
+  heroSecondary: Auf GitHub ansehen
+  showcaseTitle: Echte Komponenten statt Screenshots
+  showcaseDescription: Das Fenster unten rendert das ausgelieferte Paket. Wechsle
+    dein Theme und es zieht mit, denn es liest dieselben Tokens wie das Produkt.
+  showcaseWindowTitle: Workspace-Einstellungen
+  showcaseFormLegend: Allgemein
+  showcaseNameLabel: Name des Workspace
+  showcaseNameValue: Northwind Trading
+  showcaseRegionLabel: Datenregion
+  showcaseRegionSwitzerland: Schweiz
+  showcaseRegionGermany: Deutschland
+  showcaseRegionIreland: Irland
+  showcaseDigestLabel: Wochenrückblick
+  showcaseDigestDescription: Montags eine Zusammenfassung an alle Mitglieder senden.
+  showcaseTabGeneral: Allgemein
+  showcaseTabMembers: Mitglieder
+  showcaseTableCaption: Mitglieder dieses Workspace
+  showcaseColumnName: Name
+  showcaseColumnRole: Rolle
+  showcaseColumnStatus: Status
+  showcaseRoleAdmin: Verwaltung
+  showcaseRoleEditor: Redakteur
+  showcaseRoleMember: Mitglied
+  showcaseStatusActive: Aktiv
+  showcaseStatusInvited: Eingeladen
+  sectionsTitle: Wie es weitergeht
+  sectionsDescription: Fünf Bereiche, jeder mit einer eigenen Frage an das System.
+  sectionsGettingStarted: Pakete installieren, ihr Zusammenspiel verstehen,
+    Theming und Übersetzungen einrichten.
+  sectionsFoundations: Die Tokens unter jeder Komponente — Farbe, Typografie,
+    Abstände, Icons, Barrierefreiheit.
+  sectionsComponents: Eine Seite pro Komponente, jeweils mit Live-Beispielen und
+    der Props-Tabelle aus dem Quelltext.
+  sectionsPatterns: Wie sich die Komponenten zu den Screens zusammensetzen, die
+    das Produkt tatsächlich ausliefert.
+  sectionsMarketingUi: Die Website-Chrome, die Marketing-Primitive und die
+    Demo-Rahmen, aus denen tale.dev entsteht.
+  installTitle: In dein eigenes Repository einbauen
+  installDescription: Die Pakete liefern TypeScript-Quelltext aus, keinen Build.
+    Pinne den Snapshot-Branch — oder ein Release-Tag für eine reproduzierbare
+    Installation.
+  installCodeLabel: package.json
+  installDocsLink: Zur Installationsanleitung
+  closingTitle: Fang bei der Einführung an
+  closingDescription: Sie erklärt die zwei Designsprachen, wie die Pakete
+    zusammenhängen und was stattdessen in einen Service gehört.
+  closingPrimary: Einführung lesen
+  closingSecondary: Zur Button-Seite
+footer:
+  copyrightLine1: © {year} Tale by Ruler GmbH
+  copyrightLine2: Tale ist MIT-lizenziert — frei nutzbar, anpassbar und verteilbar.
+  llmsTxt: llms.txt
+  github: GitHub

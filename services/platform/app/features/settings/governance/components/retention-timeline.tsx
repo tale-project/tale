@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface Props {
   /** Days a row stays in the trash bucket before Pass B physically deletes it. */

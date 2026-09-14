@@ -2,19 +2,19 @@
 
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
-import { Plus, X } from 'lucide-react';
-import { useMemo } from 'react';
-
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { toast } from '@/app/hooks/use-toast';
+} from '@tale/ui/searchable-select';
+import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
+import { Plus, X } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useAddTaskDependency,

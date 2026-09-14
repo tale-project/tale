@@ -20,7 +20,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 // ── i18n (identity: assertions target the raw keys) ─────────────────────────
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (_ns: string) => ({ t: (key: string) => key }),
 }));
 
@@ -43,7 +43,7 @@ vi.mock('@/app/features/auth/hooks/queries', () => ({
 vi.mock('@/app/hooks/use-react-query-client', () => ({
   useReactQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { email: vi.fn() } },
 }));

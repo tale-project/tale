@@ -1,3 +1,7 @@
+import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { DemoStreamText } from '@tale/marketing-ui/demo-stream-text';
+import { DemoTypingText } from '@tale/marketing-ui/demo-typing-text';
+import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowUp,
@@ -21,10 +25,6 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { type ChatScenario, useChatScenario } from './demo-scenarios';
-import { DemoShell } from './demo-shell';
-import { DemoStreamText } from './demo-stream-text';
-import { DemoTypingText } from './demo-typing-text';
-import { useDemoTimeline } from './use-demo-timeline';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

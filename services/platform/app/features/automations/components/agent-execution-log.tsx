@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -23,7 +24,6 @@ import {
   type TimelinePart,
 } from '@/lib/harnesses/timeline';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /** Compact one-line rendering of a tool call's input — enough to tell WHICH
  * file/command the step touched without unfolding it. */

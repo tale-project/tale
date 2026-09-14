@@ -11,7 +11,7 @@
           {
             "name": "react-hook-form",
             "importNames": ["useForm"],
-            "message": "Import { useForm } from '@/app/components/ui/forms/use-form' so validation timing (mode: 'onTouched') stays consistent app-wide (#1943)."
+            "message": "Import { useForm } from '@tale/ui/use-form' so validation timing (mode: 'onTouched') stays consistent app-wide (#1943)."
           }
         ]
       }
@@ -38,12 +38,6 @@
     "jsx-a11y/no-noninteractive-tabindex": "off"
   },
   "overrides": [
-    {
-      "files": ["app/components/ui/forms/use-form.ts"],
-      "rules": {
-        "eslint/no-restricted-imports": "off"
-      }
-    },
     {
       "files": ["backend/core/**/*.ts"],
       "rules": {

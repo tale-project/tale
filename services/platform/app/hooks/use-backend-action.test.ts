@@ -8,11 +8,11 @@ const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 // function by name, so those collaborators are mocked exactly like the sibling
 // `use-backend-mutation` suite. Without them the hook cannot be called outside a
 // React render: `useTranslation` reaches for a context that does not exist.
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: mockToast,
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 

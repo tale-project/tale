@@ -405,14 +405,6 @@ auth:
     defaultName: Utilisateur
     manageAccount: Gérer le compte
     getApp: Installer l'app
-    iosInstall:
-      title: Installer Tale
-      description:
-        Ajoute Tale à ton écran d'accueil pour l'ouvrir en plein écran,
-        comme une app.
-      step1: Appuie sur « Partager » dans la barre d'outils de ton navigateur.
-      step2: Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».
-      done: OK
     documentation: Documentation
     currentVersion: 'Version actuelle : v{version}'
     whatsNew: Nouveautés
@@ -1502,45 +1494,18 @@ chat:
   budgetWarningTypeCost: coût
   budgetWarningTypeRequests: requête
 common:
-  optional: facultatif
   or: ou
   select:
-    noOptionsHint: Rien à choisir pour l'instant.
     noProvidersHint: Ajoute d'abord un fournisseur IA.
     pickProviderFirstHint: Choisis d'abord un fournisseur — ses modèles apparaissent ici.
-  dates:
-    today: Aujourd'hui
-    yesterday: Hier
-  datePicker:
-    placeholder: Choisir une date
-    previousMonth: Mois précédent
-    nextMonth: Mois suivant
-    presets:
-      custom: Personnalisé
-      today: Aujourd'hui
-      last7Days: 7 derniers jours
-      last14Days: 14 derniers jours
-      last30Days: 30 derniers jours
-      last3Months: 3 derniers mois
-      last12Months: 12 derniers mois
-      monthToDate: Mois en cours
-      quarterToDate: Trimestre en cours
-      yearToDate: Année en cours
-      allTime: Tout le temps
   units:
     stock: '{count, plural, one {# unité} other {# unités}}'
   actions:
-    save: Enregistrer
     saving: Enregistrement...
-    saved: Enregistré
-    cancel: Annuler
-    delete: Supprimer
-    deleting: Suppression...
     edit: Modifier
     adding: Ajout...
     create: Créer
     close: Fermer
-    confirm: Confirmer
     back: Retour
     next: Suivant
     skip: Passer
@@ -1549,47 +1514,12 @@ common:
     done: Terminé
     view: Voir
     viewSource: Voir la source
-    source: Source
-    copy: Copier
-    copied: Copié
     showInfo: Afficher les informations
-    clearAll: Tout effacer
-    reset: Réinitialiser
-    discard: Abandonner
     import: Importer
     importing: Importation...
-    openMenu: Ouvrir le menu
-    deleteSelected: Supprimer la sélection
-    archiveSelected: Archiver la sélection
-    tryAgain: Réessayer
-  unsavedChanges:
-    title: Modifications non enregistrées
-    description: Tu as des modifications non enregistrées. Quitter maintenant les fera disparaître.
-    stay: Continuer à modifier
-    discardAndLeave: Abandonner & Quitter
-  editor:
-    fixHighlightedFields: Corrige les champs surlignés et réessaie.
-  confirmDialog:
-    typeToConfirmLabel: Tape "{phrase}" pour confirmer
-  bulkActions:
-    itemsSelected:
-      '{count, plural, one {# élément sélectionné} other {# éléments
-      sélectionnés}}'
-    confirmDeleteTitle: Supprimer {count, plural, one {# élément} other {# éléments}}
-    confirmDeleteDescription: 'Supprimer {count, plural, one {cet élément} other {ces {count} éléments}} ? Cette action est irréversible.'
-    deleteSuccess: '{count, plural, one {# élément supprimé} other {# éléments supprimés}}'
-    deleteFailed: Échec de la suppression de certains éléments
-    deleting: Suppression...
-    confirmArchiveTitle: Archiver {count, plural, one {# élément} other {# éléments}}
-    confirmArchiveDescription: 'Archiver {count, plural, one {cet élément} other {ces {count} éléments}} ? Tu pourras {count, plural, one {le} other {les}} restaurer plus tard.'
-    archiveSuccess: '{count, plural, one {# élément archivé} other {# éléments archivés}}'
-    archiveFailed: Échec de l'archivage de certains éléments
-    archiving: Archivage...
   upload:
     clickToUpload: Clique pour téléverser
-    dropFilesHere: Dépose les fichiers ici pour téléverser
     supportedFormats: .xlsx, .xls ou .csv
-    pickADate: Choisir une date
   labels:
     phone: Téléphone
     source: Source
@@ -1598,10 +1528,7 @@ common:
     tags: Tags
     notes: Notes
     created: Créé
-    filter: Filtre
-    filters: Filtres
     notAvailable: N/D
-    nSelected: '{count} sélectionné(s)'
   status:
     active: Actif
     inactive: Inactif
@@ -1620,39 +1547,18 @@ common:
     required: '{field} est requis'
     maxLength: '{field} ne doit pas dépasser {max} caractères'
     email: Entre une adresse email valide
-    invalidJson: Format JSON invalide
     uploadFile: Téléverse un fichier
     unsupportedFileType: Type de fichier non pris en charge
-    schemaValidationFailed:
-      'Échec de la validation du schéma{error, select, empty
-      {} other { : {error}}}'
   aria:
-    close: Fermer
-    rowActions: Actions de la ligne
-    resizePanel: Redimensionner le panneau
-    hidePassword: Masquer le mot de passe
-    showPassword: Afficher le mot de passe
     dismiss: Ignorer
-    previousPage: Page précédente
-    nextPage: Page suivante
-    goToPage: Aller à la page
     zoomIn: Zoom avant
     zoomOut: Zoom arrière
-    selectAll: Tout sélectionner
-    selectRow: Sélectionner la ligne
-    removeFile: Supprimer le fichier
     removeNamed: Retirer {name}
     unread: Non lu
     completed: Terminé
-    back: Retour
     backTo: Retour à {page}
     breadcrumb: Fil d'Ariane
     knowledgeNavigation: Navigation de la base de connaissances
-    moreInfo: Plus d'informations
-    valid: valide
-    invalid: invalide
-    validationRequirements: Exigences de validation
-    validationStatus: '{message} : {status}'
     skipToContent: Aller au contenu principal
     mainNavigation: Navigation principale
     projectsNavigation: Navigation des projets
@@ -1660,25 +1566,6 @@ common:
     sortAscending: trié par ordre croissant
     sortDescending: trié par ordre décroissant
     sortAvailable: tri disponible
-    unsavedChanges: Modifications non enregistrées
-    moreTabs: Autres onglets
-    scrollDown: Défiler vers le bas
-  pagination:
-    rowsPerPage: Lignes par page
-    showing: '{start}-{end} sur {total}'
-    loadMore: Charger plus
-    loading: Chargement...
-    noMore: Plus d'éléments à charger
-    showingAll: '{count, plural, one {Affichage de # {entityOne} au total} other
-      {Affichage de # {entityOther} au total}}'
-    showingFiltered: '{total, plural, one {Affichage de {filtered} sur #
-      {entityOne}} other {Affichage de {filtered} sur # {entityOther}}}'
-    showingRange: '{total, plural, one {Affichage de {start}-{end} sur #
-      {entityOne}} other {Affichage de {start}-{end} sur # {entityOther}}}'
-  search:
-    noResults: Aucun résultat trouvé
-    tryAdjusting: Essaie d'ajuster tes critères de recherche
-    placeholder: Rechercher
   mentions:
     unresolvedTitle: Mention non reconnue
     unresolvedDescription:
@@ -1687,32 +1574,14 @@ common:
   errors:
     generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
-    somethingWentWrong: Une erreur s'est produite. Réessaie.
-    errorLoadingPage:
-      Une erreur s'est produite lors du chargement de cette page. Tu
-      peux réessayer ou naviguer vers une autre section.
-    persistsProblem: Si ce problème persiste,
-    contactSupport: contacter le support
-    tryAgain: Réessayer
-    showDetails: Afficher les détails
-    hideDetails: Masquer les détails
-  keyboardShortcuts:
-    ctrlEnter: Ctrl+Entrée
-    escape: Échap
-    hintToSave: pour enregistrer,
-    hintToCancel: pour annuler
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
     backToDashboard: Retour au tableau de bord
-  discardChangesConfirm: Abandonner les modifications non enregistrées ?
   moveUp: Monter
   moveDown: Descendre
   drag: Glisser pour réordonner
   remove: Retirer
-  loading:
-    navigating: Chargement de la page
-    label: Chargement
   sessionIdle:
     warningTitle: Tu vas bientôt être déconnecté
     warningDescription: Ta session prend fin après une période d'inactivité.
@@ -1722,14 +1591,6 @@ common:
       Tu as été déconnecté parce que ta session est restée inactive
       trop longtemps.
     continueToSignIn: Continuer vers la connexion
-  dataTable:
-    dateFilterUnavailable: Filtre de date indisponible
-  flow:
-    zoomIn: Zoomer
-    zoomOut: Dézoomer
-    resetView: Réinitialiser la vue
-    aiEditor: Éditeur IA
-  moreTabs: Plus
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
@@ -4118,13 +3979,6 @@ metrics:
     external-turns: Tours de harness
     automations: Automatisations
     projects: Projets
-  period:
-    label: Période
-    last24Hours: Dernières 24 heures
-    last7Days: 7 derniers jours
-    last30Days: 30 derniers jours
-    last90Days: 90 derniers jours
-    allTime: Tout l'historique
   projects:
     selectLabel: Projet
     selectPlaceholder: Sélectionner un projet
@@ -4984,11 +4838,6 @@ skills:
     bodyHelp:
       Le markdown que le modèle lit quand il charge le skill — playbooks,
       conventions, référence. Jamais exécuté.
-pwa:
-  updateAvailableTitle: Mise à jour disponible
-  updateAvailableDescription: Une nouvelle version de Tale est prête.
-  updateNow: Mettre à jour
-  offlineReady: Tale est prêt à fonctionner hors ligne.
 settings:
   menu:
     groups:
@@ -5195,16 +5044,6 @@ settings:
       l'équipe pour retirer le dernier membre.
     description: Crée et gère des équipes au sein de ton organisation pour un
       contrôle d'accès granulaire
-  agents:
-    form:
-      addModel: Ajouter un modèle
-      searchModels: Rechercher des modèles
-      noModelsFound: Aucun modèle trouvé
-      removeModel: Retirer
-      modelSelector:
-        moveUp: Déplacer le modèle vers le haut
-        moveDown: Déplacer le modèle vers le bas
-        dragHandle: Glisser pour réorganiser le modèle
   credentials:
     default: Par défaut
     makeDefault: Définir par défaut
@@ -6917,7 +6756,6 @@ tables:
     uploadedBy: Téléversé par
     actions: Actions
     created: Ajouté
-    description: Description
     email: Courriel
     product: Produit
     scanned: Analysé
@@ -6931,9 +6769,6 @@ tables:
     noEmail: Aucun email
 toast:
   success:
-    deleted:
-      title: Supprimé
-      description: L'élément a été supprimé.
     passwordChanged:
       title: Mot de passe modifié
       description: Utilise ton nouveau mot de passe lors de ta prochaine connexion.
@@ -7679,23 +7514,3 @@ sandboxes:
       Les espaces apparaissent lorsqu'un agent de projet ou un workflow démarre.
       Les chiffres de capacité ci-dessus incluent les sessions temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
-envEditor:
-  confirmRemoveTitle: Supprimer la variable ?
-  confirmRemoveDescription: Elle sera supprimée lorsque tu enregistreras tes
-    modifications. Cette action est irréversible.
-  keyPlaceholder: NOM
-  valuePlaceholder: valeur
-  secret: Secret
-  valueType: Type
-  typeValue: Valeur
-  typeTokenSource: Source de jetons
-  add: Ajouter une variable
-  remove: Supprimer
-  save: Enregistrer
-  saving: Enregistrement…
-  saved: Environnement enregistré
-  saveError: Impossible d'enregistrer l'environnement
-  badKey:
-    « {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret
-    bas ; ne doit pas commencer par un chiffre).
-  dupKey: Nom de variable en double — chaque NOM doit être unique.

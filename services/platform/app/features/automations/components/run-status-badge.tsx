@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
 import {
   Ban,
   CheckCircle2,
@@ -13,7 +14,6 @@ import {
 import type * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { NodeRunStatus, RunStatus } from '../lib/run-view';
 

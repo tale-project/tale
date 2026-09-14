@@ -1,23 +1,23 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Dialog } from '@tale/ui/dialog/dialog';
+import { Input } from '@tale/ui/input';
 import { Grid, Row } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
+import { useForm } from '@tale/ui/use-form';
+import { toast } from '@tale/ui/use-toast';
+import { type WizardStepMeta } from '@tale/ui/wizard/use-wizard';
+import { Wizard, WizardStep } from '@tale/ui/wizard/wizard';
+import { WizardFooter } from '@tale/ui/wizard/wizard-footer';
+import { WizardProgress } from '@tale/ui/wizard/wizard-progress';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useForm } from '@/app/components/ui/forms/use-form';
-import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
-import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
-import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
-import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
+import { Image } from '@/app/components/image';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { toast } from '@/app/hooks/use-toast';
 import {
   isIso4217Currency,
   PRODUCT_CATEGORY_MAX,

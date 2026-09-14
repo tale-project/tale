@@ -1,9 +1,9 @@
 'use client';
 
 import { SECRETS_ENV_PREFIX } from '@tale/shared/schemas/providers';
+import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
 
-import { Input } from '@/app/components/ui/forms/input';
 import {
   looseMutation,
   type CredentialAdapter,

@@ -1,12 +1,12 @@
-import { screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   EditorActions,
   useActiveEditor,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -38,7 +38,7 @@ const {
   toastMock: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastMock }),
   toast: toastMock,
 }));

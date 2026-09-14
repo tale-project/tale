@@ -35,6 +35,8 @@ interface StaticSiteProbe {
   contentTypeIncludes?: string;
   /** When true, require a Cache-Control header to be present. */
   expectCacheControl?: boolean;
+  /** Optional substring that must appear in the response body. */
+  bodyIncludes?: string;
 }
 
 interface StaticSiteTestOptions {
@@ -219,6 +221,14 @@ export async function runStaticSiteTest(
         const cc = res.headers.get('cache-control');
         if (cc) r.pass(`${svc}: ${probe.path} has Cache-Control`);
         else r.fail(`${svc}: ${probe.path} missing Cache-Control`);
+      }
+      if (res && probe.bodyIncludes) {
+        const body = await res.text().catch(() => '');
+        if (body.includes(probe.bodyIncludes)) {
+          r.pass(`${svc}: ${probe.path} body includes ${probe.bodyIncludes}`);
+        } else {
+          r.fail(`${svc}: ${probe.path} body missing ${probe.bodyIncludes}`);
+        }
       }
     }
 

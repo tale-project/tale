@@ -1,6 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { Image } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -9,9 +11,7 @@ import {
   getDocumentPreviewKind,
   mimeToExtension,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 import { getFileExtension } from '@/lib/utils/document-helpers';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
 import {

@@ -20,6 +20,7 @@ on:
       - 'services/web/**'
       - 'services/docs/**'
       - 'packages/ui/**'
+      - 'packages/marketing-ui/**'
       - 'packages/e2e/**'
       - '.github/workflows/e2e.yml'
       - '.github/actions/setup-turbo/**'

@@ -1,9 +1,12 @@
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
+import { FormSection } from '@tale/ui/form-section';
 import { Row, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import {
   FolderPlus,
@@ -14,9 +17,6 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { useT } from '@/lib/i18n/client';
 
 /** Shared frames keep the chunk fallback's header and body inset in step. */

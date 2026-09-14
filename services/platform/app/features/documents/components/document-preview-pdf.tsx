@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import {
   ChevronUp,
@@ -30,7 +31,6 @@ import React, {
 } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 // The pdfjs viewer entrypoint reads its core API from `globalThis.pdfjsLib` on
 // load (see the bootstrap effect below). Declaring it on the global type lets

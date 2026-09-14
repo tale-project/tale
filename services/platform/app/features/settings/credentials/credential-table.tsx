@@ -2,15 +2,15 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 

@@ -1,12 +1,5 @@
-import { cn } from '@tale/ui/cn';
+import { RelatedPages as RelatedPagesPanel } from '@tale/marketing-ui/related-pages';
 
-import {
-  MarketingCard,
-  MarketingPanel,
-  MarketingStack,
-  PageSection,
-  SectionHeading,
-} from '@/app/components/marketing';
 import {
   FOOTER_PLATFORM_PAGES,
   type PlatformPageId,
@@ -23,12 +16,10 @@ interface RelatedPagesProps {
   heading?: string;
 }
 
-function relatedGridClass(count: number): string {
-  if (count <= 1) return 'grid-cols-1';
-  if (count === 2 || count === 4) return 'grid-cols-1 sm:grid-cols-2';
-  return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-}
-
+/**
+ * Related platform modules — resolves page ids through the platform-page
+ * registry (path, icon, nav copy) and hands the rows to the package panel.
+ */
 export function RelatedPages({
   currentId,
   relatedIds,
@@ -41,44 +32,18 @@ export function RelatedPages({
     relatedIds ??
     FOOTER_PLATFORM_PAGES.map((p) => p.id).filter((id) => id !== currentId);
 
-  const pages = ids
+  const items = ids
     .filter((id) => id !== currentId)
-    .map((id) => getPlatformPage(id));
-
-  if (pages.length === 0) return null;
+    .map((id) => getPlatformPage(id))
+    .map((page) => ({
+      id: page.id,
+      to: page.path,
+      title: tNav(`product.${page.navKey}.label`),
+      description: tNav(`product.${page.navKey}.description`),
+      icon: getPlatformIcon(page.id),
+    }));
 
   return (
-    <PageSection pad="xl" border="b">
-      <MarketingStack max="xl" gap="xl" align="stretch">
-        <SectionHeading
-          size="section"
-          as="h2"
-          title={heading ?? t('relatedHeading')}
-          align="start"
-        />
-        <MarketingPanel>
-          <ul
-            role="list"
-            className={cn(
-              'bg-border-base grid gap-px',
-              relatedGridClass(pages.length),
-            )}
-          >
-            {pages.map((page) => (
-              <li key={page.id} className="bg-surface-site-raised">
-                <MarketingCard
-                  to={page.path}
-                  title={tNav(`product.${page.navKey}.label`)}
-                  description={tNav(`product.${page.navKey}.description`)}
-                  icon={getPlatformIcon(page.id)}
-                  className="h-full"
-                  reveal={false}
-                />
-              </li>
-            ))}
-          </ul>
-        </MarketingPanel>
-      </MarketingStack>
-    </PageSection>
+    <RelatedPagesPanel heading={heading ?? t('relatedHeading')} items={items} />
   );
 }

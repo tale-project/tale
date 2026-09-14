@@ -29,7 +29,7 @@ vi.mock('./hooks/queries', () => ({
   useOrgMembersForErasurePicker: () => ({ data: [], isLoading: false }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

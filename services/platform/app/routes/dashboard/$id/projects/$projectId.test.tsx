@@ -47,7 +47,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({ t: (key: string) => `${ns}.${key}` }),
 }));
 
@@ -74,7 +74,7 @@ vi.mock(
 
 // PageLayout / AdaptiveHeaderRoot need an AdaptiveHeaderProvider this test has
 // no reason to stand up — the subject is the tab strip, not the chrome.
-vi.mock('@/app/components/layout/page-layout', () => ({
+vi.mock('@tale/ui/page-layout', () => ({
   PageLayout: ({
     header,
     children,
@@ -89,13 +89,13 @@ vi.mock('@/app/components/layout/page-layout', () => ({
   ),
 }));
 
-vi.mock('@/app/components/layout/adaptive-header', () => ({
+vi.mock('@tale/ui/adaptive-header', () => ({
   AdaptiveHeaderRoot: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
 }));
 
-vi.mock('@/app/components/layout/header-breadcrumbs', () => ({
+vi.mock('@tale/ui/header-breadcrumbs', () => ({
   HEADER_CRUMB_LINK_CLASS: '',
   HeaderBreadcrumbs: ({ leaf }: { leaf?: React.ReactNode }) => (
     <div>{leaf}</div>
@@ -113,7 +113,7 @@ vi.mock('@/app/components/ui/editor', () => ({
 // Render the tab strip as plain links so the test reads what a user would see.
 // Disabled tabs render as spans (mirroring TabNavigation) so All-projects
 // mode can be asserted without the real nav primitive.
-vi.mock('@/app/components/ui/navigation/tab-navigation', () => ({
+vi.mock('@/app/components/navigation/tab-navigation', () => ({
   TabNavigation: ({
     items,
   }: {

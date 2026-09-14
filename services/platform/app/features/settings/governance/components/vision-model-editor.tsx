@@ -4,19 +4,16 @@ import {
   type VisionModelConfig,
   visionModelConfigSchema,
 } from '@tale/shared/schemas/governance';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
 import {
   SettingsFieldList,
   SettingsFieldRow,

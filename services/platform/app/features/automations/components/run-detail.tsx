@@ -3,15 +3,15 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
+import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Ban, SearchX } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import { mergeNodeTypes } from '../hooks/backend';

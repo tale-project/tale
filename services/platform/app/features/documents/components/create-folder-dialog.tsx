@@ -1,16 +1,16 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Select } from '@tale/ui/select';
+import { useForm } from '@tale/ui/use-form';
+import { useToast } from '@tale/ui/use-toast';
 import { useState, useMemo } from 'react';
 import * as z from 'zod';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { useForm } from '@/app/components/ui/forms/use-form';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateFolder } from '../hooks/mutations';

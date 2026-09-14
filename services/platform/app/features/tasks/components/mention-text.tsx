@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 /**
  * Task / description prose: GFM markdown (shared chat renderer) with
  * `@handle` mention pills overlaid on text nodes. Workflow and agent comments
@@ -14,7 +15,6 @@ import {
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {

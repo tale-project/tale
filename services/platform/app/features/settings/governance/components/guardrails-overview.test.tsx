@@ -6,11 +6,11 @@ import { GuardrailsOverview } from './guardrails-overview';
 
 const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({ formatDate: () => 'just now' }),
 }));
 

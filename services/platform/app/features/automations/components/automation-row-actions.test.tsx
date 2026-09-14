@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { toast } from '@/app/hooks/use-toast';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       sites_only:
-        description: 'Build web/docs only; keep platform, CLI and latest tags unchanged'
+        description: 'Build web/docs/ui-docs only; keep platform, CLI and latest tags unchanged'
         required: false
         type: boolean
         default: false
@@ -60,8 +60,8 @@ jobs:
           if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo '::error::Version must be an exact semantic version'; exit 1
           fi
-          SERVICE_NAMES='["platform","db","proxy","web","docs","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
-          if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs"]'; fi
+          SERVICE_NAMES='["platform","db","proxy","web","docs","ui-docs","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"]'
+          if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"
             echo "service_names=$SERVICE_NAMES"
@@ -220,6 +220,12 @@ jobs:
           export SKIP_BUILD=true
           bun services/platform/tests/integration/container-docs-test.ts
 
+      - name: Run ui-docs container test
+        run: |
+          export PULL_POLICY=never
+          export SKIP_BUILD=true
+          bun services/platform/tests/integration/container-ui-docs-test.ts
+
       - name: Summary
         if: always()
         run: |
@@ -295,7 +301,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform db proxy web docs sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in platform db proxy web docs ui-docs sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
             echo "Verifying manifest: ${IMAGE}"
             docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {

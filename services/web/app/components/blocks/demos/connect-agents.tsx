@@ -1,15 +1,15 @@
+import { DemoToolbar } from '@tale/marketing-ui/demo-chrome';
+import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { Bot } from 'lucide-react';
 import { useRef } from 'react';
 
-import { DemoToolbar } from '@/app/components/blocks/demos/demo-chrome';
 import {
   type AgentsScenario,
   useAgentsScenario,
 } from '@/app/components/blocks/demos/demo-scenarios';
-import { DemoShell } from '@/app/components/blocks/demos/demo-shell';
-import { useDemoTimeline } from '@/app/components/blocks/demos/use-demo-timeline';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;

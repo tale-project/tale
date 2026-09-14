@@ -1,7 +1,8 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /**
  * Compact inline pass/fail line shown next to a "Test connection" button.

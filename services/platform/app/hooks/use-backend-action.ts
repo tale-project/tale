@@ -1,11 +1,11 @@
-import type { UseMutationOptions } from '@tanstack/react-query';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter
    registry is the untyped boundary: a row and the contract entry it
    serves are keyed by the SAME name, so the row's projection IS that
    name's return shape. */
-import { toast } from '@/app/hooks/use-toast';
+import { toast } from '@tale/ui/use-toast';
+import type { UseMutationOptions } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
 import {
   activeOrganizationId,
   runAdapted,

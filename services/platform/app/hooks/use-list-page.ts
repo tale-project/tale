@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import type {
   DataTableSearchConfig,
   EntityLabel,
-} from '@/app/components/ui/data-table/data-table-types';
+} from '@tale/ui/data-table/data-table-types';
+import { useState, useMemo, useCallback } from 'react';
+
 import { filterByTextSearch, filterByFields } from '@/lib/utils/filtering';
 
 // ---------------------------------------------------------------------------

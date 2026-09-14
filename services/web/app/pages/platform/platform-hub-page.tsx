@@ -1,3 +1,4 @@
+import { DemoTourSection } from '@tale/marketing-ui/demo-tour-section';
 import {
   buildBreadcrumbListJsonLd,
   buildFaqPageJsonLd,
@@ -14,7 +15,6 @@ import {
   HubTourKnowledgeDemo,
   HubTourProjectsDemo,
 } from '@/app/components/blocks/demos/content';
-import { DemoTourSection } from '@/app/components/blocks/demos/demo-tour-section';
 import {
   FeatureCta,
   FeatureFaq,

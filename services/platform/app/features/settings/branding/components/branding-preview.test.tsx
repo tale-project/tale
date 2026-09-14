@@ -27,7 +27,7 @@ vi.mock('@tale/ui/theme', () => ({
   useTheme: () => ({ resolvedTheme: 'light' }),
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, vars?: Record<string, unknown>) => {
       let out = lookup(ns, key);
@@ -42,7 +42,7 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 // Mock Image component
-vi.mock('@/app/components/ui/data-display/image', () => ({
+vi.mock('@/app/components/image', () => ({
   Image: (props: Record<string, unknown>) => (
     <img
       src={props.src as string}

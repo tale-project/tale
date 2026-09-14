@@ -1,15 +1,15 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row, Stack } from '@tale/ui/layout';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 

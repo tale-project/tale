@@ -1,8 +1,8 @@
 import * as Sentry from '@sentry/tanstackstart-react';
+import { GlobalErrorDisplay } from '@tale/ui/error-boundaries/global-error-display';
 import { QueryClient } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
-import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
 import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 import { warmSession } from '@/app/lib/auth/session-query';

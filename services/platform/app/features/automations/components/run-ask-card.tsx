@@ -7,7 +7,7 @@ import { Textarea } from '@tale/ui/textarea';
 import { MessageCircleQuestion } from 'lucide-react';
 import { useId, useState } from 'react';
 
-import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
+import { QuestionFlow } from '@/app/components/question-flow';
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import {

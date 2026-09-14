@@ -12,7 +12,7 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: undefined, isLoading: false }),
 }));
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

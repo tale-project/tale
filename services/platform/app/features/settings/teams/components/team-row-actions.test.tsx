@@ -6,7 +6,7 @@ import { render } from '@/tests/utils/render';
 import type { Team } from '../hooks/queries';
 import { TeamRowActions } from './team-row-actions';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
   useToast: () => ({ toast: vi.fn() }),
 }));

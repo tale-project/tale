@@ -2,11 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
+import { Textarea } from '@tale/ui/textarea';
+import { Tooltip } from '@tale/ui/tooltip';
 import { ChevronLeft } from 'lucide-react';
 import { memo, useEffect, useRef } from 'react';
 
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 
 interface ImproveModeProps {

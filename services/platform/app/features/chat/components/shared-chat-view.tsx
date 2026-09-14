@@ -5,10 +5,10 @@ import { Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useQuery } from '@tanstack/react-query';
 
 import { useActorDirectory } from '@/app/features/tasks/hooks/use-actor-directory';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { sharedThreadQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 

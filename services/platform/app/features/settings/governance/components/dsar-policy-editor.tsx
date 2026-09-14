@@ -3,21 +3,21 @@
 import type { DsarGovernanceConfig } from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { AlertTriangle, Ban, Lock } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { Input } from '@/app/components/ui/forms/input';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {

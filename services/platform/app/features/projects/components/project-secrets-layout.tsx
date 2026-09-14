@@ -1,10 +1,10 @@
 import { Alert } from '@tale/ui/alert';
+import { ContentArea } from '@tale/ui/content-area';
+import { EnvVarListEditor } from '@tale/ui/env-var-list-editor';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { ShieldAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { EnvVarListEditor } from '@/app/components/env/env-var-list-editor';
-import { ContentArea } from '@/app/components/layout/content-area';
 import { useT } from '@/lib/i18n/client';
 
 export function ProjectSecretsLayout({ children }: { children: ReactNode }) {

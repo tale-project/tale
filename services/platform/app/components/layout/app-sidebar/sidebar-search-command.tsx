@@ -1,18 +1,18 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import {
   SearchCommand,
   type SearchCommandLabels,
   type SearchResult,
 } from '@tale/ui/search';
+import { useIsMac } from '@tale/ui/use-is-mac';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import { TASK_VIEW_ROUTES, type TaskView } from '@/app/features/tasks/lib/view';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useIsMac } from '@/app/hooks/use-is-mac';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   createPlatformSearchSource,

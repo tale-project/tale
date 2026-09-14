@@ -1,10 +1,10 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Grid } from '@tale/ui/layout';
 import type { ComponentPropsWithoutRef } from 'react';
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { cn } from '@/lib/utils/cn';
+import { Image } from '@/app/components/image';
 
 interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   images: string[];

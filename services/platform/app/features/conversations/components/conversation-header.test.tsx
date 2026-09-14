@@ -55,7 +55,7 @@ vi.mock('../hooks/mutations', () => ({
   useMarkAsSpam: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatRelative: () => '2 min ago',
     formatDate: () => 'Jan 1, 2025',
@@ -67,7 +67,7 @@ vi.mock('@/app/hooks/use-format-date', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

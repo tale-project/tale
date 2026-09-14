@@ -8,6 +8,12 @@
  * `agent` present means edit, absent means create.
  */
 
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -15,12 +21,6 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { toast } from '@/app/hooks/use-toast';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';

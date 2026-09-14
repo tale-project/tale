@@ -7,9 +7,14 @@ import { createPlaywrightConfig } from '@tale/e2e/config';
  * (port 3002) via its `dev` script, which builds the search index before Vite
  * starts — so the search affordance is exercisable. House defaults come from
  * `@tale/e2e/config`.
+ *
+ * `DOCS_E2E_PORT` moves the preview server off 3002 — needed whenever another
+ * checkout of this repo already serves the docs there, which would otherwise
+ * be silently reused (`reuseExistingServer` outside CI) and test the wrong
+ * tree.
  */
 
-const PORT = 3002;
+const PORT = Number(process.env.DOCS_E2E_PORT ?? 3002);
 
 export default createPlaywrightConfig({
   testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),

@@ -145,23 +145,4 @@ export function formatPercentShare(
  * formatBytes(1536) // "1.5 KB" (en)
  * formatBytes(1073741824) // "1 GB"
  */
-export function formatBytes(
-  bytes: number,
-  locale: string = defaultLocale,
-  decimals: number = 1,
-): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return '—';
-  if (bytes < 1) return '0 B';
-
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  // Clamped: beyond the largest unit the number grows instead of the unit
-  // vanishing into `undefined`.
-  const i = Math.min(
-    sizes.length - 1,
-    Math.floor(Math.log(bytes) / Math.log(k)),
-  );
-  const size = bytes / Math.pow(k, i);
-
-  return `${formatNumber(size, locale, { maximumFractionDigits: decimals })} ${sizes[i]}`;
-}
+export { formatBytes } from '@tale/ui/format';

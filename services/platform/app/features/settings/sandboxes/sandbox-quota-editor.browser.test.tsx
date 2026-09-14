@@ -1,14 +1,14 @@
 import '@testing-library/jest-dom/vitest';
 import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
-import { cleanup } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   EditorActions,
   EditorGroup,
   useActiveEditor,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { cleanup } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { render, screen, waitFor } from '@/tests/utils/render';
 

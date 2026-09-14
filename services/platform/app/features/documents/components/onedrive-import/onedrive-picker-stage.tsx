@@ -1,16 +1,16 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { OneDriveIcon } from '@tale/ui/icons/onedrive-icon';
+import { SharePointIcon } from '@tale/ui/icons/sharepoint-icon';
 import { HStack } from '@tale/ui/layout';
+import { SearchInput } from '@tale/ui/search-input';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import type { TFunction } from 'i18next';
 import { Home } from 'lucide-react';
 
-import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
-import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 
 import { MicrosoftDisconnectButton } from '../microsoft-disconnect-button';

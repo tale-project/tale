@@ -37,6 +37,55 @@ export interface FormatCurrencyOptions extends FormatNumberOptions {
 
 const DEFAULT_LOCALE = 'en-US';
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
+
+/**
+ * Format a byte count with a binary unit (`1.5 KB`, `1 GB`).
+ *
+ * Beyond the largest unit the number keeps growing instead of the unit
+ * vanishing into `undefined`; a negative or non-finite input renders as an
+ * em dash so a broken size never reads as zero.
+ */
+export function formatBytes(
+  bytes: number,
+  locale: string | string[] = DEFAULT_LOCALE,
+  decimals = 1,
+): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1) return '0 B';
+
+  const k = 1024;
+  const i = Math.min(
+    BYTE_UNITS.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(k)),
+  );
+  const size = bytes / Math.pow(k, i);
+  return `${formatNumber(size, { locale, maximumFractionDigits: decimals })} ${BYTE_UNITS[i]}`;
+}
+
+/**
+ * A file's size in the default locale — the byte formatter for attachment
+ * surfaces that render outside a locale-aware context. Same units and
+ * rounding as `formatBytes`, so a size never reads differently in a chat
+ * attachment than in a documents list.
+ */
+export function formatFileSize(bytes: number): string {
+  return formatBytes(bytes);
+}
+
+/** Shorten a file name from the middle so its extension stays readable. */
+export function middleEllipsis(name: string, maxLength: number): string {
+  if (name.length <= maxLength) return name;
+  const extIndex = name.lastIndexOf('.');
+  const ext = extIndex > 0 ? name.slice(extIndex) : '';
+  const base = extIndex > 0 ? name.slice(0, extIndex) : name;
+  const available = maxLength - ext.length - 1; // 1 for the ellipsis char
+  if (available < 4) return name.slice(0, maxLength - 1) + '…';
+  const front = Math.ceil(available / 2);
+  const back = Math.floor(available / 2);
+  return base.slice(0, front) + '…' + base.slice(-back) + ext;
+}
+
 function resolveLocale(
   locale: FormatNumberOptions['locale'],
 ): string | string[] {

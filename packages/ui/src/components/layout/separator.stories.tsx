@@ -15,7 +15,7 @@ A separator component for visually dividing content.
 
 ## Usage
 \`\`\`tsx
-import { Separator } from '@/app/components/ui/layout/layout';
+import { Separator } from '@tale/ui/separator';
 
 <Separator />
 <Separator orientation="vertical" className="h-4" />

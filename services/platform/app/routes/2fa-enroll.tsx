@@ -1,7 +1,10 @@
 import { Button } from '@tale/ui/button';
+import { CopyableField } from '@tale/ui/copyable-field';
 import { Heading } from '@tale/ui/heading';
+import { Input } from '@tale/ui/input';
 import { Grid, Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 /**
  * Post-grace enrollment wall. The sign-in after-hook returns
@@ -24,13 +27,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { Input } from '@/app/components/ui/forms/input';
-import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { LogoLink } from '@/app/components/logo/logo-link';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
-import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';

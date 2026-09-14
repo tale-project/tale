@@ -3,10 +3,23 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Dialog } from '@tale/ui/dialog/dialog';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import {
+  EditorActions,
+  EditorSaveCancelledError,
+  useActiveEditor,
+  useRegisterActiveEditor,
+  useRegisterDirtySource,
+  type EditorController,
+} from '@tale/ui/editor';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
+import { PageActionHeader } from '@tale/ui/page-action-header';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import {
   CheckCircle2,
@@ -20,19 +33,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { PageActionHeader } from '@/app/components/layout/page-action-header';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import {
-  EditorActions,
-  EditorSaveCancelledError,
-  useActiveEditor,
-  useRegisterActiveEditor,
-  useRegisterDirtySource,
-  type EditorController,
-} from '@/app/components/ui/editor';
-import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';

@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
       if (params) {
@@ -18,11 +18,11 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-format-date', () => ({
+vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     format: (value: unknown) => String(value),
     formatSmart: (value: unknown) => String(value),
@@ -109,7 +109,7 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-import { toast } from '@/app/hooks/use-toast';
+import { toast } from '@tale/ui/use-toast';
 
 import { OneDriveImportDialog } from './onedrive-import-dialog';
 

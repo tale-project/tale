@@ -1,21 +1,21 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { cn } from '@tale/ui/cn';
+import { FilePreviewCard } from '@tale/ui/file-preview-card';
+import { FileUpload } from '@tale/ui/file-upload';
+import { FormSection } from '@tale/ui/form-section';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { Info, Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
-import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   isSpreadsheet,
   SPREADSHEET_IMPORT_ACCEPT,
 } from '@/lib/shared/file-types';
-import { cn } from '@/lib/utils/cn';
 
 interface ProductImportFormProps {
   hideTabs?: boolean;

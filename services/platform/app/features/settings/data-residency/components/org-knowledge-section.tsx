@@ -17,28 +17,25 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
 import { HStack, Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
+import { structuralEqual } from '@tale/ui/structural-equal';
+import { Switch } from '@tale/ui/switch';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { z } from 'zod';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { TestResultLine } from '@/app/features/settings/components/test-result-line';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import {
   useDeleteOrgKnowledgeConnection,

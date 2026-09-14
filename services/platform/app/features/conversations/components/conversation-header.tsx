@@ -4,6 +4,9 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import {
   Ellipsis,
   Mail,
@@ -14,14 +17,11 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ContactInfoPopover } from '@/app/features/contacts/components/contact-info-popover';
 import {
   useContactById,
   useContacts,
 } from '@/app/features/contacts/hooks/queries';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   mailboxSideAddress,

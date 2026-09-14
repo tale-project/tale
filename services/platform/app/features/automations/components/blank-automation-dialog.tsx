@@ -13,7 +13,13 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
+import { Textarea } from '@tale/ui/textarea';
+import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -22,11 +28,6 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
 import {
   useAgentSecrets,
@@ -36,7 +37,6 @@ import {
   findSelectedModel,
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
-import { toast } from '@/app/hooks/use-toast';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';

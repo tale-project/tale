@@ -1,12 +1,13 @@
-import { Check } from 'lucide-react';
-import type { ReactNode } from 'react';
-
 import {
   CompareTable,
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/app/components/blocks/compare-table';
+} from '@tale/marketing-ui/compare-table';
+import { MarketingSection } from '@tale/marketing-ui/marketing-section';
+import { Check } from 'lucide-react';
+import type { ReactNode } from 'react';
+
 import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
 import {
   multiNodeComposition,
@@ -15,7 +16,6 @@ import {
   rackSpec,
   type SpecLines,
 } from '@/app/components/blocks/hardware-specs';
-import { MarketingSection } from '@/app/components/blocks/marketing-section';
 import { MarketingButton, MarketingLink } from '@/app/components/marketing';
 import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import type { HardwareMode } from '@/app/pages/hardware-pricing-page';

@@ -14,7 +14,7 @@ import { AppError } from '@/lib/shared/errors/app-error';
 const mockCreateFolder = vi.fn();
 const mockToast = vi.fn();
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -32,7 +32,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
 
@@ -49,7 +49,7 @@ vi.mock('../hooks/mutations', () => ({
   useCreateFolder: () => ({ mutateAsync: mockCreateFolder }),
 }));
 
-vi.mock('@/app/components/ui/forms/select', () => ({
+vi.mock('@tale/ui/select', () => ({
   Select: ({
     value,
     onValueChange,

@@ -3,12 +3,12 @@
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
-
 import {
   seriesToLegend,
   TrendBarChart,
   type ChartSeries,
-} from '@/app/components/metrics/charts';
+} from '@tale/ui/metrics/charts';
+
 import { useT } from '@/lib/i18n/client';
 
 // A type alias (not an interface) so it carries an implicit index signature and

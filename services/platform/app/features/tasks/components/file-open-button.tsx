@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@tale/ui/cn';
 
 /**
  * A file in a task's zones, as a clickable NAME.

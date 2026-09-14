@@ -1,10 +1,10 @@
 'use client';
 
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Input } from '@tale/ui/input';
+import { Select } from '@tale/ui/select';
 import { useEffect, useState } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { deriveDeviceLabel } from '@/lib/utils/device-label';

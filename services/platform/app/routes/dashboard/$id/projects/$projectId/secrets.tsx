@@ -1,8 +1,8 @@
+import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ProjectSecretsSkeleton } from '@/app/features/projects/components/project-secrets-layout';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 // Skeletonized layout frame shown while the tab's JS chunk loads, so the
 // content frame doesn't go blank between navigation and chunk-ready. It mirrors

@@ -3,6 +3,13 @@
 import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
 import {
+  FLOW_EDGE_COLORS,
+  FLOW_EDGE_MARKER_SIZE,
+  FLOW_EDGE_STROKE_WIDTH,
+} from '@tale/ui/flow/edge-palette';
+import { FlowCanvas } from '@tale/ui/flow/flow-canvas';
+import { useElkLayout } from '@tale/ui/flow/use-elk-layout';
+import {
   MarkerType,
   Position,
   ReactFlowProvider,
@@ -13,13 +20,6 @@ import {
 import { AlertTriangle, Workflow } from 'lucide-react';
 import { useCallback, useMemo, type CSSProperties } from 'react';
 
-import {
-  FLOW_EDGE_COLORS,
-  FLOW_EDGE_MARKER_SIZE,
-  FLOW_EDGE_STROKE_WIDTH,
-} from '@/app/components/flow/edge-palette';
-import { FlowCanvas } from '@/app/components/flow/flow-canvas';
-import { useElkLayout } from '@/app/components/flow/layout/use-elk-layout';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodePosition } from '../lib/document';

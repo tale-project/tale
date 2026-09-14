@@ -2,20 +2,20 @@
 
 import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
+import { Sheet } from '@tale/ui/sheet';
+import { structuralEqual } from '@tale/ui/structural-equal';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useState, type ReactNode } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   type RetentionCategory,
   unitForCategory,
 } from '@/lib/shared/schemas/retention';
-import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { readBackendErrorData } from '../backend-error-data';
 import { mapGovernanceSaveError } from '../governance-save-errors';

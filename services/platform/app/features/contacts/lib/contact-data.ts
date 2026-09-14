@@ -1,6 +1,7 @@
+import { formatEnumLabel } from '@tale/ui/string';
+
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import type { ContactInfo } from '@/backend/core/conversations/types';
-import { formatEnumLabel } from '@/lib/utils/string';
 
 /**
  * A contact as rendered in the app: either a full directory row

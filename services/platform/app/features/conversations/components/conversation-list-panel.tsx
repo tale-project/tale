@@ -1,7 +1,6 @@
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 interface ConversationListPanelProps {
   children: ReactNode;

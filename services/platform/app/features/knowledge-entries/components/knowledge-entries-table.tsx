@@ -1,11 +1,11 @@
 'use client';
 
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 

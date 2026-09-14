@@ -1,9 +1,9 @@
 'use client';
 
+import * as columnBuilders from '@tale/ui/data-table/column-builders';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
-import * as columnBuilders from '@/app/components/ui/data-table/column-builders';
 import { useT } from '@/lib/i18n/client';
 import type { Namespace } from '@/lib/i18n/types';
 

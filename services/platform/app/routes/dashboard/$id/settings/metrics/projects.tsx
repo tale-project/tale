@@ -1,20 +1,20 @@
 import { EmptyState } from '@tale/ui/empty-state';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import {
+  metricsPeriodSearchSchema,
+  metricsPeriodToParam,
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@tale/ui/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
+import { soleScopeValue } from '@tale/ui/metrics/metrics-scope';
+import { MetricsScopeSelect } from '@tale/ui/metrics/metrics-scope-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { z } from 'zod';
 
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import {
-  metricsPeriodSearchSchema,
-  metricsPeriodToParam,
-  parseMetricsPeriodDays,
-  type MetricsPeriodDays,
-} from '@/app/components/metrics/metrics-period';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { soleScopeValue } from '@/app/components/metrics/metrics-scope';
-import { MetricsScopeSelect } from '@/app/components/metrics/metrics-scope-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';

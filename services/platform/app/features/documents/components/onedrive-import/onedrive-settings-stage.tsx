@@ -3,20 +3,17 @@
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { EmptyState } from '@tale/ui/empty-state';
+import { FormSection } from '@tale/ui/form-section';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import { RadioGroup, RadioGroupItem } from '@tale/ui/radio-group';
 import { SectionHeader } from '@tale/ui/section-header';
+import { Select } from '@tale/ui/select';
 import { SelectableRow } from '@tale/ui/selectable-row';
 import { Separator } from '@tale/ui/separator';
 import { Spinner } from '@tale/ui/spinner';
 import type { TFunction } from 'i18next';
 import { Database, Loader2, Users } from 'lucide-react';
 
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/app/components/ui/forms/radio-group';
-import { Select } from '@/app/components/ui/forms/select';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import type { ImportType } from './types';

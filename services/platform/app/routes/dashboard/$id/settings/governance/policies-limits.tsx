@@ -1,6 +1,6 @@
+import { EditorGroup } from '@tale/ui/editor';
 import { createFileRoute, useRouterState } from '@tanstack/react-router';
 
-import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { ConversationRoutingPolicyEditor } from '@/app/features/settings/governance/components/conversation-routing-policy-editor';

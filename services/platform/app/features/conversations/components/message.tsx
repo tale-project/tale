@@ -1,18 +1,18 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
+import { EmailPreview } from '@tale/ui/email-preview';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { Clock, AlertCircle, Paperclip, Download } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
-import { Image } from '@/app/components/ui/data-display/image';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Image } from '@/app/components/image';
 import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
 import { formatFileSize } from '@/app/features/shared/files/file-displays';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { Message as MessageType } from '../types';
 import { MessageTimestamp } from './conversation-message-layout';

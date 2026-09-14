@@ -1,6 +1,12 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@tale/ui/data-table/column-builders';
+import { DataTable } from '@tale/ui/data-table/data-table';
+import { BulkArchiveBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { useNavigate } from '@tanstack/react-router';
@@ -8,12 +14,6 @@ import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Globe, Plus, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import {
-  ACTIONS_COLUMN_SIZE,
-  createSelectColumn,
-} from '@/app/components/ui/data-table/column-builders';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { BulkArchiveBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useT } from '@/lib/i18n/client';

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { toast } from '@/app/hooks/use-toast';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -11,7 +11,7 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 // verify here; the backend uniqueness rule is covered separately by
 // `assert_unique_product_name.test.ts`.
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -25,7 +25,7 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

@@ -2,9 +2,13 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Field } from '@tale/ui/field';
+import { FileUpload } from '@tale/ui/file-upload';
 import { Row, Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   FileArchive,
@@ -16,13 +20,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
-import { toast } from '@/app/hooks/use-toast';
 import type { ArgsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 

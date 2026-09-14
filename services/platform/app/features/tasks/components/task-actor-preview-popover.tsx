@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
@@ -8,7 +9,6 @@ import { Link } from '@tanstack/react-router';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { TaskActorPreview } from '../utils/task-actor-preview';
 

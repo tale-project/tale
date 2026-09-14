@@ -1,11 +1,11 @@
-import { act } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import {
   ActiveEditorProvider,
   useActiveEditor,
   type EditorController,
-} from '@/app/components/ui/editor';
+} from '@tale/ui/editor';
+import { act } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -181,7 +181,7 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
 
 // Instant actions (remove/backfill) report through toasts; the editor save
 // path must never toast. One spy asserts both.
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: pageToast }),
   toast: pageToast,
 }));

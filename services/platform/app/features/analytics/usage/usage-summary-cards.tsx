@@ -1,10 +1,10 @@
 'use client';
 
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
+import { Tooltip } from '@tale/ui/tooltip';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { CircleHelp } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

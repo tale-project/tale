@@ -19,7 +19,7 @@ A button-based row component with a selected state ring highlight, suitable for 
 
 ## Usage
 \`\`\`tsx
-import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
+import { SelectableRow } from '@tale/ui/selectable-row';
 
 <SelectableRow selected={isSelected} onClick={() => setSelected(id)}>
   Content

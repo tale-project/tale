@@ -225,6 +225,20 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/ui-docs': {
+      vite: { config: ['vite.config.ts'] },
+      entry: [
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        // SSR build target — passed to `vite build --ssr` in package.json scripts.
+        'app/entry-server.tsx',
+        // Live examples are discovered by `import.meta.glob` in the demo registry.
+        'app/demos/**/*.tsx',
+        // Playwright specs (config builds via the shared @tale/e2e factory).
+        'tests/e2e/specs/**/*.spec.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],
@@ -241,7 +255,24 @@ export default {
         // don't have to install it; knip flags optional peers that are
         // referenced, which is exactly the pattern we want here.
         'vite',
+        // Same shape for the shared Storybook config (src/storybook/*): the
+        // addons are optional peers a consumer installs only when it runs
+        // Storybook, yet the config module references them by name.
+        '@storybook/addon-a11y',
+        '@storybook/addon-docs',
+        '@storybook/addon-themes',
       ],
+    },
+    'packages/marketing-ui': {
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
+      entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
+      project: ['**/*.{ts,tsx}'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

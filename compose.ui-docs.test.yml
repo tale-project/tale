@@ -1,0 +1,16 @@
+# =============================================================================
+# Tale UI Docs — Container test overrides
+# =============================================================================
+# Override compose.ui-docs.yml with non-conflicting ports and a test env file
+# for CI smoke / image-validation tests.
+#
+# Usage:
+#   docker compose -f compose.ui-docs.yml -f compose.ui-docs.test.yml --env-file .env.test -p tale-ui-docs-test up -d --build
+#   docker compose -f compose.ui-docs.yml -f compose.ui-docs.test.yml --env-file .env.test -p tale-ui-docs-test down -v
+
+services:
+  ui-docs:
+    env_file:
+      - .env.test
+    ports:
+      - '13003:3003'

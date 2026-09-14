@@ -15,7 +15,7 @@ vi.mock('../hooks/mutations', () => ({
 
 // The Next.js Image wrapper is only reached when an existing `currentUrl` is
 // shown; render a plain <img> so jsdom has nothing to resolve.
-vi.mock('@/app/components/ui/data-display/image', () => ({
+vi.mock('@/app/components/image', () => ({
   Image: (props: Record<string, unknown>) => (
     <img src={props.src as string} alt={props.alt as string} />
   ),

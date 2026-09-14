@@ -1,15 +1,12 @@
 import '@testing-library/jest-dom/vitest';
 import { Badge } from '@tale/ui/badge';
+import { CatalogCardSkeleton } from '@tale/ui/catalog/catalog-card-skeleton';
+import { CatalogCard, CatalogCardIcon } from '@tale/ui/catalog/catalog-grid';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CatalogCardSkeleton } from '@/app/components/catalog/catalog-card-skeleton';
-import {
-  CatalogCard,
-  CatalogCardIcon,
-} from '@/app/components/catalog/catalog-grid';
 import { Composer } from '@/app/features/chat/components/composer';
 import { ConversationSkeleton } from '@/app/features/chat/components/conversation-skeleton';
 import { MessageThread } from '@/app/features/chat/components/message-thread';
@@ -51,7 +48,7 @@ vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: null }),
   useFileUrls: () => ({ data: [] }),
 }));
-vi.mock('@/app/components/ui/data-display/email-preview', () => ({
+vi.mock('@tale/ui/email-preview', () => ({
   EmailPreview: ({ html }: { html: string }) => <div>{html}</div>,
 }));
 vi.mock('@/app/features/tasks/hooks/mutations', () => ({

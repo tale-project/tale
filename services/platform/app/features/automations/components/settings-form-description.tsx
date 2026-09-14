@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 /**
  * A declared settings form's operator instructions, clamped to a few lines

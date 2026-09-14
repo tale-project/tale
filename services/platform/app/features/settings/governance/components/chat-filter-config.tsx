@@ -7,9 +7,16 @@ import {
 } from '@tale/shared/schemas/governance';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormSection } from '@tale/ui/form-section';
 import { IconButton } from '@tale/ui/icon-button';
+import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
+import { Sheet } from '@tale/ui/sheet';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import {
   Table,
   TableBody,
@@ -18,24 +25,17 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { Textarea } from '@tale/ui/textarea';
+import { useToast } from '@tale/ui/use-toast';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

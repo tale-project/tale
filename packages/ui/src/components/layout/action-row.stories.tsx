@@ -16,7 +16,7 @@ A flex row for grouping action buttons with configurable alignment and gap.
 
 ## Usage
 \`\`\`tsx
-import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { ActionRow } from '@tale/ui/action-row';
 
 <ActionRow justify="end">
   <Button variant="secondary">Cancel</Button>

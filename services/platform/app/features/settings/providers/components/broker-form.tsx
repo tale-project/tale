@@ -6,11 +6,11 @@ import {
   brokerCredentialDataSchema,
 } from '@tale/shared/schemas/providers';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
 import { formatZodError } from '@/lib/shared/schemas/format-error';
 

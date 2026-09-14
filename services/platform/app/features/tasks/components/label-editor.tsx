@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
+import { toast } from '@tale/ui/use-toast';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { cn } from '@/lib/utils/cn';
 
 import {
   useCreateTaskLabel,

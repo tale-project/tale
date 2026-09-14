@@ -6,14 +6,14 @@
  * real threads only light blue (streaming) or green (unread).
  */
 
-import { Link } from '@tanstack/react-router';
-
+import { cn } from '@tale/ui/cn';
 import {
   SUB_PANEL_ROW_CLASS,
   useSubPanelRowTreatment,
-} from '@/app/components/layout/sub-panel-list';
+} from '@tale/ui/sub-panel-list';
+import { Link } from '@tanstack/react-router';
+
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface NewChatDraftRowProps {
   organizationId: string;

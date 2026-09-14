@@ -2,6 +2,9 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { ConfigIcon } from '@tale/ui/catalog/config-icon';
+import { ACTIONS_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
+import { DataTable } from '@tale/ui/data-table/data-table';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
@@ -16,9 +19,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ConfigIcon } from '@/app/components/catalog/config-icon';
-import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';

@@ -4,22 +4,19 @@ import {
   brandingFormSchema,
   type BrandingFormData,
 } from '@tale/shared/schemas/branding';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { useFormEditor, useRegisterActiveEditor } from '@tale/ui/editor';
+import { Form } from '@tale/ui/form';
 import { HStack, Stack } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  useFormEditor,
-  useRegisterActiveEditor,
-} from '@/app/components/ui/editor';
-import { Form } from '@/app/components/ui/forms/form';
 import { SettingsFieldList } from '@/app/features/settings/components/settings-field-list';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { adjustColorForTheme } from '@/lib/utils/color';
 import {

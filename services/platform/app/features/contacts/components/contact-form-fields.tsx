@@ -1,8 +1,8 @@
 'use client';
 
+import { Input } from '@tale/ui/input';
 import type { FieldErrors, UseFormRegister } from 'react-hook-form';
 
-import { Input } from '@/app/components/ui/forms/input';
 import { useT } from '@/lib/i18n/client';
 
 import type { ContactFormValues } from '../hooks/use-contact-form';

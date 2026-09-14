@@ -1,5 +1,6 @@
+import { DemoStage } from '@tale/marketing-ui/demo-stage';
+
 import { HomeHeroDemo } from '@/app/components/blocks/demos/content';
-import { DemoStage } from '@/app/components/blocks/demos/demo-stage';
 import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import {

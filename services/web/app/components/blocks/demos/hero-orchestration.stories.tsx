@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { DemoStage } from '@tale/marketing-ui/demo-stage';
 import { AppShell } from '@tale/ui/app-shell';
 
 import { i18n } from '@/lib/i18n/i18n';
@@ -27,3 +28,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const PlaysOnMount: Story = {};
+
+/** The homepage composition: the hero window on the full-bleed hero stage. */
+export const OnHeroStage: Story = {
+  name: 'On the hero DemoStage',
+  parameters: { layout: 'fullscreen' },
+  render: () => (
+    <DemoStage variant="hero">
+      <HeroOrchestration />
+    </DemoStage>
+  ),
+};

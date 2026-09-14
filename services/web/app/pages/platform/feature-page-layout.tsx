@@ -1,14 +1,14 @@
 import {
+  type DemoTourStage,
+  DemoTourSection,
+} from '@tale/marketing-ui/demo-tour-section';
+import {
   buildBreadcrumbListJsonLd,
   buildFaqPageJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 
-import {
-  type DemoTourStage,
-  DemoTourSection,
-} from '@/app/components/blocks/demos/demo-tour-section';
 import {
   DocsLinks,
   type DocsLinkItem,

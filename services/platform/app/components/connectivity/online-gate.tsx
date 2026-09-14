@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
 import { Download, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -8,7 +9,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useBackendConnectionState } from '@/app/hooks/use-backend-connection-state';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 const DISCONNECT_GRACE_MS = 3_000;
 

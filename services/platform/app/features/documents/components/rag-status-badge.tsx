@@ -2,14 +2,14 @@
 
 import { Badge, type BadgeProps } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { toast } from '@/app/hooks/use-toast';
 import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';

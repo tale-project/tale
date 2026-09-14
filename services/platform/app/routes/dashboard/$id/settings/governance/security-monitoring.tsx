@@ -1,6 +1,6 @@
+import { EditorGroup } from '@tale/ui/editor';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { LoginPolicyEditor } from '@/app/features/settings/governance/components/login-policy-editor';
 import { PasswordPolicyEditor } from '@/app/features/settings/governance/components/password-policy-editor';

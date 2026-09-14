@@ -1,13 +1,13 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AlertTriangle } from 'lucide-react';
 import { createContext, useContext, useMemo } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   controlFlowBadges,

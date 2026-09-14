@@ -4,23 +4,20 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@tale/shared/schemas/governance';
+import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
+import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import {
-  useFormEditor,
-  useRegisterGroupedEditor,
-} from '@/app/components/ui/editor';
-import { Input } from '@/app/components/ui/forms/input';
-import { Switch } from '@/app/components/ui/forms/switch';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';

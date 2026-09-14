@@ -1,13 +1,13 @@
 'use client';
 
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { useToast } from '@tale/ui/use-toast';
 import { useCallback } from 'react';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorMessage } from '@/lib/utils/backend-error';
 

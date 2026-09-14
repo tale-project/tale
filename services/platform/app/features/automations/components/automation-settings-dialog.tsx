@@ -5,13 +5,13 @@ import {
   type AutomationSettings,
   isUploadsForm,
 } from '@tale/shared/schemas/automation-settings';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';

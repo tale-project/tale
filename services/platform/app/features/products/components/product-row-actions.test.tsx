@@ -9,7 +9,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true }),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: vi.fn(),
 }));
 

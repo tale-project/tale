@@ -1,7 +1,7 @@
+import { useDebounce } from '@tale/ui/use-debounce';
 import * as z from 'zod';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { useDebounce } from '@/app/hooks/use-debounce';
 
 export function useMembers(organizationId: string) {
   const { data, isLoading } = useBackendQuery(

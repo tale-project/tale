@@ -1,15 +1,15 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   detectMentionTrigger,
   type MentionTrigger,
 } from '@/app/features/shared/mentions/use-kb-mentions';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   filterMentionActorOptions,

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { toast } from '@/app/hooks/use-toast';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { render, waitFor } from '@/tests/utils/render';
 
 import type { KnowledgeEntryItem } from '../hooks/queries';
 import { EditKnowledgeEntryDialog } from './knowledge-entry-edit-dialog';
 
-vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',

@@ -8,18 +8,18 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
+import { FormSection } from '@tale/ui/form-section';
 import { HStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { MessageSquare } from 'lucide-react';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

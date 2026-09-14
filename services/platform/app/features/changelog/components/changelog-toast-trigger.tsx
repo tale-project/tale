@@ -2,11 +2,11 @@
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { Button } from '@tale/ui/button';
+import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 /**

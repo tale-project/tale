@@ -3,9 +3,12 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Center, Row, Stack, VStack } from '@tale/ui/layout';
+import { lazyComponent } from '@tale/ui/lazy-component';
+import { PanelFooter } from '@tale/ui/panel-footer';
 import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { toast } from '@tale/ui/use-toast';
 import {
   AlertTriangleIcon,
   ArchiveIcon,
@@ -16,11 +19,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
   useDeleteConversation,
@@ -53,8 +53,9 @@ const MessageEditor = lazyComponent(
   },
 );
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@tale/ui/cn';
+import { useFormatDate } from '@tale/ui/use-format-date';
+
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 
 interface AttachedFile {

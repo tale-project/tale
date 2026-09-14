@@ -1,8 +1,8 @@
 'use client';
 
+import { CopyableField } from '@tale/ui/copyable-field';
 import { Link } from '@tanstack/react-router';
 
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import {
   SettingsFieldList,

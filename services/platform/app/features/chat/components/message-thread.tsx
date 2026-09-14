@@ -19,6 +19,7 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -26,7 +27,6 @@ import { ArrowDown, MessageSquare } from 'lucide-react';
 import { memo, useRef, type MutableRefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useChatScroll } from '../hooks/use-chat-scroll';
 import {

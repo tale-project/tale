@@ -26,16 +26,18 @@ describe('useIsMobile', () => {
   });
 
   it('is true below 768px', () => {
-    mockMatchMedia({ '(min-width: 768px)': false });
+    mockMatchMedia({ '(max-width: 767px)': true });
     const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(true);
   });
 
   it('is false at 768px and above', () => {
-    mockMatchMedia({
-      '(min-width: 768px)': true,
-      '(min-width: 1024px)': false,
-    });
+    mockMatchMedia({ '(max-width: 767px)': false });
+    const { result } = renderHook(() => useIsMobile());
+    expect(result.current).toBe(false);
+  });
+
+  it('defaults to the desktop layout when matchMedia cannot answer', () => {
     const { result } = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
   });

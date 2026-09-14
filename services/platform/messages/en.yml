@@ -385,12 +385,6 @@ auth:
     defaultName: User
     manageAccount: Manage account
     getApp: Get app
-    iosInstall:
-      title: Install Tale
-      description: Add Tale to your home screen for a full-screen, app-like experience.
-      step1: Tap the Share button in your browser's toolbar.
-      step2: Choose "Add to Home Screen", then tap "Add".
-      done: OK
     documentation: Documentation
     currentVersion: 'Current version: v{version}'
     whatsNew: What's new
@@ -1452,45 +1446,18 @@ chat:
   budgetWarningTypeCost: cost
   budgetWarningTypeRequests: request
 common:
-  optional: optional
   or: or
   select:
-    noOptionsHint: Nothing to choose yet.
     noProvidersHint: Add an AI provider first.
     pickProviderFirstHint: Pick a provider first — its models appear here.
-  dates:
-    today: Today
-    yesterday: Yesterday
-  datePicker:
-    placeholder: Pick a date
-    previousMonth: Previous month
-    nextMonth: Next month
-    presets:
-      custom: Custom
-      today: Today
-      last7Days: Last 7 days
-      last14Days: Last 14 days
-      last30Days: Last 30 days
-      last3Months: Last 3 months
-      last12Months: Last 12 months
-      monthToDate: Month to date
-      quarterToDate: Quarter to date
-      yearToDate: Year to date
-      allTime: All time
   units:
     stock: '{count, plural, one {# unit} other {# units}}'
   actions:
-    save: Save
     saving: Saving...
-    saved: Saved
-    cancel: Cancel
-    delete: Delete
-    deleting: Deleting...
     edit: Edit
     adding: Adding...
     create: Create
     close: Close
-    confirm: Confirm
     back: Back
     next: Next
     skip: Skip
@@ -1499,45 +1466,12 @@ common:
     done: Done
     view: View
     viewSource: View source
-    source: Source
-    copy: Copy
-    copied: Copied
     showInfo: Show info
-    clearAll: Clear all
-    reset: Reset
-    discard: Discard
     import: Import
     importing: Importing...
-    openMenu: Open menu
-    deleteSelected: Delete selected
-    archiveSelected: Archive selected
-    tryAgain: Try again
-  unsavedChanges:
-    title: Unsaved changes
-    description: You have unsaved changes. Leaving now will discard them.
-    stay: Keep editing
-    discardAndLeave: Discard & Leave
-  editor:
-    fixHighlightedFields: Fix the highlighted fields and try again.
-  confirmDialog:
-    typeToConfirmLabel: Type "{phrase}" to confirm
-  bulkActions:
-    itemsSelected: '{count, plural, one {# item selected} other {# items selected}}'
-    confirmDeleteTitle: Delete {count, plural, one {# item} other {# items}}
-    confirmDeleteDescription: Delete {count, plural, one {this item} other {these {count} items}}? This can't be undone.
-    deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
-    deleteFailed: Couldn't delete some items
-    deleting: Deleting...
-    confirmArchiveTitle: Archive {count, plural, one {# item} other {# items}}
-    confirmArchiveDescription: Archive {count, plural, one {this item} other {these {count} items}}? You can restore {count, plural, one {it} other {them}} later.
-    archiveSuccess: Archived {count, plural, one {# item} other {# items}}
-    archiveFailed: Couldn't archive some items
-    archiving: Archiving...
   upload:
     clickToUpload: Upload
-    dropFilesHere: Drop files here to upload
     supportedFormats: .xlsx, .xls or .csv
-    pickADate: Pick a date
   labels:
     phone: Phone
     source: Source
@@ -1546,10 +1480,7 @@ common:
     tags: Tags
     notes: Notes
     created: Created
-    filter: Filter
-    filters: Filters
     notAvailable: N/A
-    nSelected: '{count} selected'
   status:
     active: Active
     inactive: Inactive
@@ -1568,37 +1499,18 @@ common:
     required: '{field} is required'
     maxLength: '{field} must be {max} characters or fewer'
     email: Enter a valid email address
-    invalidJson: Invalid JSON format
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
-    schemaValidationFailed: 'Schema validation failed{error, select, empty {} other {: {error}}}'
   aria:
-    close: Close
-    rowActions: Row actions
-    resizePanel: Resize panel
-    hidePassword: Hide password
-    showPassword: Show password
     dismiss: Dismiss
-    previousPage: Previous page
-    nextPage: Next page
-    goToPage: Go to page
     zoomIn: Zoom in
     zoomOut: Zoom out
-    selectAll: Select all
-    selectRow: Select row
-    removeFile: Remove file
     removeNamed: Remove {name}
     unread: Unread
     completed: Completed
-    back: Back
     backTo: Back to {page}
     breadcrumb: Breadcrumb
     knowledgeNavigation: Knowledge navigation
-    moreInfo: More information
-    valid: valid
-    invalid: invalid
-    validationRequirements: Validation requirements
-    validationStatus: '{message}: {status}'
     skipToContent: Skip to main content
     mainNavigation: Main navigation
     projectsNavigation: Projects navigation
@@ -1606,26 +1518,6 @@ common:
     sortAscending: sorted ascending
     sortDescending: sorted descending
     sortAvailable: sort available
-    unsavedChanges: Unsaved changes
-    moreTabs: More tabs
-    scrollDown: Scroll down
-  pagination:
-    rowsPerPage: Rows per page
-    showing: '{start}-{end} of {total}'
-    loadMore: Load more
-    loading: Loading more...
-    noMore: No more items to load
-    showingAll:
-      '{count, plural, one {Showing all # {entityOne}} other {Showing all
-      # {entityOther}}}'
-    showingFiltered: '{total, plural, one {Showing {filtered} of # {entityOne}}
-      other {Showing {filtered} of # {entityOther}}}'
-    showingRange: '{total, plural, one {Showing {start}-{end} of # {entityOne}}
-      other {Showing {start}-{end} of # {entityOther}}}'
-  search:
-    noResults: No results found
-    tryAdjusting: Try adjusting your search criteria
-    placeholder: Search
   mentions:
     unresolvedTitle: Mention not recognized
     unresolvedDescription:
@@ -1634,30 +1526,14 @@ common:
   errors:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Couldn't copy to clipboard
-    somethingWentWrong: Something went wrong. Try again.
-    errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
-    persistsProblem: If this keeps happening,
-    contactSupport: contact support
-    tryAgain: Try again
-    showDetails: Show details
-    hideDetails: Hide details
-  keyboardShortcuts:
-    ctrlEnter: Ctrl+Enter
-    escape: Esc
-    hintToSave: to save,
-    hintToCancel: to cancel
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
     backToDashboard: Back to dashboard
-  discardChangesConfirm: Discard unsaved changes?
   moveUp: Move up
   moveDown: Move down
   drag: Drag to reorder
   remove: Remove
-  loading:
-    navigating: Loading page
-    label: Loading
   sessionIdle:
     warningTitle: You'll be signed out soon
     warningDescription: Your session ends after a period of inactivity. Interact
@@ -1665,14 +1541,6 @@ common:
     staySignedIn: Stay signed in
     signedOutNotice: You were signed out because your session was inactive for too long.
     continueToSignIn: Continue to sign in
-  dataTable:
-    dateFilterUnavailable: Date filter unavailable
-  flow:
-    zoomIn: Zoom in
-    zoomOut: Zoom out
-    resetView: Reset view
-    aiEditor: AI editor
-  moreTabs: More
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
@@ -3902,13 +3770,6 @@ metrics:
     external-turns: Harness turns
     automations: Automations
     projects: Projects
-  period:
-    label: Period
-    last24Hours: Last 24 hours
-    last7Days: Last 7 days
-    last30Days: Last 30 days
-    last90Days: Last 90 days
-    allTime: All time
   projects:
     selectLabel: Project
     selectPlaceholder: Select a project
@@ -5048,11 +4909,6 @@ projects:
     slugEditorEmptyLockout:
       Empty list locks every member out of this project. Add
       at least one item or switch back to "All".
-pwa:
-  updateAvailableTitle: Update available
-  updateAvailableDescription: A new version of Tale is ready.
-  updateNow: Update now
-  offlineReady: Tale is ready to work offline.
 settings:
   menu:
     groups:
@@ -5240,16 +5096,6 @@ settings:
       remove the last member.
     description: Create and manage teams within your organization for granular
       access control
-  agents:
-    form:
-      addModel: Add model
-      searchModels: Search models
-      noModelsFound: No models found
-      removeModel: Remove
-      modelSelector:
-        moveUp: Move model up
-        moveDown: Move model down
-        dragHandle: Drag to reorder model
   credentials:
     default: Default
     makeDefault: Make default
@@ -6875,7 +6721,6 @@ tables:
     uploadedBy: Uploaded by
     actions: Actions
     created: Added
-    description: Description
     email: Email
     product: Product
     scanned: Scanned
@@ -6889,9 +6734,6 @@ tables:
     noEmail: No email
 toast:
   success:
-    deleted:
-      title: Deleted
-      description: Deleted.
     passwordChanged:
       title: Password changed
       description: Use your new password the next time you sign in.
@@ -7291,21 +7133,3 @@ sandboxes:
       Workspaces appear when a project agent or workflow runs. Temporary crawler
       sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.
-envEditor:
-  confirmRemoveTitle: Remove variable?
-  confirmRemoveDescription: It will be removed when you save your changes. This can't be undone.
-  keyPlaceholder: NAME
-  valuePlaceholder: value
-  secret: Secret
-  valueType: Type
-  typeValue: Value
-  typeTokenSource: Token source
-  add: Add variable
-  remove: Remove
-  save: Save
-  saving: Saving…
-  saved: Environment saved
-  saveError: Couldn't save environment
-  badKey: '"{key}" isn''t a valid env var name (letters, digits, underscore; not
-    starting with a digit).'
-  dupKey: Duplicate variable name — each NAME must be unique.

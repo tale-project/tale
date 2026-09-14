@@ -1,8 +1,8 @@
 'use client';
 
+import { MultiSelect } from '@tale/ui/multi-select';
 import { useMemo } from 'react';
 
-import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useT } from '@/lib/i18n/client';
 
 interface Team {

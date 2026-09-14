@@ -68,6 +68,22 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       expect(errors).toEqual([]);
     });
 
+    test('keeps the trail leaf out of the heading outline', async ({
+      page,
+    }) => {
+      await page.goto(releasePath);
+      // The app's trail ends in the page's `h1`; a docs page carries that
+      // title in the article instead, so the leaf must stay a plain marker —
+      // one `h1` per page, and it is the article's.
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+      await expect(page.locator('article > header > h1')).toHaveCount(1);
+      await expect(
+        page
+          .getByRole('navigation', { name: t('docs.breadcrumbs') })
+          .locator('[aria-current="page"]'),
+      ).toHaveCount(1);
+    });
+
     test('preserves the desktop breadcrumb and actions row', async ({
       page,
     }) => {

@@ -36,11 +36,11 @@ vi.mock('@/app/lib/backend/adapters', () => ({
   runAdapted: (run: () => Promise<unknown>) => run(),
 }));
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: mockToast,
 }));
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 

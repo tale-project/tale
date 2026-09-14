@@ -55,7 +55,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
-vi.mock('@/app/hooks/use-is-mac', () => ({ useIsMac: () => false }));
+vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({
   useNavigationItems: () => ({
@@ -73,7 +73,7 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
 
 // Leaf widgets pull in Convex/auth/Radix overlays; stub them so the test stays
 // hermetic and focused on the rail's landmark + tile contract.
-vi.mock('@/app/components/ui/logo/tale-logo', () => ({
+vi.mock('@/app/components/logo/tale-logo', () => ({
   TaleLogo: () => <span>Tale</span>,
 }));
 vi.mock('@/app/components/user-button', () => ({

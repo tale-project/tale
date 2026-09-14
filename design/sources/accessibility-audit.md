@@ -12,8 +12,8 @@ The weight was already correct (labels are `font-medium`); the issue was color, 
 
 Bumped form-label contrast at the shared-component level so every form on the platform inherits the fix.
 
-- [`services/platform/app/components/ui/forms/label.tsx`](../services/platform/app/components/ui/forms/label.tsx) — `text-muted-foreground` → `text-foreground`
-- [`services/platform/app/components/ui/forms/form-section.tsx`](../services/platform/app/components/ui/forms/form-section.tsx) — same swap on the inline `<span>` used by `FormSection`
+- [`packages/ui/src/components/forms/label.tsx`](../../packages/ui/src/components/forms/label.tsx) — `text-muted-foreground` → `text-foreground`
+- [`packages/ui/src/components/forms/form-section.tsx`](../../packages/ui/src/components/forms/form-section.tsx) — same swap on the inline `<span>` used by `FormSection`
 
 Result: labels now sit at full foreground contrast, descriptions stay at muted, counters/hints can go even lighter via `text-tertiary` when needed. Three visible tiers instead of one.
 
@@ -57,7 +57,7 @@ So the platform's primary text tokens are AA-clean in both themes — the Phase 
 
 Pattern: `<Tooltip content="..."><Button size="icon"><Icon /></Button></Tooltip>` with no `aria-label` on the button.
 
-The platform `Tooltip` ([`services/platform/app/components/ui/overlays/tooltip.tsx`](../services/platform/app/components/ui/overlays/tooltip.tsx)) wraps Radix `TooltipPrimitive`. Radix tooltips wire content via **`aria-describedby`**, not `aria-label`. That makes the tooltip a **description**, not the button's **name**. Screen readers announce these as "button, [description]" with no accessible name — failing **WCAG 4.1.2 (Name, Role, Value)** in addition to often failing 2.5.3 (Label in Name).
+The shared `Tooltip` ([`packages/ui/src/components/overlays/tooltip.tsx`](../../packages/ui/src/components/overlays/tooltip.tsx)) wraps Radix `TooltipPrimitive`. Radix tooltips wire content via **`aria-describedby`**, not `aria-label`. That makes the tooltip a **description**, not the button's **name**. Screen readers announce these as "button, [description]" with no accessible name — failing **WCAG 4.1.2 (Name, Role, Value)** in addition to often failing 2.5.3 (Label in Name).
 
 Where it's clean: roughly 71 of 94 icon buttons already set `aria-label` directly (settings/governance editors, vendor/customer dialogs, chat composer model/agent selectors, etc).
 
@@ -71,8 +71,8 @@ Where it's missing (23 occurrences in 9 files):
 - [`features/automations/executions/executions-table.tsx`](../services/platform/app/features/automations/executions/executions-table.tsx)
 - [`features/documents/components/rag-status-badge.tsx`](../services/platform/app/features/documents/components/rag-status-badge.tsx)
 - [`features/settings/connectors/components/sso-config/role-mapping-section.tsx`](../services/platform/app/features/settings/connectors/components/sso-config/role-mapping-section.tsx)
-- [`components/ui/navigation/pagination.tsx`](../services/platform/app/components/ui/navigation/pagination.tsx) — the previous/next chevron buttons
-- [`components/ui/data-display/json-viewer.tsx`](../services/platform/app/components/ui/data-display/json-viewer.tsx)
+- [`packages/ui/src/components/data-table/data-table-pagination.tsx`](../../packages/ui/src/components/data-table/data-table-pagination.tsx) — the previous/next chevron buttons
+- [`packages/ui/src/components/data-display/json-viewer.tsx`](../../packages/ui/src/components/data-display/json-viewer.tsx)
 
 **Fix options (pick one consistently):**
 
@@ -92,7 +92,7 @@ Functionally fine, but it's hardcoded gray bypassing the token system. Worth a f
 
 **3. Inline hardcoded colors in the global error display.** 🟢 _Defensible — explicitly inlined._
 
-File: [`services/platform/app/components/error-boundaries/displays/global-error-display.tsx`](../services/platform/app/components/error-boundaries/displays/global-error-display.tsx)
+File: [`packages/ui/src/components/error-boundaries/displays/global-error-display.tsx`](../../packages/ui/src/components/error-boundaries/displays/global-error-display.tsx)
 
 All eight color values cross-checked against `--background` in their respective themes:
 

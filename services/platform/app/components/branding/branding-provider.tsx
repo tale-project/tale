@@ -1,5 +1,6 @@
 'use client';
 
+import { AccentColorProvider } from '@tale/ui/accent-color';
 import { useTheme } from '@tale/ui/theme';
 import {
   createContext,
@@ -192,7 +193,9 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
 
   return (
     <BrandingContext.Provider value={value}>
-      {children}
+      <AccentColorProvider accentColor={value.accentColor}>
+        {children}
+      </AccentColorProvider>
     </BrandingContext.Provider>
   );
 }

@@ -6,7 +6,7 @@ import { render, screen } from '@/tests/utils/render';
 // imports that name); it is the container that owns the data + Skeletonize.
 import { ChatFilterConfigView } from './chat-filter-config';
 
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 

@@ -1,8 +1,11 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { cn } from '@tale/ui/cn';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { IosInstallSheet } from '@tale/ui/pwa/ios-install-sheet';
 import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
 import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -10,7 +13,9 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
+import { Tooltip, tooltipContentClassName } from '@tale/ui/tooltip';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
+import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -40,12 +45,6 @@ import {
   ROW_TRANSITION_CLASS,
   rowWidthStyle,
 } from '@/app/components/layout/app-sidebar/sidebar-motion';
-import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import {
-  Tooltip,
-  tooltipContentClassName,
-} from '@/app/components/ui/overlays/tooltip';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { TeamListPanel } from '@/app/features/settings/teams/components/team-list-panel';
@@ -53,10 +52,8 @@ import { useChangelogNotification } from '@/app/hooks/use-changelog-notification
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
-import { toast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 // Native flag emojis for the language switcher. Keyed by the locale code that
 // `setLocale` accepts. Rendered next to the language name (which itself comes

@@ -70,7 +70,7 @@ vi.mock('@/app/hooks/use-session-user', () => ({
 // The real `AdaptiveHeaderRoot`/`Title` require an `AdaptiveHeaderProvider`
 // ancestor (mounted by the dashboard shell in production); stub them to plain
 // passthroughs so this route-level test doesn't need the whole shell.
-vi.mock('@/app/components/layout/adaptive-header', () => ({
+vi.mock('@tale/ui/adaptive-header', () => ({
   AdaptiveHeaderRoot: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),

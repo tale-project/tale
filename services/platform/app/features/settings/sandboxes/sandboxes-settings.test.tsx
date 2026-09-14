@@ -1,6 +1,6 @@
+import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ActiveEditorProvider, EditorGroup } from '@/app/components/ui/editor';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { SandboxesSettings } from './sandboxes-settings';
@@ -65,7 +65,7 @@ vi.mock('@/app/hooks/use-backend-query', () => ({ useBackendQuery: query }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutate, mutateAsync: mutate }),
 }));
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 vi.mock('@/app/hooks/use-organization-id', () => ({

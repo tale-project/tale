@@ -16,7 +16,7 @@ A dashed-border placeholder for empty states with an optional icon and message.
 
 ## Usage
 \`\`\`tsx
-import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
+import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
 import { FileText } from 'lucide-react';
 
 <EmptyPlaceholder icon={FileText}>

@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
-
 import {
   SearchableSelect,
   type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
+} from '@tale/ui/searchable-select';
+import { useMemo } from 'react';
+
 import { useContacts } from '@/app/features/contacts/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 

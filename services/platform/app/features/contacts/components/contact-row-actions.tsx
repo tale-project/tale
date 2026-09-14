@@ -1,13 +1,13 @@
 'use client';
 
+import {
+  EntityRowActions,
+  useEntityRowDialogs,
+} from '@tale/ui/entity/entity-row-actions';
 import { useNavigate } from '@tanstack/react-router';
 import { Mail, Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import {
-  EntityRowActions,
-  useEntityRowDialogs,
-} from '@/app/components/ui/entity/entity-row-actions';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';

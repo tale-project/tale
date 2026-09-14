@@ -1,12 +1,11 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { Stack } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-
-import { cn } from '@/lib/utils/cn';
 
 export interface SettingsSectionListItem {
   key: string;

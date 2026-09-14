@@ -16,9 +16,12 @@ declarative call instead of a copy of the same boilerplate.
   per-test budget (cold Vite compiles), and a single `chromium` project unless
   you pass your own `projects`. Override `baseURL`/`port`/`webServer`/`projects`
   per service; `E2E_BASE_URL` always wins over the port-derived URL.
-- **`@tale/e2e/i18n`** — `createI18n(messagesUrl)` returns `{ t }`, a dot-path
-  resolver over a service's `messages/en.json`, so locators never hardcode
-  English literals (AGENTS.md i18n rule).
+- **`@tale/e2e/i18n`** — `createI18n(messagesUrl, { packages })` returns `{ t }`,
+  a dot-path resolver over a service's `messages/en.yml`, so locators never
+  hardcode English literals (AGENTS.md i18n rule). `packages` lists the package
+  catalogs the service merges at runtime (`packages/ui/src/i18n/messages/en.yml`
+  and `global.yml`, `@tale/marketing-ui`'s for the marketing site) beneath its
+  own, so a locator can name `common.actions.delete` the way the app resolves it.
 - **`@tale/e2e/smoke`** — `collectConsoleErrors(page)` and
   `expectPageRenders(page)`: dependency-free assertions for the mostly-static
   marketing/docs sites.
@@ -49,7 +52,7 @@ import { test, expect } from '@playwright/test';
 import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 import { createI18n } from '@tale/e2e/i18n';
 
-const { t } = createI18n(new URL('../../messages/en.json', import.meta.url));
+const { t } = createI18n(new URL('../../messages/en.yml', import.meta.url));
 
 test('home renders without console errors', async ({ page }) => {
   const errors = collectConsoleErrors(page);

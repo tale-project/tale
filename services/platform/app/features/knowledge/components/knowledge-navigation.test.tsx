@@ -5,7 +5,7 @@ import { describe, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, string>) => {
       if (params) {
@@ -40,7 +40,7 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   useBrandingContext: () => ({ accentColor: undefined, isLoaded: true }),
 }));
 
-vi.mock('@/app/hooks/use-resize-observer', () => ({
+vi.mock('@tale/ui/use-resize-observer', () => ({
   useResizeObserver: vi.fn(),
 }));
 

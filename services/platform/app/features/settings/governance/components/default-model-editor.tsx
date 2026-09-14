@@ -10,9 +10,17 @@ import {
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { HStack, Row, Stack } from '@tale/ui/layout';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
+import { Select } from '@tale/ui/select';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Switch } from '@tale/ui/switch';
 import {
   Table,
   TableBody,
@@ -22,22 +30,14 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { useToast } from '@tale/ui/use-toast';
 import { AlertCircle, Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
-import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { ModelInfoPopover } from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 

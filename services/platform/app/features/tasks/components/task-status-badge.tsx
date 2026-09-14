@@ -1,8 +1,8 @@
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { TASK_STATUS_BADGE_VARIANT, type TaskStatus } from '../lib/display';
 

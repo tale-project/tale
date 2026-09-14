@@ -2,6 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { Tooltip } from '@tale/ui/tooltip';
 import { Link } from '@tanstack/react-router';
 import {
   AlertCircle,
@@ -12,10 +14,8 @@ import {
   VolumeOff,
 } from 'lucide-react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useVoiceOutputPlayer } from '../hooks/use-voice-output-player';
 import { errorMessageForCode } from '../utils/voice-error-messages';

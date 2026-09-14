@@ -4,12 +4,12 @@ import type {
   SettingsField,
   SettingsForm,
 } from '@tale/shared/schemas/automation-settings';
+import { Checkbox } from '@tale/ui/checkbox';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Input } from '@tale/ui/input';
+import { Select } from '@tale/ui/select';
 import { useMemo } from 'react';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { useT } from '@/lib/i18n/client';
 
 import type { SettingsFieldIssue } from '../hooks/use-settings-editor';

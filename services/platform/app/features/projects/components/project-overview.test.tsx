@@ -47,7 +47,7 @@ vi.mock('../hooks/mutations', () => ({
 // tab strip owns every piece of save feedback. Spying on the store lets the
 // tests assert that silence.
 const mockToast = vi.fn();
-vi.mock('@/app/hooks/use-toast', () => ({
+vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
   useToast: () => ({ toast: mockToast }),
 }));

@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { IconButton } from '@tale/ui/icon-button';
 import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
+import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useToast } from '@/app/hooks/use-toast';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';

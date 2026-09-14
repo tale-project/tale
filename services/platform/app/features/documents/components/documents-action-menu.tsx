@@ -1,17 +1,17 @@
 'use client';
 
-import { FolderPlus, HardDrive, Upload } from 'lucide-react';
-import { useState, useCallback, useMemo, useEffect } from 'react';
-
-import { GoogleIcon } from '@/app/components/icons/google-icon';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import {
   DataTableActionMenu,
   type DataTableActionMenuItem,
-} from '@/app/components/ui/data-table/data-table-action-menu';
+} from '@tale/ui/data-table/data-table-action-menu';
+import { GoogleIcon } from '@tale/ui/icons/google-icon';
+import { MicrosoftIcon } from '@tale/ui/icons/microsoft-icon';
+import { lazyComponent } from '@tale/ui/lazy-component';
+import { FolderPlus, HardDrive, Upload } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useCloudImportAuthorizationStatus } from '../hooks/queries';
 import { CloudImportConnectDialog } from './cloud-import-connect-dialog';

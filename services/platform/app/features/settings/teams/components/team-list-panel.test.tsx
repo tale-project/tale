@@ -33,7 +33,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 // Map the namespace-relative keys the panel reads to their en.json values.
-vi.mock('@/lib/i18n/client', () => ({
+vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string) =>
       (

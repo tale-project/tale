@@ -1,11 +1,11 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { toast } from '@tale/ui/use-toast';
 import { useState, useRef, useCallback } from 'react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';

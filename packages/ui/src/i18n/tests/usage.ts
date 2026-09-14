@@ -134,8 +134,18 @@ export const USE_TRANSLATION_ARRAY_RE =
   /\{\s*t(?:\s*:\s*(\w+))?\s*\}\s*=\s*useTranslation\(\s*\[([^\]]+)\]/g;
 export const ARRAY_NAMES_RE = /['"`]([\w.-]+)['"`]/g;
 
-// `i18n.t('full.key')` — bypasses the namespace machinery entirely.
-const I18N_T_RE = /\bi18n\.t\(\s*['"`]([\w.-]+)['"`]/g;
+// `i18n.t('full.key')`, `i18n.t('ns:key.path')` or
+// `i18n.t('key.path', { ns: 'ns' })` — bypasses the `useT` binding entirely
+// (the colon is i18next's namespace separator; `ns` in the options object
+// names the namespace the same way).
+export const I18N_T_RE =
+  /\bi18n\.t\(\s*['"`](?:([\w-]+):)?([\w.-]+)['"`](?:\s*,\s*\{[^}]*?\bns:\s*['"`]([\w-]+)['"`])?/g;
+
+/** The catalog key an `i18n.t(...)` literal resolves to. */
+export function i18nTKey(match: RegExpMatchArray): string {
+  const ns = match[1] ?? match[3];
+  return ns ? `${ns}.${match[2]}` : match[2];
+}
 
 // Any dotted string literal (looks like a translation key). Requires at
 // least one dot to avoid matching every short literal.
@@ -207,7 +217,7 @@ function buildUsedKeys(
           recordAlias(aliases, alias, inner[1]);
         }
       }
-      for (const m of content.matchAll(I18N_T_RE)) exact.add(m[1]);
+      for (const m of content.matchAll(I18N_T_RE)) exact.add(i18nTKey(m));
 
       for (const m of content.matchAll(T_ALIAS_HEURISTIC_RE)) {
         const alias = m[1];

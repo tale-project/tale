@@ -1,11 +1,11 @@
+import { useSkipEntrance } from '@tale/marketing-ui/entrance';
+import { MARKETING_EASE } from '@tale/marketing-ui/reveal';
+import { SectionHeading } from '@tale/marketing-ui/section-heading';
 import { motion } from 'framer-motion';
 import { Scale, Server, ShieldCheck, type LucideIcon } from 'lucide-react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
-import { MARKETING_EASE } from '@/app/components/marketing/reveal';
-import { SectionHeading } from '@/app/components/marketing/section-heading';
 import { useT } from '@/lib/i18n/client';
-import { useSkipEntrance } from '@/lib/motion/entrance';
 
 const PILLARS = [
   { key: 'selfHosted', Icon: Server },

@@ -1,10 +1,10 @@
+import { Reveal } from '@tale/marketing-ui/reveal';
 import { cn } from '@tale/ui/cn';
 import { Layers, ShieldCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import { SiteContainer } from '@/app/components/layout/site-container';
-import { Reveal } from '@/app/components/marketing/reveal';
 import { useT } from '@/lib/i18n/client';
 
 // Inset vertical divider on the right edge at lg+, matching the .pen

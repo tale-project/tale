@@ -16,7 +16,7 @@ A single-piece alert component for displaying important messages.
 
 ## Usage
 \`\`\`tsx
-import { Alert } from '@/app/components/ui/feedback/alert';
+import { Alert } from '@tale/ui/alert';
 
 <Alert
   variant="destructive"

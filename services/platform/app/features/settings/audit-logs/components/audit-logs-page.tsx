@@ -1,13 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Tabs } from '@tale/ui/tabs';
+import { useToast } from '@tale/ui/use-toast';
 import { ChevronDown, Download } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { ActivityLogView } from '@/app/features/settings/audit-logs/components/activity-log-view';
 import { AuditIntegrityPanel } from '@/app/features/settings/audit-logs/components/audit-integrity-panel';
 import { AuditLogTab } from '@/app/features/settings/audit-logs/components/audit-log-tab';
@@ -20,7 +21,6 @@ import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface AuditLogsPageProps {

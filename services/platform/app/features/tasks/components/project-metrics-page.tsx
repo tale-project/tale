@@ -5,6 +5,19 @@ import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS, getChartSeriesColor } from '@tale/ui/chart-theme';
 import { Grid, Stack } from '@tale/ui/layout';
+import {
+  seriesToLegend,
+  TrendAreaChart,
+  TrendBarChart,
+  TrendLineChart,
+  type ChartSeries,
+} from '@tale/ui/metrics/charts';
+import { MetricsLayout } from '@tale/ui/metrics/metrics-layout';
+import {
+  parseMetricsPeriodDays,
+  type MetricsPeriodDays,
+} from '@tale/ui/metrics/metrics-period';
+import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Sparkline } from '@tale/ui/sparkline';
@@ -14,19 +27,6 @@ import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { AlertTriangle, BarChart3 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import {
-  seriesToLegend,
-  TrendAreaChart,
-  TrendBarChart,
-  TrendLineChart,
-  type ChartSeries,
-} from '@/app/components/metrics/charts';
-import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import {
-  parseMetricsPeriodDays,
-  type MetricsPeriodDays,
-} from '@/app/components/metrics/metrics-period';
-import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 

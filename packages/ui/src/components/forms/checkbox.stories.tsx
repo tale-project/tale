@@ -1,48 +1,144 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { Meta, StoryObj } from '@storybook/react';
+import { useState } from 'react';
+import { fn } from 'storybook/test';
 
-import { Skeletonize } from '../feedback/skeleton-context';
 import { Checkbox } from './checkbox';
-import { Label } from './label';
 
 const meta: Meta<typeof Checkbox> = {
   title: 'Forms/Checkbox',
   component: Checkbox,
   tags: ['autodocs'],
-  parameters: { layout: 'padded' },
-};
-export default meta;
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        component: `
+A checkbox component built on Radix UI Checkbox.
 
+## Usage
+\`\`\`tsx
+import { Checkbox } from './checkbox';
+
+<Checkbox label="Accept terms" />
+<Checkbox checked="indeterminate" label="Select all" />
+\`\`\`
+
+## Accessibility
+- Built on Radix UI Checkbox for full ARIA support
+- Supports checked, unchecked, and indeterminate states
+- Label is clickable and properly associated
+        `,
+      },
+    },
+  },
+  argTypes: {
+    label: {
+      control: 'text',
+      description: 'Label displayed next to the checkbox',
+    },
+    checked: {
+      control: 'select',
+      options: [true, false, 'indeterminate'],
+      description: 'Checked state',
+    },
+    required: {
+      control: 'boolean',
+      description: 'Marks the field as required',
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'Disables the checkbox',
+    },
+  },
+  args: {
+    onCheckedChange: fn(),
+  },
+};
+
+export default meta;
 type Story = StoryObj<typeof Checkbox>;
 
-export const Unchecked: Story = {
-  render: () => <Checkbox aria-label="Accept terms" />,
-};
-
-export const Checked: Story = {
-  render: () => <Checkbox defaultChecked aria-label="Accept terms" />,
-};
-
-export const Indeterminate: Story = {
-  render: () => <Checkbox checked="indeterminate" aria-label="Select all" />,
-};
-
-export const Disabled: Story = {
-  render: () => <Checkbox disabled aria-label="Disabled" />,
+export const Default: Story = {
+  args: {},
 };
 
 export const WithLabel: Story = {
-  render: () => (
-    <div className="flex items-center gap-2">
-      <Checkbox id="terms" />
-      <Label htmlFor="terms">Accept terms and conditions</Label>
-    </div>
-  ),
+  args: {
+    label: 'Accept terms and conditions',
+  },
 };
 
-export const Loading: Story = {
+export const WithDescription: Story = {
+  args: {
+    label: 'Accept terms and conditions',
+    description: 'By checking this box you agree to our terms of service.',
+  },
+};
+
+export const Checked: Story = {
+  args: {
+    label: 'Email notifications',
+    checked: true,
+  },
+};
+
+export const Indeterminate: Story = {
+  render: function IndeterminateStory() {
+    const [checked, setChecked] = useState<boolean | 'indeterminate'>(
+      'indeterminate',
+    );
+    return (
+      <Checkbox
+        label="Select all items"
+        checked={checked}
+        onCheckedChange={setChecked}
+      />
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Indeterminate state for partial selection.',
+      },
+    },
+  },
+};
+
+export const Required: Story = {
+  args: {
+    label: 'I agree to the terms',
+    required: true,
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    label: 'Disabled checkbox',
+    disabled: true,
+  },
+};
+
+export const DisabledChecked: Story = {
+  args: {
+    label: 'Disabled checked',
+    checked: true,
+    disabled: true,
+  },
+};
+
+export const CheckboxGroup: Story = {
   render: () => (
-    <Skeletonize loading>
-      <Checkbox aria-label="Loading" />
-    </Skeletonize>
+    <div className="flex flex-col gap-3">
+      <Checkbox label="Option 1" />
+      <Checkbox label="Option 2" />
+      <Checkbox label="Option 3" />
+    </div>
   ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Multiple checkboxes in a group.',
+      },
+    },
+  },
 };

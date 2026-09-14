@@ -8,12 +8,12 @@
  * shows the "no live detail" notice; the stored `error` string still shows.
  */
 import { Badge } from '@tale/ui/badge';
+import { cn } from '@tale/ui/cn';
+import { ViewDialog } from '@tale/ui/dialog/view-dialog';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import type { TaskAgentRunRow } from '../utils/task-timeline';
 
