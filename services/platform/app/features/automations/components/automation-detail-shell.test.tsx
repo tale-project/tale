@@ -22,6 +22,18 @@ const fixtures = vi.hoisted(() => ({
   dirtyKeys: undefined as ReadonlySet<string> | undefined,
 }));
 
+// The shell reads the location to tell a RESTORED arrival (the rail reopening
+// a remembered automation) from a deliberate one, so a deleted automation falls
+// back to the list instead of dead-ending. No router is mounted here.
+vi.mock('@tanstack/react-router', () => ({
+  useLocation: () => ({
+    pathname: '/dashboard/org-1/automations/sync-emails',
+    search: {},
+    state: {},
+  }),
+  useNavigate: () => vi.fn(),
+}));
+
 vi.mock('../hooks/queries', () => ({
   useAutomation: () => ({
     data: fixtures.automation,

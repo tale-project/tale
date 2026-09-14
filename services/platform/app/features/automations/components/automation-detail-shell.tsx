@@ -2,8 +2,9 @@
 
 import { EmptyState } from '@tale/ui/empty-state';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { SearchX } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 
 import {
   AdaptiveHeaderRoot,
@@ -19,6 +20,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { clearNavSection } from '@/app/lib/nav-memory';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomation } from '../hooks/queries';
@@ -106,6 +108,9 @@ function AutomationDetailFrame({
     ];
   }, [t, organizationId, automationSlug, projectId]);
 
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const breadcrumbs = (
     <AutomationBreadcrumbs
       organizationId={organizationId}
@@ -114,7 +119,24 @@ function AutomationDetailFrame({
     />
   );
 
-  if (isMissingAutomationRead(automationQuery)) {
+  // A remembered automation can be deleted or renamed between visits. When the
+  // rail RESTORED us here, forget the stale place and fall back to the list
+  // rather than leaving the user on a not-found they never asked for. Only the
+  // org-scoped section has memory: a project-scoped automation route belongs to
+  // the projects section, whose own shell owns it.
+  const isMissing = isMissingAutomationRead(automationQuery);
+  const wasRestored = location.state.navRestore === true;
+  useEffect(() => {
+    if (!isMissing || !wasRestored || projectId !== undefined) return;
+    clearNavSection(organizationId, 'automations');
+    void navigate({
+      to: '/dashboard/$id/automations',
+      params: { id: organizationId },
+      replace: true,
+    });
+  }, [isMissing, wasRestored, projectId, organizationId, navigate]);
+
+  if (isMissing) {
     return (
       <PageLayout
         organizationId={organizationId}
