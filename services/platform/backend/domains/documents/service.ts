@@ -1221,22 +1221,27 @@ function encodePageCursor(row: { createdAt: number; id: string }): string {
   ).toString('base64url');
 }
 
-/** The hub listing PAGE (0.4 `listDocumentsPaginated`): newest first, the
- * optional folder/provider/extension facets, keyset cursor. */
+/** The hub listing PAGE (0.4 `listDocumentsPaginated`): ONE folder of the
+ * hub, newest first, the optional provider/extension facets, keyset cursor.
+ * `folderId: null` is the root, and the root holds the documents that sit in
+ * no folder — never the whole hub. The 0.4 index read matched a `folderId`
+ * of `undefined`, i.e. unfiled rows; the first Postgres port read a missing
+ * folder as "no filter", so the root listed every document beside its own
+ * folder and a synced OneDrive folder's files stood in two places (2026-09). */
 export async function listHubDocumentsPaginated(
   sql: Sql,
   auth: ProjectAuthContext,
   args: {
     cursor: string | null;
     numItems: number;
-    folderId?: string;
+    /** The folder to page through; `null` for the hub root. */
+    folderId: string | null;
     sourceProvider?: string;
     extension?: string;
   },
 ): Promise<{ page: DocumentRow[]; isDone: boolean; continueCursor: string }> {
   const numItems = Math.min(Math.max(args.numItems, 1), HUB_PAGE_MAX);
   const after = decodePageCursor(args.cursor);
-  const folderId = args.folderId ?? null;
   const sourceProvider = args.sourceProvider ?? null;
   const extension = args.extension ?? null;
   const rows = await sql<DocumentRow[]>`
@@ -1244,7 +1249,7 @@ export async function listHubDocumentsPaginated(
     WHERE org_id = ${auth.organizationId}
       AND ${hubAccessClause(sql, auth)}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      AND (${folderId}::text IS NULL OR folder_id = ${folderId})
+      AND folder_id IS NOT DISTINCT FROM ${args.folderId}
       AND (${sourceProvider}::text IS NULL
         OR source_provider = ${sourceProvider})
       AND (${extension}::text IS NULL OR extension = ${extension})
