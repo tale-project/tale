@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { DemoStage } from '@tale/marketing-ui/demo-stage';
 import { AppShell } from '@tale/ui/app-shell';
 
 import { i18n } from '@/lib/i18n/i18n';
@@ -29,7 +30,6 @@ import {
   useGovernScenario,
   useKnowledgeScenario,
 } from './demo-scenarios';
-import { DemoStage } from './demo-stage';
 import { GovernGate } from './govern-gate';
 import { HeroOrchestration } from './hero-orchestration';
 import { KnowledgePool } from './knowledge-pool';

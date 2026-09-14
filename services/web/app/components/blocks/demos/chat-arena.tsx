@@ -1,3 +1,6 @@
+import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { DemoStreamText } from '@tale/marketing-ui/demo-stream-text';
+import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { Bot, ChevronDown, Cpu } from 'lucide-react';
@@ -6,9 +9,6 @@ import { useRef } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { type ArenaScenario, useArenaScenario } from './demo-scenarios';
-import { DemoShell } from './demo-shell';
-import { DemoStreamText } from './demo-stream-text';
-import { useDemoTimeline } from './use-demo-timeline';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

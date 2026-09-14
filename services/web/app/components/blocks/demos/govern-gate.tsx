@@ -1,3 +1,5 @@
+import { DemoShell } from '@tale/marketing-ui/demo-shell';
+import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { Check, Workflow } from 'lucide-react';
@@ -6,8 +8,6 @@ import { useRef } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { type GovernScenario, useGovernScenario } from './demo-scenarios';
-import { DemoShell } from './demo-shell';
-import { useDemoTimeline } from './use-demo-timeline';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

@@ -1,10 +1,10 @@
 'use client';
 
+import { MarketingExternalLink } from '@tale/marketing-ui/external-link';
 import { cn } from '@tale/ui/cn';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { MarketingExternalLink } from '@/app/components/marketing/external-link';
 import { SELF_HOSTED_QUICKSTART_URL } from '@/lib/docs-url';
 
 // The real self-hosted quickstart, verbatim — source of truth:

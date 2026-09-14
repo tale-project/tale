@@ -16,7 +16,7 @@ Inline code display for variables, markers, and short code snippets within text.
 ## Usage
 
 \`\`\`tsx
-import { InlineCode } from '@/app/components/ui/data-display/inline-code';
+import { InlineCode } from '@tale/ui/inline-code';
 
 <p>Use the <InlineCode>api_key</InlineCode> from your settings.</p>
 \`\`\`

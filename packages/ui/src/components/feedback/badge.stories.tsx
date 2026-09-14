@@ -16,7 +16,7 @@ A badge component for displaying status or labels.
 
 ## Usage
 \`\`\`tsx
-import { Badge } from '@/app/components/ui/feedback';
+import { Badge } from '@tale/ui/badge';
 
 <Badge variant="green">Active</Badge>
 <Badge variant="destructive" dot>Error</Badge>

@@ -1,5 +1,5 @@
+import { SiteHeader as SiteHeaderShell } from '@tale/marketing-ui/site-header';
 import { TaleLogo } from '@tale/ui/logo';
-import { SiteHeader as SiteHeaderShell } from '@tale/ui/site-header';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { GithubLink } from '@/app/components/layout/github-link';

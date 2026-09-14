@@ -249,6 +249,17 @@ export default {
         '@storybook/addon-themes',
       ],
     },
+    'packages/marketing-ui': {
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
+      entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
+      project: ['**/*.{ts,tsx}'],
+    },
     'tools/cli': {
       project: ['**/*.ts'],
       // The embedded native workflow validator imports Ajv from platform

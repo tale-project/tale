@@ -21,7 +21,7 @@ Uses semantic \`<dt>\`/\`<dd>\` elements — used internally by \`<StatGrid>\`.
 
 Prefer using \`StatGrid\` with its data-driven \`items\` prop:
 \`\`\`tsx
-import { StatGrid } from '@/app/components/ui/data-display/stat-grid';
+import { StatGrid } from '@tale/ui/stat-grid';
 
 <StatGrid
   items={[

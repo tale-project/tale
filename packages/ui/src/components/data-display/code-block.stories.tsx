@@ -16,7 +16,7 @@ A code block with an optional label and copy-to-clipboard button.
 
 ## Usage
 \`\`\`tsx
-import { CodeBlock } from '@/app/components/ui/data-display/code-block';
+import { CodeBlock } from '@tale/ui/code-block';
 
 <CodeBlock
   label="cURL example"

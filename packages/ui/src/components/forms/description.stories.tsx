@@ -15,7 +15,7 @@ A text component for descriptions and helper text in forms.
 
 ## Usage
 \`\`\`tsx
-import { Description } from '@/app/components/ui/forms/description';
+import { Description } from '@tale/ui/description';
 
 <Description>
   Enter your email address to receive updates.

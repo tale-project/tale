@@ -89,11 +89,16 @@ a GitHub URL:
 ```
 
 Pin a release instead of the moving branch with `#ui-v<version>` (the tags the
-`publish-packages` workflow cuts on every Tale release). Requirements on the
-consumer side:
+`publish-packages` workflow cuts on every Tale release) — Bun caches a git
+dependency by ref, so a moving branch only advances after
+`bun install --force` (or `bun pm cache rm`), while a tag is reproducible.
+Requirements on the consumer side:
 
-- **Vite + Tailwind v4** (the package ships TypeScript source, not a build).
-  Register the YAML catalog loader and the package's Tailwind sources:
+- **Vite + Tailwind v4, run through Bun** (the package ships TypeScript
+  source, not a build — Node refuses to strip types under `node_modules`, so
+  `vite.config.ts` must load under Bun: `bun --bun vite build`, exactly the
+  scripts every Tale service uses). Register the YAML catalog loader and the
+  package's stylesheet:
 
   ```ts
   // vite.config.ts

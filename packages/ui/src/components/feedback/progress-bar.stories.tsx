@@ -15,7 +15,7 @@ A progress bar with percentage label and hover tooltip.
 
 ## Usage
 \`\`\`tsx
-import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
+import { ProgressBar } from '@tale/ui/progress-bar';
 
 <ProgressBar
   value={25}

@@ -99,13 +99,16 @@ jobs:
             web:
               - 'services/web/**'
               - 'packages/ui/**'
+              - 'packages/marketing-ui/**'
             docs:
               - 'services/docs/**'
               - 'docs/**'
               - 'packages/ui/**'
+              - 'packages/marketing-ui/**'
             storybook:
               - 'services/platform/**'
               - 'packages/ui/**'
+              - 'packages/marketing-ui/**'
             sandbox:
               - 'services/sandbox/**'
             sandbox-egress:

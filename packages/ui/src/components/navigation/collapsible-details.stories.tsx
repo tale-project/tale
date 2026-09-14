@@ -16,7 +16,7 @@ A native \`<details>\` element styled with a chevron indicator that rotates when
 
 ## Usage
 \`\`\`tsx
-import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 
 <CollapsibleDetails summary="Advanced settings">
   <p>Hidden content revealed on expand.</p>

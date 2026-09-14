@@ -1,7 +1,9 @@
+import { MarketingRouterProvider } from '@tale/marketing-ui/routing';
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import { SkipLink } from '@tale/ui/skip-link';
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
+import { MarketingRouterLink } from '@/app/components/layout/localized-link';
 import { SiteFooter } from '@/app/components/layout/site-footer';
 import { SiteHeader } from '@/app/components/layout/site-header';
 import { NotFoundPage } from '@/app/pages/not-found-page';
@@ -18,27 +20,33 @@ export const Route = createRootRoute({
  * Top-level layout. Reads the active locale from the URL on every route
  * change; `<LocaleSync>` keeps the i18n instance and `<html lang>` aligned.
  * Components elsewhere never call `i18n.changeLanguage` directly.
+ *
+ * `<MarketingRouterProvider>` binds every `@tale/marketing-ui` link to this
+ * site's locale-aware router (`MarketingRouterLink`); the header, the pages
+ * and the footer all render inside it.
  */
 function RootComponent() {
   const { t } = useT('nav');
   const locale = useCurrentLocale();
 
   return (
-    <div className="bg-surface-site text-fg-base relative flex min-h-screen flex-col">
-      {/* Top wash lives on the shell so the sticky transparent header always
+    <MarketingRouterProvider link={MarketingRouterLink}>
+      <div className="bg-surface-site text-fg-base relative flex min-h-screen flex-col">
+        {/* Top wash lives on the shell so the sticky transparent header always
           composites over the same paper — per-page pulls under the nav were
           easy to miss and read as a hairline seam. */}
-      <div
-        aria-hidden
-        className="bg-gradient-site-hero pointer-events-none absolute inset-x-0 top-0 h-[min(72vh,40rem)]"
-      />
-      <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
-      <SkipLink>{t('skipToMain')}</SkipLink>
-      <SiteHeader />
-      <main id="main" className="relative flex-1">
-        <Outlet />
-      </main>
-      <SiteFooter />
-    </div>
+        <div
+          aria-hidden
+          className="bg-gradient-site-hero pointer-events-none absolute inset-x-0 top-0 h-[min(72vh,40rem)]"
+        />
+        <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
+        <SkipLink>{t('skipToMain')}</SkipLink>
+        <SiteHeader />
+        <main id="main" className="relative flex-1">
+          <Outlet />
+        </main>
+        <SiteFooter />
+      </div>
+    </MarketingRouterProvider>
   );
 }

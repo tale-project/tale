@@ -9,6 +9,14 @@ import { createI18n } from '@tale/e2e/i18n';
  */
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
+// The demo window's own chrome (the Share label) ships with the marketing
+// design language, not the site catalog.
+const { t: tMarketing } = createI18n(
+  new URL(
+    '../../../../../packages/marketing-ui/src/i18n/messages/en.yml',
+    import.meta.url,
+  ),
+);
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -24,7 +32,7 @@ test.describe('homepage demos', () => {
     await expect(demo).toContainText(t('home.demos.hero.routedTitle'));
     await expect(demo).toContainText(t('home.demos.hero.reply4'));
     await expect(demo).toContainText(t('home.demos.hero.citation2'));
-    await expect(demo).toContainText(t('home.demos.chrome.share'));
+    await expect(demo).toContainText(tMarketing('demo.chrome.share'));
   });
 
   test('tour demos render their complete end states under reduced motion', async ({
@@ -39,7 +47,7 @@ test.describe('homepage demos', () => {
     await expect(connect).toContainText(t('home.demos.connect.windowTitle'));
     await expect(connect).toContainText(t('home.demos.connect.agent1'));
     await expect(connect).toContainText(t('home.demos.connect.statusReady'));
-    await expect(connect).not.toContainText(t('home.demos.chrome.share'));
+    await expect(connect).not.toContainText(tMarketing('demo.chrome.share'));
 
     const knowledge = page.getByRole('img', {
       name: t('home.demos.knowledge.label'),
@@ -52,7 +60,7 @@ test.describe('homepage demos', () => {
     await expect(knowledge).toContainText(
       t('home.demos.knowledge.statusIndexed'),
     );
-    await expect(knowledge).not.toContainText(t('home.demos.chrome.share'));
+    await expect(knowledge).not.toContainText(tMarketing('demo.chrome.share'));
 
     const automation = page.getByRole('img', {
       name: t('home.demos.automation.label'),
@@ -65,7 +73,7 @@ test.describe('homepage demos', () => {
     await expect(automation).toContainText(
       t('home.demos.automation.statusAwaiting'),
     );
-    await expect(automation).not.toContainText(t('home.demos.chrome.share'));
+    await expect(automation).not.toContainText(tMarketing('demo.chrome.share'));
 
     const govern = page.getByRole('img', {
       name: t('home.demos.govern.label'),
@@ -88,7 +96,7 @@ test.describe('homepage demos', () => {
     await expect(projects).toContainText(t('home.demos.projects.windowTitle'));
     await expect(projects).toContainText(t('home.demos.projects.project3'));
     await expect(projects).toContainText(t('home.demos.projects.agents2'));
-    await expect(projects).not.toContainText(t('home.demos.chrome.share'));
+    await expect(projects).not.toContainText(tMarketing('demo.chrome.share'));
   });
 
   test('tour headings carry the six-stage journey', async ({ page }) => {

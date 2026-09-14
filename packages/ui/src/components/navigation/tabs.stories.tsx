@@ -15,7 +15,7 @@ A config-driven tabs component built on Radix UI primitives with full keyboard n
 
 ## Usage
 \`\`\`tsx
-import { Tabs } from '@/app/components/ui/navigation/tabs';
+import { Tabs } from '@tale/ui/tabs';
 
 <Tabs
   defaultValue="account"

@@ -1,8 +1,8 @@
-import { TaleLogo } from '@tale/ui/logo';
 import {
   type FooterColumn,
   SiteFooter as SiteFooterShell,
-} from '@tale/ui/site-footer';
+} from '@tale/marketing-ui/site-footer';
+import { TaleLogo } from '@tale/ui/logo';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 

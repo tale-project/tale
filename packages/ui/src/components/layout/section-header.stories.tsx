@@ -16,7 +16,7 @@ Section header for page sections with a title, optional description, and optiona
 
 ## Usage
 \`\`\`tsx
-import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { SectionHeader } from '@tale/ui/section-header';
 
 <SectionHeader title="Members" description="Manage team members and permissions." />
 

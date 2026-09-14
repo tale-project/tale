@@ -1,1 +1,1 @@
-export { SiteContainer } from '@tale/ui/site-container';
+export { SiteContainer } from '@tale/marketing-ui/site-container';

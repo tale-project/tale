@@ -17,7 +17,7 @@ A data-driven grid for displaying labeled statistics. Renders as a semantic \`<d
 
 ## Usage
 \`\`\`tsx
-import { StatGrid } from '@/app/components/ui/data-display/stat-grid';
+import { StatGrid } from '@tale/ui/stat-grid';
 
 <StatGrid
   items={[

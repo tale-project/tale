@@ -169,8 +169,6 @@ home:
     ctaPrimary: Demo anfragen
     ctaSecondary: Kontakt aufnehmen
   demos:
-    chrome:
-      share: Teilen
     hero:
       label:
         'Animierte Produktdemo: Eine Aufgabe wird in Tale eingetippt, Auto leitet

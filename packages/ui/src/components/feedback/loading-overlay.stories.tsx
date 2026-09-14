@@ -15,7 +15,7 @@ A translucent overlay with a spinner and message, used to indicate a blocking op
 
 ## Usage
 \`\`\`tsx
-import { LoadingOverlay } from '@/app/components/ui/feedback/loading-overlay';
+import { LoadingOverlay } from '@tale/ui/loading-overlay';
 
 <div className="relative">
   <LoadingOverlay message="Saving changes..." />

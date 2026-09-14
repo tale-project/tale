@@ -1,3 +1,9 @@
+// The `*.yml` module typing travels with this file so a consumer that installs
+// the package from GitHub type-checks the catalog imports without declaring
+// the module shape itself (its tsconfig never includes our `.d.ts`).
+// oxlint-disable-next-line typescript/triple-slash-reference -- an ambient `declare module` file has no import form; a path reference is the only way to carry it into a consumer's program
+/// <reference path="../yaml-modules.d.ts" />
+
 import type { PackageMessages } from './init-service';
 import deChMessages from './messages/de-CH.yml';
 import deMessages from './messages/de.yml';

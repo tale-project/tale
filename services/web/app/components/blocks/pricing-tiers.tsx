@@ -1,11 +1,11 @@
+import { MarketingSection } from '@tale/marketing-ui/marketing-section';
+import { SegmentedRadio } from '@tale/marketing-ui/segmented-radio';
+import { TierCard } from '@tale/marketing-ui/tier-card';
 import { formatCurrency } from '@tale/ui/format';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { MarketingSection } from '@/app/components/blocks/marketing-section';
 import type { Billing } from '@/app/components/blocks/pricing-section';
-import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
-import { TierCard } from '@/app/components/blocks/tier-card';
 import { UserCountControl } from '@/app/components/blocks/user-count-control';
 import {
   MarketingButton,

@@ -113,7 +113,8 @@ compose.*.yml
 **/Dockerfile.dockerignore
 
 # =============================================================================
-# Web-specific: image needs only services/web + packages/ui workspace
+# Web-specific: image needs only services/web + the packages/ui and
+# packages/marketing-ui workspaces
 # =============================================================================
 services/platform/
 services/convex/

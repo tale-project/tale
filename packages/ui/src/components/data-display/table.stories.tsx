@@ -33,7 +33,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '@/app/components/ui/data-display/table';
+} from '@tale/ui/table';
 
 <Table>
   <TableHeader>

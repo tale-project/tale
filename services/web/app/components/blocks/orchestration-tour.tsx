@@ -1,3 +1,4 @@
+import { DemoTourSection } from '@tale/marketing-ui/demo-tour-section';
 import type { ComponentType } from 'react';
 
 import {
@@ -8,7 +9,6 @@ import {
   HomeKnowledgeDemo,
   HomeProjectsDemo,
 } from '@/app/components/blocks/demos/content';
-import { DemoTourSection } from '@/app/components/blocks/demos/demo-tour-section';
 import type { LocalizedRoutePath } from '@/app/components/layout/localized-link';
 import { useT } from '@/lib/i18n/client';
 

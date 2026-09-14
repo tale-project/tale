@@ -1,6 +1,6 @@
+import type { DemoTourStage } from '@tale/marketing-ui/demo-tour-section';
 import type { ReactNode } from 'react';
 
-import type { DemoTourStage } from '@/app/components/blocks/demos/demo-tour-section';
 import { useT } from '@/lib/i18n/client';
 
 type FeatureNamespace =

@@ -25,7 +25,7 @@ A versatile button component with multiple variants and sizes.
 
 ## Usage
 \`\`\`tsx
-import { Button } from '@/app/components/ui/primitives';
+import { Button } from '@tale/ui/button';
 
 <Button variant="primary">Click me</Button>
 <Button variant="destructive" isLoading>Deleting...</Button>

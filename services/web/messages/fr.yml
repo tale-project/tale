@@ -169,8 +169,6 @@ home:
     ctaPrimary: Demander une démo
     ctaSecondary: Nous contacter
   demos:
-    chrome:
-      share: Partager
     hero:
       label:
         'Démo produit animée : une tâche est saisie dans Tale, Auto la confie à

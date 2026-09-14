@@ -170,8 +170,6 @@ home:
     ctaPrimary: Request a demo
     ctaSecondary: Contact us
   demos:
-    chrome:
-      share: Share
     hero:
       label:
         'Animated product demo: a task is typed into Tale, Auto routes it to the

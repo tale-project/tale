@@ -1,3 +1,4 @@
+import { LogoCloudSection } from '@tale/marketing-ui/logo-cloud-section';
 import {
   TooltipRoot,
   TooltipContent,
@@ -5,7 +6,6 @@ import {
   TooltipTrigger,
 } from '@tale/ui/tooltip';
 
-import { LogoCloudSection } from '@/app/components/blocks/logo-cloud-section';
 import type { BrandIcon } from '@/app/components/icons/types';
 import {
   INTEGRATION_LOGOS,

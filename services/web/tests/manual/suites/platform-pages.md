@@ -107,7 +107,7 @@ its content is only as fresh as the last build.
   preference, load `/platform` and watch one scene; inspect window chrome
   across scenes → Scenes animate (typing/streaming beats) and settle at the
   same end state the reduced-motion path pins; chat-style windows show the
-  **Share** chrome (`home.demos.chrome.share`) while non-chat windows
+  **Share** chrome (`demo.chrome.share`, shipped by `@tale/marketing-ui`) while non-chat windows
   (agents/knowledge/automation) do **not**.
 
 ## Boundary & error tests

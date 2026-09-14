@@ -5,6 +5,7 @@ import {
   detectMediaMime,
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
+  documentIconExtension,
   extractExtension,
   getDocumentPreviewKind,
   isAllowedDocumentUpload,
@@ -557,5 +558,26 @@ describe('upload-accept / preview-support parity (#2380)', () => {
   it('md/mdx route to the markdown renderer', () => {
     expect(getDocumentPreviewKind('md')).toBe('markdown');
     expect(getDocumentPreviewKind('MDX')).toBe('markdown');
+  });
+});
+
+describe('documentIconExtension', () => {
+  it('prefers the authoritative content type over the filename suffix', () => {
+    expect(documentIconExtension('report.txt', 'application/pdf')).toBe('pdf');
+  });
+
+  it('gives an extension-less synced title its glyph from the content type', () => {
+    expect(documentIconExtension('Getting started', 'text/plain')).toBe('txt');
+  });
+
+  it('falls back to the filename suffix when the content type is generic or absent', () => {
+    expect(
+      documentIconExtension('report.pdf', 'application/octet-stream'),
+    ).toBe('pdf');
+    expect(documentIconExtension('report.pdf')).toBe('pdf');
+  });
+
+  it('is undefined when neither side knows', () => {
+    expect(documentIconExtension('Overview')).toBeUndefined();
   });
 });

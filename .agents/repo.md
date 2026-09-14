@@ -9,13 +9,18 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 ## Layout
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
-  the Postgres backend), `web` (marketing site), `docs` (docs site), plus `db`, `proxy`, and the
-  `sandbox*` family.
+  the Postgres backend), `web` (marketing site), `docs` (docs site), `ui-docs` (the design-system
+  docs site at ui.tale.dev, port 3003: a marketing-language front page on `@tale/marketing-ui`,
+  app-language `/docs/*` pages on `@tale/ui` with live `<Demo>` examples), plus `db`, `proxy`,
+  and the `sandbox*` family.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
   the platform, docs and marketing site all build on it, and other repositories install it from
-  GitHub), `shared` (schemas + pg), `e2e` (Playwright config factory). A component that carries
-  tale business logic (org branding, abilities, backend queries) stays in its service and wraps
-  the `@tale/ui` primitive; only UI-reusable logic lives in the package.
+  GitHub), `marketing-ui` (the marketing design language — site chrome, marketing primitives,
+  feature-page and product-demo frames — layered on `@tale/ui`; the marketing site builds on it
+  and it is published from GitHub the same way), `shared` (schemas + pg), `e2e` (Playwright config
+  factory). A component that carries tale business logic (org branding, abilities, backend
+  queries) stays in its service and wraps the `@tale/ui` primitive; only UI-reusable logic lives
+  in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here).

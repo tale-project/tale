@@ -26,7 +26,7 @@ An icon-only button component for compact UI actions.
 
 ## Usage
 \`\`\`tsx
-import { IconButton } from '@/app/components/ui/primitives';
+import { IconButton } from '@tale/ui/icon-button';
 
 <IconButton icon={Edit} aria-label="Edit item" />
 <IconButton icon={Trash2} variant="destructive" aria-label="Delete item" />

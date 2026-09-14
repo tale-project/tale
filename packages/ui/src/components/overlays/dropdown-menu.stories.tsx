@@ -34,7 +34,7 @@ Items are organized into groups (array of arrays). Separators are rendered autom
 
 ## Usage
 \`\`\`tsx
-import { DropdownMenu, type DropdownMenuGroup } from '@/app/components/ui/overlays/dropdown-menu';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 
 const items: DropdownMenuGroup[] = [
   [{ type: 'label', content: 'My Account' }],

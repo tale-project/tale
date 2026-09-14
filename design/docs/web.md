@@ -2,33 +2,54 @@
 
 The **marketing site** ([`services/web`](../../services/web/)). The web is a **different design language**
 from the app — bold, spacious, narrative pages that _show the product working_, not a dense product
-surface. It is built from the same `@tale/ui` substrate, composed differently. Never port an app
-(chat/dashboard/settings) pattern into the web, or vice versa.
+surface. It ships as its own package, [`@tale/marketing-ui`](../../packages/marketing-ui/), layered
+on the same `@tale/ui` substrate — the app language's tokens and primitives, composed differently.
+Never port an app (chat/dashboard/settings) pattern into the web, or vice versa.
 
 ## Design source
 
 There is **no** Pencil `.pen` tree and **no** `design-system.md` for web. The living reference is:
 
 - This doc — the surface rules and what not to import.
-- The `Site*` component source under
-  [`packages/ui/src/components/site/`](../../packages/ui/src/components/site/).
+- The package source under [`packages/marketing-ui/src/`](../../packages/marketing-ui/src/) — the
+  `Site*` chrome (`components/site/`), the marketing primitives (`components/marketing/`), the
+  feature-page frames (`components/feature/`), the blocks (`components/blocks/`) and the demo frames
+  (`components/demos/`). Its `package.json` `exports` map is the public surface; its Storybook
+  (`bun run storybook:marketing-ui`, :6012) is the live catalogue.
 - The shipped pages and blocks in [`services/web/app/`](../../services/web/app/) — especially the
-  homepage composition (`pages/home-page.tsx`) and the demo library
+  homepage composition (`pages/home-page.tsx`) and the demo scenes
   (`components/blocks/demos/`).
 
 When in doubt, read the component and the page that uses it.
 
-## Build with the `Site*` family
+## Build with `@tale/marketing-ui`
 
-Marketing chrome is a dedicated component set under
-[`packages/ui/src/components/site/`](../../packages/ui/src/components/site/) — compose these, don't
-hand-roll page chrome:
+The marketing language is a package, [`packages/marketing-ui`](../../packages/marketing-ui/) —
+compose it, don't hand-roll page chrome. It holds **frames, not copy**: every title, label, path and
+demo scenario arrives through props from `services/web`, which keeps every business and content
+decision (the platform-page registry, the CTAs, the nav menus, the localized copy). The one string
+the package renders on its own — the demo window's Share chrome — ships in its own catalog
+(`src/i18n/messages/*.yml`, merged into web's i18n next to `@tale/ui`'s).
 
-- `SiteHeader` / `SiteFooter` — marketing nav + footer (distinct from the app shell).
+The site chrome is the `Site*` family under
+[`packages/marketing-ui/src/components/site/`](../../packages/marketing-ui/src/components/site/):
+
+- `SiteHeader` / `SiteFooter` — marketing nav + footer (distinct from the app shell); the slots
+  (`logo`, `desktopNav`, `mobileNav`, `columns`, …) are pure render input.
 - `SiteContainer` — the page width container / section rhythm.
-- `SkipLink` — the keyboard skip-to-content link (a11y).
-- `ExternalLink` — outbound links with the right `rel`/target.
-- `LanguageSwitcher` / `ThemeSwitcher` — locale + theme controls in the marketing chrome.
+
+The generic controls the chrome composes stay in `@tale/ui`: `SkipLink` (the keyboard
+skip-to-content link), `ExternalLink` (outbound links with the right `rel`/target),
+`LanguageSwitcher` / `ThemeSwitcher` (the locale + theme controls the footer embeds).
+
+**Routing is the host's.** The package never learns the site's routes: every internal link
+(`MarketingLink`, a linked `MarketingCard`, `CtaPair`, `DemoTourRow`) renders through the component
+`MarketingRouterProvider` injects, and `to` is a plain site path. `services/web` mounts the provider
+once in `app/routes/__root.tsx` with `MarketingRouterLink` (the locale-aware `LocalizedLink` adapter)
+and imports the primitives through
+[`app/components/marketing/index.ts`](../../services/web/app/components/marketing/index.ts), the
+binding layer that narrows `to` to the typed `LocalizedRoutePath` — a typo in a marketing path is
+still a compile error in web.
 
 Everything else (`Button`, `Card`, `Heading`, `Text`, `Badge`, `Accordion`, markdown) is the same
 `@tale/ui` you'd use in the app — same tokens, same Inter/Lucide. The _composition_ is what differs.
@@ -36,10 +57,12 @@ Everything else (`Button`, `Card`, `Heading`, `Text`, `Badge`, `Accordion`, mark
 ## Tokens — marketing surfaces
 
 Semantic utilities only, **never a raw hex in a class**. On top of the canonical `@tale/ui` tokens,
-the web defines a marketing-surface family in
-[`services/web/app/globals.css`](../../services/web/app/globals.css) — cool stone paper in light,
-soft charcoal (not espresso brown) in dark. Ink, borders, and accent are overridden here so chrome
-matches the paper, not the app's true-neutral black:
+`@tale/marketing-ui` defines a marketing-surface family in
+[`packages/marketing-ui/src/globals.css`](../../packages/marketing-ui/src/globals.css) (it imports
+`@tale/ui/globals.css` and layers the marketing `@theme` on top; the site's own
+[`app/globals.css`](../../services/web/app/globals.css) is that one import plus the html/body rules) —
+cool stone paper in light, soft charcoal (not espresso brown) in dark. Ink, borders, and accent are
+overridden here so chrome matches the paper, not the app's true-neutral black:
 
 | Utility                                                     | Use                                              |
 | ----------------------------------------------------------- | ------------------------------------------------ |
@@ -74,15 +97,19 @@ live rings, send buttons — never for body text or large fills.
 ## Animated product demos — the doctrine
 
 The homepage's product visuals are **code-built animated mockups**, not screenshots and not video.
-They live in [`services/web/app/components/blocks/demos/`](../../services/web/app/components/blocks/demos/)
-and follow one contract:
+The scenes live in
+[`services/web/app/components/blocks/demos/`](../../services/web/app/components/blocks/demos/) — a
+demo is site content, its vocabulary and scenarios are web copy — and the frames they render inside
+(`DemoShell`, `DemoStage`, `DemoTourRow` / `DemoTourSection`, the text primitives, `useDemoTimeline`)
+ship in [`packages/marketing-ui/src/components/demos/`](../../packages/marketing-ui/src/components/demos/).
+One contract:
 
 - **Composed from the design system.** DOM + `@tale/ui` tokens/primitives only — fidelity comes from
   using the product's own vocabulary (real feature names, the step types from
   `services/platform/lib/shared/schemas/workflows.ts`, "Auto", agent · model chips). Pin borrowed
   vocabulary with a source comment. Never import app product components.
 - **One timing driver.** Every demo schedules its beats through
-  `use-demo-timeline.ts`. Motion policy lives there alone: **SSR and `prefers-reduced-motion`
+  `@tale/marketing-ui/use-demo-timeline`. Motion policy lives there alone: **SSR and `prefers-reduced-motion`
   render the final beat** (prerendered HTML ships the complete, informative end state; reduced-motion
   users get a static illustration), playback starts on mount (hero) or first scroll-into-view, and
   pauses while the tab is hidden. Play once — no restarts; only subtle idle loops (a soft pulse) may
@@ -92,7 +119,8 @@ and follow one contract:
   `use-navigation-items.ts` (MessageCircle → Folder → BrainIcon → Bot → Workflow → Settings;
   Bell + avatar at bottom; `bg-muted` / `surface-site-inset` active, no left bar), and the
   **correct page header for the active nav** — chat demos use `chat-header.tsx`
-  (`MessagesSquare`, `Search`, Share **with label**, `Ellipsis`, no thread title); list demos
+  (`MessagesSquare`, `Search`, Share **with label** — `demo.chrome.share`, the package's own catalog
+  key — `Ellipsis`, no thread title); list demos
   (Agents / Knowledge / Automations / Projects / Settings) use `AdaptiveHeaderTitle` (page title
   only). Pass `title` for list pages. Reference captures in
   `services/docs/public/images/platform/`. The frame is a labelled `role="img"` window (localized
@@ -104,8 +132,9 @@ and follow one contract:
   Executions table, in-chat approval cards, project task boards, sandbox Files /
   Live panes) — not fictional hub diagrams. Give mobile a taller
   ratio than desktop; size wells against **German**.
-- **Text primitives, not the markdown engine.** `demo-typing-text` / `demo-stream-text` reuse the
-  globals.css `.stream-reveal`/`.animate-cursor-blink` primitives. Never pull `IncrementalMarkdown`
+- **Text primitives, not the markdown engine.** `DemoTypingText` / `DemoStreamText` (from the
+  package) reuse the `@tale/ui/globals.css` `.stream-reveal`/`.animate-cursor-blink` primitives.
+  Never pull `IncrementalMarkdown`
   (remark/rehype/katex/shiki) into the marketing bundle.
 - **One window, many stories — the scenario split.** Every demo separates **chrome** (product
   vocabulary that never varies: column headers, status words, placeholders, step-kind labels —
@@ -127,17 +156,19 @@ and follow one contract:
 
 ### Shared marketing primitives
 
-Build new marketing pages from
-[`services/web/app/components/marketing/`](../../services/web/app/components/marketing/)
-instead of hand-rolling motion, CTAs, links, or section chrome. Variants use
-`class-variance-authority` (`cva`) — never ad-hoc `TONE[tone]` maps.
+Build new marketing pages from the `@tale/marketing-ui` primitives
+([`packages/marketing-ui/src/components/marketing/`](../../packages/marketing-ui/src/components/marketing/)
+— in web, import them through the typed binding layer
+[`app/components/marketing/index.ts`](../../services/web/app/components/marketing/index.ts)) instead
+of hand-rolling motion, CTAs, links, or section chrome. Variants use `class-variance-authority`
+(`cva`) — never ad-hoc `TONE[tone]` maps.
 
 | Primitive               | Use                                                                                                                                                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Reveal`                | Entrance wrapper. Scroll reveals are **opacity-only** (no `y`) so they never fight scroll.                                                                                                                            |
 | `SectionHeading`        | Title + optional eyebrow/description at `display` / `section` / `subsection` type scale. Outline: `display`→h1, else h2 (pass `as` to nest).                                                                          |
 | `MarketingButton`       | Ink primary / inset secondary pills (`tone` + `size` via cva).                                                                                                                                                        |
-| `MarketingLink`         | Locale-aware link tones: `nav` / `navMobile` / `footer` / `inline` / `subtle` / `plain`.                                                                                                                              |
+| `MarketingLink`         | Internal link (through the host's router seam — locale-aware in web) with tones: `nav` / `navMobile` / `footer` / `inline` / `subtle` / `plain`.                                                                      |
 | `MarketingExternalLink` | Outbound link with the same tone scale.                                                                                                                                                                               |
 | `CtaGroup` / `CtaPair`  | Horizontal CTA row; two-action pair (`to` or `href` per side).                                                                                                                                                        |
 | `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent`) / `pad` (`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-24 md:py-32`); `xl` for heroes/CTAs (`py-28 md:py-40`). |
@@ -147,10 +178,17 @@ instead of hand-rolling motion, CTAs, links, or section chrome. Variants use
 
 Also reuse:
 
-- `MarketingSection` — pricing/hardware lead + subsection shell (already on `Reveal`).
-- Feature blocks under `components/blocks/feature/` — hero, capabilities, steps, FAQ, related, docs, CTA.
+- `MarketingSection` (`@tale/marketing-ui/marketing-section`) — pricing/hardware lead + subsection
+  shell (already on `Reveal`).
+- The feature frames (`@tale/marketing-ui/feature-*`, `related-pages`, `docs-links`) — hero,
+  capabilities, steps, FAQ, related, docs, CTA. Web's
+  [`components/blocks/feature/`](../../services/web/app/components/blocks/feature/) keeps only the
+  thin wrappers that feed them `featureShared` copy, the site CTAs and the platform-page registry.
+- `TierCard`, `CompareTable`, `SegmentedRadio`, `LogoCloudSection` — the pricing / hardware and
+  logo-band blocks, also from the package; the tiers, rows and copy stay in web.
 - `DemoStage` / `DemoShell` — product windows on atmospheric wash (no continuous float).
-- `useSkipEntrance` — SSR, reduced-motion, and SPA revisits skip entrances.
+- `useSkipEntrance` (`@tale/marketing-ui/entrance`) — SSR, reduced-motion, and SPA revisits skip
+  entrances.
 - `app/content/platform-pages.ts` — nav dropdown, footer Platform column, related pages.
 - `app/content/nav-menus.ts` — Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.

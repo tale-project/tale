@@ -17,7 +17,7 @@ Wraps SectionHeader inside a sticky container with background and z-index.
 
 ## Usage
 \`\`\`tsx
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 
 <StickySectionHeader
   title="Instructions"

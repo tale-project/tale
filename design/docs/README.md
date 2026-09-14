@@ -19,16 +19,17 @@ lands** for Tale — the specifics those skills deliberately leave out.
 Tale ships **two design languages** — the **app** (the platform product: chat, dashboards, settings;
 light **and** dark) and the **web** (the marketing site: its own page language) — plus a shared
 **brand** layer (logo, accent, Inter). They are not one system. In code, app, web, and docs all import
-the same `@tale/ui` package, `globals.css` tokens, and Tailwind preset — but that shared substrate is
-**plumbing, not licence to copy patterns across surfaces.** A chat/dashboard pattern is not a marketing
-pattern. Never port one surface's layout into another.
+the same `@tale/ui` package, `globals.css` tokens, and Tailwind preset — the web layers its own
+package, `@tale/marketing-ui`, on top — but that shared substrate is **plumbing, not licence to copy
+patterns across surfaces.** A chat/dashboard pattern is not a marketing pattern. Never port one
+surface's layout into another.
 
-| Surface             | Lives in                 | Design source                                        | Build with                                 | Theme            |
-| ------------------- | ------------------------ | ---------------------------------------------------- | ------------------------------------------ | ---------------- |
-| **App** (product)   | `services/platform`      | `design/sources/platform/*.pen` + `design-system.md` | `@tale/ui` product components              | light + dark     |
-| **Web** (marketing) | `services/web`           | `design/docs/web.md` + `Site*` + shipped assets      | `@tale/ui` `Site*` + marketing composition | light + dark     |
-| **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, app patterns                   | **light-locked** |
-| **Shared** (brand)  | `design/sources/shared/` | `branding.pen` / `logofolio.pen`                     | `TaleLogo`, accent `#056CFF`, Inter        | —                |
+| Surface             | Lives in                 | Design source                                        | Build with                                   | Theme            |
+| ------------------- | ------------------------ | ---------------------------------------------------- | -------------------------------------------- | ---------------- |
+| **App** (product)   | `services/platform`      | `design/sources/platform/*.pen` + `design-system.md` | `@tale/ui` product components                | light + dark     |
+| **Web** (marketing) | `services/web`           | `design/docs/web.md` + `@tale/marketing-ui` + assets | `@tale/marketing-ui` + marketing composition | light + dark     |
+| **Docs**            | `services/docs`          | follows the **app** language                         | `@tale/ui`, app patterns                     | **light-locked** |
+| **Shared** (brand)  | `design/sources/shared/` | `branding.pen` / `logofolio.pen`                     | `TaleLogo`, accent `#056CFF`, Inter          | —                |
 
 Convex / auth / the SPA shell are **app only** — never add them to web or docs. **Docs follow the app**
 language (light-locked) — see [app.md](app.md).
@@ -48,6 +49,10 @@ Per [`AGENTS.md`](../../AGENTS.md): _discover the conventions, don't memorize th
   the live component catalogue. Every reusable platform component lives here
   (`src/components/<family>/`); the platform keeps only the wrappers that carry business logic
   (org-branded logos, the ability-gated tab strip, the app sidebar).
+- [`packages/marketing-ui/package.json`](../../packages/marketing-ui/package.json) (the `exports`
+  map) + its Storybook (`bun run storybook:marketing-ui`) — the **marketing** language's catalogue:
+  site chrome, marketing primitives, feature-page frames, product-demo frames, on top of `@tale/ui`.
+  The marketing site keeps only the wrappers that feed those frames its copy, routes and registries.
 - [`design/sources/accessibility-audit.md`](../sources/accessibility-audit.md) — a11y rules + the form text
   hierarchy.
 - The `.pen` files are **encrypted** — open them only through the Pencil MCP with the editor running
@@ -92,6 +97,6 @@ blue-tinted `#030712`), driven by the `.dark` class + tokens.
 ## In this directory
 
 - [app.md](app.md) — the **platform** app design language: shell, chat, conversations, knowledge, interaction conventions, docs-follow-app.
-- [web.md](web.md) — the **marketing web** design language: `Site*` components, page language, assets, prerender, what _not_ to import.
+- [web.md](web.md) — the **marketing web** design language: `@tale/marketing-ui` (site chrome, primitives, demo frames), page language, assets, prerender, what _not_ to import.
 - [branding.md](branding.md) — the **shared brand** layer: logo, accent, Inter, org branding config.
 - [tokens.md](tokens.md) — the full **colour / spacing / type / icon** tables and the intent→shipped map.
