@@ -1070,13 +1070,15 @@ export interface HubDocumentsPage {
  * Hub documents, newest first, cursor-paginated — the REST listing. The
  * cursor is `<createdAt>:<id>` of the last row; team visibility filters
  * POST-page (like the in-app listing), so a page may run short of `limit`.
+ * `folderId` undefined lists the whole hub, `null` the documents in no
+ * folder (the root), a string one folder — the door spells the root `root`.
  */
 export async function listHubDocumentsPage(
   sql: Sql,
   auth: ProjectAuthContext,
   options: {
     sourceProvider?: string;
-    folderId?: string;
+    folderId?: string | null;
     cursor: string | null;
     limit: number;
   },
@@ -1099,8 +1101,8 @@ export async function listHubDocumentsPage(
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
       AND (${options.sourceProvider ?? null}::text IS NULL
         OR source_provider = ${options.sourceProvider ?? null})
-      AND (${options.folderId ?? null}::text IS NULL
-        OR folder_id = ${options.folderId ?? null})
+      AND (${options.folderId === undefined}
+        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
       AND (${cursorCreatedAt}::bigint IS NULL
         OR created_at_ms < ${cursorCreatedAt}
         OR (created_at_ms = ${cursorCreatedAt} AND id < ${cursorId}))
@@ -1221,22 +1223,27 @@ function encodePageCursor(row: { createdAt: number; id: string }): string {
   ).toString('base64url');
 }
 
-/** The hub listing PAGE (0.4 `listDocumentsPaginated`): newest first, the
- * optional folder/provider/extension facets, keyset cursor. */
+/** The hub listing PAGE (0.4 `listDocumentsPaginated`): ONE folder of the
+ * hub, newest first, the optional provider/extension facets, keyset cursor.
+ * `folderId: null` is the root, and the root holds the documents that sit in
+ * no folder — never the whole hub. The 0.4 index read matched a `folderId`
+ * of `undefined`, i.e. unfiled rows; the first Postgres port read a missing
+ * folder as "no filter", so the root listed every document beside its own
+ * folder and a synced OneDrive folder's files stood in two places (2026-09). */
 export async function listHubDocumentsPaginated(
   sql: Sql,
   auth: ProjectAuthContext,
   args: {
     cursor: string | null;
     numItems: number;
-    folderId?: string;
+    /** The folder to page through; `null` for the hub root. */
+    folderId: string | null;
     sourceProvider?: string;
     extension?: string;
   },
 ): Promise<{ page: DocumentRow[]; isDone: boolean; continueCursor: string }> {
   const numItems = Math.min(Math.max(args.numItems, 1), HUB_PAGE_MAX);
   const after = decodePageCursor(args.cursor);
-  const folderId = args.folderId ?? null;
   const sourceProvider = args.sourceProvider ?? null;
   const extension = args.extension ?? null;
   const rows = await sql<DocumentRow[]>`
@@ -1244,7 +1251,7 @@ export async function listHubDocumentsPaginated(
     WHERE org_id = ${auth.organizationId}
       AND ${hubAccessClause(sql, auth)}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      AND (${folderId}::text IS NULL OR folder_id = ${folderId})
+      AND folder_id IS NOT DISTINCT FROM ${args.folderId}
       AND (${sourceProvider}::text IS NULL
         OR source_provider = ${sourceProvider})
       AND (${extension}::text IS NULL OR extension = ${extension})

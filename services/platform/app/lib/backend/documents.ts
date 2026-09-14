@@ -235,13 +235,16 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined) return null;
     const folderId = textArg(args, 'folderId');
     if (folderId === '') return null;
+    // The pg backend answers folder ROWS (`id`); the 0.4 call site reads
+    // `_id` — through the one folder view, or every crumb rendered with an
+    // undefined key and a click on a parent crumb navigated to the root.
     return {
       queryKey: backendKey(orgId, 'folder', 'breadcrumb', folderId),
       queryFn: () =>
-        backendFetch<{ breadcrumb: unknown }>(
+        backendFetch<{ breadcrumb: FolderWire[] }>(
           `/folders/${encodeURIComponent(folderId)}/breadcrumb`,
           { orgId },
-        ).then((body) => body.breadcrumb),
+        ).then((body) => body.breadcrumb.map(folderView)),
     };
   },
   'file_metadata/queries:getByStorageIds': (args, ctx) => {
@@ -565,7 +568,9 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
 // ---------------------------------------------------------------------------
 
 /** The hub page walk's options — exported so a loader could prefetch the
- * first page under the same key. */
+ * first page under the same key. The page is ONE folder: `folderId` names
+ * it, and no `folderId` is the hub root — the documents in no folder, which
+ * is what the server answers for an absent parameter (never the whole hub). */
 export function hubDocumentsPageQuery(
   orgId: string,
   filters: { folderId?: string; sourceProvider?: string; extension?: string },
@@ -1057,6 +1062,10 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
         },
       }),
   },
+  // An import creates folders as well as documents — a folder selection
+  // lands as a folder of the same name, a sync import its sync root — so it
+  // refreshes the folder family too; with documents alone the new folder
+  // row stayed out of the listing until a reload.
   'onedrive/actions:importFiles': {
     run: (args, ctx) =>
       backendFetch('/onedrive/import', {
@@ -1067,7 +1076,7 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
         },
       }),
-    invalidate: invalidateDocuments,
+    invalidate: invalidateFolders,
   },
   'google_drive/actions:listFiles': {
     run: (args, ctx) =>
@@ -1091,7 +1100,7 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
         },
       }),
-    invalidate: invalidateDocuments,
+    invalidate: invalidateFolders,
   },
   'onedrive/mutations:cancelSyncConfig': {
     run: (args, ctx) =>

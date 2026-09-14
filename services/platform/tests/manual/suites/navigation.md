@@ -44,7 +44,7 @@ is hidden when the org has no teams.
 - [ ] `NAV-F1` · **Side nav** — On a FRESH profile (no nav memory yet — clear
   `tale:nav-memory:v1:*` from both localStorage and sessionStorage), in the
   rail (`<nav aria-label>` = **Main navigation**, `common.aria.mainNavigation`)
-  click each item in order: **New chat** (`navigation.newChat`), **Projects**
+  click each item in order: **Chat** (`navigation.chat`), **Projects**
   (`projects.title`), **Knowledge** (`navigation.knowledge`), **Automations**
   (`navigation.automations`), **Inbox** (`conversations.title`, gated on inbox
   availability), **Settings** (`navigation.userSettings`) → Each click commits
@@ -177,7 +177,8 @@ is hidden when the org has no teams.
   the graceful **Automation not found** EmptyState
   (`automations.notFound.title` + `automations.notFound.description`) — no
   crash, no error boundary.
-- [ ] `NAV-B2` · **Unknown route** — Open `/dashboard/{org}/nope-not-a-route`
+- [ ] `NAV-B2` · **Unknown route** — Open `/dashboard/{org}/` with a made-up
+  trailing segment (nope-not-a-route — deliberately no such route)
   → A styled 404 renders inside the dashboard layout (rail still present):
   heading **Page not found** (`common.notFound.title`), the message **The page
   you're looking for doesn't exist or may have been moved.**

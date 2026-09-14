@@ -461,6 +461,60 @@ describe('GET /products filters', () => {
  * status and code — in the door's own `{error, code}` envelope — so the
  * three never drift.
  */
+/**
+ * `folderId` on the hub listing is three-valued at the door: absent lists
+ * the whole hub, `root` the documents in no folder (a root no folder id
+ * could name — until 1.10.0 REST had no way to ask for it), any other value
+ * one folder. The service speaks `undefined` / `null` / the id.
+ */
+describe('GET /documents folder filter', () => {
+  const FOLDER_CLAUSE = 'OR folder_id IS NOT DISTINCT FROM $?';
+  /** The `(skip OR folder_id IS NOT DISTINCT FROM folder)` pair as bound. */
+  const boundFolder = (query: Captured): { skip: unknown; folder: unknown } => {
+    const at = query.text.indexOf(FOLDER_CLAUSE);
+    expect(at).toBeGreaterThan(-1);
+    const placeholders = query.text.slice(0, at).split('$?').length - 1;
+    return {
+      skip: query.values[placeholders - 1],
+      folder: query.values[placeholders],
+    };
+  };
+
+  it('lists the whole hub when no folderId is given', async () => {
+    const { sql, queries } = fakeSql([]);
+    const res = await mount(sql).request('http://localhost/documents');
+    expect(res.status).toBe(200);
+    expect(boundFolder(listQuery(queries, 'documents'))).toEqual({
+      skip: true,
+      folder: null,
+    });
+  });
+
+  it('reads folderId=root as the documents in no folder', async () => {
+    const { sql, queries } = fakeSql([]);
+    const res = await mount(sql).request(
+      'http://localhost/documents?folderId=root',
+    );
+    expect(res.status).toBe(200);
+    expect(boundFolder(listQuery(queries, 'documents'))).toEqual({
+      skip: false,
+      folder: null,
+    });
+  });
+
+  it('reads any other folderId as that one folder', async () => {
+    const { sql, queries } = fakeSql([]);
+    const res = await mount(sql).request(
+      'http://localhost/documents?folderId=fold-1',
+    );
+    expect(res.status).toBe(200);
+    expect(boundFolder(listQuery(queries, 'documents'))).toEqual({
+      skip: false,
+      folder: 'fold-1',
+    });
+  });
+});
+
 describe('DELETE /documents/:id purge mapping', () => {
   it('answers an incomplete purge as 503 PURGE_INCOMPLETE', async () => {
     const res = await mount(fakeSql([]).sql).request(

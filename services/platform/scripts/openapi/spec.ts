@@ -1437,7 +1437,12 @@ export function buildSpec(): Json {
       parameters: [
         ...paginationParams(100, 25),
         queryParam('sourceProvider', 'Only documents from this source'),
-        queryParam('folderId', 'Only documents inside this folder'),
+        queryParam(
+          'folderId',
+          'Only documents inside this folder — a folder id, or `root` for ' +
+            'the documents in no folder. Omit it to list the whole hub, ' +
+            'whatever folder a document sits in.',
+        ),
       ],
       responses: {
         '200': jsonResponse('Paginated documents', pageOf(ref('Document'))),
@@ -3272,7 +3277,13 @@ export function buildSpec(): Json {
       parameters: [
         orgSlugHeaderParam,
         pathParam('id', 'Project ID'),
-        queryParam('folderId', 'Only files inside this project folder'),
+        queryParam(
+          'folderId',
+          'Only files inside this project folder — a folder id of this ' +
+            'project (any other id is 404 `FOLDER_NOT_FOUND`), or `root` ' +
+            'for the files in no folder. Omit it to list every file of ' +
+            'the project.',
+        ),
         ...paginationParams(100, 25),
       ],
       responses: {

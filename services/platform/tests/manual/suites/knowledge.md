@@ -63,8 +63,11 @@ records and delete them after.
   folder** (dialog title `documents.deleteFolder.title`). (Microsoft 365
   **From Microsoft 365** (`documents.upload.fromMicrosoft365`) is always in
   the menu; Connect Microsoft 365 runs Knowledge cloud-import OAuth, not SSO.)
-  → The created folder appears and survives a reload of `/documents`.
-  Submitting the dialog with an empty name shows **Folder name is required**
+  → The created folder appears and survives a reload of `/documents`. The
+  moved document is listed inside the folder and is GONE from the root — the
+  root lists only documents that sit in no folder, never a folder's files
+  beside the folder row. Submitting the dialog with an empty name shows
+  **Folder name is required**
   (`documents.folder.nameRequired`) and the dialog stays open. Search narrows
   the list to matching names. The **Delete folder** dialog shows the cascade
   requirement **"All files and subfolders inside this folder will also be
@@ -264,7 +267,7 @@ records and delete them after.
   reachable — title `emptyStates.<entity>.title` for
   products/contacts/websites/knowledgeEntries, and
   `documents.emptyState.title` ("No documents yet") for **documents** (note:
-  documents uses this key, NOT `emptyStates.documents`).
+  documents has no entry under the `emptyStates` group — it keeps its own key).
 - [ ] `KNOW-A4` · **Upload + preview** → The drop-zone file input
   (`#document-file-upload`) is keyboard operable; the preview dialog traps
   focus and returns it to the row on **Close preview**.

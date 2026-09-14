@@ -171,12 +171,13 @@ export function createDocumentRoutes(deps: {
     try {
       const auth = await authCtx(c);
       const numItems = Number(c.req.query('numItems') ?? '25');
+      // The page is one folder of the hub: an id names the folder, and an
+      // absent or blank `folderId` is the root — the documents in no folder.
+      const folderId = c.req.query('folderId') || null;
       const result = await listHubDocumentsPaginated(deps.sql, auth, {
         cursor: c.req.query('cursor') ?? null,
         numItems: Number.isFinite(numItems) ? numItems : 25,
-        ...(c.req.query('folderId') !== undefined
-          ? { folderId: c.req.query('folderId') }
-          : {}),
+        folderId,
         ...(c.req.query('sourceProvider') !== undefined
           ? { sourceProvider: c.req.query('sourceProvider') }
           : {}),

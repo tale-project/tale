@@ -2245,3 +2245,66 @@ describe('DELETE /projects/{id}/folders/{folderId}', () => {
     expect(await res.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
   });
 });
+
+/**
+ * `folderId` on the files listing is three-valued at the door: absent lists
+ * every file of the project, `root` the files in no folder (the project
+ * root — a root no folder id could name, so until 1.10.0 REST had no way to
+ * ask for it), any other value one folder of THIS project, else the opaque
+ * 404. The SQL speaks `skip` / `IS NOT DISTINCT FROM` for the three.
+ */
+describe('GET /projects/:id/files folder filter', () => {
+  const FOLDER_CLAUSE = 'OR d.folder_id IS NOT DISTINCT FROM $?';
+  const filesQuery = (queries: Captured[]): Captured => {
+    const hit = queries.find((q) => q.text.includes(FOLDER_CLAUSE));
+    if (!hit) throw new Error('no files listing query');
+    return hit;
+  };
+  /** The `(skip OR d.folder_id IS NOT DISTINCT FROM folder)` pair as bound. */
+  const boundFolder = (query: Captured): { skip: unknown; folder: unknown } => {
+    const at = query.text.indexOf(FOLDER_CLAUSE);
+    const placeholders = query.text.slice(0, at).split('$?').length - 1;
+    return {
+      skip: query.values[placeholders - 1],
+      folder: query.values[placeholders],
+    };
+  };
+  const folderLookup = (queries: Captured[]): boolean =>
+    queries.some((q) =>
+      q.text.startsWith('SELECT id FROM app.folders WHERE id'),
+    );
+
+  it('lists every file of the project when no folderId is given', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request('http://localhost/projects/p-1/files');
+    expect(res.status).toBe(200);
+    expect(folderLookup(queries)).toBe(false);
+    expect(boundFolder(filesQuery(queries))).toEqual({
+      skip: true,
+      folder: null,
+    });
+  });
+
+  it('reads folderId=root as the files in no folder, without a folder lookup', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files?folderId=root',
+    );
+    expect(res.status).toBe(200);
+    expect(folderLookup(queries)).toBe(false);
+    expect(boundFolder(filesQuery(queries))).toEqual({
+      skip: false,
+      folder: null,
+    });
+  });
+
+  it('still answers the opaque 404 for a folder id that is not this project’s', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files?folderId=fold-9',
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'FOLDER_NOT_FOUND' });
+    expect(folderLookup(queries)).toBe(true);
+  });
+});

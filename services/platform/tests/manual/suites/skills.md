@@ -86,8 +86,9 @@ builtin skill from `configs/platform/custom/skills/`.
 - [ ] `SKILL-F6` · **Upload a folder** — **Add skill** → **Upload folder**
   (`skills.createMenu.uploadFolder`) → **Choose folder**
   (`skills.upload.chooseFolder`) → pick a skill folder with `SKILL.md` at its
-  root → The folder is zipped client-side (`skills.upload.chooseFolderHelp`)
-  and lands on the same preview step as SKILL-F5; submit behaves identically.
+  root → The folder is zipped client-side and read — **Reading bundle…**
+  (`skills.upload.parsing`) — and lands on the same preview step as SKILL-F5;
+  submit behaves identically.
 - [ ] `SKILL-F7` · **Visibility scopes** — On a skill you own: **Visibility**
   (`skills.visibility.label`) → try **Teams** and **Organization**
   (`skills.visibility.team` / `…org`) → Save; **Private**

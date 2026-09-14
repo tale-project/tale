@@ -19,7 +19,10 @@
  * so platform and web suites can be mixed in one invocation. Checks per suite:
  *
  * 1. i18n keys — every backticked dotted token (`chat.send`, `settings.teams.*`)
- *    must resolve in `services/<service>/messages/en.yml` (+ `global.yml`);
+ *    must resolve in `services/<service>/messages/en.yml` (+ `global.yml`) or
+ *    in the design-system catalog every service merges underneath its own
+ *    (`packages/ui/src/i18n/messages/en.yml` + `global.yml` — the row menu's
+ *    `common.actions.openMenu`, the dialogs' `common.actions.save`);
  *    a trailing `.*` asserts the prefix exists as a group.
  * 2. Routes — every backticked absolute path (query strings stripped,
  *    `{param}` placeholders matched against `$param` segments) must match a
@@ -44,12 +47,25 @@ function flattenKeys(node: unknown, prefix: string, into: Set<string>): void {
   }
 }
 
+/** The catalogs a service resolves keys against: its own messages on top of
+ * the `@tale/ui` bundle `initServiceI18n` merges in first (deep, per key), so
+ * a suite may cite a design-system string — a table row's **Open menu** —
+ * by the key the running app resolves it under. */
+function messageCatalogs(service: string): string[] {
+  return [
+    join(repoRoot, 'packages', 'ui', 'src', 'i18n', 'messages'),
+    join(repoRoot, 'services', service, 'messages'),
+  ];
+}
+
 function loadMessages(service: string): Set<string> {
   const keys = new Set<string>();
-  for (const file of ['en.yml', 'global.yml']) {
-    const path = join(repoRoot, 'services', service, 'messages', file);
-    if (!existsSync(path)) continue;
-    flattenKeys(parse(readFileSync(path, 'utf8')), '', keys);
+  for (const dir of messageCatalogs(service)) {
+    for (const file of ['en.yml', 'global.yml']) {
+      const path = join(dir, file);
+      if (!existsSync(path)) continue;
+      flattenKeys(parse(readFileSync(path, 'utf8')), '', keys);
+    }
   }
   return keys;
 }

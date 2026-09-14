@@ -4274,13 +4274,32 @@ async function checkDocuments(
     walkDone = page.data.isDone;
     cursor = page.data.continueCursor;
   }
-  const expectedIds = [documentId, blobA, blobB, blobC];
+  // The walk pages ONE folder — the root here — so the three root uploads
+  // are all found and `notes.txt`, moved into Contracts/2026 above, is not:
+  // the root is the documents in no folder, never the whole hub (the first
+  // Postgres port listed every document under the root, so this walk used
+  // to expect the moved document too, 2026-09-14). The moved document is
+  // found by paging its own folder, where the root uploads never appear.
+  const rootIds = [blobA, blobB, blobC];
+  const childFolderId = child.success ? child.data.folderId : '';
+  const childPage = pageSchema.safeParse(
+    await get(
+      `/api/app/documents/paginated?orgId=${orgId}&numItems=10&folderId=${encodeURIComponent(childFolderId)}`,
+    ),
+  );
+  const childIds = childPage.success
+    ? childPage.data.page.map((d) => d.id)
+    : [];
   record(
-    'paginated hub walk (keyset, disjoint, exhausts)',
+    'paginated hub walk (keyset, disjoint, exhausts, one folder at a time)',
     walkDone &&
       new Set(walked).size === walked.length &&
-      expectedIds.every((id) => walked.includes(id)),
-    `pages walked=${walked.length} unique=${new Set(walked).size}, allFound=${expectedIds.every((id) => walked.includes(id))}, done=${walkDone}`,
+      rootIds.every((id) => walked.includes(id)) &&
+      documentId !== '' &&
+      !walked.includes(documentId) &&
+      childIds.includes(documentId) &&
+      !rootIds.some((id) => childIds.includes(id)),
+    `pages walked=${walked.length} unique=${new Set(walked).size}, rootFound=${rootIds.every((id) => walked.includes(id))}, movedAtRoot=${walked.includes(documentId)} (want false), movedInFolder=${childIds.includes(documentId)} (want true), rootLeakIntoFolder=${rootIds.some((id) => childIds.includes(id))} (want false), done=${walkDone}`,
   );
 
   const approx = z
@@ -27785,6 +27804,57 @@ async function checkOneDriveSync(
         Number(ragDispatched[0]?.count ?? '0') === 3 &&
         graphAuth.includes('Bearer graph-grant-token'),
       `root=${rootImport.success ? `${rootImport.data.successCount}ok` : 'ERR'} q1AtRoot=${q1AtRoot[0]?.folderPath ?? 'null'} adopted=${q1AfterImport[0]?.id === q1AtRoot[0]?.id} browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
+    );
+
+    // 1b. The hub browser's page is ONE folder: the root lists the documents
+    // in no folder (notes.md, directly picked), and a synced folder's files
+    // stand inside their folder only. The first Postgres port read a missing
+    // `folderId` as "no filter", so the root listed q1 and summary beside
+    // `ODReports` — one row rendered twice, and deleting the folder made the
+    // "root copies" vanish with it (2026-09-14).
+    const reportsFolder = await sql<{ id: string }[]>`
+      SELECT id FROM app.folders
+      WHERE org_id = ${orgId} AND project_id IS NULL AND parent_id IS NULL
+        AND name = 'ODReports'
+      LIMIT 1
+    `;
+    const hubPageIds = async (folderId: string | null): Promise<string[]> => {
+      const query = new URLSearchParams({ orgId, numItems: '100' });
+      if (folderId !== null) query.set('folderId', folderId);
+      const body = z
+        .object({ page: z.array(z.object({ id: z.string() })) })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/documents/paginated?${query}`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return body.success ? body.data.page.map((doc) => doc.id) : [];
+    };
+    const rootPageIds = await hubPageIds(null);
+    const reportsPageIds =
+      reportsFolder[0] === undefined
+        ? []
+        : await hubPageIds(reportsFolder[0].id);
+    const q1Id = q1AfterImport[0]?.id;
+    const sumId = sumAfterImport[0]?.id;
+    const notesId = notesAfterImport[0]?.id;
+    const placement = (ids: string[]): string =>
+      `notes=${notesId !== undefined && ids.includes(notesId)} q1=${q1Id !== undefined && ids.includes(q1Id)} summary=${sumId !== undefined && ids.includes(sumId)}`;
+    record(
+      'hub root page lists unfiled documents only (synced folder files stand in their folder, not beside it)',
+      q1Id !== undefined &&
+        sumId !== undefined &&
+        notesId !== undefined &&
+        reportsFolder[0] !== undefined &&
+        rootPageIds.includes(notesId) &&
+        !rootPageIds.includes(q1Id) &&
+        !rootPageIds.includes(sumId) &&
+        reportsPageIds.includes(q1Id) &&
+        !reportsPageIds.includes(sumId) &&
+        !reportsPageIds.includes(notesId),
+      `root page [${placement(rootPageIds)}] (want notes only), ODReports page [${placement(reportsPageIds)}] (want q1 only; summary sits in ODReports/FY2026), folderRow=${reportsFolder[0] !== undefined}`,
     );
 
     // 2. Idle re-sync: unchanged hashes skip, nothing is pruned or rewritten.

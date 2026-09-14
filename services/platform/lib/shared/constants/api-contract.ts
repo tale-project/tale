@@ -53,5 +53,10 @@
  * outside it; `WebsitePage.lastErrorKind` gains `unsupported_content`,
  * `robots_noindex` and `tls_error`; a 429 carries a sentence and
  * `requestId` like every refusal; the edge's own 400 `BODY_CHUNK_MALFORMED`.
+ *
+ * 1.10.0 — 2026-09-14: `folderId=root` on `GET /api/v1/documents` and
+ * `GET /api/v1/projects/{id}/files` lists the documents (files) in no
+ * folder — the root a folder id could never name; omitting the parameter
+ * still lists everything, whatever folder a row sits in.
  */
-export const API_CONTRACT_VERSION = '1.9.0';
+export const API_CONTRACT_VERSION = '1.10.0';

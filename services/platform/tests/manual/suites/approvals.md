@@ -135,8 +135,10 @@ chat probe) and the rendering/regression checks.
   config-gated: mark **ENVIRONMENT** if the flag is off.
 - [ ] `APV-F11` · **Chat human-input probe (mode A)** — Mode A: send
   `e2e:humaninput` in a chat → Judge against [chat.md](chat.md) CHAT-F18's
-  expectation (human-input row + **Your answer is needed**,
-  `chat.parts.humanInputPending`). **Known gap**: the mock emits a
+  expectation (the question in the composer while it is outstanding, the
+  status region reading **Waiting for your answer**,
+  `chat.generation.waitingInput`; the timeline row only once resolved).
+  **Known gap**: the mock emits a
   `request_human_input` tool call, but no such tool is registered in the live
   chat registry — if the turn renders only a generic tool-call row (or
   errors), record it in the session log as the `CHAT-F18` discrepancy rather than

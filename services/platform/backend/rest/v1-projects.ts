@@ -1072,17 +1072,21 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const auth = await restProjectAuth(deps.sql, c);
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
-    const folderId = query.folderId;
+    // `folderId=root` is the project root — the files in no folder; any
+    // other value must be a folder of this project. Omitting it lists every
+    // file of the project.
+    const folderFilter: string | null | undefined =
+      query.folderId === 'root' ? null : query.folderId;
     const limit = readPageLimit(c, { fallback: 25, max: 100 });
     if (limit instanceof Response) return limit;
     const cursor = readKeysetCursor(c, `files:${project.id}`);
     if (cursor instanceof Response) return cursor;
     const cursorCreatedAt = cursor?.at ?? null;
     const cursorId = cursor?.id ?? null;
-    if (folderId !== undefined) {
+    if (typeof folderFilter === 'string') {
       const folders = await deps.sql<{ id: string }[]>`
         SELECT id FROM app.folders
-        WHERE id = ${folderId} AND project_id = ${project.id}
+        WHERE id = ${folderFilter} AND project_id = ${project.id}
           AND org_id = ${c.get('organizationId')}
         LIMIT 1
       `;
@@ -1132,8 +1136,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       WHERE d.org_id = ${c.get('organizationId')}
         AND d.project_id = ${project.id}
         AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
-        AND (${folderId ?? null}::text IS NULL
-          OR d.folder_id = ${folderId ?? null})
+        AND (${folderFilter === undefined}
+          OR d.folder_id IS NOT DISTINCT FROM ${folderFilter ?? null})
         AND (${cursorCreatedAt}::bigint IS NULL
           OR d.created_at_ms < ${cursorCreatedAt}
           OR (d.created_at_ms = ${cursorCreatedAt} AND d.id < ${cursorId}))
