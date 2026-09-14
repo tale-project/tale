@@ -36,3 +36,20 @@ export function automationErrorCode(error: unknown): string | undefined {
   const code = errorData(error)?.code;
   return typeof code === 'string' ? code : undefined;
 }
+
+/**
+ * A read that answered "no such thing". The store answers `null` for a row it
+ * cannot see; the backend's route answers 404, which the fetch layer surfaces
+ * as a structured refusal (the route's `error` string as the code) rather
+ * than as `null` data — and a foreign or mistyped id reads exactly the same,
+ * never a leak. A transport or server failure carries no structured code and
+ * is NOT missing: it keeps its own error state.
+ */
+export function isMissingAutomationRead(query: {
+  data: unknown;
+  isError: boolean;
+  error: unknown;
+}): boolean {
+  if (query.data === null) return true;
+  return query.isError && automationErrorCode(query.error) !== undefined;
+}

@@ -24,7 +24,7 @@ import {
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { readDocument, readPositions } from '../lib/document';
-import { automationErrorMessage } from '../lib/errors';
+import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import {
   isRunFinished,
@@ -36,7 +36,7 @@ import {
 } from '../lib/run-view';
 import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
-  AUTOMATION_WORKBENCH_GRID,
+  AUTOMATION_RUN_WORKBENCH_GRID,
 } from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
 import { AutomationCanvas } from './automation-canvas';
@@ -113,7 +113,7 @@ export function RunDetail({
     [catalogQuery.data],
   );
 
-  if (runQuery.data === null) {
+  if (isMissingAutomationRead(runQuery)) {
     return (
       <ContentArea variant="narrow">
         <EmptyState
@@ -234,7 +234,7 @@ export function RunDetail({
         );
       })()}
 
-      <div className={AUTOMATION_WORKBENCH_GRID}>
+      <div className={AUTOMATION_RUN_WORKBENCH_GRID}>
         <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
           <AutomationCanvas
             graph={graph}

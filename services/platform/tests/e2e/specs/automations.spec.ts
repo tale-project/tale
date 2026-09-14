@@ -33,10 +33,11 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
   const { organizationId } = org;
 
   // The list toolbar's create menu — a dropdown of three lanes. Its trigger
-  // is the DataTable `addAction`, which the list labels `builder.new`.
+  // is the DataTable `addAction`, labelled with the Create verb every list
+  // page carries (`list.createButton`).
   await page.goto(`/dashboard/${organizationId}/automations`);
   const createButton = page
-    .getByRole('button', { name: t('automations.builder.new') })
+    .getByRole('button', { name: t('automations.list.createButton') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await createButton.click();
@@ -77,8 +78,47 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
     .first();
   await expect(probeRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await probeRow.click();
-  await page.waitForURL(new RegExp(`/automations/${PROBE_SLUG}(?:[/?#]|$)`), {
-    timeout: TIMEOUT.NAV,
+  // A row opens the Editor tab directly — the automation's default surface,
+  // the way a project row opens Tasks.
+  await page.waitForURL(
+    new RegExp(`/automations/${PROBE_SLUG}/editor(?:[?#]|$)`),
+    { timeout: TIMEOUT.NAV },
+  );
+
+  // The detail is tabbed like a project detail: Editor (active), Versions,
+  // Runs. Walk the strip — Versions lists the uploaded draft as v1, whose
+  // row deep-links the Editor to that version; Runs says nothing ran yet.
+  const tabs = page.getByRole('navigation', {
+    name: t('common.aria.automationsNavigation'),
+  });
+  await expect(
+    tabs.getByRole('link', { name: t('automations.navigation.editor') }),
+  ).toHaveAttribute('aria-current', 'page');
+  await tabs
+    .getByRole('link', { name: t('automations.navigation.versions') })
+    .click();
+  await page.waitForURL(
+    new RegExp(`/automations/${PROBE_SLUG}/versions(?:[?#]|$)`),
+    { timeout: TIMEOUT.NAV },
+  );
+  await page
+    .getByRole('list', { name: t('automations.versions.title') })
+    .getByRole('link')
+    .first()
+    .click();
+  await page.waitForURL(
+    new RegExp(`/automations/${PROBE_SLUG}/editor\\?version=1(?:[&#]|$)`),
+    { timeout: TIMEOUT.NAV },
+  );
+  await tabs
+    .getByRole('link', { name: t('automations.navigation.runs') })
+    .click();
+  await page.waitForURL(
+    new RegExp(`/automations/${PROBE_SLUG}/runs(?:[?#]|$)`),
+    { timeout: TIMEOUT.NAV },
+  );
+  await expect(page.getByText(t('automations.runs.empty'))).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
   });
 
   // The breadcrumb leaf is the entity switcher, so the trigger's accessible

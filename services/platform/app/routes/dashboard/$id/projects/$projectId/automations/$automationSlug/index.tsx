@@ -1,22 +1,18 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AutomationDetail } from '@/app/features/automations/components/automation-detail';
-import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { paramToAutomationSlug } from '@/lib/automations/slug';
-
+/**
+ * Bare project-scoped `/automations/$automationSlug` is an alias, not a page:
+ * it forwards to the Editor, the automation's default surface, exactly like
+ * its org-level twin.
+ */
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/',
 )({
-  component: ProjectAutomationDetailPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
+      params,
+      replace: true,
+    });
+  },
 });
-
-function ProjectAutomationDetailPage() {
-  const { id: organizationId, projectId, automationSlug } = Route.useParams();
-  return (
-    <AutomationDetail
-      organizationId={organizationId}
-      automationSlug={paramToAutomationSlug(automationSlug)}
-      projectId={asProjectId(projectId)}
-    />
-  );
-}
