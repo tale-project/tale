@@ -9,6 +9,8 @@ This page is the hands-on half of automations: what you click, in what order, to
 
 Open **Automations** in the sidebar. The list shows every automation in the organization with how many versions it has and either the version that is live or **Not deployed** when it has none yet. Click one and you land on its page.
 
+To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug, then select an entry to open its latest saved version.
+
 That page is a workbench rather than a set of tabs. The name carries a **Live** badge when the version on screen is live. **Version**, **Test run**, **Run live**, **Discard**, and **Save** sit on the right — **Deploy this version** sits beside **Version** when the pick is not live. Beside the canvas, the panel shows **Trigger** and **Projects** — which projects' task boards see the automation; none means the whole organization — until you click a box. The panel is as tall as the canvas, which fills the window under the header. Selecting a node does not grow the canvas — extra fields scroll inside the panel. Click **Close**, press Escape, click the selected box again, or click the empty canvas, to get the trigger back. **Versions** and **Runs** sit below.
 
 ## Read the canvas

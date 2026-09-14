@@ -143,6 +143,30 @@ function AutomationEditorActions() {
   return <EditorActions controller={controller} entityKind="automation" />;
 }
 
+interface AutomationDetailProps {
+  organizationId: string;
+  automationSlug: string;
+  /** Render inside a project shell: run links stay on the project routes and
+   * a first save pins the automation to the project. */
+  projectId?: string;
+}
+
+/** Route parameters can change without unmounting the page. Keep the draft,
+ * selected version and inspector state with one automation in one scope;
+ * the shared dirty guard still confirms navigation before these props change. */
+export function AutomationDetail(props: AutomationDetailProps) {
+  return (
+    <AutomationDetailEditor
+      key={JSON.stringify([
+        props.organizationId,
+        props.automationSlug,
+        props.projectId ?? null,
+      ])}
+      {...props}
+    />
+  );
+}
+
 /**
  * One automation: its document on the canvas, its history, and its runs.
  *
@@ -155,17 +179,11 @@ function AutomationEditorActions() {
  * The most recent run is laid over the canvas by default, because the first
  * question anyone opening an automation has is "did the last one work".
  */
-export function AutomationDetail({
+function AutomationDetailEditor({
   organizationId,
   automationSlug,
   projectId,
-}: {
-  organizationId: string;
-  automationSlug: string;
-  /** Render inside a project shell: run links stay on the project routes and
-   * a first save pins the automation to the project. */
-  projectId?: string;
-}) {
+}: AutomationDetailProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const inspectorId = useId();

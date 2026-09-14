@@ -81,6 +81,31 @@ describe('AutomationBreadcrumbSwitcher', () => {
     expect(screen.getByText('billing/reminders')).toBeInTheDocument();
   });
 
+  it('lists organization automations before project automations, sorted within each group', async () => {
+    automationsFixture = [
+      { name: 'alpha/project', latest: 1, projectIds: [PROJECT_ID] },
+      { name: 'zulu/org', latest: 1, projectIds: [] },
+      { name: 'beta/shared', latest: 1, projectIds: [PROJECT_ID, 'proj-2'] },
+      { name: 'billing/dunning', latest: 1, projectIds: [] },
+    ];
+    const { user } = renderSwitcher({ projectId: PROJECT_ID });
+
+    await user.click(
+      screen.getByRole('button', { name: /switch automation/i }),
+    );
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(4);
+    for (const [index, slug] of [
+      'billing/dunning',
+      'zulu/org',
+      'alpha/project',
+      'beta/shared',
+    ].entries()) {
+      expect(options[index]).toHaveTextContent(slug);
+    }
+  });
+
   it('navigates to an org-level sibling on the org detail route', async () => {
     const { user } = renderSwitcher();
 
@@ -117,26 +142,63 @@ describe('AutomationBreadcrumbSwitcher', () => {
     });
   });
 
-  it('stays inside the project shell when scoped to a project', async () => {
-    const { user } = renderSwitcher({ projectId: PROJECT_ID });
+  it.each([
+    { projectIds: [PROJECT_ID] },
+    { projectIds: [PROJECT_ID, 'proj-2'] },
+  ])(
+    'keeps the current project when the destination is bound to $projectIds',
+    async ({ projectIds }) => {
+      automationsFixture[1]!.projectIds = projectIds;
+      const { user } = renderSwitcher({ projectId: PROJECT_ID });
 
-    // The project shell lists only that project's automations.
-    expect(listArgs).toEqual(['org-1', PROJECT_ID, false]);
+      expect(listArgs).toEqual(['org-1', undefined, true]);
 
-    await user.click(
-      screen.getByRole('button', { name: /switch automation/i }),
-    );
-    await user.click(screen.getByRole('option', { name: /Reminders/ }));
+      await user.click(
+        screen.getByRole('button', { name: /switch automation/i }),
+      );
+      await user.click(screen.getByRole('option', { name: /Reminders/ }));
 
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-      params: {
-        id: 'org-1',
-        projectId: PROJECT_ID,
-        automationSlug: 'billing__reminders',
-      },
-    });
-  });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+        params: {
+          id: 'org-1',
+          projectId: PROJECT_ID,
+          automationSlug: 'billing__reminders',
+        },
+      });
+    },
+  );
+
+  it.each([
+    { projectIds: [], destinationProjectId: undefined },
+    { projectIds: ['proj-2'], destinationProjectId: 'proj-2' },
+    { projectIds: ['proj-2', 'proj-3'], destinationProjectId: undefined },
+  ])(
+    'leaves the current project for a destination bound to $projectIds',
+    async ({ projectIds, destinationProjectId }) => {
+      automationsFixture[1]!.projectIds = projectIds;
+      const { user } = renderSwitcher({ projectId: PROJECT_ID });
+
+      await user.click(
+        screen.getByRole('button', { name: /switch automation/i }),
+      );
+      await user.click(screen.getByRole('option', { name: /Reminders/ }));
+
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to:
+          destinationProjectId === undefined
+            ? '/dashboard/$id/automations/$automationSlug'
+            : '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+        params: {
+          id: 'org-1',
+          automationSlug: 'billing__reminders',
+          ...(destinationProjectId !== undefined && {
+            projectId: destinationProjectId,
+          }),
+        },
+      });
+    },
+  );
 
   it('does not navigate when the current automation is chosen again', async () => {
     const { user } = renderSwitcher();
@@ -178,12 +240,14 @@ describe('AutomationBreadcrumbSwitcher', () => {
   });
 
   it('passes an axe audit with the menu open', async () => {
-    const { user, container } = renderSwitcher();
+    automationsFixture[1]!.projectIds = [PROJECT_ID];
+    const { user, baseElement } = renderSwitcher();
 
     await user.click(
       screen.getByRole('button', { name: /switch automation/i }),
     );
 
-    await checkAccessibility(container);
+    // Radix portals the menu outside the render container.
+    await checkAccessibility(baseElement);
   });
 });

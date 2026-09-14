@@ -14,10 +14,10 @@ import { automationListTarget } from '../lib/list-target';
 
 /**
  * Breadcrumb leaf for an automation page: the shared `HeaderBreadcrumbSwitcher`
- * over the same listing the Automations table shows — the org's automations
- * (project-bound included) on the org shell, one project's on the project
- * shell. A pick routes exactly like a list row: a single-bound sibling opens
- * inside its project shell, an org-level one on the org detail.
+ * over the org hub's complete listing, including project-bound automations.
+ * Entering a project's detail must not remove the other siblings. A pick
+ * keeps the current project when bound there; otherwise it routes like an
+ * org list row to its own project or the org detail.
  */
 export function AutomationBreadcrumbSwitcher({
   organizationId,
@@ -29,27 +29,29 @@ export function AutomationBreadcrumbSwitcher({
   automationSlug: string;
   /** The current automation's display name — the caller already derives it. */
   displayName: string;
-  /** When set, offer this project's automations and stay inside its shell. */
+  /** Preserve this project's context when the selected automation is bound to it. */
   projectId?: string;
 }) {
   const { t } = useT('automations');
   const { locale } = useLocale();
   const navigate = useNavigate();
-  const automationsQuery = useAutomations(
-    organizationId,
-    projectId,
-    projectId === undefined,
-  );
+  const automationsQuery = useAutomations(organizationId, undefined, true);
 
   const options = useMemo<SearchableSelectOption[]>(
     () =>
-      // Slug order, matching the list — slugs are folder paths, so siblings
-      // group by pack. The slug caption disambiguates same-named packs and
-      // lets the search match it, the way the list searches name + slug.
+      // Organization automations first, then project-bound ones, with slug
+      // order within each group. The caption disambiguates same-named packs
+      // and lets the search match the slug as well as the display name.
       [...(automationsQuery.data ?? [])]
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort(
+          (a, b) =>
+            Number(a.projectIds.length > 0) - Number(b.projectIds.length > 0) ||
+            a.name.localeCompare(b.name),
+        )
         .map((automation) => ({
           value: automation.name,
+          group:
+            automation.projectIds.length === 0 ? 'organization' : 'project',
           label: automationDisplayName(
             automation.presentation,
             automation.name,
@@ -78,7 +80,10 @@ export function AutomationBreadcrumbSwitcher({
             organizationId,
             name,
             boundProjectIds: row?.projectIds ?? [],
-            ...(projectId !== undefined && { listProjectId: projectId }),
+            ...(projectId !== undefined &&
+              row?.projectIds.includes(projectId) && {
+                listProjectId: projectId,
+              }),
           }),
         );
       }}
