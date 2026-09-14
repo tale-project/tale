@@ -15,6 +15,8 @@
  * drop target, the loose CHATS section is one too, and the row's More-actions
  * menu offers the same move for keyboard users. New chat lives on the
  * header + / shortcut (`?new=1`); the Chat nav item resumes the last thread.
+ * The PROJECTS block as a whole is a disclosure so a long folder list does
+ * not bury Chats.
  */
 
 import { Button } from '@tale/ui/button';
@@ -33,7 +35,10 @@ import {
   ChatRowsSkeleton,
   ProjectRowsSkeleton,
 } from '@/app/components/layout/chat-history-skeleton';
-import { SubPanelSectionHeader } from '@/app/components/layout/sub-panel-list';
+import {
+  SubPanelDisclosureBody,
+  SubPanelSectionHeader,
+} from '@/app/components/layout/sub-panel-list';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { ChatSearchTrigger } from '@/app/features/chat/components/chat-search-trigger';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
@@ -85,6 +90,11 @@ export const ThreadList = memo(function ThreadList({
   const [collapsedProjects, setCollapsedProjects] = usePersistedState<
     Record<string, boolean>
   >('chat-sidebar-collapsed-projects', {});
+  // The whole PROJECTS block — not individual folders. Collapsing it keeps
+  // Chats on screen when the org has many projects; the choice persists
+  // per device, same as the archived drawer.
+  const [projectsSectionExpanded, setProjectsSectionExpanded] =
+    usePersistedState('chat-sidebar-projects-section-expanded', true);
 
   const navigate = useNavigate();
   const projectsQuery = useChatProjects(organizationId);
@@ -233,30 +243,38 @@ export const ThreadList = memo(function ThreadList({
           <Stack gap={0} className="min-h-0 flex-1 gap-0.5 overflow-y-auto">
             {/* PROJECTS — always rendered (even empty) so the section never
                 appears/disappears on drag and the "new project" action always
-                has a home. Each folder is a drop target. */}
+                has a home. The header itself is a disclosure: collapsing the
+                block keeps Chats reachable when the org has many folders.
+                Each folder (while expanded) is a drop target. */}
             <SubPanelSectionHeader
               sticky
               label={t('projectsSection')}
               action={newProjectButton}
+              collapsible={{
+                expanded: projectsSectionExpanded,
+                onToggle: () => setProjectsSectionExpanded((open) => !open),
+              }}
             />
-            {projectsLoading ? (
-              <Skeletonize loading className="flex shrink-0 flex-col gap-0.5">
-                <ProjectRowsSkeleton />
-              </Skeletonize>
-            ) : (
-              sortedProjects.map((project) => (
-                <ProjectFolder
-                  key={project.id}
-                  project={project}
-                  threads={byProject.get(project.id) ?? []}
-                  explicitCollapsed={collapsedProjects[project.id]}
-                  onSetCollapsed={(collapsed) =>
-                    setProjectCollapsed(project.id, collapsed)
-                  }
-                  draftNewChat={draftNewChat && draftProjectId === project.id}
-                />
-              ))
-            )}
+            <SubPanelDisclosureBody open={projectsSectionExpanded}>
+              {projectsLoading ? (
+                <Skeletonize loading className="flex shrink-0 flex-col gap-0.5">
+                  <ProjectRowsSkeleton />
+                </Skeletonize>
+              ) : (
+                sortedProjects.map((project) => (
+                  <ProjectFolder
+                    key={project.id}
+                    project={project}
+                    threads={byProject.get(project.id) ?? []}
+                    explicitCollapsed={collapsedProjects[project.id]}
+                    onSetCollapsed={(collapsed) =>
+                      setProjectCollapsed(project.id, collapsed)
+                    }
+                    draftNewChat={draftNewChat && draftProjectId === project.id}
+                  />
+                ))
+              )}
+            </SubPanelDisclosureBody>
 
             {isEmpty ? (
               // Both sections answered and both are empty: one combined hint
@@ -334,7 +352,10 @@ export const ThreadList = memo(function ThreadList({
             // A freshly created project opens expanded so it's ready to
             // receive chats; the persisted state keeps that across the
             // navigation the dialog performs to the new project page.
-            onCreated={(projectId) => setProjectCollapsed(projectId, false)}
+            onCreated={(projectId) => {
+              setProjectCollapsed(projectId, false);
+              setProjectsSectionExpanded(true);
+            }}
           />
         )}
       </Stack>

@@ -87,7 +87,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [chat](../suites/chat.md) | `CHAT-F16` | 🔶 component | — (no e2e; `thought-timeline.test.tsx`) |
 | [chat](../suites/chat.md) | `CHAT-F24` | 🔶 component | — (no e2e; `arena-verdict-bar.test.tsx` — verdict bar only) |
 | [chat](../suites/chat.md) | `CHAT-F26` | 🔶 component | — (no e2e; `dictation-button.test.tsx`, `hooks/use-media-recorder-dictation.test.ts`) |
-| [chat](../suites/chat.md) | `CHAT-F27`–`CHAT-F29` | 🔶 component | — (no e2e; `thread-list.test.tsx`, `thread-row.test.tsx`) |
+| [chat](../suites/chat.md) | `CHAT-F27`–`CHAT-F29`, `CHAT-F37` | 🔶 component | — (no e2e; `thread-list.test.tsx`, `thread-row.test.tsx`) |
 | [chat](../suites/chat.md) | `CHAT-F32` | 🔶 component | — (no e2e; `source-cards.test.tsx`) |
 | [chat](../suites/chat.md) | `CHAT-F33` | 🔶 component | — (no e2e; `citation-link.test.tsx` in `app/features/shared/markdown/`) |
 | [chat](../suites/chat.md) | `CHAT-F34` | 🔶 component | — (no e2e; `step-limit-notice.test.tsx`) |
