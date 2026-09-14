@@ -234,6 +234,21 @@ describe('readNavTarget / recordNavLocation', () => {
     expect(readNavTarget(ORG, 'projects')).toBeUndefined();
   });
 
+  it('drops one malformed section without losing the others', () => {
+    // Destructuring a null value would throw and abandon the whole record,
+    // taking every OTHER section's memory with it.
+    window.sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        sections: { projects: null, chat: { path: 'chat/t1' } },
+        savedAt: Date.now(),
+      }),
+    );
+
+    expect(readNavTarget(ORG, 'projects')).toBeUndefined();
+    expect(readNavTarget(ORG, 'chat')?.path).toBe('chat/t1');
+  });
+
   it('ignores a record whose path is not a string', () => {
     window.sessionStorage.setItem(
       KEY,
