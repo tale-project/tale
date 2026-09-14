@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 60 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 62 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -270,6 +270,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   other project is listed or searched. In the organization chat the listing
   returns hub files only and the assistant points at the project's own chat
   instead of walking the project list.
+- [ ] `CHAT-F37` · **Collapse Projects** — With several projects in the chats
+  panel, hover **Projects** (`chat.projectsSection`) → a chevron appears next
+  to the label; click (or keyboard-activate) the header → the folder list
+  hides, **Chats** (`chat.chatsSection`) stays in view, and **New project**
+  (`chat.newProject`) still works; click again → folders return. Reload keeps
+  the collapsed/expanded choice (device-persisted). On a narrow viewport the
+  chevron stays visible without hover.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -369,7 +376,8 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.dictation.level`); **Voice mode** (`chat.voice.voiceModeLabel`)
   exposes `aria-pressed`
 - [ ] `CHAT-A5` · **Disclosures keyboardable** → The thought-timeline header
-  (CHAT-F16) expands/collapses via keyboard with visible focus; **Scroll to
+  (CHAT-F16) expands/collapses via keyboard with visible focus; the
+  **Projects** section header (CHAT-F37) does the same; **Scroll to
   bottom** (`chat.scrollToBottom`) is a labelled button.
 
 ## Performance

@@ -114,7 +114,10 @@ describe('ThreadList', () => {
       />,
     );
 
-    expect(screen.getByText('Projects')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(screen.getByText('Chats')).toBeInTheDocument();
 
     // The folder carries its name and its thread count; the filed thread
@@ -252,7 +255,10 @@ describe('ThreadList', () => {
 
     // Section headers and their affordances are known at mount — they render
     // real, not masked, so the panel is usable while the rows load.
-    expect(screen.getByText('Projects')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(screen.getByText('Chats')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'New project' }),
@@ -273,6 +279,75 @@ describe('ThreadList', () => {
     expect(
       screen.getByRole('button', { name: 'New project' }),
     ).toBeInTheDocument();
+  });
+
+  it('collapses the Projects section so Chats stay on screen', async () => {
+    setProjects(PROJECTS);
+    const { user } = render(
+      <ThreadList
+        organizationId="org-1"
+        threads={THREADS}
+        activeThreadId="t3"
+      />,
+    );
+
+    const projectsHeader = screen.getByRole('button', { name: 'Projects' });
+    expect(projectsHeader).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Website revamp' }),
+    ).toBeInTheDocument();
+
+    await user.click(projectsHeader);
+
+    expect(projectsHeader).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('button', { name: 'Website revamp' }),
+    ).not.toBeInTheDocument();
+    // Loose chats stay listed — collapsing projects must not hide them.
+    expect(screen.getByText('Quarterly report')).toBeInTheDocument();
+    // New project stays a sibling of the disclosure, not inside it.
+    expect(
+      screen.getByRole('button', { name: 'New project' }),
+    ).toBeInTheDocument();
+
+    await user.click(projectsHeader);
+    expect(projectsHeader).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Website revamp' }),
+    ).toBeInTheDocument();
+  });
+
+  it('remembers a collapsed Projects section across remounts', async () => {
+    setProjects(PROJECTS);
+    const first = render(
+      <ThreadList
+        organizationId="org-1"
+        threads={THREADS}
+        activeThreadId="t3"
+      />,
+    );
+    await first.user.click(screen.getByRole('button', { name: 'Projects' }));
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem('chat-sidebar-projects-section-expanded'),
+      ).toBe('false');
+    });
+    first.unmount();
+
+    render(
+      <ThreadList
+        organizationId="org-1"
+        threads={THREADS}
+        activeThreadId="t3"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Website revamp' }),
+    ).not.toBeInTheDocument();
   });
 
   it('passes an axe audit', async () => {
