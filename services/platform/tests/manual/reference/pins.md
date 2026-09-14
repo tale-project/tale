@@ -26,3 +26,7 @@ time you are tempted to shorten one.
 |---|---|
 | `AUTH-F18` | Better Auth's browser fetch plugin already follows successful consent/continuation responses. A second navigation can race the callback's one-use state and code; `oauth-authorization.test.tsx` pins single redirect ownership, StrictMode continuation and both consent actions. |
 | `SET-A7` | The device label and revoked badge competed for one non-wrapping flex row, so a long label shrank the badge into an ellipsis. The group wraps and the status keeps its intrinsic width. This box holds visible EN/DE/FR status text at desktop and narrow widths; `webdav-settings.test.tsx` separately holds active/null and revoked action states. |
+
+| `NAV-F1` | The main rail is labelled Chat and uses `navigation.chat`; New chat is a separate action. Section memory changes re-entry targets, so the default-entry check starts with fresh task-owned browser storage. `nav-memory.test.ts` holds the remembered-target rules. |
+| `NAV-F9` | The API page now links developer prose and raw OpenAPI separately. `app/routes/docs.test.tsx` holds link destinations and accessibility; the manual box judges readable and keyboard-reachable links at phone width. |
+| `NAV-F11` | The public docs moved to a separate origin. `app/components/user-button.test.tsx` pins the shared canonical constant and safe new-tab attributes; the box no longer expects the old marketing-site subpath. |

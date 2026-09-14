@@ -54,7 +54,6 @@ headers = {
     "Content-Type": "application/json",
 }
 
-
 def request(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
     req = Request(f"{base}/api/v1{path}", data=data, headers=headers, method=method)
@@ -65,7 +64,6 @@ def request(method, path, body=None):
     except HTTPError as error:
         detail = error.read().decode(errors="replace")
         raise SystemExit(f"HTTP {error.code}: {detail}") from error
-
 
 models = request("GET", "/models")["models"]
 model_id = os.environ["TALE_MODEL"]
@@ -126,7 +124,9 @@ Conserve l’ID du thread pour prolonger cette intégration. Envoie les messages
 | Statut du message `failed` | Lis `errorCode` et corrige le compte ou le modèle avant de réessayer. |
 | Délai réseau dépassé | Vérifie l’instance et le thread existant avant de renvoyer le message. |
 
-Un POST dont le délai expire peut déjà avoir été accepté. Ne le renvoie pas sans vérifier l’état de génération et les messages du thread. Le délai de dix minutes du script est un choix local, pas une limite d’exécution du serveur.
+Un POST dont le délai expire peut déjà avoir été accepté. Ne le renvoie pas sans vérifier l’état de génération et les messages du thread.
+
+La limite de dix minutes est un choix de cet exemple, pas un délai du serveur. Un tour en file peut attendre derrière d’autres clients ; le raisonnement peut garder le modèle actif avant tout texte visible. Le script ne répète pas automatiquement un envoi en échec. Pour des relances autonomes, conserve un `Idempotency-Key` de 1 à 255 caractères ASCII imprimables avec le corps de la requête, réutilise les deux après une réponse perdue et respecte `Retry-After` en cas de `429`. Consulte [les relances sans doublon](/fr/develop/api-reference#relancer-un-envoi-sans-doublon).
 
 ## Prolonger l’intégration
 

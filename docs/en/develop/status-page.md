@@ -62,6 +62,8 @@ The JSON endpoint requires no API key and does not consume an API-key budget. It
 
 The production web server’s `/api/health` endpoint is a lightweight process check. It is useful for container liveness, but does not replace the status document’s dependency checks. A development Vite server can proxy that path differently and return `404`; use `/status.json` to inspect the running development app.
 
+On a production deployment, `/health` is the edge proxy’s own liveness response: it returns `OK` even while the application restarts. An unrecognized route such as `/healthz` can return the app shell with HTTP `200`. Neither is a readiness check. Use the documented `/status.json` or `/api/health` endpoint according to what your monitor needs to establish.
+
 A green status does not check an external model’s credit, entitlement or availability. It also does not exercise a full upload, knowledge query, chat turn or automation. Add a controlled end-to-end check for the operation your integration depends on.
 
 ## Investigate a failure

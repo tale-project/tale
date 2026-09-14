@@ -13,7 +13,7 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 ## Die erste Nachricht senden
 
-Öffne **Chat** und schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
+Öffne **Chat**. Dabei kann sich ein kürzlich besuchtes Gespräch wieder öffnen. Wähle **Neuer Chat** oder klicke im bereits aktiven Chat-Bereich erneut auf **Chat**, um ein neues Thema zu beginnen. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 

@@ -5,15 +5,23 @@ description: Prüfe und ändere Knoten, gib Testdaten ein, speichere eine Versio
 
 Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die gespeicherte Version für Live-Läufe. Änderungen brauchen Entwickler-, Admin- oder Inhaberrechte. Speichern, Testen und Bereitstellen sind getrennte Schritte: Die Arbeit an einem Entwurf lässt die bereitgestellte Version bestehen.
 
-Öffne **Automatisierungen** und wähle einen Eintrag. Zum Erstellen beginne mit [Automatisierungen hinzufügen](/de/platform/automations/catalog).
+Öffne **Automatisierungen** und wähle einen Eintrag. Er öffnet sich im Tab **Editor**. Für einen neuen Ablauf beginne mit [Automatisierungen erstellen oder importieren](/de/platform/automations/catalog).
 
-<Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Oben stehen die Aktionen für Test, Speichern und Bereitstellung.">
+| Tab | Wofür du ihn nutzt |
+| --- | --- |
+| **Editor** | Den Workflow ändern, eine gespeicherte Version testen und die Live-Version wählen. |
+| **Versionen** | Versionsnachrichten und gespeicherte Testergebnisse lesen. Eine Zeile öffnet diese Version im Editor. |
+| **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
-![Der Workflow-Editor zeigt verbundene Knoten, die Einstellungen eines ausgewählten Knotens und die Versions- und Laufaktionen.](/images/platform/automation-editor-canvas.webp)
+Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**. Ein Punkt am Tab **Editor** kennzeichnet ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+
+<Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
+
+![Der Workflow-Editor zeigt verbundene Knoten, die Einstellungen eines ausgewählten Knotens die Tabs Editor, Versionen und Läufe sowie die Versions- und Laufaktionen.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
-Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag, um seine neueste gespeicherte Version zu öffnen.
+Zum Wechseln musst du nicht zur Liste zurück: Klick im Navigationspfad auf den Namen der aktuellen Automatisierung. Das Menü zeigt alle Automatisierungen der Organisation, auch nach einem Wechsel in ein anderes Projekt. Oben stehen Automatisierungen ohne Projektzuordnung, darunter die mit Projektzuordnung. Eine waagerechte Linie trennt die beiden Gruppen. Such nach Name oder Slug und wähle einen Eintrag. Der aktuelle Tab bleibt geöffnet. Aus einem Laufdetail gelangst du zur Liste **Läufe** der anderen Automatisierung. Eine ausgewählte Versionsnummer wird nicht übernommen: Im **Editor** erscheint deren neueste gespeicherte Version.
 
 ## Den Canvas lesen
 
@@ -32,7 +40,7 @@ Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, e
 1. Ändere die nötigen Felder und klicke auf **Speichern**.
 2. Erkläre die Änderung in der **Versionsnachricht** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten.
 3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, fülle im Dialog **Eingabe für den Lauf (JSON)** aus. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu prüfen. Ungültiges JSON oder unpassende Werte verhindern den Start.
-4. Starte den Test und öffne seinen Eintrag unter **Läufe**. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
+4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 
 Braucht ein Workflow `owner` und `repo`, könnte seine Eingabe so aussehen:
 
@@ -65,10 +73,10 @@ Ein Trigger nutzt ebenfalls die bereitgestellte Version. Richte ihn ein, wenn wi
 
 **Letzten Lauf anzeigen** legt Laufzustände über den Canvas. Wähle einen Knoten für die Angaben zu diesem Lauf: aufgelöste Eingabe, Ausgabe und Effekte. Häufig findest du so eine falsche Referenz. Vergleiche die Eingabe des fehlgeschlagenen Knotens mit der Ausgabe seiner Quelle.
 
-Öffne unter **Läufe** den vollständigen Datensatz. Prüfe Test- oder Live-Modus und bereits ausgeführte Aktionen, bevor du erneut startest. [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Wartezustände, Fehler, automatische Wiederholungen und Abbruch.
+Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben sichtbar; **Läufe** ist aktiv. Mit **Editor** kehrst du zum Workflow zurück. Prüfe Test- oder Live-Modus und bereits ausgeführte Aktionen, bevor du erneut startest. [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Wartezustände, Fehler, automatische Wiederholungen und Abbruch.
 
 ## Zu einer früheren Version zurückkehren oder löschen
 
-Wähle für eine Rückkehr die frühere Version und **Diese Version live schalten**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
+Öffne für eine Rückkehr **Versionen**, lies die Versionsnachrichten und wähle eine frühere Fassung. Die Zeile öffnet den **Editor** mit dieser Version. Klicke dort auf **Diese Version live schalten**. Du kannst die frühere Fassung auch im Menü **Version** des Editors wählen. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
 
 Zum Löschen gehe zur Liste zurück, öffne das Zeilenmenü und wähle **Löschen**. Lies die Bestätigung mit dem Namen der Automatisierung. Versionen, Bereitstellung, Trigger und Projektzuordnungen werden entfernt. Ein offener Lauf blockiert das Löschen; beende ihn oder warte seinen Abschluss ab. Frühere Läufe unterliegen weiter der Aufbewahrung. Bereits ausgeführte Aktionen werden durch das Löschen nicht rückgängig gemacht.

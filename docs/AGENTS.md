@@ -18,7 +18,11 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
   the "On this page" outline (a rail from `xl`, a disclosure below it). Component map:
-  [`services/docs/README.md`](../services/docs/README.md) → _The chrome_.
+  [`services/docs/README.md`](../services/docs/README.md) → _The page layout_.
+
+This contract covers Tale’s product documentation. The separate English design-system guide
+at `services/ui-docs/content/` follows its own [authoring contract](../services/ui-docs/content/README.md)
+and adds live `<Demo>` examples; that tag is not part of this site’s Markdown registry.
 
 ## Directory → tab → audience
 
@@ -45,7 +49,7 @@ Every user-visible change updates `en`, `de`, and `fr` in the same PR. `locale-t
 meaning and completeness. DE and FR are authored natively per
 [`write-translations`](../.agents/skills/write-translations/SKILL.md) (one narrator per language,
 `du`/`tu`, loanword buckets), never rendered word-for-word. UI labels match
-the relevant service's `messages/<locale>.yml` and shared UI catalogs character-for-character,
+the relevant service’s `messages/<locale>.yml` merged over shared package catalogs character-for-character,
 including locale fallback. Preserve factual currencies, values, jurisdictions, permissions, and
 limits while translating. A locale changes the language, not the contract. The voice strike lists live in
 `packages/ui/src/i18n/tests/locales/<locale>/voice.ts`. Internal links in non-`en` pages carry the

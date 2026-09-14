@@ -94,6 +94,10 @@ Datenbanken und hochgeladene Dateien liegen außerhalb des Quellcode-Checkouts. 
 
 Ein Zurücksetzen löscht Entwicklungsdaten und kann einen anderen Checkout mit demselben Compose-Projekt treffen. Prüfe Container und Volumes des Projekts, sichere benötigte Daten und stoppe die Umgebung, bevor du Zustand entfernst. Konfigurationsverzeichnisse unter `TALE_CONFIG_DIR` bleiben davon unabhängig; eine gelöschte Datenbank setzt diese Dateien nicht zurück.
 
+## Vorhandene UI-Komponenten nutzen
+
+Lies vor einer Änderung an der Oberfläche die [Dokumentation zum Design-System](https://ui.tale.dev). Sie erklärt `@tale/ui` für die App und `@tale/marketing-ui` für Marketing-Seiten anhand interaktiver Beispiele, Design-Tokens und Layoutmuster. Prüfe zuerst, ob eine vorhandene Paketkomponente deine Aufgabe erfüllt. Die Inhalte dieser Dokumentation sind auf Englisch.
+
 ## Einen Beitrag prüfen
 
 Lies vor Änderungen `AGENTS.md` und `.agents/repo.md` im Repository. Führe während der Arbeit passende Prüfungen aus und danach die gemeinsame Prüfung im Stammverzeichnis:

@@ -13,7 +13,7 @@ Use chat to ask questions, understand a document, or investigate information in 
 
 ## Send your first message
 
-Open **Chat** and type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
+Open **Chat**. It may reopen a recent conversation. Choose **New chat**, or choose **Chat** again while it is active, to begin a new subject. Type in the message field. Press **Enter** to send or **Shift+Enter** for a new line. A starter prompt fills the same role as your own first question; edit your request to include the source, subject, and kind of answer you need.
 
 For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 

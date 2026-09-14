@@ -48,6 +48,8 @@ Ouvre une tâche pour lire sa description, son attribution et la discussion. Ave
 
 ## Reprendre ton travail
 
+Choisir **Projets** ou **Connaissances** depuis une autre section rouvre la dernière vue consultée. Choisis à nouveau la section active pour revenir à sa liste. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
+
 La barre latérale des chats conserve l’historique des conversations. Utilise **Afficher les chats** si elle est masquée, puis rouvre la conversation. Commence un nouveau chat pour un nouveau sujet et partage volontairement une conversation de projet lorsque tes collègues en ont besoin.
 
 La langue et le thème sont accessibles dans **Gérer le compte**. Le [guide des préférences](/fr/platform/member/preferences) explique les autres réglages et les fonctions qui les utilisent.

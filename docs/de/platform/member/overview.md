@@ -35,6 +35,12 @@ Bearbeite dein Profil und verstehe gespeicherte Einstellungen und Chat-Verwaltun
 
 </CardGroup>
 
+Wechsle über die [Hauptnavigation](/de/platform#navigation) zwischen deinen Tätigkeiten. Kehrst du in einen Bereich zurück, öffnet sich deine letzte Ansicht. Wählst du den bereits aktiven Bereich erneut, gelangst du zu dessen Startansicht.
+
+## Einer Benachrichtigung folgen
+
+Ein Benachrichtigungslink öffnet die zugehörige Aufgabe, das Dokument oder die Konversation. Musst du dich zuerst anmelden, merkt sich Tale das Ziel und öffnet es nach der Anmeldung. Du brauchst weiterhin Zugriff auf die Organisation und den verlinkten Inhalt. Verbinde dich bei einer privaten Bereitstellung zuerst mit dem dafür vorgesehenen Netzwerk.
+
 ## Wenn eine Aktion fehlt
 
 Mitglieder lesen die gemeinsame Bibliothek; Redakteure und höhere Rollen pflegen ihre Inhalte. Automatisierungen und technische Einrichtung brauchen Entwickler- oder Administratorrechte. Lass dir den nötigen Zugriff für deine Aufgabe geben. Eine sichtbare Ressource ist nicht automatisch bearbeitbar. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Unterschiede.

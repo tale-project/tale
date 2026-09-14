@@ -130,6 +130,8 @@ The capability registry currently contains deployed automations. It does not inc
 
 The key identifies its holder; it does not expand that person's role or project access. Live `invoke_capability` calls also pass through the execution checks.
 
+Read `GET /api/v1/me` before configuring privileged tools: `capabilities.developer` reports the current role gate, while `deploymentEditor` is a separate operator allowlist and does not authorize MCP authoring. The MCP tool-error envelope below still applies; a REST capability check does not change JSON-RPC error handling.
+
 ### Distinguish a transport error from a refused tool
 
 | Result | How to handle it |

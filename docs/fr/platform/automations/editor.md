@@ -5,15 +5,23 @@ description: Examine et modifie les nœuds, fournis les données de test, puis e
 
 L’éditeur de workflow permet de modifier le comportement d’une automatisation et de choisir sa version active. Il faut les droits Développeur, Admin ou Propriétaire pour apporter des changements. Enregistrer, tester et mettre en service sont des étapes distinctes : modifier un brouillon laisse la version déployée en place.
 
-Ouvre **Automatisations**, puis sélectionne une automatisation. Pour en créer une d’abord, consulte [Ajouter des automatisations](/fr/platform/automations/catalog).
+Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre dans l’onglet **Éditeur**. Pour en créer une, consulte [Créer ou importer une automatisation](/fr/platform/automations/catalog).
 
-<Frame caption="Sélectionne un nœud pour examiner ses champs. L’en-tête réunit test, enregistrement et mise en service.">
+| Onglet | Utilisation |
+| --- | --- |
+| **Éditeur** | Modifier le workflow, tester une version enregistrée et choisir celle à mettre en service. |
+| **Versions** | Lire les messages de version et les résultats des tests enregistrés, puis ouvrir une version dans l’éditeur en sélectionnant sa ligne. |
+| **Exécutions** | Examiner les derniers lancements et ouvrir le détail d’une exécution. |
 
-![L’éditeur montre les nœuds connectés, les réglages du nœud sélectionné et les commandes de version et d’exécution.](/images/platform/automation-editor-canvas.webp)
+Dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner**. Un point sur l’onglet **Éditeur** signale des modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+
+<Frame caption="Sélectionne un nœud pour examiner ses champs. Les commandes à côté des onglets permettent de tester, d’enregistrer et de mettre en service.">
+
+![L’éditeur montre les nœuds connectés, les réglages du nœud sélectionné les onglets Éditeur, Versions et Exécutions, ainsi que les commandes de version et d’exécution.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
-Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée.
+Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée. Tu conserves l’onglet ouvert. Depuis le détail d’une exécution, tu arrives sur la liste **Exécutions** de l’autre automatisation. Le numéro de version sélectionné n’est pas repris : **Éditeur** affiche la dernière version enregistrée de cette autre automatisation.
 
 ## Lire le canvas
 
@@ -32,7 +40,7 @@ Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le 
 1. Modifie les champs nécessaires et clique sur **Enregistrer**.
 2. Explique le changement dans le **Message de version**, puis choisis **Enregistrer la version**. Cela ajoute une version et conserve les précédentes.
 3. Clique sur **Essai**. Si le workflow déclare un schéma d’entrée, remplis **Données de l’exécution (JSON)** dans le dialogue. Déplie **Schéma des données** pour vérifier les champs obligatoires et leurs types. Un JSON invalide ou non conforme au schéma empêche le démarrage.
-4. Lance le test et ouvre sa ligne dans **Exécutions**. Compare les données résolues, la sortie et les opérations prévues au résultat attendu.
+4. Lance le test, passe à l’onglet **Exécutions** et ouvre sa ligne. Compare les données résolues, la sortie et les opérations prévues au résultat attendu.
 
 Pour un workflow qui exige `owner` et `repo`, les données pourraient être :
 
@@ -65,10 +73,10 @@ Un déclencheur utilise aussi la version déployée. Configure-le lorsque tu es 
 
 **Afficher la dernière exécution** superpose les états au canvas. Sélectionne un nœud pour consulter les données de cette exécution : entrée résolue, sortie et effets. Cela suffit souvent à trouver une référence incorrecte. Compare l’entrée du nœud échoué à la sortie de sa source.
 
-Ouvre une ligne dans **Exécutions** pour le détail complet. Vérifie s’il s’agissait d’un test ou d’une exécution réelle et examine les opérations déjà réalisées avant de relancer. [Journaux d’exécution](/fr/platform/automations/execution-logs) explique les attentes, échecs, relances automatiques et arrêts.
+Passe à **Exécutions** et ouvre une ligne pour le détail complet. Les onglets restent visibles, avec **Exécutions** actif. **Éditeur** te ramène au workflow. Vérifie s’il s’agissait d’un test ou d’une exécution réelle et examine les opérations déjà réalisées avant de relancer. [Journaux d’exécution](/fr/platform/automations/execution-logs) explique les attentes, échecs, relances automatiques et arrêts.
 
 ## Revenir à une version ou supprimer
 
-Pour revenir en arrière, sélectionne une ancienne version et clique sur **Mettre cette version en service**. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
+Pour revenir à une ancienne version, ouvre **Versions**, lis les messages et sélectionne la version souhaitée. Sa ligne ouvre **Éditeur** sur cette version ; clique ensuite sur **Mettre cette version en service**. Tu peux aussi choisir une ancienne version dans le menu **Version** de l’éditeur. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
 
 Pour supprimer l’automatisation, retourne à la liste, ouvre le menu de sa ligne et choisis **Supprimer**. Lis la confirmation qui la nomme. Les versions, le déploiement, le déclencheur et les liens aux projets sont retirés. Une exécution inachevée bloque la suppression : arrête-la ou attends sa fin. Les anciennes exécutions restent soumises à la conservation. Supprimer l’automatisation n’annule pas les actions déjà réalisées.

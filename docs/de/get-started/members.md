@@ -48,6 +48,8 @@ Kannst du eine gemeinsame Quelle nicht hinzufügen, bitte eine Person mit Bearbe
 
 ## Zur Arbeit zurückkehren
 
+Wählst du **Projekte** oder **Wissen** aus einem anderen Bereich, öffnet sich deine zuletzt besuchte Ansicht. Wähle den bereits aktiven Bereich erneut, um zu seiner Liste zurückzukehren. Die [Navigationsanleitung](/de/platform#navigation) erklärt die Bedienelemente am Computer und auf dem Smartphone.
+
 Die Chat-Seitenleiste enthält deinen Gesprächsverlauf. Blende sie bei Bedarf mit **Chats anzeigen** ein und öffne das Gespräch erneut. Beginne für ein neues Thema einen neuen Chat und teile Projektgespräche bewusst, wenn andere sie benötigen.
 
 Sprache und Erscheinungsbild findest du unter **Konto verwalten**. Die [Einstellungen](/de/platform/member/preferences) erklären weitere Kontofunktionen und wo sie wirken.

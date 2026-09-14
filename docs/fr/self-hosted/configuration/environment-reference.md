@@ -25,8 +25,11 @@ Consulte aussi les commentaires du fichier d’exemple et vérifie l’environne
 | `SITE_URL`  | `https://localhost` | **Obligatoire.** URL canonique complète incluant le schéma et tout port non standard. Les callbacks d'auth l'utilisent.                   |
 | `ADDITIONAL_SITE_URLS` | non défini | **Optionnel.** Autres origines sur lesquelles le même déploiement répond, séparées par des virgules ou des espaces (ex. `https://a.example,https://b.example`). Chacune est une entrée complète. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois). |
 | `BASE_PATH` | non défini          | **Optionnel.** Préfixe de chemin pour les déploiements en sous-chemin derrière un reverse proxy (ex. `/app`). Laisse vide pour la racine. |
+| `DOCS_URL` | `https://docs.<HOST>` | Origine publique de l’hôte de documentation distinct dans le proxy. Le service docs doit aussi faire partie du déploiement. |
 
 `SITE_URL` désigne l’origine publique canonique. Protocole, hôte et port doivent correspondre à l’adresse du navigateur et aux callbacks enregistrés. `BASE_PATH` ajoute le préfixe de chemin ; le proxy normalise une barre oblique finale. Les adresses supplémentaires sont des origines sans chemin dans `ADDITIONAL_SITE_URLS`. Une origine supplémentaire invalide empêche le backend de démarrer.
+
+La documentation utilise sa propre origine. Sur l’origine de la plateforme, `/docs` ouvre la référence API interactive et `/openapi.json` fournit son schéma. `DOCS_URL` change l’hôte de documentation du proxy ; cette variable n’installe pas le service docs et ne réécrit pas les liens des clients déjà compilés. `TALE_DOCS_URL` dans les outils de compilation SEO et le préfixe `DOCS_BASE_URL` du service docs, utilisé à la compilation comme à l’exécution, sont des réglages distincts.
 
 ## TLS
 
@@ -124,6 +127,9 @@ Voir [Intégrité du journal d'audit](/fr/self-hosted/operate/security/audit-log
 | `SENTRY_DSN`                | non défini | DSN Sentry pour le suivi d'erreurs. Laisse vide pour désactiver. Compatible avec GlitchTip et Bugsink auto-hébergés.                                                   |
 | `SENTRY_TRACES_SAMPLE_RATE` | non défini | Taux d'échantillonnage optionnel pour les traces de performance du navigateur (`0.0`–`1.0`). Navigateur uniquement — le backend remonte des erreurs, jamais de traces. |
 | `METRICS_BEARER_TOKEN` | non défini | Jeton Bearer pour les routes `/metrics/*` du proxy. Sans jeton configuré, elles répondent 401. Restreins séparément l’accès réseau aux endpoints internes des processus. |
+| `UMAMI_URL` | non défini | Origine HTTPS de la passerelle de collecte authentifiée. HTTP est accepté uniquement pour les tests locaux sur `localhost`, `127.0.0.1` ou `[::1]`. Exige un identifiant de site et un jeton valides ; aucun chemin, paramètre de recherche ni identifiant de connexion dans l’URL. |
+| `UMAMI_WEBSITE_ID` | non défini | UUID du site Umami. Une valeur absente ou invalide désactive la collecte. Utilise un identifiant distinct par déploiement. |
+| `UMAMI_PROXY_TOKEN` | non défini | Jeton Bearer de la passerelle, réservé au serveur : 16 à 256 lettres ASCII, chiffres ou caractères de `._~-`. Ne l’injecte jamais dans la configuration du navigateur. |
 
 Définir `METRICS_BEARER_TOKEN` expose les endpoints de métriques derrière le token : `/metrics/platform`, `/metrics/backend` (les métriques du backend applicatif) et `/metrics/sla-rules`. Voir [Configuration d'observabilité](/fr/self-hosted/configuration/observability-config) pour la configuration de scrape.
 
@@ -194,7 +200,10 @@ Ces variables règlent l’authentification backend, les événements de fichier
 | `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Nom de l'en-tête de requête qui porte les appartenances aux équipes, en entrées `id:name` séparées par des virgules. Absent, les équipes ne bougent pas ; présent, la liste du proxy fait foi pour les appartenances qu'il a accordées (vide les révoque). |
 | `TALE_FILE_EVENTS`                | `false`                  | Diffuse les changements des fichiers de config sous `TALE_CONFIG_DIR` aux onglets ouverts (`/events/file`) : un fichier d’agent, de skill ou de branding modifié sur disque apparaît sans recharger. Actif dans le compose de dev, inactif en production.  |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | non défini               | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à écrire le fichier de configuration du déploiement (`deployment.yml`, aujourd’hui la section du runtime de la sandbox) via l’API. Vide/non défini = lecture seule pour tous les admins. La résidence des données se configure par organisation et ne dépend pas de cette liste. |
-| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | non défini               | Autorise une cible de crawl (`POST /api/v1/websites`, et chaque requête du crawler) à nommer un hôte de boucle locale, de lien local ou de réseau privé (RFC 1918, CGNAT, ULA, `.internal`, `.local`, nom à un seul segment). Non défini, une telle cible répond **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` — le crawler appelle depuis le réseau même du déploiement. Mets-la à `1` seulement sur un déploiement qui crawle son propre intranet ; les endpoints de métadonnées cloud restent refusés quoi qu’il arrive. |
+| `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` | non défini | Avec `1` dans l’environnement du backend, autorise les destinations privées des fournisseurs de modèles, y compris leur configuration dans la passerelle sandbox. Les métadonnées cloud restent bloquées. Voir [Fournisseurs](/fr/self-hosted/configuration/providers). |
+| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` | non défini | Avec `1`, autorise les cibles intranet et les hôtes privés dans l’`imageUrl` d’un produit. Les métadonnées cloud restent bloquées. |
+
+L’autorisation des cibles privées concerne deux contrôles : l’enregistrement des sites et les requêtes du crawler, ainsi que la validation de l’`imageUrl` d’un produit. Sans elle, une cible de site privée renvoie `400 WEBSITE_DOMAIN_NOT_CRAWLABLE` ; une URL d’image privée renvoie `400 INVALID_BODY`. Pour un produit, seule la chaîne du nom d’hôte est contrôlée, sans télécharger l’image ni résoudre le DNS. L’enregistrement d’un site et le crawler vérifient aussi les adresses résolues. Active cette variable uniquement si le déploiement a besoin de ces destinations privées. Elle est distincte de l’autorisation des fournisseurs privés.
 
 ## Réglage du retrieval RAG
 

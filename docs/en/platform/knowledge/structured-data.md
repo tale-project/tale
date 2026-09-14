@@ -50,6 +50,12 @@ Open **Knowledge > Products**, choose **Add product**, then **Manual entry**. Th
 
 Use the row menu to edit a saved product. Keep product names distinct so teammates can identify the right record, and review the price and currency before changing its status.
 
+To add a product image, choose **Upload image** or drop a PNG, JPEG, WebP, GIF, or SVG file into the image area. The limit is 5 MiB. Wait for the preview before moving on; if the upload fails, check the format and size, then try again. Tale checks the uploaded bytes and refuses active SVG content.
+
+The uploaded image stays available after you save and reload the product. Other organization members with product access can view it once the product is saved; the image address requires a signed-in session and is not a public sharing link. To remove it, edit the product, choose **Remove image**, then save.
+
+If you choose **Or paste a URL**, use a public HTTPS address. Tale refuses unsafe or disallowed hosts; ask an administrator if you need an internal image source. Images loaded from external addresses follow that source’s access rules.
+
 ## Keep access and freshness in view
 
 A record or document is useful only to people who can access it. Check its team scope when a teammate cannot find it. Project files follow project access rather than the document library’s team tags; see [Project files](/platform/projects/manage-files).

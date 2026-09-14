@@ -130,6 +130,8 @@ Das Capability-Verzeichnis enthält derzeit bereitgestellte Automatisierungen. I
 
 Der Schlüssel identifiziert seinen Inhaber. Er erweitert weder dessen Rolle noch dessen Projektzugriff. Auch eine Live-Ausführung über `invoke_capability` durchläuft die Ausführungsprüfungen.
 
+Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.developer` nennt die aktuelle Rollenberechtigung. `deploymentEditor` gehört dagegen zu einer separaten Freigabeliste des Betreibers und erteilt keine MCP-Bearbeitungsrechte. Tool-Fehler verwenden weiterhin das unten beschriebene MCP-Format; die REST-Berechtigungsabfrage ändert die JSON-RPC-Fehlerbehandlung nicht.
+
 ### Protokollfehler und abgelehnte Tools unterscheiden
 
 | Ergebnis | Umgang damit |

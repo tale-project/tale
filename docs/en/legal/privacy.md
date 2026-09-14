@@ -21,6 +21,8 @@ Tale stores account information, organization membership, and content created or
 
 A model provider, connector, or other external service may receive data when you use a feature that calls it. Hosting Tale yourself does not make those calls local. Ask your administrator which services are enabled, and use the [data-residency guide](/cloud/data-residency) to distinguish hosting from processing destinations.
 
+Optional aggregate analytics uses self-hosted Umami on Tale’s own sites and on deployments where the operator enables it. It records known public page paths or private route templates, referrer origins, browser language, screen size, device/browser information and approximate location. The IP address derives location and short-lived visit grouping without raw IP storage. No cookies, persistent browser identifiers, cross-site identity, page titles, query strings, form contents, organization/resource identifiers or session replays are collected. Do Not Track and Global Privacy Control disable this collection. The marketing site counts completed contact/demo submissions without their contents.
+
 ## Request access, correction, or erasure
 
 Start with the organization responsible for your account and workspace. Describe the data and the request; use its approved secure channel rather than placing sensitive evidence in a public issue. For requests concerning Tale's own website or your contact with the company, use the contact route in the privacy policy.

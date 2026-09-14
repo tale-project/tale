@@ -5,17 +5,19 @@ description: Wähle einen Ausgangspunkt, importiere ein geprüftes Paket und ber
 
 Unter **Automatisierungen** findest du die Workflows deiner Organisation. Inhaber, Admins und Entwickler können sie verwalten. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
 
-<Frame caption="Die Seite Automatisierungen — jede Zeile ist eine Automatisierung mit ihrer Versionszahl und der Version, die live ist, oder Nicht live.">
+Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitgelieferten Triage-Workflows zu vergleichen.
 
-![Die Seite Automatisierungen mit den mitgelieferten E-Mail- und GitHub-Automatisierungen, jede Zeile mit Versionszahl und Deployment-Status.](/images/platform/automations-catalog.webp)
+<Frame caption="Die nach Triage gefilterte Liste zeigt vier mitgelieferte Beispiele mit Versionsanzahl und Bereitstellungsstatus.">
+
+![Vier gefilterte Triage-Automatisierungen für GitHub, Gmail, IMAP und Outlook mit Versionen, Bereitstellungsstatus und der Schaltfläche zum Erstellen einer Automatisierung.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
 ## Einen Ausgangspunkt wählen
 
-Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie, um Ablauf und Läufe zu prüfen. Im Bereich **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung.
+Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Versionen** findest du den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen. Im Bereich **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung.
 
-Das Menü **Neue Automatisierung** bietet drei Wege:
+Das Menü **Automatisierung erstellen** bietet drei Wege:
 
 | Auswahl | Geeignet, wenn … | Danach |
 | --- | --- | --- |
@@ -44,7 +46,7 @@ review-invoices/
 
 <Step title="Dateien auswählen">
 
-Wähle **Neue Automatisierung > Paket hochladen**. Lade Workflow und optionales Manifest einzeln hoch oder wähle genau eine `.zip` mit dem Pack. Für mitgelieferte Skills brauchst du die ZIP-Datei. Markdown-Notizen außerhalb von `skills/`, versteckte Dateien und Build-Reste wie `node_modules/` und `__pycache__/` werden ignoriert.
+Wähle **Automatisierung erstellen > Paket hochladen**. Lade Workflow und optionales Manifest einzeln hoch oder wähle genau eine `.zip` mit dem Pack. Für mitgelieferte Skills brauchst du die ZIP-Datei. Markdown-Notizen außerhalb von `skills/`, versteckte Dateien und Build-Reste wie `node_modules/` und `__pycache__/` werden ignoriert.
 
 </Step>
 

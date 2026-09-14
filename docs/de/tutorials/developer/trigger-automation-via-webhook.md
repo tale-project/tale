@@ -75,6 +75,8 @@ curl --fail-with-body --silent --show-error \
 
 Warte auf einen Endstatus und prüfe `output` und `trace`. Bei der Testautomation, die Eingaben zurückgibt, müssen Bestell-ID und Betrag mit deiner Zustellung übereinstimmen. Die `202`-Antwort allein bestätigt dieses Ergebnis nicht.
 
+Lies bei einem fehlgeschlagenen Lauf `failureCode` und `detail`, den betroffenen Knoten sowie bereits ausgeführte Aktionen. Dieselbe Zustellungs-ID liefert den ursprünglichen Lauf zurück, auch wenn er fehlgeschlagen ist; sie wiederholt seine Arbeit nicht. Eine andere ID startet neue Arbeit. Prüfe deshalb zuerst, ob bereits abgeschlossene Knoten gefahrlos erneut laufen dürfen.
+
 ## Zustellungen wiederaufnehmen
 
 | Antwort | Behebung |

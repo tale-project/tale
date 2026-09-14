@@ -54,7 +54,6 @@ headers = {
     "Content-Type": "application/json",
 }
 
-
 def request(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
     req = Request(f"{base}/api/v1{path}", data=data, headers=headers, method=method)
@@ -65,7 +64,6 @@ def request(method, path, body=None):
     except HTTPError as error:
         detail = error.read().decode(errors="replace")
         raise SystemExit(f"HTTP {error.code}: {detail}") from error
-
 
 models = request("GET", "/models")["models"]
 model_id = os.environ["TALE_MODEL"]
@@ -126,7 +124,9 @@ Bewahre für eine weiterführende Integration die Thread-ID auf. Sende spätere 
 | Nachrichtenstatus `failed` | Prüfe `errorCode` und behebe Konto- oder Modellprobleme vor einem erneuten Versuch. |
 | Netzwerkzeitüberschreitung | Prüfe Instanz und vorhandenen Thread, bevor du erneut sendest. |
 
-Ein POST mit Zeitüberschreitung kann bereits angenommen worden sein. Sende ihn nicht ungeprüft erneut, sondern lies zuerst Generierungsstatus und Nachrichten des Threads. Die zehn Minuten im Skript sind eine lokale Entscheidung, kein Ausführungslimit des Servers.
+Ein POST mit Zeitüberschreitung kann bereits angenommen worden sein. Sende ihn nicht ungeprüft erneut, sondern lies zuerst Generierungsstatus und Nachrichten des Threads.
+
+Die Frist von zehn Minuten ist eine Entscheidung dieses Beispiels, kein Serverlimit. Ein eingereihter Antwortlauf kann hinter anderen Clients warten; Reasoning kann das Modell schon vor sichtbarem Text aktiv halten. Das Skript wiederholt einen fehlgeschlagenen Versand nicht automatisch. Für unbeaufsichtigte Wiederholungen speicherst du einen `Idempotency-Key` mit 1–255 druckbaren ASCII-Zeichen zusammen mit dem Body, verwendest nach einer verlorenen Antwort beides erneut und beachtest bei `429` den Header `Retry-After`. Siehe [Nachrichten sicher erneut senden](/de/develop/api-reference#eine-nachricht-sicher-erneut-senden).
 
 ## Die Integration erweitern
 

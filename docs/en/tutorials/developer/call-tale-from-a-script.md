@@ -54,7 +54,6 @@ headers = {
     "Content-Type": "application/json",
 }
 
-
 def request(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
     req = Request(f"{base}/api/v1{path}", data=data, headers=headers, method=method)
@@ -65,7 +64,6 @@ def request(method, path, body=None):
     except HTTPError as error:
         detail = error.read().decode(errors="replace")
         raise SystemExit(f"HTTP {error.code}: {detail}") from error
-
 
 models = request("GET", "/models")["models"]
 model_id = os.environ["TALE_MODEL"]
@@ -126,7 +124,9 @@ Keep the thread ID when extending this into an integration. Send later messages 
 | Message status `failed` | Inspect `errorCode`; fix the provider account or model configuration before retrying. |
 | Network timeout | Check the instance and the existing thread before submitting another message. |
 
-A timed-out POST may already have been accepted. Do not blindly send it again: inspect the thread’s generation state and messages first. The script’s ten-minute deadline is a local choice, not a server execution limit.
+A timed-out POST may already have been accepted. Do not blindly send it again: inspect the thread’s generation state and messages first.
+
+The ten-minute deadline belongs to this example, not to the server. A queued turn may be waiting behind other clients, and reasoning can keep a model active before any answer text appears. The script does not automatically repeat a failed send. For unattended retries, persist an `Idempotency-Key` of 1–255 printable ASCII characters with the request body, reuse both after a lost response, and honor `Retry-After` on `429`. See [safe message retries](/develop/api-reference#retry-a-send-safely).
 
 ## Extend the integration
 

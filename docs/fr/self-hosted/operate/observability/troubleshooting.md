@@ -13,6 +13,7 @@ Pour un déploiement dans un workspace, commence par `tale status` et `tale logs
 | --- | --- | --- |
 | Connexion impossible ou avertissement TLS | DNS, ports publics, nom et émetteur du certificat, journaux du proxy. | Corrige la couche en échec. Avec une CA interne, installe son certificat racine public sur le client ; `docker exec ... caddy trust` ne change pas son magasin de confiance. |
 | Réponse 502/503 du proxy | Identifie chemin et service cible. `/api/health` et fichiers web utilisent `platform` ; les requêtes applicatives utilisent `backend-api`. | Examine le démarrage et la disponibilité du service avant de modifier le proxy. |
+| `400 BODY_LENGTH_MISMATCH` ou `400 BODY_CHUNK_MALFORMED` | Le corps se termine avant la longueur déclarée ou son découpage HTTP/1.1 en chunks est mal formé. | Corrige le format du corps ou sa longueur déclarée côté émetteur avant de réessayer. |
 | Retour à la page de connexion | Cookies et callbacks dans le navigateur ; `SITE_URL`, origines supplémentaires, chemin de base et enregistrement fournisseur. | Corrige l’origine ou le callback, puis recrée les services après les modifications d’environnement. |
 
 Une interface chargée mais vide oriente d’abord vers les requêtes applicatives, pas forcément le serveur web. Examine les requêtes échouées et les journaux `backend-api`. Proxy, session expirée, refus de permission et panne backend demandent des corrections différentes. [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains) et [Authentification](/fr/self-hosted/configuration/authentication) décrivent leur configuration.
@@ -36,6 +37,12 @@ Compare la réponse du serveur à la requête du navigateur vers l’URL présig
 Examine son statut et son motif d’échec, puis les journaux `backend-worker`. Confirme modèle et identifiants d’embedding de l’organisation, dimensions des vecteurs, connexion de connaissances et format du fichier. Un import réussi prouve seulement le stockage du fichier d’origine.
 
 Si un worker ou une dépendance était indisponible, rétablis-le puis vérifie si le job reprend ou demande **Indexer maintenant** dans [Connaissances](/fr/platform/knowledge/documents). Pour une source endommagée, chiffrée ou non prise en charge, corrige le fichier avant de réessayer. Ne supprime pas un document comme première étape : son identité, son historique et ses références peuvent compter.
+
+## Un scan de site signale une erreur de certificat
+
+L’erreur de crawl `tls_error` indique un échec de négociation TLS : certificat expiré, nom d’hôte différent ou chaîne non reconnue, par exemple. Corrige le certificat du site ou la configuration de confiance du processus de crawl, puis lance un nouveau scan. Répéter la même requête ne répare pas la confiance du certificat ; ne désactive pas sa vérification pour masquer l’échec.
+
+`network_error` indique plutôt un échec de connexion. Lis sa cause et vérifie le DNS, le routage et la disponibilité du service. [Explorer les sites web](/fr/platform/knowledge/crawling) explique les erreurs par page et les résultats des scans.
 
 ## Postgres de connaissances plante pendant l’ingestion
 

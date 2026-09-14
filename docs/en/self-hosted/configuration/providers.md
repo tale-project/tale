@@ -33,6 +33,14 @@ This uses an OpenAI-compatible chat API and discovers models from `/v1/models`. 
 
 Then have an organization admin add a credential through [AI providers](/platform/admin/providers), refresh the catalog and select a specific model for a short chat. Verify the completed request in the intended inference server’s logs. Embeddings, speech and tool traffic require their own routing review; a local chat endpoint does not make them local.
 
+## Verify sandbox model access
+
+Chat calls a provider from the backend. Coding-agent sessions use `sandbox-llm-gateway`, so a successful chat does not prove the agent path. Make the endpoint resolvable and reachable from both the backend and the gateway; each HTTPS client must trust its certificate. A hostname such as `https://models.internal/v1` still needs the private-provider opt-in when DNS resolves it to a private address. Plain HTTP remains limited to hostname forms accepted by the provider schema, such as private IP literals, `localhost` and `.local`.
+
+When a new sandbox session starts, the backend checks the custom provider’s hostname and DNS answers before provisioning its gateway configuration. Private destinations require `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`; metadata destinations are refused even with it. This preflight does not pin DNS for the gateway’s later requests. Keep provider configuration and DNS under trusted operator control.
+
+After recreating the affected backend processes, start a new sandbox session with the intended provider, model and compatible agent runtime. Use a harmless request and verify a completed reply and the matching inference-server log entry. Inspect `sandbox-llm-gateway` logs if chat works but the agent cannot reach its model. `SANDBOX_EGRESS_ALLOWLIST` controls general sandbox web access, not this separate model connection.
+
 ## Where the connectors live
 
 Shipped definitions live at `configs/platform/system/providers/<slug>/provider.yml`. Their static catalogs live at `configs/platform/system/models/<slug>/models.yml`; for example, Anthropic uses `providers/anthropic/provider.yml` and `models/anthropic/models.yml`. These files belong to the image and change with its release.

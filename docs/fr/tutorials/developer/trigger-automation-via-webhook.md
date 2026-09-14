@@ -75,6 +75,8 @@ curl --fail-with-body --silent --show-error \
 
 Attends un statut final et inspecte `output` et `trace`. Pour la transformation qui renvoie son entrée, vérifie l’ID de commande et le montant envoyés. La réponse de livraison `202` ne prouve pas à elle seule ce résultat.
 
+Si l’exécution échoue, lis `failureCode` et `detail`, puis examine le nœud concerné et les effets déjà produits. Réutiliser le même ID de livraison retrouve l’exécution initiale, même en échec ; cela ne relance pas son travail. Un autre ID démarre un nouveau traitement : vérifie d’abord si les nœuds déjà terminés peuvent être répétés sans risque.
+
 ## Reprendre une livraison
 
 | Réponse | Correction |

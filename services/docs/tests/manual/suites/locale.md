@@ -26,7 +26,7 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
 > **Switch language** (`languageSwitcher.ariaLabel`) showing the current
 > locale name; items are `menuitem`s **English** / **Deutsch** / **Français**.
 > Copy controls, callout labels, code-group labels, diagram controls, skip
-> link, sidebar landmark, and page actions follow the selected language —
+> link, navigation rail landmark, and page actions follow the selected language —
 > English labels on `/de` or `/fr` are findings. Sweep the newer surfaces too: the video player (native controls are
 > browser chrome; the captions `<track>` label comes from a hard-coded
 > language-name map in `@tale/ui` `video.tsx` — **Deutsch**/**Français** on
@@ -42,9 +42,9 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
   **Deutsch** → URL commits `{base}/de/self-hosted/install/quickstart` — same
   page, German content; switching back to **English** drops the prefix.
 - [ ] `LOC-F2` · **German tree** — Open `{base}/de` and one nested page →
-  Landing + page render translated content from `docs/de/`; sidebar group
+  Landing + page render translated content from `docs/de/`; rail section
   labels are German (`messages/de.yml` `nav.groups.*`);
-  breadcrumbs/TOC/prev-next chrome is German (`docs.*`)
+  breadcrumbs/outline/prev-next chrome is German (`docs.*`)
 - [ ] `LOC-F3` · **French tree** — Open `{base}/fr` and one nested page → Same
   as LOC-F2 for French.
 - [ ] `LOC-F4` · **`<html lang>`** — Read `document.documentElement.lang` on
@@ -59,7 +59,7 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
   site share the `tale_locale` cookie (`packages/ui/src/i18n/cookie.ts`), so
   one language spans both.
 - [ ] `LOC-F7` · **de-CH regional overlay** — Browser locale `de-CH`: open
-  `{base}/de`, open the search dialog; at ≤ 767 px open the mobile drawer →
+  `{base}/de`, open the search dialog; at ≤ 767 px open the phone drawer →
   URL stays `/de` (regional variants never URL-prefix,
   `resolveRegionalLocale`); strings present in `messages/de-CH.yml` render the
   Swiss variant over the `de` base — search close reads **Suche schliessen**

@@ -21,6 +21,8 @@ Tale conserve les informations de compte, l'appartenance à une organisation et 
 
 Un fournisseur de modèles, un connector ou un autre service externe peut recevoir des données lorsque tu utilises une fonction qui l'appelle. Héberger Tale ne rend pas ces appels locaux. Demande à ton administration quels services sont activés. Le [guide de résidence des données](/fr/cloud/data-residency) distingue l'hébergement des lieux de traitement.
 
+Les statistiques agrégées facultatives utilisent Umami auto-hébergé sur les sites de Tale et sur les déploiements dont l’opérateur active la collecte. Elles enregistrent les chemins publics connus ou les modèles de routes privées, les origines de provenance, la langue du navigateur, la taille de l’écran, les données du navigateur et de l’appareil, ainsi que la localisation approximative. L’adresse IP sert à déduire la localisation et à regrouper brièvement les visites, sans stockage en clair. Aucun cookie, identifiant persistant dans le navigateur, identité entre sites, titre de page, paramètre de recherche, contenu de formulaire, identifiant d’organisation ou de ressource, ni relecture de session n’est collecté. Do Not Track et Global Privacy Control désactivent cette collecte. Le site marketing compte les demandes de contact et de démo abouties sans leur contenu.
+
 ## Demander un accès, une rectification ou un effacement
 
 Adresse-toi d'abord à l'organisation responsable de ton compte et de ton espace de travail. Décris les données et ta demande par le canal sécurisé qu'elle prévoit. Ne joins pas de justificatifs sensibles à une issue publique. Pour les demandes concernant le site de Tale ou tes échanges avec l'entreprise, utilise le contact indiqué dans la politique de confidentialité.

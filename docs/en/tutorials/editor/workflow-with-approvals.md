@@ -43,10 +43,10 @@ tests:
         - connector: imap-smtp.send
 ```
 
-1. Open **Automations > New automation > Upload package**.
+1. Open **Automations > Create automation > Upload package**.
 2. Choose `workflow.yml` and leave **Install into** set to **Organization**.
 3. Click **Upload package**. Tale validates the document and saves `docs/approval-check` as a draft.
-4. Choose **Later** in the deployment prompt, then open **Approval check** from the list.
+4. Choose **Later** in the deployment prompt, then open **Approval check** from the list. It opens on **Editor**.
 
 If that name already exists, uploading adds another version. Use a different workflow `name` if you want a separate exercise.
 
@@ -58,17 +58,17 @@ If that name already exists, uploading adds another version. Use a different wor
 
 ## Test the data flow
 
-Click **Test run**. This example has no runtime input, so it can run with an empty object. The **Runs** list should show a **Succeeded** test run and the canvas should show both nodes as **Ran**.
+On **Editor**, click **Test run**. This example has no runtime input, so it can run with an empty object. Switch to **Runs**. The list should show a **Succeeded** test run.
 
-Open the run, select `send`, and inspect its resolved input. The recipient should be `reviewer@example.com`, the subject `Approval practice`, and the text the sentence from `draft`. The connector uses a deterministic mock in this mode. No email is sent and no approval card appears.
+Open the run and check that the canvas shows both nodes as **Ran**. Select `send` and inspect its resolved input. The recipient should be `reviewer@example.com`, the subject `Approval practice`, and the text the sentence from `draft`. The connector uses a deterministic mock in this mode. No email is sent and no approval card appears.
 
 The workflow includes a test expecting the `imap-smtp.send` effect. A passing mock confirms the graph and proposed call; it does not prove mailbox credentials or message delivery.
 
 ## Start the live approval check
 
-Click **Deploy this version** to make the tested version live. Leave the trigger unconfigured; this exercise starts once by hand.
+Return to **Editor** and click **Deploy this version** to make the tested version live. Leave the trigger unconfigured; this exercise starts once by hand.
 
-Choose **Run live**, read the confirmation and organization scope, then confirm. Open the new **Waiting** run from **Runs**. Its approval card should show **Waiting for your approval**, `imap-smtp.send`, the `send` node, and **The step would call with** containing the same recipient, subject, and text you checked in the mock.
+Choose **Run live**, read the confirmation and organization scope, then confirm. Switch to **Runs** and open the new **Waiting** run. Its approval card should show **Waiting for your approval**, `imap-smtp.send`, the `send` node, and **The step would call with** containing the same recipient, subject, and text you checked in the mock.
 
 If the run does not wait, inspect its status and policy before continuing. A failed connector call is not proof that an approval was requested.
 

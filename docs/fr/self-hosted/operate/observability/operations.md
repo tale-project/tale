@@ -21,6 +21,19 @@ Surveille les actions que les utilisateurs doivent terminer autant que les servi
 
 Une alerte à 80 % d’occupation disque peut servir de point de départ. La croissance et le temps nécessaire pour intervenir comptent davantage qu’un pourcentage universel. Une panne de recherche peut être critique pour une équipe qui dépend des connaissances ; ne la reporte pas automatiquement parce que l’interface charge encore.
 
+## Choisir le bon point de contrôle
+
+Utilise ces chemins sur l’origine publique d’un déploiement de production derrière le proxy fourni :
+
+| Chemin | Ce qu’établit une réponse réussie |
+| --- | --- |
+| `/health` | Caddy répond `OK`. Ce contrôle reste vert pendant un redémarrage de la plateforme. |
+| `/api/health` | Le processus web de la plateforme répond à sa sonde de vie. |
+| `/status.json` | Le rapport public sur les dépendances est accessible. Lis le verdict de chaque composant ; les résultats sont conservés cinq secondes en cache. |
+| `/status` | Le même rapport de disponibilité sous forme de page lisible. |
+
+Vérifie le contenu attendu autant que le statut HTTP. Un chemin inconnu du frontend, comme `/healthz`, peut renvoyer la structure de l’application avec `200` ; ce n’est pas un rapport de santé. [Page d’état](/fr/develop/status-page) décrit le format de réponse.
+
 ## Comprendre ce que les métriques prouvent
 
 Le backend exporte les métriques de processus, les nombres et durées des réponses HTTP, les comptes de jobs, les générations en cours, les flux de notification ouverts, l’état de drainage et l’accessibilité des stockages. Examine les séries réellement exposées par ta version avant d’écrire une alerte.

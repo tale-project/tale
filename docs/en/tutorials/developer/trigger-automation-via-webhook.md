@@ -75,6 +75,8 @@ curl --fail-with-body --silent --show-error \
 
 Wait for a terminal status and inspect `output` and `trace`. In the input-returning test automation, confirm that the received payload contains the order ID and amount you sent. A `202` delivery response alone does not prove this result.
 
+When a run fails, read its `failureCode` and `detail`, then inspect the failed node and earlier effects. Replaying the same delivery ID returns the original run, including a failed one; it does not retry its work. A different ID starts new work, so first decide whether repeating already completed nodes is safe.
+
 ## Recover the delivery
 
 | Response | Recovery |

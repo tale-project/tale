@@ -37,11 +37,24 @@ use CLI-generated files.
 | `/api/v1` | Public REST API and inbound MCP endpoint. |
 | `/events`, `/dav`, `/scim` | Change hints, WebDAV and SCIM. |
 | `/status`, `/status.json` | Public availability summary. |
+| `/docs`, `/openapi.json` | Interactive API reference and its raw schema. |
+| `/llms.txt`, `/llms-full.txt` | Public reference indexes for AI clients. |
 
 The production web shim also serves `/api/health` for its liveness probe. Local
 Vite routes are not an exact copy of that shim; do not assume every production
 health route exists on the development server. The
 [backend README](backend/README.md) describes backend routes and process roles.
+
+The prose guides live on the separate docs origin. The interactive reference
+links to the published developer guides and the same-origin OpenAPI document.
+When operating a docs mirror, configure its proxy host with `DOCS_URL` and review
+client/build links separately; `/docs` remains the platform reference route.
+
+Through the bundled production proxy, `/health` answers only for Caddy. Use the
+platform endpoints above for application monitoring. Unknown frontend paths can
+return the app shell with `200`, so a monitor must validate the expected body.
+The app’s `robots.txt` disallows application indexing while permitting its named
+public developer/status surfaces; those rules do not enforce authorization.
 
 ## Configuration and state
 
@@ -89,3 +102,26 @@ require `bun run --filter @tale/platform backend:integration` against an isolate
 real Postgres instance. Drive changed UI flows in a browser and update their docs,
 translations and manual coverage. Read the repository contracts before changing
 code; they own the complete definition of done.
+
+## Optional aggregate analytics
+
+Analytics is disabled by default. Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and server-only
+`UMAMI_PROXY_TOKEN` in the production service’s runtime environment to enable it. Recreate the
+service after changing these values; clearing the website ID disables collection without an
+image rebuild. The Vite development server does not inject this configuration.
+
+The shared `@tale/ui/analytics` implementation loads the tracker through `/_a/script.js` and
+sends curated pageviews through `/_a/api/send`. A configured base path prefixes those URLs.
+Only the website ID and proxy path enter the browser; the collector origin and token remain on
+the server. Known public paths and private route templates omit queries, page titles and
+resource IDs. Do Not Track and Global Privacy Control disable collection.
+
+The collector gateway must authenticate `GET /_collect/script.js` and `POST /_collect/api/send`
+with the configured bearer token. Edge Caddy must overwrite `X-Analytics-Client-IP` from its
+trusted client address. Keep application ports private and configure trusted proxy ranges when
+another proxy sits in front. The server forwards the validated IP, browser User-Agent and
+required Umami headers; it drops browser cookies, credentials and referrer headers.
+
+See the [environment reference](../../docs/en/self-hosted/configuration/environment-reference.md)
+and [observability guide](../../docs/en/self-hosted/configuration/observability-config.md) for the
+collector contract, collected fields, opt-outs and verification steps.

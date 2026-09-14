@@ -40,6 +40,10 @@ Azure OpenAI requires **Endpoint URL**, typically `https://<resource>.openai.azu
 
 Use the provider's documented endpoint and model identifiers. A display name from a marketing page is not necessarily the identifier accepted by its API.
 
+## Connect a server on your own network
+
+Ask your operator to prepare the provider definition, endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). A private address is not enabled by saving a credential. Test the exact model in a chat; if coding agents will use it, test an agent session too. Their model traffic passes through a separate gateway, which also needs network access and certificate trust.
+
 ## Select a default and restrict model access
 
 Choose **Make default** from a credential's row menu. There is one default per provider; selecting another moves the badge. Disabled credentials cannot become the default. If no default exists, a caller must explicitly name a credential.

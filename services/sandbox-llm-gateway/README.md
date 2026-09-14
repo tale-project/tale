@@ -28,6 +28,26 @@ The pre-rename `LLM_GATEWAY_*` names are still read as a fallback; use the `SAND
 
 Auth + virtual-key enforcement are config-store fields the platform pushes via `applyGatewayConfig()`, not env knobs on this container.
 
+## Connect private model providers
+
+Set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the **backend** environment when a
+custom model provider uses a private address. On session creation, the backend
+checks both the hostname and its resolved addresses before configuring the
+gateway. It enables `network_config.allow_private_network` only for an admitted
+private destination. Cloud-metadata names and resolved addresses remain refused;
+public destinations keep the gateway’s default restriction.
+
+The provider hostname must resolve from both the backend and gateway networks.
+Both must reach the endpoint and trust its HTTPS certificate. The preflight is
+not a DNS pin for later gateway requests. Keep provider definitions and DNS under
+operator control. A successful ordinary chat checks the backend path; verify a
+new agent session separately to exercise this gateway.
+
+Recreate the backend processes after changing their environment. This setting
+does not change the general sandbox `SANDBOX_EGRESS_ALLOWLIST`. Follow the
+[provider configuration guide](../../docs/en/self-hosted/configuration/providers.md)
+for endpoint syntax, credentials and verification.
+
 ## Development
 
 ```bash

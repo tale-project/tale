@@ -13,6 +13,7 @@ For a workspace deployment, start with `tale status` and `tale logs <service> --
 | --- | --- | --- |
 | Connection fails or TLS warns | DNS, public ports, certificate hostname and issuer, proxy logs. | Fix the failing layer. For an internal CA, install its public root certificate on the client; `docker exec ... caddy trust` does not change the client's trust store. |
 | Proxy returns 502/503 | Identify the failing path and upstream. `/api/health` and web assets use `platform`; application requests use `backend-api`. | Inspect that service's startup error and readiness before changing proxy configuration. |
+| `400 BODY_LENGTH_MISMATCH` or `400 BODY_CHUNK_MALFORMED` | The request body ended before its declared length, or its HTTP/1.1 chunk framing is malformed. | Correct the sender’s body framing or declared length, then retry the well-formed request. |
 | Sign-in returns to the login page | Browser cookie and callback requests; configured `SITE_URL`, additional origins, base path, and provider registration. | Correct the mismatched origin or callback and recreate services after environment changes. |
 
 A loading shell with empty data points first to application requests, not necessarily the web server. Inspect failed requests in the browser and `backend-api` logs. A proxy, expired session, permission refusal, and backend outage require different fixes. [TLS and domains](/self-hosted/configuration/tls-and-domains) and [Authentication](/self-hosted/configuration/authentication) cover their configuration.
@@ -36,6 +37,12 @@ Start by comparing the server's response with the browser's request to the presi
 Check the document's status and failure reason, then `backend-worker` logs. Confirm the organization's embedding model and credential, vector dimensions, knowledge-database connection, and file support. A successful upload only proves that the original file was stored.
 
 If the worker or a dependency was unavailable, restore it and inspect whether the job resumes or needs **Index now** in [Knowledge](/platform/knowledge/documents). For a corrupt, encrypted, or unsupported source file, correct the source before retrying. Do not delete a document as the first diagnostic step: its identity, history, and references may matter.
+
+## A website scan reports a certificate error
+
+A crawl error with `tls_error` identifies a failed TLS handshake, such as an expired certificate, a hostname mismatch or an untrusted certificate chain. Fix the site’s certificate or the crawler runtime’s trust configuration, then request another scan. Repeating the same request does not repair certificate trust; do not disable certificate checks to hide the failure.
+
+`network_error` points instead to a connection failure. Read its underlying cause and compare DNS, routing and service availability. [Website crawling](/platform/knowledge/crawling) explains the page-level errors and scan results.
 
 ## Knowledge Postgres crashes during ingestion
 

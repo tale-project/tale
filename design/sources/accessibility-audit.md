@@ -1,6 +1,14 @@
 # Accessibility — audit & changes
 
-Living doc for accessibility work across the platform. Companion to [`session-ux-changes.md`](session-ux-changes.md).
+Historical findings and a procedure for continued accessibility work. Companion to
+[`session-ux-changes.md`](session-ux-changes.md). The counts and contrast measurements below
+record the original static sweep; they are not a current conformance report. Reproduce a finding
+against the current source and rendered page before treating it as open or resolved.
+
+Reusable controls, data tables, and error displays now live under `packages/ui/src/components/`;
+platform-specific wrappers remain under `services/platform/app/`. Follow the current package
+exports when locating moved components. Historical file names without a current counterpart
+are retained as text below.
 
 ## What kicked this off
 
@@ -8,7 +16,7 @@ A user flagged that on the **System Prompt** settings page (governance → syste
 
 The weight was already correct (labels are `font-medium`); the issue was color, not weight.
 
-## Phase 1 — Fixed (this session)
+## Phase 1 — Recorded label-contrast fixes
 
 Bumped form-label contrast at the shared-component level so every form on the platform inherits the fix.
 
@@ -27,13 +35,15 @@ While we were drafting this audit, a separate commit landed on `main` that indep
 
 Recording the finding here anyway so the doc captures both the original failure and how it resolved.
 
-## Phase 2 — Static sweep (this session)
+## Phase 2 — Recorded static sweep
 
 A programmatic pass over text contrast, icon labelling, hardcoded colors, and clickable non-buttons. Findings below. The runtime sweep (axe, Lighthouse, screen reader, focus/keyboard) is still pending — see "How to run the sweep".
 
 ### Lint coverage
 
-`oxlint` is configured with the type-aware `jsx-a11y` ruleset enabled — 27 rules covering `aria-*` validity, `alt-text`, `label-has-associated-control`, role/interactivity mismatches, etc. The repo currently passes lint, so the categories those rules catch are clean by construction. The findings below are the things the rules **don't** check.
+`oxlint` is configured with the type-aware `jsx-a11y` ruleset enabled — 27 rules covering `aria-*` validity, `alt-text`, `label-has-associated-control`, role/interactivity mismatches, etc. Workspace overrides limit that coverage; the UI consolidation moved some exceptions with their
+components into `packages/ui/.oxlintrc.json`. A passing lint run does not establish accessible
+behavior or cover every instance. Inspect those overrides and verify the rendered interaction.
 
 ### Color contrast — token map
 
@@ -63,27 +73,28 @@ Where it's clean: roughly 71 of 94 icon buttons already set `aria-label` directl
 
 Where it's missing (23 occurrences in 9 files):
 
-- [`features/chat/components/message-bubble.tsx`](../services/platform/app/features/chat/components/message-bubble.tsx) (7) — copy, info, fork, bookmark, edit, save-prompt
-- [`features/chat/components/voice-mode-toggle.tsx`](../services/platform/app/features/chat/components/voice-mode-toggle.tsx)
-- [`features/conversations/components/message-editor/editor-action-bar.tsx`](../services/platform/app/features/conversations/components/message-editor/editor-action-bar.tsx) (4)
-- [`features/conversations/components/message-editor/improve-mode.tsx`](../services/platform/app/features/conversations/components/message-editor/improve-mode.tsx)
-- [`features/automations/components/automation-steps.tsx`](../services/platform/app/features/automations/components/automation-steps.tsx) (5)
-- [`features/automations/executions/executions-table.tsx`](../services/platform/app/features/automations/executions/executions-table.tsx)
-- [`features/documents/components/rag-status-badge.tsx`](../services/platform/app/features/documents/components/rag-status-badge.tsx)
-- [`features/settings/connectors/components/sso-config/role-mapping-section.tsx`](../services/platform/app/features/settings/connectors/components/sso-config/role-mapping-section.tsx)
+- `features/chat/components/message-bubble.tsx` (7) — copy, info, fork, bookmark, edit, save-prompt
+- [`features/chat/components/voice-mode-toggle.tsx`](../../services/platform/app/features/chat/components/voice-mode-toggle.tsx)
+- [`features/conversations/components/message-editor/editor-action-bar.tsx`](../../services/platform/app/features/conversations/components/message-editor/editor-action-bar.tsx) (4)
+- [`features/conversations/components/message-editor/improve-mode.tsx`](../../services/platform/app/features/conversations/components/message-editor/improve-mode.tsx)
+- `features/automations/components/automation-steps.tsx` (5)
+- `features/automations/executions/executions-table.tsx`
+- [`features/documents/components/rag-status-badge.tsx`](../../services/platform/app/features/documents/components/rag-status-badge.tsx)
+- `features/settings/connectors/components/sso-config/role-mapping-section.tsx`
 - [`packages/ui/src/components/data-table/data-table-pagination.tsx`](../../packages/ui/src/components/data-table/data-table-pagination.tsx) — the previous/next chevron buttons
 - [`packages/ui/src/components/data-display/json-viewer.tsx`](../../packages/ui/src/components/data-display/json-viewer.tsx)
 
 **Fix options (pick one consistently):**
 
 1. Add `aria-label` to each button that matches the tooltip content. Verbose but unambiguous.
-2. Update the platform `Tooltip` to forward `content` as the trigger's `aria-label` when `children` is an icon-only button (heuristic: child has no text). Tighter blast radius.
+2. Use the shared `IconButton` where it fits; provide its explicit accessible label.
 
-Recommend (1) for first pass — easy to grep, lint won't help, and the explicit attribute documents intent. Reach for (2) if the pattern keeps reappearing.
+Keep the accessible name on the control. A tooltip is supplementary help, and a heuristic that
+copies tooltip text should not decide the name of an unrelated child element.
 
 **2. Hardcoded `text-gray-*` outside the data-notice case.** 🟡
 
-File: [`services/platform/app/features/conversations/components/conversation-panel.tsx`](../services/platform/app/features/conversations/components/conversation-panel.tsx#L585) — three sites use `text-[13px] text-gray-500 dark:text-gray-400`.
+File: [`services/platform/app/features/conversations/components/conversation-panel.tsx`](../../services/platform/app/features/conversations/components/conversation-panel.tsx#L585) — three sites use `text-[13px] text-gray-500 dark:text-gray-400`.
 
 - Light: `#6B7280` on `#FCFCFC` ≈ **4.83:1** — passes AA
 - Dark: `#9CA3AF` on `#0A0A0A` ≈ **8.4:1** — passes AAA
@@ -114,7 +125,7 @@ These are intentionally inlined so the boundary renders when CSS is broken — t
 3. **Focus reachability + visibility** — every interactive element reachable via Tab, with a visible focus ring. The custom popovers / dropdowns we've polished are usual offenders.
 4. **Heading hierarchy** — page H1 → section H2 → subsection H3, no skipped levels. Settings pages often skip.
 5. **Live regions** — toasts and validation errors need `role="status"` / `aria-live="polite"` so screen readers announce them.
-6. **Hit targets** — every clickable thing ≥ 24×24 px per WCAG 2.5.5. Icon-only buttons in dense rows are the usual fail.
+6. **Hit targets** — measure dense controls and their spacing. [WCAG 2.1 SC 2.5.5](https://www.w3.org/WAI/WCAG21/Understanding/target-size.html) defines 44×44 CSS pixels at AAA. The 24×24 minimum, with spacing and other exceptions, belongs to [WCAG 2.2 SC 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) at AA. Record the applicable criterion; do not label every target below 24 pixels a WCAG 2.1 AA failure.
 7. **Keyboard navigation in overlays** — Escape closes menus/popovers; arrow keys move within menus; focus returns to the trigger on close.
 
 ## How to run the sweep
@@ -155,5 +166,5 @@ Same rules apply outside forms; they just happen to bite hardest in forms becaus
   - [ ] Swap the three `conversation-panel.tsx` gray sites for `text-muted-foreground`
 - [ ] Programmatic a11y sweep on chat, settings, knowledge, agents (both themes) — axe / Lighthouse
 - [ ] Verify modal/popover focus trap and Escape behavior across the app
-- [ ] Audit icon-only buttons for ≥ 24×24 hit target
+- [ ] Review icon-only target size and spacing against the applicable criterion above
 - [ ] Confirm all error messages have `role="alert"` + are linked via `aria-describedby`

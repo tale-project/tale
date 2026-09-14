@@ -44,6 +44,18 @@ Use Mermaid for an actual relationship or flow, with translated node labels and 
 Keep its essential meaning in the surrounding text. Avoid diagrams that merely repeat a list or
 force readers to zoom out to read the labels.
 
+## Live component examples
+
+The design-system site adds `<Demo name="family/example" />` through its own registry;
+product docs do not support that tag. Follow the local content contract and import from the
+package’s public subpaths. Verify the documented props and defaults against the implementation,
+then operate the example in the browser, including its keyboard and disabled/loading behavior.
+
+Use a demo for a choice or interaction that readers need to see. Keep setup, meaningful results,
+and any required host providers clear in the surrounding text. A live example does not require a
+matching screenshot. Label non-interactive illustrations, and avoid adding another exposed `h1`
+inside a page-layout demo. The local demo and navigation guards remain part of verification.
+
 ## Navigation
 
 Use `<Card>` / `<CardGroup>` for a hub or a meaningful set of next tasks. Each title and description

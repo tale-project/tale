@@ -26,6 +26,8 @@ Zur Ausführung gehören projektgebundene und globale Automatisierungsstarts, Th
 
 MCP-Batches rechnen zusätzliche Werkzeugaufrufe als zusätzliche Anfragen ab. Der [MCP-Endpunkt](/de/develop/mcp-endpoint) erklärt den Unterschied zwischen HTTP `429` und einer einzelnen abgelehnten Batch-Nachricht. Webhooks haben getrennte Budgets; sowohl Absender- als auch Auslöserlimit müssen die Zustellung zulassen.
 
+Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Ein Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
+
 ## Die Antwort 429
 
 Bei einer HTTP-Limitüberschreitung nennt `Retry-After` die Wartezeit in ganzen Sekunden. Der JSON-Body enthält dieselbe Wartezeit in Millisekunden. Dieses Beispiel verlangt mindestens zwei Sekunden Pause:
@@ -35,10 +37,15 @@ HTTP/1.1 429 Too Many Requests
 Retry-After: 2
 Content-Type: application/json
 
-{"error":"RATE_LIMITED","code":"RATE_LIMITED","data":{"retryAfterMs":1500}}
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-Entscheide anhand von `code`. In dieser Antwort wiederholt `error` den Code statt eines erklärenden Satzes. Tale liefert keinen Zähler für das Restbudget. Erfasse deinen Verkehr selbst und beachte die vorgegebene Wartezeit.
+Entscheide anhand von `code`. `error` beschreibt die Wartezeit als Satz; `requestId` identifiziert die Anfrage für die Fehlersuche. Das ist das REST-Format. Bei `/api/app` und Webhook-Limits bleibt der maschinenlesbare Code in `error`; werte diesen Text daher nicht oberflächenübergreifend aus. Tale liefert keinen Restbudget-Zähler. Erfasse deinen Verkehr und beachte die vorgegebene Wartezeit.
 
 1. Stoppe die unmittelbare Wiederholungsschleife.
 2. Warte mindestens `Retry-After`. Teilen mehrere Prozesse die Identität, koordiniere ihre Pause.

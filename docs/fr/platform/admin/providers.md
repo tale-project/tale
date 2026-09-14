@@ -40,6 +40,10 @@ Azure OpenAI demande une **URL de l'endpoint**, généralement `https://<resourc
 
 Utilise les adresses et identifiants documentés par le fournisseur. Le nom affiché sur une page commerciale n’est pas forcément celui que son API accepte.
 
+## Connecter un serveur sur ton réseau
+
+Demande à l’opérateur de préparer la définition du fournisseur, l’accès réseau et la politique du déploiement, puis suis [Connecter un serveur de modèles local](/fr/tutorials/admin/connect-local-provider). Enregistrer des identifiants n’autorise pas une adresse privée. Teste le modèle voulu dans un chat et, si des agents de programmation l’utiliseront, dans une session d’agent. Leur trafic passe par une passerelle distincte qui doit aussi disposer de l’accès réseau et faire confiance au certificat.
+
 ## Définir le choix par défaut et l’accès aux modèles
 
 Sélectionne **Définir par défaut** dans le menu d’une ligne. Chaque fournisseur a un seul choix par défaut ; en sélectionner un autre déplace le badge. Des identifiants désactivés ne peuvent pas devenir le choix par défaut. En son absence, l’appelant doit nommer les identifiants à utiliser.

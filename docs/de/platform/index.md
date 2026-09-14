@@ -6,6 +6,19 @@ kind: index
 
 Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen Deployment. Beginne mit einer Frage im Chat, halte wiederkehrende Arbeit in einem Projekt zusammen oder öffne die passende Funktionsanleitung, wenn du eine Einstellung ändern möchtest.
 
+## Zwischen Bereichen wechseln {#navigation}
+
+Am Computer wechselst du über die linke Seitenleiste zwischen den Bereichen, auf dem Smartphone über die Navigation am unteren Rand. **Mehr** öffnet dort die weiteren Bereiche. Kehrst du aus einem anderen Bereich zurück, öffnet Tale deine zuletzt besuchte Ansicht. Ein Beispiel: Öffne in einem Projekt **Agenten**, wechsle zu **Chat** und wähle dann **Projekte**. Du landest wieder im selben Projekt auf demselben Tab.
+
+| Du möchtest … | So gehst du vor |
+| --- | --- |
+| In einem anderen Bereich weiterarbeiten | Wähle den Bereich in der Hauptnavigation. |
+| Zur Projektliste zurückkehren | Wähle **Projekte**, während du bereits im Bereich Projekte bist, oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
+| Zur Dokumentenliste zurückkehren | Wähle **Wissen**, während du bereits im Bereich Wissen bist. |
+| Ein neues Thema im Chat beginnen | Wähle **Chat**, während du bereits im Chat bist, oder nutze **Neuer Chat**. |
+
+Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder einem Dokument öffnen weiterhin dieses Ziel. Die gemerkte Navigation ändert deine Zugriffsrechte nicht. Die [Kontoeinstellungen](/de/platform/member/preferences#navigation-memory) erklären das Verhalten bei mehreren Tabs und Organisationen.
+
 ## Eine Funktion wählen
 
 <CardGroup cols="2">

@@ -64,6 +64,23 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 Le taux d’échantillonnage concerne les traces de performance du navigateur. Le backend envoie des erreurs, pas de traces de performance. Le taux par défaut des traces du navigateur est de 1.0 en développement. Choisis un taux adapté à ton budget de supervision en production. Les cadres de pile sont envoyés sans masquage ; choisis la destination selon tes exigences de traitement des données.
 
+## Statistiques agrégées avec Umami
+
+La collecte est désactivée par défaut. Tu l’actives séparément pour chaque déploiement avec `UMAMI_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_PROXY_TOKEN`, décrits dans la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Utilise un identifiant de site distinct par déploiement. Recrée le service de production concerné avec les nouvelles variables ; il n’est pas nécessaire de reconstruire l’image. Pour arrêter la collecte, vide l’identifiant de site et applique la modification de la même façon. Le serveur de développement Vite n’injecte pas cette configuration.
+
+Le navigateur charge le script Umami depuis sa propre origine, sous `/_a/script.js`, et envoie les événements sélectionnés à `/_a/api/send`. Si un chemin de base est configuré, il précède ces URL. Seuls l’identifiant de site et le chemin du proxy figurent dans la configuration du navigateur ; l’origine de collecte et le jeton Bearer restent sur le serveur.
+
+`UMAMI_URL` doit désigner une passerelle qui authentifie `GET /_collect/script.js` et `POST /_collect/api/send` avec ce jeton Bearer. L’URL d’un tableau de bord Umami standard ne suffit pas à fournir cette interface. Caddy doit remplacer `X-Analytics-Client-IP` par une adresse client issue d’une source de confiance. Garde les ports applicatifs privés et configure les plages d’adresses des proxys de confiance si un autre proxy se trouve en amont. Le serveur transmet l’IP validée, le User-Agent du navigateur et les en-têtes Umami nécessaires ; il retire les cookies, les identifiants de connexion et les en-têtes de provenance du navigateur.
+
+Les rapports contiennent les chemins publics connus ou les modèles de routes privées de la plateforme, les origines de provenance, la langue du navigateur, la taille de l’écran, le navigateur, le système, l’appareil et la localisation approximative. La collecte déduit les visites et la localisation de l’IP sans conserver l’adresse brute. Des paramètres génériques remplacent les identifiants privés d’organisation et de ressource. Les titres de page, paramètres de recherche, fragments, champs de formulaire et contenus produit sont exclus. Le site marketing compte aussi les demandes de contact et de démo abouties, sans leur contenu. Il n’y a ni identité entre sites, ni capture automatique des clics, ni enregistrement des sessions. Do Not Track et Global Privacy Control désactivent la collecte.
+
+Après le déploiement, vérifie le comportement avec un navigateur qui autorise la collecte :
+
+1. Ouvre une page connue, passe à une autre et vérifie les deux pages vues dans le site Umami du déploiement.
+2. Inspecte le corps de la requête. Les routes privées contiennent des paramètres génériques, sans paramètres de recherche, titres ni données de formulaire.
+3. Active Do Not Track ou Global Privacy Control et vérifie que la collecte s’arrête.
+4. Bloque la collecte ou teste son indisponibilité. La navigation normale doit continuer à fonctionner.
+
 ## Connaître les limites
 
 Tale n’exporte actuellement pas de traces OpenTelemetry par OTLP. Un OpenTelemetry Collector peut collecter les métriques Prometheus, mais cette collecte ne produit pas de traces distribuées. L’export de traces de bout en bout exige aussi une instrumentation de l’application.

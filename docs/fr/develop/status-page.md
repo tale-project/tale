@@ -62,6 +62,8 @@ L’endpoint JSON ne demande aucune clé API et ne consomme pas son budget. Le r
 
 L’endpoint `/api/health` du serveur web de production vérifie le processus à faible coût. Il convient aux sondes de conteneur, mais ne remplace pas les contrôles de dépendances. Le serveur Vite de développement peut router ce chemin autrement et renvoyer `404` ; utilise `/status.json` pour l’application locale.
 
+En production, `/health` vérifie uniquement le proxy frontal : celui-ci répond lui-même `OK`, même pendant un redémarrage de l’application. Une route inconnue comme `/healthz` peut renvoyer la page de l’application avec HTTP `200`. Aucune des deux ne vérifie sa disponibilité réelle. Choisis `/status.json` ou `/api/health` selon ce que ta sonde doit établir.
+
 Un statut sain ne vérifie ni le crédit, ni les droits, ni la disponibilité d’un modèle externe. Il n’exécute pas non plus un téléversement, une recherche, un chat ou une automatisation complets. Ajoute un test contrôlé de bout en bout pour l’opération dont dépend ton intégration.
 
 ## Examiner un échec

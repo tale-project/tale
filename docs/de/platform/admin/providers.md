@@ -40,6 +40,10 @@ Azure OpenAI benötigt eine **Endpoint-URL**, gewöhnlich `https://<resource>.op
 
 Verwende dokumentierte Endpunkte und Modellkennungen des Anbieters. Ein Anzeigename auf einer Produktseite muss nicht der von der API akzeptierten Kennung entsprechen.
 
+## Einen Server im eigenen Netzwerk verbinden
+
+Lass den Betreiber Anbieterdefinition, Erreichbarkeit und Netzwerkrichtlinie vorbereiten. Folge dann [Einen lokalen Modellserver verbinden](/de/tutorials/admin/connect-local-provider). Das Speichern von Zugangsdaten gibt eine private Adresse nicht frei. Prüfe das gewünschte Modell in einem Chat und zusätzlich in einer Agentensitzung, falls Coding-Agenten es nutzen sollen. Deren Modellverkehr läuft über ein eigenes Gateway, das ebenfalls Netzwerkzugriff und Zertifikatsvertrauen braucht.
+
 ## Standard und Modellzugriff festlegen
 
 Wähle **Zum Standard machen** im Zeilenmenü. Pro Anbieter gibt es einen Standard. Die Auswahl eines anderen Eintrags verschiebt die Kennzeichnung. Deaktivierte Zugangsdaten können kein Standard sein. Ohne Standard muss ein Aufrufer den gewünschten Eintrag ausdrücklich benennen.

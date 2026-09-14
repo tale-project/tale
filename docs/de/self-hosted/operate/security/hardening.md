@@ -19,6 +19,8 @@ Prüfe die veröffentlichten Ports deiner tatsächlichen Compose-Konfiguration u
 
 Bei Anmeldung über vertrauenswürdige Header darf nur der vorgelagerte Proxy die Anwendung erreichen. Er muss vom Aufrufer gelieferte Identitätsheader entfernen, bevor er eigene setzt. Mehr dazu unter [Authentifizierung](/de/self-hosted/configuration/authentication).
 
+Die `robots.txt` der Plattform rät Crawlern von der Indexierung der Anwendung ab, erlaubt aber öffentliche Entwickler- und Statuspfade wie `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` und `/status`. Diese Anweisungen ersetzen keine Zugriffskontrolle. Schütze vertrauliche Daten durch Authentifizierung und prüfe, welche Informationen dein öffentlicher Statusbericht zeigt.
+
 ## TLS an der öffentlichen Adresse prüfen
 
 Nutze ein vertrauenswürdiges Zertifikat für die Adresse, die deine Benutzer öffnen. Wähle `TLS_MODE=letsencrypt` für den mitgelieferten öffentlichen TLS-Zugang oder `TLS_MODE=external`, wenn dein vorgelagerter Proxy TLS terminiert. Ein selbst signiertes lokales Zertifikat schafft kein öffentliches Zertifikatsvertrauen.
@@ -48,6 +50,8 @@ SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
 Erstelle den Egress-Dienst mit der geänderten Umgebung neu. Prüfe, ob benötigte Ziele erreichbar sind und ein nicht aufgeführtes Ziel abgelehnt wird. Ergänze weitere Registries oder Quellcode-Hosts nur bei Bedarf. Modellanfragen laufen über das getrennte Modell-Gateway der Sandbox. Die Liste regelt daher nicht alle ausgehenden Verbindungen von Tale.
+
+Prüfe Freigaben privater Netze getrennt. `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` erlaubt Modellanbieterziele einschließlich des Sandbox-Modellgateways, öffnet aber keinen allgemeinen Sandbox-Netzzugriff. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` erlaubt Intranet-Crawl-Ziele und private Produktbild-URLs. Aktiviere nur den benötigten Zugriff und behalte die Konfiguration unter Betreiberkontrolle. [Anbieter](/de/self-hosted/configuration/providers) beschreibt die Modellprüfungen; die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) unterscheidet beide Variablen.
 
 ## Überwachen und untersuchen
 

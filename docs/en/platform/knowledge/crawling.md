@@ -36,26 +36,52 @@ For a whole website, the crawler uses the homepage and published sitemaps, inclu
 
 Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
-The crawler visits as an anonymous reader. There is no login field or whole-site include/exclude path list. Content that depends on a private session is not made accessible by adding its URL.
+The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL.
+
+The initial discovery pass applies `robots.txt` `Disallow` rules for the `*` agent. These rules do not filter an explicit URL list or links found later in rendered JavaScript pages. On each content fetch, an HTTP `X-Robots-Tag: noindex` or `none` prevents indexing, including for listed URLs. An HTML `<meta name="robots">` tag is not currently checked. These limits matter if you administer the source website: do not rely on Tale's crawler as an access-control mechanism.
+
+Use HTTPS on the standard port. Addresses with a non-default port, such as `:8001`, are rejected. Private addresses and redirects into private networks are blocked unless the operator has configured an allowed private-network deployment.
+
+## Work within crawl limits
+
+| Limit | Effect on coverage |
+| --- | --- |
+| 10,000 tracked URLs per website | A larger site can have undiscovered pages. Use a focused URL list for the material you need. |
+| Three minutes for discovery, at most 50 sitemap fetches | Large or slow sitemap collections can be incomplete. |
+| 25 MiB and 30 seconds per content fetch | Oversized downloads and slow responses fail. Browser rendering has separate time limits. |
+| Five-minute processing budget per batch, up to 200 continuations | Long scans continue in batches. Work already being fetched or rendered can outlast a batch's budget; this is not a guaranteed total scan duration. |
+| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL. Listed URLs remain eligible on each scan. |
+
+There is no configurable page cap, include/exclude path filter, or stop-scan button. A URL list narrows what you request; it does not remove these limits.
 
 ## Check what was indexed
 
-The table shows **Status**, **Indexed**, **Scanned**, and **Interval**. Hover over the indexed percentage for crawled and total page counts. Open the source and choose **View pages** to inspect individual URLs, word and chunk counts, and last-crawled times.
+The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures.
 
 | Status | Meaning |
 | --- | --- |
-| **Idle** | Waiting between scans. |
+| **Idle** | Registered, but no scan has completed yet. |
 | **Scanning** | A scan is in progress. |
 | **Active** | A scan completed successfully. Check page-level results for coverage. |
-| **Error** | The latest scan failed; inspect its cause. |
+| **Error** | The scan failed, or attempted pages left the source with no stored content. Open the source for its reason. |
 | **Deleting** | The source is being removed. |
 
 The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
 
 ## Resolve a missing page
 
-First check the address, source type, and latest scan time. If a page failed, its row shows a reason and consecutive failed attempts: an HTTP error, blocked private address, rendering failure, or unsupported document extraction. Correct the source or wait for the upstream site to recover.
+First check the address, source type, and latest scan time. Then open the source and read the affected page's error.
 
-A URL-list page is retried on later scans while it remains listed. A discovered page is abandoned after five failed scans. A successful later fetch clears its previous error. If a scan appears healthy but a fact is absent, compare the indexed page text with the original; a successful scan is not a guarantee that every visible element became searchable text.
+| Reported issue | What to check or change |
+| --- | --- |
+| Certificate not trusted | The website operator must fix an expired, self-signed, mismatched, or otherwise untrusted TLS certificate. Repeated scans do not repair it. |
+| Private address, refused redirect, or invalid URL | Use the intended public HTTPS address. Ask your operator about approved internal sources if needed. |
+| HTTP error, network failure, or timeout | Open the original page and check availability. A later scan can recover after the source service is repaired. |
+| Response too large | Publish a smaller document or split the source; the fetch limit is 25 MiB. |
+| Source requests no indexing | The response sends `X-Robots-Tag: noindex` or `none`. The source owner must change that directive before Tale can index it. |
+| Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
+| Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
+
+A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
 
 If the source shows **Paused**, repeated failures to reach the knowledge database stopped scans. Ask an administrator to repair the connection under **Settings > Data residency**, then use **Resume scanning**.

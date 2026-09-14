@@ -36,6 +36,8 @@ Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu
 
 Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 
+Wird eine Aufgabe durch eine Automatisierung gestartet, kann derselbe Workflow für diese Aufgabe im Projekt nur einen eingereihten, laufenden oder wartenden Lauf haben. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
+
 ## Wartende und fehlgeschlagene Läufe behandeln
 
 | Zustand oder Problem | Maßnahme |

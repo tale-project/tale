@@ -94,6 +94,10 @@ Databases and uploaded files persist outside the source checkout. A second Git w
 
 A reset destroys development data and can affect another checkout using the same Compose project. Inspect the project's containers and volumes, back up anything you need, and stop the stack before removing state. Configuration trees under `TALE_CONFIG_DIR` have their own lifecycle; deleting a database does not reset those files.
 
+## Use the design system
+
+For interface changes, start with the [design-system guides](https://ui.tale.dev). They cover `@tale/ui` for app interfaces and `@tale/marketing-ui` for marketing pages, with interactive examples, tokens, and layout patterns. Reuse a package component before adding one. The guide content is in English.
+
 ## Verify a contribution
 
 Read the repository's `AGENTS.md` and `.agents/repo.md` before changing code. Run the relevant checks while working, then the shared gate from the repository root:

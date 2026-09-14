@@ -19,6 +19,8 @@ Inspect the ports published by your actual Compose configuration and verify reac
 
 If you use trusted-header authentication, only the trusted upstream proxy may reach the application. That proxy must remove caller-supplied identity headers before setting its own. See [Authentication](/self-hosted/configuration/authentication).
 
+The platform’s `robots.txt` discourages indexing of the application but explicitly allows public developer and status paths, including `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` and `/status`. These crawler instructions are not access controls. Keep confidential data behind authentication and review what your public status report exposes.
+
 ## Verify TLS at the public address
 
 Use a trusted certificate for the address people actually open. Configure `TLS_MODE=letsencrypt` for the bundled public TLS path, or `TLS_MODE=external` when your edge terminates TLS. A self-signed local setup does not establish public certificate trust.
@@ -48,6 +50,8 @@ SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
 Recreate the egress service with the updated environment. Confirm required destinations work and an unlisted destination is refused. Add other registries or source hosts only when your workloads need them. Model traffic uses the separate sandbox model gateway, so this allowlist is not a policy for every outbound connection in Tale.
+
+Review private-network opt-ins separately. `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` admits model-provider destinations, including the sandbox model gateway; it does not open general sandbox egress. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` admits intranet crawl targets and private product image URL values. Enable only the needed path and keep its configuration under operator control. [Providers](/self-hosted/configuration/providers) explains the model checks; the [environment reference](/self-hosted/configuration/environment-reference) distinguishes both flags.
 
 ## Monitor and investigate
 

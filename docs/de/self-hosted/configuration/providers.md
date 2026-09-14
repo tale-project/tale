@@ -33,6 +33,14 @@ Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `
 
 Lass anschließend einen Organisationsadmin unter [KI-Anbieter](/de/platform/admin/providers) Zugangsdaten hinzufügen, den Katalog aktualisieren und ein bestimmtes Modell für einen kurzen Chat auswählen. Prüfe die abgeschlossene Anfrage im Protokoll des vorgesehenen Inferenzservers. Für Embeddings, Sprache und Werkzeugverkehr musst du die Ziele getrennt prüfen; ein lokaler Chatendpunkt hält sie nicht automatisch lokal.
 
+## Modellzugriff aus der Sandbox prüfen
+
+Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbox-llm-gateway`; ein erfolgreicher Chat belegt daher nicht den Agentenpfad. Der Endpunkt muss aus Backend und Gateway auflösbar und erreichbar sein. Beide HTTPS-Clients müssen seinem Zertifikat vertrauen. Auch ein Name wie `https://models.internal/v1` braucht die Freigabe privater Anbieter, wenn DNS ihn zu einer privaten Adresse auflöst. HTTP bleibt auf die vom Anbieterschema akzeptierten Hostformen begrenzt, etwa private IP-Adressen, `localhost` und `.local`.
+
+Beim Start einer neuen Sandbox-Sitzung prüft das Backend Hostname und DNS-Antworten des eigenen Anbieters, bevor es ihn im Gateway einrichtet. Private Ziele erfordern `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`; Metadatenziele bleiben auch damit gesperrt. Diese Vorprüfung bindet spätere Gateway-Anfragen nicht an dieselbe DNS-Antwort. Anbieterdefinitionen und DNS müssen deshalb unter der Kontrolle vertrauenswürdiger Betreiber bleiben.
+
+Erstelle die betroffenen Backend-Prozesse mit der aktualisierten Umgebung neu. Starte dann eine neue Sandbox-Sitzung mit dem vorgesehenen Anbieter und Modell sowie einer kompatiblen Agenten-Laufzeit. Prüfe mit einer harmlosen Anfrage die vollständige Antwort und den passenden Eintrag im Inferenzserver-Protokoll. Funktioniert der Chat, aber der Agent erreicht sein Modell nicht, prüfe die Protokolle von `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` steuert allgemeine Webzugriffe der Sandbox, nicht diese separate Modellverbindung.
+
 ## Wo die Connectoren liegen
 
 Mitgelieferte Definitionen liegen unter `configs/platform/system/providers/<slug>/provider.yml`, ihre statischen Kataloge unter `configs/platform/system/models/<slug>/models.yml`. Anthropic verwendet beispielsweise `providers/anthropic/provider.yml` und `models/anthropic/models.yml`. Die Dateien gehören zum Image und ändern sich mit dessen Version.

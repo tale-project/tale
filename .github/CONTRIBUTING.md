@@ -13,7 +13,7 @@ prerequisites, local login and startup troubleshooting.
 From the repository root:
 
 ```bash
-bun install
+bun install --frozen-lockfile
 bun run setup:check
 bun run dev
 ```
@@ -22,11 +22,12 @@ The pre-flight command checks Bun and the app/backend ports. Development starts
 Docker backing services, a Node application backend and Vite; wait for `READY`
 before opening `http://localhost:3000`. Real model calls need a configured provider.
 
-For work confined to the marketing or documentation site, run its workspace:
+For work confined to the marketing, product-docs, or component-docs site, run its workspace:
 
 ```bash
 bun run --filter @tale/web dev
 bun run --filter @tale/docs dev
+bun run --filter @tale/ui-docs dev
 ```
 
 These sites do not need the platform backend for their local content preview.
@@ -67,8 +68,10 @@ alone does not verify a deployment, a migration or a user journey.
 
 ## Include docs and translations
 
-Document anything a person can see, configure or call. Update English, German and
-French together, including labels, captions and links. Follow the
+Document anything a person can see, configure or call. Product guides and UI
+catalogs ship English, German and French together, including labels, captions and
+links. Component guides currently have English bodies and runnable English demos;
+follow [their content contract](../services/ui-docs/content/README.md). Follow the
 [docs contract](../docs/AGENTS.md),
 [writing skill](../.agents/skills/write-docs/SKILL.md) and
 [translation skill](../.agents/skills/write-translations/SKILL.md).

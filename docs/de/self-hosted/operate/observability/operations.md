@@ -21,6 +21,19 @@ description: Wähle aussagekräftige Signale, ordne Metriken richtig ein und unt
 
 Ein Alarm bei 80 % Plattenbelegung kann ein Ausgangspunkt sein. Wachstumsrate und benötigte Reaktionszeit sind jedoch aussagekräftiger als ein pauschaler Prozentwert. Eine Störung der Wissenssuche kann für ein Team kritisch sein. Verschiebe sie nicht automatisch, nur weil die Oberfläche noch lädt.
 
+## Den passenden Prüfendpunkt wählen
+
+Verwende diese Pfade auf der öffentlichen Origin einer Produktionsinstallation hinter dem mitgelieferten Proxy:
+
+| Pfad | Was eine erfolgreiche Antwort belegt |
+| --- | --- |
+| `/health` | Caddy antwortet mit `OK`. Der Endpunkt bleibt beim Neustart der Plattform erreichbar. |
+| `/api/health` | Der Webprozess der Plattform beantwortet seine Lebenszeichenprüfung. |
+| `/status.json` | Der öffentliche Abhängigkeitsbericht ist abrufbar. Prüfe die Bewertung der einzelnen Komponenten; Ergebnisse werden fünf Sekunden zwischengespeichert. |
+| `/status` | Derselbe Verfügbarkeitsbericht als lesbare Webseite. |
+
+Prüfe neben dem HTTP-Status den erwarteten Antwortinhalt. Ein unbekannter Frontend-Pfad wie `/healthz` kann die App-Hülle mit `200` zurückgeben; das ist kein Zustandsbericht. [Statusseite](/de/develop/status-page) beschreibt das Antwortformat.
+
 ## Aussagekraft der Metriken verstehen
 
 Das Backend liefert Prozessmetriken, Anzahl und Dauer von HTTP-Antworten, Job-Zähler, laufende Generierungen, offene Hinweis-Streams, den Drain-Zustand und die Speichererreichbarkeit. Prüfe die tatsächlich ausgegebenen Zeitreihen deiner Version, bevor du Alarme darauf aufbaust.

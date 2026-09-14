@@ -28,6 +28,7 @@ The project’s **Knowledge** tab holds files that its chats can retrieve. Uploa
 | **Indexing…** | Tale is preparing its text for search. |
 | **Indexed** | The text is searchable; verify a question against the original file. |
 | **Failed** | Open the failure detail when available and use **Retry indexing**. Ask an admin if the failure returns. |
+| **Not supported** | These contents cannot be indexed. Supply readable text or a supported format; retrying the same file cannot help. |
 | **Not indexed** | The file is stored but not searchable. Use **Index now** when offered, or convert a format without a text extractor. |
 
 An integration can upload a file without indexing it. Such a file is still visible in the tree; a supported plain-text file can be read directly when named, but it will not appear in text search until indexed.

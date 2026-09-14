@@ -786,7 +786,7 @@
     "slug": "self-hosted/configuration/secrets-with-sops",
     "locale": "de",
     "frontmatter": {
-      "title": "Konfigurationsgeheimnisse mit SOPS schützen",
+      "title": "Geheimnisse mit SOPS schützen",
       "description": "Unterscheide Datei- und Datenbankverschlüsselung und rotiere age-Schlüssel, ohne den Zugriff zu verlieren."
     }
   },
@@ -939,7 +939,7 @@
     "slug": "self-hosted/operate/upgrades",
     "locale": "de",
     "frontmatter": {
-      "title": "Eine Bereitstellung aktualisieren und wiederherstellen",
+      "title": "Bereitstellung aktualisieren und wiederherstellen",
       "description": "Prüfe ein Upgrade vorab, stelle mit Wiederherstellungsplan bereit und wähle bei Bedarf den richtigen Rollback-Weg."
     }
   },
@@ -2275,7 +2275,7 @@
     "slug": "develop/ai-assisted-development",
     "locale": "fr",
     "frontmatter": {
-      "title": "Modifier la configuration avec un agent de programmation",
+      "title": "Configurer Tale avec un agent de programmation",
       "description": "Fournis le bon contexte à un agent, distingue les modèles de la configuration active et vérifie les changements avant le déploiement."
     }
   },
@@ -2801,7 +2801,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Plateforme",
-      "description": "Découvre Tale à partir de ton travail, du premier chat aux projets, automatisations et réglages de l’organisation.",
+      "description": "Trouve le bon parcours pour discuter, travailler en projet, créer une automatisation ou administrer Tale.",
       "kind": "index"
     }
   },

@@ -21,6 +21,19 @@ Monitor the actions people need to complete, as well as the services beneath the
 
 An 80% disk alert can be a starting point, but growth rate and recovery lead time matter more than one universal percentage. A knowledge outage can be critical for a team whose work depends on retrieval; do not automatically defer it because the UI still loads.
 
+## Choose the right health endpoint
+
+Use these paths on the public origin of a production deployment behind the bundled proxy:
+
+| Path | What a successful response establishes |
+| --- | --- |
+| `/health` | Caddy answers `OK`. This stays healthy while the platform restarts. |
+| `/api/health` | The platform web process answers its liveness request. |
+| `/status.json` | The public dependency-status report is available; inspect its component verdicts. Results are cached for five seconds. |
+| `/status` | The same availability report in a page for people. |
+
+Check the expected response body as well as the HTTP status. An unrecognized frontend path such as `/healthz` can return the app shell with `200`; that is not a health report. See [Status page](/develop/status-page) for the response contract.
+
 ## Understand what the metrics prove
 
 The backend exports process metrics, HTTP response counts and durations, queue counts, in-flight generations, open hint streams, the drain flag, and store reachability. Inspect the actual series from your deployed version before writing an alert against it.

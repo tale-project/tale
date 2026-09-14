@@ -13,6 +13,7 @@ Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <ser
 | --- | --- | --- |
 | Verbindung scheitert oder TLS warnt | DNS, öffentliche Ports, Hostname und Aussteller des Zertifikats, Proxy-Protokolle. | Behebe die betroffene Ebene. Installiere bei einer internen CA das öffentliche Stammzertifikat auf dem Client; `docker exec ... caddy trust` ändert dessen Vertrauensspeicher nicht. |
 | Proxy antwortet mit 502/503 | Ermittle Pfad und Zieldienst. `/api/health` und Webdateien nutzen `platform`, Anwendungsanfragen `backend-api`. | Prüfe Startfehler und Bereitschaft des Dienstes vor Änderungen am Proxy. |
+| `400 BODY_LENGTH_MISMATCH` oder `400 BODY_CHUNK_MALFORMED` | Der Anfragekörper endet vor seiner angegebenen Länge oder enthält fehlerhafte HTTP/1.1-Chunk-Grenzen. | Korrigiere Längenangabe oder Übertragungsformat beim Sender und wiederhole dann die korrekt formatierte Anfrage. |
 | Anmeldung führt zurück zur Anmeldeseite | Cookies und Callback-Anfragen im Browser; `SITE_URL`, weitere Ursprünge, Basispfad und Anbieterregistrierung. | Korrigiere Ursprung oder Callback und erstelle Dienste nach Umgebungsänderungen neu. |
 
 Eine ladende Oberfläche ohne Daten deutet zunächst auf Anwendungsanfragen, nicht zwingend auf den Webserver. Prüfe fehlgeschlagene Browseranfragen und `backend-api`-Protokolle. Proxy, abgelaufene Sitzung, fehlende Rechte und Backend-Ausfall brauchen unterschiedliche Lösungen. [TLS und Domains](/de/self-hosted/configuration/tls-and-domains) sowie [Authentifizierung](/de/self-hosted/configuration/authentication) erklären die Einrichtung.
@@ -36,6 +37,12 @@ Vergleiche zuerst die Serverantwort mit der Browseranfrage an die vorsignierte U
 Prüfe Status und Fehlergrund des Dokuments, dann die `backend-worker`-Protokolle. Kontrolliere Embedding-Modell und Zugangsdaten der Organisation, Vektordimensionen, Wissensdatenbankverbindung und Dateiformat. Ein erfolgreicher Upload belegt nur, dass die Originaldatei gespeichert wurde.
 
 War ein Worker oder eine Abhängigkeit ausgefallen, stelle sie wieder her und prüfe, ob der Job weiterläuft oder **Jetzt indexieren** unter [Wissen](/de/platform/knowledge/documents) nötig ist. Bei beschädigten, verschlüsselten oder nicht unterstützten Dateien korrigierst du die Quelle vor einem neuen Versuch. Lösche ein Dokument nicht als ersten Diagnoseschritt: Identität, Verlauf und Referenzen können wichtig sein.
+
+## Ein Website-Scan meldet einen Zertifikatsfehler
+
+Der Crawl-Fehler `tls_error` bezeichnet einen gescheiterten TLS-Verbindungsaufbau, etwa wegen eines abgelaufenen Zertifikats, eines falschen Hostnamens oder einer nicht vertrauenswürdigen Zertifikatskette. Korrigiere das Website-Zertifikat oder die Vertrauenseinstellungen der Crawler-Laufzeit und starte danach einen neuen Scan. Dieselbe Anfrage erneut zu senden repariert kein Zertifikatsvertrauen. Deaktiviere die Zertifikatsprüfung nicht, um den Fehler zu verdecken.
+
+`network_error` weist dagegen auf einen Verbindungsfehler hin. Lies die zugrunde liegende Ursache und prüfe DNS, Routing und Verfügbarkeit des Dienstes. [Websites crawlen](/de/platform/knowledge/crawling) erklärt Seitenfehler und Scan-Ergebnisse.
 
 ## Wissens-Postgres stürzt beim Import ab
 

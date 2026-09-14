@@ -25,8 +25,11 @@ Nutze zusätzlich die kommentierte Beispieldatei und prüfe bei fehlenden Werten
 | `SITE_URL`  | `https://localhost` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
 | `ADDITIONAL_SITE_URLS` | unset    | **Optional.** Weitere Origins, auf denen dasselbe Deployment antwortet, per Komma oder Leerzeichen getrennt (z. B. `https://a.example,https://b.example`). Jeder ist ein vollwertiger Eingang. Siehe [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#mehrere-domains-gleichzeitig). |
 | `BASE_PATH` | unset               | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
+| `DOCS_URL` | `https://docs.<HOST>` | Öffentliche Origin des eigenen Dokumentationshosts im Proxy. Der Docs-Dienst muss ebenfalls zur Bereitstellung gehören. |
 
 `SITE_URL` bezeichnet den kanonischen öffentlichen Ursprung. Protokoll, Hostname und Port müssen zur Browseradresse und zu registrierten Callbacks passen. `BASE_PATH` ergänzt einen Bereitstellungspfad. Einen abschließenden Schrägstrich normalisiert der Proxy. Weitere Adressen gehören als reine Ursprünge in `ADDITIONAL_SITE_URLS`. Ungültige zusätzliche Ursprünge verhindern den Backend-Start.
+
+Die Dokumentation verwendet eine eigene Origin. Auf der Plattform-Origin öffnet `/docs` die interaktive API-Referenz; `/openapi.json` liefert deren Schema. `DOCS_URL` ändert den Docs-Host des Proxys. Die Variable installiert keinen Docs-Dienst und schreibt keine Links in vorhandenen Client-Bundles um. `TALE_DOCS_URL` in den SEO-Buildwerkzeugen und das Build- und Laufzeitpfadpräfix `DOCS_BASE_URL` des Docs-Dienstes sind separate Einstellungen.
 
 ## TLS
 
@@ -124,6 +127,9 @@ Siehe [Audit-Log-Integrität](/de/self-hosted/operate/security/audit-log-integri
 | `SENTRY_DSN`                | unset   | Sentry-DSN für Error-Tracking. Unset zum Deaktivieren. Kompatibel mit selbst gehostetem GlitchTip und Bugsink.                               |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optionale Sample-Rate für Performance-Traces im Browser (`0.0`–`1.0`). Nur Browser — das Backend meldet Fehler, nie Traces.                  |
 | `METRICS_BEARER_TOKEN` | unset | Bearer-Token für die Proxy-Routen `/metrics/*`. Ohne konfigurierten Token antworten sie mit 401. Den Netzwerkzugriff auf interne Prozessendpunkte musst du gesondert beschränken. |
+| `UMAMI_URL` | nicht gesetzt | HTTPS-Origin des authentifizierten Erfassungs-Gateways. HTTP ist nur für lokale Tests mit `localhost`, `127.0.0.1` oder `[::1]` zulässig. Erfordert gültige Website-ID und Proxy-Token; die URL enthält weder Pfad noch Suchparameter oder Zugangsdaten. |
+| `UMAMI_WEBSITE_ID` | nicht gesetzt | Website-UUID von Umami. Fehlt sie oder ist sie ungültig, bleibt die Erfassung aus. Verwende je Deployment eine eigene ID. |
+| `UMAMI_PROXY_TOKEN` | nicht gesetzt | Bearer-Token für das Erfassungs-Gateway, ausschließlich auf dem Server: 16–256 ASCII-Buchstaben, Ziffern oder Zeichen aus `._~-`. Übergib es niemals an die Browserkonfiguration. |
 
 Mit `METRICS_BEARER_TOKEN` schützt der Proxy die Routen `/metrics/platform`, `/metrics/backend` und `/metrics/sla-rules`. [Überwachung einrichten](/de/self-hosted/configuration/observability-config) erklärt Inhalt und Grenzen der Messwerte.
 
@@ -194,7 +200,10 @@ Diese Variablen steuern Backend-Anmeldung, Datei-Ereignisse und Betreiberrechte.
 | `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Name des Request-Headers mit den Team-Zugehörigkeiten als kommagetrennte `id:name`-Einträge. Fehlt er, bleiben Teams unangetastet; ist er gesetzt, gilt die Liste des Proxys für die von ihm vergebenen Zugehörigkeiten (leer entzieht sie). |
 | `TALE_FILE_EVENTS`                | `false`                  | Streamt Änderungen an Config-Dateien unter `TALE_CONFIG_DIR` an offene Browser-Tabs (`/events/file`): Eine auf der Platte bearbeitete Agent-, Skill- oder Branding-Datei erscheint ohne Reload. Im Dev-Compose an, in Produktion aus.        |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Deployment-Konfigurationsdatei (`deployment.yml`, heute der Abschnitt zur Sandbox-Runtime) über die API schreiben dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. Die Datenresidenz wird pro Organisation konfiguriert und hängt nicht an dieser Liste. |
-| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | unset                    | Erlaubt, dass ein Crawl-Ziel (`POST /api/v1/websites` und jeder Abruf des Crawlers) einen Loopback-, Link-Local- oder Privatnetz-Host nennt (RFC 1918, CGNAT, ULA, `.internal`, `.local`, einteilige Namen). Nicht gesetzt, antwortet ein solches Ziel mit **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` — der Crawler wählt aus dem eigenen Netz des Deployments heraus. Setz die Variable nur auf `1`, wenn das Deployment sein eigenes Intranet crawlt; die Cloud-Metadaten-Endpoints bleiben in jedem Fall gesperrt. |
+| `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` | nicht gesetzt | Mit `1` in der Backend-Umgebung private Modellanbieter zulassen, einschließlich ihrer Sandbox-Gateway-Konfiguration. Cloud-Metadatenziele bleiben gesperrt. Siehe [Anbieter](/de/self-hosted/configuration/providers). |
+| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` | nicht gesetzt | Mit `1` Intranet-Crawl-Ziele und private Hosts in der `imageUrl` eines Produkts zulassen. Cloud-Metadatenziele bleiben gesperrt. |
+
+Die Freigabe privater Crawl-Ziele betrifft zwei Grenzen: Website-Registrierung und Crawler-Anfragen sowie die Validierung der `imageUrl` eines Produkts. Ohne Freigabe erhält ein privates Website-Ziel `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; eine private Produktbild-URL erhält `400 INVALID_BODY`. Bei Produktbildern wird nur die Hostzeichenfolge geprüft, ohne Bildabruf oder DNS-Auflösung. Website-Registrierung und Crawler prüfen zusätzlich die aufgelösten Adressen. Aktiviere die Variable nur, wenn die Installation diese privaten Ziele braucht. Sie ist unabhängig von der Freigabe privater Modellanbieter.
 
 ## RAG-Retrieval-Tuning
 

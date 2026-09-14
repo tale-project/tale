@@ -35,6 +35,12 @@ Edit your profile and understand saved preferences and chat management.
 
 </CardGroup>
 
+Switch between daily tasks with the [main navigation](/platform#navigation): returning to a section reopens your recent work, while choosing the active section again takes you back to its starting point.
+
+## Follow a notification
+
+A notification link opens the related task, document or conversation. If you need to sign in first, Tale keeps the destination and opens it after sign-in. Your account still needs access to the organization and the linked content. For a private deployment, connect to its required network before opening the link.
+
 ## If an action is missing
 
 Members read the shared library; Editors and higher roles maintain its content. Automations and technical setup require Developer or administrator permissions. Ask for the access needed for your task rather than assuming every visible resource is editable. [Members and roles](/platform/admin/members-and-roles) explains the differences.

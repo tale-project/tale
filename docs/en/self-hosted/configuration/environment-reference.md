@@ -25,8 +25,11 @@ Use the example file alongside this reference and inspect your effective service
 | `SITE_URL`  | `https://localhost` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
 | `ADDITIONAL_SITE_URLS` | unset      | **Optional.** Other origins the same deployment answers on, comma- or whitespace-separated (e.g. `https://a.example,https://b.example`). Each is a full entry point. See [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once). |
 | `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
+| `DOCS_URL` | `https://docs.<HOST>` | Public origin for the proxy’s separate documentation host. The deployment must also include the docs service. |
 
 `SITE_URL` identifies the canonical public origin. Keep scheme, hostname, and port consistent with the browser address and registered callbacks; `BASE_PATH` supplies a deployment path prefix. A trailing slash is normalized by the proxy. Additional addresses belong in `ADDITIONAL_SITE_URLS` as bare origins. Invalid additional origins stop backend startup.
+
+The prose documentation uses its own origin. On the platform origin, `/docs` opens the interactive API reference and `/openapi.json` serves its schema. `DOCS_URL` changes the proxy’s docs host; it does not install the docs service or rewrite links in existing client bundles. The SEO tooling’s `TALE_DOCS_URL` and the docs service’s build/runtime path prefix `DOCS_BASE_URL` are separate settings.
 
 ## TLS
 
@@ -124,6 +127,9 @@ See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for
 | `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
 | `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for browser performance traces (`0.0`–`1.0`). Browser-only — the backend reports errors, never traces.            |
 | `METRICS_BEARER_TOKEN` | unset | Bearer token for the proxy’s `/metrics/*` routes. Without a configured token they return 401. Internal process endpoints remain a separate network-access concern. |
+| `UMAMI_URL` | unset | HTTPS origin of the authenticated collector gateway. HTTP is accepted only for local testing on `localhost`, `127.0.0.1` or `[::1]`. Requires a valid website ID and proxy token; no path, query or credentials in this URL. |
+| `UMAMI_WEBSITE_ID` | unset | Umami website UUID. Unset or invalid disables aggregate analytics; use a separate ID for each deployment. |
+| `UMAMI_PROXY_TOKEN` | unset | Server-only bearer token for the collector gateway: 16–256 ASCII letters, digits or characters from `._~-`. Never inject it into browser configuration. |
 
 Setting `METRICS_BEARER_TOKEN` exposes the metrics endpoints behind the token: `/metrics/platform`, `/metrics/backend` (the application backend's metrics), and `/metrics/sla-rules`. See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
 
@@ -194,7 +200,10 @@ These variables configure backend authentication, file events, and operator perm
 | `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Name of the request header carrying team memberships as comma-separated `id:name` entries. Absent = teams untouched; present = the proxy's list is authoritative for the memberships it granted (empty revokes them). |
 | `TALE_FILE_EVENTS`                | `false`                  | Streams config-file changes under `TALE_CONFIG_DIR` to open browser tabs (`/events/file`), so an agent, skill, or branding file edited on disk shows up without a reload. On in the dev compose, off in production.   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Comma-separated email allowlist of operators allowed to write the deployment config file (`deployment.yml`, today the sandbox runtime section) through the API. Empty/unset = read-only for all admins. Data residency is configured per organization and is not gated by this list. |
-| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`  | unset                    | Lets a website crawl target (`POST /api/v1/websites`, and every fetch the crawler makes) name a loopback, link-local or private-network host (RFC 1918, CGNAT, ULA, `.internal`, `.local`, single-label). Unset, such a target answers **400** `WEBSITE_DOMAIN_NOT_CRAWLABLE` — the crawler dials from inside the deployment's own network. Set to `1` only on a deployment that crawls its own intranet; the cloud metadata endpoints stay refused regardless. |
+| `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` | unset | Set to `1` in the backend environment to admit private model-provider destinations, including their sandbox gateway configuration. Cloud-metadata targets remain blocked. See [Providers](/self-hosted/configuration/providers). |
+| `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` | unset | Set to `1` to admit intranet crawl targets and private product `imageUrl` hosts. Cloud-metadata targets remain blocked. |
+
+The private-crawl opt-in affects two boundaries: website registration and crawler requests, and validation of a product’s `imageUrl`. Without it, a private website target returns `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; a private product image URL returns `400 INVALID_BODY`. Product validation checks the hostname string without fetching the image or resolving DNS. Website registration and crawling also check resolved addresses. Enable the flag only for a deployment that needs these private destinations; it is separate from the private-provider flag.
 
 ## RAG retrieval tuning
 

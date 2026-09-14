@@ -23,31 +23,31 @@ Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselbe
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena zeigt zwei Antworten auf denselben Prompt und die Bewertungsaktionen." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Task-Board des Projekts Website relaunch gruppiert Karten nach Status." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/projects/tasks"><b>Projektaufgaben</b></a><br><sub>Organisiere die Arbeit und prüfe ihren Fortschritt.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/projects/tasks"><b>Projektaufgaben</b></a><br><sub>Organisiere die Arbeit und prüfe ihren Fortschritt.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="Der Agents-Tab des Projekts zeigt benannte Agents mit Laufzeit und Modell." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/projects/project-agents"><b>Projekt-Agents</b></a><br><sub>Wähle Anweisungen, Laufzeit, Modell und Tools.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/projects/project-agents"><b>Projekt-Agents</b></a><br><sub>Wähle Anweisungen, Laufzeit, Modell und Tools.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Automatisierungseditor zeigt verbundene Schritte und die Einstellungen des ausgewählten Knotens." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/automations/editor"><b>Workflow-Editor</b></a><br><sub>Prüfe Schritte, Testeingaben und Laufprotokolle.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/automations/editor"><b>Workflow-Editor</b></a><br><sub>Prüfe Schritte, Testeingaben und Laufprotokolle.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/connectors-add-credential.webp"><img src=".github/assets/readme-gallery-connectors.webp" alt="Der Dialog zum Hinzufügen von Zugangsdaten zeigt die verfügbaren Konnektoren." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/connectors/overview"><b>Konnektoren</b></a><br><sub>Wähle die Dienste für deinen Arbeitsbereich.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/connectors/overview"><b>Konnektoren</b></a><br><sub>Wähle die Dienste für deinen Arbeitsbereich.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen zeigen den Richtlinienstatus und die verfügbaren Einstellungen." width="100%"></a>
-      <br><a href="https://tale.dev/docs/de/platform/admin/governance/guardrails"><b>Governance</b></a><br><sub>Prüfe Inhaltssicherheit und Datenrichtlinien.</sub>
+      <br><a href="https://docs.tale.dev/de/platform/admin/governance/guardrails"><b>Governance</b></a><br><sub>Prüfe Inhaltssicherheit und Datenrichtlinien.</sub>
     </td>
   </tr>
 </table>
@@ -58,12 +58,13 @@ Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselbe
 
 | Dein Ziel | Passende Anleitung |
 | --- | --- |
-| Einen vorhandenen Arbeitsbereich nutzen | [Deine erste Nachricht senden](https://tale.dev/docs/de/get-started/quickstart) |
-| Tale installieren | [Schnellstart für den Eigenbetrieb](https://tale.dev/docs/de/self-hosted/install/quickstart) |
+| Einen vorhandenen Arbeitsbereich nutzen | [Deine erste Nachricht senden](https://docs.tale.dev/de/get-started/quickstart) |
+| Tale installieren | [Schnellstart für den Eigenbetrieb](https://docs.tale.dev/de/self-hosted/install/quickstart) |
 | Eine verwaltete Instanz erhalten | [Demo anfragen](https://tale.dev/request-demo) |
-| Einen Agenten für ein Projekt erstellen | [Projektagent erstellen und testen](https://tale.dev/docs/de/get-started/editors) |
-| Eine andere Anwendung anbinden | [Einstieg in die API](https://tale.dev/docs/de/get-started/developers) |
+| Einen Agenten für ein Projekt erstellen | [Projektagent erstellen und testen](https://docs.tale.dev/de/get-started/editors) |
+| Eine andere Anwendung anbinden | [Einstieg in die API](https://docs.tale.dev/de/get-started/developers) |
 | Den Quellcode ändern | [Entwicklungsumgebung einrichten](docs/de/develop/contributor-setup.md) |
+| Mit Tales UI-Komponenten entwickeln | [Komponenten und interaktive Beispiele (Englisch)](https://ui.tale.dev/docs/getting-started/introduction) |
 
 ### Eine lokale Instanz starten
 
@@ -78,7 +79,7 @@ tale dev
 
 Die Umgebung benötigt Docker. Folge den Einrichtungshinweisen der CLI und warte, bis Docker läuft, bevor du Tale startest. Beim ersten Start lädt die CLI Container-Images herunter und zeigt anschließend die Adresse an. Erstelle im Einrichtungsassistenten das erste Konto und die Organisation. Verbinde danach einen KI-Anbieter, damit Modelle antworten können.
 
-Die [Installationsanleitung](https://tale.dev/docs/de/self-hosted/install/quickstart) beschreibt Windows, Voraussetzungen und die Fehlersuche beim Start. Befehle und Optionen stehen in der [CLI-Referenz](tools/cli/README.md). Lies vor dem Umzug auf einen Server die [Bereitstellungsanleitung](https://tale.dev/docs/de/self-hosted/install/cli-install).
+Die [Installationsanleitung](https://docs.tale.dev/de/self-hosted/install/quickstart) beschreibt Windows, Voraussetzungen und die Fehlersuche beim Start. Befehle und Optionen stehen in der [CLI-Referenz](tools/cli/README.md). Lies vor dem Umzug auf einen Server die [Bereitstellungsanleitung](https://docs.tale.dev/de/self-hosted/install/cli-install).
 
 ### Aus dem Quellcode entwickeln
 
@@ -100,19 +101,19 @@ bun run --filter @tale/docs dev
 
 ## Was du mit Tale tun kannst
 
-- **[Chat](https://tale.dev/docs/de/platform/chat/basics):** Texte entwerfen, Zusammenhänge klären und Informationen im Gespräch bearbeiten. Vergleiche Modelle in Arena und prüfe Quellen bei Antworten aus der Wissensdatenbank.
-- **[Projekte](https://tale.dev/docs/de/platform/projects/overview):** Aufgaben, Dateien, Anweisungen und Chats zusammenhalten. Du entscheidest, welche Chats du mit dem Projekt teilst.
-- **[Projektagenten](https://tale.dev/docs/de/platform/projects/project-agents):** Anweisungen, Laufzeit, Modell und Werkzeuge festlegen. Weise eine Aufgabe zu, starte den Agenten und prüfe sein Ergebnis.
-- **[Wissen](https://tale.dev/docs/de/platform/knowledge/overview):** Dokumente, Wissenseinträge und Website-Inhalte für die Suche aufbereiten. Hochladen und Indexieren sind getrennte Schritte.
-- **[Automatisierungen](https://tale.dev/docs/de/platform/automations/concepts):** Schritte zu einem Workflow verbinden, ihn testen und manuell oder über konfigurierte Auslöser starten.
-- **[Konnektoren](https://tale.dev/docs/de/platform/connectors/overview):** Externe Dienste und MCP-Werkzeuge mit den Zugangsdaten deines Arbeitsbereichs anbinden.
-- **[Verwaltung](https://tale.dev/docs/de/platform/admin/overview):** Mitglieder, Rollen, Anbieter, Richtlinien, Nutzung und Audit-Einträge verwalten.
+- **[Chat](https://docs.tale.dev/de/platform/chat/basics):** Texte entwerfen, Zusammenhänge klären und Informationen im Gespräch bearbeiten. Vergleiche Modelle in Arena und prüfe Quellen bei Antworten aus der Wissensdatenbank.
+- **[Projekte](https://docs.tale.dev/de/platform/projects/overview):** Aufgaben, Dateien, Anweisungen und Chats zusammenhalten. Du entscheidest, welche Chats du mit dem Projekt teilst.
+- **[Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents):** Anweisungen, Laufzeit, Modell und Werkzeuge festlegen. Weise eine Aufgabe zu, starte den Agenten und prüfe sein Ergebnis.
+- **[Wissen](https://docs.tale.dev/de/platform/knowledge/overview):** Dokumente, Wissenseinträge und Website-Inhalte für die Suche aufbereiten. Hochladen und Indexieren sind getrennte Schritte.
+- **[Automatisierungen](https://docs.tale.dev/de/platform/automations/concepts):** Schritte zu einem Workflow verbinden, ihn testen und manuell oder über konfigurierte Auslöser starten.
+- **[Konnektoren](https://docs.tale.dev/de/platform/connectors/overview):** Externe Dienste mit den Zugangsdaten deines Arbeitsbereichs anbinden.
+- **[Verwaltung](https://docs.tale.dev/de/platform/admin/overview):** Mitglieder, Rollen, Anbieter, Richtlinien, Nutzung und Audit-Einträge verwalten.
 
-Welche Funktionen du nutzen kannst, hängt von deiner Rolle und der Konfiguration ab. Ein lokales Modell hält die Inferenz auf deiner Infrastruktur; angebundene Dienste und externe Werkzeuge haben weiterhin eigene Datenflüsse. Lies vor der Wahl deiner Betriebsumgebung die Hinweise zur [Datenresidenz](https://tale.dev/docs/de/self-hosted/configuration/data-residency).
+Welche Funktionen du nutzen kannst, hängt von deiner Rolle und der Konfiguration ab. Ein lokales Modell hält die Inferenz auf deiner Infrastruktur; angebundene Dienste und externe Werkzeuge haben weiterhin eigene Datenflüsse. Lies vor der Wahl deiner Betriebsumgebung die Hinweise zur [Datenresidenz](https://docs.tale.dev/de/self-hosted/configuration/data-residency).
 
 ## Dokumentation
 
-Die Dokumentation gibt es auf [Englisch](https://tale.dev/docs), [Deutsch](https://tale.dev/docs/de) und [Französisch](https://tale.dev/docs/fr).
+Die Dokumentation gibt es auf [Englisch](https://docs.tale.dev), [Deutsch](https://docs.tale.dev/de) und [Französisch](https://docs.tale.dev/fr).
 
 Beginne mit einer angeleiteten Aufgabe. Die Plattformseiten begleiten die tägliche Arbeit, die Betriebs- und API-Referenzen liefern genaue Konfigurationsangaben. Die [Screenshot-Galerie](SCREENSHOTS.md) zeigt die wichtigsten Ansichten. Wenn du die Dokumentation verbessern möchtest, lies die [README des Docs-Workspaces](services/docs/README.md).
 

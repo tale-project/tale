@@ -50,6 +50,12 @@ Ouvre **Connaissances > Produits**, choisis **Ajouter un produit**, puis **Saisi
 
 Le menu de la ligne permet de modifier un produit enregistré. Choisis des noms faciles à distinguer et vérifie le prix ainsi que la devise avant de changer le statut.
 
+Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou SVG dans la zone d’image. La limite est de 5 Mio. Attends l’aperçu avant de poursuivre. Si l’import échoue, vérifie le format et la taille du fichier, puis réessaie. Tale vérifie le contenu du fichier et refuse les SVG contenant du contenu actif.
+
+L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre.
+
+Si tu choisis **Ou coller une URL**, utilise une adresse HTTPS publique. Tale refuse les hôtes non sûrs ou non autorisés. Demande à un administrateur si tu as besoin d’une source d’image interne. Les images chargées depuis une adresse externe restent soumises aux règles d’accès de cette source.
+
 ## Vérifier l’accès et l’actualité
 
 Une fiche ou un document n’est utile qu’aux personnes qui y ont accès. Vérifie les équipes associées lorsqu’un collègue ne trouve pas une information. Les fichiers d’un projet suivent les droits du projet, et non les équipes de la bibliothèque documentaire ; consulte [Fichiers du projet](/fr/platform/projects/manage-files).

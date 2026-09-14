@@ -23,6 +23,12 @@ Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder e
 
 Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst. Ein Team-Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
 
+## Gemerkte Navigation verstehen {#navigation-memory}
+
+Tale merkt sich deine zuletzt besuchte Ansicht in jedem [Hauptbereich](/de/platform#navigation), getrennt nach Organisation. Wechselst du die Organisation und später zurück, bleiben deren Ansichten erhalten. Jeder Browser-Tab führt seine eigene Navigation. So kannst du zwei Projekte nebeneinander bearbeiten.
+
+Ein neuer Tab kann zuletzt besuchte Ansichten aus demselben Browser übernehmen. Diese gemeinsame Kopie verfällt nach acht Stunden ohne aufgezeichneten Seitenwechsel in der Organisation. Ein Tab, der sich bereits eine Ansicht gemerkt hat, behält seine eigene Kopie. Die Daten bleiben in diesem Browser und werden nicht auf andere Geräte übertragen. Beim Abmelden werden die gemerkten Ansichten im aktuellen Tab und die gemeinsame Browser-Kopie gelöscht. Ist der Browserspeicher nicht verfügbar, öffnen die Bereiche ihre jeweilige Startansicht.
+
 ## Die Personalisierung einordnen
 
 Unter **Einstellungen > Personalisierung** stehen **Benutzerdefinierte Anweisungen** und **Erinnerungen**. Die Schalter können dem Organisationsstandard folgen oder eine persönliche Auswahl speichern. Gespeicherte Anweisungen und Erinnerungslisten gehören zu deinen Einstellungen.

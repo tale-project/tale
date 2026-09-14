@@ -28,6 +28,7 @@ L’onglet **Connaissances** du projet contient les fichiers consultables par se
 | **Indexation…** | Tale prépare le texte pour la recherche. |
 | **Indexé** | Le texte est consultable. Vérifie une réponse contre le fichier d’origine. |
 | **Échec** | Consulte les détails disponibles et utilise **Réessayer l'indexation**. Si l’échec revient, demande l’aide d’un admin. |
+| **Non pris en charge** | Ce contenu ne peut pas être indexé. Fournis du texte lisible ou un format pris en charge ; relancer le même fichier ne résout pas la cause. |
 | **Non indexé** | Le fichier est stocké, mais pas consultable par recherche. Utilise **Indexer maintenant** si proposé, ou convertis un format sans extracteur de texte. |
 
 Une intégration peut importer un fichier sans l’indexer. Il reste visible dans l’arborescence. Un fichier texte compatible peut être lu directement lorsqu’il est nommé, mais il n’apparaît pas dans la recherche textuelle avant indexation.

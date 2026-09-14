@@ -23,6 +23,12 @@ Open the profile menu from your avatar. **Language** changes the interface langu
 
 Check the organization name before changing settings or adding content. A team filter changes the current view; it does not grant access to another team’s data.
 
+## Understand remembered navigation {#navigation-memory}
+
+Tale remembers the last place you visited in each [main section](/platform#navigation), separately for each organization. Switching organization and returning keeps that organization’s places. Each browser tab keeps its own navigation, so you can work in two projects side by side.
+
+A new tab can pick up recent places from the same browser. That shared copy expires after eight hours without recorded navigation in the organization; a tab that already remembers a place keeps its own copy. This is browser-local state and does not sync to another device. Signing out clears remembered navigation in the current tab and the shared browser copy. If browser storage is unavailable, sections use their default entry points.
+
 ## Understand the Preferences page
 
 Open **Settings > Preferences** to view **Custom instructions** and **Memories**. The switches can follow organization defaults or store a personal choice. Saved instructions and memory lists belong to your preferences.

@@ -27,6 +27,7 @@ import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_CHAT_PROMPTS,
   DEMO_DOCUMENTS,
+  DEMO_EMPTY_DOCUMENT,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
@@ -131,6 +132,32 @@ const replaceRigOrigin = async (page: Page): Promise<void> => {
     }
   });
 };
+
+/** Keep catalog examples reproducible when the local organization also has
+ * manual-test automations. Filter through the real search control; never
+ * delete other fixtures or remove rows from the captured DOM. */
+async function showTriageAutomationExamples(page: Page): Promise<void> {
+  const search = page.getByRole('textbox', {
+    name: t('automations.list.searchPlaceholder'),
+    exact: true,
+  });
+  // SearchInput is readonly until focus to suppress password-manager
+  // autofill. Enter it as a reader does before Playwright checks editability.
+  await search.click();
+  await search.fill('Triage');
+  for (const slug of [
+    'github-triage-issues',
+    'gmail-triage-inbox',
+    'imap-smtp-triage-inbox',
+    'outlook-triage-inbox',
+  ]) {
+    await expect(page.getByText(slug, { exact: true })).toBeVisible({
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+  }
+  // Four matching examples plus the table's column-heading row.
+  await expect(page.getByRole('row')).toHaveCount(5);
+}
 
 export const SHOTS: readonly Shot[] = [
   {
@@ -475,6 +502,32 @@ export const SHOTS: readonly Shot[] = [
         .nth(DEMO_DOCUMENTS.length - 1),
   },
   {
+    name: 'document-indexing-unsupported',
+    section: 'platform',
+    route: '/dashboard/:orgId/documents',
+    prepare: async (page) => {
+      const row = page.getByRole('row').filter({
+        has: page.getByText(DEMO_EMPTY_DOCUMENT.fileName, { exact: true }),
+      });
+      await expect(
+        row.getByText(t('documents.rag.status.unsupported'), { exact: true }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await row
+        .getByRole('button', {
+          name: t('documents.rag.dialog.unsupported.title'),
+        })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.rag.dialog.unsupported.title'),
+      }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.rag.dialog.unsupported.title'),
+      }),
+  },
+  {
     // A controlled record's one-file replacement dialog. The prepare step
     // accepts an uncontrolled row, an existing draft, or an approved row; the
     // approved case opens Replace directly without creating a revision first.
@@ -624,11 +677,12 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
-    // The Automations page — the seeded pack rows with their version count
-    // and deployment state, plus the Create automation menu.
+    // Four shipped triage examples, found with the real list search, show
+    // their versions and deployment state beside Create automation.
     name: 'automations-catalog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
+    prepare: showTriageAutomationExamples,
     readyWhen: (page) =>
       page.getByText('gmail-triage-inbox', { exact: true }).first(),
   },
@@ -639,6 +693,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
+      await showTriageAutomationExamples(page);
       await page
         .getByRole('button', { name: t('automations.list.createButton') })
         .click();
@@ -650,21 +705,32 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The automation workbench — the saved version's step graph on the canvas
-    // with the node inspector beside it. The seeded Gmail triage pack stands
-    // in for every automation: they all render this same workbench.
+    // The Editor tab — the saved version's step graph on the canvas with the
+    // node inspector beside it and the version/run actions in the tab strip.
     name: 'automation-editor-canvas',
     section: 'platform',
     // A pack's automation is NAMED after its path with the separator
     // flattened (`gmail/triage-inbox` → `gmail-triage-inbox`, see
     // lib/automations/packs), so the route param is that name — the `__`
     // codec is only for names that carry a real `/`.
-    route: '/dashboard/:orgId/automations/gmail-triage-inbox',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     // Select the LLM step so the inspector shows a node's fields instead of
     // its "select a node" hint — the frame then teaches both halves at once.
     // A node box is a button carrying `data-automation-node=<id>` (the same
     // attribute the inspector's Close restores focus to).
     prepare: async (page) => {
+      await expect(
+        page.getByRole('link', {
+          name: t('automations.navigation.editor'),
+          exact: true,
+        }),
+      ).toHaveAttribute('aria-current', 'page');
+      await expect(
+        page.getByRole('button', {
+          name: t('automations.detail.versionSelect'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       const triageStep = page.locator('[data-automation-node="triage"]');
       await triageStep.waitFor({ timeout: 30_000 });
       await triageStep.click();
@@ -680,8 +746,16 @@ export const SHOTS: readonly Shot[] = [
   {
     name: 'automation-run-input',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/github-triage-issues',
+    route: '/dashboard/:orgId/automations/github-triage-issues/editor',
     prepare: async (page) => {
+      // The run button can paint before the saved document has loaded. Wait
+      // for its version picker so Test run has the saved input schema.
+      await expect(
+        page.getByRole('button', {
+          name: t('automations.detail.versionSelect'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
       await page
         .getByRole('button', {
           name: t('automations.detail.runMock'),

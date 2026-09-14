@@ -62,6 +62,8 @@ If you maintain a custom Tale proxy image and Caddyfile instead, mount your cert
 
 Update `HOST` and `SITE_URL` together, plus any browser-facing storage endpoint and identity-provider callback registrations that use the old origin. Recreate the affected application and proxy services, then test sign-in, an existing file download, an upload, and a live-updating page at the new URL.
 
+For a managed deployment created with `identity.bootstrap: "fresh"`, follow the [managed hostname migration procedure](/self-hosted/install/cli-install#managed-origin-migration) as part of this transition. It requires the retained deployment state and an explicit `identity.migrateOriginFrom`; changing only `HOST` and `SITE_URL` does not update the managed identity and client journals. Keep the existing account, organization and client credentials, then export the consumer configuration for the new issuer after the deployment is ready.
+
 For a subpath such as `https://example.com/app`, also set `BASE_PATH=/app`. Keep that prefix on requests sent to Tale's proxy: its generated routing strips the prefix internally. Check absolute links and callbacks rather than verifying only the home page. Keep the old domain available during a planned transition if users still need its existing links or sessions.
 
 ## Serve several domains {#several-domains-at-once}

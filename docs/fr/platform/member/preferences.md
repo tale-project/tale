@@ -23,6 +23,12 @@ Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’in
 
 Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu. Un filtre d’équipe change la vue, sans accorder l’accès aux données d’une autre équipe.
 
+## Comprendre la navigation mémorisée {#navigation-memory}
+
+Tale mémorise la dernière vue consultée dans chaque [section principale](/fr/platform#navigation), séparément pour chaque organisation. Si tu changes d’organisation puis reviens, tu retrouves ses vues précédentes. Chaque onglet du navigateur garde sa propre navigation : tu peux ainsi travailler dans deux projets côte à côte.
+
+Un nouvel onglet peut reprendre les vues récentes du même navigateur. Cette copie commune expire après huit heures sans navigation enregistrée dans l’organisation ; un onglet qui possède déjà une vue mémorisée conserve sa propre copie. Ces données restent dans le navigateur et ne sont pas synchronisées avec un autre appareil. La déconnexion efface la navigation mémorisée dans l’onglet actuel et la copie commune du navigateur. Si le stockage du navigateur est indisponible, les sections ouvrent leur page par défaut.
+
 ## Comprendre la page Personnalisation
 
 Ouvre **Paramètres > Personnalisation** pour consulter **Instructions personnalisées** et **Souvenirs**. Les interrupteurs peuvent suivre les valeurs de l’organisation ou enregistrer un choix personnel. Les instructions enregistrées et les listes de souvenirs appartiennent à tes préférences.

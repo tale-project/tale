@@ -3,11 +3,11 @@ title: Read automation runs and recover from failures
 description: Trace a run from its status to the failing node, inspect recorded writes and decide whether to stop, fix or retry.
 ---
 
-Open an automation and select a row under **Runs** to understand what happened. Start with its status, version and mode, then inspect the relevant node. A successful test run proves the workflow’s mocked execution; it does not prove that a real external account will accept the same action.
+Open an automation, switch to its **Runs** tab and select a row to understand what happened. Start with its status, version and mode, then inspect the relevant node. A successful test run proves the workflow’s mocked execution; it does not prove that a real external account will accept the same action.
 
 ## Read the run’s state
 
-The run list is newest first. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time.
+The **Runs** tab lists the latest 50 runs, newest first. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time. The tabs stay visible while you inspect a run. Choose **Runs** to return to the list or **Editor** to change the workflow.
 
 | Status | Meaning | What to do |
 | --- | --- | --- |
@@ -28,6 +28,8 @@ Node states include **Ran**, **Skipped**, **Failed**, **Never reached** and **No
 
 For example, a reminder node may receive a customer name but an empty invoice ID. Inspect its upstream output: if the record now uses another field, correct the reference there rather than replacing the mail credential. Verify the corrected resolved input in a new test run.
 
+Applications reading the [run API](/develop/api-reference) also receive `failureCode` when a failed run has a classified cause. For example, `approval_rejected` means a person refused the operation, while `llm_output_invalid` means a model response did not match the required structure. Historical failures can lack a code. Use it to route an investigation; it does not establish that retrying is safe or will succeed.
+
 ## Check what the run changed
 
 The effects list records connector writes, with the node, connector and input. A test uses deterministic stand-ins; live actions can change external systems. The run explicitly reports when it has no recorded effects.
@@ -44,7 +46,7 @@ An exhausted budget, full execution-window timeout, or expired question does not
 
 ## Stop or repair the workflow
 
-Select **Stop the run** for an unfinished run you want to cancel. Cancellation stops further work at the engine’s execution boundaries; it does not roll back completed effects.
+Select **Stop the run** for an unfinished run you want to cancel. Cancellation stops further work at the engine’s execution boundaries; it does not roll back completed effects. If the run finishes before the cancellation reaches it, its completed outcome is retained.
 
 To repair a document problem, return to the editor, change the relevant input or node, and save a version with a useful message. Run a test with representative input and inspect the values and output, not only the success badge. Deploy that version when the result is ready. Scheduled and webhook starts then use the deployed version; an older failed run remains a record of the old version.
 

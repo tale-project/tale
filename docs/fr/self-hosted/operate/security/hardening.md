@@ -19,6 +19,8 @@ Inspecte les ports publiés par ta configuration Compose réelle et teste leur a
 
 Si tu utilises l’authentification par en-têtes de confiance, seul le proxy amont doit pouvoir joindre l’application. Il doit supprimer les en-têtes d’identité fournis par l’appelant avant de définir les siens. Voir [Authentification](/fr/self-hosted/configuration/authentication).
 
+Le fichier `robots.txt` de la plateforme déconseille l’indexation de l’application, mais autorise explicitement les chemins publics destinés aux intégrateurs et au suivi d’état, dont `/docs`, `/openapi.json`, `/llms.txt`, `/llms-full.txt` et `/status`. Ces consignes aux robots ne sont pas des contrôles d’accès. Protège les données confidentielles par authentification et examine les informations exposées dans le rapport public.
+
 ## Vérifier TLS à l’adresse publique
 
 Utilise un certificat de confiance pour l’adresse réellement ouverte par les utilisateurs. Choisis `TLS_MODE=letsencrypt` pour le point d’entrée TLS public fourni, ou `TLS_MODE=external` si ton proxy amont termine TLS. Un certificat local autosigné n’établit pas une confiance publique.
@@ -48,6 +50,8 @@ SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
 Recrée le service de sortie avec l’environnement modifié. Vérifie qu’une destination nécessaire fonctionne et qu’une destination absente de la liste est refusée. Ajoute d’autres registres ou hôtes source seulement si tes traitements en ont besoin. Les appels aux modèles passent par la passerelle dédiée de la sandbox ; cette liste ne régit donc pas toutes les connexions sortantes de Tale.
+
+Examine séparément les autorisations de réseau privé. `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` admet les destinations des fournisseurs de modèles, y compris dans la passerelle sandbox ; il n’ouvre pas l’accès réseau général de la sandbox. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` admet les cibles intranet et les valeurs d’URL d’image privées des produits. Active uniquement l’accès nécessaire et garde sa configuration sous contrôle opérateur. [Fournisseurs](/fr/self-hosted/configuration/providers) décrit les vérifications des modèles ; la [référence d’environnement](/fr/self-hosted/configuration/environment-reference) distingue les deux variables.
 
 ## Surveiller et enquêter
 

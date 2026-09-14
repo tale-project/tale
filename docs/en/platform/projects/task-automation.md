@@ -36,6 +36,8 @@ A plain comment keeps a note without starting that agent action. The mention pic
 
 For an automation-owned task, mention the owning automation to request another run. Mentioning a different automation does not transfer ownership or start it. See [Automations](/platform/automations/concepts) for workflows that coordinate several steps.
 
+For a task started through an automation, the same workflow can have only one queued, running, or waiting run for that task in the project. Repeating the start request while it is active returns the existing run. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
+
 ## Handle waiting and failed runs
 
 | State or symptom | What to do |

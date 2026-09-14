@@ -5,17 +5,19 @@ description: Choose a starting point, import a validated package and prepare its
 
 Open **Automations** to find the workflows available in your organization. Owner, Admin and Developer roles can manage them. Start with a [built-in automation](/platform/automations/builtin) when it matches your task, or create a draft you can test before making it live.
 
-<Frame caption="The Automations page — every row is one automation with its version count and the version that is live, or Not deployed.">
+Search by name or slug. For example, enter `Triage` to compare the shipped triage workflows.
 
-![The Automations page listing the shipped email and GitHub automations, each row showing its version count and deployment state.](/images/platform/automations-catalog.webp)
+<Frame caption="The list filtered by Triage shows four shipped examples with their version counts and deployment states.">
+
+![Four filtered triage automations for GitHub, Gmail, IMAP and Outlook, with their versions, deployment states and the Create automation button.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
 ## Choose a starting point
 
-Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it to inspect the workflow and its runs. The **Projects** panel controls which boards can use it; without project bindings, it serves the organization.
+Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **Versions** holds its saved history; **Runs** shows recent executions. The **Projects** panel controls which boards can use it; without project bindings, it serves the organization.
 
-The **New automation** menu offers three routes:
+The **Create automation** menu offers three routes:
 
 | Choice | Use it when | What happens next |
 | --- | --- | --- |
@@ -44,7 +46,7 @@ review-invoices/
 
 <Step title="Select the files">
 
-Choose **New automation > Upload package**. Upload the workflow and optional manifest as individual files, or select one `.zip` containing the pack. Use a zip when carrying skills; upload that archive on its own. Markdown notes outside `skills/`, dotfiles and build leftovers such as `node_modules/` and `__pycache__/` are ignored.
+Choose **Create automation > Upload package**. Upload the workflow and optional manifest as individual files, or select one `.zip` containing the pack. Use a zip when carrying skills; upload that archive on its own. Markdown notes outside `skills/`, dotfiles and build leftovers such as `node_modules/` and `__pycache__/` are ignored.
 
 </Step>
 

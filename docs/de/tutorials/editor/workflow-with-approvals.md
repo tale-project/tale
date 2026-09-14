@@ -43,10 +43,10 @@ tests:
         - connector: imap-smtp.send
 ```
 
-1. Öffne **Automatisierungen > Neue Automatisierung > Paket hochladen**.
+1. Öffne **Automatisierungen > Automatisierung erstellen > Paket hochladen**.
 2. Wähle `workflow.yml` und belasse **Installieren in** auf **Organisation**.
 3. Klicke auf **Paket hochladen**. Tale validiert das Dokument und speichert `docs/approval-check` als Entwurf.
-4. Wähle in der Veröffentlichungsfrage **Später** und öffne anschließend **Approval check** in der Liste.
+4. Wähle in der Veröffentlichungsfrage **Später** und öffne anschließend **Approval check** in der Liste. Die Automatisierung öffnet sich im Tab **Editor**.
 
 Existiert der Name bereits, fügt der Upload eine weitere Version hinzu. Wähle einen anderen Workflow-`name`, wenn die Übung getrennt bleiben soll.
 
@@ -58,17 +58,17 @@ Existiert der Name bereits, fügt der Upload eine weitere Version hinzu. Wähle 
 
 ## Den Datenfluss testen
 
-Klicke auf **Testlauf**. Dieses Beispiel braucht keine Laufzeiteingabe und kann mit einem leeren Objekt laufen. Unter **Läufe** sollte ein **Erfolgreich** abgeschlossener Test erscheinen. Beide Knoten sollten auf dem Canvas als ausgeführt markiert sein.
+Klicke im **Editor** auf **Testlauf**. Dieses Beispiel braucht keine Laufzeiteingabe und kann mit einem leeren Objekt laufen. Wechsle zu **Läufe**. Dort sollte ein **Erfolgreich** abgeschlossener Test erscheinen.
 
-Öffne den Lauf, wähle `send` und prüfe die aufgelöste Eingabe. Der Empfänger muss `reviewer@example.com` sein, der Betreff `Approval practice` und der Text der Satz aus `draft`. In diesem Modus antwortet ein deterministischer Mock des Connectors. Es wird keine E-Mail gesendet und keine Freigabekarte angezeigt.
+Öffne den Lauf und prüfe auf dem Canvas, ob beide Knoten ausgeführt wurden. Wähle `send` und prüfe die aufgelöste Eingabe. Der Empfänger muss `reviewer@example.com` sein, der Betreff `Approval practice` und der Text der Satz aus `draft`. In diesem Modus antwortet ein deterministischer Mock des Connectors. Es wird keine E-Mail gesendet und keine Freigabekarte angezeigt.
 
 Der Workflow enthält einen Test, der den Effekt `imap-smtp.send` erwartet. Ein erfolgreicher Mock prüft Ablauf und vorgesehenen Aufruf. Er belegt weder gültige Postfach-Zugangsdaten noch die Zustellung.
 
 ## Die Live-Freigabe prüfen
 
-Klicke auf **Diese Version live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
+Kehre zum **Editor** zurück und klicke auf **Diese Version live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
 
-Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Öffne den neuen wartenden Lauf unter **Läufe**. Die Freigabekarte sollte die ausstehende Entscheidung, `imap-smtp.send`, den Knoten `send` sowie dessen geplante Eingabe zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
+Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Wechsle zu **Läufe** und öffne den neuen wartenden Lauf. Die Freigabekarte sollte die ausstehende Entscheidung, `imap-smtp.send`, den Knoten `send` sowie dessen geplante Eingabe zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
 
 Wartet der Lauf nicht, prüfe Status und Richtlinie, bevor du fortfährst. Ein fehlgeschlagener Connector-Aufruf beweist nicht, dass eine Freigabe angefordert wurde.
 

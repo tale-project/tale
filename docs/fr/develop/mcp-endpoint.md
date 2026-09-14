@@ -130,6 +130,8 @@ Le registre de capacités contient actuellement les automatisations déployées.
 
 La clé identifie son titulaire ; elle n'élargit ni son rôle ni son accès aux projets. Les appels réels via `invoke_capability` passent aussi par les contrôles d'exécution.
 
+Avant de configurer des outils privilégiés, lis `GET /api/v1/me` : `capabilities.developer` indique le droit lié au rôle actuel. `deploymentEditor` correspond à une liste opérateur distincte et n’autorise pas la création par MCP. Les erreurs d’outils gardent le format MCP décrit ci-dessous ; la lecture d’une capacité REST ne change pas leur traitement JSON-RPC.
+
 ### Distinguer une erreur de protocole d'un refus d'outil
 
 | Résultat | Traitement |

@@ -22,6 +22,8 @@ Newest first. `R<n>` numbers are consumed in order and never reused.
 
 | Round | Date | Scope | Findings | Verdict |
 |---|---|---|---|---|
+| [R5](r0005.md) | 2026-09-14 | Incoming navigation, API concurrency, terminal indexing, provider DNS and current screenshots | 6 bug · 1 docs | fixed + pinned |
+| [R4](r0004.md) | 2026-09-14 | Documentation completion: WebDAV, dates, CLI, current automation tabs and screenshot fixtures | 6 bug · 1 docs | fixed + pinned |
 | [R3](r0003.md) | 2026-09-14 | Docs walkthrough, API chat and approval workflows on an isolated open-source stack | 1 blocker · 5 bug · 1 docs | fixed + pinned |
 | [R2](r0002.md) | 2026-09-09 | native identity consent, TOTP continuation and API-only Inbox reply | 1 bug | fixed + pinned |
 | [R1](r0001.md) | 2026-09-08 | not a round — the findings the guides were carrying when they became suites | 2 blocker · 6 bug · 8 polish · 1 docs | carried over |

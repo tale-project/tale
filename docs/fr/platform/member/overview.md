@@ -35,6 +35,12 @@ Modifie ton profil et comprends les préférences enregistrées et la gestion de
 
 </CardGroup>
 
+Passe d’une activité à l’autre avec la [navigation principale](/fr/platform#navigation). Revenir dans une section rouvre ton travail récent ; choisir à nouveau la section active ramène à son point de départ.
+
+## Ouvrir une notification
+
+Un lien de notification ouvre la tâche, le document ou la conversation concernée. Si tu dois d’abord te connecter, Tale conserve la destination et l’ouvre après la connexion. Ton compte doit toujours avoir accès à l’organisation et au contenu. Pour un déploiement privé, connecte-toi au réseau requis avant d’ouvrir le lien.
+
 ## Si une action manque
 
 Les Membres lisent la bibliothèque commune ; les Éditeurs et rôles supérieurs en entretiennent le contenu. Les automatisations et réglages techniques nécessitent des droits de Développeur ou d’administrateur. Demande l’accès adapté à ta tâche : une ressource visible n’est pas forcément modifiable. [Membres et rôles](/fr/platform/admin/members-and-roles) explique les différences.

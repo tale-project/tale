@@ -36,6 +36,8 @@ Commence un chat et sélectionne explicitement le modèle local. Garde **Auto** 
 
 Demande à l’opérateur de confirmer la requête dans les journaux du serveur d’inférence prévu. Vérifie que Tale affiche une réponse complète. Enregistrer un accès ou obtenir une liste de modèles prouve moins qu’une génération terminée. Sa durée dépend du modèle, du matériel et de la charge.
 
+Si des agents de programmation doivent utiliser ce fournisseur, répète le contrôle dans une nouvelle session sandbox avec le modèle voulu et un environnement d’exécution compatible. Demande à l’opérateur de vérifier le DNS, la connectivité et la confiance TLS de la passerelle comme ceux du backend. Les règles d’accès web général de la sandbox ne configurent pas l’accès aux modèles. Une réponse de chat et une réponse d’agent valident des connexions différentes.
+
 ## Comprendre un échec
 
 | Symptôme | Vérification |
@@ -45,5 +47,6 @@ Demande à l’opérateur de confirmer la requête dans les journaux du serveur 
 | Liste de modèles vide | Découverte des modèles, modèles chargés, liste autorisée et politique de modèles. |
 | Erreur de connexion ou de certificat | Accès réseau depuis le backend, nom du conteneur et confiance TLS. |
 | Modèle refusé ou aucune réponse | Identifiant exact, authentification, compatibilité de l’API et capacité du serveur. |
+| Le chat fonctionne, mais l’agent n’atteint pas son modèle | DNS, connectivité et confiance TLS de la passerelle, autorisation des fournisseurs privés et compatibilité de l’environnement d’exécution. |
 
 [Fournisseurs IA](/fr/platform/admin/providers) explique le remplacement des accès et les valeurs par défaut. Documente l’endpoint et le modèle dans les consignes d’exploitation pour qu’un autre administrateur puisse répéter le test après une modification du serveur.

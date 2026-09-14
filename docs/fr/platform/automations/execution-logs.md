@@ -3,11 +3,11 @@ title: Examiner les exécutions et corriger les échecs
 description: Repère le nœud concerné, vérifie les écritures enregistrées et décide s’il faut arrêter, corriger ou relancer.
 ---
 
-Ouvre une automatisation et choisis une ligne sous **Exécutions** pour comprendre ce qui s’est passé. Commence par le statut, la version et le mode, puis examine le nœud concerné. Un essai réussi prouve le déroulement simulé, pas l’acceptation de la même action par un compte externe réel.
+Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une ligne pour comprendre ce qui s’est passé. Commence par le statut, la version et le mode, puis examine le nœud concerné. Un essai réussi prouve le déroulement simulé, pas l’acceptation de la même action par un compte externe réel.
 
 ## Lire l’état de l’exécution
 
-La liste présente les exécutions récentes en premier. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin.
+L’onglet **Exécutions** présente les 50 dernières exécutions, de la plus récente à la plus ancienne. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
 
 | Statut | Signification | Suite à donner |
 | --- | --- | --- |
@@ -28,6 +28,8 @@ Les états comprennent **Exécuté**, **Ignoré**, **En échec**, **Jamais attei
 
 Par exemple, un rappel peut recevoir le nom du client mais un identifiant de facture vide. Examine la sortie précédente. Si le champ a été renommé, corrige la référence plutôt que les identifiants de messagerie. Vérifie ensuite l’entrée résolue dans un nouvel essai.
 
+Une application qui lit l’[API des exécutions](/fr/develop/api-reference) reçoit aussi `failureCode` lorsqu’une cause a été attribuée à l’échec. Par exemple, `approval_rejected` indique qu’une personne a refusé l’opération, tandis que `llm_output_invalid` signale une réponse du modèle qui ne respecte pas la structure attendue. Les anciens échecs peuvent ne pas avoir de code. Celui-ci aide à orienter le diagnostic ; il ne garantit ni qu’une relance est sans risque, ni qu’elle réussira.
+
 ## Vérifier les changements déjà effectués
 
 La liste des effets enregistre les écritures des connectors avec leur nœud, leur connector et leurs données. Les essais utilisent des réponses simulées ; les actions réelles peuvent modifier des systèmes externes. L’exécution indique explicitement l’absence d’effets enregistrés.
@@ -44,7 +46,7 @@ L’épuisement de la fenêtre totale d’exécution, l’expiration d’une que
 
 ## Arrêter ou corriger le workflow
 
-Choisis **Arrêter l’exécution** pour annuler une exécution inachevée. Le moteur empêche la poursuite aux limites de ses étapes ; il n’annule pas les effets déjà produits.
+Choisis **Arrêter l’exécution** pour annuler une exécution inachevée. Le moteur empêche la poursuite aux limites de ses étapes ; il n’annule pas les effets déjà produits. Si l’exécution se termine avant de recevoir l’annulation, elle conserve son résultat final.
 
 Pour corriger le document, reviens à l’éditeur, modifie l’entrée ou le nœud concerné et enregistre une version avec un message utile. Fais un essai avec des données représentatives et lis les valeurs et la sortie, au-delà du statut de réussite. Mets la version vérifiée en service. Les prochains démarrages planifiés ou par webhook l’utiliseront ; l’ancien échec reste le journal de l’ancienne version.
 

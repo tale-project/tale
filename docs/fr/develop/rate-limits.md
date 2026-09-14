@@ -26,6 +26,8 @@ L’exécution comprend les démarrages d’automatisation avec ou sans projet, 
 
 Dans un lot MCP, les appels d’outil supplémentaires consomment du budget supplémentaire. Le [point d’accès MCP](/fr/develop/mcp-endpoint) distingue une réponse HTTP `429` d’un message refusé à l’intérieur du lot. Les webhooks ont des budgets séparés ; les limites de l’expéditeur et du déclencheur doivent toutes deux permettre la livraison.
 
+Le budget d’exécution limite la vitesse d’acceptation des messages, pas le nombre de tours simultanés. Les messages acceptés partagent une file entre toutes les organisations et les clés de l’instance. Chaque lot traite au maximum `WORKER_CONCURRENCY` tours, 5 par défaut ; le suivant attend la fin du lot en cours. Un envoi accepté peut donc attendre derrière d’autres clients. L’API n’expose ni position dans la file ni heure de démarrage estimée.
+
 ## La réponse 429
 
 Un refus HTTP pour dépassement de limite indique `Retry-After` en secondes entières. Le corps JSON exprime la même attente en millisecondes. Cet exemple impose au moins deux secondes de pause :
@@ -35,10 +37,15 @@ HTTP/1.1 429 Too Many Requests
 Retry-After: 2
 Content-Type: application/json
 
-{"error":"RATE_LIMITED","code":"RATE_LIMITED","data":{"retryAfterMs":1500}}
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-Appuie ta logique sur `code`. Ici, `error` répète le code au lieu de contenir une phrase explicative. Tale ne fournit pas de compteur de budget restant ; mesure ton trafic et respecte l’attente indiquée.
+Branche ta logique sur `code`. `error` décrit l’attente dans une phrase et `requestId` identifie la requête pour une investigation. Ce format est celui de REST. Les refus de débit de `/api/app` et des webhooks conservent le code machine dans `error` ; ne traite donc pas ce texte comme un format commun aux interfaces. Tale ne fournit pas de compteur de budget restant : mesure ton trafic et respecte l’attente indiquée.
 
 1. Arrête la boucle de relance immédiate.
 2. Attends au moins `Retry-After`. Si plusieurs processus partagent l’identité, coordonne leur pause.

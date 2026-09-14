@@ -28,6 +28,7 @@ Unter **Wissen** im Projekt liegen Dateien, die dessen Chats abrufen können. La
 | **Wird indexiert…** | Tale bereitet den Text für die Suche vor. |
 | **Indexiert** | Der Text ist durchsuchbar. Prüfe eine Antwort anhand der Originaldatei. |
 | **Fehlgeschlagen** | Lies verfügbare Fehlerdetails und nutze **Indexierung erneut versuchen**. Wiederholt sich der Fehler, bitte einen Admin um Hilfe. |
+| **Nicht unterstützt** | Dieser Inhalt lässt sich nicht indexieren. Stelle lesbaren Text oder ein unterstütztes Format bereit; ein erneuter Versuch mit derselben Datei hilft nicht. |
 | **Nicht indexiert** | Die Datei ist gespeichert, aber nicht durchsuchbar. Nutze **Jetzt indexieren**, sofern angeboten, oder wandle ein Format ohne Textextraktor um. |
 
 Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateibaum sichtbar. Eine unterstützte Textdatei lässt sich auf ausdrückliche Nachfrage direkt lesen; in der Textsuche erscheint sie erst nach der Indexierung.

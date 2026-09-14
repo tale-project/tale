@@ -23,31 +23,31 @@ The code is MIT-licensed. Community and Enterprise include the same product feat
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena displays two responses to the same prompt and the voting controls." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/chat/arena-mode"><b>Chat and Arena</b></a><br><sub>Compare two model responses side by side.</sub>
+      <br><a href="https://docs.tale.dev/platform/chat/arena-mode"><b>Chat and Arena</b></a><br><sub>Compare two model responses side by side.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="The Website relaunch task board groups cards by status." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/projects/tasks"><b>Project tasks</b></a><br><sub>Organize work and review its progress.</sub>
+      <br><a href="https://docs.tale.dev/platform/projects/tasks"><b>Project tasks</b></a><br><sub>Organize work and review its progress.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="The project Agents tab lists named agents with their runtime and model." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/projects/project-agents"><b>Project agents</b></a><br><sub>Choose instructions, runtime, model and tools.</sub>
+      <br><a href="https://docs.tale.dev/platform/projects/project-agents"><b>Project agents</b></a><br><sub>Choose instructions, runtime, model and tools.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The automation editor shows connected steps and the selected node’s settings." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/automations/editor"><b>Workflow editor</b></a><br><sub>Inspect steps, test inputs and review runs.</sub>
+      <br><a href="https://docs.tale.dev/platform/automations/editor"><b>Workflow editor</b></a><br><sub>Inspect steps, test inputs and review runs.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/connectors-add-credential.webp"><img src=".github/assets/readme-gallery-connectors.webp" alt="The Add credential dialog lists available connector integrations." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/connectors/overview"><b>Connectors</b></a><br><sub>Choose the services your workspace uses.</sub>
+      <br><a href="https://docs.tale.dev/platform/connectors/overview"><b>Connectors</b></a><br><sub>Choose the services your workspace uses.</sub>
     </td>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src=".github/assets/readme-gallery-guardrails.webp" alt="The Guardrails settings page shows policy status and configuration controls." width="100%"></a>
-      <br><a href="https://tale.dev/docs/platform/admin/governance/guardrails"><b>Governance</b></a><br><sub>Review content safety and data policies.</sub>
+      <br><a href="https://docs.tale.dev/platform/admin/governance/guardrails"><b>Governance</b></a><br><sub>Review content safety and data policies.</sub>
     </td>
   </tr>
 </table>
@@ -58,12 +58,13 @@ Select a screenshot to view it at full size. The captures show the English inter
 
 | Your goal | Follow this guide |
 | --- | --- |
-| Use a workspace your team already has | [Send your first message](https://tale.dev/docs/get-started/quickstart) |
-| Install Tale | [Self-hosted quickstart](https://tale.dev/docs/self-hosted/install/quickstart) |
+| Use a workspace your team already has | [Send your first message](https://docs.tale.dev/get-started/quickstart) |
+| Install Tale | [Self-hosted quickstart](https://docs.tale.dev/self-hosted/install/quickstart) |
 | Get a managed instance | [Request a demo](https://tale.dev/request-demo) |
-| Build an agent for a project | [Create and test a project agent](https://tale.dev/docs/get-started/editors) |
-| Connect another application | [API getting started](https://tale.dev/docs/get-started/developers) |
+| Build an agent for a project | [Create and test a project agent](https://docs.tale.dev/get-started/editors) |
+| Connect another application | [API getting started](https://docs.tale.dev/get-started/developers) |
 | Change the source code | [Contributor setup](docs/en/develop/contributor-setup.md) |
+| Build with Tale’s UI components | [Component guides and live examples](https://ui.tale.dev/docs/getting-started/introduction) |
 
 ### Run a local instance
 
@@ -78,7 +79,7 @@ tale dev
 
 The stack needs Docker. Follow the CLI’s setup prompts and wait for Docker to be running before starting Tale. The first start downloads container images; the CLI reports the address to open. Follow the setup wizard to create the first account and organization, then connect an AI provider to get model responses.
 
-For Windows installation, platform prerequisites, and recovery when startup fails, follow the [installation guide](https://tale.dev/docs/self-hosted/install/quickstart). Use the [CLI reference](tools/cli/README.md) for commands and flags, and the [deployment guide](https://tale.dev/docs/self-hosted/install/cli-install) before moving to a server.
+For Windows installation, platform prerequisites, and recovery when startup fails, follow the [installation guide](https://docs.tale.dev/self-hosted/install/quickstart). Use the [CLI reference](tools/cli/README.md) for commands and flags, and the [deployment guide](https://docs.tale.dev/self-hosted/install/cli-install) before moving to a server.
 
 ### Develop from source
 
@@ -100,19 +101,19 @@ bun run --filter @tale/docs dev
 
 ## What you can do
 
-- **[Chat](https://tale.dev/docs/platform/chat/basics):** draft, explain, and work with information in a conversation. Compare models in Arena and inspect sources when an answer uses knowledge.
-- **[Projects](https://tale.dev/docs/platform/projects/overview):** keep related tasks, files, instructions, and chats together. Choose which chats to share with the project.
-- **[Project agents](https://tale.dev/docs/platform/projects/project-agents):** define an agent’s instructions, harness, model, and tools. Assign a task, start the agent, and review the result.
-- **[Knowledge](https://tale.dev/docs/platform/knowledge/overview):** prepare documents, knowledge entries, and website content for retrieval. Upload completion and indexing are separate steps.
-- **[Automations](https://tale.dev/docs/platform/automations/concepts):** connect steps into a workflow, test it, and run it manually or through configured triggers.
-- **[Connectors](https://tale.dev/docs/platform/connectors/overview):** connect external services and MCP tools using credentials your workspace controls.
-- **[Administration](https://tale.dev/docs/platform/admin/overview):** manage members, roles, providers, policies, usage, and audit records.
+- **[Chat](https://docs.tale.dev/platform/chat/basics):** draft, explain, and work with information in a conversation. Compare models in Arena and inspect sources when an answer uses knowledge.
+- **[Projects](https://docs.tale.dev/platform/projects/overview):** keep related tasks, files, instructions, and chats together. Choose which chats to share with the project.
+- **[Project agents](https://docs.tale.dev/platform/projects/project-agents):** define an agent’s instructions, harness, model, and tools. Assign a task, start the agent, and review the result.
+- **[Knowledge](https://docs.tale.dev/platform/knowledge/overview):** prepare documents, knowledge entries, and website content for retrieval. Upload completion and indexing are separate steps.
+- **[Automations](https://docs.tale.dev/platform/automations/concepts):** connect steps into a workflow, test it, and run it manually or through configured triggers.
+- **[Connectors](https://docs.tale.dev/platform/connectors/overview):** connect external services using credentials your workspace controls.
+- **[Administration](https://docs.tale.dev/platform/admin/overview):** manage members, roles, providers, policies, usage, and audit records.
 
-Features depend on your role and deployment configuration. A local model keeps inference on your infrastructure; connected services and external tools still have their own data flows. See [data residency](https://tale.dev/docs/self-hosted/configuration/data-residency) before choosing a deployment boundary.
+Features depend on your role and deployment configuration. A local model keeps inference on your infrastructure; connected services and external tools still have their own data flows. See [data residency](https://docs.tale.dev/self-hosted/configuration/data-residency) before choosing a deployment boundary.
 
 ## Documentation
 
-The documentation is available in [English](https://tale.dev/docs), [German](https://tale.dev/docs/de), and [French](https://tale.dev/docs/fr).
+The documentation is available in [English](https://docs.tale.dev), [German](https://docs.tale.dev/de), and [French](https://docs.tale.dev/fr).
 
 Start with a guided task, use the Platform pages for everyday work, and consult the operator or API references when you need exact configuration details. The [screenshot gallery](SCREENSHOTS.md) gives a visual overview. To improve the docs, read [the docs workspace README](services/docs/README.md).
 

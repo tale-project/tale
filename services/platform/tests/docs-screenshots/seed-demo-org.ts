@@ -32,6 +32,7 @@ import {
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
+  DEMO_EMPTY_DOCUMENT,
   DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -606,7 +607,12 @@ async function ensureDocuments(
   page: Page,
   orgId: string,
   documents: readonly DemoDocument[] = DEMO_DOCUMENTS,
+  expectedStatus: 'indexed' | 'unsupported' = 'indexed',
 ): Promise<void> {
+  const labels = {
+    ...DOCUMENT_LABELS,
+    indexed: t(`documents.rag.status.${expectedStatus}`),
+  };
   await page.goto(`/dashboard/${orgId}/documents`);
   const importButton = page.getByRole('button', {
     name: t('documents.upload.importDocuments'),
@@ -649,12 +655,12 @@ async function ensureDocuments(
       .click();
     const row = page.getByRole('row').filter({ hasText: doc.fileName }).first();
     await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await awaitIndexed(row, DOCUMENT_LABELS.indexed, doc.fileName);
+    await awaitIndexed(row, labels.indexed, doc.fileName);
   }
   for (const doc of documents) {
     await retryFailedIndexing(
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
-      DOCUMENT_LABELS,
+      labels,
       doc.fileName,
     );
   }
@@ -1557,6 +1563,9 @@ export async function seedDemoOrg(
     );
   }
   await step('documents', () => ensureDocuments(page, orgId));
+  await step('empty document indexing explanation', () =>
+    ensureDocuments(page, orgId, [DEMO_EMPTY_DOCUMENT], 'unsupported'),
+  );
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
   await step('knowledge entry documents indexed', () =>
     ensureKnowledgeEntryDocumentsIndexed(page, orgId),

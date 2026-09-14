@@ -40,12 +40,35 @@ Unsupported formats are not made searchable by repeatedly reindexing. For a ques
 | **Queued** | Waiting for an indexing slot. A busy library processes files in batches. |
 | **Indexing** | Text is being prepared for search. Wait before testing the source. |
 | **Indexed** | Indexing completed. Test a specific question and open its citation. |
-| **Needs reindex** | The index is stale. Choose **Reindex** in the row menu. |
+| **Needs reindex** | The index is stale. Use **Retry indexing** beside the status. |
 | **Failed** | Inspect the error, resolve its cause, then retry. |
-| **Unsupported** | This format has no supported text extractor. Convert the source. |
+| **Not supported** | These file contents cannot be indexed: the format may be unsupported, the text empty or unreadable, or the PDF damaged. Open the badge for the cause. |
 | **Not indexed** | No completed index is available. Check the file and start indexing where offered. |
 
 Interrupted jobs recover in the background or report a failure with a retry option. If a status does not progress, give an administrator the document name and error. They can check indexing services and the embedding configuration. Failed and unsupported files still use storage until removed.
+
+## Recover from an indexing problem
+
+Click **Failed** or **Not supported** to read the explanation. The next action depends on the cause, not just the filename extension.
+
+| Cause | Next action |
+| --- | --- |
+| Unsupported format or image | Convert to a supported document with readable text. Uploading an image alone does not run OCR for knowledge search. |
+| Empty text or scanned PDF without a text layer | Add the missing content or supply an OCR-processed version. Whitespace alone is also empty. |
+| Binary contents behind a text extension | Export readable text, preferably UTF-8. Renaming a binary file to `.txt` does not convert it. |
+| PDF cannot be parsed | Check that the original opens, remove password protection where permitted, or export a new PDF. A corrupt Office file may instead report a general indexing failure; check the original before repeatedly retrying. |
+| A secret or personal-data policy blocks indexing | Remove the credential from the source, or ask an administrator to review the reported policy restriction. Then upload the corrected material or retry after the configuration is repaired. |
+| Embedding model missing or provider account refused | An administrator must configure the model under **Settings > Data residency**, or repair the provider key, model access, plan, or balance. Then retry. |
+| Temporary provider or indexing-service failure | Background jobs retry transient failures. If the error persists, give an administrator the document name and error; after repair, use **Retry indexing**. |
+| Search index rebuilding or repair failed | Rebuilding can recover automatically. A failed repair needs the operator to repair or restore the knowledge database before retrying. |
+
+**Not supported** has no retry action: another attempt with the same bytes cannot fix the cause. Failed files can also require a source or configuration change before a retry helps. Applications can distinguish these cases using `indexing.errorCode`; the [API reference](/develop/api-reference) lists the stable codes.
+
+<Frame caption="The status dialog explains that this document has no text to index. Supply readable content before uploading again.">
+
+![The Document cannot be indexed dialog reports an empty document or scan without a text layer and recommends uploading readable text.](/images/platform/document-indexing-unsupported.webp)
+
+</Frame>
 
 ## Choose who can read it
 
@@ -63,6 +86,8 @@ Select files or folders, then choose the import mode:
 | --- | --- |
 | **One-time import** | Copies the selection once and preserves its folder structure. Later source changes do not update the copy. |
 | **Sync import** | Keeps the supported selection current. New files arrive on a later sync; changed files reindex; deleted source files are removed from the mirror. |
+
+Starting a folder sync can also reorganize an earlier import. If the same source file is already in Tale, the sync adopts that document and moves it into the matching sync folder, even when its content has not changed. This is a match to the source file, not merely to its name. A sync without a destination folder keeps the existing placement.
 
 For Microsoft 365, choose **My OneDrive** or **SharePoint Sites**. Sync is available for personal OneDrive folders; SharePoint selections import once. For Google Drive, select from My Drive. Native Google Docs, Sheets, and Slides are skipped: export them to PDF or Office formats first.
 

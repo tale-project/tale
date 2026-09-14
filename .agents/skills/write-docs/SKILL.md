@@ -13,9 +13,12 @@ not one page that assumes every reader has the same knowledge.
 ## Discover before drafting
 
 Read the repo contract, the guide nearest the docs tree, the renderer's component registry, and
-the checks for that content. In Tale, start with [docs/AGENTS.md](../../../docs/AGENTS.md).
+the checks for that content. Tale has two content trees: [docs/AGENTS.md](../../../docs/AGENTS.md) governs the EN/DE/FR
+product guides, while the [design-system authoring contract](../../../services/ui-docs/content/README.md)
+governs the English component guides and their live demos. Use the contract for the tree you edit.
 Find the existing owner of the topic and its neighboring pages before adding another explanation.
-Use the applicable locale's message catalogs for visible UI labels.
+Use the applicable locale’s resolved message catalogs for visible UI labels; shared controls may
+read `@tale/ui` or `@tale/marketing-ui` catalogs beneath the service’s overrides.
 
 In the task's planning note outside the clone, record:
 
@@ -86,11 +89,12 @@ into a callout. Read [MECHANICS.md](MECHANICS.md) for links, examples, and Markd
 
 ## Localize the complete experience
 
-Update every supported full locale in the same change, following
+Update every full locale supported by the affected content tree in the same change, following
 [write-translations](../write-translations/SKILL.md). Preserve the reader's task, factual content,
 examples, warnings, and navigation. Sentence construction and paragraph boundaries should read
 naturally in each language. Tale's heading/component parity is a delivery guard, not a requirement
-to translate sentence by sentence. Verify localized labels, links, alt text, and captions.
+to translate sentence by sentence. Verify localized labels, links, alt text, and captions. An English-only guide does not acquire
+translated body routes merely because its shared chrome has multilingual catalogs.
 
 ## Review and prove
 

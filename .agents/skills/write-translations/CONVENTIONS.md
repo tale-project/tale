@@ -11,7 +11,7 @@ These conventions format content; they do not authorize changing its meaning.
 | Docs prose | Use the locale's spelling, punctuation, quotation marks, and number/date formatting. |
 | Exact UI labels | Reproduce the resolved message value; do not typographically rewrite a quoted label. |
 | Message values | Follow the existing catalog's ASCII quote/apostrophe conventions and the component context. |
-| Code and identifiers | Preserve bytes, including decimal points, quotes, placeholders, enum values, routes, and keys. |
+| Executable code and identifiers | Preserve syntax, decimal points, quotes, placeholders, enum values, routes, and keys. Localize explanatory comments only when their syntax and behavior remain intact. |
 | Frontmatter dates and machine-readable values | Preserve the required syntax, usually ISO dates. |
 | Prices, limits, jurisdictions, timestamps | Preserve the underlying currency, quantity, unit, authority, and instant. Localize presentation only. |
 

@@ -33,6 +33,14 @@ Cette définition utilise une API de chat compatible OpenAI et découvre les mod
 
 Un administrateur ajoute ensuite un accès dans [Fournisseurs IA](/fr/platform/admin/providers), actualise le catalogue et sélectionne un modèle précis pour un court chat. Vérifie la requête terminée dans les journaux du serveur prévu. Les embeddings, la parole et les outils nécessitent leur propre contrôle des destinations ; un endpoint de chat local ne les rend pas locaux.
 
+## Vérifier l’accès aux modèles depuis la sandbox
+
+Le chat appelle un fournisseur depuis le backend. Les agents de programmation passent par `sandbox-llm-gateway` : un chat réussi ne valide donc pas leur connexion. L’endpoint doit être résolvable et joignable depuis le backend et la passerelle. Chaque client HTTPS doit faire confiance à son certificat. Un nom comme `https://models.internal/v1` exige lui aussi l’autorisation des fournisseurs privés lorsque le DNS renvoie une adresse privée. HTTP reste limité aux formes d’hôtes acceptées par le schéma, comme une IP privée, `localhost` ou `.local`.
+
+Au démarrage d’une nouvelle session sandbox, le backend contrôle le nom du fournisseur personnalisé et ses réponses DNS avant de le configurer dans la passerelle. Les destinations privées exigent `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` ; les métadonnées restent bloquées même avec cette option. Ce contrôle préalable ne fixe pas les réponses DNS des requêtes ultérieures de la passerelle. Garde la définition du fournisseur et le DNS sous le contrôle d’opérateurs de confiance.
+
+Recrée les processus backend concernés avec le nouvel environnement, puis démarre une nouvelle session sandbox avec le fournisseur, le modèle et un environnement d’exécution compatible. Envoie une demande sans contenu sensible et vérifie la réponse complète ainsi que l’entrée correspondante dans les journaux du serveur d’inférence. Si le chat fonctionne mais que l’agent n’atteint pas son modèle, examine les journaux de `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` contrôle l’accès web général de la sandbox, pas cette connexion distincte au modèle.
+
 ## Où vivent les connecteurs
 
 Les définitions fournies se trouvent dans `configs/platform/system/providers/<slug>/provider.yml` et leurs catalogues statiques dans `configs/platform/system/models/<slug>/models.yml`. Anthropic utilise par exemple `providers/anthropic/provider.yml` et `models/anthropic/models.yml`. Ces fichiers appartiennent à l’image et évoluent avec sa version.

@@ -26,6 +26,8 @@ Execution includes project and non-project automation starts, thread-message sen
 
 MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
 
+The execution bucket limits how quickly messages are accepted, not how many turns run at once. Accepted chat messages share a deployment-wide queue across organizations and keys. Each worker batch runs up to `WORKER_CONCURRENCY` turns, 5 by default; the next batch waits for the current one to settle. A successful send can therefore wait behind other clients’ work. Queue position and estimated start time are not exposed.
+
 ## The 429
 
 An HTTP limit refusal includes `Retry-After` in whole seconds. The JSON body provides the same wait in milliseconds. This illustrative response means wait at least two seconds:
@@ -35,10 +37,15 @@ HTTP/1.1 429 Too Many Requests
 Retry-After: 2
 Content-Type: application/json
 
-{"error":"RATE_LIMITED","code":"RATE_LIMITED","data":{"retryAfterMs":1500}}
+{
+  "error": "Too many requests — retry after 1500 ms",
+  "code": "RATE_LIMITED",
+  "requestId": "example-request-id",
+  "data": {"retryAfterMs": 1500}
+}
 ```
 
-Branch on `code`. For this response, `error` repeats the code rather than a human-readable sentence. Tale does not expose remaining-budget counters, so track your own traffic and use the server’s wait instruction.
+Branch on `code`; `error` is a sentence describing the wait, and `requestId` identifies the request for investigation. This is the REST response format. The app’s `/api/app` and webhook limit responses keep the machine code in `error`, so do not parse that text across surfaces. Tale does not expose remaining-budget counters: track your traffic and honor the server’s wait instruction.
 
 1. Stop the worker’s immediate retry loop.
 2. Wait at least `Retry-After`. If multiple workers share the identity, coordinate their pause.

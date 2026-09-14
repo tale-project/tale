@@ -43,10 +43,10 @@ tests:
         - connector: imap-smtp.send
 ```
 
-1. Ouvre **Automatisations > Nouvelle automatisation > Téléverser un paquet**.
+1. Ouvre **Automatisations > Créer une automatisation > Téléverser un paquet**.
 2. Choisis `workflow.yml` et laisse **Installer dans** sur **Organisation**.
 3. Clique sur **Téléverser le paquet**. Tale valide le document et enregistre `docs/approval-check` en brouillon.
-4. Choisis **Plus tard** dans la proposition de déploiement, puis ouvre **Approval check** dans la liste.
+4. Choisis **Plus tard** dans la proposition de déploiement, puis ouvre **Approval check** dans la liste. L’automatisation s’ouvre dans l’onglet **Éditeur**.
 
 Si ce nom existe déjà, l’import ajoute une version. Choisis une autre valeur de `name` pour garder un exercice séparé.
 
@@ -58,17 +58,17 @@ Si ce nom existe déjà, l’import ajoute une version. Choisis une autre valeur
 
 ## Tester le flux de données
 
-Clique sur **Essai**. Cet exemple ne demande aucune donnée d’exécution ; un objet vide suffit. La liste **Exécutions** doit afficher un test **Réussie** et le canvas doit indiquer que les deux nœuds ont été exécutés.
+Dans **Éditeur**, clique sur **Essai**. Cet exemple ne demande aucune donnée d’exécution ; un objet vide suffit. Passe à **Exécutions** : la liste doit afficher une exécution de test au statut **Réussie**.
 
-Ouvre l’exécution, sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connecteur utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
+Ouvre l’exécution et vérifie sur le canvas que les deux nœuds ont été exécutés. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connecteur utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
 
 Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulation réussie vérifie le graphe et l’appel prévu. Elle ne prouve ni la validité des identifiants de messagerie ni la livraison du message.
 
 ## Démarrer la vérification réelle
 
-Clique sur **Mettre cette version en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
+Reviens à **Éditeur** et clique sur **Mettre cette version en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
 
-Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Ouvre la nouvelle exécution en attente depuis **Exécutions**. La carte doit présenter l’approbation attendue, `imap-smtp.send`, le nœud `send` et les données de l’appel prévu. Destinataire, objet et texte doivent correspondre au test simulé.
+Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Passe à **Exécutions** et ouvre la nouvelle exécution en attente. La carte doit présenter l’approbation attendue, `imap-smtp.send`, le nœud `send` et les données de l’appel prévu. Destinataire, objet et texte doivent correspondre au test simulé.
 
 Si l’exécution ne se met pas en attente, examine son statut et la politique avant de continuer. Un appel de connecteur échoué ne prouve pas qu’une approbation a été demandée.
 

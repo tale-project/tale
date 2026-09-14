@@ -64,6 +64,23 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 The trace sample rate applies to browser performance traces. The backend sends errors, not performance traces. Browser traces default to 1.0 in development; choose a production sample rate that fits your monitoring budget. Stack frames are sent without redaction, so choose the destination according to your data-handling requirements.
 
+## Aggregate analytics with Umami
+
+Aggregate traffic collection is disabled by default and enabled separately for each deployment. Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and `UMAMI_PROXY_TOKEN` as described in the [environment reference](/self-hosted/configuration/environment-reference). Use a separate website ID for each deployment. Apply environment changes by recreating the affected production service; no image rebuild is needed. Clear the website ID and apply the change to disable collection. The Vite development server does not inject this configuration.
+
+The browser loads the Umami tracker from its own origin at `/_a/script.js` and sends curated events to `/_a/api/send`. A configured base path prefixes these URLs. Only the website ID and proxy path enter the browser configuration; the collector origin and bearer token stay on the server.
+
+`UMAMI_URL` must point to a collector gateway that authenticates `GET /_collect/script.js` and `POST /_collect/api/send` with that bearer token. A stock Umami dashboard URL alone does not provide this gateway contract. Caddy must overwrite `X-Analytics-Client-IP` from a trusted client address. Keep application ports private, and configure trusted proxy ranges when another proxy sits in front. The server forwards the validated IP, browser User-Agent and required Umami headers; it drops browser cookies, credentials and referrer headers.
+
+Reports contain known public page paths or private platform route templates, referrer origins, browser language, screen size, browser/OS/device information and approximate location. The collector derives visits and location from the IP without storing the raw address. Private organization and resource IDs become placeholders. Page titles, query strings, fragments, form fields and product content are excluded. The marketing site also counts completed contact and demo submissions without their contents. There is no cross-site identity, automatic click capture or session replay. Do Not Track and Global Privacy Control disable collection.
+
+After rollout, verify the behavior with a browser that permits analytics:
+
+1. Open a known page, navigate to another page and confirm both pageviews in the deployment’s Umami website.
+2. Inspect the request body. Private routes contain placeholders; query strings, titles and form data are absent.
+3. Enable Do Not Track or Global Privacy Control and confirm that collection stops.
+4. Block the collector or test with it unavailable. Normal navigation must continue to work.
+
 ## Know the limits
 
 Tale does not currently export OpenTelemetry traces through OTLP. An OpenTelemetry Collector can collect the Prometheus metrics, but scraping metrics does not produce distributed traces. End-to-end trace export needs application instrumentation as well as a collector.

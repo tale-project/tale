@@ -94,6 +94,10 @@ Les bases et fichiers téléversés persistent hors du clone. Un second worktree
 
 Une réinitialisation détruit les données de développement et peut toucher un autre clone qui utilise le même projet Compose. Inspecte les conteneurs et volumes du projet, sauvegarde ce qui compte et arrête les services avant de supprimer leur état. Les fichiers sous `TALE_CONFIG_DIR` sont indépendants : supprimer une base ne les réinitialise pas.
 
+## Réutiliser les composants d’interface
+
+Pour modifier une interface, commence par les [guides du design system](https://ui.tale.dev). Ils présentent `@tale/ui` pour l’application et `@tale/marketing-ui` pour les pages marketing, avec des exemples interactifs, des tokens et des modèles de mise en page. Cherche un composant existant dans ces packages avant d’en créer un. Ces guides sont en anglais.
+
 ## Vérifier une contribution
 
 Lis `AGENTS.md` et `.agents/repo.md` avant de modifier le code. Exécute les vérifications adaptées pendant ton travail, puis la vérification commune depuis la racine :

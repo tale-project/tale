@@ -21,6 +21,8 @@ Tale speichert Kontodaten, Organisationsmitgliedschaften und Inhalte, die du in 
 
 Ein Modellanbieter, Connector oder anderer externer Dienst kann Daten erhalten, wenn du eine entsprechende Funktion nutzt. Auch bei einer selbst betriebenen Instanz bleiben solche Aufrufe nicht automatisch lokal. Frage deine Administration nach den aktivierten Diensten. Der [Leitfaden zur Datenresidenz](/de/cloud/data-residency) unterscheidet Hosting und Verarbeitungsorte.
 
+Optionale aggregierte Nutzungsstatistiken verwenden selbst gehostetes Umami auf Tales eigenen Seiten und auf Deployments, deren Betreiber die Erfassung aktiviert. Erfasst werden bekannte öffentliche Seitenpfade oder private Routenvorlagen, Referrer-Ursprünge, Browsersprache, Bildschirmgröße, Geräte- und Browserdaten sowie der ungefähre Standort. Die IP-Adresse dient zur Standortableitung und kurzzeitigen Gruppierung von Besuchen, ohne Speicherung im Klartext. Cookies, dauerhafte Browserkennungen, websiteübergreifende Identitäten, Seitentitel, Suchparameter, Formularinhalte, Organisations- und Ressourcenkennungen sowie Sitzungsaufzeichnungen werden nicht erfasst. Do Not Track und Global Privacy Control deaktivieren diese Erfassung. Die Marketing-Seite zählt abgeschlossene Kontakt- und Demo-Anfragen ohne deren Inhalt.
+
 ## Auskunft, Berichtigung oder Löschung anfragen
 
 Wende dich zuerst an die Organisation, die für dein Konto und deinen Arbeitsbereich verantwortlich ist. Beschreibe die Daten und dein Anliegen über ihren vorgesehenen sicheren Kontaktweg. Stelle sensible Nachweise nicht in ein öffentliches Issue. Für Anfragen zur Website von Tale oder zu deinem Kontakt mit dem Unternehmen nutze den Kontaktweg in der Datenschutzerklärung.

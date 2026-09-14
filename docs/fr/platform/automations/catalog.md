@@ -5,17 +5,19 @@ description: Choisis un point de départ, importe un paquet validé et prépare 
 
 Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
 
-<Frame caption="La page Automatisations — chaque ligne est une automatisation avec son nombre de versions et la version en service, ou Pas en service.">
+La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour comparer les workflows de triage fournis.
 
-![La page Automatisations listant les automatisations e-mail et GitHub livrées, chaque ligne avec son nombre de versions et son état de déploiement.](/images/platform/automations-catalog.webp)
+<Frame caption="La liste filtrée avec Triage présente quatre exemples fournis, leur nombre de versions et leur état de déploiement.">
+
+![Quatre automatisations de triage filtrées pour GitHub, Gmail, IMAP et Outlook, avec leurs versions, leur état de déploiement et le bouton de création d’une automatisation.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
 ## Choisir un point de départ
 
-Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la pour examiner le workflow et ses exécutions. Le panneau **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation.
+Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Versions** présente les versions enregistrées, et **Exécutions**, les derniers lancements. Le panneau **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation.
 
-Le menu **Nouvelle automatisation** propose trois parcours :
+Le menu **Créer une automatisation** propose trois parcours :
 
 | Choix | À utiliser si… | Suite du parcours |
 | --- | --- | --- |
@@ -44,7 +46,7 @@ review-invoices/
 
 <Step title="Sélectionner les fichiers">
 
-Choisis **Nouvelle automatisation > Téléverser un paquet**. Ajoute le workflow et son manifeste éventuel comme fichiers séparés, ou sélectionne une seule archive `.zip` du pack. Les skills exigent l’archive ; téléverse-la seule. Les notes Markdown hors de `skills/`, les fichiers cachés et les résidus de compilation comme `node_modules/` ou `__pycache__/` sont ignorés.
+Choisis **Créer une automatisation > Téléverser un paquet**. Ajoute le workflow et son manifeste éventuel comme fichiers séparés, ou sélectionne une seule archive `.zip` du pack. Les skills exigent l’archive ; téléverse-la seule. Les notes Markdown hors de `skills/`, les fichiers cachés et les résidus de compilation comme `node_modules/` ou `__pycache__/` sont ignorés.
 
 </Step>
 

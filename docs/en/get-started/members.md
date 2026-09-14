@@ -48,6 +48,8 @@ Open a task to read its description, assignee, and discussion. If you have edit 
 
 ## Return to your work
 
+Choosing **Projects** or **Knowledge** from another section returns you to the place you last visited. Choose the already active section again to return to its list. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
+
 The chat sidebar keeps your conversation history. Use **Show chats** when it is hidden, then reopen the conversation. Use a new chat for a new subject and share a project conversation deliberately when teammates need it.
 
 Your language and theme are available from **Manage account**. The [preferences guide](/platform/member/preferences) explains the other account settings and which features use them.

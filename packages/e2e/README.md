@@ -35,17 +35,29 @@ service config when testing a deployment that needs no local server.
 
 ## Use application labels in locators
 
-`createI18n` reads YAML and resolves a dotted key to a string. It throws for a
-missing key or a group; it does not interpolate ICU arguments or apply locale
-fallback. Point it at the catalog for the language the test actually renders.
+`createI18n` reads YAML and resolves a dotted key to a string. Pass the package catalogs the
+service uses in `packages`; they merge in order beneath the service’s own keys. The merge is
+deep, so a service override replaces one key without removing its siblings. The resolver throws
+for a missing key or a group. It does not interpolate ICU arguments or apply locale fallback,
+so provide the catalogs for the language the test actually renders.
 
 ```ts
 // services/<name>/tests/e2e/specs/example.spec.ts
 import { createI18n } from '@tale/e2e/i18n';
 
-const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
-// Use an existing key from that service, for example t('search.placeholder').
+const uiCatalogs = new URL(
+  '../../../../../packages/ui/src/i18n/messages/', import.meta.url,
+);
+const { t } = createI18n(
+  new URL('../../../messages/en.yml', import.meta.url),
+  { packages: [new URL('global.yml', uiCatalogs), new URL('en.yml', uiCatalogs)] },
+);
+// t('common.actions.delete') resolves the shared label, unless the service overrides it.
 ```
+
+For a marketing service, add its `@tale/marketing-ui` catalogs after the UI catalogs, matching
+the package order in `initServiceI18n`. The [platform helper](../../services/platform/tests/e2e/helpers/i18n.ts)
+shows this setup for an app service.
 
 `@tale/e2e/smoke` provides `collectConsoleErrors(page)` and
 `expectPageRenders(page)` for basic page checks. They complement assertions about

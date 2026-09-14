@@ -62,6 +62,8 @@ Si tu maintiens plutôt une image de proxy Tale et un Caddyfile personnalisés, 
 
 Modifie `HOST` et `SITE_URL` ensemble, ainsi que les points d’accès de stockage publics et les callbacks du fournisseur d’identité qui utilisent l’ancienne origine. Recrée les services applicatifs et proxy concernés. Teste ensuite la connexion, le téléchargement d’un fichier existant, un import et une page actualisée en direct sur la nouvelle URL.
 
+Pour un déploiement géré créé avec `identity.bootstrap: "fresh"`, suis aussi la [procédure de migration du nom d’hôte](/fr/self-hosted/install/cli-install#managed-origin-migration). Elle exige l’état conservé du déploiement et un `identity.migrateOriginFrom` explicite. Modifier uniquement `HOST` et `SITE_URL` ne met pas à jour les journaux de l’identité et des clients gérés. Conserve le compte, l’organisation et les identifiants client, puis exporte la configuration des applications clientes pour le nouvel émetteur une fois le déploiement prêt.
+
 Pour un sous-chemin comme `https://example.com/app`, définis aussi `BASE_PATH=/app`. Garde ce préfixe dans les requêtes envoyées au proxy Tale : ses routes générées le retirent en interne. Vérifie les liens absolus et callbacks, pas seulement l’accueil. Lors d’une transition planifiée, conserve l’ancien domaine tant que les utilisateurs ont besoin de ses liens ou sessions.
 
 ## Servir plusieurs domaines {#plusieurs-domaines-a-la-fois}

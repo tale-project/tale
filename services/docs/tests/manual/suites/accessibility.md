@@ -24,9 +24,9 @@ axe layer in this service's e2e suite** — full-page audits are manual/assisted
 here; shared `@tale/ui` components carry `vitest-axe` coverage.
 
 > **Agent note**: assert structure via DOM scans. Skip link and page actions
-> are i18n-wired (`nav.skipToMain`, `docs.pageActions.*`). Remaining
-> hard-coded English in shared `@tale/ui` (code-copy, heading link) is logged
-> once via [locale.md](locale.md).
+> are i18n-wired (`nav.skipToMain`, `docs.pageActions.*`). The
+> shared code-copy and heading-link controls use localized `markdownCopy.*`
+> messages, as checked in [locale.md](locale.md).
 
 ## Functional / structural tests
 
@@ -39,7 +39,8 @@ here; shared `@tale/ui` components carry `vitest-axe` coverage.
   (EN **Documentation**); breadcrumbs `<nav>` labelled **Breadcrumbs**;
   outline `<aside>` labelled **On this page** (a `<nav>` of the same name below
   `xl`, never both exposed); prev/next `<nav>` labelled **Page navigation**;
-  one `<header>` (the phone bar, hidden from `md` up), one `<footer>`
+  one page-level banner on a phone (hidden from `md` up), the article title
+  header inside `<main>`, and one `<footer>`
 - [ ] `A11Y-A3` · **Rendered headings** — Walk headings top→bottom on landing
   + content page → Exactly one `<h1>` (the page title); rendered levels never
   skip. Caveat: `<Step title>` injects an `<h3>` regardless of context

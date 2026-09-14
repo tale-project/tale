@@ -37,15 +37,38 @@ Réindexer plusieurs fois un format non pris en charge ne le rend pas interrogea
 
 | Statut | Signification et action |
 | --- | --- |
-| **En file** | Attend une place d’indexation. Une bibliothèque chargée traite les fichiers progressivement. |
+| **En file d'attente** | Attend une place d’indexation. Une bibliothèque chargée traite les fichiers progressivement. |
 | **Indexation** | Le texte est préparé pour la recherche. Attends avant de tester la source. |
 | **Indexé** | L’indexation est terminée. Pose une question précise et ouvre sa citation. |
-| **Réindexation nécessaire** | L’index est périmé. Choisis **Réindexer** dans le menu de la ligne. |
+| **Réindexation nécessaire** | L’index est périmé. Utilise **Relancer l'indexation** à côté du statut. |
 | **Échoué** | Lis l’erreur, résous sa cause, puis réessaie. |
-| **Non pris en charge** | Aucun extracteur de texte adapté à ce format. Convertis la source. |
+| **Non pris en charge** | Ce contenu ne peut pas être indexé : format incompatible, texte vide ou illisible, ou PDF endommagé, par exemple. Ouvre le badge pour connaître la cause. |
 | **Non indexé** | Aucun index terminé n’est disponible. Vérifie le fichier et lance l’indexation lorsque l’action est proposée. |
 
 Les traitements interrompus reprennent en arrière-plan ou signalent un échec avec une option de relance. Si le statut n’avance pas, transmets le nom du document et l’erreur à un administrateur. Il peut vérifier les services d’indexation et la configuration des embeddings. Les fichiers échoués ou non pris en charge occupent toujours du stockage jusqu’à leur suppression.
+
+## Résoudre un problème d’indexation
+
+Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La correction dépend de la cause, pas seulement de l’extension du fichier.
+
+| Cause | Action à entreprendre |
+| --- | --- |
+| Format non pris en charge ou image | Convertis la source en document pris en charge contenant du texte lisible. Importer une image seule ne lance pas d’OCR pour la recherche dans les connaissances. |
+| Texte vide ou PDF scanné sans couche de texte | Ajoute le contenu manquant ou fournis une version traitée par OCR. Un fichier composé uniquement d’espaces et de sauts de ligne est également vide. |
+| Données binaires sous une extension de texte | Exporte du texte lisible, de préférence en UTF-8. Renommer un fichier binaire en `.txt` ne le convertit pas. |
+| PDF impossible à lire | Vérifie que l’original s’ouvre, retire sa protection par mot de passe si tu y es autorisé, ou exporte un nouveau PDF. Un fichier Office endommagé peut afficher une erreur d’indexation générale ; vérifie l’original avant de multiplier les essais. |
+| Secret détecté ou règle sur les données personnelles | Retire les identifiants de la source ou demande à un administrateur de vérifier la règle signalée. Importe ensuite le contenu corrigé, ou relance après correction de la configuration. |
+| Modèle d’embedding absent ou compte refusé par le fournisseur | Un administrateur doit configurer le modèle dans **Paramètres > Résidence des données**, ou corriger la clé, l’accès au modèle, l’offre ou le solde du compte. Relance ensuite. |
+| Panne temporaire du fournisseur ou du service d’indexation | Les traitements en arrière-plan retentent les échecs temporaires. Si l’erreur persiste, transmets le nom du document et le message à un administrateur. Après réparation, utilise **Relancer l'indexation**. |
+| Reconstruction ou réparation du moteur de recherche | La reconstruction peut se terminer automatiquement. Si la réparation échoue, l’exploitant doit réparer ou restaurer la base de connaissances avant une nouvelle tentative. |
+
+**Non pris en charge** ne propose pas de relance : traiter les mêmes octets ne corrigerait pas la cause. Un statut **Échoué** peut lui aussi nécessiter une modification de la source ou de la configuration. Une application distingue ces cas avec `indexing.errorCode` ; la [référence API](/fr/develop/api-reference) donne les codes stables.
+
+<Frame caption="Le dialogue explique que ce document ne contient aucun texte à indexer. Ajoute du contenu lisible avant de l’importer à nouveau.">
+
+![Le dialogue en anglais signale un document vide ou un scan sans couche de texte et recommande une version texte lisible.](/images/platform/document-indexing-unsupported.webp)
+
+</Frame>
 
 ## Choisir qui peut lire le document
 
@@ -63,6 +86,8 @@ Sélectionne les fichiers ou dossiers, puis le mode d’import :
 | --- | --- |
 | **Importation unique** | Copie une fois la sélection en conservant les dossiers. Les changements ultérieurs de la source ne modifient pas cette copie. |
 | **Importation synchronisée** | Maintient la sélection prise en charge à jour. Les nouveaux fichiers arrivent lors d’un prochain passage ; les fichiers modifiés sont réindexés ; ceux supprimés à la source disparaissent de la copie. |
+
+Démarrer la synchronisation d’un dossier peut aussi réorganiser un import antérieur. Si le même fichier source existe déjà dans Tale, la synchronisation reprend ce document et le déplace dans le dossier synchronisé correspondant, même si son contenu n’a pas changé. La correspondance repose sur l’identité du fichier source, pas uniquement sur son nom. Une synchronisation sans dossier de destination conserve l’emplacement existant.
 
 Pour Microsoft 365, choisis **Mon OneDrive** ou **Sites SharePoint**. La synchronisation concerne les dossiers OneDrive personnels ; SharePoint s’importe une seule fois. Pour Google Drive, sélectionne dans Mon Drive. Les Docs, Sheets et Slides natifs sont ignorés : exporte-les d’abord en PDF ou au format Office.
 

@@ -1,10 +1,23 @@
 ---
 title: Plateforme
-description: Découvre Tale à partir de ton travail, du premier chat aux projets, automatisations et réglages de l’organisation.
+description: Trouve le bon parcours pour discuter, travailler en projet, créer une automatisation ou administrer Tale.
 kind: index
 ---
 
 Ces guides expliquent comment travailler dans Tale, dans le Cloud ou sur ton propre déploiement. Commence par une question dans Chat, regroupe le travail suivi dans un projet ou consulte une fonction précise pour modifier un réglage.
+
+## Passer d’une section à l’autre {#navigation}
+
+Sur ordinateur, utilise la barre latérale gauche ; sur téléphone, la navigation se trouve en bas de l’écran et **Plus** donne accès aux autres sections. Lorsque tu reviens depuis une autre section, Tale rouvre la dernière vue consultée. Par exemple, ouvre l’onglet **Agents** d’un projet, passe dans **Chat**, puis choisis **Projets** : tu retrouves le même projet et le même onglet.
+
+| Tu souhaites… | Marche à suivre |
+| --- | --- |
+| Reprendre le travail dans une autre section | Choisis cette section dans la navigation principale. |
+| Revenir à la liste des projets | Choisis **Projets** alors que tu es déjà dans cette section, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
+| Revenir à la liste des documents | Choisis **Connaissances** alors que tu es déjà dans cette section. |
+| Aborder un nouveau sujet dans le chat | Choisis **Chat** alors que tu es déjà dans Chat, ou utilise **Nouveau chat**. |
+
+Les favoris et les liens partagés vers un projet, une tâche ou un document précis ouvrent toujours cette destination. La navigation mémorisée ne modifie pas tes droits d’accès. Le [guide des préférences](/fr/platform/member/preferences#navigation-memory) explique son fonctionnement entre onglets et organisations.
 
 ## Choisir une fonction
 
@@ -60,7 +73,7 @@ Comprends les capacités, la disponibilité et le choix des modèles.
 
 <Card title="Connecteurs" icon="plug" href="/fr/platform/connectors/overview">
 
-Connecte des services externes et découvre les actions accessibles aux agents et automatisations.
+Connecte des services externes et vérifie les actions accessibles aux agents et automatisations.
 
 </Card>
 

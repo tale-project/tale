@@ -50,6 +50,12 @@ Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bear
 
 Gespeicherte Produkte bearbeitest du über das Zeilenmenü. Verwende unterscheidbare Produktnamen und kontrolliere Preis und Währung, bevor du den Status änderst.
 
+Wähle **Bild hochladen** oder ziehe eine PNG-, JPEG-, WebP-, GIF- oder SVG-Datei in den Bildbereich. Die Obergrenze liegt bei 5 MiB. Warte auf die Vorschau, bevor du fortfährst. Prüfe bei einem fehlgeschlagenen Upload Dateiformat und Größe und versuche es erneut. Tale prüft die hochgeladenen Dateiinhalte und weist SVG-Dateien mit aktiven Inhalten ab.
+
+Das hochgeladene Bild bleibt nach dem Speichern und Neuladen des Produkts verfügbar. Sobald das Produkt gespeichert ist, können andere Organisationsmitglieder mit Produktzugriff das Bild sehen. Die Bildadresse setzt eine angemeldete Sitzung voraus und eignet sich nicht als öffentlicher Freigabelink. Zum Entfernen bearbeitest du das Produkt, wählst **Bild entfernen** und speicherst die Änderung.
+
+Wenn du **Oder URL einfügen** wählst, verwende eine öffentliche HTTPS-Adresse. Tale weist unsichere oder nicht zugelassene Hosts ab. Frage einen Administrator, wenn du eine interne Bildquelle brauchst. Für Bilder von externen Adressen gelten die Zugriffsregeln der jeweiligen Quelle.
+
 ## Zugriff und Aktualität prüfen
 
 Ein Datensatz oder Dokument hilft nur Personen, die darauf zugreifen dürfen. Prüfe die Team-Zuordnung, wenn jemand einen Eintrag nicht findet. Bei Projektdateien gilt der Projektzugriff statt der Team-Zuordnung der Dokumentbibliothek; siehe [Projektdateien](/de/platform/projects/manage-files).

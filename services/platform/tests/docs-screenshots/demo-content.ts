@@ -86,6 +86,13 @@ export interface DemoDocument {
   readonly content: string;
 }
 
+/** A saved draft with no notes yet: indexing must explain its empty contents. */
+export const DEMO_EMPTY_DOCUMENT: DemoDocument = {
+  fileName: 'onboarding-notes-draft.txt',
+  mimeType: 'text/plain',
+  content: '  \n\n',
+};
+
 export const DEMO_DOCUMENTS: readonly DemoDocument[] = [
   {
     fileName: '2026-brand-guidelines.txt',

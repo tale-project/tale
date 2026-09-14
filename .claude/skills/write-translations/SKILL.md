@@ -16,7 +16,7 @@ Read the repo contract, then the applicable locale guide:
 [English](locales/en/AGENTS.md), [German](locales/de/AGENTS.md),
 [French](locales/fr/AGENTS.md), or [Swiss German](locales/de-CH/AGENTS.md).
 For docs, also follow [write-docs](../write-docs/SKILL.md) and
-[docs/AGENTS.md](../../../docs/AGENTS.md).
+the [local content contract](../write-docs/SKILL.md#discover-before-drafting).
 
 In the task's note outside the clone, identify the files, reader's task, meaning to preserve,
 terminology to verify, and likely language risks. Reuse an existing planning note; no additional
@@ -33,6 +33,18 @@ Use these sources for different questions:
 - **Typography and checks:** [CONVENTIONS.md](CONVENTIONS.md), the locale guide, and
   [the i18n test framework](../../../packages/ui/src/i18n/tests/). Inspect actual check modes;
   advisory findings are not proof of correctness.
+
+Find the key’s owner before editing. Reusable app controls keep messages in
+`packages/ui/src/i18n/messages/`; marketing frames use
+`packages/marketing-ui/src/i18n/messages/`; service-specific UI keeps `services/<name>/messages/`.
+`initServiceI18n` merges package bundles in order, then service bundles per leaf key, with locale
+fallback and sparse regional overlays. Check overrides that can hide a shared correction. Moving
+a component also moves its owned keys and relevant regional overrides; it does not require a
+second service copy.
+
+For browser locators, `@tale/e2e/i18n` accepts explicit package catalogs beneath the service
+catalog. Match the runtime package order. This helper does not interpolate ICU or apply locale
+fallback for you; supply the catalogs for the language the test actually renders.
 
 When the source is ambiguous or wrong, resolve the meaning before translating. If the UI label is
 wrong, fix it and its dependent docs within scope, or describe the shipped label and record the
@@ -52,7 +64,10 @@ scope and use the documented narrow exception with a reason; do not alter realit
 
 For docs, preserve equivalent headings, warnings, components, code examples, images, links, and
 reader outcomes under the repository's parity checks. Rewrite sentences and paragraph breaks
-naturally inside that structure. All full locales ship together. `de-CH` remains a sparse overlay,
+naturally inside that structure. All full locales supported by that tree ship together. Tale’s product guides have EN/DE/FR
+bodies; the design-system site currently serves English bodies even though its chrome catalogs
+include EN/DE/FR. Plain English example literals there follow its sample-code contract, not the
+product-message rules. `de-CH` remains a sparse overlay,
 not a fourth copied catalog.
 
 ## Draft from meaning

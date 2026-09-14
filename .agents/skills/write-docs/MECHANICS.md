@@ -30,9 +30,10 @@ prerequisites, values the reader must replace, and result when those are not cle
 Show full runnable examples or label intentional fragments. Do not present ellipses as executable
 syntax. Use the observed output; label shortened or normalized output and preserve its meaning.
 
-Keep identifiers, routes, flags, JSON keys, and code comments identical across locale mirrors
-unless an example explicitly requires a localized input. Explain the code in localized prose.
-Never translate an enum or turn a decimal point into a comma inside JSON.
+Keep executable syntax, identifiers, routes, flags, and JSON keys identical across locale mirrors
+unless an example explicitly requires a localized input. Translate explanatory code comments and
+surrounding prose while preserving their meaning and any literal tokens they name. Never translate
+an enum or turn a decimal point into a comma inside JSON.
 
 ## Lists and tables
 
