@@ -257,7 +257,7 @@ export const baseComponents: Components = {
       typeof className === 'string' && className.includes('language-');
     if (isBlock) return <code className={className}>{children}</code>;
     return (
-      <code className="bg-bg-elevated text-fg-base rounded px-1.5 py-0.5 font-mono text-[0.875em]">
+      <code className="bg-bg-elevated text-fg-base rounded px-1.5 py-0.5 font-mono text-[0.875em] [overflow-wrap:anywhere]">
         {children}
       </code>
     );

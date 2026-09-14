@@ -1,3 +1,8 @@
-common:
-  aria:
-    close: Schliessen
+markdownDiagram:
+  zoomIn: Vergrössern
+markdownImage:
+  zoom: Bild vergrössern
+  close: Schliessen
+search:
+  close: Suche schliessen
+  tipClose: zum Schliessen

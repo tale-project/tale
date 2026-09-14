@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 
+import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 import { HighlightedCode } from '../highlighted-code';
 
@@ -42,6 +43,7 @@ interface CodeGroupProps {
  * preserves Shiki's already-rendered highlight.
  */
 export function CodeGroup({ children, className }: CodeGroupProps) {
+  const { t } = useT('markdownCodeGroup');
   const items = Children.toArray(children).filter(
     isValidElement,
   ) as ReactElement<CodeGroupChildProps>[];
@@ -82,11 +84,11 @@ export function CodeGroup({ children, className }: CodeGroupProps) {
     >
       <div
         role="tablist"
-        aria-label="Code examples"
+        aria-label={t('examples')}
         className="border-border-base flex items-stretch border-b"
       >
         {items.map((child, i) => {
-          const label = labelOf(child, i);
+          const label = labelOf(child, t('tab', { number: i + 1 }));
           const isActive = i === active;
           const tabId = `${groupId}-tab-${i}`;
           const panelId = `${groupId}-panel-${i}`;
@@ -138,8 +140,11 @@ export function CodeGroup({ children, className }: CodeGroupProps) {
   );
 }
 
-function labelOf(child: ReactElement<CodeGroupChildProps>, i: number): string {
-  return extractFilename(child) ?? extractLanguage(child) ?? `Tab ${i + 1}`;
+function labelOf(
+  child: ReactElement<CodeGroupChildProps>,
+  fallback: string,
+): string {
+  return extractFilename(child) ?? extractLanguage(child) ?? fallback;
 }
 
 function extractCode(child: ReactElement<CodeGroupChildProps>): string {

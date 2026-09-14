@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { useResizeObserver } from '../../hooks/use-resize-observer';
+import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 import { useTheme } from '../../theme';
 
@@ -149,10 +150,11 @@ export function sanitizeMermaidSvg(input: string): string {
  * itself never reflows under it.
  */
 export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
+  const { t } = useT('markdownDiagram');
   const { resolvedTheme } = useTheme();
   const effectiveTheme: 'light' | 'dark' = theme ?? resolvedTheme;
   const [svg, setSvg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ detail: string | null } | null>(null);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
@@ -238,9 +240,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
-        const message =
-          cause instanceof Error ? cause.message : 'Mermaid render failed';
-        setError(message);
+        setError({ detail: cause instanceof Error ? cause.message : null });
         console.warn('[mermaid] render failed', cause);
       });
     return () => {
@@ -418,11 +418,11 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
           className,
         )}
         role="status"
-        aria-label="Mermaid diagram (preparing)"
+        aria-label={t('preparingLabel')}
         aria-busy="true"
       >
         <div className="text-fg-subtle font-mono text-xs tracking-wide uppercase">
-          Preparing diagram…
+          {t('preparing')}
         </div>
       </div>
     );
@@ -436,7 +436,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
           className,
         )}
         role="img"
-        aria-label="Mermaid diagram (failed to render)"
+        aria-label={t('failedLabel')}
       >
         <div className="border-danger/20 bg-danger/10 flex items-start gap-2.5 border-b px-4 py-3">
           <AlertTriangle
@@ -445,18 +445,20 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
           />
           <div className="min-w-0 flex-1 space-y-0.5">
             <div className="text-fg-base text-sm font-medium">
-              Diagram failed to render
+              {t('failed')}
             </div>
             <div className="text-fg-muted font-mono text-xs break-words">
-              {error}
+              {error.detail ?? t('failed')}
             </div>
           </div>
         </div>
         <details className="group/mermaid-error">
           <summary className="text-fg-muted hover:text-fg-base cursor-pointer list-none px-4 py-2 text-xs select-none [&::-webkit-details-marker]:hidden">
-            <span className="group-open/mermaid-error:hidden">Show source</span>
+            <span className="group-open/mermaid-error:hidden">
+              {t('showSource')}
+            </span>
             <span className="hidden group-open/mermaid-error:inline">
-              Hide source
+              {t('hideSource')}
             </span>
           </summary>
           <pre className="text-fg-muted overflow-x-auto px-4 pb-3 font-mono text-[11px] leading-snug">
@@ -473,7 +475,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         type="button"
         onClick={() => applyZoom((z) => z - ZOOM_STEP)}
         disabled={viewport.zoom <= ZOOM_MIN}
-        aria-label="Zoom out"
+        aria-label={t('zoomOut')}
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Minus aria-hidden className="size-3.5" />
@@ -488,7 +490,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         type="button"
         onClick={() => applyZoom((z) => z + ZOOM_STEP)}
         disabled={viewport.zoom >= ZOOM_MAX}
-        aria-label="Zoom in"
+        aria-label={t('zoomIn')}
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Plus aria-hidden className="size-3.5" />
@@ -499,7 +501,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         disabled={
           viewport.zoom === 1 && viewport.panX === 0 && viewport.panY === 0
         }
-        aria-label="Reset zoom and pan"
+        aria-label={t('reset')}
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
         <RotateCcw aria-hidden className="size-3.5" />
@@ -507,7 +509,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
       <button
         type="button"
         onClick={() => setIsFullscreen((v) => !v)}
-        aria-label={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+        aria-label={isFullscreen ? t('exitFullscreen') : t('openFullscreen')}
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors"
       >
         <Maximize2 aria-hidden className="size-3.5" />
@@ -540,7 +542,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
       <div
         ref={containerRef}
         role="img"
-        aria-label="Mermaid diagram"
+        aria-label={t('label')}
         style={{
           transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
           transformOrigin: '0 0',
@@ -562,7 +564,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
         className="bg-bg-base/95 supports-backdrop-filter:bg-bg-base/85 fixed inset-0 z-50 flex flex-col p-4 pt-[calc(1rem+var(--safe-top))] pr-[calc(1rem+var(--safe-right))] pb-[calc(1rem+var(--safe-bottom))] pl-[calc(1rem+var(--safe-left))] backdrop-blur"
         role="dialog"
         aria-modal="true"
-        aria-label="Mermaid diagram (fullscreen)"
+        aria-label={t('fullscreenLabel')}
       >
         {controls}
         {stage}

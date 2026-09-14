@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
 import { useTheme } from '../theme';
 import { highlightCode } from './shiki';
@@ -56,6 +57,7 @@ export function HighlightedCode({
   showCopyButton,
   className,
 }: HighlightedCodeProps) {
+  const { t } = useT('markdownCopy');
   const { resolvedTheme } = useTheme();
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -116,7 +118,7 @@ export function HighlightedCode({
           type="button"
           onClick={handleCopy}
           disabled={copied}
-          aria-label={copied ? 'Copied' : 'Copy code'}
+          aria-label={copied ? t('codeCopied') : t('copyCode')}
           aria-live="polite"
           className={cn(
             'text-fg-muted hover:text-fg-base hover:bg-bg-elevated/80 absolute top-2 right-2 z-10 inline-flex size-7 items-center justify-center rounded transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20',
