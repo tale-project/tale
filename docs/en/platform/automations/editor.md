@@ -9,9 +9,9 @@ This page is the hands-on half of automations: what you click, in what order, to
 
 Open **Automations** in the sidebar. The list shows every automation in the organization with how many versions it has and either the version that is live or **Not deployed** when it has none yet. Click one and you land on its page.
 
-To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug, then select an entry to open its latest saved version.
+To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug, then select an entry to open its latest saved version. The switch lands on the tab you were on.
 
-That page is a workbench rather than a set of tabs. The name carries a **Live** badge when the version on screen is live. **Version**, **Test run**, **Run live**, **Discard**, and **Save** sit on the right — **Deploy this version** sits beside **Version** when the pick is not live. Beside the canvas, the panel shows **Trigger** and **Projects** — which projects' task boards see the automation; none means the whole organization — until you click a box. The panel is as tall as the canvas, which fills the window under the header. Selecting a node does not grow the canvas — extra fields scroll inside the panel. Click **Close**, press Escape, click the selected box again, or click the empty canvas, to get the trigger back. **Versions** and **Runs** sit below.
+That page has three tabs, like a project's: **Editor**, **Versions**, and **Runs**; it opens on **Editor**. The name carries a **Live** badge when the version on screen is live. **Version**, **Test run**, **Run live**, **Discard**, and **Save** sit at the right end of the tab strip — **Deploy this version** sits beside **Version** when the pick is not live. Beside the canvas, the panel shows **Trigger** and **Projects** — which projects' task boards see the automation; none means the whole organization — until you click a box. The panel is as tall as the canvas, which fills the window under the tabs. Selecting a node does not grow the canvas — extra fields scroll inside the panel. Click **Close**, press Escape, click the selected box again, or click the empty canvas, to get the trigger back. **Versions** lists every version you have saved and **Runs** every run; each opens in its own tab.
 
 ## Read the canvas
 
@@ -84,11 +84,11 @@ tests:
         - connector: email.send
 ```
 
-Whether a version's tests passed is recorded at save time, and the **Versions** list shows the result as a **Tests passed** or **Tests failed** badge. Deploying reads that record: a version saved with failing tests is refused, and the page says the version was not deployed rather than silently doing nothing. Fix the cause and save a new version — a recorded result is a fact about that version and never changes.
+Whether a version's tests passed is recorded at save time, and the **Versions** tab shows the result as a **Tests passed** or **Tests failed** badge. Deploying reads that record: a version saved with failing tests is refused, and the page says the version was not deployed rather than silently doing nothing. Fix the cause and save a new version — a recorded result is a fact about that version and never changes.
 
 ## Roll back
 
-Rolling back is deploying an earlier version. Pick it from **Version** in the header — or find it in **Versions**, read its message, and click it — then click **Deploy this version**. The badge moves, the newer versions stay in the list untouched, and no document is rewritten.
+Rolling back is deploying an earlier version. Pick it from **Version** in the tab strip — or open **Versions**, read its message, and click the row, which opens the editor at that version — then click **Deploy this version**. The badge moves, the newer versions stay in the list untouched, and no document is rewritten.
 
 This is why version messages matter more than they look. Six versions in, the message is what tells you which one was the last good state, so write it for the person who will be reading it during an incident.
 
@@ -104,7 +104,7 @@ Once an automation has run, **Show last run** overlays that run onto the canvas 
 
 Select a node with the overlay on and the panel adds an **In this run** section: the **Resolved input** the node actually received after every template was evaluated, its **Output**, and the effects it produced, or a note that it changed nothing outside the platform. Resolved input is usually the fastest answer to "why did this node do that" — it shows the value a reference produced, not the reference you wrote.
 
-Click a row in **Runs** to open that run's page, where the same canvas sits alongside the run's input, its output, and the complete list of effects. [Execution logs](/platform/automations/execution-logs) reads that page end to end.
+Open **Runs** and click a row to open that run's page — the tabs stay, with **Runs** active — where the same canvas sits alongside the run's input, its output, and the complete list of effects. [Execution logs](/platform/automations/execution-logs) reads that page end to end.
 
 ## Where this fits
 

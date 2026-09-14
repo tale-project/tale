@@ -7,7 +7,7 @@ Every start of an automation opens a run, and the run keeps writing to itself un
 
 ## The run list
 
-An automation's page ends with a **Runs** list, newest first. Each row carries the run's status, whether it was a test or a live run, the version it ran, when it started, and what started it. A run that failed or is waiting shows the reason on the row itself instead of the starter, so the list often answers the question without being opened.
+An automation's page has a **Runs** tab: every run, newest first. Each row carries the run's status, whether it was a test or a live run, the version it ran, when it started, and what started it. A run that failed or is waiting shows the reason on the row itself instead of the starter, so the list often answers the question without being opened.
 
 An automation that has never run says so rather than showing an empty table.
 
@@ -62,7 +62,7 @@ Two failures are never retried, because a fresh attempt could not end differentl
 
 ## A worked debugging session
 
-The daily reminder did not go out. Open the automation and look at the **Runs** list: this morning's run is there and it is **Failed**, with its reason on the row.
+The daily reminder did not go out. Open the automation's **Runs** tab: this morning's run is there and it is **Failed**, with its reason on the row.
 
 Open it. The canvas shows the first three nodes as having run, the fourth as failed, and everything after it as never reached — so the question is already narrowed to one box. Select the failed node and read its **Resolved input**: the customer name is present, the invoice id is an empty string. That points one node upstream.
 

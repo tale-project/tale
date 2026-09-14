@@ -9,9 +9,9 @@ Cette page est la moitié pratique des automatisations : ce que tu cliques, et d
 
 Ouvre **Automatisations** dans la barre latérale. La liste montre chaque automatisation de l’organisation avec son nombre de versions et soit la version en service, soit **Pas en service** tant qu’il n’y en a aucune. Clique sur l’une d’elles et tu arrives sur sa page.
 
-Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée.
+Pour passer à une autre automatisation sans revenir à la liste, clique sur le nom de celle qui est ouverte dans le fil d’Ariane. Le menu garde toutes les automatisations de l’organisation, même après un changement de projet. Celles qui ne sont rattachées à aucun projet apparaissent en premier, puis viennent celles liées à des projets. Une ligne horizontale sépare les deux groupes. Cherche par nom ou par slug, puis sélectionne une entrée pour ouvrir sa dernière version enregistrée. Le changement t’amène sur l’onglet que tu avais ouvert.
 
-Cette page est un plan de travail, pas une série d’onglets. Le nom porte le badge **En service** quand la version à l’écran est en service. **Version**, **Essai**, **Exécuter en réel**, **Abandonner** et **Enregistrer** sont à droite — **Mettre cette version en service** se place à côté de **Version** quand le choix n’est pas en service. À côté du canvas, le panneau montre **Déclencheur** et **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — jusqu’à ce que tu cliques sur une boîte. Le panneau a la hauteur du canvas, qui remplit la fenêtre sous l’en-tête. Quand tu sélectionnes un nœud, le canvas ne s’agrandit pas — les champs en trop défilent dans le panneau. Clique sur **Fermer**, appuie sur Échap, clique à nouveau sur la boîte sélectionnée, ou sur le canvas vide, pour les retrouver. **Versions** et **Exécutions** sont en dessous.
+Cette page a trois onglets, comme un projet : **Éditeur**, **Versions** et **Exécutions** ; elle s’ouvre sur **Éditeur**. Le nom porte le badge **En service** quand la version à l’écran est en service. **Version**, **Essai**, **Exécuter en réel**, **Abandonner** et **Enregistrer** sont au bout droit de la barre d’onglets — **Mettre cette version en service** se place à côté de **Version** quand le choix n’est pas en service. À côté du canvas, le panneau montre **Déclencheur** et **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — jusqu’à ce que tu cliques sur une boîte. Le panneau a la hauteur du canvas, qui remplit la fenêtre sous les onglets. Quand tu sélectionnes un nœud, le canvas ne s’agrandit pas — les champs en trop défilent dans le panneau. Clique sur **Fermer**, appuie sur Échap, clique à nouveau sur la boîte sélectionnée, ou sur le canvas vide, pour les retrouver. **Versions** liste chaque version enregistrée et **Exécutions** chaque exécution — chacune dans son onglet.
 
 ## Lire le canvas
 
@@ -84,11 +84,11 @@ tests:
         - connector: email.send
 ```
 
-Le résultat des tests d’une version est consigné à l’enregistrement, et la liste **Versions** l’affiche en badge **Tests réussis** ou **Tests en échec**. La mise en service lit ce fait : une version enregistrée avec des tests en échec est refusée, et la page indique qu’elle n’a pas été mise en service plutôt que de ne rien faire en silence. Corrige la cause et enregistre une nouvelle version — un résultat consigné est un fait sur cette version-là et ne change jamais.
+Le résultat des tests d’une version est consigné à l’enregistrement, et l’onglet **Versions** l’affiche en badge **Tests réussis** ou **Tests en échec**. La mise en service lit ce fait : une version enregistrée avec des tests en échec est refusée, et la page indique qu’elle n’a pas été mise en service plutôt que de ne rien faire en silence. Corrige la cause et enregistre une nouvelle version — un résultat consigné est un fait sur cette version-là et ne change jamais.
 
 ## Revenir en arrière
 
-Revenir en arrière, c’est mettre en service une version plus ancienne. Choisis-la dans **Version** en haut — ou trouve-la dans **Versions**, lis sa note et clique dessus — puis clique sur **Mettre cette version en service**. Le badge se déplace, les versions plus récentes restent intactes dans la liste, et aucun document n’est réécrit.
+Revenir en arrière, c’est mettre en service une version plus ancienne. Choisis-la dans **Version**, dans la barre d’onglets — ou ouvre **Versions**, lis sa note et clique sur la ligne, qui ouvre l’éditeur sur cette version — puis clique sur **Mettre cette version en service**. Le badge se déplace, les versions plus récentes restent intactes dans la liste, et aucun document n’est réécrit.
 
 C’est pour cela que les notes de version comptent plus qu’il n’y paraît. Six versions plus tard, c’est la note qui te dit laquelle était le dernier bon état : écris-la donc pour la personne qui la lira pendant un incident.
 
@@ -104,7 +104,7 @@ Dès qu’une automatisation s’est exécutée, **Afficher la dernière exécut
 
 Sélectionne un nœud avec la superposition active et le panneau ajoute une section **Dans cette exécution** : l’**Entrée résolue** que le nœud a réellement reçue une fois tous les templates évalués, sa **Sortie**, et les effets qu’il a produits, ou une note disant qu’il n’a rien changé hors de la plateforme. L’entrée résolue est en général la réponse la plus rapide à la question de savoir pourquoi un nœud a fait ce qu’il a fait : elle montre la valeur qu’une référence a produite, pas la référence que tu as écrite.
 
-Un clic sur une ligne sous **Exécutions** ouvre la page de cette exécution, où le même canvas côtoie son entrée, sa sortie et la liste complète des effets. [Journaux d’exécution](/fr/platform/automations/execution-logs) lit cette page de bout en bout.
+Ouvre **Exécutions** et clique sur une ligne : la page de cette exécution s’ouvre — les onglets restent, **Exécutions** actif — et le même canvas y côtoie son entrée, sa sortie et la liste complète des effets. [Journaux d’exécution](/fr/platform/automations/execution-logs) lit cette page de bout en bout.
 
 ## Où cela s’inscrit
 
