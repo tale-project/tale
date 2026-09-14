@@ -5,6 +5,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import {
   findTaskByExternalRef,
+  resolveSetupFolderId,
   startWorkflowForTask,
   startWorkflowForTaskInTx,
   taskWorkflowStartLockKey,
@@ -14,7 +15,7 @@ import {
   closePendingTaskReviewOnStatusLeave,
   requestTaskReview,
 } from './reviews.ts';
-import type { TaskRow } from './service.ts';
+import { TaskError, type TaskRow } from './service.ts';
 
 vi.mock('../automations/store.ts', () => ({
   beginRunInTx: vi.fn(),
@@ -481,6 +482,50 @@ describe('the external ref is canonical at the lookup and the write', () => {
     expect(values.insert).not.toEqual(expect.arrayContaining([' crm ']));
     expect(vi.mocked(createAuditLog).mock.calls.at(-1)?.[1]).toMatchObject({
       metadata: { externalSystem: 'crm', externalId: 'café-001' },
+    });
+  });
+});
+
+/**
+ * The desks' binding convention, resolved once for both doors: the app's
+ * `from-external-issue` intake and the REST `setupFolderName` field hand
+ * the folder's id to the task's `externalUrl` through this one lookup, so
+ * the two cannot drift on what "the Setup folder" means — a root folder of
+ * the project, by name, without regard to case.
+ */
+describe('resolveSetupFolderId — the Setup folder a desk binds by name', () => {
+  it('answers the root folder’s id, matched by trimmed name without regard to case', async () => {
+    let bound: unknown[] = [];
+    const { tx, statements } = fakeDb((text, values) => {
+      if (!text.includes('FROM app.folders')) return [];
+      bound = values;
+      return [{ id: 'folder-setup' }];
+    });
+    await expect(
+      resolveSetupFolderId(tx, {
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        setupFolderName: '  Client Setup ',
+      }),
+    ).resolves.toBe('folder-setup');
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain('parent_id IS NULL');
+    expect(statements[0]).toContain('lower(name) = ?');
+    expect(bound).toEqual(['org-1', 'p-1', 'client setup']);
+  });
+
+  it('fails closed on a name no root folder carries — SETUP_FOLDER_MISSING, naming the folder', async () => {
+    const { tx } = fakeDb(() => []);
+    const attempt = resolveSetupFolderId(tx, {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      setupFolderName: 'Setup',
+    });
+    await expect(attempt).rejects.toBeInstanceOf(TaskError);
+    await expect(attempt).rejects.toMatchObject({
+      code: 'SETUP_FOLDER_MISSING',
+      status: 400,
+      message: 'Folder "Setup" does not exist in this project yet',
     });
   });
 });

@@ -94,6 +94,34 @@ describe('DataTable loading states', () => {
   });
 
   describe('skeleton state (approxRowCount > 0 + loading)', () => {
+    it('uses the resolved leaf columns and alignment for loading and loaded cells', () => {
+      const grouped: ColumnDef<TestRow>[] = [
+        {
+          header: 'Person',
+          columns: [
+            { accessorKey: 'name', header: 'Name', size: 200 },
+            {
+              accessorKey: 'status',
+              header: 'Status',
+              size: 100,
+              meta: { align: 'center', skeleton: { type: 'badge' } },
+            },
+          ],
+        },
+      ];
+      const { rerender } = render(
+        <DataTable columns={grouped} data={[]} approxRowCount={1} isLoading />,
+      );
+      const loadingCells = within(getTbody()).getAllByRole('cell');
+      expect(loadingCells).toHaveLength(2);
+      expect(loadingCells[1]).toHaveClass('text-center');
+      const widths = loadingCells.map((cell) => cell.style.width);
+      rerender(<DataTable columns={grouped} data={[sampleRows[0]]} />);
+      const loadedCells = within(getTbody()).getAllByRole('cell');
+      expect(loadedCells.map((cell) => cell.style.width)).toEqual(widths);
+      expect(loadedCells[1]).toHaveClass('text-center');
+    });
+
     it('renders skeleton rows matching approxRowCount', () => {
       render(
         <DataTable columns={columns} data={[]} approxRowCount={5} isLoading />,

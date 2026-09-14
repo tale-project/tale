@@ -62,7 +62,7 @@ export function ReleaseRequestsSection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'two-line' as const } },
+        meta: { skeleton: { type: 'badge-text' } },
         size: 200,
       },
       {
@@ -93,7 +93,11 @@ export function ReleaseRequestsSection({
       {
         id: 'actions',
         header: t('legalHold.columns.actions'),
-        meta: { isAction: true, align: 'right' as const },
+        meta: {
+          isAction: true,
+          align: 'right' as const,
+          skeleton: { actionSize: 'sm', actionCount: 2 },
+        },
         cell: ({ row }) => {
           const isSelf = currentUser?.userId === row.original.requestedBy;
           return (
@@ -157,7 +161,7 @@ export function ReleaseRequestsSection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'two-line' as const } },
+        meta: { skeleton: { type: 'badge-text' } },
         size: 200,
       },
       {

@@ -45,13 +45,14 @@ type FolderFixture = {
 let documentsFixture: DocFixture[] = [];
 let foldersFixture: FolderFixture[] = [];
 let projectFixture: { canEdit: boolean } | null = { canEdit: true };
+let loadingFixture = false;
 const deleteDocumentMutate = vi.fn();
 
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
   useProjectDocuments: () => ({
     documents: documentsFixture,
-    isLoading: false,
+    isLoading: loadingFixture,
   }),
   useProjectFolders: () => ({
     folders: foldersFixture,
@@ -205,7 +206,19 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [];
     foldersFixture = [];
     projectFixture = { canEdit: true };
+    loadingFixture = false;
     deleteDocumentMutate.mockClear();
+  });
+
+  it('reserves the file tree while the first document read is loading', () => {
+    loadingFixture = true;
+    const { rerender } = renderTab();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    documentsFixture = [makeDoc()];
+    loadingFixture = false;
+    rerender(<ProjectFilesTab organizationId="org-1" projectId={PROJECT_ID} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('tree')).toBeInTheDocument();
   });
 
   it('exposes a preview affordance on a row that has a stored file', () => {

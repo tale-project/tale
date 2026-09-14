@@ -31,6 +31,7 @@ export function SharePointDrivesTable({
       {
         id: 'name',
         header: tTables('headers.name'),
+        meta: { skeleton: { type: 'avatar-text', lines: 2 } },
         cell: ({ row }) => {
           const drive = row.original;
           return (

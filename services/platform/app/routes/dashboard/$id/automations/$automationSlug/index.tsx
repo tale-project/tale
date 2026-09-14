@@ -1,20 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AutomationDetail } from '@/app/features/automations/components/automation-detail';
-import { paramToAutomationSlug } from '@/lib/automations/slug';
-
+/**
+ * Bare `/automations/$automationSlug` is an alias, not a page: bookmarks,
+ * search hits and API-side links land here and forward to the Editor, the
+ * automation's default surface — exactly as a bare project URL forwards to
+ * Tasks.
+ */
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$automationSlug/',
 )({
-  component: AutomationDetailPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/automations/$automationSlug/editor',
+      params,
+      replace: true,
+    });
+  },
 });
-
-function AutomationDetailPage() {
-  const { id: organizationId, automationSlug } = Route.useParams();
-  return (
-    <AutomationDetail
-      organizationId={organizationId}
-      automationSlug={paramToAutomationSlug(automationSlug)}
-    />
-  );
-}

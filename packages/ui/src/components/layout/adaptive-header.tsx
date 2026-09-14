@@ -10,6 +10,7 @@ import {
   useMemo,
   useState,
   useEffect,
+  useLayoutEffect,
   type ReactNode,
 } from 'react';
 
@@ -27,10 +28,20 @@ interface AdaptiveHeaderContextValue {
   descriptionEl: HTMLElement | null;
   identityElDesktop: HTMLElement | null;
   identityElMobile: HTMLElement | null;
+  /** The trailing slot of a tab strip under the title row, when the page has
+   * one (`AdaptiveHeaderTabActionsSlot`). Mounted on both breakpoints — the
+   * strip hands it to the floating dock below `md`. */
+  tabActionsEl: HTMLElement | null;
+  /** The title row declared that a tab strip follows it (`AdaptiveHeaderRoot
+   * tabsFollow`). Known from the first commit, unlike `tabActionsEl`, which
+   * attaches only once the dock has mounted below `md`. */
+  tabsFollow: boolean;
   setActionsEl: (el: HTMLElement | null) => void;
   setDescriptionEl: (el: HTMLElement | null) => void;
   setIdentityElDesktop: (el: HTMLElement | null) => void;
   setIdentityElMobile: (el: HTMLElement | null) => void;
+  setTabActionsEl: (el: HTMLElement | null) => void;
+  setTabsFollow: (value: boolean) => void;
 }
 
 const AdaptiveHeaderContext = createContext<AdaptiveHeaderContextValue | null>(
@@ -55,12 +66,16 @@ function useAdaptiveHeaderContent() {
 /** Slots the header exposes so a page can portal chrome into the title
  * strip. `null` outside the provider — the page then renders those pieces
  * itself. Identity sits next to the title on both breakpoints (desktop root
- * vs mobile slot); actions and description stay desktop-only portals. */
+ * vs mobile slot); the description stays a desktop-only portal. Actions go
+ * to the tab strip's slot whenever a strip is mounted, else to the title row
+ * on desktop. */
 export function useAdaptiveHeaderSlots(): {
   actionsEl: HTMLElement | null;
   descriptionEl: HTMLElement | null;
   identityElDesktop: HTMLElement | null;
   identityElMobile: HTMLElement | null;
+  tabActionsEl: HTMLElement | null;
+  tabsFollow: boolean;
 } | null {
   const context = useContext(AdaptiveHeaderContext);
   if (!context) return null;
@@ -69,6 +84,8 @@ export function useAdaptiveHeaderSlots(): {
     descriptionEl: context.descriptionEl,
     identityElDesktop: context.identityElDesktop,
     identityElMobile: context.identityElMobile,
+    tabActionsEl: context.tabActionsEl,
+    tabsFollow: context.tabsFollow,
   };
 }
 
@@ -92,8 +109,15 @@ export function AdaptiveHeaderProvider({
     useState<HTMLElement | null>(null);
   const [identityElMobile, setIdentityElMobileState] =
     useState<HTMLElement | null>(null);
+  const [tabActionsEl, setTabActionsElState] = useState<HTMLElement | null>(
+    null,
+  );
+  const [tabsFollow, setTabsFollow] = useState(false);
   const setActionsEl = useCallback((el: HTMLElement | null) => {
     setActionsElState((current) => (current === el ? current : el));
+  }, []);
+  const setTabActionsEl = useCallback((el: HTMLElement | null) => {
+    setTabActionsElState((current) => (current === el ? current : el));
   }, []);
   const setDescriptionEl = useCallback((el: HTMLElement | null) => {
     setDescriptionElState((current) => (current === el ? current : el));
@@ -113,10 +137,14 @@ export function AdaptiveHeaderProvider({
       descriptionEl,
       identityElDesktop,
       identityElMobile,
+      tabActionsEl,
+      tabsFollow,
       setActionsEl,
       setDescriptionEl,
       setIdentityElDesktop,
       setIdentityElMobile,
+      setTabActionsEl,
+      setTabsFollow,
     }),
     [
       headerContent,
@@ -124,10 +152,13 @@ export function AdaptiveHeaderProvider({
       descriptionEl,
       identityElDesktop,
       identityElMobile,
+      tabActionsEl,
+      tabsFollow,
       setActionsEl,
       setDescriptionEl,
       setIdentityElDesktop,
       setIdentityElMobile,
+      setTabActionsEl,
     ],
   );
 
@@ -135,6 +166,27 @@ export function AdaptiveHeaderProvider({
     <AdaptiveHeaderContext.Provider value={value}>
       {children}
     </AdaptiveHeaderContext.Provider>
+  );
+}
+
+// =============================================================================
+// Tab-strip actions slot
+// =============================================================================
+
+/**
+ * The mount point a tabbed page's action cluster portals into. Render it as
+ * the children of the `TabNavigation` that follows the title row: the strip
+ * pins it to the right on desktop and hands it to the floating dock below
+ * `md`, so `PageActionHeader` puts the cluster where every other tabbed page
+ * keeps its Save/Discard — in the strip, never in a second row.
+ */
+export function AdaptiveHeaderTabActionsSlot() {
+  const { setTabActionsEl } = useAdaptiveHeader();
+  return (
+    <div
+      ref={setTabActionsEl}
+      className="flex min-w-0 items-center justify-end gap-2 empty:hidden"
+    />
   );
 }
 
@@ -189,6 +241,15 @@ interface AdaptiveHeaderRootProps {
    */
   showBorder?: boolean;
   /**
+   * A tab strip with an `AdaptiveHeaderTabActionsSlot` follows this row.
+   * Tells page chrome (`PageActionHeader`) that its action cluster belongs in
+   * that slot from the first commit — below `md` the slot only attaches once
+   * the floating dock has mounted, and without this the cluster would flash
+   * in a second row for one frame.
+   * @default false
+   */
+  tabsFollow?: boolean;
+  /**
    * When true (default), applies sticky positioning, backdrop blur, and z-index.
    * When false, renders without sticky/blur for use inside StickyHeader wrapper.
    * @default true
@@ -200,6 +261,7 @@ export function AdaptiveHeaderRoot({
   children,
   className,
   showBorder = false,
+  tabsFollow = false,
   standalone = true,
 }: AdaptiveHeaderRootProps) {
   const {
@@ -207,6 +269,7 @@ export function AdaptiveHeaderRoot({
     setActionsEl,
     setDescriptionEl,
     setIdentityElDesktop,
+    setTabsFollow,
   } = useAdaptiveHeader();
   const isMobile = useIsMobile();
 
@@ -215,6 +278,14 @@ export function AdaptiveHeaderRoot({
     setHeaderContent(children);
     return () => setHeaderContent(null);
   }, [children, setHeaderContent]);
+
+  // Before paint, so a page rendering in the same commit never sees a
+  // strip-less header and draws its cluster locally for a frame.
+  useLayoutEffect(() => {
+    if (!tabsFollow) return undefined;
+    setTabsFollow(true);
+    return () => setTabsFollow(false);
+  }, [tabsFollow, setTabsFollow]);
 
   return (
     <div

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import {
   provisionStatePath,
+  admitsProvisionOrigin,
   readProvisionState,
   readProvisionStateProof,
   writeProvisionState,
@@ -72,6 +73,7 @@ export interface NativeClientResult {
 }
 export interface NativeClientContext {
   origin: string;
+  migrateOriginFrom?: string;
   organization: { id: string; slug: string };
   request: (path: string, method?: string, body?: unknown) => Promise<Response>;
   requireJson: (response: Response, operation: string) => Promise<unknown>;
@@ -223,9 +225,17 @@ export async function reconcileNativeClients(
       `client-${desired.key}.json`,
     );
     const intent = readProvisionState(file, intentSchema);
+    if (context.migrateOriginFrom && !intent)
+      throw preconditionError(
+        'Origin migration requires retained native client credentials.',
+      );
     if (
       intent &&
-      (intent.origin !== context.origin ||
+      (!admitsProvisionOrigin(
+        intent,
+        context.origin,
+        context.migrateOriginFrom,
+      ) ||
         intent.organizationId !== context.organization.id ||
         intent.operatorUserId !== context.user?.id ||
         intent.body.software_id !== desired.key ||
@@ -400,7 +410,13 @@ export async function reconcileNativeClients(
           throw preconditionError(
             'Private native client intent changed during verification.',
           );
-        credentials = { path: state.file, sha256: retained.sha256 };
+        if (state.intent.origin !== context.origin) {
+          state.intent = { ...state.intent, origin: context.origin };
+          credentials = writeProvisionState(state.file, state.intent);
+          changed = true;
+        } else {
+          credentials = { path: state.file, sha256: retained.sha256 };
+        }
       }
     }
     const client = after[index];

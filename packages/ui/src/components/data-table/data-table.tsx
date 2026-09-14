@@ -11,9 +11,7 @@ import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base
 import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
 import { useErrorScope } from '@tale/ui/error-boundaries/error-scope';
 import { useT } from '@tale/ui/i18n/client';
-import { HStack, Stack } from '@tale/ui/layout';
 import { chainVerticalWheelToScrollParent } from '@tale/ui/scroll-wheel-chain';
-import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import {
@@ -71,6 +69,10 @@ import {
   type DataTablePaginationProps,
 } from './data-table-pagination';
 import {
+  DataTableSkeletonCell,
+  type DataTableSkeleton,
+} from './data-table-skeleton-cell';
+import {
   entityLabelForms,
   type DataTableSearchConfig,
   type DataTableSortingConfig,
@@ -85,18 +87,7 @@ const MAX_SKELETON_ROWS = 12;
 interface ColumnMeta {
   isAction?: boolean;
   hasAvatar?: boolean;
-  skeleton?: {
-    type?:
-      | 'text'
-      | 'two-line'
-      | 'badge'
-      | 'id-copy'
-      | 'avatar-text'
-      | 'icon-text'
-      | 'action'
-      | 'checkbox'
-      | 'switch';
-  };
+  skeleton?: DataTableSkeleton;
   align?: 'left' | 'center' | 'right';
   /**
    * Opt this column in as the table's flex column: it alone absorbs ALL the
@@ -487,7 +478,7 @@ export function DataTable<TData, TValue = unknown>({
   //   3. data.length    — whether actual rows have arrived
   //
   // States:
-  //   'loading'        — count unknown, show minimal skeleton (3 rows)
+  //   'loading'        — count unknown, show the default skeleton rows
   //   'skeleton'       — count known > 0, show N skeleton rows
   //   'empty'          — no data, emptyState provided, no active filters
   //   'filtered-empty' — no data, active filters present
@@ -840,191 +831,57 @@ export function DataTable<TData, TValue = unknown>({
         ) : null}
         <TableBody>
           {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
-            // Skeleton rows — count-loading uses 3 placeholder rows,
-            // skeleton uses the actual approxRowCount.
-            // Text-line widths vary per cell (deterministic, so SSR-stable)
-            // instead of painting a uniform grid of identical bars; the width
-            // lives on a wrapper around the box because a narrower placeholder
-            // INSIDE a fullWidth SkeletonBox is ignored by the mask.
             Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-              // `h-12` mirrors the real data rows below — without it the
-              // skeleton collapses to its content height (~32px) and reads as a
-              // dense, tight list that doesn't match the roomier loaded table.
-              // Must be `h-12`, not `min-h-12`: CSS ignores `min-height` on a
-              // table row (`display: table-row`), whereas `height` is treated as
-              // a *minimum* there, so taller cells still grow the row past it.
-              <TableRow key={`skeleton-${rowIndex}`} className="h-12">
-                {enableExpanding && <TableCell className="w-[3rem]" />}
-                {columns.map((col, colIndex) => {
-                  const textWidth = (salt: number, min: number, span: number) =>
-                    `${min + ((rowIndex * 17 + colIndex * 29 + salt * 13) % span)}%`;
+              <TableRow
+                key={`skeleton-${rowIndex}`}
+                data-no-hover
+                className={cn(
+                  'h-12',
+                  typeof rowClassName === 'string' && rowClassName,
+                )}
+              >
+                {enableExpanding && (
+                  <TableCell className="w-[3rem] p-0">
+                    <div className="h-12 w-12" />
+                  </TableCell>
+                )}
+                {visibleLeafColumns.map((column, colIndex) => {
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
-                  const meta = col.meta as ColumnMeta | undefined;
-                  const isActionCol = meta?.isAction === true;
-                  const skeletonType = meta?.skeleton?.type;
-                  const hasAvatar = meta?.hasAvatar;
-                  const align = meta?.align;
-
-                  let cellContent: ReactNode;
-
-                  if (isActionCol || skeletonType === 'action') {
-                    cellContent = (
-                      <HStack justify="end">
-                        <SkeletonBox>
-                          <div className="h-8 w-8 rounded-md" />
-                        </SkeletonBox>
-                      </HStack>
-                    );
-                  } else if (skeletonType === 'checkbox') {
-                    // Mirrors the real 16px checkbox (`size-4`) — NOT the 32px
-                    // `action` button shape. In the pinned 40px select column an
-                    // `h-8 w-8` block leaves only ~4px each side and reads as
-                    // edge-to-edge; a `size-4` square keeps the ~12px gutter the
-                    // loaded checkbox has.
-                    cellContent = (
-                      <SkeletonBox>
-                        <div className="size-4 rounded" />
-                      </SkeletonBox>
-                    );
-                  } else if (skeletonType === 'badge') {
-                    cellContent = (
-                      <SkeletonBox>
-                        <div className="h-5 w-20 rounded-full" />
-                      </SkeletonBox>
-                    );
-                  } else if (skeletonType === 'switch') {
-                    cellContent = (
-                      <SkeletonBox>
-                        <div className="h-[1.15rem] w-8 rounded-full" />
-                      </SkeletonBox>
-                    );
-                  } else if (skeletonType === 'id-copy') {
-                    cellContent = (
-                      <HStack gap={2}>
-                        <div className="min-w-0 flex-1">
-                          <div className="max-w-[120px]">
-                            <SkeletonBox fullWidth>
-                              <div className="h-3.5" />
-                            </SkeletonBox>
-                          </div>
-                        </div>
-                        <SkeletonBox>
-                          <div className="size-6 shrink-0 rounded-md" />
-                        </SkeletonBox>
-                      </HStack>
-                    );
-                  } else if (
-                    hasAvatar === true ||
-                    skeletonType === 'avatar-text'
-                  ) {
-                    // Avatar + two text lines — only when a column explicitly
-                    // opts in (via `hasAvatar`/`avatar-text`). Previously the
-                    // FIRST column defaulted to this shape, which painted a
-                    // phantom avatar on every text-first table (API keys, MCP,
-                    // workflow executions, …) — the "skeleton doesn't match content" bug.
-                    cellContent = (
-                      <HStack gap={3}>
-                        <SkeletonBox>
-                          <div className="size-8 shrink-0 rounded-md" />
-                        </SkeletonBox>
-                        <Stack gap={1} className="min-w-0 flex-1">
-                          <div
-                            className="max-w-48"
-                            style={{ width: textWidth(1, 62, 31) }}
-                          >
-                            <SkeletonBox fullWidth>
-                              <div className="h-3.5" />
-                            </SkeletonBox>
-                          </div>
-                          <div
-                            className="max-w-24"
-                            style={{ width: textWidth(2, 38, 25) }}
-                          >
-                            <SkeletonBox fullWidth>
-                              <div className="h-3" />
-                            </SkeletonBox>
-                          </div>
-                        </Stack>
-                      </HStack>
-                    );
-                  } else if (skeletonType === 'icon-text') {
-                    cellContent = (
-                      <HStack gap={3}>
-                        <SkeletonBox>
-                          <div className="size-4 shrink-0 rounded" />
-                        </SkeletonBox>
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className="max-w-48"
-                            style={{ width: textWidth(3, 62, 31) }}
-                          >
-                            <SkeletonBox fullWidth>
-                              <div className="h-3.5" />
-                            </SkeletonBox>
-                          </div>
-                        </div>
-                      </HStack>
-                    );
-                  } else if (skeletonType === 'two-line') {
-                    // Primary + secondary line (e.g. email over actor id) so the
-                    // skeleton row matches the real two-line cell height.
-                    cellContent = (
-                      <Stack gap={1} className="min-w-0">
-                        <div
-                          className="max-w-48"
-                          style={{ width: textWidth(4, 62, 31) }}
-                        >
-                          <SkeletonBox fullWidth>
-                            <div className="h-3.5" />
-                          </SkeletonBox>
-                        </div>
-                        <div
-                          className="max-w-24"
-                          style={{ width: textWidth(5, 38, 25) }}
-                        >
-                          <SkeletonBox fullWidth>
-                            <div className="h-3" />
-                          </SkeletonBox>
-                        </div>
-                      </Stack>
-                    );
-                  } else if (align === 'right') {
-                    cellContent = (
-                      <div className="flex justify-end">
-                        <SkeletonBox>
-                          <div className="h-3.5 w-20" />
-                        </SkeletonBox>
-                      </div>
-                    );
-                  } else if (align === 'center') {
-                    cellContent = (
-                      <div className="flex justify-center">
-                        <SkeletonBox>
-                          <div className="h-3.5 w-20" />
-                        </SkeletonBox>
-                      </div>
-                    );
-                  } else {
-                    cellContent = (
-                      <div style={{ width: textWidth(6, 52, 38) }}>
-                        <SkeletonBox fullWidth>
-                          <div className="h-3.5" />
-                        </SkeletonBox>
-                      </div>
-                    );
-                  }
-
-                  const id = col.id ?? '';
+                  const meta = column.columnDef.meta as ColumnMeta | undefined;
+                  const id = column.id;
+                  const size = column.getSize();
+                  const isActionCol =
+                    meta?.isAction === true || id === 'actions';
                   const utility = isUtilityCol(id, isActionCol);
+                  const content = (
+                    <DataTableSkeletonCell
+                      skeleton={{
+                        ...meta?.skeleton,
+                        type: isActionCol
+                          ? 'action'
+                          : id === 'select'
+                            ? 'checkbox'
+                            : meta?.hasAvatar
+                              ? 'avatar-text'
+                              : meta?.skeleton?.type,
+                      }}
+                      align={meta?.align}
+                      rowIndex={rowIndex}
+                      columnIndex={colIndex}
+                    />
+                  );
                   return (
                     <TableCell
-                      key={colIndex}
-                      className={cn(utility && 'p-0', meta?.className)}
-                      style={cellWidthStyle(id, col.size, isActionCol)}
+                      key={id}
+                      className={cn(
+                        utility && 'p-0',
+                        meta?.align === 'right' && 'text-right',
+                        meta?.align === 'center' && 'text-center',
+                        meta?.className,
+                      )}
+                      style={cellWidthStyle(id, size, isActionCol)}
                     >
-                      {utility
-                        ? utilityCellBox(id, col.size, cellContent)
-                        : cellContent}
+                      {utility ? utilityCellBox(id, size, content) : content}
                     </TableCell>
                   );
                 })}

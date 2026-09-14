@@ -38,6 +38,12 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         accessorKey: 'topic',
         header: tEntity('headers.topic'),
         size: 240,
+        meta: {
+          skeleton: {
+            type: 'icon-text',
+            icon: <BookOpen className="size-5" />,
+          },
+        },
         cell: ({ row }) => (
           <HStack gap={2}>
             <Row
@@ -71,6 +77,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         accessorKey: 'source',
         header: tEntity('headers.source'),
         size: 96,
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => (
           <Badge variant="outline">
             {row.original.source === 'chat'
@@ -83,7 +90,10 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         id: 'ragStatus',
         header: tTables('headers.status'),
         size: 128,
-        meta: { headerLabel: tTables('headers.status') },
+        meta: {
+          headerLabel: tTables('headers.status'),
+          skeleton: { type: 'badge', badge: { variant: 'blue' } },
+        },
         cell: ({ row }) => (
           <RagStatusBadge
             status={row.original.ragStatus}
@@ -104,7 +114,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
           </span>
         ),
         size: 128,
-        meta: { headerLabel: tEntity('headers.updated') },
+        meta: { headerLabel: tEntity('headers.updated'), align: 'right' },
         cell: ({ row }) => (
           <CopyableTimestamp
             date={row.original.createdAt}

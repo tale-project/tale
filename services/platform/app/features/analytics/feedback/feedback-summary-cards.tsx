@@ -65,15 +65,9 @@ export function FeedbackSummaryCards({
                   })
             }
           >
-            {loading ? (
-              <SkeletonBox>
-                <span className="my-0.5 inline-block h-9 w-24" />
-              </SkeletonBox>
-            ) : capped ? (
-              '—'
-            ) : (
-              sentimentLabel
-            )}
+            <SkeletonBox>
+              {loading ? '00%' : capped ? '—' : sentimentLabel}
+            </SkeletonBox>
           </Text>
           {!loading && !capped && total > 0 ? (
             <Text variant="caption">
@@ -93,7 +87,7 @@ export function FeedbackSummaryCards({
         {/* The sentiment bar only paints with data — reserve its exact 0.5rem
             height while loading so the sentiment cell doesn't grow on load. */}
         {loading ? (
-          <SkeletonBox fullWidth>
+          <SkeletonBox asChild>
             <div className="h-2 w-full rounded-full" />
           </SkeletonBox>
         ) : total > 0 ? (

@@ -61,8 +61,6 @@ describe('Badge', () => {
 
     it('has title for string children', () => {
       const { container } = render(<Badge>Long text</Badge>);
-      // The Badge is wrapped in a `<SkeletonBox>` (a `display: contents` span),
-      // so the title-bearing element is the inner badge `<div>`, not firstChild.
       expect(container.querySelector('div')).toHaveAttribute(
         'title',
         'Long text',
@@ -81,8 +79,6 @@ describe('Badge', () => {
       const { container } = render(
         <Badge className="custom-class">Badge</Badge>,
       );
-      // `className` lands on the inner badge `<div>`, not the `<SkeletonBox>`
-      // wrapper that is `container.firstChild`.
       expect(container.querySelector('div')).toHaveClass('custom-class');
     });
 

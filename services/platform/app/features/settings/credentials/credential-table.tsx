@@ -235,6 +235,7 @@ export function CredentialTable<
         accessorKey: 'vendorName',
         header: labels.vendorColumn,
         size: 200,
+        meta: { skeleton: { type: 'icon-text' } },
         cell: ({ row }) => (
           <HStack align="center" gap={2} className="min-w-0">
             <VendorIcon

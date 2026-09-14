@@ -3,7 +3,6 @@
 import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useRef } from 'react';
 
@@ -63,7 +62,6 @@ export function ColorPickerInput({
   const isValidHex = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(value);
   const colorOnly = value.slice(0, 7);
   const displayValue = value.replace('#', '').toUpperCase();
-  const loading = useSkeleton();
 
   // The swatch + hex control. Masked (to its exact footprint) while a parent
   // `<Skeletonize>` loads, so the default `#000000` swatch never flashes
@@ -118,7 +116,7 @@ export function ColorPickerInput({
       label={label}
       {...(className !== undefined ? { className } : {})}
     >
-      {loading ? <SkeletonBox>{control}</SkeletonBox> : control}
+      <SkeletonBox asChild>{control}</SkeletonBox>
     </SettingsRow>
   );
 }

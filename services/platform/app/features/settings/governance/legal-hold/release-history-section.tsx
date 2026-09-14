@@ -90,7 +90,7 @@ export function ReleaseHistorySection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'two-line' as const } },
+        meta: { skeleton: { type: 'badge-text' } },
         size: 180,
       },
       {

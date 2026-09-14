@@ -69,6 +69,7 @@ export function RecentFeedbackTable({
       {
         id: 'type',
         header: tAnalytics('feedback.recent.columns.type'),
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => (
           <Badge variant={row.original.isArena ? 'blue' : 'outline'}>
             {tAnalytics(

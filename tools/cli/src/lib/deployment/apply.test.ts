@@ -314,6 +314,7 @@ describePosix('fresh native receipt custody', () => {
       loadClient(expected.descriptorPath, source.name),
     ).manifest.artifact.sha256;
     run.spec.identity!.bootstrap = 'fresh';
+    run.spec.identity!.migrateOriginFrom = 'https://old.example.invalid';
     run.spec.identity!.emailVerification = 'operator-attested';
     run.spec.identity!.nativeClients = [
       {
@@ -388,6 +389,7 @@ describePosix('fresh native receipt custody', () => {
       if (args.includes('provision'))
         expect(JSON.parse(options?.stdin ?? '{}')).toMatchObject({
           bootstrap: 'fresh',
+          migrateOriginFrom: 'https://old.example.invalid',
           emailVerification: 'operator-attested',
           nativeClients: [{ managed: true }],
         });

@@ -57,7 +57,6 @@ export function PageActionHeader({
 }: PageActionHeaderProps) {
   const slots = useAdaptiveHeaderSlots();
   const isMobile = useIsMobile();
-  const actionsEl = slots?.actionsEl ?? null;
   const descriptionEl = slots?.descriptionEl ?? null;
   const identityEl =
     slots === null
@@ -69,6 +68,17 @@ export function PageActionHeader({
   // strip, even before the slot refs attach — rendering a second row for
   // one frame would flash the unbalanced layout this exists to prevent.
   const portalToDesktop = slots !== null && !isMobile;
+  // A page under a tab strip keeps its cluster in the strip's trailing slot
+  // (the same place every tabbed page renders Save/Discard) on both
+  // breakpoints — below `md` the strip moves that slot into the floating
+  // dock, which attaches after the first paint, so the row's `tabsFollow`
+  // declaration holds the local row back meanwhile. Without a strip the
+  // cluster sits in the title row on desktop.
+  const tabActionsEl = slots?.tabActionsEl ?? null;
+  const actionsEl =
+    tabActionsEl ?? (portalToDesktop ? (slots?.actionsEl ?? null) : null);
+  const portalActions =
+    tabActionsEl !== null || portalToDesktop || (slots?.tabsFollow ?? false);
 
   const identityCluster =
     identity !== undefined ? (
@@ -92,37 +102,43 @@ export function PageActionHeader({
       {identityEl !== null && identityCluster !== null
         ? createPortal(identityCluster, identityEl)
         : null}
-      {portalToDesktop && actionsEl !== null && cluster !== null
+      {portalActions && actionsEl !== null && cluster !== null
         ? createPortal(cluster, actionsEl)
         : null}
       {portalToDesktop && descriptionEl !== null && copy !== null
         ? createPortal(copy, descriptionEl)
         : null}
-      {!portalToDesktop && (
-        <div
-          className={cn(
-            'border-border bg-background flex min-h-13 flex-col justify-center gap-1 border-b px-4 py-2',
-            className,
-          )}
-        >
-          {(title !== undefined ||
-            cluster !== null ||
-            (identityCluster !== null && identityEl === null)) && (
-            <div className="flex min-w-0 items-center gap-3">
-              {title !== undefined ? (
-                <TitleTag className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-                  {title}
-                </TitleTag>
-              ) : (
-                <div className="min-w-0 flex-1" />
-              )}
-              {identityEl === null ? identityCluster : null}
-              {cluster}
-            </div>
-          )}
-          {copy}
-        </div>
-      )}
+      {!portalToDesktop &&
+        // Below `md` with a tab strip the cluster is already in the dock;
+        // the local row then only exists for a title or description.
+        (!portalActions ||
+          title !== undefined ||
+          copy !== null ||
+          (identityCluster !== null && identityEl === null)) && (
+          <div
+            className={cn(
+              'border-border bg-background flex min-h-13 flex-col justify-center gap-1 border-b px-4 py-2',
+              className,
+            )}
+          >
+            {(title !== undefined ||
+              (cluster !== null && !portalActions) ||
+              (identityCluster !== null && identityEl === null)) && (
+              <div className="flex min-w-0 items-center gap-3">
+                {title !== undefined ? (
+                  <TitleTag className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+                    {title}
+                  </TitleTag>
+                ) : (
+                  <div className="min-w-0 flex-1" />
+                )}
+                {identityEl === null ? identityCluster : null}
+                {portalActions ? null : cluster}
+              </div>
+            )}
+            {copy}
+          </div>
+        )}
     </>
   );
 }

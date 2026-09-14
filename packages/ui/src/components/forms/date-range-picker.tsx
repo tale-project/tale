@@ -5,7 +5,6 @@ import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { useT } from '@tale/ui/i18n/client';
-import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
@@ -219,68 +218,73 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       onPresetSelect,
     },
     ref,
-  ) => (
-    <div className="ring-border flex divide-x rounded-lg ring-1">
-      <Button
-        ref={ref}
-        type="button"
-        variant="secondary"
-        disabled={isLoading || disabled}
-        onClick={onClick}
-        className={cn(
-          'w-auto justify-start space-x-2 rounded-r-none border-r-0 px-2.5 text-left text-sm font-normal ring-0',
-          !value && 'text-muted-foreground',
-          isLoading && 'cursor-not-allowed opacity-50',
-        )}
-      >
-        <CalendarIcon
+  ) => {
+    const [presetOpen, setPresetOpen] = useState(false);
+    return (
+      <div className="ring-border flex divide-x rounded-lg ring-1">
+        <Button
+          ref={ref}
+          type="button"
+          variant="secondary"
+          disabled={isLoading || disabled}
+          onClick={onClick}
           className={cn(
-            'text-muted-foreground size-4 shrink-0',
-            isLoading && 'hidden',
+            'w-auto justify-start space-x-2 rounded-r-none border-r-0 px-2.5 text-left text-sm font-normal ring-0',
+            !value && 'text-muted-foreground',
+            isLoading && 'cursor-not-allowed opacity-50',
           )}
-        />
-        {isLoading && (
-          <Loader2 className="text-foreground mr-2 size-4 animate-spin" />
-        )}
+        >
+          <CalendarIcon
+            className={cn(
+              'text-muted-foreground size-4 shrink-0',
+              isLoading && 'hidden',
+            )}
+          />
+          {isLoading && (
+            <Loader2 className="text-foreground mr-2 size-4 animate-spin" />
+          )}
 
-        {(value || placeholder) && (
-          <Text as="span" variant="muted" className="font-normal">
-            {value || placeholder}
-          </Text>
-        )}
-      </Button>
-      <DropdownMenu
-        trigger={
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={isLoading || disabled}
-            className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
-          >
+          {(value || placeholder) && (
             <Text as="span" variant="muted" className="font-normal">
-              {presetLabel}
+              {value || placeholder}
             </Text>
-            <ChevronDown className="text-muted-foreground size-4" />
-          </Button>
-        }
-        items={[
-          presetOptions.map<DropdownMenuItem>((option) => ({
-            type: 'item',
-            label: option.label,
-            onClick: () => onPresetSelect(option.key),
-            className: 'py-2 text-xs',
-          })),
-        ]}
-        align="end"
-        contentClassName="min-w-0"
-      />
-    </div>
-  ),
+          )}
+        </Button>
+        <DropdownMenu
+          open={presetOpen && !isLoading && !disabled}
+          onOpenChange={setPresetOpen}
+          disabled={isLoading || disabled}
+          trigger={
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isLoading || disabled}
+              className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
+            >
+              <Text as="span" variant="muted" className="font-normal">
+                {presetLabel}
+              </Text>
+              <ChevronDown className="text-muted-foreground size-4" />
+            </Button>
+          }
+          items={[
+            presetOptions.map<DropdownMenuItem>((option) => ({
+              type: 'item',
+              label: option.label,
+              onClick: () => onPresetSelect(option.key),
+              className: 'py-2 text-xs',
+            })),
+          ]}
+          align="end"
+          contentClassName="min-w-0"
+        />
+      </div>
+    );
+  },
 );
 CustomInput.displayName = 'CustomInput';
 
-// Plain control — the real date-range trigger (date button + preset dropdown)
-// and calendar (+ optional label/description/errors). No skeleton logic.
+// Both trigger buttons handle their masks inside the stable field frame.
 function DatePickerWithRangeBase({
   className,
   onChange,
@@ -296,6 +300,8 @@ function DatePickerWithRangeBase({
   id: providedId,
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
+  const skeletonLoading = useSkeleton();
+  const isDisabled = disabled || isLoading || skeletonLoading;
   const generatedId = useId();
   const id = providedId ?? generatedId;
   const errorId = `${id}-error`;
@@ -360,11 +366,11 @@ function DatePickerWithRangeBase({
   );
 
   const handleClear = useCallback(() => {
-    if (disabled || isLoading) return;
+    if (isDisabled) return;
     setStartDate(null);
     setEndDate(null);
     onChange(undefined);
-  }, [disabled, isLoading, onChange]);
+  }, [isDisabled, onChange]);
 
   const picker = (
     <div
@@ -380,12 +386,12 @@ function DatePickerWithRangeBase({
         endDate={endDate}
         onChange={handleDateChange}
         dateFormat="dd / MM / yyyy"
-        disabled={isLoading || disabled}
+        disabled={isDisabled}
         placeholderText={t('upload.pickADate')}
         customInput={
           <CustomInput
             isLoading={isLoading}
-            disabled={disabled}
+            disabled={isDisabled}
             presetLabel={presetLabel}
             presetOptions={presetOptions}
             onPresetSelect={handlePresetSelect}
@@ -418,7 +424,7 @@ function DatePickerWithRangeBase({
               type="button"
               variant="ghost"
               onClick={handleClear}
-              disabled={disabled || isLoading}
+              disabled={isDisabled}
               className="relative top-1 ml-auto block h-min px-2 py-1 text-xs"
             >
               {t('actions.reset')}
@@ -476,20 +482,5 @@ function DatePickerWithRangeBase({
   );
 }
 
-/**
- * Skeleton-aware DatePickerWithRange. Inside a `<Skeletonize loading>` it masks
- * the plain control by rendering it inside a `<SkeletonBox>` — laid out
- * invisibly to set the exact size, pulse overlay on top — so the skeleton can
- * never drift.
- */
-export function DatePickerWithRange(props: DatePickerWithRangeProps) {
-  const loading = useSkeleton();
-  if (loading) {
-    return (
-      <SkeletonBox>
-        <DatePickerWithRangeBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <DatePickerWithRangeBase {...props} />;
-}
+// Both trigger buttons mask themselves; keep the field frame and picker mounted.
+export const DatePickerWithRange = DatePickerWithRangeBase;

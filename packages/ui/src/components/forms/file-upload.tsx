@@ -4,7 +4,6 @@ import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ImagePlus, Info } from 'lucide-react';
 import {
@@ -156,8 +155,7 @@ interface DropZoneProps {
   'aria-label'?: string;
 }
 
-// Plain control — the real interactive drop zone (+ hidden file input). No
-// skeleton logic of its own.
+// Keep the real drop zone and its hidden input mounted during loading.
 function DropZoneBase({
   children,
   className,
@@ -258,62 +256,50 @@ function DropZoneBase({
     // The role follows `clickable`: interactive zones expose button semantics;
     // display-only zones remain labelled groups. The linter cannot resolve
     // this conditional role against the conditional handlers below.
-    // oxlint-disable-next-line eslint-plugin-jsx-a11y/no-static-element-interactions
-    <div
-      role={clickable ? 'button' : 'group'}
-      // Visible keyboard focus indicator. The DropZone is focusable when
-      // `clickable` is set, and previously had no `focus-visible:` style
-      // — tabbing into the composer hit this element with zero feedback.
-      // Concatenate via template literal so consumers can still pass
-      // their own className.
-      className={cn(
-        clickable &&
-          !disabled &&
-          'focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none',
-        clickable && disabled && 'cursor-not-allowed',
-        className,
-      )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onClick={clickable ? handleClick : undefined}
-      onKeyDown={clickable ? handleKeyDown : undefined}
-      tabIndex={clickable && !disabled ? 0 : undefined}
-      aria-disabled={clickable ? disabled : undefined}
-      aria-label={ariaLabel}
-    >
-      {children}
-      {clickable && (
-        <input
-          id={inputId}
-          type="file"
-          accept={accept}
-          multiple={multiple}
-          onChange={handleFileInputChange}
-          className="hidden"
-          disabled={disabled}
-        />
-      )}
-    </div>
+    <SkeletonBox asChild>
+      {/* oxlint-disable-next-line eslint-plugin-jsx-a11y/no-static-element-interactions */}
+      <div
+        role={clickable ? 'button' : 'group'}
+        // Visible keyboard focus indicator. The DropZone is focusable when
+        // `clickable` is set, and previously had no `focus-visible:` style
+        // — tabbing into the composer hit this element with zero feedback.
+        // Concatenate via template literal so consumers can still pass
+        // their own className.
+        className={cn(
+          clickable &&
+            !disabled &&
+            'focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none',
+          clickable && disabled && 'cursor-not-allowed',
+          className,
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={clickable ? handleClick : undefined}
+        onKeyDown={clickable ? handleKeyDown : undefined}
+        tabIndex={clickable && !disabled ? 0 : undefined}
+        aria-disabled={clickable ? disabled : undefined}
+        aria-label={ariaLabel}
+      >
+        {children}
+        {clickable && (
+          <input
+            id={inputId}
+            type="file"
+            accept={accept}
+            multiple={multiple}
+            onChange={handleFileInputChange}
+            className="hidden"
+            disabled={disabled}
+          />
+        )}
+      </div>
+    </SkeletonBox>
   );
 }
 
-/**
- * Skeleton-aware DropZone. Inside a `<Skeletonize loading>` it masks the plain
- * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
- * the exact size, pulse overlay on top — so the skeleton can never drift.
- */
-function DropZone(props: DropZoneProps) {
-  const loading = useSkeleton();
-  if (loading) {
-    return (
-      <SkeletonBox>
-        <DropZoneBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <DropZoneBase {...props} />;
-}
+// Mask the actual drop zone, preserving its parent layout and mounted input.
+const DropZone = DropZoneBase;
 
 interface OverlayProps {
   className?: string;

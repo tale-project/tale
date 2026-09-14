@@ -50,6 +50,7 @@
     "./data-table/data-table-empty-state": "./src/components/data-table/data-table-empty-state.tsx",
     "./data-table/data-table-filters": "./src/components/data-table/data-table-filters.tsx",
     "./data-table/data-table-pagination": "./src/components/data-table/data-table-pagination.tsx",
+    "./data-table/data-table-skeleton-cell": "./src/components/data-table/data-table-skeleton-cell.tsx",
     "./data-table/data-table-types": "./src/components/data-table/data-table-types.ts",
     "./date": "./src/lib/date/format.ts",
     "./date-picker": "./src/components/forms/date-picker.tsx",

@@ -78,6 +78,9 @@ export function OneDriveFileTable({
       {
         id: 'name',
         header: tTables('headers.name'),
+        meta: {
+          skeleton: { type: 'icon-text', icon: <DocumentIcon fileName="" /> },
+        },
         cell: ({ row }) => {
           const item = row.original;
           return (

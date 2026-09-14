@@ -113,7 +113,14 @@ export function useDocumentsTableConfig({
         // name shares width equally with every sibling under `table-fixed`,
         // squeezing it so long filenames overflow their cell (and the inner
         // `truncate` can't engage — see the `min-w-0` on the button below).
-        meta: { flex: true },
+        meta: {
+          flex: true,
+          skeleton: {
+            type: 'icon-text',
+            iconGap: 3,
+            icon: <DocumentIcon fileName="" />,
+          },
+        },
         cell: ({ row }) => {
           const fullPath = row.original.name ?? '';
           const fileName = fullPath.split('/').pop() || fullPath;
@@ -215,7 +222,7 @@ export function useDocumentsTableConfig({
         id: 'ragStatus',
         header: tTables('headers.ragStatus'),
         size: 160,
-        meta: { skeleton: { type: 'badge' as const } },
+        meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
             <Text as="span" variant="muted">

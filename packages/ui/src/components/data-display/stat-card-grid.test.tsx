@@ -78,7 +78,7 @@ describe('StatCardGrid', () => {
       );
       // Label still renders; the numeric value is masked by the skeleton box.
       expect(screen.getByText('Requests')).toBeInTheDocument();
-      expect(screen.queryByText('42')).not.toBeInTheDocument();
+      expect(screen.getByText('42')).toHaveAttribute('aria-hidden', 'true');
     });
   });
 

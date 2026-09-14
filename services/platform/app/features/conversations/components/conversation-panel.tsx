@@ -5,7 +5,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Center, Row, Stack, VStack } from '@tale/ui/layout';
 import { lazyComponent } from '@tale/ui/lazy-component';
 import { PanelFooter } from '@tale/ui/panel-footer';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
@@ -13,7 +13,6 @@ import {
   AlertTriangleIcon,
   ArchiveIcon,
   CircleCheckIcon,
-  Loader2Icon,
   MessageSquareMoreIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
@@ -35,16 +34,21 @@ import {
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
+import {
+  ConversationDateHeader,
+  MessageTimestamp,
+} from './conversation-message-layout';
 import { Message } from './message';
+import { MessageEditorPlaceholder } from './message-editor/message-editor-placeholder';
 
 const MessageEditor = lazyComponent(
   () =>
     import('./message-editor').then((mod) => ({ default: mod.MessageEditor })),
   {
     loading: () => (
-      <Center className="p-4">
-        <Loader2Icon className="text-muted-foreground size-6 animate-spin" />
-      </Center>
+      <Skeletonize loading>
+        <MessageEditorPlaceholder />
+      </Skeletonize>
     ),
   },
 );
@@ -66,18 +70,15 @@ interface AttachedFile {
 const PLACEHOLDER_MESSAGE_BUBBLES: Array<{
   align: 'start' | 'end';
   bubbleClassName: string;
-  withTimestamp?: boolean;
 }> = [
   {
     align: 'start',
     bubbleClassName: 'h-24 w-96 max-w-full',
-    withTimestamp: true,
   },
   { align: 'end', bubbleClassName: 'h-20 w-80 max-w-full' },
   {
     align: 'start',
     bubbleClassName: 'h-16 w-72 max-w-full',
-    withTimestamp: true,
   },
 ];
 
@@ -469,25 +470,30 @@ export function ConversationPanel({
                 gap={3}
                 className="border-border border-b p-4 sm:px-6 sm:py-4"
               >
-                <Row justify="between">
-                  <SkeletonBox>
-                    <div className="h-5 w-64 max-w-full" />
-                  </SkeletonBox>
-                  <SkeletonBox>
-                    <div className="size-7 shrink-0 rounded-md" />
-                  </SkeletonBox>
+                <Row justify="between" gap={2} className="min-w-0">
+                  <div className="w-64 min-w-0 text-base">
+                    <SkeletonText />
+                  </div>
+                  <Row gap={2} className="shrink-0">
+                    <SkeletonBox asChild>
+                      <div className="size-8 rounded-lg md:w-24" />
+                    </SkeletonBox>
+                    <SkeletonBox asChild>
+                      <div className="size-8 rounded-lg" />
+                    </SkeletonBox>
+                  </Row>
                 </Row>
                 <div className="flex items-center gap-2.5">
-                  <SkeletonBox>
+                  <SkeletonCircle asChild>
                     <div className="size-8 shrink-0 rounded-full" />
-                  </SkeletonBox>
-                  <VStack className="gap-1">
-                    <SkeletonBox>
-                      <div className="h-3.5 w-28" />
-                    </SkeletonBox>
-                    <SkeletonBox>
-                      <div className="h-3 w-44" />
-                    </SkeletonBox>
+                  </SkeletonCircle>
+                  <VStack gap={0} className="min-w-0 gap-px">
+                    <Text className="w-28 max-w-full text-[13px] font-semibold">
+                      <SkeletonText />
+                    </Text>
+                    <Text variant="caption" className="w-44 max-w-full">
+                      <SkeletonText />
+                    </Text>
                   </VStack>
                 </div>
               </Stack>
@@ -496,13 +502,9 @@ export function ConversationPanel({
           <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
             {!conversation ? (
               <>
-                <div className="mb-4 py-2">
-                  <Row gap={0} align="stretch" justify="center">
-                    <SkeletonBox>
-                      <div className="h-5 w-24 rounded-full" />
-                    </SkeletonBox>
-                  </Row>
-                </div>
+                <ConversationDateHeader>
+                  <span className="inline-block w-20">{'\u00a0'}</span>
+                </ConversationDateHeader>
                 <VStack gap={4} className="mb-8">
                   {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
                     <div
@@ -512,8 +514,8 @@ export function ConversationPanel({
                         row.align === 'start' ? 'justify-start' : 'justify-end',
                       )}
                     >
-                      <div className="relative">
-                        <SkeletonBox>
+                      <div className="relative max-w-full">
+                        <SkeletonBox asChild>
                           <div
                             className={cn(
                               'mb-2 rounded-2xl',
@@ -521,11 +523,11 @@ export function ConversationPanel({
                             )}
                           />
                         </SkeletonBox>
-                        {row.withTimestamp && (
-                          <SkeletonBox>
-                            <div className="h-3 w-20" />
-                          </SkeletonBox>
-                        )}
+                        <MessageTimestamp isCustomer={row.align === 'start'}>
+                          <span className="w-20">
+                            <SkeletonText />
+                          </span>
+                        </MessageTimestamp>
                       </div>
                     </div>
                   ))}
@@ -571,19 +573,9 @@ export function ConversationPanel({
                   return (
                     <div key={group.date} className="relative">
                       {/* Sticky Date Header */}
-                      <div className="z-10 mb-4 py-2">
-                        <Row gap={0} align="stretch" justify="center">
-                          <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
-                            <Text
-                              as="span"
-                              variant="label-sm"
-                              className="text-primary"
-                            >
-                              {formatDateHeader(group.date)}
-                            </Text>
-                          </div>
-                        </Row>
-                      </div>
+                      <ConversationDateHeader>
+                        {formatDateHeader(group.date)}
+                      </ConversationDateHeader>
 
                       {/* Messages for this date */}
                       <Stack gap={4} className="mb-8">
@@ -619,9 +611,7 @@ export function ConversationPanel({
           ) : (
             <PanelFooter className="px-4 py-3">
               <div className="mx-auto w-full max-w-3xl">
-                <SkeletonBox fullWidth>
-                  <div className="h-[5rem] w-full rounded-xl" />
-                </SkeletonBox>
+                <MessageEditorPlaceholder />
               </div>
             </PanelFooter>
           )

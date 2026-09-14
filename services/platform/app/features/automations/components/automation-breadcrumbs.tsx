@@ -77,10 +77,12 @@ export function AutomationBreadcrumbs({
     </Link>
   );
 
+  // The automation's default surface, exactly where a list row lands — the
+  // bare entity URL would only forward there.
   const automationCrumb =
     projectId !== undefined ? (
       <Link
-        to="/dashboard/$id/projects/$projectId/automations/$automationSlug"
+        to="/dashboard/$id/projects/$projectId/automations/$automationSlug/editor"
         params={{
           id: organizationId,
           projectId,
@@ -93,7 +95,7 @@ export function AutomationBreadcrumbs({
       </Link>
     ) : (
       <Link
-        to="/dashboard/$id/automations/$automationSlug"
+        to="/dashboard/$id/automations/$automationSlug/editor"
         params={{ id: organizationId, automationSlug: slugParam }}
         activeOptions={{ exact: true }}
         className={HEADER_CRUMB_LINK_CLASS}

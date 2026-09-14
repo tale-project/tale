@@ -56,6 +56,7 @@ common:
     saved: Enregistré
     source: Source
     tryAgain: Réessayer
+    loading: Chargement...
   aria:
     back: Retour
     close: Fermer

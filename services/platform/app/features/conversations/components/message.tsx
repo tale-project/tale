@@ -15,6 +15,7 @@ import { formatFileSize } from '@/app/features/shared/files/file-displays';
 import { useT } from '@/lib/i18n/client';
 
 import type { Message as MessageType } from '../types';
+import { MessageTimestamp } from './conversation-message-layout';
 
 type Attachment = NonNullable<MessageType['attachments']>[number];
 
@@ -286,19 +287,7 @@ export function Message({
               </div>
             )}
           </div>
-          <Text
-            as="div"
-            variant="caption"
-            className={cn(
-              'flex items-center justify-end gap-1.5 text-nowrap',
-              message.isCustomer
-                ? 'text-left'
-                : cn(
-                    'text-muted-foreground/70 text-right',
-                    !isFailed && 'mb-4',
-                  ),
-            )}
-          >
+          <MessageTimestamp isCustomer={message.isCustomer} isFailed={isFailed}>
             {undoSecondsLeft !== null ? (
               <>
                 <span className="inline-flex items-center gap-1">
@@ -325,7 +314,7 @@ export function Message({
                 )}
               </>
             )}
-          </Text>
+          </MessageTimestamp>
           {isFailed && (
             <Text
               as="div"

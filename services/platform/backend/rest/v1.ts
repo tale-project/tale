@@ -27,6 +27,7 @@ import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
+import { createNotificationRestRoutes } from './v1-notifications.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
@@ -331,6 +332,7 @@ export function createRestV1Routes(deps: {
   });
 
   app.route('/', createCoreRoutes({ sql: deps.sql }));
+  app.route('/', createNotificationRestRoutes({ sql: deps.sql }));
   app.route('/', createConversationRestRoutes({ sql: deps.sql }));
   app.route('/', createProjectRestRoutes({ sql: deps.sql }));
   app.route('/', createTaskRestRoutes({ sql: deps.sql }));

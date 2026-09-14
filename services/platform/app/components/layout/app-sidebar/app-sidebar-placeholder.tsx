@@ -19,8 +19,8 @@ const PLACEHOLDER_NAV_ITEMS = 6;
 function TileSkeleton() {
   return (
     <Row gap={0} justify="center" className="size-9 shrink-0">
-      <SkeletonBox>
-        <div className="size-5" />
+      <SkeletonBox asChild>
+        <div className="size-5 rounded-sm" />
       </SkeletonBox>
     </Row>
   );
@@ -40,6 +40,9 @@ export function AppSidebarPlaceholder() {
           <div className="shrink-0 pt-3 pb-4">
             <TileSkeleton />
           </div>
+          <div className="flex shrink-0 justify-center pb-2">
+            <TileSkeleton />
+          </div>
           {/* Nav tiles — same flexing scroll region as the live rail, so the
               footer pins to the bottom and short viewports clip nothing. */}
           <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
@@ -54,8 +57,8 @@ export function AppSidebarPlaceholder() {
           <Stack gap={0} className="border-border shrink-0 gap-2 border-t py-2">
             <TileSkeleton />
             <Row gap={0} justify="center" className="size-9 shrink-0">
-              <SkeletonCircle>
-                <div className="size-5" />
+              <SkeletonCircle asChild>
+                <div className="size-5 rounded-full" />
               </SkeletonCircle>
             </Row>
           </Stack>

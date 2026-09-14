@@ -1,140 +1,86 @@
-import type { ReactNode } from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
 import { useSkeleton } from './skeleton-context';
 
-/**
- * Solid pulsing fill for {@link SkeletonText} word shapes — there is no real
- * content behind a masked line (the text is an invisible zero-width glyph), so
- * a plain opacity pulse is fine here. Box/circle masks instead layer a static
- * opaque base under the pulse (see below) so the content never shows through.
- */
+/** Shared, reduced-motion-aware fill for decorative text placeholders. */
 export const SKELETON_PULSE =
   'animate-pulse bg-muted motion-reduce:animate-none';
 
-/**
- * The pulse layer for box/circle masks: a faint shimmer that fades over the
- * opaque base. Kept as a separate, *non*-opaque tint so the base underneath
- * always hides the content even at the trough of the animation.
- */
-const SKELETON_SHIMMER =
-  'absolute inset-0 animate-pulse bg-muted-foreground/10 motion-reduce:animate-none';
-
-interface SkeletonWrapProps {
-  /**
-   * The REAL content to mask. Rendered untouched; the skeleton sizes itself to
-   * this content, so there is never any sizing math at the call site.
-   */
+interface SkeletonWrapProps extends HTMLAttributes<HTMLElement> {
+  /** The real content, kept mounted in both loading states. */
   children: ReactNode;
   /**
-   * Make the mask fill its container's width (block, `w-full`). Use for
-   * full-width fields/controls; omit for inline content that should hug.
+   * Mask the child element itself, preserving its layout, dimensions and
+   * border radius. The single child must forward DOM props and its ref.
+   * Use for controls and elements participating in flex/grid layouts.
    */
+  asChild?: boolean;
+  /** Fill the container for wrapped text; asChild uses the child's own width. */
   fullWidth?: boolean;
 }
 
 /**
- * While loading, render the real content inside a `display: contents` wrapper
- * that carries `visibility: hidden`. `contents` generates no box (so layout is
- * identical to rendering `children` bare — the skeleton still sizes to the
- * content), while `visibility: hidden` inherits down to every leaf so nothing
- * can peek out from under the opaque mask, and masked controls drop out of the
- * focus/hit-test order. When not loading the content renders untouched.
+ * Mask a value while the surrounding Skeletonize is loading. Scalar values
+ * get a stable inline box (or a block with fullWidth). With asChild the real
+ * element IS the mask: its flex sizing, baseline, padding and radius never
+ * depend on loading. No conditional wrapper can remount an uncontrolled field.
+ *
+ * The mask's CSS hides text, descendants and native field decorations while
+ * painting its existing border box. Inert removes masked controls from pointer
+ * and keyboard interaction; Skeletonize owns the region's single announcement.
  */
-function MaskedContent({
-  loading,
-  children,
-}: {
-  loading: boolean;
-  children: ReactNode;
-}) {
-  if (!loading) return children;
-  return <span className="invisible contents">{children}</span>;
-}
+const SkeletonMask = forwardRef<
+  HTMLElement,
+  SkeletonWrapProps & { shape: 'box' | 'circle' }
+>(
+  (
+    { children, asChild = false, fullWidth, shape, className, ...props },
+    ref,
+  ) => {
+    const loading = useSkeleton();
+    const Comp = asChild ? Slot : 'span';
+    return (
+      <Comp
+        {...props}
+        ref={ref}
+        aria-hidden={loading ? true : props['aria-hidden']}
+        inert={loading ? true : props.inert}
+        data-skeleton-mask={loading ? shape : undefined}
+        // A visible external <label> can forward activation to an inert
+        // input/button. Cancel it before native or Radix click handlers run.
+        onClickCapture={
+          loading
+            ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            : props.onClickCapture
+        }
+        className={cn(
+          !asChild && (shape === 'circle' ? 'rounded-full' : 'rounded-md'),
+          !asChild && (fullWidth ? 'block w-full' : 'inline-block'),
+          className,
+        )}
+      >
+        {children}
+      </Comp>
+    );
+  },
+);
+SkeletonMask.displayName = 'SkeletonMask';
 
-/**
- * The universal masking primitive — `<SkeletonBox>{value}</SkeletonBox>`.
- *
- * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
- * inside a `<Skeletonize loading>`) a static opaque base covers it with a pulse
- * shimmer layered on top — the base never animates, so the content stays hidden
- * even at the trough of the pulse. The content itself is `visibility: hidden`
- * while masked (see {@link MaskedContent}), so the base only has to draw the
- * placeholder *shape* and hugs the content box exactly. (It used to overhang by
- * 2px to swallow anti-aliased glyph edges, but that predates the visibility
- * mask — and the overhang made adjacent masks bleed into each other in tight
- * `gap-1` stacks.) The base also intercepts pointer events so masked controls
- * aren't interactive. When *not* loading the wrapper is `display: contents`, so
- * it adds no box and can't tangle layout — wrap any dynamic value (text, a
- * number, a control) unconditionally and leave it in place.
- *
- * Deliberately has no `className`/`style`: the skeleton's size comes from the
- * content it wraps, never from call-site styling. Reach for `fullWidth` (or a
- * new semantic prop here) instead of one-off classes.
- *
- * Sizing gotcha: with `fullWidth` the mask fills the *wrapper*, not the hidden
- * placeholder — a narrower placeholder (`w-2/3`, `max-w-48`) inside a
- * `fullWidth` box still paints a full-width mask. Put the width on an element
- * AROUND the box (`<div className="w-2/3"><SkeletonBox fullWidth>…`) so the
- * mask is exactly that wide. Percentage widths can't live on the placeholder
- * in the non-`fullWidth` case either: the wrapper is shrink-to-fit, so a
- * `%`-wide child collapses to zero.
- *
- * Decorative (`aria-hidden`): the enclosing `<Skeletonize>` announces "Loading"
- * once for the whole region, so individual boxes must not re-announce.
- */
-export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
-  const loading = useSkeleton();
-  return (
-    <span
-      aria-hidden={loading || undefined}
-      className={
-        loading
-          ? cn(
-              'relative isolate rounded-md',
-              fullWidth ? 'block w-full' : 'inline-block',
-            )
-          : 'contents'
-      }
-    >
-      <MaskedContent loading={loading}>{children}</MaskedContent>
-      {loading && (
-        <span className="bg-muted absolute inset-0 overflow-hidden rounded-[inherit]">
-          <span className={SKELETON_SHIMMER} />
-        </span>
-      )}
-    </span>
-  );
-}
+export const SkeletonBox = forwardRef<HTMLElement, SkeletonWrapProps>(
+  (props, ref) => <SkeletonMask {...props} shape="box" ref={ref} />,
+);
+SkeletonBox.displayName = 'SkeletonBox';
 
-/**
- * Circular variant — avatars, status dots, icon buttons. Wraps real round
- * content and masks it with a round overlay. Renders its own skeleton (it does
- * not delegate to {@link SkeletonBox}) so it stays free of call-site styling.
- */
-export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
-  const loading = useSkeleton();
-  return (
-    <span
-      aria-hidden={loading || undefined}
-      className={
-        loading
-          ? cn(
-              'relative isolate rounded-full',
-              fullWidth ? 'block w-full' : 'inline-block',
-            )
-          : 'contents'
-      }
-    >
-      <MaskedContent loading={loading}>{children}</MaskedContent>
-      {loading && (
-        <span className="bg-muted absolute inset-0 overflow-hidden rounded-full">
-          <span className={SKELETON_SHIMMER} />
-        </span>
-      )}
-    </span>
-  );
-}
+/** Round mask for avatars and status dots; use asChild on their real surface. */
+export const SkeletonCircle = forwardRef<HTMLElement, SkeletonWrapProps>(
+  (props, ref) => <SkeletonMask {...props} shape="circle" ref={ref} />,
+);
+SkeletonCircle.displayName = 'SkeletonCircle';
 
 /**
  * Deterministic pseudo-random in [0, 1) from an integer seed. Stable across
@@ -209,8 +155,8 @@ interface SkeletonTextProps {
  * sits on top, and the final line is shortened so the block reads like a
  * wrapped paragraph.
  *
- * Like the other primitives it takes no `className`: size and color come from
- * the surrounding text context. Decorative (`aria-hidden`); the enclosing
+ * It takes no `className`: size and color come from the surrounding text
+ * context. Decorative (`aria-hidden`); the enclosing
  * `<Skeletonize>` owns the single status announcement.
  */
 export function SkeletonText({

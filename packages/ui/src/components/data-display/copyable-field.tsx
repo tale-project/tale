@@ -7,7 +7,6 @@ import { useT } from '@tale/ui/i18n/client';
 import { Label } from '@tale/ui/label';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { TooltipContent } from '@tale/ui/tooltip';
 import { useCopyButton } from '@tale/ui/use-copy';
 import { Check, Copy } from 'lucide-react';
@@ -86,48 +85,52 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
           below — flipping Radix between controlled and uncontrolled on the
           first hover leaves it stuck closed. */}
         <TooltipPrimitive.Trigger asChild>
-          <button
-            id={valueId}
-            type="button"
-            onClick={onClick}
-            onPointerEnter={syncOverflow}
-            onFocus={syncOverflow}
-            aria-labelledby={label ? `${labelId} ${valueTextId}` : valueTextId}
-            aria-label={copyAriaLabel}
-            aria-describedby={
-              [description ? descriptionId : null, copied ? statusId : null]
-                .filter(Boolean)
-                .join(' ') || undefined
-            }
-            className={cn(
-              'ring-border bg-muted/40 hover:bg-muted/60',
-              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-              'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
-              inputClassName,
-            )}
-          >
-            <span
-              id={valueTextId}
-              ref={valueTextRef}
+          <SkeletonBox asChild>
+            <button
+              id={valueId}
+              type="button"
+              onClick={onClick}
+              onPointerEnter={syncOverflow}
+              onFocus={syncOverflow}
+              aria-labelledby={
+                label ? `${labelId} ${valueTextId}` : valueTextId
+              }
+              aria-label={copyAriaLabel}
+              aria-describedby={
+                [description ? descriptionId : null, copied ? statusId : null]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
               className={cn(
-                'text-muted-foreground flex-1 truncate text-sm',
-                mono && 'font-mono',
+                'ring-border bg-muted/40 hover:bg-muted/60',
+                'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
+                inputClassName,
               )}
             >
-              {value}
-            </span>
-            {copied ? (
-              <Check
-                className="size-4 shrink-0 text-green-600 dark:text-green-400"
-                aria-hidden="true"
-              />
-            ) : (
-              <Copy
-                className="text-muted-foreground size-4 shrink-0"
-                aria-hidden="true"
-              />
-            )}
-          </button>
+              <span
+                id={valueTextId}
+                ref={valueTextRef}
+                className={cn(
+                  'text-muted-foreground flex-1 truncate text-sm',
+                  mono && 'font-mono',
+                )}
+              >
+                {value}
+              </span>
+              {copied ? (
+                <Check
+                  className="size-4 shrink-0 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Copy
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          </SkeletonBox>
         </TooltipPrimitive.Trigger>
         {overflowing && (
           <TooltipPrimitive.Portal>
@@ -155,25 +158,8 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
 });
 CopyableFieldBase.displayName = 'CopyableFieldBase';
 
-/**
- * Skeleton-aware CopyableField. Inside a `<Skeletonize loading>` it masks the
- * real pill at its exact footprint, so it doesn't pop in when an id resolves.
- */
-export const CopyableField = React.memo(function CopyableField(
-  props: CopyableFieldProps,
-) {
-  const loading = useSkeleton();
-  if (loading) {
-    // `fullWidth` so the mask is block-level and stacks under sibling fields
-    // (matches Input/Select) instead of collapsing to an inline-block box.
-    return (
-      <SkeletonBox fullWidth>
-        <CopyableFieldBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <CopyableFieldBase {...props} />;
-});
+// Labels and descriptions keep their layout; the value pill masks itself.
+export const CopyableField = CopyableFieldBase;
 
 interface CopyableTextProps {
   /** The value to display and copy */

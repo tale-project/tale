@@ -11,6 +11,7 @@ import {
   type NativeClientContext,
   type NativeClientCreateArgs,
 } from './native-client';
+import { writeProvisionState } from './provision-state';
 
 const desired = {
   key: 'portal',
@@ -100,6 +101,99 @@ function createFixture() {
 // These native-intent cases need POSIX private-file durability, as required by
 // the public managed command's Windows refusal. Adapter/policy tests stay portable.
 const testPosix = test.skipIf(process.platform === 'win32');
+
+testPosix(
+  'reviewed origin migration retains the verified native client and secret across replay',
+  async () =>
+    fixture(async (f) => {
+      const [first] = await reconcileNativeClients(
+        f.context,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      const file = first.credentials!.path;
+      const before = readFileSync(file);
+      const retained = JSON.parse(before.toString());
+      const target = {
+        ...f.context,
+        origin: 'https://renamed.example.org',
+        migrateOriginFrom: f.context.origin,
+      };
+      for (const migrateOriginFrom of [
+        undefined,
+        'https://wrong.example.org',
+      ]) {
+        await expect(
+          reconcileNativeClients(
+            { ...target, migrateOriginFrom },
+            [desired],
+            undefined,
+            f.managed,
+          ),
+        ).rejects.toThrow('intent differs');
+        expect(readFileSync(file)).toEqual(before);
+      }
+      writeProvisionState(file, { ...retained, phase: 'pending' });
+      await expect(
+        reconcileNativeClients(target, [desired], undefined, f.managed),
+      ).rejects.toThrow('intent differs');
+      writeProvisionState(file, retained);
+      f.secrets.set(retained.credentials.clientId, 'wrong-secret');
+      await expect(
+        reconcileNativeClients(target, [desired], undefined, f.managed),
+      ).rejects.toThrow('credential verification');
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(retained);
+      f.secrets.set(
+        retained.credentials.clientId,
+        retained.credentials.clientSecret,
+      );
+      const [migrated] = await reconcileNativeClients(
+        target,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      expect(migrated.clientId).toBe(first.clientId);
+      expect(migrated.changed).toBe(true);
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+        ...retained,
+        origin: target.origin,
+      });
+      const bytes = readFileSync(file);
+      const [replayed] = await reconcileNativeClients(
+        target,
+        [desired],
+        undefined,
+        f.managed,
+      );
+      expect(replayed.changed).toBe(false);
+      expect(readFileSync(file)).toEqual(bytes);
+      await reconcileNativeClients(
+        { ...f.context, migrateOriginFrom: target.origin },
+        [desired],
+        undefined,
+        f.managed,
+      );
+      expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(retained);
+      expect(f.creates).toHaveLength(1);
+    }),
+);
+
+testPosix('origin migration cannot create a missing managed client', async () =>
+  fixture(async (f) => {
+    await expect(
+      reconcileNativeClients(
+        { ...f.context, migrateOriginFrom: 'https://old.example.org' },
+        [desired],
+        undefined,
+        f.managed,
+      ),
+    ).rejects.toThrow('retained native client');
+    expect(f.creates).toHaveLength(0);
+    expect(readdirSync(f.root)).toEqual([]);
+  }),
+);
 
 testPosix(
   'fresh clients journal before create, preserve exact credentials and replay with no write',

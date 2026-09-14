@@ -45,20 +45,22 @@ function BreakdownRow({
   return (
     <HStack gap={3} className="items-center">
       <Text as="span" variant="body" truncate className="w-32 shrink-0">
-        {label}
+        <SkeletonBox fullWidth>{label}</SkeletonBox>
       </Text>
-      <div className="bg-muted h-1.5 min-w-0 flex-1 overflow-hidden rounded-full">
-        <div
-          className="bg-primary h-full rounded-full"
-          style={{ width: `${Math.max((count / maxCount) * 100, 2)}%` }}
-        />
-      </div>
+      <SkeletonBox asChild>
+        <div className="bg-muted h-1.5 min-w-0 flex-1 overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full rounded-full"
+            style={{ width: `${Math.max((count / maxCount) * 100, 2)}%` }}
+          />
+        </div>
+      </SkeletonBox>
       <Text
         as="span"
         variant="muted"
         className="w-14 shrink-0 text-right font-mono text-xs"
       >
-        {formatNumber(count)}
+        <SkeletonBox>{formatNumber(count)}</SkeletonBox>
       </Text>
     </HStack>
   );
@@ -68,9 +70,7 @@ function BreakdownSkeletonRows() {
   return (
     <Stack gap={3}>
       {[0, 1, 2, 3, 4].map((i) => (
-        <SkeletonBox key={i}>
-          <div className="h-5 w-full" />
-        </SkeletonBox>
+        <BreakdownRow key={i} label={'\u00a0'} count={0} maxCount={1} />
       ))}
     </Stack>
   );

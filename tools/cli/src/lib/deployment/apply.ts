@@ -101,6 +101,9 @@ function nativeInput(
     name: identity.name,
     ssoEnabled: identity.ssoEnabled,
     ...(identity.bootstrap ? { bootstrap: identity.bootstrap } : {}),
+    ...(identity.migrateOriginFrom
+      ? { migrateOriginFrom: identity.migrateOriginFrom }
+      : {}),
     ...(identity.emailVerification
       ? { emailVerification: identity.emailVerification }
       : {}),

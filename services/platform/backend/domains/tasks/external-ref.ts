@@ -42,6 +42,9 @@ import {
  *  - {@link startWorkflowForTask} starts a DEPLOYED automation with the task
  *    as its subject input — one live run per (automation, task), attributed
  *    to the task's project.
+ *  - {@link resolveSetupFolderId} is the desks' binding convention: the
+ *    Setup folder a folder-driven intake names, resolved to the id that
+ *    rides the task's `externalUrl`.
  */
 
 /** Neutral inbox column a newly-synced (or reopened) external item lands in. */
@@ -139,6 +142,39 @@ async function externalRefAudit(
     metadata: { viaAgent: true, ...args.metadata },
     status: 'success',
   });
+}
+
+/**
+ * The desks' binding convention: a folder-driven desk (the vatplus
+ * `vat-return-desk` pack, and every automation shaped like it) reads its
+ * Setup folder's id off `input.task.externalUrl`, so an intake that names
+ * that folder resolves it here, before the write, to the id the task then
+ * carries as `externalUrl`. The folder is a ROOT folder of the project,
+ * matched by name without regard to case (trimmed), and its absence fails
+ * closed — `SETUP_FOLDER_MISSING` — so a desk never binds a task to a folder
+ * nobody made. One resolution behind the app's `from-external-issue` door
+ * (`ensureFolder.setupFolderName`) and the REST intake's `setupFolderName`.
+ */
+export async function resolveSetupFolderId(
+  tx: TransactionSql,
+  args: { organizationId: string; projectId: string; setupFolderName: string },
+): Promise<string> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.folders
+    WHERE org_id = ${args.organizationId}
+      AND project_id = ${args.projectId}
+      AND parent_id IS NULL
+      AND lower(name) = ${args.setupFolderName.trim().toLowerCase()}
+    LIMIT 1
+  `;
+  const folderId = rows[0]?.id;
+  if (folderId === undefined) {
+    throw new TaskError(
+      'SETUP_FOLDER_MISSING',
+      `Folder "${args.setupFolderName}" does not exist in this project yet`,
+    );
+  }
+  return folderId;
 }
 
 export interface UpsertTaskByExternalRefArgs {

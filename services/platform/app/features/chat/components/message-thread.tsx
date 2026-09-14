@@ -33,6 +33,7 @@ import {
   resolveResponseSlackEnabled,
   useResponseSlack,
 } from '../hooks/use-response-slack';
+import { CHAT_MESSAGE_COLUMN_CLASS } from '../lib/layout';
 import type {
   ChatGenerationView,
   ChatMessageItem,
@@ -230,10 +231,7 @@ export const MessageThread = memo(function MessageThread({
             surface's className carries the glass-bar clearance. */}
         <div
           ref={contentRef}
-          className={cn(
-            'mx-auto flex w-full max-w-3xl flex-col px-4 py-6',
-            className,
-          )}
+          className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}
         >
           <Stack gap={3}>
             {beforeItems.length > 0 && (

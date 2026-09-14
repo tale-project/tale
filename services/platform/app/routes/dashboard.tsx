@@ -24,7 +24,7 @@ import { getEnv } from '@/lib/env';
 const CONVEX_AUTH_RELOAD_GUARD = 'convex-auth-recovery-reloaded';
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     // Use TanStack Query for caching and deduplication. fetchQuery rejects on
     // transport failures (after retries) — fall back to the signed-out path
     // rather than surfacing a route error.
@@ -32,7 +32,10 @@ export const Route = createFileRoute('/dashboard')({
       .fetchQuery(sessionQueryOptions)
       .catch(() => null);
     if (!session?.data?.user) {
-      throw redirect({ to: '/log-in' });
+      throw redirect({
+        to: '/log-in',
+        search: { redirectTo: location.href },
+      });
     }
     return { user: session.data.user };
   },
@@ -150,7 +153,8 @@ function DashboardRedirect() {
       const routePath = basePath
         ? pathname.replace(new RegExp(`^${basePath}`), '')
         : pathname;
-      const returnTo = routePath + window.location.search;
+      const returnTo =
+        routePath + window.location.search + window.location.hash;
       window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
     }
   }, [sessionVerified, hasValidSession]);

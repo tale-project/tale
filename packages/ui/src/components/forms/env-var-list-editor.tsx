@@ -18,9 +18,10 @@ import { useT } from '@tale/ui/i18n/client';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Select } from '@tale/ui/select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { toast } from '@tale/ui/use-toast';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Env var name: letters/digits/underscore, not starting with a digit. */
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -59,6 +60,18 @@ interface Row {
   maskedDisplay: string;
   /** Set ⇒ this row binds a token source; value/secret are ignored on save. */
   tokenSourceSlug?: string;
+}
+
+function emptyRow(isSecret: boolean): Row {
+  return {
+    key: '',
+    value: '',
+    isSecret,
+    existingKey: null,
+    secretDirty: false,
+    masked: false,
+    maskedDisplay: '',
+  };
 }
 
 /**
@@ -159,7 +172,9 @@ export function EnvVarListEditor({
 }: EnvVarListEditorProps) {
   const { t } = useT('envEditor');
 
-  const [localRows, setLocalRows] = useState<Row[]>([]);
+  const [localRows, setLocalRows] = useState<Row[]>(() =>
+    !isLoading && rows ? rows.map(toRow) : [],
+  );
   const [saving, setSaving] = useState(false);
   // Index of the row awaiting remove confirmation (null = no dialog open).
   const [pendingRemove, setPendingRemove] = useState<number | null>(null);
@@ -187,9 +202,9 @@ export function EnvVarListEditor({
   // DirtyBlockerProvider (e.g. a dialog surface).
   useRegisterDirtySource(isDirty);
 
-  // Snapshot the query into editable local state whenever it changes AND the
-  // user has no pending edits.
-  useEffect(() => {
+  // Snapshot before paint so the first result replaces the loading rows
+  // without an intervening empty editor. Pending user edits still win.
+  useLayoutEffect(() => {
     if (isLoading || rows === undefined || dirty.current) return;
     const loaded = rows.map(toRow);
     loadedKeys.current = new Set(loaded.map((r) => r.key));
@@ -248,18 +263,7 @@ export function EnvVarListEditor({
     setLocalRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
   const addRow = (): void => {
-    commit([
-      ...localRows,
-      {
-        key: '',
-        value: '',
-        isSecret: forceSecret,
-        existingKey: null,
-        secretDirty: false,
-        masked: false,
-        maskedDisplay: '',
-      },
-    ]);
+    commit([...localRows, emptyRow(forceSecret)]);
   };
   const removeRow = (i: number): void => {
     commit(localRows.filter((_, j) => j !== i));
@@ -377,10 +381,10 @@ export function EnvVarListEditor({
     });
   }, [isDirty, saving, isLoading]);
 
-  const busy = saving || disabled;
+  const busy = saving || disabled || isLoading;
 
-  // Headerless, no-skeleton, no-empty-state list (#1950): when there are no
-  // rows the list isn't rendered at all — only the Add/Save controls remain.
+  // Loaded empty lists keep only Add/Save. While the first read is pending,
+  // reserve real row controls instead of flashing an empty editor.
   // Flex rows (not a table) keep the NAME/value controls flush with the
   // surrounding settings section — TableCell padding indented them.
   const renderRow = (r: Row, i: number) => {
@@ -527,13 +531,17 @@ export function EnvVarListEditor({
 
   const pendingRow =
     pendingRemove !== null ? localRows[pendingRemove] : undefined;
+  const visibleRows =
+    isLoading && localRows.length === 0
+      ? Array.from({ length: 3 }, () => emptyRow(forceSecret))
+      : localRows;
 
   return (
     <VStack gap={2}>
-      {localRows.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {localRows.map((r, i) => renderRow(r, i))}
-        </div>
+      {visibleRows.length > 0 && (
+        <Skeletonize loading={isLoading} className="flex flex-col gap-2">
+          {visibleRows.map((r, i) => renderRow(r, i))}
+        </Skeletonize>
       )}
       <HStack gap={2} className="justify-between">
         <Button

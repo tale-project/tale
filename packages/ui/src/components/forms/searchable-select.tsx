@@ -5,11 +5,11 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { TooltipContent } from '@tale/ui/tooltip';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
+  Fragment,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
@@ -34,6 +34,8 @@ export interface SearchableSelectOption {
   labelBadge?: ReactNode;
   description?: string;
   disabled?: boolean;
+  /** Opaque visual group key; differing adjacent groups get a divider. */
+  group?: string;
   /** Non-selectable section header row (skipped by keyboard navigation). */
   isSectionHeader?: boolean;
 }
@@ -218,8 +220,7 @@ function findNextEnabledIndex(
     : index;
 }
 
-// Plain control — the real default trigger (or caller-supplied `trigger`) +
-// searchable popover (+ optional label/description). No skeleton logic.
+// Mask the default trigger in place; custom triggers own their loading surface.
 function SearchableSelectBase({
   value,
   onValueChange,
@@ -267,18 +268,20 @@ function SearchableSelectBase({
   );
 
   const defaultTrigger = trigger ?? (
-    <button
-      type="button"
-      id={triggerId}
-      disabled={disabled}
-      aria-describedby={description ? descriptionId : undefined}
-      className={cn(selectTriggerClasses({ error }), triggerClassName)}
-    >
-      <span className={cn(!selectedOption && 'text-muted-foreground')}>
-        {selectedOption ? selectedOption.label : placeholder}
-      </span>
-      <ChevronDown className="size-4 opacity-50" aria-hidden="true" />
-    </button>
+    <SkeletonBox asChild>
+      <button
+        type="button"
+        id={triggerId}
+        disabled={disabled}
+        aria-describedby={description ? descriptionId : undefined}
+        className={cn(selectTriggerClasses({ error }), triggerClassName)}
+      >
+        <span className={cn(!selectedOption && 'text-muted-foreground')}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className="size-4 opacity-50" aria-hidden="true" />
+      </button>
+    </SkeletonBox>
   );
 
   const isControlled = controlledOpen !== undefined;
@@ -465,126 +468,142 @@ function SearchableSelectBase({
         popoverTrigger
       )}
       <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align={align}
-          side={side}
-          sideOffset={sideOffset}
-          className={cn(
-            CONTENT_CLASSES,
-            isSwitcher && 'overflow-hidden',
-            contentClassName,
-          )}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            searchRef.current?.focus();
-            initializeHighlight();
-          }}
-        >
-          <div
+        <SkeletonBox asChild>
+          <PopoverPrimitive.Content
+            aria-label={ariaLabel ?? searchPlaceholder}
+            align={align}
+            side={side}
+            sideOffset={sideOffset}
             className={cn(
-              isSwitcher
-                ? 'border-border flex flex-col border-b'
-                : 'border-border flex items-center gap-2 border-b p-3',
+              CONTENT_CLASSES,
+              isSwitcher && 'overflow-hidden',
+              contentClassName,
             )}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              searchRef.current?.focus();
+              initializeHighlight();
+            }}
           >
-            {title != null && title !== '' && (
-              <div
-                className={cn(
-                  'text-foreground text-sm font-semibold',
-                  // More inset from the panel edge than the search row below.
-                  isSwitcher && 'px-4 pt-3 pb-2',
-                )}
-              >
-                {title}
-              </div>
-            )}
             <div
               className={cn(
-                // Tighter inset from the panel edge than the title above.
-                isSwitcher && 'px-2 pb-2',
-                isSwitcher && (title == null || title === '') && 'pt-2',
+                isSwitcher
+                  ? 'border-border flex flex-col border-b'
+                  : 'border-border flex items-center gap-2 border-b p-3',
               )}
             >
+              {title != null && title !== '' && (
+                <div
+                  className={cn(
+                    'text-foreground text-sm font-semibold',
+                    // More inset from the panel edge than the search row below.
+                    isSwitcher && 'px-4 pt-3 pb-2',
+                  )}
+                >
+                  {title}
+                </div>
+              )}
               <div
                 className={cn(
-                  'flex items-center gap-2',
-                  isSwitcher
-                    ? 'border-border rounded-md border bg-[color:var(--color-bg-base)] px-2.5 py-1.5 focus-within:border-[color:var(--color-accent-base)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent-base)]/30'
-                    : undefined,
+                  // Tighter inset from the panel edge than the title above.
+                  isSwitcher && 'px-2 pb-2',
+                  isSwitcher && (title == null || title === '') && 'pt-2',
                 )}
               >
-                <Search
-                  className="text-muted-foreground size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  role="combobox"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={searchPlaceholder}
-                  // text-base (≥16px) prevents iOS focus-zoom; md:text-sm keeps
-                  // the compact desktop density.
-                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
-                  aria-expanded={isOpen}
-                  aria-controls={listboxId}
-                  aria-activedescendant={
-                    filteredOptions.length > 0
-                      ? optionId(highlightedIndex)
-                      : undefined
-                  }
-                  aria-autocomplete="list"
-                  aria-label={searchPlaceholder}
-                />
+                <div
+                  className={cn(
+                    'flex items-center gap-2',
+                    isSwitcher
+                      ? 'border-border rounded-md border bg-[color:var(--color-bg-base)] px-2.5 py-1.5 focus-within:border-[color:var(--color-accent-base)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent-base)]/30'
+                      : undefined,
+                  )}
+                >
+                  <Search
+                    className="text-muted-foreground size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    role="combobox"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={searchPlaceholder}
+                    // text-base (≥16px) prevents iOS focus-zoom; md:text-sm keeps
+                    // the compact desktop density.
+                    className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
+                    aria-expanded={isOpen}
+                    aria-controls={listboxId}
+                    aria-activedescendant={
+                      filteredOptions.length > 0
+                        ? optionId(highlightedIndex)
+                        : undefined
+                    }
+                    aria-autocomplete="list"
+                    aria-label={searchPlaceholder}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-label={ariaLabel}
-            className={cn(
-              'overflow-y-auto',
-              // Switcher stays compact so a long sibling list doesn't fill the
-              // viewport; catalog pickers keep the taller default.
-              isSwitcher ? 'max-h-60' : 'max-h-[20rem] p-1',
+            <div
+              ref={listRef}
+              id={listboxId}
+              role="listbox"
+              aria-label={ariaLabel}
+              className={cn(
+                'overflow-y-auto',
+                // Switcher stays compact so a long sibling list doesn't fill the
+                // viewport; catalog pickers keep the taller default.
+                isSwitcher ? 'max-h-60' : 'max-h-[20rem] p-1',
+              )}
+            >
+              {filteredOptions.map((option, index) => (
+                <Fragment key={option.value}>
+                  {index > 0 &&
+                    !option.isSectionHeader &&
+                    !filteredOptions[index - 1]?.isSectionHeader &&
+                    option.group !== filteredOptions[index - 1]?.group && (
+                      <div
+                        role="separator"
+                        aria-hidden="true"
+                        className="border-border my-1 border-t"
+                      />
+                    )}
+                  <SearchableSelectOptionItem
+                    option={option}
+                    index={index}
+                    id={optionId(index)}
+                    isSelected={value === option.value}
+                    isHighlighted={highlightedIndex === index}
+                    onSelect={handleSelect}
+                    onMouseEnter={setHighlightedIndex}
+                    showRadio={showRadio}
+                    descriptionMode={descriptionMode}
+                    action={optionAction?.(option)}
+                    variant={variant}
+                  />
+                </Fragment>
+              ))}
+
+              {filteredOptions.length === 0 && emptyText && (
+                <Text
+                  as="div"
+                  variant="muted"
+                  align="center"
+                  className="px-3 py-4"
+                >
+                  {emptyText}
+                </Text>
+              )}
+            </div>
+
+            {footer && (
+              <div className="border-border border-t p-1">{footer}</div>
             )}
-          >
-            {filteredOptions.map((option, index) => (
-              <SearchableSelectOptionItem
-                key={option.value}
-                option={option}
-                index={index}
-                id={optionId(index)}
-                isSelected={value === option.value}
-                isHighlighted={highlightedIndex === index}
-                onSelect={handleSelect}
-                onMouseEnter={setHighlightedIndex}
-                showRadio={showRadio}
-                descriptionMode={descriptionMode}
-                action={optionAction?.(option)}
-                variant={variant}
-              />
-            ))}
-
-            {filteredOptions.length === 0 && emptyText && (
-              <Text
-                as="div"
-                variant="muted"
-                align="center"
-                className="px-3 py-4"
-              >
-                {emptyText}
-              </Text>
-            )}
-          </div>
-
-          {footer && <div className="border-border border-t p-1">{footer}</div>}
-        </PopoverPrimitive.Content>
+          </PopoverPrimitive.Content>
+        </SkeletonBox>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
   );
@@ -620,24 +639,8 @@ function SearchableSelectBase({
   );
 }
 
-/**
- * Skeleton-aware SearchableSelect. Inside a `<Skeletonize loading>` it masks
- * the plain control by rendering it inside a `<SkeletonBox>` — laid out
- * invisibly to set the exact size, pulse overlay on top — so the skeleton can
- * never drift. Only the DEFAULT trigger is masked: when a custom `trigger` is
- * supplied the caller owns its own skeleton, so it renders normally.
- */
-export function SearchableSelect(props: SearchableSelectProps) {
-  const loading = useSkeleton();
-  if (loading && !props.trigger) {
-    return (
-      <SkeletonBox>
-        <SearchableSelectBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <SearchableSelectBase {...props} />;
-}
+// Custom triggers own their masks; the default trigger masks its own surface.
+export const SearchableSelect = SearchableSelectBase;
 
 function SearchableSelectOptionItem({
   option,
@@ -708,9 +711,10 @@ function SearchableSelectOptionItem({
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
         'group/option relative flex w-full cursor-default gap-2 text-left text-sm',
-        isSwitcher
-          ? 'border-border rounded-none border-b px-3 py-2 last:border-b-0'
-          : 'rounded-md p-2',
+        isSwitcher ? 'rounded-none px-3 py-2' : 'rounded-md p-2',
+        isSwitcher &&
+          option.group === undefined &&
+          'border-border border-b last:border-b-0',
         showInlineDescription ? 'items-start' : 'items-center',
         isSwitcher && isSelected && 'bg-muted/60',
         isHighlighted && !(isSwitcher && isSelected) && 'bg-accent',

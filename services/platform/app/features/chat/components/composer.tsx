@@ -21,6 +21,7 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { FileUpload } from '@tale/ui/file-upload';
 import { EnterKeyIcon } from '@tale/ui/icons/enter-key-icon';
 import { Row, Stack } from '@tale/ui/layout';
@@ -49,6 +50,10 @@ import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
+import {
+  CHAT_COMPOSER_FIELD_CLASS,
+  CHAT_COMPOSER_FRAME_CLASS,
+} from '../lib/layout';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { ComposerAttachments } from './composer-attachments';
@@ -396,7 +401,7 @@ export const Composer = memo(
             aria-label={t('aria.chatRegion')}
             as="section"
             // Soft top shadow lifts the composer off the conversation above it.
-            className="border-border sm:border-muted-foreground/50 bg-background relative w-full rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]"
+            className={CHAT_COMPOSER_FRAME_CLASS}
           >
             {onQuotedTextChange !== undefined && (
               <QuotedReferenceChip
@@ -478,7 +483,10 @@ export const Composer = memo(
                 // draw its own border or focus ring — ring-0 alone still paints the
                 // ring OFFSET shadow as a faint outline, so the offset goes to 0
                 // with it.
-                className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
+                className={cn(
+                  CHAT_COMPOSER_FIELD_CLASS,
+                  'text-foreground placeholder:text-muted-foreground relative resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                )}
               />
               {/* Shown even while disabled: an empty field with no invitation reads
               as broken chrome, and the disabled styling already says the field

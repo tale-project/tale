@@ -7,7 +7,7 @@ Chaque lancement d’une automatisation ouvre une exécution, et cette exécutio
 
 ## La liste des exécutions
 
-La page d’une automatisation se termine par une liste **Exécutions**, la plus récente en premier. Chaque ligne porte le statut de l’exécution, s’il s’agissait d’un essai ou d’une exécution réelle, la version employée, l’heure de départ et ce qui l’a lancée. Une exécution en échec ou en attente affiche la raison sur la ligne même plutôt que son lanceur : la liste répond donc souvent à la question sans qu’il faille ouvrir quoi que ce soit.
+La page d’une automatisation a un onglet **Exécutions** : chaque exécution, la plus récente en premier. Chaque ligne porte le statut de l’exécution, s’il s’agissait d’un essai ou d’une exécution réelle, la version employée, l’heure de départ et ce qui l’a lancée. Une exécution en échec ou en attente affiche la raison sur la ligne même plutôt que son lanceur : la liste répond donc souvent à la question sans qu’il faille ouvrir quoi que ce soit.
 
 Une automatisation qui ne s’est jamais exécutée le dit, au lieu d’afficher un tableau vide.
 
@@ -62,7 +62,7 @@ Deux échecs ne sont jamais retentés, parce qu’une tentative fraîche ne pour
 
 ## Une séance de débogage jouée de bout en bout
 
-La relance quotidienne n’est pas partie. Ouvre l’automatisation et regarde la liste **Exécutions** : celle de ce matin est là et elle est **En échec**, avec sa raison sur la ligne.
+La relance quotidienne n’est pas partie. Ouvre l’onglet **Exécutions** de l’automatisation : celle de ce matin est là et elle est **En échec**, avec sa raison sur la ligne.
 
 Ouvre-la. Le canvas montre les trois premiers nœuds comme exécutés, le quatrième en échec, et tout ce qui suit comme jamais atteint : la question est déjà réduite à une boîte. Sélectionne le nœud en échec et lis son **Entrée résolue** : le nom du client est là, l’id de facture est une chaîne vide. Cela renvoie un nœud plus haut.
 

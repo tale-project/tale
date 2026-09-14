@@ -95,6 +95,7 @@ export function MemberTable({
       {
         id: 'member',
         header: tTables('headers.member'),
+        meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const member = row.original;
           return (
@@ -117,6 +118,12 @@ export function MemberTable({
       {
         id: 'role',
         header: tTables('headers.role'),
+        meta: {
+          skeleton: {
+            type: 'badge',
+            badge: { variant: 'slate', className: 'rounded-full px-2' },
+          },
+        },
         cell: ({ row }) => {
           const role = row.original.role;
           const roleKey = role
@@ -139,6 +146,7 @@ export function MemberTable({
         header: () => (
           <div className="text-right">{tTables('headers.joined')}</div>
         ),
+        meta: { align: 'right' },
         cell: ({ row }) => (
           <TableTimestampCell
             timestamp={row.original.createdAt}
@@ -153,6 +161,7 @@ export function MemberTable({
         // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
         // every other table's actions column.
         size: ACTIONS_COLUMN_SIZE,
+        meta: { isAction: true },
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
             <MemberRowActions

@@ -328,14 +328,14 @@ analytics:
         agent: Agent
 auth:
   oauth:
-    title: "Continue with Tale"
-    request: "{application} wants to sign you in with Tale."
-    permissions: "Allow this application to read your name, verified email address, and membership in its Tale organization. Your password stays in Tale."
-    allow: "Allow and continue"
-    cancel: "Cancel"
-    continuing: "Continuing…"
-    retry: "Try again"
-    failed: "This sign-in request could not continue. Return to the application and start again."
+    title: 'Continue with Tale'
+    request: '{application} wants to sign you in with Tale.'
+    permissions: 'Allow this application to read your name, verified email address, and membership in its Tale organization. Your password stays in Tale.'
+    allow: 'Allow and continue'
+    cancel: 'Cancel'
+    continuing: 'Continuing…'
+    retry: 'Try again'
+    failed: 'This sign-in request could not continue. Return to the application and start again.'
   email: Email
   password: Password
   emailPlaceholder: Enter your email address
@@ -490,12 +490,17 @@ automations:
   title: Automations
   entityLabel: automations
   entityLabelOne: automation
+  navigation:
+    editor: Editor
+    versions: Versions
+    runs: Runs
   switcher:
     title: Switch automation
     searchPlaceholder: Search automations
     empty: No automations found
     ariaLabel: 'Switch automation, current: {name}'
   list:
+    createButton: Create automation
     searchPlaceholder: Search automations
     columnName: Name
     columnProjects: Projects
@@ -560,7 +565,6 @@ automations:
     noProviders:
       No AI provider is ready for the builder. Add an API-key credential in
       the provider settings first.
-    new: New automation
   notFound:
     title: Automation not found
     description: It may have been renamed, or it may belong to another
@@ -717,6 +721,7 @@ automations:
     nothingToSave: No changes to save
   versions:
     title: Versions
+    description: Every saved version, newest first — open one to show it on the canvas. Exactly one is live at a time.
     empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live
@@ -773,6 +778,7 @@ automations:
       placeholder: Type your answer — plain text is fine.
       submit: Send answer & resume
     title: Runs
+    description: Every run of this automation, newest first — test runs and live runs alike. Open one for its steps, effects and output.
     breadcrumb: Run
     heading: 'Run of {automation}'
     empty: This automation has not run yet.
@@ -1508,6 +1514,7 @@ common:
     skipToContent: Skip to main content
     mainNavigation: Main navigation
     projectsNavigation: Projects navigation
+    automationsNavigation: Automations navigation
     sortAscending: sorted ascending
     sortDescending: sorted descending
     sortAvailable: sort available
@@ -2030,8 +2037,7 @@ documents:
     downloadedSuccessfully: '{filename} downloaded'
     downloadFailed: Couldn't download the file
     notAvailable: Preview not available
-    notAvailableDescription:
-      This file type cannot be previewed. Download the
+    notAvailableDescription: This file type cannot be previewed. Download the
       file to view its contents.
     truncatedNotice: This file is too large to preview in full — showing the
       beginning. Download the file to view everything.
@@ -4184,14 +4190,14 @@ personalization:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
       delete: Delete
-      deleteLabel: "Delete memory: {content}"
+      deleteLabel: 'Delete memory: {content}'
     pending:
       title: Pending suggestions
       empty: No suggestions waiting.
       save: Save
-      saveLabel: "Save suggestion: {content}"
+      saveLabel: 'Save suggestion: {content}'
       discard: Discard
-      discardLabel: "Discard suggestion: {content}"
+      discardLabel: 'Discard suggestion: {content}'
   errors:
     saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
@@ -6138,8 +6144,7 @@ settings:
         configured.
       banner:
         title: Knowledge search is off
-        body:
-          This organization has an AI provider but no embedding model, so
+        body: This organization has an AI provider but no embedding model, so
           documents cannot be indexed or searched.
         link: Choose an embedding model
       recommendationBody:

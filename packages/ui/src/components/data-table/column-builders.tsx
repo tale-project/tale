@@ -66,7 +66,7 @@ export const ACTIONS_COLUMN_SIZE = 56;
 /**
  * Canonical width for the multi-select column. Mirrors the actions column's
  * `ACTIONS_COLUMN_SIZE` purpose on the opposite side of the row: a single
- * 24px Checkbox centered in a 40px column. See `createSelectColumn`.
+ * 16px Checkbox centered in a 40px column. See `createSelectColumn`.
  */
 export const SELECT_COLUMN_SIZE = 40;
 

@@ -27,6 +27,7 @@ import {
   useProjectSecrets,
   useSetProjectSecret,
 } from '../hooks/secrets';
+import { ProjectSecretsLayout } from './project-secrets-layout';
 
 export function ProjectSecretsTab({
   organizationId,
@@ -84,14 +85,7 @@ export function ProjectSecretsTab({
   }));
 
   return (
-    <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader title={t('title')} description={t('description')} />
-      <Alert
-        variant="warning"
-        icon={ShieldAlert}
-        title={t('agentAccessTitle')}
-        description={t('agentAccessBody')}
-      />
+    <ProjectSecretsLayout>
       <EnvVarListEditor
         forceSecret
         rows={rows}
@@ -112,6 +106,6 @@ export function ProjectSecretsTab({
           });
         }}
       />
-    </ContentArea>
+    </ProjectSecretsLayout>
   );
 }

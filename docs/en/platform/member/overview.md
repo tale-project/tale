@@ -19,6 +19,8 @@ Approvals are not a Member surface in this version. A connector write that needs
 
 The org configuration settings — providers, connectors, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and Notifications.
 
+Opening a notification link takes you to its task, document or conversation. If you need to log in first, Tale keeps that destination and opens it after login. You still need access to the organization and the linked content. For a private deployment, connect to its required network before opening the link.
+
 ## Pages in this section
 
 This section is short — the Member surface is the cross-section of pages that Editors build for and that everyone uses. The deeper reading lives in the per-feature areas.

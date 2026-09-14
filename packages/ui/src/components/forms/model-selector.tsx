@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Plus } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
@@ -42,8 +41,7 @@ export interface ModelSelectorProps {
   readonlyOrder?: boolean;
 }
 
-// Plain control — the real reorderable model list + add control. No skeleton
-// logic of its own.
+// Mask values and actions in place so the list keeps its natural row geometry.
 function ModelSelectorBase({
   models,
   onChange,
@@ -126,13 +124,17 @@ function ModelSelectorBase({
           return (
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <div className="flex min-w-0 items-baseline gap-2">
-                <code className="truncate text-sm">
-                  {getDisplayName(item.modelId)}
-                </code>
+                <SkeletonBox asChild>
+                  <code className="truncate text-sm">
+                    {getDisplayName(item.modelId)}
+                  </code>
+                </SkeletonBox>
                 {providerName ? (
-                  <span className="text-muted-foreground flex-shrink-0 text-xs">
-                    {providerName}
-                  </span>
+                  <SkeletonBox asChild>
+                    <span className="text-muted-foreground flex-shrink-0 text-xs">
+                      {providerName}
+                    </span>
+                  </SkeletonBox>
                 ) : null}
                 {renderItemAction ? (
                   <span className="ml-auto shrink-0">
@@ -141,13 +143,15 @@ function ModelSelectorBase({
                 ) : null}
               </div>
               {warning ? (
-                <p
-                  role="status"
-                  className="text-destructive text-xs"
-                  data-testid={`model-warning-${item.modelId}`}
-                >
-                  {warning}
-                </p>
+                <SkeletonBox asChild>
+                  <p
+                    role="status"
+                    className="text-destructive text-xs"
+                    data-testid={`model-warning-${item.modelId}`}
+                  >
+                    {warning}
+                  </p>
+                </SkeletonBox>
               ) : null}
             </div>
           );
@@ -174,20 +178,5 @@ function ModelSelectorBase({
   );
 }
 
-/**
- * Skeleton-aware ModelSelector. Inside a `<Skeletonize loading>` it masks the
- * plain control by rendering it inside a `<SkeletonBox>` — laid out invisibly
- * to set the exact size, pulse overlay on top — so the skeleton can never
- * drift.
- */
-export function ModelSelector(props: ModelSelectorProps) {
-  const loading = useSkeleton();
-  if (loading) {
-    return (
-      <SkeletonBox>
-        <ModelSelectorBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <ModelSelectorBase {...props} />;
-}
+// Each value and action masks itself without replacing the reorderable list.
+export const ModelSelector = ModelSelectorBase;

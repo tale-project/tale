@@ -21,8 +21,12 @@ export const MOBILE_FLOATING_ACTIONS_PAD = '4.5rem';
 const PAD_COUNT_ATTR = 'data-floating-actions-pad-count';
 
 function nodeHasContent(node: HTMLElement): boolean {
+  // A mounted-but-empty slot (a portal target no page has filled, e.g. the
+  // tab strip's actions slot on a tab without actions) is not content —
+  // `:empty` here mirrors the slot's own `empty:hidden`.
   return (
-    node.childElementCount > 0 || (node.textContent?.trim().length ?? 0) > 0
+    Array.from(node.children).some((child) => !child.matches(':empty')) ||
+    (node.textContent?.trim().length ?? 0) > 0
   );
 }
 
@@ -108,7 +112,10 @@ export function MobileFloatingActions({
     >
       <div
         ref={innerRef}
-        className="border-border bg-background pointer-events-auto flex w-fit items-center gap-2 rounded-xl border px-3 py-2 shadow-md"
+        // Capped to the viewport so a wide cluster (an editor's version, run
+        // and save verbs) wraps inside the dock instead of running off the
+        // left edge; `justify-end` keeps every wrapped row on the anchor side.
+        className="border-border bg-background pointer-events-auto flex w-fit max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-2 rounded-xl border px-3 py-2 shadow-md"
       >
         {children}
       </div>

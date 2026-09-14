@@ -1,5 +1,5 @@
 import { ActiveEditorProvider } from '@tale/ui/editor';
-import { forwardRef, type AnchorHTMLAttributes } from 'react';
+import { forwardRef, useState, type AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -183,18 +183,56 @@ vi.mock('@tale/ui/json-viewer', () => ({
   ),
 }));
 
-import { AutomationDetail } from './automation-detail';
+import { AutomationEditor } from './automation-editor';
 
-/** Mirrors the shells: a provider around the page, no cluster of its own. */
-function renderPage() {
-  return render(
-    <ActiveEditorProvider>
-      <AutomationDetail
-        organizationId="org-1"
-        automationSlug="billing/dunning"
-      />
-    </ActiveEditorProvider>,
+const onSelectVersion = vi.fn();
+
+type EditorProps = Partial<Parameters<typeof AutomationEditor>[0]>;
+
+/**
+ * Mirrors the route: the version on the canvas comes from the URL, and a pick
+ * travels back through `onSelectVersion` — here into local state, so the page
+ * re-renders on the chosen version exactly as it does after the route's
+ * search update.
+ */
+function EditorHarness(props: EditorProps) {
+  const [version, setVersion] = useState<number | undefined>(undefined);
+  return (
+    <AutomationEditor
+      organizationId="org-1"
+      automationSlug="billing/dunning"
+      {...props}
+      {...(version !== undefined && { version })}
+      onSelectVersion={(next) => {
+        onSelectVersion(next);
+        setVersion(next);
+      }}
+    />
   );
+}
+
+/**
+ * Mirrors the shell: a provider around the page, no cluster of its own. The
+ * harness is keyed on the identity props the way a URL's search belongs to
+ * that URL — another automation starts on its latest version.
+ */
+function page(props: EditorProps = {}) {
+  return (
+    <ActiveEditorProvider>
+      <EditorHarness
+        key={JSON.stringify([
+          props.organizationId ?? 'org-1',
+          props.automationSlug ?? 'billing/dunning',
+          props.projectId ?? null,
+        ])}
+        {...props}
+      />
+    </ActiveEditorProvider>
+  );
+}
+
+function renderPage(props: EditorProps = {}) {
+  return render(page(props));
 }
 
 const saveButton = () => screen.getByRole('button', { name: 'Save' });
@@ -212,18 +250,24 @@ beforeEach(() => {
   saveMutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
   saveMutation.isPending = false;
   toastSpy.mockClear();
+  onSelectVersion.mockClear();
   startRun.mutate.mockClear();
   deploy.mutate.mockReset();
   projectsData.list = [];
   projectsData.bound = [];
   runsData.length = 0;
+  state.document = {
+    name: 'billing/dunning',
+    description: 'Chases unpaid invoices.',
+    nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+  };
   state.presentation = undefined;
   state.version = 3;
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
 });
 
-describe('AutomationDetail', () => {
+describe('AutomationEditor', () => {
   it('omits the pack description from the workbench header', () => {
     state.presentation = {
       name: 'Chase overdue invoices',
@@ -326,7 +370,8 @@ describe('AutomationDetail', () => {
     renderPage();
     expect(versionPicker()).toHaveTextContent('v3');
     expect(versionPicker()).not.toHaveTextContent('Live');
-    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    // The one Live badge beside the name — the history is its own tab now.
+    expect(screen.getByText('Live')).toBeVisible();
     expect(screen.queryByText(/^Live:/)).toBeNull();
     expect(
       screen.queryByRole('button', { name: 'Deploy this version' }),
@@ -344,10 +389,12 @@ describe('AutomationDetail', () => {
 
   it('drops the header deploy after switching to the live version', async () => {
     const { user } = renderPage();
-    await user.click(screen.getByRole('button', { name: 'v2' }));
+    await user.click(versionPicker());
+    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
     expect(versionPicker()).toHaveTextContent('v2');
     expect(versionPicker()).not.toHaveTextContent('Live');
-    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    // The one Live badge beside the name — the history is its own tab now.
+    expect(screen.getByText('Live')).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Deploy this version' }),
     ).not.toBeInTheDocument();
@@ -365,10 +412,91 @@ describe('AutomationDetail', () => {
 
     expect(versionPicker()).toHaveTextContent('v2');
     expect(versionPicker()).not.toHaveTextContent('Live');
-    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    // The one Live badge beside the name — the history is its own tab now.
+    expect(screen.getByText('Live')).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Deploy this version' }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([undefined, 'project_a'])(
+    'opens the latest version when switching automation in project scope %s',
+    async (projectId) => {
+      const props = projectId === undefined ? {} : { projectId };
+      const { user, rerender } = renderPage(props);
+      await user.click(versionPicker());
+      await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+      expect(versionPicker()).toHaveTextContent('v2');
+
+      // A sibling may have fewer versions. Keeping v2 would ask for a version
+      // that does not exist and leave the new workbench loading; the new URL
+      // carries no ?version=, so the sibling opens on its latest.
+      state.version = 1;
+      state.document = {
+        name: 'billing/reminders',
+        nodes: [
+          { id: 'reminder', type: 'llm', prompt: 'Remind the customer.' },
+        ],
+      };
+      rerender(page({ ...props, automationSlug: 'billing/reminders' }));
+
+      expect(versionPicker()).toHaveTextContent('v1');
+      expect(
+        screen.getByRole('button', { name: 'select reminder' }),
+      ).toBeVisible();
+      expect(saveButton()).toBeDisabled();
+    },
+  );
+
+  it.each([
+    { automationSlug: 'billing/reminders' },
+    { organizationId: 'org-2' },
+    { projectId: 'project_b' },
+  ])('drops the previous draft after navigation to %j', async (destination) => {
+    const props = { projectId: 'project_a' };
+    const { user, rerender } = renderPage(props);
+    await editTheNode(user);
+    expect(saveButton()).toBeEnabled();
+
+    // A live query refresh is still the same editor: retain unsaved work.
+    rerender(page(props));
+    expect(whenField()).toHaveValue('x');
+    expect(saveButton()).toBeEnabled();
+
+    // The router changes these props only after the shared dirty guard has
+    // accepted leaving. The destination must never inherit the old draft.
+    state.document = {
+      name: destination.automationSlug ?? 'billing/dunning',
+      nodes: [{ id: 'destination', type: 'llm', prompt: 'The new workflow.' }],
+    };
+    rerender(page({ ...props, ...destination }));
+
+    expect(screen.queryByRole('button', { name: 'select summary' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'select destination' }),
+    ).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(saveButton()).toBeDisabled();
+    expect(discardButton()).toBeDisabled();
+    expect(saveMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('reports a picked version to the route and lands on the latest after a save', async () => {
+    const { user } = renderPage();
+    await user.click(versionPicker());
+    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    expect(onSelectVersion).toHaveBeenLastCalledWith(2);
+    expect(versionPicker()).toHaveTextContent('v2');
+
+    // A save appends a version, so the page asks the route for the latest
+    // again rather than staying pinned to the one it was reading.
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(onSelectVersion).toHaveBeenLastCalledWith(undefined);
+    });
+    expect(versionPicker()).toHaveTextContent('v3');
   });
 
   it('toggles the last-run overlay from a canvas control', async () => {
@@ -608,7 +736,8 @@ describe('AutomationDetail', () => {
     const { user } = renderPage();
     await editTheNode(user);
 
-    await user.click(screen.getByRole('button', { name: 'v2' }));
+    await user.click(versionPicker());
+    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
     expect(screen.getByText('Show another version?')).toBeVisible();
 
     // Backing out of the question leaves the draft exactly where it was.
@@ -618,7 +747,8 @@ describe('AutomationDetail', () => {
     });
     expect(whenField()).toHaveValue('x');
 
-    await user.click(screen.getByRole('button', { name: 'v2' }));
+    await user.click(versionPicker());
+    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
     await user.click(
       screen.getByRole('button', { name: 'Discard and switch' }),
     );

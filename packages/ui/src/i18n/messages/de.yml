@@ -56,6 +56,7 @@ common:
     saved: Gespeichert
     source: Quelle
     tryAgain: Erneut versuchen
+    loading: Lädt...
   aria:
     back: Zurück
     close: Schließen

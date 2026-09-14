@@ -13,8 +13,8 @@ interface SkeletonContextValue {
 const SkeletonContext = createContext<SkeletonContextValue>({ loading: false });
 
 /**
- * Read by every skeleton-aware leaf (Input, Textarea, Switch, Select, Text,
- * Badge, Button). Returns `false` outside any `<Skeletonize>` provider, so
+ * Read by skeleton-aware leaves such as Input, Checkbox, Badge and Button.
+ * Returns `false` outside any `<Skeletonize>` provider, so
  * components behave exactly as before unless explicitly wrapped.
  */
 export function useSkeleton(): boolean {
@@ -41,13 +41,16 @@ interface SkeletonizeProps {
  * skeleton's height equals the content's height by construction (there is no
  * separate skeleton tree to drift). Static headings/labels keep rendering
  * their real text (they're known at load time and read better than gray bars).
+ * Control surfaces use SkeletonBox asChild so their existing element owns
+ * dimensions, flex/grid placement and border radius in both states. Keep
+ * those masks mounted unconditionally; toggling a wrapper remounts controls.
  *
  * The wrapper element is present in both states so toggling `loading` never
  * shifts layout. A single `role="status"`/`aria-busy` lives here while masked
  * (individual masked leaves are `aria-hidden`), so screen readers announce
  * "Loading" once, not per leaf.
  *
- * For data that arrives via `useSuspenseConvexQuery`, prefer letting the
+ * For data that arrives via a suspending query, prefer letting the
  * enclosing Suspense fallback render the skeletonized tree. Use
  * `<Skeletonize>` inline to mask a section whose data loads via a
  * non-suspending read.

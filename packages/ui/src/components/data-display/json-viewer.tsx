@@ -4,6 +4,8 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
 import { lazyComponent } from '@tale/ui/lazy-component';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -11,13 +13,9 @@ const ReactJsonView = lazyComponent(
   () => import('@microlink/react-json-view'),
   {
     loading: () => (
-      <div className="bg-muted rounded-md p-4">
-        <div className="animate-pulse">
-          <div className="mb-2 h-4 w-1/4 rounded bg-gray-300"></div>
-          <div className="mb-2 h-4 w-1/2 rounded bg-gray-300"></div>
-          <div className="h-4 w-3/4 rounded bg-gray-300"></div>
-        </div>
-      </div>
+      <Skeletonize loading className="font-mono">
+        <SkeletonText lines={3} />
+      </Skeletonize>
     ),
   },
 );

@@ -52,18 +52,17 @@ import {
   useNodeTypeCatalog,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument, readPositions } from '../lib/document';
-import { automationErrorMessage } from '../lib/errors';
+import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
 import {
+  AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
-  AUTOMATION_WORKBENCH_GRID,
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
 import { NodeInspector } from './node-inspector';
-import { RunList } from './run-list';
-import { VersionList } from './version-list';
 import { WorkflowSettings } from './workflow-settings';
 
 /**
@@ -132,10 +131,9 @@ const DOCUMENT_DIRTY_KEYS: ReadonlySet<string> = new Set(['document']);
  *
  * It reads the ACTIVE editor from the shell's registry instead of taking the
  * controller as a prop, so the shell that mounts `ActiveEditorProvider` owns
- * the one cluster on screen: the org area layout and the project-scoped
- * automation route each mount a provider around this page and render no cluster
- * of their own, and a shell that does render one (a tab strip) registers above
- * this provider, so two can never appear at once.
+ * the one cluster on screen: the automation detail shell mounts a provider
+ * around every tab and renders no cluster of its own, so exactly one — this
+ * one, portaled into the tab strip — is ever on screen.
  */
 function AutomationEditorActions() {
   const controller = useActiveEditor();
@@ -143,29 +141,60 @@ function AutomationEditorActions() {
   return <EditorActions controller={controller} entityKind="automation" />;
 }
 
-/**
- * One automation: its document on the canvas, its history, and its runs.
- *
- * The page always shows a stored VERSION — versions are immutable, so what is
- * drawn is exactly what was saved and exactly what a run of that version will
- * do. Editing builds a draft in the browser; saving appends a NEW version
- * rather than changing the one on screen, which is what keeps a live automation
- * from changing under a run already in flight.
- *
- * The most recent run is laid over the canvas by default, because the first
- * question anyone opening an automation has is "did the last one work".
- */
-export function AutomationDetail({
-  organizationId,
-  automationSlug,
-  projectId,
-}: {
+interface AutomationEditorProps {
   organizationId: string;
   automationSlug: string;
   /** Render inside a project shell: run links stay on the project routes and
    * a first save pins the automation to the project. */
   projectId?: string;
-}) {
+  /** The stored version on the canvas; absent means the latest. */
+  version?: number;
+  /** The author picked a version to look at — `undefined` asks for the latest
+   * again (after a save appends one). */
+  onSelectVersion: (version: number | undefined) => void;
+}
+
+/** Route parameters can change without unmounting the page. Keep the draft
+ * and inspector state with one automation in one scope — the version on the
+ * canvas is the route's search, so it already belongs to the new URL — while
+ * the shared dirty guard still confirms navigation before these props change. */
+export function AutomationEditor(props: AutomationEditorProps) {
+  return (
+    <AutomationEditorScope
+      key={JSON.stringify([
+        props.organizationId,
+        props.automationSlug,
+        props.projectId ?? null,
+      ])}
+      {...props}
+    />
+  );
+}
+
+/**
+ * The Editor tab: one automation's document on the canvas beside its node
+ * inspector, with the trigger and project bindings in the panel until a node
+ * is selected. The version history and the run log are their own tabs.
+ *
+ * The canvas always shows a stored VERSION — versions are immutable, so what
+ * is drawn is exactly what was saved and exactly what a run of that version
+ * will do. Which one is the route's `version` (the URL's `?version=`, absent
+ * for the latest); switching is reported through `onSelectVersion`, so a
+ * Versions row, a shared link and the picker here all land on the same
+ * picture. Editing builds a draft in the browser; saving appends a NEW
+ * version rather than changing the one on screen, which is what keeps a live
+ * automation from changing under a run already in flight.
+ *
+ * The most recent run is laid over the canvas by default, because the first
+ * question anyone opening an automation has is "did the last one work".
+ */
+function AutomationEditorScope({
+  organizationId,
+  automationSlug,
+  projectId,
+  version,
+  onSelectVersion,
+}: AutomationEditorProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const inspectorId = useId();
@@ -175,9 +204,6 @@ export function AutomationDetail({
   // saving, deploying, triggering, and LIVE runs demand the
   // `developerSettings` ability — hiding what would only fail server-side.
   const canAuthor = ability.can('read', 'developerSettings');
-  const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
-    undefined,
-  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const deselectNode = useCallback(() => {
     const id = selectedNodeId;
@@ -192,8 +218,8 @@ export function AutomationDetail({
   const [saveMessage, setSaveMessage] = useState('');
   /** A refused RUN, not refused save feedback — see the Alert below. */
   const [refusal, setRefusal] = useState<string | null>(null);
-  /** A refused DEPLOY from the looking-vs-live control. The Versions list
-   * keeps its own copy for row-level deploys. */
+  /** A refused DEPLOY from the looking-vs-live control — the only deploy
+   * control there is; the Versions tab's rows never deploy. */
   const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [confirmLiveRun, setConfirmLiveRun] = useState(false);
@@ -211,10 +237,12 @@ export function AutomationDetail({
   const automationQuery = useAutomation(
     organizationId,
     automationSlug,
-    selectedVersion,
+    version,
   );
   const versionsQuery = useAutomationVersions(organizationId, automationSlug);
-  const runsQuery = useAutomationRuns(organizationId, automationSlug, 20);
+  // Only the newest run matters here — it is what the canvas overlays; the
+  // Runs tab reads the log.
+  const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const boundProjectIds = useAutomationProjects(organizationId, automationSlug);
   const { projects } = useProjects(organizationId);
@@ -299,14 +327,14 @@ export function AutomationDetail({
   );
 
   const isDirty = draft !== null;
-  const requestVersionSwitch = (version: number): void => {
+  const requestVersionSwitch = (next: number): void => {
     // Another version replaces what the canvas shows, so a draft cannot
     // survive the switch — ask before dropping it.
     if (isDirty) {
-      setPendingVersion(version);
+      setPendingVersion(next);
       return;
     }
-    setSelectedVersion(version);
+    onSelectVersion(next);
   };
   const versionEntries = useMemo(
     () => [...(versionsQuery.data ?? [])].sort((a, b) => b.version - a.version),
@@ -372,12 +400,23 @@ export function AutomationDetail({
   );
 
   useRegisterActiveEditor(controller);
-  // A draft lives in this component only, so leaving the page loses it —
-  // every navigation away is worth a prompt. Members never accumulate one:
-  // the inspector is read-only without the developer capability.
-  useRegisterDirtySource(isDirty);
+  // A draft lives in this component only, so leaving the tab loses it —
+  // every navigation away is worth a prompt. Scoped to the editor's own path:
+  // a version switch is a search-param change on this same page, and it has
+  // its own confirm above, so the blocker must not ask a second time.
+  // Members never accumulate a draft: the inspector is read-only without the
+  // developer capability.
+  useRegisterDirtySource(isDirty, {
+    scopePath: `${automationDetailPathname({
+      organizationId,
+      automationSlug,
+      ...(projectId !== undefined && { projectId }),
+    })}/editor`,
+  });
 
-  if (automationQuery.data === null) {
+  // The shell already answers an unknown slug; this catches a `?version=`
+  // that no longer exists (the route answers 404 for that too).
+  if (isMissingAutomationRead(automationQuery)) {
     return (
       <ContentArea variant="narrow">
         <EmptyState
@@ -440,7 +479,8 @@ export function AutomationDetail({
       setSaveDialogOpen(false);
       setDraft(null);
       setSaveMessage('');
-      setSelectedVersion(undefined);
+      // The save appended a version; show it, whichever one was on screen.
+      onSelectVersion(undefined);
       pending?.resolve();
     } catch (error) {
       pendingSaveRef.current = null;
@@ -456,8 +496,9 @@ export function AutomationDetail({
       <PageActionHeader
         // Display name is the breadcrumb h1 in AdaptiveHeader. Live sits
         // next to that name when the canvas version is the live one. The
-        // version switcher and the run/save verbs portal to the right of
-        // the same row. Pack descriptions stay off this workbench — they
+        // version switcher and the run/save verbs portal into the tab
+        // strip's trailing slot — where every tabbed page keeps its
+        // Save/Discard. Pack descriptions stay off this workbench — they
         // belong on list/catalog surfaces where you pick an automation.
         {...(lookingIsLive && {
           identity: (
@@ -595,12 +636,13 @@ export function AutomationDetail({
           </div>
         }
       />
-      {/* Full width rather than the `narrow` configuration measure: this page is
+      {/* Full width rather than the `narrow` configuration measure: this tab is
           a workbench, not a form — the canvas and its inspector are a
-          two-column grid, and the version and run logs read as a pair beside
-          it. Constraining them to the settings measure would stack everything
-          into one 48rem column and make the graph unreadable. */}
-      <ContentArea className="flex-1" gap={4}>
+          two-column grid, and constraining them to the settings measure would
+          stack everything into one 48rem column and make the graph
+          unreadable. `min-h-0 flex-1` hands the grid the height the header
+          and tab strip leave, so the workbench fills the window. */}
+      <ContentArea className="min-h-0 flex-1" gap={4}>
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead. */}
@@ -615,7 +657,7 @@ export function AutomationDetail({
           />
         )}
 
-        <div className={AUTOMATION_WORKBENCH_GRID}>
+        <div className={AUTOMATION_EDITOR_WORKBENCH_GRID}>
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
             {lastRun ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-2">
@@ -673,21 +715,6 @@ export function AutomationDetail({
                 canEdit={canAuthor}
               />
             }
-          />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <VersionList
-            versions={versionsQuery.data ?? []}
-            deployedVersion={meta?.deployedVersion}
-            selectedVersion={selectedVersion ?? meta?.version}
-            onSelectVersion={requestVersionSwitch}
-          />
-          <RunList
-            organizationId={organizationId}
-            automationSlug={automationSlug}
-            runs={runs}
-            {...(projectId !== undefined && { projectId })}
           />
         </div>
       </ContentArea>
@@ -785,7 +812,7 @@ export function AutomationDetail({
         variant="destructive"
         onConfirm={() => {
           setDraft(null);
-          setSelectedVersion(pendingVersion ?? undefined);
+          if (pendingVersion !== null) onSelectVersion(pendingVersion);
           setPendingVersion(null);
         }}
       />

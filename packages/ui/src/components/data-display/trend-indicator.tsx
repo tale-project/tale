@@ -109,7 +109,7 @@ export function TrendIndicator({
         : 'text-muted-foreground';
 
   return (
-    <SkeletonBox>
+    <SkeletonBox asChild>
       <span
         className={cn(
           'inline-flex items-center gap-1 text-xs font-medium tabular-nums',

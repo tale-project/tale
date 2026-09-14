@@ -16,7 +16,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { MultiSelect } from '@tale/ui/multi-select';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
 import {
@@ -646,30 +646,38 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                 <TableBody>
                   {loading ? (
                     displayRows.map((_, index) => (
-                      <TableRow key={`skeleton-${index}`}>
+                      <TableRow key={`skeleton-${index}`} data-no-hover>
                         <TableCell>
-                          <SkeletonBox>
-                            <div className="h-3.5 w-16" />
-                          </SkeletonBox>
+                          <div className="w-16">
+                            <SkeletonText />
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <SkeletonBox>
-                            <div className="h-3.5 w-24" />
-                          </SkeletonBox>
+                          <div className="w-24">
+                            <SkeletonText />
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <SkeletonBox>
-                            <div className="h-3.5 w-32" />
-                          </SkeletonBox>
+                          <div className="w-32">
+                            <SkeletonText />
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <HStack gap={1} justify="end">
-                            <SkeletonBox>
-                              <div className="size-8 rounded-md" />
-                            </SkeletonBox>
-                            <SkeletonBox>
-                              <div className="size-8 rounded-md" />
-                            </SkeletonBox>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('modelAccess.editRule')}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('modelAccess.deleteRule')}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
                           </HStack>
                         </TableCell>
                       </TableRow>

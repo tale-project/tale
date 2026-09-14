@@ -6,8 +6,8 @@ import { Description } from '@tale/ui/description';
 import { useT } from '@tale/ui/i18n/client';
 import { Label } from '@tale/ui/label';
 import { lazyComponent } from '@tale/ui/lazy-component';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { toast } from '@tale/ui/use-toast';
@@ -18,17 +18,20 @@ import { z } from 'zod';
 import { FieldShell } from './field-shell';
 import { Textarea } from './textarea';
 
+const JSON_VIEWER_MIN_HEIGHT = '12.5rem';
+
 const ReactJsonView = lazyComponent(
   () => import('@microlink/react-json-view'),
   {
     loading: () => (
-      <div className="bg-muted rounded-md p-4">
-        <div className="animate-pulse">
-          <div className="mb-2 h-4 w-1/4 rounded bg-gray-300"></div>
-          <div className="mb-2 h-4 w-1/2 rounded bg-gray-300"></div>
-          <div className="h-4 w-3/4 rounded bg-gray-300"></div>
+      <Skeletonize loading>
+        <div
+          className="font-mono"
+          style={{ minHeight: JSON_VIEWER_MIN_HEIGHT }}
+        >
+          <SkeletonText lines={3} />
         </div>
-      </div>
+      </Skeletonize>
     ),
   },
 );
@@ -141,7 +144,7 @@ function JsonViewerDisplay({
   onEdit,
 }: JsonViewerDisplayProps) {
   return (
-    <div className="p-3" aria-describedby={describedBy}>
+    <div className="p-3" style={{ fontSize }} aria-describedby={describedBy}>
       <ReactJsonView
         name={false}
         quotesOnKeys
@@ -160,7 +163,7 @@ function JsonViewerDisplay({
         style={{
           backgroundColor: 'transparent',
           fontSize: `${fontSize}px`,
-          minHeight: '12.5rem',
+          minHeight: JSON_VIEWER_MIN_HEIGHT,
         }}
       />
     </div>
@@ -284,8 +287,7 @@ interface JsonInputProps {
   id?: string;
 }
 
-// Plain control — the real JSON viewer/editor body (+ toolbar, label,
-// description, errors). No skeleton logic of its own.
+// Mask the editor surface while keeping its field layout and editing state.
 function JsonInputBase({
   value,
   onChange,
@@ -521,38 +523,40 @@ function JsonInputBase({
         </div>
       )}
 
-      <div
-        ref={containerRef}
-        className={cn(
-          'bg-card overflow-hidden rounded-md border',
-          hasAnyError && 'border-destructive',
-          disabled && 'cursor-not-allowed opacity-50',
-        )}
-        role="group"
-        aria-describedby={describedBy}
-      >
-        {editing.isEditing ? (
-          <JsonTextEditor
-            textValue={textValue}
-            disabled={disabled}
-            rows={rows}
-            inputId={resolvedId}
-            describedBy={describedBy}
-            placeholder={placeholder}
-            onChange={handleTextareaChange}
-            onKeyDown={handleTextareaKeyDown}
-          />
-        ) : (
-          <JsonViewerDisplay
-            parsedValue={parsedValue}
-            indentWidth={indentWidth}
-            fontSize={fontSize}
-            disabled={disabled}
-            describedBy={describedBy}
-            onEdit={handleJsonEdit}
-          />
-        )}
-      </div>
+      <SkeletonBox asChild>
+        <div
+          ref={containerRef}
+          className={cn(
+            'bg-card overflow-hidden rounded-md border',
+            hasAnyError && 'border-destructive',
+            disabled && 'cursor-not-allowed opacity-50',
+          )}
+          role="group"
+          aria-describedby={describedBy}
+        >
+          {editing.isEditing ? (
+            <JsonTextEditor
+              textValue={textValue}
+              disabled={disabled}
+              rows={rows}
+              inputId={resolvedId}
+              describedBy={describedBy}
+              placeholder={placeholder}
+              onChange={handleTextareaChange}
+              onKeyDown={handleTextareaKeyDown}
+            />
+          ) : (
+            <JsonViewerDisplay
+              parsedValue={parsedValue}
+              indentWidth={indentWidth}
+              fontSize={fontSize}
+              disabled={disabled}
+              describedBy={describedBy}
+              onEdit={handleJsonEdit}
+            />
+          )}
+        </div>
+      </SkeletonBox>
 
       {editing.isEditing && (
         <Text
@@ -581,19 +585,5 @@ function JsonInputBase({
   );
 }
 
-/**
- * Skeleton-aware JsonInput. Inside a `<Skeletonize loading>` it masks the plain
- * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
- * the exact size, pulse overlay on top — so the skeleton can never drift.
- */
-export function JsonInput(props: JsonInputProps) {
-  const loading = useSkeleton();
-  if (loading) {
-    return (
-      <SkeletonBox>
-        <JsonInputBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <JsonInputBase {...props} />;
-}
+// Keep the editor and field frame mounted while its value surface is masked.
+export const JsonInput = JsonInputBase;

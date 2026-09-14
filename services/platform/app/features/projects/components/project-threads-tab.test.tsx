@@ -24,12 +24,13 @@ type ThreadFixture = {
 
 let mineFixture: ThreadFixture[] = [];
 let sharedFixture: ThreadFixture[] = [];
+let loadingFixture = false;
 
 vi.mock('../hooks/queries', () => ({
   useProjectChatThreads: () => ({
     mine: mineFixture,
     shared: sharedFixture,
-    isLoading: false,
+    isLoading: loadingFixture,
   }),
 }));
 
@@ -75,6 +76,23 @@ describe('ProjectThreadsTab', () => {
     vi.clearAllMocks();
     mineFixture = [];
     sharedFixture = [];
+    loadingFixture = false;
+  });
+
+  it('keeps both chat sections masked until the first read answers', () => {
+    loadingFixture = true;
+    const { rerender } = renderTab();
+    expect(screen.getAllByRole('status')).toHaveLength(2);
+    expect(
+      screen.getByRole('heading', { name: 'Your chats' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No shared chats yet.')).not.toBeInTheDocument();
+    loadingFixture = false;
+    rerender(
+      <ProjectThreadsTab organizationId="org-1" projectId={PROJECT_ID} />,
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('No shared chats yet.')).toBeInTheDocument();
   });
 
   it('lists the owner chats with a share toggle and the empty shared state', async () => {

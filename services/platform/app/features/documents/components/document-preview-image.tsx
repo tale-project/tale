@@ -1,16 +1,17 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
-import { Center } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ZoomPanViewer } from '@tale/ui/zoom-pan-viewer';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
+import {
+  PreviewContentSkeleton,
+  PreviewPane,
+  previewPaneCanvasClasses,
+} from './preview-pane';
 
 interface DocumentPreviewImageProps {
   url: string;
@@ -54,13 +55,9 @@ export function DocumentPreviewImage({
   return (
     <PreviewPane className={previewPaneCanvasClasses}>
       {isLoading && (
-        <Skeletonize loading className="absolute inset-0 z-10">
-          <Center className="size-full">
-            <SkeletonBox>
-              <div className="size-64 rounded-xl" />
-            </SkeletonBox>
-          </Center>
-        </Skeletonize>
+        <div className="absolute inset-6 z-10 flex">
+          <PreviewContentSkeleton kind="image" label={t('preview.loading')} />
+        </div>
       )}
       <ZoomPanViewer
         src={url}

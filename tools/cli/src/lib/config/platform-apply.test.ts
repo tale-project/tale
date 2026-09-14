@@ -1,9 +1,20 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { preconditionError } from '../../utils/fail';
+import { writeDeploymentBundle } from '../deployment/bundle';
+import { provisionDeploymentConfiguration } from '../deployment/configuration';
+import type { ProvisionContext } from '../deployment/identity';
+import { writePrivateJson } from '../state/private-files';
 import {
   applyPlatformConfiguration,
   planPlatformConfiguration,
@@ -210,6 +221,232 @@ const ordinary = () =>
   });
 
 describe('one general native configuration lifecycle', () => {
+  test.skipIf(process.platform === 'win32')(
+    'managed deployment carries the reviewed migration into native configuration readback',
+    async () => {
+      const f = await fixture(ordinary());
+      const stateDirectory = dirname(f.receipt);
+      const receipt = join(stateDirectory, 'configuration.json');
+      await applyPlatformConfiguration(
+        f.configuration,
+        await planPlatformConfiguration(f.configuration, f.client),
+        f.client,
+        receipt,
+      );
+      const writes = [...f.writes];
+      const origin = 'https://renamed.example.invalid';
+      const migrateOriginFrom = f.client.target.origin;
+      const directory = join(stateDirectory, 'bundle');
+      for (const [file, bytes] of [
+        ['cli/tale', 'synthetic executable'],
+        ['runtime/runtime.json', '{}'],
+        ['runtime/compose.yml', 'services: {}'],
+      ]) {
+        const target = join(directory, file!);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, bytes!, {
+          mode: file === 'cli/tale' ? 0o755 : 0o644,
+        });
+      }
+      await writeDeploymentBundle(directory, {
+        schemaVersion: 1,
+        kind: 'tale-deployment',
+        cli: { revision: 'c'.repeat(40), path: 'cli/tale' },
+        spec: {
+          schemaVersion: 1,
+          name: 'example-native',
+          stateDirectory: '/opt/example',
+          composeProject: 'tale',
+          runtime: { revision: 'c'.repeat(40), platform: 'linux/amd64' },
+          origin,
+          tlsMode: 'external',
+          environment: {},
+          identity: {
+            email: 'operator@example.invalid',
+            slug: f.client.target.organizationSlug,
+            name: 'Example Office',
+            ssoEnabled: false,
+            bootstrap: 'fresh',
+            migrateOriginFrom,
+            nativeClients: [],
+          },
+          configuration: f.configuration,
+          configs: [],
+        },
+      });
+      const context: ProvisionContext = {
+        origin,
+        migrateOriginFrom,
+        baseUrl: 'http://127.0.0.1:3005',
+        stateDirectory,
+        organization: {
+          id: f.client.target.organizationId,
+          slug: f.client.target.organizationSlug,
+        },
+        user: { id: 'operator-example' },
+        headers: () => new Headers(),
+        request: async (path, method, body) =>
+          Response.json(await f.client.request(path, method, body)),
+        requireJson: (response) => response.json(),
+      };
+      const result = await provisionDeploymentConfiguration(directory, context);
+      expect(result).toMatchObject({
+        configured: true,
+        target: { ...f.client.target, origin },
+      });
+      expect(JSON.parse(await readFile(receipt, 'utf8'))).toMatchObject({
+        phase: 'ready',
+        plan: { target: { ...f.client.target, origin } },
+      });
+      await provisionDeploymentConfiguration(directory, context);
+      expect(f.writes).toEqual(writes);
+    },
+  );
+
+  test('reviewed hostname migration preserves native configuration and its organization binding', async () => {
+    const f = await fixture();
+    await applyPlatformConfiguration(
+      f.configuration,
+      await planPlatformConfiguration(f.configuration, f.client),
+      f.client,
+      f.receipt,
+    );
+    const before = JSON.parse(await readFile(f.receipt, 'utf8'));
+    const writes = [...f.writes];
+    const entries = structuredClone(f.entries);
+    const migrateOriginFrom = f.client.target.origin;
+    f.client.target = {
+      ...f.client.target,
+      origin: 'https://renamed.example.invalid',
+    };
+    const target = { ...f.client.target };
+    const plan = await planPlatformConfiguration(f.configuration, f.client);
+    for (const from of [undefined, 'https://foreign.example.invalid'])
+      await expect(
+        applyPlatformConfiguration(f.configuration, plan, f.client, f.receipt, {
+          migrateOriginFrom: from,
+        }),
+      ).rejects.toThrow('retained');
+    for (const change of [
+      { organizationId: 'foreign-id' },
+      { organizationSlug: 'foreign-office' },
+    ]) {
+      f.client.target = { ...target, ...change };
+      await expect(
+        applyPlatformConfiguration(
+          f.configuration,
+          await planPlatformConfiguration(f.configuration, f.client),
+          f.client,
+          f.receipt,
+          { migrateOriginFrom },
+        ),
+      ).rejects.toThrow('retained');
+    }
+    f.client.target = target;
+    await writePrivateJson(f.receipt, { ...before, phase: 'pending' });
+    await expect(
+      applyPlatformConfiguration(f.configuration, plan, f.client, f.receipt, {
+        migrateOriginFrom,
+      }),
+    ).rejects.toThrow('retained');
+    await writePrivateJson(f.receipt, before);
+    const result = await applyPlatformConfiguration(
+      f.configuration,
+      plan,
+      f.client,
+      f.receipt,
+      { migrateOriginFrom },
+    );
+    expect(result.target).toEqual(target);
+    expect(JSON.parse(await readFile(f.receipt, 'utf8'))).toMatchObject({
+      phase: 'ready',
+      plan: { target },
+    });
+    await applyPlatformConfiguration(
+      f.configuration,
+      plan,
+      f.client,
+      f.receipt,
+      { migrateOriginFrom },
+    );
+    expect(f.writes).toEqual(writes);
+    expect(f.entries).toEqual(entries);
+    f.client.target = { ...target, origin: migrateOriginFrom };
+    await applyPlatformConfiguration(
+      f.configuration,
+      await planPlatformConfiguration(f.configuration, f.client),
+      f.client,
+      f.receipt,
+      { migrateOriginFrom: target.origin },
+    );
+    expect(
+      JSON.parse(await readFile(f.receipt, 'utf8')).plan.target.origin,
+    ).toBe(migrateOriginFrom);
+    expect(f.writes).toEqual(writes);
+  });
+
+  test('origin migration cannot replace a missing configuration receipt', async () => {
+    const f = await fixture();
+    await expect(
+      applyPlatformConfiguration(
+        f.configuration,
+        await planPlatformConfiguration(f.configuration, f.client),
+        f.client,
+        f.receipt,
+        { migrateOriginFrom: 'https://old.example.invalid' },
+      ),
+    ).rejects.toThrow('retained native configuration receipt');
+    expect(f.writes).toEqual([]);
+  });
+
+  test('an interrupted configuration migration resumes its exact plan at the new origin', async () => {
+    const f = await fixture(ordinary());
+    await applyPlatformConfiguration(
+      f.configuration,
+      await planPlatformConfiguration(f.configuration, f.client),
+      f.client,
+      f.receipt,
+    );
+    const migrateOriginFrom = f.client.target.origin;
+    f.client.target = {
+      ...f.client.target,
+      origin: 'https://renamed.example.invalid',
+    };
+    const next = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [
+        { kind: 'branding', config: { accentColor: '#224466' } },
+        {
+          kind: 'governance',
+          key: 'session_idle_timeout',
+          config: { enabled: true, idleTimeoutMinutes: 60 },
+        },
+      ],
+    });
+    const plan = await planPlatformConfiguration(next, f.client);
+    f.controls.lost = 'governance/session_idle_timeout';
+    await expect(
+      applyPlatformConfiguration(next, plan, f.client, f.receipt, {
+        migrateOriginFrom,
+      }),
+    ).rejects.toThrow('stopped');
+    const pending = JSON.parse(await readFile(f.receipt, 'utf8'));
+    expect(pending).toMatchObject({
+      phase: 'pending',
+      plan: { target: f.client.target },
+    });
+    const writes = [...f.writes];
+    const result = await applyPlatformConfiguration(
+      next,
+      pending.plan,
+      f.client,
+      f.receipt,
+      { migrateOriginFrom },
+    );
+    expect(result.configured).toBe(true);
+    expect(f.writes).toEqual(writes);
+    expect(JSON.parse(await readFile(f.receipt, 'utf8')).phase).toBe('ready');
+  });
   test.each(['example-office', 'another-client'])(
     '%s: plans and applies ordinary settings, policies and providers, then replays without writes',
     async (organization) => {

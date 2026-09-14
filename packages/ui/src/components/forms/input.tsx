@@ -4,7 +4,6 @@ import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Tooltip } from '@tale/ui/tooltip';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, XCircle } from 'lucide-react';
@@ -98,8 +97,7 @@ export type InputProps = Omit<
     wideControl?: boolean;
   };
 
-// Plain control — the real input field (+ optional label/description/toggle).
-// No skeleton logic of its own.
+// Mask the input surface without moving its label, description or toggle.
 const InputBase = forwardRef<HTMLInputElement, InputProps>(
   (
     {
@@ -282,53 +280,55 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
             : {})}
           wideControl={wideControl}
         >
-          <div className="relative">
-            <DisabledReasonTooltip
-              reason={disabledReason}
-              active={softDisabled}
-            >
-              <input
-                id={id}
-                type={inputType}
-                {...sensitiveAttrs}
-                {...disabledAttrs}
-                className={cn(
-                  inputVariants({ variant: resolvedVariant }),
-                  showInvalid &&
-                    'border-destructive focus-visible:ring-destructive',
-                  showShake && 'animate-shake',
-                  'pr-10',
-                  className,
-                )}
-                ref={ref}
-                required={required}
-                aria-invalid={showInvalid || undefined}
-                aria-describedby={describedBy}
-                aria-errormessage={hasError ? errorId : undefined}
-                {...props}
-                style={{ ...style, ...securityStyle }}
-              />
-            </DisabledReasonTooltip>
-            <Tooltip
-              content={show ? t('aria.hidePassword') : t('aria.showPassword')}
-            >
-              <button
-                type="button"
-                aria-label={
-                  show ? t('aria.hidePassword') : t('aria.showPassword')
-                }
-                aria-pressed={show}
-                className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
-                onClick={() => setShow((v) => !v)}
+          <SkeletonBox asChild>
+            <div className="relative rounded-lg">
+              <DisabledReasonTooltip
+                reason={disabledReason}
+                active={softDisabled}
               >
-                {show ? (
-                  <EyeOff className="size-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="size-4" aria-hidden="true" />
-                )}
-              </button>
-            </Tooltip>
-          </div>
+                <input
+                  id={id}
+                  type={inputType}
+                  {...sensitiveAttrs}
+                  {...disabledAttrs}
+                  className={cn(
+                    inputVariants({ variant: resolvedVariant }),
+                    showInvalid &&
+                      'border-destructive focus-visible:ring-destructive',
+                    showShake && 'animate-shake',
+                    'pr-10',
+                    className,
+                  )}
+                  ref={ref}
+                  required={required}
+                  aria-invalid={showInvalid || undefined}
+                  aria-describedby={describedBy}
+                  aria-errormessage={hasError ? errorId : undefined}
+                  {...props}
+                  style={{ ...style, ...securityStyle }}
+                />
+              </DisabledReasonTooltip>
+              <Tooltip
+                content={show ? t('aria.hidePassword') : t('aria.showPassword')}
+              >
+                <button
+                  type="button"
+                  aria-label={
+                    show ? t('aria.hidePassword') : t('aria.showPassword')
+                  }
+                  aria-pressed={show}
+                  className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
+                  onClick={() => setShow((v) => !v)}
+                >
+                  {show ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                </button>
+              </Tooltip>
+            </div>
+          </SkeletonBox>
         </FieldShell>
       );
     }
@@ -387,51 +387,54 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
               prefix/suffix read as one contiguous string. Clicking anywhere
               in the box focuses the field — the inner input owns the
               semantics. */}
-          {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
-          <div
-            className={cn(
-              'bg-input ring-offset-background focus-within:ring-primary flex h-9 w-full items-center rounded-lg border border-transparent px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-offset-2',
-              showInvalid && 'border-destructive focus-within:ring-destructive',
-              showShake && 'animate-shake',
-              className,
-            )}
-            onMouseDown={(e) => {
-              if (!(e.target instanceof HTMLInputElement)) {
-                e.preventDefault();
-                e.currentTarget.querySelector('input')?.focus();
-              }
-            }}
-          >
-            {prefix && (
-              <span className="text-muted-foreground shrink-0 select-none">
-                {prefix}
-              </span>
-            )}
-            <DisabledReasonTooltip
-              reason={disabledReason}
-              active={softDisabled}
+          <SkeletonBox asChild>
+            {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
+            <div
+              className={cn(
+                'bg-input ring-offset-background focus-within:ring-primary flex h-9 w-full items-center rounded-lg border border-transparent px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-offset-2',
+                showInvalid &&
+                  'border-destructive focus-within:ring-destructive',
+                showShake && 'animate-shake',
+                className,
+              )}
+              onMouseDown={(e) => {
+                if (!(e.target instanceof HTMLInputElement)) {
+                  e.preventDefault();
+                  e.currentTarget.querySelector('input')?.focus();
+                }
+              }}
             >
-              <input
-                id={id}
-                type={inputType}
-                {...sensitiveAttrs}
-                {...disabledAttrs}
-                className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                ref={ref}
-                required={required}
-                aria-invalid={showInvalid || undefined}
-                aria-describedby={describedBy}
-                aria-errormessage={hasError ? errorId : undefined}
-                {...props}
-                style={{ ...style, ...securityStyle }}
-              />
-            </DisabledReasonTooltip>
-            {suffix && (
-              <span className="text-muted-foreground shrink-0 select-none">
-                {suffix}
-              </span>
-            )}
-          </div>
+              {prefix && (
+                <span className="text-muted-foreground shrink-0 select-none">
+                  {prefix}
+                </span>
+              )}
+              <DisabledReasonTooltip
+                reason={disabledReason}
+                active={softDisabled}
+              >
+                <input
+                  id={id}
+                  type={inputType}
+                  {...sensitiveAttrs}
+                  {...disabledAttrs}
+                  className="placeholder:text-muted-foreground [field-sizing:content] min-w-0 border-0 bg-transparent p-0 text-base outline-none focus-visible:ring-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  ref={ref}
+                  required={required}
+                  aria-invalid={showInvalid || undefined}
+                  aria-describedby={describedBy}
+                  aria-errormessage={hasError ? errorId : undefined}
+                  {...props}
+                  style={{ ...style, ...securityStyle }}
+                />
+              </DisabledReasonTooltip>
+              {suffix && (
+                <span className="text-muted-foreground shrink-0 select-none">
+                  {suffix}
+                </span>
+              )}
+            </div>
+          </SkeletonBox>
         </FieldShell>
       );
     }
@@ -485,26 +488,28 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
         wideControl={wideControl}
       >
         <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
-          <input
-            id={id}
-            type={inputType}
-            {...sensitiveAttrs}
-            {...disabledAttrs}
-            className={cn(
-              inputVariants({ variant: resolvedVariant }),
-              showInvalid &&
-                'border-destructive focus-visible:ring-destructive',
-              showShake && 'animate-shake',
-              className,
-            )}
-            ref={ref}
-            required={required}
-            aria-invalid={showInvalid || undefined}
-            aria-describedby={describedBy}
-            aria-errormessage={hasError ? errorId : undefined}
-            {...props}
-            style={{ ...style, ...securityStyle }}
-          />
+          <SkeletonBox asChild>
+            <input
+              id={id}
+              type={inputType}
+              {...sensitiveAttrs}
+              {...disabledAttrs}
+              className={cn(
+                inputVariants({ variant: resolvedVariant }),
+                showInvalid &&
+                  'border-destructive focus-visible:ring-destructive',
+                showShake && 'animate-shake',
+                className,
+              )}
+              ref={ref}
+              required={required}
+              aria-invalid={showInvalid || undefined}
+              aria-describedby={describedBy}
+              aria-errormessage={hasError ? errorId : undefined}
+              {...props}
+              style={{ ...style, ...securityStyle }}
+            />
+          </SkeletonBox>
         </DisabledReasonTooltip>
       </FieldShell>
     );
@@ -512,24 +517,6 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
 );
 InputBase.displayName = 'InputBase';
 
-/**
- * Skeleton-aware Input. Inside a `<Skeletonize loading>` it masks the plain
- * control by rendering it inside a `<SkeletonBox>` (laid out invisibly to set
- * the exact size, pulse overlay on top) — no sizing math, no drift.
- */
-export const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
-  const loading = useSkeleton();
-  if (loading) {
-    // `fullWidth` so the mask is block-level: a form field is a block that
-    // stacks under its siblings. A bare (inline-block) `SkeletonBox` let
-    // stacked fields flow side-by-side while loading, then snap to a column
-    // once the real controls mounted — a visible reflow.
-    return (
-      <SkeletonBox fullWidth>
-        <InputBase {...props} ref={ref} />
-      </SkeletonBox>
-    );
-  }
-  return <InputBase {...props} ref={ref} />;
-});
+// Keep the same control tree while its own surface is masked.
+export const Input = InputBase;
 Input.displayName = 'Input';

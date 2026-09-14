@@ -116,6 +116,22 @@ owner-bound artifact. A native client chooses an existing `clientId` or
 a private credential handoff path and SHA. Unknown acceptance holds; replay
 preserves IDs and secrets. Existing explicit-ID behavior is unchanged.
 
+To rename a retained managed deployment, set its new `origin` and declare
+`identity.migrateOriginFrom: "https://old.example.org"` with the exact previous
+HTTPS origin. Keep `bootstrap: "fresh"` and the existing identity and client keys.
+Migration requires completed bootstrap, declared email-attestation and managed
+client journals, plus a ready native configuration receipt when configuration is
+declared. It authenticates the retained account and verifies client credentials
+before updating their origin bindings. Native configuration keeps the same
+organization ID and slug and verifies every resource through the normal plan and
+readback flow. A configuration write interrupted at the new origin resumes its
+exact pending plan; a pending receipt at the old origin blocks migration. It cannot create missing
+identities or replace secrets. Interrupted runs accept completed journals at
+either reviewed origin; replay finishes the migration. After a ready receipt,
+remove `migrateOriginFrom` from subsequent deployments and export new consumer
+configuration for the new issuer. To reverse a completed migration, swap the two
+origins explicitly and repeat the same verified deployment flow.
+
 Fresh-only `identity.emailVerification: "operator-attested"` records the
 operator's assertion of the authenticated account's email ownership. The
 short-lived native verification preserves hooks without mailbox delivery,

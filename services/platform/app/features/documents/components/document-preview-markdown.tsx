@@ -1,14 +1,16 @@
 'use client';
 
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 
 import { useTextPreview } from '../hooks/use-document-preview';
-import { PreviewPane, previewPaneReadableClasses } from './preview-pane';
+import {
+  PreviewContentSkeleton,
+  PreviewPane,
+  previewPaneReadableClasses,
+} from './preview-pane';
 
 interface DocumentPreviewMarkdownProps {
   url: string;
@@ -23,11 +25,7 @@ export function DocumentPreviewMarkdown({ url }: DocumentPreviewMarkdownProps) {
   return (
     <PreviewPane className={previewPaneReadableClasses}>
       {isLoading && (
-        <Skeletonize loading label={t('preview.loading')} className="contents">
-          <SkeletonBox>
-            <div className="h-40 w-full max-w-lg" />
-          </SkeletonBox>
-        </Skeletonize>
+        <PreviewContentSkeleton kind="markdown" label={t('preview.loading')} />
       )}
       {!isLoading && error && (
         <Text as="div" variant="error" align="center">

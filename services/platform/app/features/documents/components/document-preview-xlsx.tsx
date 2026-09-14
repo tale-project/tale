@@ -1,13 +1,15 @@
 'use client';
 
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useXlsxPreview } from '../hooks/use-document-preview';
-import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
+import {
+  PreviewContentSkeleton,
+  PreviewPane,
+  previewPaneCanvasClasses,
+} from './preview-pane';
 
 interface DocumentPreviewXlsxProps {
   url: string;
@@ -27,11 +29,10 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
   return (
     <PreviewPane className={previewPaneCanvasClasses}>
       {isLoading && (
-        <Skeletonize loading label={t('preview.loading')} className="contents">
-          <SkeletonBox fullWidth>
-            <div className="aspect-[1/1.4] w-full max-w-none" />
-          </SkeletonBox>
-        </Skeletonize>
+        <PreviewContentSkeleton
+          kind="spreadsheet"
+          label={t('preview.loading')}
+        />
       )}
       {!isLoading && error && (
         <div className="mt-4 text-center text-red-500">

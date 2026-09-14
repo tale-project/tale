@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { useDebounce } from '@tale/ui/use-debounce';
 import { Plus } from 'lucide-react';
@@ -321,6 +322,10 @@ export function TasksWorkspace({
   // Only skeletonize the genuine first load (no cached tasks yet). A background
   // refetch with rows already present keeps showing them instead of flashing.
   const isFirstLoad = isLoading && loadedTasks.length === 0;
+  // The project layout already knows its permission while the task read is
+  // pending. Reserve those control footprints without enabling the actions.
+  const skeletonCanEdit =
+    canEdit || (!allProjects && project?.canEdit === true);
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">
@@ -357,16 +362,18 @@ export function TasksWorkspace({
               write); hide the action rather than surface a doomed button.
               All-projects mode has no single write target — Create stays off
               even when canEdit is true (drag / pickers still work). */}
-          {canEdit && !allProjects && (
-            <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
-              {t('actions.create')}
-            </Button>
+          {(canEdit || (isFirstLoad && skeletonCanEdit)) && !allProjects && (
+            <Skeletonize loading={isFirstLoad} className="contents">
+              <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
+                {t('actions.create')}
+              </Button>
+            </Skeletonize>
           )}
         </Row>
       </Row>
 
       {isFirstLoad ? (
-        <TasksSkeleton view={view} />
+        <TasksSkeleton view={view} canEdit={skeletonCanEdit} />
       ) : (
         // An empty project still renders every lane / section (with its empty
         // hint) so the page keeps its shape instead of swapping to an island.

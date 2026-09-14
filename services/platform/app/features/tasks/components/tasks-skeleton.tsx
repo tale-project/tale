@@ -1,11 +1,16 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
+import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
+import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
-import { ChevronRight } from 'lucide-react';
+import { Text } from '@tale/ui/text';
+import { ChevronRight, Plus } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -15,43 +20,93 @@ import { TaskStatusBadge } from './task-status-badge';
 
 /** One masked task-card placeholder mirroring the real card's footprint
  *  (identifier line · title · footer glyph row). */
-function TaskCardSkeleton({ titleWidth }: { titleWidth: string }) {
+function TaskCardSkeleton({
+  titleWidth,
+  canEdit,
+}: {
+  titleWidth: string;
+  canEdit: boolean;
+}) {
   return (
-    <div className="border-border bg-card rounded-lg border p-3 shadow-sm">
-      <SkeletonBox>
-        <div className="h-3 w-12" />
-      </SkeletonBox>
-      <div className="mt-1.5" style={{ width: titleWidth }}>
-        <SkeletonBox fullWidth>
-          <div className="h-3.5" />
-        </SkeletonBox>
-      </div>
-      <Row gap={0} justify="between" className="mt-3">
-        <SkeletonBox>
-          <div className="h-3.5 w-10" />
-        </SkeletonBox>
-        <SkeletonBox>
-          <div className="size-6 rounded-full" />
-        </SkeletonBox>
+    <Card padding="sm" shadow="sm">
+      <Row gap={1}>
+        <Text
+          as="span"
+          variant="caption"
+          className="w-12 font-mono text-[10px] tracking-wide"
+        >
+          <SkeletonText />
+        </Text>
       </Row>
-    </div>
+      <Text
+        variant="label"
+        className="leading-snug"
+        style={{ width: titleWidth }}
+      >
+        <SkeletonText />
+      </Text>
+      <Row gap={2} justify="between" className="mt-3">
+        <TaskPrioritySkeleton canEdit={canEdit} />
+        <TaskAssigneeSkeleton canEdit={canEdit} />
+      </Row>
+    </Card>
+  );
+}
+
+function TaskPrioritySkeleton({ canEdit }: { canEdit: boolean }) {
+  return (
+    <SkeletonBox asChild>
+      <span className={cn('inline-flex shrink-0 rounded-md', canEdit && 'p-1')}>
+        <span className="size-3.5" />
+      </span>
+    </SkeletonBox>
+  );
+}
+
+function TaskAssigneeSkeleton({ canEdit }: { canEdit: boolean }) {
+  return (
+    <SkeletonCircle asChild>
+      <span
+        className={cn('inline-flex shrink-0 rounded-full', canEdit && 'p-1')}
+      >
+        <span className="size-5" />
+      </span>
+    </SkeletonCircle>
+  );
+}
+
+/** Status labels are known before the task query answers. */
+function StatusLabel({
+  status,
+}: {
+  status: (typeof BOARD_TASK_STATUSES)[number];
+}) {
+  return (
+    <Skeletonize loading={false} className="contents">
+      <TaskStatusBadge status={status} />
+    </Skeletonize>
   );
 }
 
 /**
  * First-load placeholder that fills the same `min-h-0 flex-1` slot as the real
- * board/list. It mirrors the loaded structure exactly — every status lane /
- * section renders (with its real status badge) holding 5 masked placeholder
- * rows — so the reveal is an in-place mask swap with no layout shift.
+ * board/list. Every status lane / section uses the live row geometry. Task
+ * counts, wrapped titles and optional labels remain unknown until data loads.
  *
  * Kept in its own (eagerly importable) module so the per-view ROUTE files can
  * render the exact same skeleton as their lazy-chunk fallback: navigation →
  * chunk load → data load is one continuous skeleton.
  */
-export function TasksSkeleton({ view }: { view: TaskView }) {
+export function TasksSkeleton({
+  view,
+  canEdit = false,
+}: {
+  view: TaskView;
+  canEdit?: boolean;
+}) {
   if (view === 'board') {
     return (
-      <Skeletonize loading>
+      <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
         <Row
           gap={3}
           align="stretch"
@@ -65,16 +120,24 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
               className="bg-muted/40 w-[80vw] max-w-72 shrink-0 rounded-lg sm:w-72"
             >
               <Row gap={2} justify="between" className="px-2.5 py-2">
-                <TaskStatusBadge status={status} />
-                <SkeletonBox>
-                  <div className="h-3.5 w-4" />
-                </SkeletonBox>
+                <StatusLabel status={status} />
+                <Text
+                  as="span"
+                  variant="caption"
+                  className="w-4 pr-1 tabular-nums"
+                >
+                  <SkeletonText />
+                </Text>
               </Row>
-              <Stack gap={2} className="overflow-hidden px-2 pt-0.5 pb-2">
+              <Stack
+                gap={2}
+                className="min-h-24 flex-1 overflow-hidden px-2 pt-0.5 pb-2"
+              >
                 {Array.from({ length: 5 }).map((_, card) => (
                   <TaskCardSkeleton
                     key={card}
                     titleWidth={`${55 + (((col + card) * 17) % 36)}%`}
+                    canEdit={canEdit}
                   />
                 ))}
               </Stack>
@@ -85,7 +148,7 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
     );
   }
   return (
-    <Skeletonize loading>
+    <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-hidden">
         {BOARD_TASK_STATUSES.map((status, section) => (
           <section key={status}>
@@ -95,10 +158,10 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
                   className="size-3.5 shrink-0 rotate-90"
                   aria-hidden="true"
                 />
-                <TaskStatusBadge status={status} />
-                <SkeletonBox>
-                  <div className="h-3.5 w-4" />
-                </SkeletonBox>
+                <StatusLabel status={status} />
+                <Text as="span" variant="caption" className="w-4 tabular-nums">
+                  <SkeletonText />
+                </Text>
               </span>
             </Row>
             {Array.from({ length: 5 }).map((_, row) => (
@@ -106,25 +169,23 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
                 key={row}
                 className="border-border/60 flex items-center gap-2.5 border-b py-1.5 pr-3 pl-9"
               >
-                <SkeletonBox>
-                  <div className="size-3.5 rounded" />
-                </SkeletonBox>
-                <SkeletonBox>
-                  <div className="hidden h-3.5 w-14 sm:block" />
-                </SkeletonBox>
+                <TaskPrioritySkeleton canEdit={canEdit} />
+                <Text
+                  as="span"
+                  variant="caption"
+                  className="hidden w-14 shrink-0 font-mono text-[11px] tracking-wide sm:block"
+                >
+                  <SkeletonText />
+                </Text>
                 <div className="min-w-0 flex-1">
                   <div
-                    className="max-w-xs"
+                    className="max-w-xs text-sm"
                     style={{ width: `${42 + (((section + row) * 19) % 31)}%` }}
                   >
-                    <SkeletonBox fullWidth>
-                      <div className="h-3.5" />
-                    </SkeletonBox>
+                    <SkeletonText />
                   </div>
                 </div>
-                <SkeletonBox>
-                  <div className="size-6 rounded-full" />
-                </SkeletonBox>
+                <TaskAssigneeSkeleton canEdit={canEdit} />
               </div>
             ))}
           </section>
@@ -144,31 +205,58 @@ export function TasksSkeleton({ view }: { view: TaskView }) {
  * statically, the chunk fallback and the in-workspace first-load skeleton
  * are pixel-identical — no generic-text flash, no layout shift on reveal.
  */
-export function TasksPageSkeleton({ view }: { view: TaskView }) {
+export function TasksPageSkeleton({
+  view,
+  canEdit = false,
+  allProjects = false,
+}: {
+  view: TaskView;
+  canEdit?: boolean;
+  allProjects?: boolean;
+}) {
   const { t } = useT('tasks');
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">
-      <Row gap={3} justify="between">
-        <Tabs
-          variant="pill"
-          value={view}
-          items={[
-            { value: 'board', label: t('views.board') },
-            { value: 'list', label: t('views.list') },
-          ]}
-        />
+      <Row gap={3} justify="between" wrap>
+        <Row gap={2} wrap>
+          <Tabs
+            variant="pill"
+            value={view}
+            items={[
+              { value: 'board', label: t('views.board') },
+              { value: 'list', label: t('views.list') },
+            ]}
+          />
+          <DataTableFilters
+            search={{
+              value: '',
+              onChange: () => {},
+              placeholder: t('searchPlaceholder'),
+            }}
+            filters={[
+              {
+                key: 'priority',
+                title: t('fields.priority'),
+                options: [],
+                selectedValues: [],
+                onChange: () => {},
+              },
+            ]}
+            disabled
+            className="w-auto"
+          />
+        </Row>
         <Skeletonize loading>
           <Row gap={2}>
-            <SkeletonBox>
-              <div className="h-8 w-24 rounded-md" />
-            </SkeletonBox>
-            <SkeletonBox>
-              <div className="h-8 w-20 rounded-md" />
-            </SkeletonBox>
+            {canEdit && !allProjects && (
+              <Button size="sm" icon={Plus}>
+                {t('actions.create')}
+              </Button>
+            )}
           </Row>
         </Skeletonize>
       </Row>
-      <TasksSkeleton view={view} />
+      <TasksSkeleton view={view} canEdit={canEdit} />
     </ContentArea>
   );
 }

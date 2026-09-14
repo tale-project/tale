@@ -2,8 +2,6 @@
 
 import { cn } from '@tale/ui/cn';
 import { HStack, Row, Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   ChevronUp,
   ChevronDown,
@@ -44,7 +42,11 @@ declare global {
 
 import './pdf-layers.css';
 import { PdfLinkPopup, type PdfLinkPopupState } from './pdf-link-popup';
-import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
+import {
+  PreviewContentSkeleton,
+  PreviewPane,
+  previewPaneCanvasClasses,
+} from './preview-pane';
 
 interface ViewerState {
   pdfDoc: PDFDocumentProxy | null;
@@ -497,15 +499,9 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           // Document-shaped pulse matching the rendered page footprint, so the
           // first painted page swaps in without the pane jumping from a
           // centered text line to a full document.
-          <Skeletonize
-            loading
-            label={t('preview.loading')}
-            className="absolute inset-6 flex justify-center"
-          >
-            <SkeletonBox>
-              <div className="aspect-[1/1.4] h-full w-full max-w-2xl" />
-            </SkeletonBox>
-          </Skeletonize>
+          <div className="absolute inset-6 flex">
+            <PreviewContentSkeleton kind="pdf" label={t('preview.loading')} />
+          </div>
         )}
       </PreviewPane>
       {/* Floating toolbar pinned to the bottom of the visible pane (draggable) */}

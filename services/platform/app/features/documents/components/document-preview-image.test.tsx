@@ -51,7 +51,8 @@ describe('DocumentPreviewImage', () => {
       <DocumentPreviewImage url="https://example.com/photo.jpg" />,
     );
 
-    expect(container.querySelector('[class*="animate-pulse"]')).toBeTruthy();
+    expect(container.querySelector('[aria-busy="true"]')).toBeTruthy();
+    expect(container.querySelector('[data-skeleton-mask]')).toBeTruthy();
   });
 
   it('hides loading skeleton after image loads', () => {
@@ -62,7 +63,8 @@ describe('DocumentPreviewImage', () => {
     const img = screen.getByRole('img');
     fireEvent.load(img);
 
-    expect(container.querySelector('[class*="animate-pulse"]')).toBeFalsy();
+    expect(container.querySelector('[aria-busy="true"]')).toBeFalsy();
+    expect(container.querySelector('[data-skeleton-mask]')).toBeFalsy();
   });
 
   it('shows error message when image fails to load', () => {

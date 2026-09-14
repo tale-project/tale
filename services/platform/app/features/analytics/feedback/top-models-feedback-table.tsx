@@ -39,6 +39,7 @@ export function TopModelsFeedbackTable({
       {
         id: 'model',
         header: t('feedback.tables.topModels.model'),
+        meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
           <div className="flex items-baseline gap-2">
             <Text as="span" variant="label" className="text-sm break-all">

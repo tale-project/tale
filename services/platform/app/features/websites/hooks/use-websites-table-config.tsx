@@ -33,6 +33,9 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       accessorKey: 'domain',
       header: tTables('headers.website'),
       size: 256,
+      meta: {
+        skeleton: { type: 'icon-text', icon: <Globe className="size-5" /> },
+      },
       cell: ({ row }) => (
         <HStack gap={2}>
           <Row
@@ -57,6 +60,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       accessorKey: 'status',
       header: tTables('headers.status'),
       size: 108,
+      meta: { skeleton: { type: 'badge' } },
       cell: ({ row }) => {
         // Paused (repeated failures to reach the knowledge database) wins
         // over the stored status: the row keeps `error`, but "Error" alone
@@ -95,7 +99,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
         <span className="block w-full text-right">{tEntity('indexed')}</span>
       ),
       size: 88,
-      meta: { headerLabel: tEntity('indexed') },
+      meta: { headerLabel: tEntity('indexed'), align: 'right' },
       cell: ({ row }) => (
         <Text as="span" variant="caption" className="block w-full text-right">
           {row.original.crawledPageCount ?? 0}
@@ -165,7 +169,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
         </span>
       ),
       size: 96,
-      meta: { headerLabel: tTables('headers.interval') },
+      meta: { headerLabel: tTables('headers.interval'), align: 'right' },
       cell: ({ row }) => {
         const intervalLabels: Record<string, string> = {
           '60m': tEntity('scanIntervals.1hour'),

@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
@@ -14,7 +13,6 @@ import { FileUpload } from '@tale/ui/file-upload';
 import { FormSection } from '@tale/ui/form-section';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
@@ -66,6 +64,10 @@ import {
   useProjectFolders,
 } from '../hooks/queries';
 import { ProjectCreateFolderDialog } from './project-create-folder-dialog';
+import {
+  ProjectFilesFrame,
+  ProjectFilesTreeSkeleton,
+} from './project-tab-skeletons';
 
 // Batch guards for the whole-folder pick (`webkitdirectory` hands over the
 // ENTIRE tree): a node_modules-sized selection would start thousands of
@@ -1052,25 +1054,21 @@ export function ProjectFilesTab({
   const isEmpty = rootFolders.length === 0 && documents.length === 0;
 
   return (
-    <ContentArea variant="narrow" gap={6}>
-      <StickySectionHeader
-        title={t('files.title')}
-        description={t('files.emptyDescription')}
-        action={
-          canEdit ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="gap-2"
-              onClick={() => setCreateFolderParent({})}
-            >
-              <FolderPlus className="size-4" aria-hidden="true" />
-              {tDocuments('folder.newFolder')}
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <ProjectFilesFrame
+      action={
+        canEdit ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+            onClick={() => setCreateFolderParent({})}
+          >
+            <FolderPlus className="size-4" aria-hidden="true" />
+            {tDocuments('folder.newFolder')}
+          </Button>
+        ) : undefined
+      }
+    >
       <FormSection>
         {!isEmpty ? (
           <ul
@@ -1093,7 +1091,9 @@ export function ProjectFilesTab({
             title={t('files.emptyTitle')}
             className="rounded-lg border border-dashed py-8"
           />
-        ) : null}
+        ) : (
+          <ProjectFilesTreeSkeleton canEdit={canEdit} />
+        )}
 
         {canEdit ? (
           <FileUpload.Root>
@@ -1229,6 +1229,6 @@ export function ProjectFilesTab({
           setConfirmDeleteFolder(null);
         }}
       />
-    </ContentArea>
+    </ProjectFilesFrame>
   );
 }

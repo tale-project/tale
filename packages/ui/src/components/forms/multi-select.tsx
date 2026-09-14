@@ -6,7 +6,6 @@ import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ChevronDown, Search, X } from 'lucide-react';
 import {
@@ -153,8 +152,7 @@ function findNextEnabledIndex(
   return options[index]?.disabled ? -1 : index;
 }
 
-// Plain control — the real default trigger (or caller-supplied `trigger`) +
-// searchable popover (+ optional label/description). No skeleton logic.
+// Mask the default trigger in place; custom triggers own their loading surface.
 function MultiSelectBase({
   value,
   onValueChange,
@@ -356,72 +354,74 @@ function MultiSelectBase({
   // be a <div> (not a <button>) to keep the markup valid. As a non-native
   // control it needs its own keyboard activation for Enter/Space.
   const defaultTrigger = trigger ?? (
-    <div
-      role="combobox"
-      id={triggerId}
-      tabIndex={disabled ? -1 : 0}
-      aria-expanded={isOpen}
-      aria-controls={isOpen ? listboxId : undefined}
-      aria-disabled={disabled || undefined}
-      aria-invalid={error || undefined}
-      // A `<label htmlFor>` cannot name a role="combobox" div, so name the
-      // trigger explicitly: prefer the visible label, fall back to aria-label.
-      aria-labelledby={label ? labelId : undefined}
-      aria-label={label ? undefined : ariaLabel}
-      aria-describedby={description ? descriptionId : undefined}
-      onKeyDown={(e) => {
-        if (disabled) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleOpenChange(!isOpen);
-        }
-      }}
-      className={cn(
-        selectTriggerClasses({ error }),
-        'cursor-pointer gap-1.5',
-        // Empty matches a closed Select (one row, chevron on the right).
-        // Chips need to wrap, so only then grow past h-9.
-        selectedOptions.length === 0
-          ? 'overflow-hidden'
-          : cn(
-              'h-auto min-h-9 py-1.5 whitespace-normal',
-              chipsMaxHeightClassName !== undefined
-                ? 'items-start'
-                : 'items-center',
-            ),
-        disabled && 'pointer-events-none cursor-not-allowed opacity-50',
-        triggerClassName,
-      )}
-    >
-      {chipsMaxHeightClassName !== undefined && selectedOptions.length > 0 ? (
-        <CappedScrollRegion
-          className="min-w-0 flex-1"
-          maxHeightClassName={chipsMaxHeightClassName}
-          fadeFromClassName="from-input"
-          scrollLabel={tCommon('aria.scrollDown')}
-        >
-          <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
-        </CappedScrollRegion>
-      ) : (
-        <div
-          className={cn(
-            'flex min-w-0 flex-1 items-center gap-1.5',
-            selectedOptions.length > 0 && 'flex-wrap',
-          )}
-        >
-          {chips}
-        </div>
-      )}
-      <ChevronDown
+    <SkeletonBox asChild>
+      <div
+        role="combobox"
+        id={triggerId}
+        tabIndex={disabled ? -1 : 0}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? listboxId : undefined}
+        aria-disabled={disabled || undefined}
+        aria-invalid={error || undefined}
+        // A `<label htmlFor>` cannot name a role="combobox" div, so name the
+        // trigger explicitly: prefer the visible label, fall back to aria-label.
+        aria-labelledby={label ? labelId : undefined}
+        aria-label={label ? undefined : ariaLabel}
+        aria-describedby={description ? descriptionId : undefined}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleOpenChange(!isOpen);
+          }
+        }}
         className={cn(
-          'size-4 shrink-0 opacity-50',
-          chipsMaxHeightClassName !== undefined &&
-            selectedOptions.length > 0 &&
-            'mt-0.5 self-start',
+          selectTriggerClasses({ error }),
+          'cursor-pointer gap-1.5',
+          // Empty matches a closed Select (one row, chevron on the right).
+          // Chips need to wrap, so only then grow past h-9.
+          selectedOptions.length === 0
+            ? 'overflow-hidden'
+            : cn(
+                'h-auto min-h-9 py-1.5 whitespace-normal',
+                chipsMaxHeightClassName !== undefined
+                  ? 'items-start'
+                  : 'items-center',
+              ),
+          disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+          triggerClassName,
         )}
-        aria-hidden="true"
-      />
-    </div>
+      >
+        {chipsMaxHeightClassName !== undefined && selectedOptions.length > 0 ? (
+          <CappedScrollRegion
+            className="min-w-0 flex-1"
+            maxHeightClassName={chipsMaxHeightClassName}
+            fadeFromClassName="from-input"
+            scrollLabel={tCommon('aria.scrollDown')}
+          >
+            <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
+          </CappedScrollRegion>
+        ) : (
+          <div
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-1.5',
+              selectedOptions.length > 0 && 'flex-wrap',
+            )}
+          >
+            {chips}
+          </div>
+        )}
+        <ChevronDown
+          className={cn(
+            'size-4 shrink-0 opacity-50',
+            chipsMaxHeightClassName !== undefined &&
+              selectedOptions.length > 0 &&
+              'mt-0.5 self-start',
+          )}
+          aria-hidden="true"
+        />
+      </div>
+    </SkeletonBox>
   );
 
   const popover = (
@@ -434,100 +434,104 @@ function MultiSelectBase({
         {defaultTrigger}
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align={align}
-          side={side}
-          sideOffset={sideOffset}
-          className={cn(
-            CONTENT_CLASSES,
-            'w-(--radix-popover-trigger-width)',
-            contentClassName,
-          )}
-          onOpenAutoFocus={(e) => {
-            // Keep focus on the search input (or the list, when not searchable)
-            // rather than the first option, so type-to-filter works immediately
-            // and Arrow/Home/End/Enter drive the highlight in both modes.
-            e.preventDefault();
-            if (searchable) {
-              searchRef.current?.focus();
-            } else {
-              listRef.current?.focus();
-            }
-          }}
-        >
-          {searchable && (
-            <div className="border-border flex items-center gap-2 border-b p-3">
-              <Search
-                className="text-muted-foreground size-3.5 shrink-0"
-                aria-hidden="true"
-              />
-              <input
-                ref={searchRef}
-                type="text"
-                role="combobox"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={handleListKeyDown}
-                placeholder={searchPlaceholder}
-                className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
-                aria-expanded={isOpen}
-                aria-controls={listboxId}
-                aria-activedescendant={
-                  highlightedIndex < filteredOptions.length
-                    ? optionId(highlightedIndex)
-                    : undefined
-                }
-                aria-autocomplete="list"
-                aria-label={searchPlaceholder}
-              />
-            </div>
-          )}
-
-          <div
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-multiselectable="true"
-            aria-label={ariaLabel}
-            // With no search input the listbox itself is the focusable, keyboard
-            // -operable control, so it carries tabIndex + the roving descendant.
-            tabIndex={searchable ? undefined : 0}
-            onKeyDown={searchable ? undefined : handleListKeyDown}
-            aria-activedescendant={
-              !searchable && highlightedIndex < filteredOptions.length
-                ? optionId(highlightedIndex)
-                : undefined
-            }
-            className="max-h-[18rem] overflow-y-auto p-1 outline-none"
-          >
-            {filteredOptions.map((option, index) => (
-              <MultiSelectOptionItem
-                key={option.value}
-                option={option}
-                index={index}
-                id={optionId(index)}
-                isSelected={valueSet.has(option.value)}
-                isHighlighted={highlightedIndex === index}
-                onToggle={handleToggle}
-                onMouseEnter={setHighlightedIndex}
-                action={optionAction?.(option)}
-              />
-            ))}
-
-            {filteredOptions.length === 0 && emptyText && (
-              <Text
-                as="div"
-                variant="muted"
-                align="center"
-                className="px-3 py-4"
-              >
-                {emptyText}
-              </Text>
+        <SkeletonBox asChild>
+          <PopoverPrimitive.Content
+            align={align}
+            side={side}
+            sideOffset={sideOffset}
+            className={cn(
+              CONTENT_CLASSES,
+              'w-(--radix-popover-trigger-width)',
+              contentClassName,
             )}
-          </div>
+            onOpenAutoFocus={(e) => {
+              // Keep focus on the search input (or the list, when not searchable)
+              // rather than the first option, so type-to-filter works immediately
+              // and Arrow/Home/End/Enter drive the highlight in both modes.
+              e.preventDefault();
+              if (searchable) {
+                searchRef.current?.focus();
+              } else {
+                listRef.current?.focus();
+              }
+            }}
+          >
+            {searchable && (
+              <div className="border-border flex items-center gap-2 border-b p-3">
+                <Search
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  role="combobox"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleListKeyDown}
+                  placeholder={searchPlaceholder}
+                  className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
+                  aria-expanded={isOpen}
+                  aria-controls={listboxId}
+                  aria-activedescendant={
+                    highlightedIndex < filteredOptions.length
+                      ? optionId(highlightedIndex)
+                      : undefined
+                  }
+                  aria-autocomplete="list"
+                  aria-label={searchPlaceholder}
+                />
+              </div>
+            )}
 
-          {footer && <div className="border-border border-t p-1">{footer}</div>}
-        </PopoverPrimitive.Content>
+            <div
+              ref={listRef}
+              id={listboxId}
+              role="listbox"
+              aria-multiselectable="true"
+              aria-label={ariaLabel}
+              // With no search input the listbox itself is the focusable, keyboard
+              // -operable control, so it carries tabIndex + the roving descendant.
+              tabIndex={searchable ? undefined : 0}
+              onKeyDown={searchable ? undefined : handleListKeyDown}
+              aria-activedescendant={
+                !searchable && highlightedIndex < filteredOptions.length
+                  ? optionId(highlightedIndex)
+                  : undefined
+              }
+              className="max-h-[18rem] overflow-y-auto p-1 outline-none"
+            >
+              {filteredOptions.map((option, index) => (
+                <MultiSelectOptionItem
+                  key={option.value}
+                  option={option}
+                  index={index}
+                  id={optionId(index)}
+                  isSelected={valueSet.has(option.value)}
+                  isHighlighted={highlightedIndex === index}
+                  onToggle={handleToggle}
+                  onMouseEnter={setHighlightedIndex}
+                  action={optionAction?.(option)}
+                />
+              ))}
+
+              {filteredOptions.length === 0 && emptyText && (
+                <Text
+                  as="div"
+                  variant="muted"
+                  align="center"
+                  className="px-3 py-4"
+                >
+                  {emptyText}
+                </Text>
+              )}
+            </div>
+
+            {footer && (
+              <div className="border-border border-t p-1">{footer}</div>
+            )}
+          </PopoverPrimitive.Content>
+        </SkeletonBox>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
   );
@@ -568,24 +572,8 @@ function MultiSelectBase({
   );
 }
 
-/**
- * Skeleton-aware MultiSelect. Inside a `<Skeletonize loading>` it masks the
- * plain control by rendering it inside a `<SkeletonBox>` — laid out invisibly
- * to set the exact size, pulse overlay on top — so the skeleton can never
- * drift. Only the DEFAULT trigger is masked: when a custom `trigger` is
- * supplied the caller owns its own skeleton, so it renders normally.
- */
-export function MultiSelect(props: MultiSelectProps) {
-  const loading = useSkeleton();
-  if (loading && !props.trigger) {
-    return (
-      <SkeletonBox>
-        <MultiSelectBase {...props} />
-      </SkeletonBox>
-    );
-  }
-  return <MultiSelectBase {...props} />;
-}
+// Custom triggers own their masks; the default trigger masks its own surface.
+export const MultiSelect = MultiSelectBase;
 
 function MultiSelectOptionItem({
   option,

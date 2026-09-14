@@ -2,6 +2,7 @@ import { lazyComponent } from '@tale/ui/lazy-component';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { useProject } from '@/app/features/projects/hooks/queries';
 import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
 import {
   isAllProjectsSearch,
@@ -19,8 +20,21 @@ const TasksWorkspace = lazyComponent(
   // The chunk fallback IS the board skeleton — the same one the workspace
   // shows while task data loads, so navigation → chunk → data is one
   // continuous skeleton with no layout shift.
-  { loading: () => <TasksPageSkeleton view="board" /> },
+  { loading: () => <TasksChunkFallback /> },
 );
+
+function TasksChunkFallback() {
+  const { projectId } = Route.useParams();
+  const { project } = useProject(projectId);
+  const allProjects = isAllProjectsSearch(Route.useSearch());
+  return (
+    <TasksPageSkeleton
+      view="board"
+      canEdit={!allProjects && project?.canEdit === true}
+      allProjects={allProjects}
+    />
+  );
+}
 
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/tasks/board',

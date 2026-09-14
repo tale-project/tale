@@ -1,6 +1,8 @@
 import { cn } from '@tale/ui/cn';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+
+import { documentPageClasses } from './document-prose-classes';
 
 interface PreviewPaneProps {
   children: React.ReactNode;
@@ -33,20 +35,96 @@ export function PreviewPane({ children, className }: PreviewPaneProps) {
  * Loading placeholder for any preview that renders inside `PreviewPane`.
  *
  * Renders the REAL `PreviewPane` shell (same muted surface, padding, and
- * `flex-1` footprint) with a centered document-shaped pulse inside, so the
- * lazy-loaded preview swaps in without the panel resizing or moving. Used both
- * as the `lazyComponent` Suspense fallback (chunk download) and while a
- * preview fetches its own content (PDF/DOCX/XLSX/text), so there is a single
- * stable surface across both phases — no `Center`+small-box → full-panel jump.
+ * `flex-1` footprint) with the format's own loading content. The chunk fallback
+ * and the content fetch share one shape; document lengths and image/page
+ * dimensions remain unknown until the file has loaded.
  */
-export function PreviewPaneSkeleton() {
+export function PreviewPaneSkeleton({
+  kind = 'document',
+}: {
+  kind?: PreviewSkeletonKind;
+}) {
   return (
-    <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
-      <PreviewPane className={previewPaneDocumentClasses}>
-        <SkeletonBox>
-          <div className="bg-background border-border/60 mx-auto aspect-[1/1.4] w-full max-w-2xl rounded-lg border shadow-sm" />
-        </SkeletonBox>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PreviewPane
+        className={
+          kind === 'document'
+            ? previewPaneDocumentClasses
+            : previewPaneCanvasClasses
+        }
+      >
+        <PreviewContentSkeleton kind={kind} />
       </PreviewPane>
+    </div>
+  );
+}
+
+type PreviewSkeletonKind =
+  | 'document'
+  | 'text'
+  | 'markdown'
+  | 'spreadsheet'
+  | 'image'
+  | 'pdf';
+
+/** Format-specific content shared by chunk and data-loading placeholders. */
+export function PreviewContentSkeleton({
+  kind,
+  label,
+}: {
+  kind: PreviewSkeletonKind;
+  label?: string;
+}) {
+  return (
+    <Skeletonize loading label={label} className="contents">
+      {kind === 'document' ? (
+        <div className={documentPageClasses}>
+          <div className="text-sm leading-relaxed">
+            <SkeletonText lines={8} />
+          </div>
+        </div>
+      ) : kind === 'spreadsheet' ? (
+        <table
+          aria-hidden="true"
+          className="bg-background text-foreground w-full border-collapse"
+        >
+          <tbody>
+            {Array.from({ length: 6 }, (_, row) => (
+              <tr key={row}>
+                {Array.from({ length: 4 }, (_cell, column) => (
+                  <td
+                    key={column}
+                    className="border-border border px-3 py-2 align-top"
+                  >
+                    <SkeletonText seed={row * 4 + column} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : kind === 'image' || kind === 'pdf' ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <SkeletonBox asChild>
+            <div
+              className={
+                kind === 'image'
+                  ? 'size-64 max-h-full max-w-full rounded-xl'
+                  : 'aspect-[1/1.4] h-full max-w-full rounded-sm'
+              }
+            />
+          </SkeletonBox>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'w-full text-sm',
+            kind === 'text' && 'font-mono leading-relaxed',
+          )}
+        >
+          <SkeletonText lines={8} />
+        </div>
+      )}
     </Skeletonize>
   );
 }

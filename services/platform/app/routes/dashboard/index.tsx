@@ -12,14 +12,17 @@ import {
 import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/dashboard/')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     // fetchQuery rejects on transport failures (after retries) — fall back to
     // the signed-out path rather than surfacing a route error.
     const session = await context.queryClient
       .fetchQuery(sessionQueryOptions)
       .catch(() => null);
     if (!session?.data?.user) {
-      throw redirect({ to: '/log-in' });
+      throw redirect({
+        to: '/log-in',
+        search: { redirectTo: location.href },
+      });
     }
     return { user: session.data.user };
   },
