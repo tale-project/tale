@@ -369,7 +369,8 @@ describe('one general native configuration lifecycle', () => {
       phase: 'ready',
       superseded: [original],
     });
-    expect((await stat(f.receipt)).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32')
+      expect((await stat(f.receipt)).mode & 0o777).toBe(0o600);
   });
 
   test('pending replacement refuses concurrent edits, omitted resources and another target without mutation', async () => {
