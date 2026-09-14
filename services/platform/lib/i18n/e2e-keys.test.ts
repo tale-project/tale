@@ -1,6 +1,7 @@
 /**
  * The e2e specs build locators from message keys (`tests/e2e/helpers/i18n.ts`),
- * so a key that is not in `messages/en.yml` fails inside Playwright — three
+ * so a key that is in neither `messages/en.yml` nor the `@tale/ui` catalog the
+ * helper merges beneath it fails inside Playwright — three
  * retries, a screenshot, and `messages key is not a string: <key>` buried in a
  * shard log. The `usage-missing` check in `messages.test.ts` cannot see these:
  * it only reads `t` aliases bound by `useT`/`useTranslation` to a known
@@ -49,7 +50,7 @@ describe('e2e message keys', () => {
     expect(references.length).toBeGreaterThan(50);
   });
 
-  it('resolves every referenced key against the base catalog', () => {
+  it('resolves every referenced key against the merged base catalog', () => {
     const missing = [
       ...new Set(
         references
@@ -67,7 +68,7 @@ describe('e2e message keys', () => {
 
     expect(
       missing,
-      `${missing.length} e2e locator key(s) missing from messages/en.yml — the spec would fail in Playwright as "messages key is not a string":\n  ${missing.join('\n  ')}`,
+      `${missing.length} e2e locator key(s) missing from messages/en.yml and the @tale/ui catalog — the spec would fail in Playwright as "messages key is not a string":\n  ${missing.join('\n  ')}`,
     ).toEqual([]);
   });
 });
