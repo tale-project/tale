@@ -231,6 +231,20 @@ describe('SidebarNav', () => {
       ).not.toHaveAttribute('data-search');
     });
 
+    it('resumes rather than starting fresh when entering chat from elsewhere', () => {
+      // The re-entry search belongs to the ACTIVE tile only. Leaking it to an
+      // inactive chat tile would replace "reopen my last chat" with a blank
+      // composer on every arrival from another section.
+      mockLocation.pathname = '/dashboard/test-org/projects';
+      mockReadNavTarget.mockReturnValue(undefined);
+
+      render(<SidebarNav organizationId="test-org" />);
+
+      expect(
+        screen.getByRole('link', { name: primaryLabels[0] }),
+      ).not.toHaveAttribute('data-search');
+    });
+
     it('falls back to the section default when nothing is remembered', () => {
       mockReadNavTarget.mockReturnValue(undefined);
 
