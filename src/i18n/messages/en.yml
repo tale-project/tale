@@ -1,0 +1,220 @@
+languageSwitcher:
+  ariaLabel: Switch language
+markdownImage:
+  zoom: Zoom image
+  close: Close
+skeleton:
+  loading: Loading content
+themeSwitcher:
+  ariaLabel: Switch theme
+  light: Light
+  dark: Dark
+  system: System
+search:
+  title: Search
+  placeholder: Search
+  empty: Start typing to search.
+  emptyHint: Find anything across this workspace.
+  keepTyping: Keep typing to search…
+  noResultsTitle: No results found
+  noResultsHint: Try different keywords.
+  errorTitle: Something went wrong
+  errorHint: Check your connection and try again.
+  resultsGroup: Results
+  loading: Searching…
+  close: Close search
+  recent: Recent searches
+  clearRecent: Clear
+  removeRecent: Remove from recent
+  tipNavigate: to navigate
+  tipSelect: to open
+  tipClose: to dismiss
+  results: '{count, plural, =0 {no results} =1 {# result} other {# results}}'
+auth:
+  userButton:
+    iosInstall:
+      description: Add Tale to your home screen for a full-screen, app-like experience.
+      done: OK
+      step1: Tap the Share button in your browser's toolbar.
+      step2: Choose "Add to Home Screen", then tap "Add".
+      title: Install Tale
+common:
+  actions:
+    archiveSelected: Archive selected
+    cancel: Cancel
+    clearAll: Clear all
+    confirm: Confirm
+    copied: Copied
+    copy: Copy
+    delete: Delete
+    deleteSelected: Delete selected
+    deleting: Deleting...
+    discard: Discard
+    openMenu: Open menu
+    reset: Reset
+    save: Save
+    saved: Saved
+    source: Source
+    tryAgain: Try again
+    loading: Loading...
+  aria:
+    back: Back
+    close: Close
+    goToPage: Go to page
+    hidePassword: Hide password
+    invalid: invalid
+    moreInfo: More information
+    moreTabs: More tabs
+    nextPage: Next page
+    previousPage: Previous page
+    removeFile: Remove file
+    resizePanel: Resize panel
+    rowActions: Row actions
+    scrollDown: Scroll down
+    selectAll: Select all
+    selectRow: Select row
+    showPassword: Show password
+    unsavedChanges: Unsaved changes
+    valid: valid
+    validationRequirements: Validation requirements
+    validationStatus: "{message}: {status}"
+  bulkActions:
+    archiveFailed: Couldn't archive some items
+    archiveSuccess: Archived {count, plural, one {# item} other {# items}}
+    archiving: Archiving...
+    confirmArchiveDescription: Archive {count, plural, one {this item} other {these {count} items}}? You can restore {count, plural, one {it} other {them}} later.
+    confirmArchiveTitle: Archive {count, plural, one {# item} other {# items}}
+    confirmDeleteDescription: Delete {count, plural, one {this item} other {these {count} items}}? This can't be undone.
+    confirmDeleteTitle: Delete {count, plural, one {# item} other {# items}}
+    deleteFailed: Couldn't delete some items
+    deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
+    deleting: Deleting...
+    itemsSelected: "{count, plural, one {# item selected} other {# items selected}}"
+  confirmDialog:
+    typeToConfirmLabel: Type "{phrase}" to confirm
+  dataTable:
+    dateFilterUnavailable: Date filter unavailable
+  datePicker:
+    nextMonth: Next month
+    placeholder: Pick a date
+    presets:
+      custom: Custom
+      today: Today
+      last7Days: Last 7 days
+      last14Days: Last 14 days
+      last30Days: Last 30 days
+      last3Months: Last 3 months
+      last12Months: Last 12 months
+      monthToDate: Month to date
+      quarterToDate: Quarter to date
+      yearToDate: Year to date
+      allTime: All time
+    previousMonth: Previous month
+  dates:
+    today: Today
+    yesterday: Yesterday
+  discardChangesConfirm: Discard unsaved changes?
+  editor:
+    fixHighlightedFields: Fix the highlighted fields and try again.
+  errors:
+    contactSupport: contact support
+    errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
+    hideDetails: Hide details
+    persistsProblem: If this keeps happening,
+    showDetails: Show details
+    somethingWentWrong: Something went wrong. Try again.
+    tryAgain: Try again
+  flow:
+    aiEditor: AI editor
+    resetView: Reset view
+    zoomIn: Zoom in
+    zoomOut: Zoom out
+  keyboardShortcuts:
+    ctrlEnter: Ctrl+Enter
+    escape: Esc
+    hintToCancel: to cancel
+    hintToSave: to save,
+  labels:
+    filter: Filter
+    filters: Filters
+    nSelected: "{count} selected"
+  loading:
+    label: Loading
+    navigating: Loading page
+  moreTabs: More
+  optional: optional
+  pagination:
+    loadMore: Load more
+    loading: Loading more...
+    noMore: No more items to load
+    rowsPerPage: Rows per page
+    showing: "{start}-{end} of {total}"
+    showingAll: "{count, plural, one {Showing all # {entityOne}} other {Showing all # {entityOther}}}"
+    showingFiltered: "{total, plural, one {Showing {filtered} of # {entityOne}} other {Showing {filtered} of # {entityOther}}}"
+    showingRange: "{total, plural, one {Showing {start}-{end} of # {entityOne}} other {Showing {start}-{end} of # {entityOther}}}"
+  search:
+    noResults: No results found
+    placeholder: Search
+    tryAdjusting: Try adjusting your search criteria
+  select:
+    noOptionsHint: Nothing to choose yet.
+  unsavedChanges:
+    description: You have unsaved changes. Leaving now will discard them.
+    discardAndLeave: Discard & Leave
+    stay: Keep editing
+    title: Unsaved changes
+  upload:
+    dropFilesHere: Drop files here to upload
+    pickADate: Pick a date
+  validation:
+    invalidJson: Invalid JSON format
+    schemaValidationFailed: "Schema validation failed{error, select, empty {} other {: {error}}}"
+envEditor:
+  add: Add variable
+  badKey: "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit)."
+  confirmRemoveDescription: It will be removed when you save your changes. This can't be undone.
+  confirmRemoveTitle: Remove variable?
+  dupKey: Duplicate variable name — each NAME must be unique.
+  keyPlaceholder: NAME
+  remove: Remove
+  save: Save
+  saveError: Couldn't save environment
+  saved: Environment saved
+  saving: Saving…
+  secret: Secret
+  typeTokenSource: Token source
+  typeValue: Value
+  valuePlaceholder: value
+  valueType: Type
+metrics:
+  period:
+    label: Period
+    last24Hours: Last 24 hours
+    last7Days: Last 7 days
+    last30Days: Last 30 days
+    last90Days: Last 90 days
+    allTime: All time
+pwa:
+  offlineReady: Tale is ready to work offline.
+  updateAvailableDescription: A new version of Tale is ready.
+  updateAvailableTitle: Update available
+  updateNow: Update now
+settings:
+  agents:
+    form:
+      addModel: Add model
+      modelSelector:
+        dragHandle: Drag to reorder model
+        moveDown: Move model down
+        moveUp: Move model up
+      noModelsFound: No models found
+      removeModel: Remove
+      searchModels: Search models
+toast:
+  success:
+    deleted:
+      description: Deleted.
+      title: Deleted
+tables:
+  headers:
+    description: Description

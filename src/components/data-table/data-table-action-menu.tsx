@@ -1,0 +1,138 @@
+'use client';
+
+import { Button, buttonVariants } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
+import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { Link } from '@tanstack/react-router';
+import { ChevronDown } from 'lucide-react';
+import type { ComponentType, ReactNode } from 'react';
+
+/** Icon component type that accepts className prop */
+export type IconComponent = ComponentType<{ className?: string }>;
+
+/** Menu item for action dropdown */
+export interface DataTableActionMenuItem {
+  /** Menu item label */
+  label: string;
+  /** Optional icon */
+  icon?: IconComponent;
+  /** Click handler */
+  onClick: () => void;
+  /** Whether the item is disabled */
+  disabled?: boolean;
+}
+
+export interface DataTableActionMenuProps {
+  /** Button label */
+  label: string;
+  /** Optional icon to display before the label */
+  icon?: IconComponent;
+  /** Click handler for simple button (ignored if menuItems or href is provided) */
+  onClick?: () => void;
+  /** Link href for navigation (renders as Link instead of Button) */
+  href?: string;
+  /** Button variant */
+  variant?: 'primary' | 'destructive' | 'secondary' | 'ghost' | 'link';
+  /**
+   * Button size. Defaults to `default` (h-9) — the create/add action is a
+   * primary action that aligns with the h-9 search/filter controls beside it in
+   * the table toolbar, and matches the empty-state CTA so a list's add button is
+   * the same size in both places. `sm` stays available for genuinely dense bars.
+   */
+  size?: 'default' | 'sm';
+  /** Disable the action. */
+  disabled?: boolean;
+  /** Menu items for dropdown (renders dropdown menu instead of simple button) */
+  menuItems?: DataTableActionMenuItem[];
+  /** Dropdown menu alignment */
+  align?: 'start' | 'center' | 'end';
+  /** Additional class name */
+  className?: string;
+  /** Children to render instead of default content */
+  children?: ReactNode;
+}
+
+/**
+ * Action menu component for DataTable header and empty states.
+ *
+ * Supports three modes:
+ * 1. Simple button - onClick handler
+ * 2. Link button - href for navigation
+ * 3. Dropdown menu - menuItems array
+ */
+export function DataTableActionMenu({
+  label,
+  icon: Icon,
+  onClick,
+  href,
+  variant,
+  size = 'default',
+  disabled,
+  menuItems,
+  align = 'end',
+  className,
+  children,
+}: DataTableActionMenuProps) {
+  // If children are provided, render them directly
+  if (children) {
+    return <>{children}</>;
+  }
+
+  // Render dropdown menu if menuItems provided
+  if (menuItems && menuItems.length > 0) {
+    const items: DropdownMenuItem[] = menuItems.map((item) => ({
+      type: 'item' as const,
+      label: item.label,
+      icon: item.icon,
+      onClick: item.onClick,
+      disabled: item.disabled,
+    }));
+
+    return (
+      <DropdownMenu
+        trigger={
+          <Button
+            variant={variant}
+            size={size}
+            disabled={disabled}
+            className={cn('gap-2', className)}
+          >
+            {Icon && <Icon className="size-4" />}
+            {label}
+            <ChevronDown className="size-4" />
+          </Button>
+        }
+        items={[items]}
+        align={align}
+      />
+    );
+  }
+
+  // Render link button if href provided (a disabled link falls back to a
+  // disabled button — anchors have no native disabled state).
+  if (href && !disabled) {
+    return (
+      <Link
+        to={href}
+        className={cn(buttonVariants({ variant, size }), 'gap-2', className)}
+      >
+        {Icon && <Icon className="size-4" />}
+        {label}
+      </Link>
+    );
+  }
+
+  // Render simple button
+  return (
+    <Button
+      onClick={onClick}
+      variant={variant}
+      size={size}
+      disabled={disabled}
+      className={cn('gap-2', className)}
+    >
+      {Icon && <Icon className="size-4" />}
+      {label}
+    </Button>
+  );
+}
