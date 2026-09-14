@@ -351,9 +351,11 @@ export async function init(options: InitOptions): Promise<InitResult> {
   logger.info(`  ${step++}. tale deploy   (when ready, deploy to your domain)`);
   logger.blank();
   logger.notice(
-    'Production-ready by default: every secret — including the audit-log ' +
-      'signing key — is auto-generated in .env. Nothing to hand-edit; just ' +
-      'back up .env so you can restore or redeploy.',
+    options.noEnv
+      ? 'Environment setup was skipped (--no-env). Run tale dev to configure ' +
+          '.env before launching locally, or prepare your deployment settings before tale deploy.'
+      : 'Keep .env and its encryption keys in secure backups. Review your ' +
+          'production configuration before deploying.',
   );
 
   return { status: 'initialized', directory: target };

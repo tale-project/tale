@@ -190,6 +190,9 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       const result = await run(['init', 'proj', '--force', '--no-env'], dir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Tale project initialized!');
+      expect(result.stdout).toContain('Environment setup was skipped');
+      expect(result.stdout).not.toContain('auto-generated in .env');
+      expect(result.stdout).not.toContain('Production-ready');
 
       // The summary reports active vs catalog instead of raw file counts —
       // only `metadata.autoInstall: true` agents are live on a new org.
