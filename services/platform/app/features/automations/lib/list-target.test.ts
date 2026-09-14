@@ -11,7 +11,7 @@ describe('automationListTarget', () => {
         boundProjectIds: [],
       }),
     ).toEqual({
-      to: '/dashboard/$id/automations/$automationSlug',
+      to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'org__digest' },
     });
   });
@@ -25,7 +25,7 @@ describe('automationListTarget', () => {
         boundProjectIds: [],
       }),
     ).toEqual({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
       params: {
         id: 'org-1',
         projectId: 'proj_1',
@@ -42,7 +42,7 @@ describe('automationListTarget', () => {
         boundProjectIds: ['proj_1' as string],
       }),
     ).toEqual({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
       params: {
         id: 'org-1',
         projectId: 'proj_1',
@@ -59,7 +59,7 @@ describe('automationListTarget', () => {
         boundProjectIds: ['proj_1' as string, 'proj_2' as string],
       }),
     ).toEqual({
-      to: '/dashboard/$id/automations/$automationSlug',
+      to: '/dashboard/$id/automations/$automationSlug/editor',
       params: { id: 'org-1', automationSlug: 'desk__prepare-return' },
     });
   });

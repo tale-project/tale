@@ -7,7 +7,7 @@ Jeder Start einer Automatisierung öffnet einen Lauf, und dieser Lauf schreibt w
 
 ## Die Liste der Läufe
 
-Die Seite einer Automatisierung endet mit einer Liste **Läufe**, neueste zuerst. Jede Zeile trägt den Status des Laufs, ob es ein Test oder ein Live-Lauf war, die ausgeführte Version, den Startzeitpunkt und was ihn gestartet hat. Ein fehlgeschlagener oder wartender Lauf zeigt den Grund direkt in der Zeile statt des Starters — oft beantwortet die Liste die Frage also, ohne dass du etwas öffnen musst.
+Die Seite einer Automatisierung hat einen Tab **Läufe**: jeder Lauf, neueste zuerst. Jede Zeile trägt den Status des Laufs, ob es ein Test oder ein Live-Lauf war, die ausgeführte Version, den Startzeitpunkt und was ihn gestartet hat. Ein fehlgeschlagener oder wartender Lauf zeigt den Grund direkt in der Zeile statt des Starters — oft beantwortet die Liste die Frage also, ohne dass du etwas öffnen musst.
 
 Eine Automatisierung, die noch nie gelaufen ist, sagt das, statt eine leere Tabelle zu zeigen.
 
@@ -62,7 +62,7 @@ Zwei Fehlschläge werden nie wiederholt, weil ein frischer Versuch nicht anders 
 
 ## Eine durchgespielte Fehlersuche
 
-Die tägliche Erinnerung ging nicht raus. Öffne die Automatisierung und sieh in die Liste **Läufe**: Der Lauf von heute Morgen steht da und ist **Fehlgeschlagen**, mit dem Grund in der Zeile.
+Die tägliche Erinnerung ging nicht raus. Öffne den Tab **Läufe** der Automatisierung: Der Lauf von heute Morgen steht da und ist **Fehlgeschlagen**, mit dem Grund in der Zeile.
 
 Öffne ihn. Der Canvas zeigt die ersten drei Nodes als gelaufen, die vierte als fehlgeschlagen und alles danach als nie erreicht — die Frage ist damit schon auf eine Box eingegrenzt. Wähl die fehlgeschlagene Node und lies ihre **Aufgelöste Eingabe**: Der Kundenname ist da, die Rechnungs-id ist ein leerer Text. Das zeigt eine Node weiter nach oben.
 

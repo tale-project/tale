@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
@@ -10,14 +10,20 @@ import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
 import { useAutomations } from '../hooks/queries';
-import { automationListTarget } from '../lib/list-target';
+import {
+  automationDetailPathname,
+  automationSwitchPathname,
+} from '../lib/detail-paths';
+import { automationTargetProjectId } from '../lib/list-target';
 
 /**
  * Breadcrumb leaf for an automation page: the shared `HeaderBreadcrumbSwitcher`
  * over the org hub's complete listing, including project-bound automations.
  * Entering a project's detail must not remove the other siblings. A pick
  * keeps the current project when bound there; otherwise it routes like an
- * org list row to its own project or the org detail.
+ * org list row to its own project or the org detail — and it keeps the tab
+ * that is open (Editor, Versions, Runs), the way the project switcher keeps
+ * a project's tab.
  */
 export function AutomationBreadcrumbSwitcher({
   organizationId,
@@ -35,6 +41,7 @@ export function AutomationBreadcrumbSwitcher({
   const { t } = useT('automations');
   const { locale } = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
   const automationsQuery = useAutomations(organizationId, undefined, true);
 
   const options = useMemo<SearchableSelectOption[]>(
@@ -75,17 +82,31 @@ export function AutomationBreadcrumbSwitcher({
         const row = automationsQuery.data?.find(
           (automation) => automation.name === name,
         );
-        void navigate(
-          automationListTarget({
-            organizationId,
-            name,
-            boundProjectIds: row?.projectIds ?? [],
-            ...(projectId !== undefined &&
-              row?.projectIds.includes(projectId) && {
-                listProjectId: projectId,
+        const boundProjectIds = row?.projectIds ?? [];
+        const targetProjectId = automationTargetProjectId({
+          ...(projectId !== undefined &&
+            boundProjectIds.includes(projectId) && {
+              listProjectId: projectId,
+            }),
+          boundProjectIds,
+        });
+        void navigate({
+          to: automationSwitchPathname(
+            location.pathname,
+            automationDetailPathname({
+              organizationId,
+              automationSlug,
+              ...(projectId !== undefined && { projectId }),
+            }),
+            automationDetailPathname({
+              organizationId,
+              automationSlug: name,
+              ...(targetProjectId !== undefined && {
+                projectId: targetProjectId,
               }),
-          }),
-        );
+            }),
+          ),
+        });
       }}
     />
   );

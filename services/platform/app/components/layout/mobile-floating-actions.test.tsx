@@ -94,6 +94,32 @@ describe('MobileFloatingActions', () => {
     });
   });
 
+  it('treats an empty slot as no content, and shows the dock once it fills', async () => {
+    // A tab strip hands its actions slot to the dock on every tab; the slot
+    // is a real element even when no page has portaled anything into it.
+    const { rerender } = render(
+      <MobileFloatingActions>
+        <div data-testid="slot" />
+      </MobileFloatingActions>,
+    );
+    await waitFor(() => {
+      expect(document.body.querySelector('.fixed.w-fit')).toHaveClass('hidden');
+    });
+
+    rerender(
+      <MobileFloatingActions>
+        <div data-testid="slot">
+          <button type="button">Save</button>
+        </div>
+      </MobileFloatingActions>,
+    );
+    await waitFor(() => {
+      expect(document.body.querySelector('.fixed.w-fit')).not.toHaveClass(
+        'hidden',
+      );
+    });
+  });
+
   it('renders nothing before mount (SSR-safe)', async () => {
     const { container } = render(
       <div data-testid="host">

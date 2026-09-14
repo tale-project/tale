@@ -341,14 +341,14 @@ analytics:
         agent: Agent
 auth:
   oauth:
-    title: "Mit Tale fortfahren"
-    request: "{application} möchte dich mit Tale anmelden."
-    permissions: "Erlaube dieser Anwendung, deinen Namen, deine bestätigte E-Mail-Adresse und deine Mitgliedschaft in ihrer Tale-Organisation zu lesen. Dein Passwort bleibt in Tale."
-    allow: "Erlauben und fortfahren"
-    cancel: "Abbrechen"
-    continuing: "Weiter…"
-    retry: "Erneut versuchen"
-    failed: "Diese Anmeldung lässt sich nicht fortsetzen. Kehre zur Anwendung zurück und starte erneut."
+    title: 'Mit Tale fortfahren'
+    request: '{application} möchte dich mit Tale anmelden.'
+    permissions: 'Erlaube dieser Anwendung, deinen Namen, deine bestätigte E-Mail-Adresse und deine Mitgliedschaft in ihrer Tale-Organisation zu lesen. Dein Passwort bleibt in Tale.'
+    allow: 'Erlauben und fortfahren'
+    cancel: 'Abbrechen'
+    continuing: 'Weiter…'
+    retry: 'Erneut versuchen'
+    failed: 'Diese Anmeldung lässt sich nicht fortsetzen. Kehre zur Anwendung zurück und starte erneut.'
   email: E-Mail
   password: Passwort
   emailPlaceholder: Gib deine E-Mail-Adresse ein
@@ -522,12 +522,17 @@ automations:
   title: Automatisierungen
   entityLabel: Automatisierungen
   entityLabelOne: Automatisierung
+  navigation:
+    editor: Editor
+    versions: Versionen
+    runs: Läufe
   switcher:
     title: Automatisierung wechseln
     searchPlaceholder: Automatisierungen suchen
     empty: Keine Automatisierungen gefunden
     ariaLabel: 'Automatisierung wechseln, aktuell: {name}'
   list:
+    createButton: Automatisierung erstellen
     searchPlaceholder: Automatisierungen suchen
     columnName: Name
     columnProjects: Projekte
@@ -590,7 +595,6 @@ automations:
     outcomeFailedTitle: Automatisierung konnte nicht generiert werden
     outcomeGaveUpTitle: Builder früh gestoppt
     noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
-    new: Neue Automatisierung
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -756,6 +760,7 @@ automations:
     nothingToSave: Keine Änderungen zu speichern
   versions:
     title: Versionen
+    description: Alle gespeicherten Versionen, neueste zuerst — öffne eine, und der Canvas zeigt sie. Genau eine ist jeweils live.
     empty: Es wurde noch keine Version gespeichert.
     versionLabel: v{version}
     deployed: Live
@@ -812,6 +817,7 @@ automations:
       placeholder: Schreib deine Antwort — Freitext genügt.
       submit: Antwort senden & fortsetzen
     title: Läufe
+    description: Jeder Lauf dieser Automatisierung, neueste zuerst — Testläufe wie Live-Läufe. Öffne einen für seine Schritte, Auswirkungen und Ausgabe.
     breadcrumb: Lauf
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
@@ -1396,7 +1402,8 @@ chat:
     zu senken.
   errorHintProviderError: Der KI-Anbieter hat vorübergehend technische Probleme. Versuch es gleich nochmal.
   errorHintRateLimited: Zu viele Anfragen. Warte einen Moment und versuch es erneut.
-  errorHintModelNotEntitled: Der Tarif des Anbieters enthält dieses Modell nicht.
+  errorHintModelNotEntitled:
+    Der Tarif des Anbieters enthält dieses Modell nicht.
     Wähl ein anderes Modell oder lass deinen Administrator den Tarif erweitern.
   errorHintTokenLimit: Das Token-Limit des Modells wurde überschritten. Versuche
     eine kürzere Anfrage oder bitte deinen Administrator, die
@@ -1640,6 +1647,7 @@ common:
     skipToContent: Zum Hauptinhalt springen
     mainNavigation: Hauptnavigation
     projectsNavigation: Projektnavigation
+    automationsNavigation: Automatisierungsnavigation
     sortAscending: aufsteigend sortiert
     sortDescending: absteigend sortiert
     sortAvailable: sortierbar
@@ -4477,14 +4485,14 @@ personalization:
         Erinnerungen erscheinen hier, nachdem der Assistent sie vorgeschlagen hat
         und du sie speicherst.
       delete: Löschen
-      deleteLabel: "Erinnerung löschen: {content}"
+      deleteLabel: 'Erinnerung löschen: {content}'
     pending:
       title: Ausstehende Vorschläge
       empty: Keine ausstehenden Vorschläge.
       save: Speichern
-      saveLabel: "Vorschlag speichern: {content}"
+      saveLabel: 'Vorschlag speichern: {content}'
       discard: Verwerfen
-      discardLabel: "Vorschlag verwerfen: {content}"
+      discardLabel: 'Vorschlag verwerfen: {content}'
   errors:
     saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
@@ -6189,8 +6197,7 @@ settings:
         eingerichtet ist.
       banner:
         title: Wissenssuche ist aus
-        body:
-          Diese Organisation hat einen KI-Anbieter, aber kein
+        body: Diese Organisation hat einen KI-Anbieter, aber kein
           Embedding-Modell — Dokumente lassen sich weder indexieren noch
           durchsuchen.
         link: Embedding-Modell wählen

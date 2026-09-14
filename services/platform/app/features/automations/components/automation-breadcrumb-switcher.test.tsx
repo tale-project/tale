@@ -16,6 +16,9 @@ type AutomationRow = {
 
 let automationsFixture: AutomationRow[] = [];
 let listArgs: unknown[] = [];
+const location = {
+  pathname: '/dashboard/org-1/automations/billing__dunning/editor',
+};
 
 vi.mock('../hooks/queries', () => ({
   useAutomations: (...args: unknown[]) => {
@@ -27,6 +30,7 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useNavigate: () => mockNavigate,
+  useLocation: () => location,
 }));
 
 const PROJECT_ID = 'proj-1';
@@ -42,10 +46,16 @@ function renderSwitcher(props: { projectId?: string } = {}) {
   );
 }
 
+async function pickReminders(user: ReturnType<typeof renderSwitcher>['user']) {
+  await user.click(screen.getByRole('button', { name: /switch automation/i }));
+  await user.click(screen.getByRole('option', { name: /Reminders/ }));
+}
+
 describe('AutomationBreadcrumbSwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listArgs = [];
+    location.pathname = '/dashboard/org-1/automations/billing__dunning/editor';
     automationsFixture = [
       {
         name: 'billing/dunning',
@@ -60,7 +70,7 @@ describe('AutomationBreadcrumbSwitcher', () => {
   it('lists siblings by display name with the slug as caption', async () => {
     const { user } = renderSwitcher();
 
-    // The org shell lists the org's automations including project-bound ones,
+    // Every shell lists the org's automations including project-bound ones,
     // exactly like the Automations table.
     expect(listArgs).toEqual(['org-1', undefined, true]);
 
@@ -106,39 +116,22 @@ describe('AutomationBreadcrumbSwitcher', () => {
     }
   });
 
-  it('navigates to an org-level sibling on the org detail route', async () => {
+  it("navigates to an org-level sibling's editor on the org detail route", async () => {
     const { user } = renderSwitcher();
-
-    await user.click(
-      screen.getByRole('button', { name: /switch automation/i }),
-    );
-    await user.click(screen.getByRole('option', { name: /Reminders/ }));
+    await pickReminders(user);
 
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/automations/$automationSlug',
-      params: { id: 'org-1', automationSlug: 'billing__reminders' },
+      to: '/dashboard/org-1/automations/billing__reminders/editor',
     });
   });
 
   it('routes a single-bound sibling into its project shell', async () => {
-    automationsFixture = [
-      { name: 'billing/dunning', latest: 1, projectIds: [] },
-      { name: 'billing/reminders', latest: 1, projectIds: [PROJECT_ID] },
-    ];
+    automationsFixture[1]!.projectIds = [PROJECT_ID];
     const { user } = renderSwitcher();
-
-    await user.click(
-      screen.getByRole('button', { name: /switch automation/i }),
-    );
-    await user.click(screen.getByRole('option', { name: /Reminders/ }));
+    await pickReminders(user);
 
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-      params: {
-        id: 'org-1',
-        projectId: PROJECT_ID,
-        automationSlug: 'billing__reminders',
-      },
+      to: '/dashboard/org-1/projects/proj-1/automations/billing__reminders/editor',
     });
   });
 
@@ -149,56 +142,68 @@ describe('AutomationBreadcrumbSwitcher', () => {
     'keeps the current project when the destination is bound to $projectIds',
     async ({ projectIds }) => {
       automationsFixture[1]!.projectIds = projectIds;
+      location.pathname =
+        '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor';
       const { user } = renderSwitcher({ projectId: PROJECT_ID });
 
       expect(listArgs).toEqual(['org-1', undefined, true]);
 
-      await user.click(
-        screen.getByRole('button', { name: /switch automation/i }),
-      );
-      await user.click(screen.getByRole('option', { name: /Reminders/ }));
+      await pickReminders(user);
 
       expect(mockNavigate).toHaveBeenCalledWith({
-        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-        params: {
-          id: 'org-1',
-          projectId: PROJECT_ID,
-          automationSlug: 'billing__reminders',
-        },
+        to: '/dashboard/org-1/projects/proj-1/automations/billing__reminders/editor',
       });
     },
   );
 
   it.each([
-    { projectIds: [], destinationProjectId: undefined },
-    { projectIds: ['proj-2'], destinationProjectId: 'proj-2' },
-    { projectIds: ['proj-2', 'proj-3'], destinationProjectId: undefined },
+    {
+      projectIds: [],
+      destination: '/dashboard/org-1/automations/billing__reminders/editor',
+    },
+    {
+      projectIds: ['proj-2'],
+      destination:
+        '/dashboard/org-1/projects/proj-2/automations/billing__reminders/editor',
+    },
+    {
+      projectIds: ['proj-2', 'proj-3'],
+      destination: '/dashboard/org-1/automations/billing__reminders/editor',
+    },
   ])(
     'leaves the current project for a destination bound to $projectIds',
-    async ({ projectIds, destinationProjectId }) => {
+    async ({ projectIds, destination }) => {
       automationsFixture[1]!.projectIds = projectIds;
+      location.pathname =
+        '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor';
       const { user } = renderSwitcher({ projectId: PROJECT_ID });
+      await pickReminders(user);
 
-      await user.click(
-        screen.getByRole('button', { name: /switch automation/i }),
-      );
-      await user.click(screen.getByRole('option', { name: /Reminders/ }));
-
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to:
-          destinationProjectId === undefined
-            ? '/dashboard/$id/automations/$automationSlug'
-            : '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-        params: {
-          id: 'org-1',
-          automationSlug: 'billing__reminders',
-          ...(destinationProjectId !== undefined && {
-            projectId: destinationProjectId,
-          }),
-        },
-      });
+      expect(mockNavigate).toHaveBeenCalledWith({ to: destination });
     },
   );
+
+  it('keeps the open tab on the sibling, like the project switcher', async () => {
+    location.pathname =
+      '/dashboard/org-1/automations/billing__dunning/versions';
+    const { user } = renderSwitcher();
+    await pickReminders(user);
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/org-1/automations/billing__reminders/versions',
+    });
+  });
+
+  it("resets a run's own page to the sibling's Runs list", async () => {
+    location.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs/run_1';
+    const { user } = renderSwitcher();
+    await pickReminders(user);
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/org-1/automations/billing__reminders/runs',
+    });
+  });
 
   it('does not navigate when the current automation is chosen again', async () => {
     const { user } = renderSwitcher();

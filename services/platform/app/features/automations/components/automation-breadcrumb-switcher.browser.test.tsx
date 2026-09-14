@@ -78,8 +78,8 @@ function AutomationPage() {
 function renderSwitcher() {
   const rootRoute = createRootRoute({ component: Outlet });
   const routes = [
-    '/dashboard/$id/automations/$automationSlug',
-    '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+    '/dashboard/$id/automations/$automationSlug/editor',
+    '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
   ].map((path) =>
     createRoute({
       getParentRoute: () => rootRoute,
@@ -90,12 +90,14 @@ function renderSwitcher() {
   const router = createRouter({
     routeTree: rootRoute.addChildren(routes),
     history: createMemoryHistory({
-      initialEntries: ['/dashboard/org-test/automations/org__digest'],
+      initialEntries: ['/dashboard/org-test/automations/org__digest/editor'],
     }),
   });
   return { router, ...render(<RouterProvider router={router} />) };
 }
 
+// Every switch lands on the Editor tab — the automation's default surface —
+// so the memory router mounts that route in both shells.
 describe('automation switching across shells in Chromium', () => {
   it('groups every automation organization-first and keeps them reachable across project switches', async () => {
     const { user, router } = renderSwitcher();
@@ -159,7 +161,7 @@ describe('automation switching across shells in Chromium', () => {
     await user.keyboard('{Enter}');
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        '/dashboard/org-test/projects/project-a/automations/alpha__import',
+        '/dashboard/org-test/projects/project-a/automations/alpha__import/editor',
       ),
     );
 
@@ -167,7 +169,7 @@ describe('automation switching across shells in Chromium', () => {
     await user.click(screen.getByRole('option', { name: /Beta export/ }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        '/dashboard/org-test/projects/project-b/automations/beta__export',
+        '/dashboard/org-test/projects/project-b/automations/beta__export/editor',
       ),
     );
 
@@ -175,7 +177,7 @@ describe('automation switching across shells in Chromium', () => {
     await user.click(screen.getByRole('option', { name: /Reconcile/ }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        '/dashboard/org-test/projects/project-b/automations/shared__reconcile',
+        '/dashboard/org-test/projects/project-b/automations/shared__reconcile/editor',
       ),
     );
 
@@ -183,7 +185,7 @@ describe('automation switching across shells in Chromium', () => {
     await user.click(screen.getByRole('option', { name: /Digest/ }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        '/dashboard/org-test/automations/org__digest',
+        '/dashboard/org-test/automations/org__digest/editor',
       ),
     );
     await openSwitcher('Digest');

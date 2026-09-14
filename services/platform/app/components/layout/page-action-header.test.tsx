@@ -1,13 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderRoot,
+  AdaptiveHeaderTabActionsSlot,
 } from '@/app/components/layout/adaptive-header';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { PageActionHeader } from './page-action-header';
+
+// The breakpoint is a matchMedia read; flip it per test instead of resizing.
+const viewport = vi.hoisted(() => ({ mobile: false }));
+vi.mock('@/app/hooks/use-is-mobile', () => ({
+  useIsMobile: () => viewport.mobile,
+}));
+
+afterEach(() => {
+  viewport.mobile = false;
+});
 
 describe('PageActionHeader', () => {
   it('keeps the description under the title, not beside the actions', () => {
@@ -71,6 +82,79 @@ describe('PageActionHeader', () => {
     ).toBeVisible();
     // One copy of the cluster — not a second strip under the title.
     expect(screen.getAllByRole('button', { name: 'Test run' })).toHaveLength(1);
+  });
+
+  it('puts the cluster in the tab strip when the page has one', () => {
+    // A tabbed page keeps its verbs where every tabbed page keeps
+    // Save/Discard — the strip's trailing slot — not in the title row.
+    render(
+      <AdaptiveHeaderProvider>
+        <AdaptiveHeaderRoot>
+          <h1>Automations / Jj</h1>
+        </AdaptiveHeaderRoot>
+        <nav aria-label="Automations navigation">
+          <AdaptiveHeaderTabActionsSlot />
+        </nav>
+        <PageActionHeader actions={<button type="button">Save</button>} />
+      </AdaptiveHeaderProvider>,
+    );
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.closest('nav')).toBe(
+      screen.getByRole('navigation', { name: 'Automations navigation' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Automations / Jj' }).parentElement,
+    ).not.toContainElement(save);
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+  });
+
+  it('holds the cluster back below md until the strip hands over its slot', () => {
+    // The dock that carries the strip's slot mounts after the first paint;
+    // a row that declares `tabsFollow` keeps the cluster out of a local row
+    // meanwhile, then the slot receives it — never two homes, never a flash.
+    viewport.mobile = true;
+    const { rerender } = render(
+      <AdaptiveHeaderProvider>
+        <AdaptiveHeaderRoot tabsFollow>
+          <h1>Automations / Jj</h1>
+        </AdaptiveHeaderRoot>
+        <PageActionHeader actions={<button type="button">Save</button>} />
+      </AdaptiveHeaderProvider>,
+    );
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+
+    rerender(
+      <AdaptiveHeaderProvider>
+        <AdaptiveHeaderRoot tabsFollow>
+          <h1>Automations / Jj</h1>
+        </AdaptiveHeaderRoot>
+        <nav aria-label="Automations navigation">
+          <AdaptiveHeaderTabActionsSlot />
+        </nav>
+        <PageActionHeader actions={<button type="button">Save</button>} />
+      </AdaptiveHeaderProvider>,
+    );
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.closest('nav')).toBe(
+      screen.getByRole('navigation', { name: 'Automations navigation' }),
+    );
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+  });
+
+  it('keeps the local row below md when no strip follows', () => {
+    viewport.mobile = true;
+    render(
+      <AdaptiveHeaderProvider>
+        <AdaptiveHeaderRoot>
+          <h1>Jj</h1>
+        </AdaptiveHeaderRoot>
+        <PageActionHeader
+          title="Jj"
+          actions={<button type="button">Save</button>}
+        />
+      </AdaptiveHeaderProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeVisible();
   });
 
   it('passes axe audit', async () => {
