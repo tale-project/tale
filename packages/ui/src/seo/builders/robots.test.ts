@@ -25,6 +25,26 @@ describe('buildRobotsTxt', () => {
     expect(out).toContain('Disallow: /admin');
   });
 
+  // An authenticated host blocks everything but its public developer pages:
+  // `Allow: /` must not sit beside `Disallow: /` (a contradiction simpler
+  // crawlers resolve as "everything disallowed"), and the carve-outs come
+  // first (2026-09-14 evaluation, g9-1).
+  it('drops the bare Allow when the whole host is disallowed and lists the carve-outs', () => {
+    const out = buildRobotsTxt({
+      sitemaps: ['https://tale.dev/sitemap.xml'],
+      extraDisallow: ['/'],
+      allow: ['/docs', '/openapi.json', '/docs'],
+    });
+    const lines = out.split('\n');
+    expect(lines).not.toContain('Allow: /');
+    expect(lines.filter((l) => l === 'Allow: /docs')).toHaveLength(1);
+    expect(lines).toContain('Allow: /openapi.json');
+    expect(lines).toContain('Disallow: /');
+    expect(lines.indexOf('Allow: /docs')).toBeLessThan(
+      lines.indexOf('Disallow: /api/'),
+    );
+  });
+
   it('honours custom user agent', () => {
     const out = buildRobotsTxt({
       sitemaps: [],
