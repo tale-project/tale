@@ -93,7 +93,7 @@ Verify it against your own deployment:
 
 The public demo is the live reference for what a correct deployment reports: the [Observatory scan of demo.tale.dev](https://developer.mozilla.org/en-US/observatory/analyze?host=demo.tale.dev) came back A+ on 15 July 2026 — score 115/100, all ten tests passed. The one header the report lists as not implemented, `Cross-Origin-Resource-Policy`, costs no points; it is the deliberate exception described below.
 
-Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app: `Cross-Origin-Opener-Policy: same-origin` would sever the live window handle an OAuth sign-in popup uses to hand the finished sign-in back to the app, and `Cross-Origin-Resource-Policy` would block branding assets loaded from a second host. The content sites, which do neither, enable both. HSTS is emitted only when `SITE_URL` is `https://`.
+Cross-origin isolation (COOP/CORP) is deliberately left off on the platform app: `Cross-Origin-Opener-Policy: same-origin` would sever the live window handle an OAuth sign-in popup uses to hand the finished sign-in back to the app, and `Cross-Origin-Resource-Policy` would block branding assets loaded from a second host. The content sites, which do neither, enable both. HSTS is emitted only when `SITE_URL` is `https://`, with a one-year `max-age` and without `includeSubDomains` or `preload`: self-hosted deployments run on varied domains — an apex with plain-HTTP siblings included — and a preload listing is the operator's own submission.
 
 ## Where this fits
 
