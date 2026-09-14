@@ -29,10 +29,7 @@ interface DocsBreadcrumbTrailProps {
  * a docs page's single `h1` is the article title below, and two `h1`s would
  * break both the heading outline and the prerender contract.
  */
-export function DocsBreadcrumbTrail({
-  locale,
-  crumbs,
-}: DocsBreadcrumbTrailProps) {
+function DocsBreadcrumbTrail({ locale, crumbs }: DocsBreadcrumbTrailProps) {
   const { t } = useT('docs');
   // The docs root is always the first crumb, so a locale landing page (which
   // contributes no crumbs of its own) still renders a trail — with "Home" as
