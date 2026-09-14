@@ -18,7 +18,7 @@ The first move is creating an API key. The key is what every script call carries
 Create a key in the [API keys](/platform/admin/api-keys) panel and copy what it shows — Tale displays it once and never again. Store it as an environment variable for the rest of this walk:
 
 ```bash
-export TALE_API_KEY="tale_..."
+export TALE_API_KEY="<api-key>"
 export TALE_BASE_URL="https://your-host.example.com"
 export TALE_ORG_SLUG="<org-slug>"
 ```

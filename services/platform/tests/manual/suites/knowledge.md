@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 26 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -202,6 +202,18 @@ records and delete them after.
   and reopen → the reason is still there (stored on the page, not remembered
   by the tab). Fix the origin, or re-save the same list → the next scan
   turns the page indexed and the caption is gone.
+- [ ] `KNOW-F14` · **Skipped-page reasons** — Websites → **Add website** →
+  **URL list** (KNOW-F10) with three URLs on a host you control: a healthy
+  page, a JSON endpoint (`/data.json`), and a page served with
+  `X-Robots-Tag: noindex` → wait for the scan → row **Open menu** → **View
+  pages** → The healthy page shows its counts; the JSON row and the noindex
+  row show no words and no chunks but a caption naming the reason
+  (`websites.pagesDialog.lastError` — "unsupported content" for the JSON,
+  "asked not to be indexed" for the noindex page), never a blank row that
+  looks unfetched; the site's **Status** reads **Active** because one page
+  stored. Re-list the same three URLs → the two reasons persist and their
+  attempt counts grow. Then register a whole site whose only page answers
+  `500` → after the scan its **Status** reads **Error** (not **Active**).
 
 ## Boundary & error tests
 
