@@ -6,11 +6,11 @@
       "route": "/dashboard/:orgId/documents",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 540
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1080
     },
     {
       "file": "images/get-started/org-create-wizard.webp",

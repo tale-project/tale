@@ -26,7 +26,7 @@ Lies die Antwort, bevor du sie verwendest. Enthält sie eine Quellenangabe, öff
 
 Lege vor dem Hochladen fest, wer die Informationen nutzen soll. Organisationswissen und Projektdateien haben unterschiedliche Zugriffsgrenzen. Hochladen und Suchbarkeit sind getrennte Schritte. Warte auf die Indexierung, bevor du den Abruf testest.
 
-<Frame caption="Die Dokumentliste zeigt hochgeladene Dateien und ihren Indexierungsstatus.">
+<Frame caption="Die Dokumentliste zeigt hochgeladene Dateien und ihren Indexierungsstatus. Die Ansicht ist auf hochgeladene, indexierte Dateien gefiltert.">
 
 ![Die Dokumenttabelle zeigt Quelldateien mit ihrem Indexierungsstatus.](/images/get-started/documents-list.webp)
 

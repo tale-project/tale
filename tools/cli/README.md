@@ -152,6 +152,18 @@ changes are rejected; a partially applied operation can retain earlier writes an
 a pending receipt. Follow the receipt’s recovery state rather than issuing an
 unrelated overwrite.
 
+If the retained plan can no longer complete, review a replacement declaration and
+fresh plan with the same target and resource identities. Apply with the original
+receipt and `--supersedes-pending-plan <sha256>`, using the hash of the retained
+plan’s canonical JSON. The receipt preserves the previous plan and verified writes
+under `superseded`; unrelated native edits block replacement before mutation.
+
+Managed deployments use `supersedesPendingConfigurationPlan` for that same hash.
+`supersedesPendingBundle` selects a pending rollout separately and does not replace
+native configuration intent. Remove recovery selectors after the operation reaches
+`ready`. The [recovery procedure](../../docs/en/self-hosted/install/cli-install.md#replace-a-pending-configuration-plan)
+includes the hash command, review steps and readback checks.
+
 Secret values come from environment references. The CLI does not install model
 servers or migrate existing embedding vectors. Read the
 [configuration examples](../../docs/en/self-hosted/install/cli-install.md#configure-the-platform)

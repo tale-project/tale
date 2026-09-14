@@ -378,6 +378,57 @@ Native provisioning runs after identity and before configuration releases. The `
 
 Managed deployments also activate a declared `deployment` resource before reporting ready. The CLI records the pending activation, drains the verified sandbox spawner for up to five minutes, and restarts that container once sessions have finished. If sessions remain, the operation stays pending. The `configurationActivation` receipt records the mounted configuration and observed container boot; ready requires fresh health checks. Retrying an interrupted operation verifies an already accepted restart, and an unchanged ready replay does not restart the service again.
 
+#### Replace a pending configuration plan
+
+If an interrupted plan can still complete, retry that same plan. Use explicit replacement when its declared settings can no longer work, for example because an embedding endpoint is no longer available. Keep the existing receipt: it records writes that may already have reached the platform.
+
+1. Read the pending receipt and compare the declared resources with current native state. Prepare `replacement-configuration.json` with corrected settings, the same target and exactly the same resource identities. You cannot use replacement to add or drop resources.
+2. Calculate the hash of the retained receipt’s `plan`, not the whole receipt or the replacement plan. The following command requires Bun and hashes canonical JSON: object keys sorted recursively, array order preserved, and no whitespace.
+
+```bash
+PENDING_PLAN_SHA=$(bun -e '
+  const receipt = await Bun.file(process.argv[1]).json();
+  if (receipt.phase !== "pending") throw new Error("Receipt is not pending");
+  function canonical(value) {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value !== null && typeof value === "object") {
+      return "{" + Object.keys(value).sort().map(key =>
+        JSON.stringify(key) + ":" + canonical(value[key])
+      ).join(",") + "}";
+    }
+    return JSON.stringify(value);
+  }
+  console.log(new Bun.CryptoHasher("sha256")
+    .update(canonical(receipt.plan)).digest("hex"));
+' configuration-receipt.json)
+```
+
+3. Create a fresh plan from the replacement declaration and review it before applying:
+
+```bash
+tale --json config plan --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output replacement-plan.json
+```
+
+After reviewing the plan, apply it with the original receipt path and the retained plan’s hash:
+
+```bash
+tale --json --yes config apply --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan replacement-plan.json --receipt configuration-receipt.json \
+  --supersedes-pending-plan "$PENDING_PLAN_SHA"
+tale --json config read --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Each resource must still match the pending plan’s original state, intended write, or verified result. An unrelated native edit blocks replacement before any write. Resolve that difference with the administrator who made it; do not remove the receipt to bypass the check.
+
+The receipt retains the previous plan and its verified resources under `superseded`, including across interruption and replay. Check that the receipt reaches `phase: "ready"` and that `config read` reports matching resources. Omit the one-shot selector from later operations.
+
+For a managed deployment, set `supersedesPendingConfigurationPlan` to the same retained plan hash in the deployment specification, alongside the corrected `configuration`, then prepare and review a new bundle. If that bundle also replaces a pending rollout, select its hash separately with `supersedesPendingBundle`. That bundle selector alone does not authorize replacing a native configuration plan. Remove both recovery selectors from later specifications after the operation is ready.
+
+The public `native.configuration` proof records each resource’s intended hash as `configurationSha256` and its native readback hash as `observedConfigurationSha256`. These can differ when a setting preserves an existing value, such as an omitted embedding similarity floor. The private receipt retains the exact observed state for recovery.
+
 ### Operate
 
 `tale status` — show the current deployment status. No arguments.

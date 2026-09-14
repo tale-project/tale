@@ -489,13 +489,42 @@ export const SHOTS: readonly Shot[] = [
         .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
   },
   {
-    // The knowledge documents table with the seeded believable files. Wait
-    // for the LAST file's Indexed badge, not its name: the rows paint with
-    // their RAG status still Queued/Indexing right after the seed, and the
-    // badge column is in frame.
+    // Show the indexed uploads through the real filters, keeping unrelated
+    // manual-review records out of the introductory library view. The active
+    // filter indicator remains visible; no rows or statuses are changed for capture.
     name: 'documents-list',
     section: 'get-started',
+    viewport: { width: 1440, height: 540 },
     route: '/dashboard/:orgId/documents',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('common.labels.filter'), exact: true })
+        .click();
+      const filters = page.getByRole('dialog');
+      await filters
+        .getByRole('button', {
+          name: t('tables.headers.ragStatus'),
+          exact: true,
+        })
+        .click();
+      await filters
+        .getByRole('checkbox', {
+          name: t('documents.filter.ragStatus.indexed'),
+          exact: true,
+        })
+        .check();
+      await filters
+        .getByRole('button', { name: t('tables.headers.source'), exact: true })
+        .click();
+      await filters
+        .getByRole('checkbox', {
+          name: t('documents.filter.source.upload'),
+          exact: true,
+        })
+        .check();
+      await page.keyboard.press('Escape');
+      await expect(filters).not.toBeVisible();
+    },
     readyWhen: (page) =>
       page
         .getByText(t('documents.rag.status.indexed'), { exact: true })

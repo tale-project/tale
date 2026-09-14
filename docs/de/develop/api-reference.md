@@ -365,6 +365,14 @@ Ein `PATCH` ersetzt den aktiven Eintrag durch eine neue Version und indexiert un
 
 Die Endpunkte für Wissenseinträge benötigen das Schreibrecht für Wissen — ein Mitglied mit Leserechten ergibt **403**, `KNOWLEDGE_ENTRY_FORBIDDEN` —, und ein Objektspeicher, der den Inhalt nicht binnen 30 Sekunden annimmt, ergibt **503**, `KNOWLEDGE_ENTRY_STORE_TIMEOUT`, ohne dass etwas geschrieben wird. Dieses Dokument verweigert ein direktes `DELETE /api/v1/documents/{id}` und ein `PATCH` seines Titels oder Inhalts mit **409**, `DOCUMENT_HAS_KNOWLEDGE_ENTRY` und `data.entryId` — der Eintrag ist der Weg, es zu ändern. `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` listet die abgelösten Versionen eines Themas, jede mit `supersededAt` gestempelt, und `GET /api/v1/knowledge-entries/{id}/versions` antwortet mit der ganzen Kette von jeder ihrer Zeilen aus, die neueste zuerst.
 
+`GET /api/v1/documents` listet Hub-Dokumente mit den neuesten zuerst. Wenn du die Ordneransicht der App nachbildest, wähle den Bereich ausdrücklich:
+
+| Abfrageparameter `folderId` | Zurückgegebene Dokumente |
+| --- | --- |
+| Nicht angegeben | Alle sichtbaren Hub-Dokumente, auch innerhalb von Ordnern. |
+| `root` | Nur Dokumente, die in keinem Ordner liegen. |
+| Eine Ordner-ID | Dokumente direkt in diesem Ordner. |
+
 `GET /api/v1/documents/{id}/content` liefert den Inhalt mit denselben Download-Funktionen wie Projektdateien: `Content-Disposition`, `Range` und `HEAD`. Bei Inline-Dokumenten liefert die Route den Text mit dem gespeicherten `mimeType`. Die Metadatenroute `GET /api/v1/documents/{id}` enthält `content` nur für Inline-Inhalt; bei dateigestützten Dokumenten ist es `null`.
 
 `contentHash` ist ein eigenes Antwortfeld, kein Schlüssel in deinen `metadata`. Es enthält den SHA-256-Hash, sofern Tale ihn für den Inhalt berechnet hat, etwa bei Wissenseinträgen und synchronisierten Dateien; andernfalls ist es `null`.
@@ -958,6 +966,8 @@ Der REST-Aufruf verwendet dieselbe Indexierungslogik und dasselbe Budget von 10 
 Der gespeicherte `mimeType` wird aus der Dateierweiterung bestimmt und beim Download als `Content-Type` verwendet. Der Medientyp eines Multipart-Uploads oder ein Upload-Hinweis überschreibt diese Regel nicht.
 
 ### Prüfen, was angekommen ist
+
+Mit `folderId` wählst du den Bereich: Ohne den Parameter erhältst du alle Projektdateien, mit `folderId=root` nur Dateien ohne Ordner auf der obersten Projektebene. Eine Ordner-ID liefert die Dateien dieses Ordners. Gehört der Ordner nicht zum Projekt, lautet die Antwort **404**, `FOLDER_NOT_FOUND`.
 
 ```bash
 curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/files?folderId=<folderId>" \

@@ -5,7 +5,7 @@ description: Importe des fichiers de référence partagés, vérifie leur dispon
 
 Utilise **Connaissances > Documents** pour les fichiers de la bibliothèque commune : politiques, guides, rapports et justificatifs. Les membres lisent les documents auxquels ils ont accès. Les rôles Éditeur et supérieurs peuvent les importer et les gérer. Les contenus propres à un seul projet appartiennent à son [onglet Connaissances](/fr/platform/projects/manage-files).
 
-<Frame caption="La liste réunit le fichier original, sa provenance, son indexation et l’accès par équipe.">
+<Frame caption="La liste réunit le fichier original, sa provenance, son indexation et l’accès par équipe. Le filtre ne conserve que les fichiers chargés et indexés.">
 
 ![L’onglet Documents présente les fichiers partagés avec leur taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
@@ -73,6 +73,8 @@ Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La 
 ## Choisir qui peut lire le document
 
 Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.
+
+La racine de la bibliothèque affiche les dossiers et les documents qui ne sont rangés dans aucun dossier. Ouvre un dossier pour consulter son contenu : les documents qu’il contient n’apparaissent pas aussi comme lignes de fichiers à la racine.
 
 Les dossiers organisent la bibliothèque. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
 

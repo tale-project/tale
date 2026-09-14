@@ -5,7 +5,7 @@ description: Upload shared reference files, check whether they can be searched, 
 
 Use **Knowledge > Documents** for files that belong in the shared library: policies, guides, reports, and supporting evidence. Members read documents within their access; Editors and higher roles can upload and manage them. For material that belongs to one project, use that project's [Knowledge tab](/platform/projects/manage-files).
 
-<Frame caption="The document list brings together the original file, its source, indexing status, and team access.">
+<Frame caption="The document list brings together the original file, its source, indexing status, and team access. This view filters files to indexed uploads.">
 
 ![The Documents tab displays shared files with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
 
@@ -73,6 +73,8 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 ## Choose who can read it
 
 Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.
+
+The library root shows folders and documents that have not been filed in a folder. Open a folder to see its contents; a document inside it does not also appear as a file row at the root.
 
 Folders organize the library. Check the **Teams** cell for access and the **Source** column for where a file came from. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
 

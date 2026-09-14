@@ -5,7 +5,7 @@ description: Lade gemeinsame Referenzdateien hoch, prüfe ihre Suchbarkeit und h
 
 Unter **Wissen > Dokumente** gehören Dateien in die gemeinsame Bibliothek: Richtlinien, Anleitungen, Berichte und Belege. Mitglieder lesen Dokumente innerhalb ihrer Zugriffsrechte. Redakteure und höhere Rollen können sie hochladen und verwalten. Material für ein einzelnes Projekt gehört auf dessen [Wissen-Tab](/de/platform/projects/manage-files).
 
-<Frame caption="Die Dokumentliste verbindet Originaldatei, Herkunft, Indexierungsstatus und Team-Zugriff.">
+<Frame caption="Die Dokumentliste verbindet Originaldatei, Herkunft, Indexierungsstatus und Team-Zugriff. Die Ansicht ist auf hochgeladene, indexierte Dateien gefiltert.">
 
 ![Der Dokumente-Tab zeigt gemeinsame Dateien mit Größe, Quelle, RAG-Status und Team-Spalten.](/images/get-started/documents-list.webp)
 
@@ -73,6 +73,8 @@ Bei **Nicht unterstützt** gibt es keine Wiederholungsaktion: Dieselben Dateiinh
 ## Festlegen, wer das Dokument lesen kann
 
 Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.
+
+Auf der obersten Bibliotheksebene siehst du Ordner und Dokumente, die keinem Ordner zugeordnet sind. Öffne einen Ordner, um seinen Inhalt zu sehen. Ein dort abgelegtes Dokument erscheint nicht zusätzlich als Dateizeile auf der obersten Ebene.
 
 Ordner gliedern die Bibliothek. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
 

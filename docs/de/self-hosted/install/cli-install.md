@@ -378,6 +378,57 @@ Die native Einrichtung folgt auf die Identitätsprüfung und läuft vor den Konf
 
 Verwaltete Deployments aktivieren auch eine deklarierte `deployment`-Ressource, bevor sie Bereitschaft melden. Die CLI speichert die ausstehende Aktivierung, wartet bis zu fünf Minuten auf das Ende laufender Sitzungen im geprüften Sandbox-Spawner und startet dann diesen Container neu. Laufen noch Sitzungen, bleibt der Vorgang ausstehend. Der Beleg `configurationActivation` erfasst die eingebundene Konfiguration und den beobachteten Container-Start; Bereitschaft setzt erneute Gesundheitsprüfungen voraus. Bei einer Wiederholung prüft die CLI einen bereits angenommenen Neustart. Eine unveränderte Wiederholung nach erfolgreicher Aktivierung startet den Dienst nicht erneut.
 
+#### Einen ausstehenden Konfigurationsplan ersetzen
+
+Kann ein unterbrochener Plan noch abgeschlossen werden, führe denselben Plan erneut aus. Ein ausdrücklicher Ersatz ist nötig, wenn die deklarierten Einstellungen nicht mehr funktionieren können, etwa weil ein Embedding-Endpunkt nicht mehr verfügbar ist. Bewahre den vorhandenen Beleg auf: Er hält fest, welche Änderungen die Plattform bereits erreicht haben können.
+
+1. Lies den ausstehenden Beleg und vergleiche die deklarierten Ressourcen mit dem aktuellen Zustand der Plattform. Speichere die korrigierten Einstellungen in `replacement-configuration.json`. Ziel und Ressourcenkennungen müssen exakt gleich bleiben; Ressourcen lassen sich dabei weder hinzufügen noch weglassen.
+2. Berechne den Hash von `plan` im aufbewahrten Beleg, nicht vom gesamten Beleg oder vom Ersatzplan. Der folgende Befehl benötigt Bun. Er verwendet kanonisches JSON: rekursiv sortierte Objektschlüssel, unveränderte Array-Reihenfolge und keine Leerzeichen.
+
+```bash
+PENDING_PLAN_SHA=$(bun -e '
+  const receipt = await Bun.file(process.argv[1]).json();
+  if (receipt.phase !== "pending") throw new Error("Receipt is not pending");
+  function canonical(value) {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value !== null && typeof value === "object") {
+      return "{" + Object.keys(value).sort().map(key =>
+        JSON.stringify(key) + ":" + canonical(value[key])
+      ).join(",") + "}";
+    }
+    return JSON.stringify(value);
+  }
+  console.log(new Bun.CryptoHasher("sha256")
+    .update(canonical(receipt.plan)).digest("hex"));
+' configuration-receipt.json)
+```
+
+3. Erstelle aus der Ersatzdeklaration einen neuen Plan und prüfe ihn vor dem Anwenden:
+
+```bash
+tale --json config plan --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output replacement-plan.json
+```
+
+Wende den geprüften Plan mit dem bisherigen Belegpfad und dem Hash des aufbewahrten Plans an:
+
+```bash
+tale --json --yes config apply --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan replacement-plan.json --receipt configuration-receipt.json \
+  --supersedes-pending-plan "$PENDING_PLAN_SHA"
+tale --json config read --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Jede Ressource muss weiterhin dem ursprünglichen Zustand, der beabsichtigten Änderung oder dem verifizierten Ergebnis des ausstehenden Plans entsprechen. Eine unabhängige Änderung auf der Plattform blockiert den Ersatz vor dem ersten Schreibzugriff. Kläre die Abweichung mit dem zuständigen Administrator; entferne den Beleg nicht, um die Prüfung zu umgehen.
+
+Unter `superseded` bewahrt der Beleg den früheren Plan samt verifizierten Ressourcen auf, auch bei Unterbrechung und Wiederholung. Prüfe, ob der Beleg `phase: "ready"` erreicht und `config read` übereinstimmende Ressourcen meldet. Lass den einmaligen Auswahlparameter bei späteren Vorgängen weg.
+
+Bei einem verwalteten Deployment setzt du `supersedesPendingConfigurationPlan` in der Deployment-Spezifikation auf denselben Hash des aufbewahrten Plans und korrigierst `configuration`. Bereite anschließend ein neues Bundle vor und prüfe es. Ersetzt dieses Bundle auch einen ausstehenden Rollout, gib dessen Hash zusätzlich über `supersedesPendingBundle` an. Dieser Bundle-Parameter allein erlaubt keinen Ersatz des nativen Konfigurationsplans. Entferne beide Wiederherstellungsparameter aus späteren Spezifikationen, sobald der Vorgang bereit ist.
+
+Der öffentliche Nachweis `native.configuration` enthält pro Ressource den beabsichtigten Hash als `configurationSha256` und den Hash des zurückgelesenen Zustands als `observedConfigurationSha256`. Beide können voneinander abweichen, wenn eine Einstellung einen vorhandenen Wert erhält, etwa bei einer ausgelassenen Ähnlichkeitsschwelle für Embeddings. Der private Beleg bewahrt den exakt beobachteten Zustand für die Wiederherstellung auf.
+
 ### Betrieb
 
 `tale status` — den aktuellen Deployment-Status anzeigen. Keine Argumente.

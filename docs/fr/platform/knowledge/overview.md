@@ -9,7 +9,7 @@ Connaissances est la bibliothèque partagée de ton organisation. Documents, inf
 
 </Video>
 
-<Frame caption="Commence par Documents pour les fichiers, ou choisis l’onglet adapté à ta source.">
+<Frame caption="Commence par Documents pour les fichiers, ou choisis l’onglet adapté à ta source. Le filtre ne conserve que les fichiers chargés et indexés.">
 
 ![L’espace Connaissances présente les onglets Documents, Entrées de connaissances, Sites web, Produits et Contacts au-dessus du tableau des fichiers partagés.](/images/get-started/documents-list.webp)
 

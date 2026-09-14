@@ -26,7 +26,7 @@ Lis le résultat avant de l’utiliser. Lorsqu’une réponse cite une source, o
 
 Choisis le public concerné avant le chargement. Les connaissances de l’organisation et les fichiers d’un projet n’ont pas les mêmes limites d’accès. Charger un fichier et le rendre consultable sont deux étapes distinctes : attends l’indexation avant de tester la recherche.
 
-<Frame caption="La liste Documents affiche les fichiers chargés et leur état d’indexation.">
+<Frame caption="La liste Documents affiche les fichiers chargés et leur état d’indexation. Le filtre ne conserve que les fichiers chargés et indexés.">
 
 ![Le tableau des documents présente les fichiers sources et leur état d’indexation.](/images/get-started/documents-list.webp)
 

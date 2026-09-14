@@ -340,6 +340,14 @@ A `PATCH` supersedes the active entry and re-indexes under the same `documentId`
 
 The entry endpoints need the knowledge write grant — a read-only member returns **403**, `KNOWLEDGE_ENTRY_FORBIDDEN` — and an object store that does not accept the content within 30 seconds returns **503**, `KNOWLEDGE_ENTRY_STORE_TIMEOUT`, with nothing written. That document refuses a direct `DELETE /api/v1/documents/{id}`, or a `PATCH` of its title or content, with **409**, `DOCUMENT_HAS_KNOWLEDGE_ENTRY` and `data.entryId` — the entry is the way to change it. `GET /api/v1/knowledge-entries?topic=<topic>&status=superseded` lists one topic's replaced versions, each stamped with `supersededAt`, and `GET /api/v1/knowledge-entries/{id}/versions` returns the whole chain from any of its rows, newest first.
 
+`GET /api/v1/documents` lists Hub documents newest first. Choose the folder scope explicitly when reproducing the app’s folder view:
+
+| `folderId` query parameter | Documents returned |
+| --- | --- |
+| Omitted | All visible Hub documents, including those inside folders. |
+| `root` | Only documents that are not in a folder. |
+| A folder ID | Documents directly inside that folder. |
+
 Read a document's bytes at `GET /api/v1/documents/{id}/content` — the same download choreography as a project file (`Content-Disposition`, `Range`, `HEAD`), and a content-only document returns its inline text there too, typed as its `mimeType`; `GET /api/v1/documents/{id}` carries `content` only for a content-only document, `null` for a file-backed one. Every document returns `contentHash` — the SHA-256 the platform computed for its bytes (a knowledge entry's content, a synced file), `null` otherwise — as a field of its own, never a key in your `metadata`.
 
 A document `PATCH` that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone, so a no-op retry never invalidates another client's `expectedUpdatedAt`; a controlled record's content, MIME type, extension or source provider is refused with **400**, `DOCUMENT_RECORD_FROZEN` (in review or approved) or `DOCUMENT_RECORD_REPLACEMENT_REQUIRED` (a draft — use the replacement flow), and a `teamId` the key holder is not a member of with **403**, `TEAM_ACCESS_DENIED`.
@@ -914,6 +922,8 @@ Files that enter through this endpoint are project working material, not organiz
 A skipped file is still listed by the project's chat and reads **Not indexed** on the project's Knowledge tab: a search never finds it until it is indexed (**Index now** on its row, `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing` from REST — the same core and the same 10-per-user-per-minute budget as the Hub document's retry, answering `{"status": "indexing"}` and lifting the opt-out, or `skipped` with its `reason` — or a bind with `skipRagIndexing: false`), but the assistant reads a plain-text file of up to 4 MiB on request — `rag_fetch` on its id serves the bytes as text rather than answering that the file is unindexed.
 
 ### Verify what landed
+
+Choose the file scope with `folderId`: omit it for all files in the project, use `folderId=root` for unfiled files at the project root, or pass a folder ID for that folder’s files. A folder outside the project returns **404**, `FOLDER_NOT_FOUND`.
 
 ```bash
 curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/files?folderId=<folderId>" \

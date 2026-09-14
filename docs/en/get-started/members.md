@@ -26,7 +26,7 @@ Read the result before using it. When the answer cites a source, open it and che
 
 Choose the intended audience before uploading. Organization knowledge and a project’s files have different access boundaries. Uploading a file and making it searchable are separate stages; wait for indexing before testing retrieval.
 
-<Frame caption="The Documents list shows uploaded files and their indexing state.">
+<Frame caption="The Documents list shows uploaded files and their indexing state. This view filters files to indexed uploads.">
 
 ![The Documents table lists source files with their indexing status.](/images/get-started/documents-list.webp)
 

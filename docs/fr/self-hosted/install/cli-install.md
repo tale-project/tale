@@ -378,6 +378,57 @@ La configuration native suit la vérification d’identité et précède les ver
 
 Les déploiements gérés activent aussi une ressource `deployment` déclarée avant de signaler qu’ils sont prêts. La CLI conserve l’activation en attente, attend jusqu’à cinq minutes la fin des sessions du spawner sandbox vérifié, puis redémarre ce conteneur. Si des sessions restent actives, l’opération reste en attente. Le reçu `configurationActivation` enregistre la configuration montée et le démarrage observé du conteneur ; de nouveaux contrôles de santé doivent réussir. Une nouvelle tentative vérifie un redémarrage déjà accepté. Après une activation réussie, une nouvelle exécution sans changement ne redémarre pas le service.
 
+#### Remplacer un plan de configuration en attente
+
+Si un plan interrompu peut encore aboutir, relance ce même plan. Le remplacement explicite sert lorsque les réglages déclarés ne peuvent plus fonctionner, par exemple si le point de terminaison d’embedding n’est plus disponible. Conserve le reçu existant : il garde la trace des modifications qui ont pu atteindre la plateforme.
+
+1. Lis le reçu en attente et compare les ressources déclarées à leur état actuel sur la plateforme. Enregistre les réglages corrigés dans `replacement-configuration.json`, avec la même cible et exactement les mêmes identifiants de ressources. Le remplacement ne permet ni d’ajouter ni de retirer des ressources.
+2. Calcule le hash du champ `plan` du reçu conservé, pas celui du reçu entier ni du plan de remplacement. La commande suivante nécessite Bun et utilise du JSON canonique : clés d’objets triées récursivement, ordre des tableaux conservé et aucun espace.
+
+```bash
+PENDING_PLAN_SHA=$(bun -e '
+  const receipt = await Bun.file(process.argv[1]).json();
+  if (receipt.phase !== "pending") throw new Error("Receipt is not pending");
+  function canonical(value) {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+    if (value !== null && typeof value === "object") {
+      return "{" + Object.keys(value).sort().map(key =>
+        JSON.stringify(key) + ":" + canonical(value[key])
+      ).join(",") + "}";
+    }
+    return JSON.stringify(value);
+  }
+  console.log(new Bun.CryptoHasher("sha256")
+    .update(canonical(receipt.plan)).digest("hex"));
+' configuration-receipt.json)
+```
+
+3. Crée un nouveau plan à partir de la déclaration corrigée et examine-le avant de l’appliquer :
+
+```bash
+tale --json config plan --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" --output replacement-plan.json
+```
+
+Une fois le plan vérifié, applique-le avec le chemin du reçu d’origine et le hash du plan conservé :
+
+```bash
+tale --json --yes config apply --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID" \
+  --plan replacement-plan.json --receipt configuration-receipt.json \
+  --supersedes-pending-plan "$PENDING_PLAN_SHA"
+tale --json config read --file replacement-configuration.json \
+  --url "$TALE_URL" --org "$TALE_ORG_ID"
+```
+
+Chaque ressource doit encore correspondre à l’état initial, à la modification prévue ou au résultat vérifié du plan en attente. Toute modification indépendante sur la plateforme bloque le remplacement avant la première écriture. Clarifie cet écart avec l’administrateur concerné ; ne supprime pas le reçu pour contourner la vérification.
+
+Le reçu conserve le plan précédent et ses ressources vérifiées sous `superseded`, y compris après une interruption ou une nouvelle tentative. Vérifie qu’il atteint `phase: "ready"` et que `config read` indique des ressources conformes. Omet ce paramètre de sélection ponctuel lors des opérations suivantes.
+
+Pour un déploiement géré, définis `supersedesPendingConfigurationPlan` dans la spécification de déploiement avec ce même hash du plan conservé, puis corrige `configuration`. Prépare et examine ensuite un nouveau bundle. Si celui-ci remplace aussi un déploiement en attente, sélectionne séparément le hash de ce dernier avec `supersedesPendingBundle`. Ce paramètre de bundle ne suffit pas à autoriser le remplacement du plan de configuration natif. Retire les deux paramètres de reprise des spécifications suivantes une fois l’opération prête.
+
+Pour chaque ressource, la preuve publique `native.configuration` donne le hash prévu dans `configurationSha256` et celui de l’état relu sur la plateforme dans `observedConfigurationSha256`. Ils peuvent différer lorsqu’un réglage conserve une valeur existante, par exemple si le seuil de similarité des embeddings est omis. Le reçu privé conserve l’état exact observé pour permettre la reprise.
+
 ### Exploitation
 
 `tale status` — afficher l'état actuel du déploiement. Aucun argument.

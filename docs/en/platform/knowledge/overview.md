@@ -9,7 +9,7 @@ Knowledge is your organization's shared library. Add documents, short facts, pub
 
 </Video>
 
-<Frame caption="Start in Documents for files, or choose the tab that matches your source.">
+<Frame caption="Start in Documents for files, or choose the tab that matches your source. This view filters files to indexed uploads.">
 
 ![The Knowledge area shows its Documents, Knowledge entries, Websites, Products, and Contacts tabs above a table of shared files.](/images/get-started/documents-list.webp)
 

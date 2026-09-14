@@ -402,6 +402,14 @@ Les deux routes de relance appliquent les mêmes contrôles que **Indexer mainte
 
 L’autre mode de création de document, avec `fileId`, exige un fichier chargé depuis l’application par le détenteur de la clé, dans l’organisation sélectionnée, et encore sans liaison. REST ne crée pas ce chargement. Un fichier déjà lié à un document, un fil ou une conversation ne peut pas être réutilisé. Un fichier absent, détenu par un autre utilisateur ou déjà lié donne **404**, `FILE_NOT_FOUND`. Cette route ne convertit pas les chargements de projet, de chat ou de conversation en documents de l’organisation.
 
+`GET /api/v1/documents` liste les documents du Hub du plus récent au plus ancien. Pour reproduire la vue par dossier de l’application, précise le périmètre :
+
+| Paramètre de requête `folderId` | Documents renvoyés |
+| --- | --- |
+| Omis | Tous les documents visibles du Hub, y compris ceux rangés dans des dossiers. |
+| `root` | Uniquement les documents qui ne sont dans aucun dossier. |
+| Un identifiant de dossier | Les documents directement contenus dans ce dossier. |
+
 `GET /api/v1/documents/{id}/content` télécharge les octets avec `Content-Disposition`, `Range` et `HEAD`, comme pour un fichier de projet. Il sert aussi le texte stocké directement dans `content`, avec le `mimeType` du document. La lecture JSON `GET /api/v1/documents/{id}` inclut ce texte dans `content`, ou `null` pour un document associé à un fichier.
 
 Le champ `contentHash` contient le SHA-256 calculé par Tale pour les octets, par exemple ceux d’une entrée de connaissances ou d’un fichier synchronisé. Il vaut `null` lorsqu’aucun hash n’a été calculé. C’est un champ de premier niveau, pas une clé de tes `metadata`.
@@ -1156,6 +1164,8 @@ L’assistant peut néanmoins lire à la demande un fichier texte brut jusqu’�
 Le `mimeType` enregistré est déterminé par l’extension du fichier et devient le `Content-Type` du téléchargement. Le type multimédia d’un transfert multipart ou une indication d’upload ne remplace pas cette règle.
 
 ### Vérifier ce qui est arrivé
+
+Le paramètre `folderId` détermine les fichiers renvoyés : omets-le pour obtenir tous les fichiers du projet, utilise `folderId=root` pour ceux qui sont à la racine, ou indique l’identifiant d’un dossier pour obtenir son contenu. Un dossier qui n’appartient pas au projet renvoie **404**, `FOLDER_NOT_FOUND`.
 
 ```bash
 curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/files?folderId=<folderId>" \

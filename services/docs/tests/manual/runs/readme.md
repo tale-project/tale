@@ -22,6 +22,7 @@ Newest first. `R<n>` numbers are consumed in order and never reused.
 
 | Round | Date | Scope | Findings | Verdict |
 |---|---|---|---|---|
+| [R5](r0005.md) | 2026-09-14 | API folder scope, CLI recovery and filtered document captures in EN/DE/FR | 1 bug · 1 docs · 1 polish | fixed + pinned |
 | [R4](r0004.md) | 2026-09-14 | Incoming API, knowledge, navigation and provider guides in EN/DE/FR; README recaptures | 1 docs | fixed + pinned |
 | [R3](r0003.md) | 2026-09-14 | Complete non-video EN/DE/FR corpus, rendered links, current platform screenshots and README gallery | 2 bug · 2 docs | fixed + pinned |
 | [R2](r0002.md) | 2026-09-14 | EN/DE/FR reader journeys, screenshots, preview and localized Markdown; videos excluded | 4 bug | fixed + pinned |
