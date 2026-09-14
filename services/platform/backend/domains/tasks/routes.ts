@@ -42,6 +42,7 @@ import {
 } from './comments.ts';
 import {
   findLiveAutomationRunForTask,
+  resolveSetupFolderId,
   startWorkflowForTask,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
@@ -429,21 +430,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ensuredFolderId = folder.folderId;
           const setupName = args.ensureFolder.setupFolderName;
           if (setupName !== undefined && externalUrl === undefined) {
-            const setup = await tx<{ id: string }[]>`
-              SELECT id FROM app.folders
-              WHERE org_id = ${auth.organizationId}
-                AND project_id = ${projectId}
-                AND parent_id IS NULL
-                AND lower(name) = ${setupName.trim().toLowerCase()}
-              LIMIT 1
-            `;
-            if (setup.length === 0) {
-              throw new TaskError(
-                'SETUP_FOLDER_MISSING',
-                `Folder "${setupName}" does not exist in this project yet`,
-              );
-            }
-            externalUrl = setup[0]?.id;
+            externalUrl = await resolveSetupFolderId(tx, {
+              organizationId: auth.organizationId,
+              projectId,
+              setupFolderName: setupName,
+            });
           }
         }
         if (externalId === undefined) {

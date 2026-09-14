@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14803,7 +14803,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a project task from an external ref (idempotent)",
-        "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body.",
+        "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.",
         "operationId": "createTask",
         "security": [
           {
@@ -14885,7 +14885,13 @@
                     "type": "string",
                     "format": "uri",
                     "maxLength": 2048,
-                    "description": "An absolute http(s) URL to the source item, rendered as a link; any other scheme is refused. Changes only when supplied."
+                    "description": "An absolute http(s) URL to the source item, rendered as a link; any other scheme is refused. Changes only when supplied. Not beside `setupFolderName`, which fills the same field with a folder id."
+                  },
+                  "setupFolderName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "The name of a root folder of this project (trimmed, matched without regard to case) whose id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input, resolved on every intake. Refused beside `externalUrl` (400 `INVALID_BODY`); a name no root folder carries is 400 `SETUP_FOLDER_MISSING`, nothing created."
                   },
                   "externalState": {
                     "type": "string",
@@ -14947,7 +14953,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (malformed body or parameters)",
+            "description": "Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), or `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -31013,7 +31019,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "1.6.0"
+          "example": "1.7.0"
         }
       },
       "RetryAfter": {
@@ -31221,6 +31227,7 @@
               "ROLE_FORBIDDEN",
               "RUN_ACTIVE",
               "RUN_NOT_FOUND",
+              "SETUP_FOLDER_MISSING",
               "SKILL_EXISTS",
               "SKILL_FILE_NOT_FOUND",
               "SKILL_FORBIDDEN",
