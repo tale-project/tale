@@ -46,6 +46,8 @@ Pro Seitenaufruf erfassen wir die aufgerufene Adresse, die verweisende Seite, de
 
 Zur Auslieferung der Website verarbeiten wir zudem vorübergehend minimale technische Daten (siehe Server-Logs unten); außerdem speichert die Website ein funktionales Sprach-Cookie sowie eine Theme-Einstellung in deinem Browser (siehe Cookies unten).
 
+Erfasst werden nur der Seitenpfad und der Ursprung des Verweises; Suchparameter, Fragmente und Seitentitel bleiben außen vor. Die Browsersprache ist enthalten. Abgeschlossene Kontakt- und Demo-Anfragen werden ohne Formularinhalte gezählt. Do Not Track und Global Privacy Control deaktivieren die Erfassung.
+
 ### 3.3 Server-Logs
 
 Wenn du unsere Website besuchst, verarbeitet unser selbst betriebener Webserver bzw. unsere Hosting-Infrastruktur ([Hosting-Anbieter — vor Veröffentlichung zu bestätigen]) möglicherweise vorübergehend technische Daten wie deine IP-Adresse, deinen Browser-Typ und Zugriffs-Zeitstempel zur Auslieferung der Website und zur Wahrung der Sicherheit (z. B. Rate-Limiting). Diese Daten werden nur kurzzeitig im Rahmen des üblichen Webserver-Betriebs verarbeitet und von uns zu keinem anderen Zweck genutzt.

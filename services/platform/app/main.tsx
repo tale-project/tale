@@ -1,3 +1,7 @@
+import {
+  startBrowserAnalytics,
+  analyticsRouteTemplate,
+} from '@tale/ui/analytics/browser';
 import { AppShell } from '@tale/ui/app-shell';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
@@ -19,6 +23,15 @@ import { queryClient, router } from './router';
 
 import './globals.css';
 import './locals.css';
+
+startBrowserAnalytics(
+  (resolved) => router.subscribe('onResolved', resolved),
+  () => {
+    const match = router.state.matches.at(-1);
+    if (match?.status !== 'success' || match.globalNotFound) return undefined;
+    return analyticsRouteTemplate(router.routesById[match.routeId].fullPath);
+  },
+);
 
 /** Dev-only probe: marks the end of the session handshake (the one request
  * every auth-gated read waits on). */

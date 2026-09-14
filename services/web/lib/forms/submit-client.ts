@@ -1,3 +1,5 @@
+import { trackAnalyticsEvent } from '@tale/ui/analytics/browser';
+
 import type { SubmitRequest } from './schemas';
 
 type SubmitResult =
@@ -14,7 +16,14 @@ export async function submitForm(
       body: JSON.stringify(request),
     });
 
-    if (response.ok) return { ok: true };
+    if (response.ok) {
+      trackAnalyticsEvent(
+        request.form === 'contact'
+          ? 'contact-submitted'
+          : 'demo-request-submitted',
+      );
+      return { ok: true };
+    }
 
     const error = await response.text().catch(() => 'Submission failed');
     // The endpoint answers JSON (`{ ok, error }`); `error` doubles as a

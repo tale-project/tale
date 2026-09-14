@@ -62,9 +62,17 @@ export const Route = createFileRoute('/$')({
   // and breadcrumbs need is already loaded from the manifest.
   loader: async ({ params }) => {
     const splat = params._splat ?? '';
-    if (isSpecialEndpoint(splat)) return;
+    if (isSpecialEndpoint(splat)) return undefined;
     const { locale, slug } = resolve(splat);
     await ensureDocBody(locale, slug);
+    const page = getDocPage(locale, slug);
+    if (page) {
+      const path = page.slug.replace(/(?:^|\/)index$/, '');
+      return {
+        analyticsPath: `${locale === 'en' ? '' : `/${locale}`}/${path}`,
+      };
+    }
+    return undefined;
   },
   component: SplatRoute,
   notFoundComponent: SplatNotFound,

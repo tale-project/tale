@@ -30,6 +30,7 @@ import {
   type NegotiatePathLocaleResult,
 } from '@tale/ui/i18n/negotiate';
 
+import { createAnalytics } from '../analytics/server';
 import {
   monitoringConfig,
   monitoringJson,
@@ -220,9 +221,11 @@ export function startReactServer(opts: ReactServerOptions) {
     reportError,
   } = opts;
   const monitoring = monitoringConfig(opts.monitoring);
+  const analytics = createAnalytics(process.env, redirectPrefix);
   const monitoringScript = monitoring
     ? `<script id="${MONITORING_CONFIG_ID}" type="application/json">${monitoringJson(monitoring)}</script>`
     : undefined;
+  const runtimeScripts = `${monitoringScript ?? ''}${analytics.html}`;
 
   // Pin the CSP `script-src` to the sha256 of the built page's inline
   // theme-flash script and drop `'unsafe-inline'` — computed once at boot from
@@ -366,13 +369,13 @@ export function startReactServer(opts: ReactServerOptions) {
       const secure = isSecureRequest(request);
       const finalize = async (response: Response) => {
         const withConfig =
-          monitoringScript &&
+          runtimeScripts &&
           response.status !== 206 &&
           response.headers.get('content-type')?.includes('text/html')
             ? new HTMLRewriter()
                 .on('head', {
                   element(element) {
-                    element.prepend(monitoringScript, { html: true });
+                    element.prepend(runtimeScripts, { html: true });
                   },
                 })
                 .transform(response)
@@ -388,6 +391,9 @@ export function startReactServer(opts: ReactServerOptions) {
           ? applySecurityHeaders(materialized, effectiveSecurityHeaders, secure)
           : materialized;
       };
+
+      const analyticsResponse = await analytics.handle(request);
+      if (analyticsResponse) return finalize(analyticsResponse);
 
       if (url.pathname === '/api/health') {
         const shuttingDown = Boolean(

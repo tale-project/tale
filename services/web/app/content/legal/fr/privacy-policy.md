@@ -46,6 +46,8 @@ Pour chaque page vue, nous enregistrons l’adresse consultée, la page référe
 
 Pour livrer le site, nous traitons par ailleurs temporairement des données techniques minimales (voir Journaux serveur ci-dessous) ; le site stocke également un cookie fonctionnel de langue et une préférence de thème dans ton navigateur (voir Cookies ci-dessous).
 
+Seuls le chemin de la page et l’origine de provenance sont collectés ; les paramètres de recherche, fragments et titres de page sont omis. La langue du navigateur est incluse. Les demandes de contact et de démo abouties sont comptées sans le contenu du formulaire. Do Not Track et Global Privacy Control désactivent la collecte.
+
 ### 3.3 Journaux serveur
 
 Quand tu visites notre site, notre serveur web auto-opéré et notre infrastructure d’hébergement ([hébergeur — à confirmer avant publication]) peuvent traiter temporairement des données techniques comme ton adresse IP, type de navigateur et timestamps d’accès afin de livrer le site et maintenir la sécurité (par exemple le rate limiting). Ces données relèvent des opérations standard d’un serveur web, ne sont conservées que brièvement et ne sont pas utilisées par nous à d’autres fins.

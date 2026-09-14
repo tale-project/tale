@@ -18,13 +18,15 @@ Trois seaux de données existent, chacun avec sa propre règle de conservation :
 
 Nous ne vendons pas de données personnelles. Nous n'utilisons pas les données produit pour entraîner des modèles — tes conversations et tes documents ne font partie d'aucun jeu d'entraînement de modèle, ni le nôtre ni celui d'aucun fournisseur, sauf quand tu as explicitement activé une fonctionnalité qui le requiert et confirmé l'invite de consentement.
 
+Les statistiques agrégées facultatives utilisent Umami auto-hébergé sur les sites de Tale et sur les déploiements dont l’opérateur active la collecte. Elles enregistrent les chemins publics connus ou les modèles de routes privées, les origines de provenance, la langue du navigateur, la taille de l’écran, les données du navigateur et de l’appareil, ainsi que la localisation approximative. L’adresse IP sert à déduire la localisation et à regrouper brièvement les visites, sans stockage en clair. Aucun cookie, identifiant persistant dans le navigateur, identité entre sites, titre de page, paramètre de recherche, contenu de formulaire, identifiant d’organisation ou de ressource, ni relecture de session n’est collecté. Do Not Track et Global Privacy Control désactivent cette collecte. Le site marketing compte les demandes de contact et de démo abouties sans leur contenu.
+
 ## Pourquoi nous le collectons
 
 La base légale de chaque seau est l'une de :
 
 - **Nécessité contractuelle.** Les données de compte et les données produit que tu crées existent parce que tu nous as demandé de fournir le service. Nous ne pouvons pas opérer la plateforme sans elles.
 - **Intérêt légitime.** Les données opérationnelles sont collectées pour garder la plateforme sûre, déboguer les pannes et respecter les SLA contractuels.
-- **Consentement.** Les communications marketing, l'analytique sur le site marketing et toute fonctionnalité qui traite des données au-delà du contrat sont fondées sur le consentement — opt-in, révocable et tracé.
+- **Consentement.** Les communications marketing, toute fonctionnalité qui traite des données au-delà du contrat sont fondées sur le consentement — opt-in, révocable et tracé.
 
 La ventilation de la base légale par catégorie de donnée vit dans l'Accord de Traitement de Données disponible aux clients entreprise sur demande.
 

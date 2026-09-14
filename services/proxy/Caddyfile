@@ -102,6 +102,8 @@
 	# real requests, so an absent upstream stays silent; a present-but-down
 	# docs container still gets circuit-broken after max_fails.
 	reverse_proxy docs:3002 {
+		# Dedicated analytics provenance; ignore any browser-supplied value.
+		header_up X-Analytics-Client-IP {client_ip}
 		fail_duration 10s
 		max_fails 2
 		unhealthy_status 500 502 503 504
@@ -258,6 +260,8 @@
 
 	# Default: Express server for static files and index.html with env injection
 	reverse_proxy platform:3000 {
+		# The application forwards this only to its authenticated collector.
+		header_up X-Analytics-Client-IP {client_ip}
 		# Active health checking. Interval is 5s (not 2s): the platform has a
 		# long cold boot (Convex connect + asset load — see its 180s compose
 		# start_period), and a 2s probe logged a failed health check every two

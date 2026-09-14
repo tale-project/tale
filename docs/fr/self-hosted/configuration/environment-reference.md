@@ -124,6 +124,9 @@ Voir [Intégrité du journal d'audit](/fr/self-hosted/operate/security/audit-log
 | `SENTRY_DSN`                | non défini | DSN Sentry pour le suivi d'erreurs. Laisse vide pour désactiver. Compatible avec GlitchTip et Bugsink auto-hébergés.                                                   |
 | `SENTRY_TRACES_SAMPLE_RATE` | non défini | Taux d'échantillonnage optionnel pour les traces de performance du navigateur (`0.0`–`1.0`). Navigateur uniquement — le backend remonte des erreurs, jamais de traces. |
 | `METRICS_BEARER_TOKEN`      | non défini | Token bearer requis pour accéder aux endpoints Prometheus `/metrics/*`. Laisse vide pour rendre les endpoints inatteignables de l'extérieur.                           |
+| `UMAMI_URL` | non défini | Origine HTTPS de la passerelle de collecte Umami authentifiée. À l’exécution ; nécessite la Website ID et le Token du proxy. |
+| `UMAMI_WEBSITE_ID` | non défini | UUID du site Umami. Une valeur vide ou invalide désactive les statistiques agrégées ; une ID distincte par déploiement. |
+| `UMAMI_PROXY_TOKEN` | non défini | Bearer Token de la passerelle de collecte, réservé au serveur. Ne jamais injecter dans la configuration du navigateur. |
 
 Définir `METRICS_BEARER_TOKEN` expose les endpoints de métriques derrière le token : `/metrics/platform`, `/metrics/backend` (les métriques du backend applicatif) et `/metrics/sla-rules`. Voir [Configuration d'observabilité](/fr/self-hosted/configuration/observability-config) pour la configuration de scrape.
 
