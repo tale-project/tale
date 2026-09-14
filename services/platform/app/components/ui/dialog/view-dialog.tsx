@@ -28,7 +28,7 @@ export interface ViewDialogProps {
   customFooter?: React.ReactNode;
   /** Dialog size variant */
   size?: DialogSize;
-  /** Actions to display in the header (next to the title) */
+  /** Actions to display in the header, in one cluster with the close control. */
   headerActions?: React.ReactNode;
   /** Back-navigation handler — renders a back control top-left for drill-in sub-views. */
   onBack?: () => void;

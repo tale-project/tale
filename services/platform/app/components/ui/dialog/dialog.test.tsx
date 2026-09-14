@@ -48,6 +48,25 @@ describe('Dialog', () => {
     });
   });
 
+  describe('header actions', () => {
+    it('clusters header actions with close so they share one row', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Contact details"
+          headerActions={<button type="button">New email</button>}
+        >
+          <p>Body</p>
+        </Dialog>,
+      );
+      const action = screen.getByRole('button', { name: 'New email' });
+      const close = screen.getByRole('button', { name: 'Close' });
+      expect(action.parentElement).toBe(close.parentElement);
+      expect(close.parentElement).toHaveClass('items-center');
+    });
+  });
+
   describe('body region', () => {
     it('omits the scroll body when there is no children content', () => {
       render(

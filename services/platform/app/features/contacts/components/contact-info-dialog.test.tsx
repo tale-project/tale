@@ -111,6 +111,7 @@ describe('ContactInfoDialog', () => {
     expect(
       screen.getByRole('button', { name: 'New email' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
   it('offers no actions for the lightweight ContactInfo shape (no _id to act on)', () => {

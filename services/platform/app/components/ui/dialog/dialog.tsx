@@ -72,7 +72,7 @@ function DialogCloseButton() {
   const { t } = useT('common');
   return (
     <DialogPrimitive.Close
-      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-lg p-2 transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-lg transition-all duration-[var(--duration-short)] focus-visible:ring-1 focus-visible:outline-none motion-reduce:transition-none"
       aria-label={t('aria.close')}
       onClick={(e) => e.stopPropagation()}
     >
@@ -114,7 +114,7 @@ export interface DialogProps {
   footerClassName?: string;
   /** Dialog size variant */
   size?: DialogSize;
-  /** Actions to display in the header (next to the title) */
+  /** Actions to display in the header, in one cluster with the close control. */
   headerActions?: React.ReactNode;
   /** Icon to display before the title */
   icon?: React.ReactNode;
@@ -214,7 +214,7 @@ export function Dialog({
               preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }
           >
-            {!hideClose && !customHeader && !onBack && (
+            {!hideClose && !customHeader && !onBack && !headerActions && (
               <div className="absolute top-3 right-4">
                 <DialogCloseButton />
               </div>
@@ -253,9 +253,9 @@ export function Dialog({
                 <div
                   className={cn(
                     'flex flex-col space-y-2 text-left',
-                    !hideClose && !onBack && 'pr-8',
+                    !hideClose && !onBack && !headerActions && 'pr-8',
                     headerActions &&
-                      'flex-row items-start justify-between gap-4',
+                      'flex-row items-center justify-between gap-4',
                     headerClassName,
                   )}
                 >
@@ -284,8 +284,9 @@ export function Dialog({
                     </div>
                   </div>
                   {headerActions && (
-                    <div className="-mt-1 flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       {headerActions}
+                      {!hideClose && !onBack && <DialogCloseButton />}
                     </div>
                   )}
                 </div>
