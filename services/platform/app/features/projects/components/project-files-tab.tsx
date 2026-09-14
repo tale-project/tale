@@ -841,12 +841,15 @@ export function ProjectFilesTab({
     if (status === 'running') return t('files.ragStatusRunning');
     if (status === 'completed') return t('files.ragStatusCompleted');
     if (status === 'failed') return t('files.ragStatusFailed');
+    if (status === 'unsupported') return tDocuments('rag.status.unsupported');
     if (notIndexed(status)) return t('files.ragStatusNotIndexed');
     return '';
   };
   const statusHint = (status: string | null | undefined) => {
     if (status === 'queued') return t('files.ragStatusQueuedHint');
     if (status === 'running') return t('files.ragStatusRunningHint');
+    if (status === 'unsupported')
+      return tDocuments('rag.dialog.unsupported.description');
     if (notIndexed(status)) return t('files.ragStatusNotIndexedHint');
     return undefined;
   };

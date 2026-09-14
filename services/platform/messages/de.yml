@@ -2334,12 +2334,16 @@ documents:
             Bitte einen Admin deiner Organisation, eines einzurichten, und
             starte die Indexierung danach neu.
       unsupported:
-        title: Format nicht unterstützt
+        title: Dokument kann nicht indexiert werden
         description:
-          Für diesen Dateityp gibt es keine Textextraktion, daher kann er
-          nicht für die RAG-Suche indexiert werden. Konvertiere die Datei in ein
-          unterstütztes Format (PDF, DOCX, TXT, …) und lade sie erneut hoch,
-          damit sie durchsuchbar wird.
+          Dieser Dateiinhalt lässt sich nicht indexieren. Lade eine lesbare
+          Textversion oder ein unterstütztes Dokument mit extrahierbarem Text hoch.
+        reasons:
+          unsupported_type: Für diesen Dateityp gibt es keinen unterstützten Textextraktor.
+          image_no_vision: Die Wissensindexierung extrahiert keinen Text aus Bildern.
+          empty: Die Datei enthält keinen indexierbaren Text. Sie ist leer, besteht nur aus Leerzeichen oder ist ein Scan ohne Textebene.
+          not_text: Die Datei enthält Binärdaten statt lesbarem Text. Exportiere sie als UTF-8-Text.
+          malformed: Die Datei lässt sich nicht im angegebenen Format lesen. Sie kann beschädigt oder kennwortgeschützt sein.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive

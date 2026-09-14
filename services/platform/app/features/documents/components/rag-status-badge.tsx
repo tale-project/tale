@@ -214,10 +214,20 @@ export function RagStatusBadge({
     );
   }
 
-  // Terminal, non-retryable: no text extractor exists for this format —
-  // deliberately no retry affordance (unlike 'failed', which may be
-  // transient). Clickable badge explains why, mirroring 'failed'.
+  // Terminal: these bytes cannot be indexed. Keep the recorded cause for
+  // empty text, malformed PDFs and unsupported formats; a retry cannot help.
   if (effectiveStatus === 'unsupported') {
+    const reasons: Record<string, string> = {
+      unsupported_type: t('rag.dialog.unsupported.reasons.unsupported_type'),
+      image_no_vision: t('rag.dialog.unsupported.reasons.image_no_vision'),
+      empty: t('rag.dialog.unsupported.reasons.empty'),
+      not_text: t('rag.dialog.unsupported.reasons.not_text'),
+      malformed: t('rag.dialog.unsupported.reasons.malformed'),
+    };
+    const explanation =
+      errorCode !== undefined && Object.hasOwn(reasons, errorCode)
+        ? reasons[errorCode]
+        : error;
     return (
       <>
         <button
@@ -237,11 +247,13 @@ export function RagStatusBadge({
           open={isUnsupportedDialogOpen}
           onOpenChange={setIsUnsupportedDialogOpen}
           title={t('rag.dialog.unsupported.title')}
-          description={t('rag.dialog.unsupported.description')}
+          description={explanation || t('rag.dialog.unsupported.description')}
         >
-          <Text className="mt-4">
-            {t('rag.dialog.unsupported.description')}
-          </Text>
+          {explanation ? (
+            <Text className="mt-4">
+              {t('rag.dialog.unsupported.description')}
+            </Text>
+          ) : null}
         </ViewDialog>
       </>
     );

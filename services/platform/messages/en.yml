@@ -2256,11 +2256,16 @@ documents:
           configureCta: Configure embedding model
           askAdmin: Ask an organization admin to configure one, then retry indexing.
       unsupported:
-        title: Format not supported
+        title: Document cannot be indexed
         description:
-          This file type has no text extractor, so it can't be indexed for
-          RAG search. Convert it to a supported format (PDF, DOCX, TXT, …) and
-          re-upload to make it searchable.
+          These file contents cannot be indexed. Upload a readable text version
+          or a supported document with extractable text.
+        reasons:
+          unsupported_type: This file type has no supported text extractor.
+          image_no_vision: Knowledge indexing does not extract text from images.
+          empty: The file holds no text to index — it is empty, whitespace alone, or a scanned document with no text layer.
+          not_text: The file contains binary data instead of readable text. Export it as UTF-8 text.
+          malformed: The file cannot be read as its stated format. It may be damaged or password-protected.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive

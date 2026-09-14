@@ -2358,12 +2358,16 @@ documents:
             Demande à un administrateur de ton organisation d'en configurer
             un, puis relance l'indexation.
       unsupported:
-        title: Format non pris en charge
+        title: Indexation impossible
         description:
-          Ce type de fichier n'a pas d'extracteur de texte, il ne peut donc
-          pas être indexé pour la recherche RAG. Convertis-le dans un format
-          pris en charge (PDF, DOCX, TXT, …) puis retélécharge-le pour le rendre
-          consultable.
+          Le contenu de ce fichier ne peut pas être indexé. Importe une version
+          texte lisible ou un document pris en charge dont le texte peut être extrait.
+        reasons:
+          unsupported_type: Aucun extracteur de texte ne prend en charge ce type de fichier.
+          image_no_vision: L’indexation des connaissances n’extrait pas de texte des images.
+          empty: Le fichier ne contient aucun texte à indexer. Il est vide, composé uniquement d’espaces, ou issu d’un scan sans couche de texte.
+          not_text: Le fichier contient des données binaires plutôt que du texte lisible. Exporte-le en texte UTF-8.
+          malformed: Le fichier ne peut pas être lu dans le format indiqué. Il peut être endommagé ou protégé par mot de passe.
   sourceType:
     confluence: Confluence
     googleDrive: Google Drive
