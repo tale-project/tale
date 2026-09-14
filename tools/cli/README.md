@@ -92,6 +92,16 @@ baseline executable for x64 CPUs without AVX2 and is accepted on Linux x64
 runners only. The [managed deployment reference](../../docs/en/self-hosted/install/cli-install.md#managed-deployments)
 contains the specification and environment-reference example.
 
+Set optional `runtime.containerPrefix` to a lowercase hyphenated slug of at most
+40 characters, such as `north-desk-prod`, for visible names like
+`north-desk-prod-db` and `north-desk-prod-backend-api`. Adding, changing or removing
+the prefix recreates the managed containers and can briefly interrupt service.
+Keep `name`, `composeProject` and `stateDirectory` unchanged on a retained
+deployment: they bind its volumes, credentials and recovery records. Service
+DNS names stay stable. Omit the prefix to retain source container names. Continue
+to run one complete managed runtime per Docker daemon; this option does not
+allocate separate ports, sandbox networks or host workspaces.
+
 Managed bundle commands are unavailable on Windows, including `deploy verify-bundle` and backend-local `deploy provision`: their custody checks require POSIX executable modes. Run the complete managed deployment on a Linux host. Ordinary workspace commands and standalone `config build`, `verify`, `stage`, `deploy` and `verify-native` remain available on Windows.
 
 The backend-local `deploy provision [--bundle <directory>]` phase reads bounded

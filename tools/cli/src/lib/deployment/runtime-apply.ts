@@ -408,6 +408,7 @@ function healthy(
     containers.length === RUNTIME_SERVICES.length &&
     containers.every((container) => {
       const service = container.Config.Labels?.['com.docker.compose.service'];
+      const expectedName = service && compose.services[service]?.container_name;
       const check = service && compose.services[service]?.healthcheck;
       const disabled =
         typeof check === 'object' &&
@@ -420,6 +421,7 @@ function healthy(
       const healthRequired = check !== undefined && !disabled;
       return (
         container.State.Running &&
+        (expectedName === undefined || container.Name === `/${expectedName}`) &&
         ((!healthRequired && container.State.Health === undefined) ||
           container.State.Health?.Status === 'healthy') &&
         bundle.images.some(

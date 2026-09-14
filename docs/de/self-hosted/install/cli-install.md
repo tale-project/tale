@@ -130,6 +130,8 @@ Nutze für Linux- oder macOS-ARM64-Jobs in GitHub Actions Tales Composite Action
 
 Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. So kann eine Deployment-Registry die öffentlichen Adressen verwalten. Die Vorbereitung löst sie zu geprüften wörtlichen HTTPS-URLs im Bundle auf.
 
+Setze optional `runtime.containerPrefix`, etwa `north-desk-prod`, um die Umgebung in der Containerliste zu erkennen. Verwende einen kleingeschriebenen Slug mit Bindestrichen und höchstens 40 Zeichen. Jeder verwaltete Dienst erhält den Containernamen `<prefix>-<service>`, etwa `north-desk-prod-db` oder `north-desk-prod-backend-api`; die DNS-Namen der Dienste bleiben gleich. Ohne die Option gelten die Containernamen aus dem Quellcode. Wenn du das Präfix hinzufügst, änderst oder entfernst, erstellt das Deployment die Container neu und kann den Dienst kurz unterbrechen. Behalte bei einer bestehenden Installation `name`, `composeProject` und `stateDirectory` bei, damit Volumes, Zugangsdaten und Wiederherstellungsprotokolle ihre Identität behalten. Der übliche Snapshot und die Wiederholung mit demselben Bundle gelten auch hier. Betreibe weiterhin nur eine vollständige verwaltete Laufzeit pro Docker-Daemon: Die Option vergibt keine eigenen Ports, Sandbox-Netzwerke oder Arbeitsverzeichnisse auf dem Host.
+
 ```json
 {
   "schemaVersion": 1,
@@ -138,7 +140,8 @@ Auch `origin` und einzelne native `redirectUris` akzeptieren Umgebungsverweise. 
   "composeProject": "tale-example",
   "runtime": {
     "revision": { "env": "TALE_RUNTIME_REF" },
-    "platform": "linux/amd64"
+    "platform": "linux/amd64",
+    "containerPrefix": "north-desk-prod"
   },
   "origin": { "env": "TALE_PUBLIC_ORIGIN" },
   "tlsMode": "external",

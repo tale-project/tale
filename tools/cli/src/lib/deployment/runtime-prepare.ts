@@ -9,6 +9,7 @@ import { git } from '../config/releases/git';
 import { runtimeCommand } from './runtime-command';
 import {
   atomicRuntimeFile,
+  containerPrefixSchema,
   hash,
   parseCompose,
   platformSchema,
@@ -223,6 +224,9 @@ export async function prepareRuntime(
 ): Promise<RuntimeBundle> {
   revisionSchema.parse(options.revision);
   platformSchema.parse(options.platform);
+  const containerPrefix = containerPrefixSchema
+    .optional()
+    .parse(options.containerPrefix);
   const output = resolve(options.output);
   requireRuntime(
     output !== resolve(options.repoRoot),
@@ -230,6 +234,10 @@ export async function prepareRuntime(
   );
   const source = sourceFiles(options.repoRoot, options.revision);
   const compose = parseCompose(source.compose.toString('utf8'));
+  if (containerPrefix !== undefined)
+    for (const service of RUNTIME_SERVICES)
+      compose.services[service].container_name =
+        `${containerPrefix}-${service}`;
   const caddy = proxyPolicy(source.caddy.toString('utf8'));
   const images = new Map<string, RuntimeImage>();
   const getImage = async (
@@ -357,6 +365,7 @@ export async function prepareRuntime(
     kind: 'source-compose-0.5',
     revision: options.revision,
     platform: options.platform,
+    ...(containerPrefix === undefined ? {} : { containerPrefix }),
     source: {
       composeSha256: hash(source.compose),
       caddySha256: hash(source.caddy),

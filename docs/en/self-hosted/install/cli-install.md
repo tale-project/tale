@@ -130,6 +130,8 @@ For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-
 
 `origin` and individual native `redirectUris` can also use environment references, so a deployment registry can own public addresses. Preparation resolves them to literal validated HTTPS URLs in the bundle.
 
+To identify an environment in container listings, set optional `runtime.containerPrefix`, for example `north-desk-prod`. Use a lowercase hyphenated slug of at most 40 characters. Every managed service receives `<prefix>-<service>` as its container name, including `north-desk-prod-db` and `north-desk-prod-backend-api`; service DNS names stay unchanged. Omit the option to retain source container names. Adding, changing or removing the prefix recreates containers and can briefly interrupt service. Keep `name`, `composeProject` and `stateDirectory` unchanged on a retained deployment so its volumes, credentials and recovery records keep their identity. The normal snapshot and exact-bundle retry flow applies. Continue to run one complete managed runtime per Docker daemon: this option does not allocate separate ports, sandbox networks or host workspaces.
+
 ```json
 {
   "schemaVersion": 1,
@@ -138,7 +140,8 @@ For Linux or macOS ARM64 GitHub Actions jobs, use Tale's `.github/actions/setup-
   "composeProject": "tale-example",
   "runtime": {
     "revision": { "env": "TALE_RUNTIME_REF" },
-    "platform": "linux/amd64"
+    "platform": "linux/amd64",
+    "containerPrefix": "north-desk-prod"
   },
   "origin": { "env": "TALE_PUBLIC_ORIGIN" },
   "tlsMode": "external",

@@ -23,7 +23,7 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
 });
-function create() {
+function create(containerPrefix?: string) {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
   const docker = new RuntimeDockerFixture(fixture);
@@ -34,6 +34,7 @@ function create() {
         revision: fixture.revision,
         output: fixture.options.bundleDirectory,
         platform: 'linux/amd64',
+        containerPrefix,
       },
       docker.dependencies(),
     );
@@ -41,6 +42,70 @@ function create() {
 }
 
 describe('committed source runtime preparation', () => {
+  test('prefixes every managed service deterministically while retaining storage and service topology', async () => {
+    const { fixture, prepare } = create('north-desk-prod');
+    const bundle = await prepare();
+    const verified = readRuntimeBundle(fixture.options.bundleDirectory);
+    expect(bundle.containerPrefix).toBe('north-desk-prod');
+    expect(verified.compose.volumes).toEqual(fixture.source.volumes);
+    expect(verified.compose.networks).toEqual(fixture.source.networks);
+    for (const service of RUNTIME_SERVICES)
+      expect(verified.compose.services[service].container_name).toBe(
+        `north-desk-prod-${service}`,
+      );
+    const bytes = readFileSync(
+      join(fixture.options.bundleDirectory, 'runtime.json'),
+    );
+    expect(await prepare()).toEqual(bundle);
+    expect(
+      readFileSync(join(fixture.options.bundleDirectory, 'runtime.json')),
+    ).toEqual(bytes);
+    expect(bundle.source.composeSha256).toBe(
+      hash(readFileSync(join(fixture.repoRoot, 'compose.yml'))),
+    );
+  });
+
+  test.each(['', 'UPPER', '../other', 'a'.repeat(41), 'valid\n'])(
+    'refuses invalid container prefix %j before source or Docker work',
+    async (prefix) => {
+      const { docker, prepare } = create(prefix);
+      await expect(prepare()).rejects.toThrow();
+      expect(docker.calls).toHaveLength(0);
+    },
+  );
+
+  test('does not hide a changed source container name behind a selected prefix', async () => {
+    const { fixture, docker, prepare } = create('north-desk-prod');
+    fixture.source.services.db.container_name = 'unrecognized-database';
+    writeFileSync(
+      join(fixture.repoRoot, 'compose.yml'),
+      stringify(fixture.source),
+    );
+    fixture.git('add', '.');
+    fixture.git('commit', '-qm', 'change source container name');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    await expect(prepare()).rejects.toThrow('container name');
+    expect(docker.calls).toHaveLength(0);
+  });
+
+  test('a rewritten bundle cannot claim one prefix while running another container name', async () => {
+    const { fixture, prepare } = create('north-desk-prod');
+    const bundle = await prepare();
+    const file = join(fixture.options.bundleDirectory, 'compose.yml');
+    const compose = parse(readFileSync(file, 'utf8'));
+    compose.services.db.container_name = 'other-db';
+    const changed = stringify(compose);
+    writeFileSync(file, changed);
+    bundle.files['compose.yml'] = hash(changed);
+    writeFileSync(
+      join(fixture.options.bundleDirectory, 'runtime.json'),
+      JSON.stringify(bundle),
+    );
+    expect(() => readRuntimeBundle(fixture.options.bundleDirectory)).toThrow(
+      'container name',
+    );
+  });
+
   test('uses committed blobs, produces only exact digest-pinned production files', async () => {
     const { fixture, docker, prepare } = create();
     const committed = readFileSync(join(fixture.repoRoot, 'compose.yml'));
@@ -58,6 +123,11 @@ describe('committed source runtime preparation', () => {
       'runtime.json',
     ]);
     expect(bundle.services).toEqual([...RUNTIME_SERVICES]);
+    expect(bundle).not.toHaveProperty('containerPrefix');
+    for (const service of RUNTIME_SERVICES)
+      expect(verified.compose.services[service].container_name).toBe(
+        fixture.source.services[service].container_name,
+      );
     expect(Object.keys(verified.compose.volumes).sort()).toEqual(
       Object.keys(fixture.source.volumes).sort(),
     );

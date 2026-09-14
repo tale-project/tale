@@ -159,7 +159,7 @@ export class RuntimeDockerFixture {
       const spec = compose.services[service];
       return {
         Id: (index + 1).toString(16).padStart(64, '0'),
-        Name: `/tale-${service}`,
+        Name: `/${spec.container_name ?? `${this.fixture.options.composeProject}-${service}-1`}`,
         Config: {
           Image: spec.image,
           Labels: {
