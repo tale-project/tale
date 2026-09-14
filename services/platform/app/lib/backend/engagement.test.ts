@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
@@ -41,5 +41,70 @@ describe('the bell query keys', () => {
 
   it('pins the wire literal both ends share', () => {
     expect(NOTIFICATION_HINT_ENTITY).toBe('notification');
+  });
+});
+
+beforeEach(() => {
+  window.__ENV__ = { BASE_PATH: '' };
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete window.__ENV__;
+});
+
+describe.each([
+  ['contacts', 'listContacts', 'listContactsPaginated'],
+  ['products', 'listProducts', 'listProductsPaginated'],
+])('%s table dates', (entity, listQuery, pageQuery) => {
+  const wireRow = {
+    id: 'record-1',
+    name: 'Review record',
+    createdAt: 1770000000000,
+    updatedAt: 1770003600000,
+  };
+
+  it('supplies the Added and Updated columns in whole-list reads', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ items: [wireRow] })),
+    );
+    const adapter = engagementReadAdapters[`${entity}/queries:${listQuery}`]?.(
+      {},
+      ctx,
+    );
+    expect(await adapter?.queryFn()).toEqual([
+      {
+        ...wireRow,
+        _id: 'record-1',
+        _creationTime: wireRow.createdAt,
+        lastUpdated: wireRow.updatedAt,
+      },
+    ]);
+  });
+
+  it('supplies table dates without changing the server pagination cursor', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [wireRow],
+          nextCursor: { updatedAt: wireRow.updatedAt, id: wireRow.id },
+        }),
+      ),
+    );
+    const adapter = engagementPaginatedAdapters[
+      `${entity}/queries:${pageQuery}`
+    ]?.({}, ctx);
+    expect(await adapter?.fetchPage(null, 20)).toEqual({
+      page: [
+        {
+          ...wireRow,
+          _id: 'record-1',
+          _creationTime: wireRow.createdAt,
+          lastUpdated: wireRow.updatedAt,
+        },
+      ],
+      isDone: false,
+      continueCursor: `${wireRow.updatedAt}|record-1`,
+    });
   });
 });
