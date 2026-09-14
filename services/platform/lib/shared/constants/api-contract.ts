@@ -33,5 +33,25 @@
  *
  * 1.8.0 — 2026-09-14: recipient-scoped personal and organization notification
  * export, with signed pagination cursors and the app's own deep links.
+ *
+ * 1.9.0 — 2026-09-14: the 09-14 evaluation's seventh pass — a conversation
+ * mirror's receipt carries `externalContactId` and `contactStatus`, and a
+ * content snapshot for a trashed contact answers 409
+ * `CONVERSATION_CONTACT_TRASHED`; `If-Match` on the document update (412
+ * `PRECONDITION_FAILED`); the contacts bulk import validates rows one at a
+ * time (`errors[].issues`, `INVALID_BODY` per row); a blank or over-long
+ * `Idempotency-Key` answers 400 `INVALID_HEADER`; `contacts?source=` is the
+ * closed set; `products.imageUrl` refuses private and metadata hosts; a
+ * contact, product or project `PATCH` that changes nothing writes nothing;
+ * `Automation.document.version` is the integer it always was. Runs carry
+ * `failureCode` (one enum over the engine's, the provider's and the agent's
+ * causes) and a cancel answers the run's `status` beside `cancelled`;
+ * `GET /api/v1/me` answers `capabilities.developer`; the single-file read
+ * `GET /projects/{id}/files/{documentId}`; `documentIndexing.errorCode` is
+ * the closed RAG vocabulary (terminal `unsupported` causes named);
+ * `Website.status` is an enum and `websites?status=` refuses a value
+ * outside it; `WebsitePage.lastErrorKind` gains `unsupported_content`,
+ * `robots_noindex` and `tls_error`; a 429 carries a sentence and
+ * `requestId` like every refusal; the edge's own 400 `BODY_CHUNK_MALFORMED`.
  */
-export const API_CONTRACT_VERSION = '1.8.0';
+export const API_CONTRACT_VERSION = '1.9.0';

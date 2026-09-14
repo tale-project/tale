@@ -528,18 +528,49 @@ export async function updateContact(
       : patch.metadata === null
         ? null
         : applyJsonMergePatch(contact.metadata, patch.metadata);
+  const next = {
+    name,
+    email,
+    phone: patch.phone === undefined ? contact.phone : textOrNull(patch.phone),
+    externalId,
+    source: patch.source === undefined ? contact.source : patch.source,
+    locale:
+      patch.locale === undefined ? contact.locale : textOrNull(patch.locale),
+    address,
+    tags: patch.tags === undefined ? contact.tags : (patch.tags ?? []),
+    metadata,
+    notes: patch.notes === undefined ? contact.notes : textOrNull(patch.notes),
+  };
+  // A patch that changes nothing — an empty body, or every field already at
+  // its value — writes nothing: no `updatedAt` move, no audit row, no event.
+  // The precondition and the uniqueness rules above still ran, so a stale
+  // `expectedUpdatedAt` is refused before this short-circuit, the rule
+  // documents and products follow (2026-09-14 evaluation, g3-7).
+  const changed =
+    next.name !== contact.name ||
+    next.email !== contact.email ||
+    next.phone !== contact.phone ||
+    next.externalId !== contact.externalId ||
+    next.source !== contact.source ||
+    next.locale !== contact.locale ||
+    next.notes !== contact.notes ||
+    next.tags.length !== contact.tags.length ||
+    next.tags.some((tag, index) => tag !== contact.tags[index]) ||
+    JSON.stringify(next.address) !== JSON.stringify(contact.address) ||
+    JSON.stringify(next.metadata) !== JSON.stringify(contact.metadata);
+  if (!changed) return;
   await tx`
     UPDATE app.contacts SET
-      name = ${name},
-      email = ${email},
-      phone = ${patch.phone === undefined ? contact.phone : textOrNull(patch.phone)},
-      external_id = ${externalId},
-      source = ${patch.source === undefined ? contact.source : patch.source},
-      locale = ${patch.locale === undefined ? contact.locale : textOrNull(patch.locale)},
-      address = ${address === null ? null : tx.json(toJson(address))},
-      tags = ${patch.tags === undefined ? contact.tags : (patch.tags ?? [])},
-      metadata = ${metadata === null ? null : tx.json(toJson(metadata))},
-      notes = ${patch.notes === undefined ? contact.notes : textOrNull(patch.notes)},
+      name = ${next.name},
+      email = ${next.email},
+      phone = ${next.phone},
+      external_id = ${next.externalId},
+      source = ${next.source},
+      locale = ${next.locale},
+      address = ${next.address === null ? null : tx.json(toJson(next.address))},
+      tags = ${next.tags},
+      metadata = ${next.metadata === null ? null : tx.json(toJson(next.metadata))},
+      notes = ${next.notes},
       updated_at_ms = ${Math.max(Date.now(), contact.updatedAt + 1)}
     WHERE id = ${contactId}
   `;

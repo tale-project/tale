@@ -12,18 +12,25 @@ import {
  * `RATE_LIMITED` code plus `retryAfterMs` the surfaces read, and the
  * standard `Retry-After` header (whole seconds, rounded up, never zero) for
  * every generic client and proxy in between. One shape for every door, so a
- * spent budget never reads as an outage. The code rides in BOTH `error`
- * (the 0.4 wire shape every surface still reads) and `code` (the field the
- * REST error model tells a client to branch on).
+ * spent budget never reads as an outage. By default the code rides in BOTH
+ * `error` (the 0.4 wire shape the app client still reads as the code) and
+ * `code` (the field the REST error model tells a client to branch on); the
+ * REST door passes `message` so `error` is the sentence its envelope
+ * promises everywhere else, and `requestId` so the envelope matches its
+ * 413 (2026-09-14 evaluation, g4-11) — the app doors keep the bare shape.
  */
 export function rateLimitedResponse<E extends Env>(
   c: Context<E>,
   error: RateLimitExceededError,
+  options: { message?: string; requestId?: string } = {},
 ): Response {
   return c.json(
     {
-      error: 'RATE_LIMITED',
+      error: options.message ?? 'RATE_LIMITED',
       code: 'RATE_LIMITED',
+      ...(options.requestId === undefined
+        ? {}
+        : { requestId: options.requestId }),
       data: { retryAfterMs: error.retryAfter },
     },
     429,

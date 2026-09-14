@@ -5811,6 +5811,8 @@ settings:
     title: Clés API
   apiDocs:
     openDocs: Documentation API
+    guides: Guides développeur
+    openapiDocument: Document OpenAPI (JSON)
   logs:
     integrity:
       title: Intégrité de la chaîne

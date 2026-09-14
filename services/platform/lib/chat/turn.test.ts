@@ -14,6 +14,7 @@ import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
   CAP_CUT_CALL_OUTPUT,
+  CAP_WITHHELD_CALL_OUTPUT,
   estimateCostCents,
   fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
@@ -1996,6 +1997,8 @@ describe('runTurn — the per-turn output cap', () => {
   function twoRoundModel(round1: {
     outputTokens: number;
     finishReason: 'stop' | 'length';
+    /** Round 1's call as the wire decoded it; the default parsed whole. */
+    call?: { id: string; name: string; input: unknown; rawInput?: string };
   }): { model: ModelCall; requests: ModelCallRequest[] } {
     const requests: ModelCallRequest[] = [];
     return {
@@ -2012,7 +2015,11 @@ describe('runTurn — the per-turn output cap', () => {
               totalTokens: 100 + round1.outputTokens,
             },
             toolCalls: [
-              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+              round1.call ?? {
+                id: 'call_1',
+                name: 'rag_search',
+                input: { query: 'returns' },
+              },
             ],
             finishReason: round1.finishReason,
           };
@@ -2113,7 +2120,10 @@ describe('runTurn — the per-turn output cap', () => {
         type: 'tool-result',
         callId: 'call_1',
         capabilityId: 'rag_search',
-        output: CAP_CUT_CALL_OUTPUT,
+        // The call's arguments parsed whole — the cap fell AFTER them — so
+        // the record says the round ended and the call was withheld, not
+        // that the arguments were cut (2026-09-14 evaluation, g6-3).
+        output: CAP_WITHHELD_CALL_OUTPUT,
         structured: true,
       },
       { type: 'text', text: 'Found it: 30 days.' },
@@ -2125,8 +2135,40 @@ describe('runTurn — the per-turn output cap', () => {
       expect.objectContaining({
         type: 'tool-result',
         callId: 'call_1',
-        output: CAP_CUT_CALL_OUTPUT,
+        output: CAP_WITHHELD_CALL_OUTPUT,
       }),
+    );
+  });
+
+  it('says the arguments were cut when the cap fell inside them', async () => {
+    // The wire kept the raw text because it no longer parsed: the cap
+    // truncated the call itself, and the record says so — the sibling of
+    // the withheld case above (2026-09-14 evaluation, g6-3).
+    const { model } = twoRoundModel({
+      outputTokens: 64,
+      finishReason: 'length',
+      call: {
+        id: 'call_1',
+        name: 'rag_search',
+        input: {},
+        rawInput: '{"query": "ret',
+      },
+    });
+    const { executor, executed } = capturingExecutor();
+    const d = deps({ model, tools: executor });
+    await runTurn(request(), d.deps);
+
+    expect(executed).toHaveLength(0);
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts).toContainEqual({
+      type: 'tool-result',
+      callId: 'call_1',
+      capabilityId: 'rag_search',
+      output: CAP_CUT_CALL_OUTPUT,
+      structured: true,
+    });
+    expect(parts).not.toContainEqual(
+      expect.objectContaining({ output: CAP_WITHHELD_CALL_OUTPUT }),
     );
   });
 
@@ -2175,5 +2217,47 @@ describe('estimateCostCents — the one cost formula', () => {
     expect(estimateCostCents(26, 0, pricing(0.1, 0))).toBe(0.000003);
     // No price: an honest zero, never a guessed rate.
     expect(estimateCostCents(1000, 1000, undefined)).toBe(0);
+  });
+});
+
+/**
+ * A reply that produced no text settles with NO text part — the contract
+ * promises exactly that for a cap-emptied reply ("`finishReason: "length"`,
+ * no text part"); an empty `{type: "text", text: ""}` used to be written, so
+ * the documented detection never fired (2026-09-14 evaluation, g6-2).
+ */
+describe('a reply with no text settles without a text part', () => {
+  it('keeps the reasoning part and writes no text part when the cap emptied the reply', async () => {
+    const reasoningOnly: ModelCall = async function* stream() {
+      yield { text: '', reasoning: 'The user asks to explain quantum' };
+      yield {
+        text: '',
+        usage: { inputTokens: 2695, outputTokens: 16, totalTokens: 2711 },
+        finishReason: 'length',
+      };
+    };
+    const d = deps({ model: reasoningOnly });
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: { finishReason: 'length' },
+    });
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts.map((part) => part.type)).toEqual(['reasoning']);
+    expect(parts.some((part) => part.type === 'text')).toBe(false);
+  });
+
+  it('settles an entirely empty reply with no parts at all', async () => {
+    const nothing: ModelCall = async function* stream() {
+      yield {
+        text: '',
+        usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+        finishReason: 'stop',
+      };
+    };
+    const d = deps({ model: nothing });
+    await runTurn(request(), d.deps);
+    expect(d.store.finalized[0]?.parts).toEqual([]);
   });
 });

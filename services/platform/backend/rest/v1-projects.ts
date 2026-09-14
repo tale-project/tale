@@ -49,6 +49,7 @@ import {
   listFolders,
   loadFolderOrThrow,
 } from '../domains/folders/service.ts';
+import { syncRagDocumentScopes } from '../domains/knowledge/service.ts';
 import {
   archiveProject,
   assertReadable,
@@ -69,7 +70,6 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
-import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   chargeLane,
   documentDeleteRefusal,
@@ -93,6 +93,7 @@ import {
   restProjectAuth,
   RestRefusal,
   serveDocumentBytes,
+  restChargeOrg,
 } from './shared.ts';
 
 /**
@@ -536,12 +537,20 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const limited = await chargeLane(deps.sql, c, 'project:delete-cascade');
         if (limited) return limited;
       }
-      await transactSerializable(deps.sql, (tx) =>
+      const result = await transactSerializable(deps.sql, (tx) =>
         deleteProject(tx, auth, {
           projectId: project.id,
           mode,
           ...(mode === 'cascade' ? { confirmPhrase: project.name } : {}),
         }),
+      );
+      // `detach` releases the documents to the hub; re-stamp their corpus
+      // rows off the dead project id so a hub search finds them, instead of
+      // reporting `completed` on a document that is no longer retrievable.
+      await syncRagDocumentScopes(
+        deps.sql,
+        auth.organizationId,
+        result.detachedDocIds,
       );
       return c.body(null, 204);
     } catch (error) {
@@ -745,7 +754,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (project instanceof Response) return project;
       // The per-org budget the in-app folder actions share, on top of the
       // general lane — the spec and the rate-limits page promise it.
-      const limited = await chargeOrgRateLimit(
+      const limited = await restChargeOrg(
         deps.sql,
         c,
         'folder:mutate',
@@ -1202,6 +1211,68 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return doc;
   };
 
+  /**
+   * One project file by id — the row `GET /projects/{id}/files` lists, so a
+   * poller waiting for ONE upload's `indexing` (after a bind, after
+   * `retry-indexing`) reads that file instead of walking the whole listing
+   * (the door had no single-file read; a 5,000-file project made one
+   * status watch cost hundreds of requests — 2026-09-14 evaluation, g3-5).
+   * The door-wide conditional GET gives it an `ETag` and 304 like every
+   * JSON read. A document outside the project, without a file, trashed, or
+   * absent answers the same opaque 404 as the delete.
+   */
+  app.get('/projects/:id/files/:documentId', noQuery, async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const doc = await loadProjectFile(c, project, c.req.param('documentId'));
+      if (doc instanceof Response) return doc;
+      // The same metadata join the listing makes, for this one blob —
+      // oldest metadata row first.
+      const metas = await deps.sql<
+        {
+          size: number | null;
+          skipRagIndexing: boolean | null;
+          ragStatus: string | null;
+          ragIndexedAt: number | null;
+          ragError: string | null;
+          ragErrorCode: string | null;
+        }[]
+      >`
+        SELECT size::float8 AS size, skip_rag_indexing AS "skipRagIndexing",
+               rag_status AS "ragStatus",
+               rag_indexed_at_ms::float8 AS "ragIndexedAt",
+               rag_error AS "ragError", rag_error_code AS "ragErrorCode"
+        FROM app.file_metadata
+        WHERE org_id = ${c.get('organizationId')} AND storage_ref = ${doc.fileRef}
+        ORDER BY created_at_ms ASC
+        LIMIT 1
+      `;
+      const meta = metas[0];
+      const file: {
+        id: string;
+        fileName: string | null;
+        folderId: string | null;
+        mimeType: string | null;
+        createdAt: number;
+        size: number | null;
+        indexing?: DocumentIndexingState;
+      } = {
+        id: doc.id,
+        fileName: doc.title,
+        folderId: doc.folderId,
+        mimeType: doc.mimeType,
+        createdAt: doc.createdAt,
+        size: meta?.size ?? null,
+      };
+      if (meta !== undefined) file.indexing = indexingStateFrom(meta);
+      return c.json({ file });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
   /** Delete a project file — permanently: the document row, its corpus
    * rows and its blob, through the same purge every hard-delete lane
    * funnels through (controlled-record protection, legal holds, the audit
@@ -1258,7 +1329,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      const limited = await chargeOrgRateLimit(
+      const limited = await restChargeOrg(
         deps.sql,
         c,
         'folder:mutate',

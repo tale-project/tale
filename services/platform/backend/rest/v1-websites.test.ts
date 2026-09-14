@@ -660,6 +660,28 @@ describe('website corpus views', () => {
 });
 
 describe('website list bounds', () => {
+  // `status` is the closed set the row carries: an unknown value used to
+  // answer an empty page that read as "no websites in that state"
+  // (2026-09-14 evaluation, g4-7); it is refused by name now, like the
+  // knowledge-entry list's filter.
+  it('refuses a status outside the scan vocabulary with 400 naming the set, and passes a known one', async () => {
+    const { sql } = fakeSql();
+    const app = mount(sql);
+    vi.mocked(listWebsites).mockClear();
+    const bogus = await app.request('http://localhost/websites?status=bogus');
+    expect(bogus.status).toBe(400);
+    expect(await bogus.json()).toMatchObject({
+      code: 'INVALID_QUERY',
+      data: { issues: [expect.objectContaining({ path: 'status' })] },
+    });
+    expect(listWebsites).not.toHaveBeenCalled();
+    const active = await app.request('http://localhost/websites?status=active');
+    expect(active.status).toBe(200);
+    expect(vi.mocked(listWebsites).mock.calls[0]?.[2]).toMatchObject({
+      status: 'active',
+    });
+  });
+
   it('clamps an out-of-range whole-number limit for GET /websites', async () => {
     const { sql } = fakeSql();
     const app = mount(sql);

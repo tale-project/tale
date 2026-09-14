@@ -36,6 +36,49 @@ import type { SafeFetchErrorKind } from './safe-fetch-kinds';
  * the surfaces that record or document them read the same set. */
 export type { SafeFetchErrorKind };
 
+/** Node error codes that mean the TLS handshake itself failed — permanent
+ * until the operator fixes the certificate, never a transient blip. */
+const TLS_ERROR_CODE =
+  /^(CERT_|ERR_TLS_|ERR_SSL_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT|HOSTNAME_MISMATCH)/;
+
+/**
+ * The refusal for a `fetch` rejection that is neither a policy refusal nor
+ * a timeout. Under Node/undici the rejection is a bare `TypeError('fetch
+ * failed')` and the cause — `CERT_HAS_EXPIRED`, `ECONNREFUSED`, … — sits
+ * on `error.cause`; Bun puts the code on the error itself. The message used
+ * to be the wrapper's own text, so an expired certificate read
+ * `network_error: "fetch failed: fetch failed"` and was retried on every
+ * scan like a transient blip (2026-09-14 evaluation, g4-4). A certificate
+ * failure is its own kind; everything else names the underlying cause.
+ */
+function classifyFetchFailure(error: unknown): SafeFetchError {
+  const cause: unknown =
+    error instanceof Error && error.cause instanceof Error
+      ? error.cause
+      : error;
+  const message =
+    cause instanceof Error
+      ? cause.message
+      : typeof cause === 'string' && cause.length > 0
+        ? cause
+        : 'unknown';
+  const rawCode: unknown =
+    cause !== null && typeof cause === 'object'
+      ? Reflect.get(cause, 'code')
+      : undefined;
+  const code = typeof rawCode === 'string' ? rawCode : undefined;
+  if (code !== undefined && TLS_ERROR_CODE.test(code)) {
+    return new SafeFetchError(
+      'tls_error',
+      `TLS handshake failed: ${message} (${code})`,
+    );
+  }
+  return new SafeFetchError(
+    'network_error',
+    `Connection failed: ${message}${code === undefined ? '' : ` (${code})`}`,
+  );
+}
+
 export class SafeFetchError extends Error {
   readonly kind: SafeFetchErrorKind;
   readonly status?: number;
@@ -599,8 +642,7 @@ async function fetchFollowingRedirects(
           `Request timed out after ${timeoutMs}ms`,
         );
       }
-      const message = error instanceof Error ? error.message : 'unknown';
-      throw new SafeFetchError('network_error', `fetch failed: ${message}`);
+      throw classifyFetchFailure(error);
     }
 
     if (!REDIRECT_STATUSES.has(response.status)) {

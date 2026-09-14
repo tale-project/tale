@@ -1,6 +1,10 @@
 import path from 'node:path';
 
-import { parseEntityTagList } from '@tale/shared/http/entity-tag';
+import {
+  ifMatchHolds,
+  parseEntityTag,
+  parseEntityTagList,
+} from '@tale/shared/http/entity-tag';
 import {
   isValidSkillSlug,
   SKILL_EDIT_VISIBILITIES,
@@ -13,6 +17,7 @@ import { z } from 'zod';
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
+import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import {
   blankStringsAsAbsent,
   blankStringsAsNull,
@@ -91,8 +96,8 @@ import {
 import { PRODUCT_STATUSES } from '../domains/products/service.ts';
 import { SKILL_ERROR_STATUS } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
+import { entityTagOf } from '../lib/conditional-get.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
-import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   codedRefusalResponse,
   documentDeleteRefusal,
@@ -113,6 +118,9 @@ import {
   type RestEnv,
   restProjectAuth,
   serveDocumentBytes,
+  houseIssueMessage,
+  restChargeOrg,
+  schemaIssues,
 } from './shared.ts';
 
 /**
@@ -166,16 +174,23 @@ const expectedUpdatedAtField = {
  * as `""` on the next, and no spelling cleared a field at all.
  */
 const contactCreateBody = blankStringsAsAbsent(contactCreateSchema);
+/**
+ * The bulk import's ENVELOPE — the `contacts` array, 1..500 rows, no other
+ * key — is what the whole request is held to (400 `INVALID_BODY`). The rows
+ * themselves are validated one at a time by the handler, so a row the schema
+ * refuses fails ALONE, reported under `errors[]` with its `issues`, while
+ * the rest land: the operation documents per-row independence, and a
+ * 500-row export with one bad address used to die whole with nothing
+ * created (2026-09-14 evaluation, g7-2).
+ */
 const contactBulkBody = z
   .object({
     // At least one row: an empty batch used to answer 201 with nothing
     // created — a success no caller meant.
-    contacts: z
-      .array(blankStringsAsAbsent(contactBulkItemSchema))
-      .min(1)
-      .max(500),
+    contacts: z.array(z.unknown()).min(1).max(500),
   })
   .strict();
+const contactBulkRow = blankStringsAsAbsent(contactBulkItemSchema);
 const contactPatchBody = blankStringsAsNull(
   contactFieldsSchema.extend(expectedUpdatedAtField),
 );
@@ -263,7 +278,19 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: membership.name,
         role: membership.role,
       })),
-      capabilities: { deploymentEditor },
+      capabilities: {
+        deploymentEditor,
+        // The gate eight operations document as "the developer capability"
+        // — a live run start, cancel and delete, the trigger doors, an
+        // automation delete, the project install and the MCP authoring
+        // tools — is the role's `developerSettings` ability (owner, admin,
+        // developer). It had no wire representation, so a client could not
+        // pre-flight it (2026-09-14 evaluation, g5-12).
+        developer: defineAbilityFor(c.get('role')).can(
+          'read',
+          'developerSettings',
+        ),
+      },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });
   });
@@ -277,7 +304,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/contacts', async (c) => {
     const query = readQuery(c, {
       ...PAGE_QUERY,
-      source: queryFilter(64).optional(),
+      // A `source` filter is a closed set on the write side, so it is one
+      // here too: an unknown value answers 400 `INVALID_QUERY` naming the
+      // set, the way `products?status=` does — not a silently empty page
+      // that reads as "no contacts from this source" (2026-09-14 eval, g7-5).
+      source: queryFilter(64).pipe(dataSourceSchema).optional(),
     });
     if (query instanceof Response) return query;
     const cursor = readKeysetCursor(c, 'contacts');
@@ -286,10 +317,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limit instanceof Response) return limit;
     try {
       const result = await listContacts(deps.sql, scope(c), {
-        ...(query.source !== undefined
-          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listContacts filters on the free-text column; unknown values match nothing
-            { source: query.source as never }
-          : {}),
+        ...(query.source !== undefined ? { source: query.source } : {}),
         cursor:
           cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
         limit,
@@ -337,12 +365,77 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
     if (body instanceof Response) return body;
     try {
-      const result = await bulkCreateContacts(
+      // Per-row validation: a refused row is reported at its input index
+      // with the same field-named issues a single create answers, and the
+      // valid rows go on to the domain's own per-row lane (duplicates).
+      const valid: { index: number; item: z.infer<typeof contactBulkRow> }[] =
+        [];
+      const refused: {
+        index: number;
+        error: string;
+        errorCode: 'INVALID_BODY';
+        issues: { path: string; message: string }[];
+        contact: unknown;
+      }[] = [];
+      for (const [index, row] of body.contacts.entries()) {
+        const parsed = contactBulkRow.safeParse(row, {
+          reportInput: true,
+          error: houseIssueMessage,
+        });
+        if (parsed.success) {
+          valid.push({ index, item: parsed.data });
+          continue;
+        }
+        const issues = schemaIssues(
+          parsed.error,
+          'is not a field a contact row takes',
+        );
+        const first = issues[0];
+        refused.push({
+          index,
+          error:
+            first === undefined
+              ? 'invalid row'
+              : first.path === ''
+                ? `invalid row: ${first.message}`
+                : `invalid row: "${first.path}" ${first.message}`,
+          errorCode: 'INVALID_BODY',
+          issues,
+          contact: row,
+        });
+      }
+      const landed = await bulkCreateContacts(
         deps.sql,
         scope(c),
-        body.contacts,
+        valid.map((entry) => entry.item),
       );
-      return c.json(result, 201);
+      // The domain answered by position in the VALID list; map back to the
+      // caller's own indexes so `created[].index` and `errors[].index` name
+      // the rows as sent.
+      const originalIndex = (position: number): number =>
+        valid[position]?.index ?? position;
+      const errors: (
+        | (typeof refused)[number]
+        | (typeof landed.errors)[number]
+      )[] = [...refused];
+      for (const entry of landed.errors) {
+        errors.push({ ...entry, index: originalIndex(entry.index) });
+      }
+      errors.sort((a, b) => a.index - b.index);
+      const created: { index: number; id: string }[] = [];
+      for (const entry of landed.created) {
+        created.push({ index: originalIndex(entry.index), id: entry.id });
+      }
+      created.sort((a, b) => a.index - b.index);
+      return c.json(
+        {
+          success: landed.success,
+          failed: landed.failed + refused.length,
+          created,
+          errors,
+        },
+        201,
+      );
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -750,6 +843,44 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         if (backing) return backing;
       }
       const auth = await restProjectAuth(deps.sql, c);
+      // `If-Match` (RFC 9110 §13.1.1) is honoured the way the skills door
+      // honours it: the tag is the strong entity tag `GET /documents/{id}`
+      // answers — the digest of that read's JSON — so the same
+      // representation is rebuilt here and compared strongly (a `W/` tag
+      // never matches). A mismatch answers 412 `PRECONDITION_FAILED` with
+      // `data.etag` naming the current tag, nothing written. The header used
+      // to be ignored, so a client that reached for the standard HTTP
+      // precondition got a silent overwrite it thought it was guarded
+      // against (2026-09-14 evaluation, g8-5). `expectedUpdatedAt` remains
+      // the row-level precondition (409 `DOCUMENT_STALE`).
+      const ifMatch = c.req.header('if-match');
+      if (ifMatch !== undefined) {
+        const extras = await readDocumentRestExtras(deps.sql, doc.id);
+        const indexing = await indexingOf(c, [doc]);
+        const current = hubDocumentPayload(
+          doc,
+          extras,
+          doc.fileRef === null ? undefined : indexing.get(doc.fileRef),
+        );
+        const etag = entityTagOf(
+          new TextEncoder().encode(JSON.stringify(current)),
+        );
+        const holds = ifMatchHolds(
+          parseEntityTagList(ifMatch),
+          parseEntityTag(etag),
+        );
+        if (!holds) {
+          return c.json(
+            {
+              error:
+                'The document does not carry the entity tag If-Match names — reload it, merge, and send its current etag',
+              code: 'PRECONDITION_FAILED',
+              data: { etag },
+            },
+            412,
+          );
+        }
+      }
       const result = await deps.sql.begin((tx) =>
         updateDocument(tx, auth, { documentId: doc.id, ...body }),
       );
@@ -1014,12 +1145,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * limiter's error carries no wire code, so left inside the domain-error
    * mapping it read as a 500 outage and landed in error reporting. */
   const chargeKnowledgeMutate = (c: Context<RestEnv>) =>
-    chargeOrgRateLimit(
-      deps.sql,
-      c,
-      'knowledge:mutate',
-      c.get('organizationId'),
-    );
+    restChargeOrg(deps.sql, c, 'knowledge:mutate', c.get('organizationId'));
 
   const loadEntry = async (
     c: Context<RestEnv>,

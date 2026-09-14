@@ -33,11 +33,21 @@ import {
 import {
   RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+  RAG_ERROR_EMBEDDING_UPSTREAM,
+  RAG_ERROR_EMPTY,
+  RAG_ERROR_IMAGE_NO_VISION,
+  RAG_ERROR_INDEXER_ERROR,
+  RAG_ERROR_MALFORMED,
+  RAG_ERROR_NOT_TEXT,
+  RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_SECRET_DETECTED,
+  RAG_ERROR_UNSUPPORTED_TYPE,
 } from '../../core/knowledge/rag_error_codes.ts';
 import {
   searchKnowledge,
   type SearchKnowledgeArgs,
 } from '../../core/knowledge/search.ts';
+import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
 import {
   extractDocument,
   type ExtractedDocument,
@@ -743,6 +753,7 @@ export async function indexUploadedFile(
     await writeRagStatus(sql, fileId, {
       ragStatus: 'unsupported',
       ragError: `No text extractor exists for "${file.fileName}".`,
+      ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
     });
     return;
   }
@@ -759,6 +770,7 @@ export async function indexUploadedFile(
       ragError:
         `Images cannot be indexed for search: no vision (OCR) model lane is ` +
         `available to read "${file.fileName}".`,
+      ragErrorCode: RAG_ERROR_IMAGE_NO_VISION,
     });
     return;
   }
@@ -884,10 +896,32 @@ export async function indexUploadedFile(
     // `unchanged` means the corpus already holds ALL of this exact content —
     // that is a completed index, never a failure (a retry on an indexed
     // document lands here).
-    if (result.skipped !== undefined && result.skipped !== 'unchanged') {
+    if (result.skipped === 'empty') {
+      // Terminal: no text to index. It used to land on `failed` with the
+      // sentence "Indexing skipped (empty)." — a status the contract calls
+      // retryable, describing itself as skipped — so a correct client
+      // retried a permanently empty file forever (2026-09-14 eval, g3-6).
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'unsupported',
+        ragError:
+          'The file holds no text to index — it is empty, whitespace alone, or a scanned document with no text layer.',
+        ragErrorCode: RAG_ERROR_EMPTY,
+      });
+      return;
+    }
+    if (
+      result.skipped === 'secret-detected' ||
+      result.skipped === 'pii-blocked'
+    ) {
+      // A policy refusal, not a fault: `failed` with its code, so a retry
+      // after the policy or the file changes is meaningful.
       await writeRagStatus(sql, fileId, {
         ragStatus: 'failed',
-        ragError: result.refusal ?? `Indexing skipped (${result.skipped}).`,
+        ragError: result.refusal ?? `Indexing refused (${result.skipped}).`,
+        ragErrorCode:
+          result.skipped === 'secret-detected'
+            ? RAG_ERROR_SECRET_DETECTED
+            : RAG_ERROR_PII_BLOCKED,
       });
       return;
     }
@@ -934,9 +968,44 @@ export async function indexUploadedFile(
       });
       return;
     }
+    // An extractor's terminal refusal — binary bytes behind a text
+    // extension, a file that does not parse as its format: the honest,
+    // terminal `unsupported`, with its code, and NO rethrow: the job's five
+    // retries used to re-download, re-extract and re-embed the same bytes.
+    if (error instanceof ExtractionError) {
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'unsupported',
+        ragError: error.message,
+        ragErrorCode:
+          error.code === 'not_text' ? RAG_ERROR_NOT_TEXT : RAG_ERROR_MALFORMED,
+      });
+      return;
+    }
+    // Every remaining failure is stored as a sentence for a person plus a
+    // stable code, never the raw error: a Postgres or provider diagnostic
+    // used to reach the public `indexing.error` verbatim (`invalid byte
+    // sequence for encoding "UTF8": 0x00`) — a storage-engine detail no
+    // caller can act on and an information leak (2026-09-14 evaluation,
+    // g3-2). The raw cause goes to the platform log with the file id, and
+    // the job's retry ladder keeps running for these transient causes.
+    console.error('[knowledge] indexing failed', {
+      fileId,
+      orgSlug,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    if (refusal === 'upstream') {
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'failed',
+        ragError: `${EMBEDDING_FAILURE_PROSE.upstream}; indexing is retried automatically.`,
+        ragErrorCode: RAG_ERROR_EMBEDDING_UPSTREAM,
+      });
+      throw error;
+    }
     await writeRagStatus(sql, fileId, {
       ragStatus: 'failed',
-      ragError: error instanceof Error ? error.message : String(error),
+      ragError:
+        'Indexing failed on the platform’s side; it is retried automatically, and the cause is in the platform log.',
+      ragErrorCode: RAG_ERROR_INDEXER_ERROR,
     });
     throw error;
   }
@@ -1112,6 +1181,89 @@ export async function syncRagDocumentScope(
     );
   } catch (error) {
     console.warn('[knowledge] corpus scope sync failed:', error);
+  }
+}
+
+/**
+ * Re-stamp the corpus scope (team/project) and folder of a KNOWN set of
+ * documents from their current rows — the batch twin of
+ * {@link syncRagDocumentScope}, for an edit that moves many documents at once
+ * without re-embedding any of them. Detaching a project is the case that
+ * needs it: `DELETE /api/v1/projects/{id}` with `mode:"detach"` releases every
+ * document to the hub (`project_id = NULL`) in one statement, and the corpus
+ * rows keep the dead project id until this re-stamps them — a hub search
+ * filters `project_id IS NULL`, so a released document is unfindable while it
+ * still reports `indexing.status: "completed"`, with no re-index to heal it
+ * (a scope-only move never re-embeds). Reads the documents' CURRENT rows, so a
+ * caller passes ids and this speaks the same one-liner every scope edit uses.
+ * Best-effort by contract like its single-document sibling: a corpus failure
+ * logs; {@link reconcileDocumentScopeStamps} is the backstop.
+ */
+export async function syncRagDocumentScopes(
+  sql: Sql,
+  organizationId: string,
+  documentIds: readonly string[],
+): Promise<void> {
+  if (documentIds.length === 0) return;
+  try {
+    const docs = await sql<
+      {
+        id: string;
+        fileRef: string;
+        teamId: string | null;
+        teamTags: string[];
+        projectId: string | null;
+        folderId: string | null;
+        folderPath: string | null;
+      }[]
+    >`
+      SELECT id, file_ref AS "fileRef", team_id AS "teamId",
+             team_tags AS "teamTags", project_id AS "projectId",
+             folder_id AS "folderId", folder_path AS "folderPath"
+      FROM app.documents
+      WHERE org_id = ${organizationId}
+        AND id = ANY(${[...documentIds]})
+        AND file_ref IS NOT NULL
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    `;
+    if (docs.length === 0) return;
+    const treePaths = await folderTreePaths(
+      sql,
+      organizationId,
+      docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
+    );
+    const intended = docs.map((doc) => {
+      // The tag array wins, the single column is its deprecated mirror —
+      // the same precedence the per-edit sync and the reconcile apply.
+      const teamIds =
+        doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+      return {
+        file_id: doc.fileRef,
+        team_ids: teamIds.length > 0 ? teamIds : null,
+        team_id: teamIds[0] ?? null,
+        project_id: doc.projectId,
+        folder_path: documentFolderPathFrom(doc, treePaths),
+      };
+    });
+    const orgSlug = await requireOrgSlug(sql, organizationId);
+    const pool = await getKnowledgePoolForOrg(orgSlug);
+    await pool.unsafe(
+      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+          SET team_ids = v.team_ids, team_id = v.team_id,
+              project_id = v.project_id, folder_path = v.folder_path,
+              updated_at = NOW()
+         FROM jsonb_to_recordset($2::jsonb)
+              AS v(file_id text, team_ids text[], team_id text,
+                   project_id text, folder_path text)
+        WHERE d.org_slug = $1 AND d.file_id = v.file_id
+          AND (d.team_ids IS DISTINCT FROM v.team_ids
+            OR d.team_id IS DISTINCT FROM v.team_id
+            OR d.project_id IS DISTINCT FROM v.project_id
+            OR d.folder_path IS DISTINCT FROM v.folder_path)`,
+      [orgSlug, pool.json(intended)],
+    );
+  } catch (error) {
+    console.warn('[knowledge] corpus batch scope sync failed:', error);
   }
 }
 

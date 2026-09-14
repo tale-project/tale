@@ -908,6 +908,22 @@ export const CAP_CUT_CALL_OUTPUT = {
     'model’s own ceiling); the call did not run.',
 } as const;
 
+/**
+ * The same withholding for a call whose arguments DID parse whole: the cap
+ * ended the round right after them, so the request was never finished —
+ * but nothing about the arguments was cut, and the record said it was
+ * (2026-09-14 evaluation, g6-3), sending a reader after a tokenizer bug
+ * that does not exist. Same `invalid_args` status: the model reads it as
+ * correctable and re-issues the call if it still wants it.
+ */
+export const CAP_WITHHELD_CALL_OUTPUT = {
+  status: 'invalid_args',
+  message:
+    'The reply cap (maxOutputTokens, or the model’s own ceiling) ended this ' +
+    'round right after these arguments were complete; the call was withheld ' +
+    'and did not run — re-issue it if it is still needed.',
+} as const;
+
 /** Cost of a turn in cents from the model's catalog pricing — fractional
  * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
  * rather than guessing a rate — an under-count is honest where a fabricated
@@ -1399,7 +1415,14 @@ export async function runTurn(
       // round follows.
       const outputs: readonly unknown[] =
         streamed.finishReason === 'length'
-          ? calls.map(() => CAP_CUT_CALL_OUTPUT)
+          ? // `rawInput` is kept only when the arguments failed to parse —
+            // so it is what tells a genuinely cut call from one the cap fell
+            // after; both are withheld, the message says which.
+            calls.map((call) =>
+              call.rawInput === undefined
+                ? CAP_WITHHELD_CALL_OUTPUT
+                : CAP_CUT_CALL_OUTPUT,
+            )
           : await Promise.all(
               calls.map((call) => {
                 // A call that failed to parse keys on its raw text — two broken
@@ -1522,8 +1545,13 @@ export async function runTurn(
     };
 
     // The settled record of the whole turn: earlier rounds' parts, then the
-    // final round's reasoning and text. An entirely empty turn still writes
-    // one empty text part, so the row never reads as "missing".
+    // final round's reasoning and text. A reply that produced no text has NO
+    // text part — the contract promises exactly that for a cap-emptied reply
+    // (`finishReason: "length"`, no text part), and a cancel before any text
+    // settles `parts: []` like a stop of a queued send; an empty `{type:
+    // "text", text: ""}` used to be written for both, so the documented
+    // detection ("did the reply carry a text part?") never fired
+    // (2026-09-14 evaluation, g6-2). The row itself is what says "settled".
     const finalParts: MessagePart[] = [
       ...settledParts,
       ...(!roundSettled &&
@@ -1531,8 +1559,7 @@ export async function runTurn(
       streamed.reasoning.length > 0
         ? [{ type: 'reasoning', text: streamed.reasoning } as const]
         : []),
-      ...(!roundSettled &&
-      (streamed.text.length > 0 || settledParts.length === 0)
+      ...(!roundSettled && streamed.text.length > 0
         ? [{ type: 'text', text: streamed.text } as const]
         : []),
     ];

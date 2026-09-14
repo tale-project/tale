@@ -7,6 +7,12 @@ import {
   type ImportItem,
 } from './import_files';
 
+// The stored type is resolved from the file name's extension first — a
+// declared `text/plain` on `a.docx` is the source's claim, not the file's
+// type (2026-09-14 evaluation, g3-3).
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 function makeDeps(overrides: Partial<ImportFilesDependencies> = {}) {
   const createDocument = vi.fn().mockResolvedValue('doc-1');
   const deps = {
@@ -275,7 +281,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       10,
       'doc-1',
     );
@@ -300,7 +306,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       4096,
       'doc-1',
     );
@@ -320,7 +326,7 @@ describe('importFiles sync configs', () => {
     expect(depsNoSize.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       10,
       'doc-1',
     );
@@ -358,7 +364,7 @@ describe('importFiles sync configs', () => {
     expect(deps.saveFileMetadata).toHaveBeenCalledWith(
       'storage-1',
       'a.docx',
-      'text/plain',
+      DOCX_MIME,
       2048,
       'doc-1',
     );
@@ -505,5 +511,126 @@ describe('importFiles hash-less change detection', () => {
     );
 
     expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A folder sync files what it ADOPTS. The regression under test: the folder
+ * chain was created on the new/changed path only, so a file already in the
+ * hub (an earlier one-time import at the root) was adopted by the folder's
+ * config — bound, synced, pruned — but stayed at the root, and a folder whose
+ * every file was adopted never got a folder row at all, so nothing offered
+ * "Stop syncing" (2026-09-14).
+ */
+describe('importFiles files an adopted document under its selected folder', () => {
+  const atRoot = {
+    _id: 'doc-1' as Id<'documents'>,
+    contentHash: 'h1',
+    metadata: { sourceMode: 'manual' },
+    folderId: null,
+  };
+  const unchanged = () =>
+    vi.fn().mockResolvedValue({ success: true, data: { hash: 'h1' } });
+
+  it('creates the sync root first, then moves the unchanged root document into it', async () => {
+    const setDocumentFolder = vi.fn().mockResolvedValue(undefined);
+    const bindDocumentToSync = vi.fn().mockResolvedValue(undefined);
+    const getOrCreateFolderPath = vi
+      .fn()
+      .mockResolvedValue('folder-meetings' as Id<'folders'>);
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(atRoot),
+      getFileMetadata: unchanged(),
+      getOrCreateFolderPath,
+      setDocumentFolder,
+      bindDocumentToSync,
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(result.skippedCount).toBe(1);
+    expect(deps.downloadToStorage).not.toHaveBeenCalled();
+    expect(getOrCreateFolderPath).toHaveBeenNthCalledWith(
+      1,
+      'org-1',
+      ['Meetings'],
+      'user-1',
+      undefined,
+    );
+    expect(bindDocumentToSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-1',
+        metadata: expect.objectContaining({ syncConfigId: 'cfg-1' }),
+      }),
+    );
+    expect(setDocumentFolder).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      folderId: 'folder-meetings',
+    });
+  });
+
+  it('leaves a document that already sits in that folder alone', async () => {
+    const setDocumentFolder = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      findDocumentByExternalId: vi
+        .fn()
+        .mockResolvedValue({ ...atRoot, folderId: 'folder-row-1' }),
+      getFileMetadata: unchanged(),
+      setDocumentFolder,
+    });
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+    expect(setDocumentFolder).not.toHaveBeenCalled();
+  });
+
+  it('does not move on a one-time import, and never back to the root', async () => {
+    const setDocumentFolder = vi.fn().mockResolvedValue(undefined);
+    const oneTime = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(atRoot),
+      getFileMetadata: unchanged(),
+      setDocumentFolder,
+    });
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'one-time' },
+      oneTime,
+    );
+    expect(setDocumentFolder).not.toHaveBeenCalled();
+
+    // A directly picked file synced from the drive's root: the person moved
+    // its mirror into a hub folder by hand, and the sync keeps that.
+    const getOrCreateFolderPath = vi
+      .fn()
+      .mockResolvedValue('folder-row-1' as Id<'folders'>);
+    const moved = makeDeps({
+      findDocumentByExternalId: vi
+        .fn()
+        .mockResolvedValue({ ...atRoot, folderId: 'folder-by-hand' }),
+      getFileMetadata: unchanged(),
+      getOrCreateFolderPath,
+      setDocumentFolder,
+    });
+    await importFiles(
+      {
+        ...baseArgs,
+        items: [
+          {
+            id: 'file-a',
+            name: 'a.docx',
+            size: 10,
+            relativePath: 'a.docx',
+            isDirectlySelected: true,
+          },
+        ],
+        importType: 'sync',
+      },
+      moved,
+    );
+    expect(setDocumentFolder).not.toHaveBeenCalled();
+    expect(getOrCreateFolderPath).not.toHaveBeenCalled();
   });
 });

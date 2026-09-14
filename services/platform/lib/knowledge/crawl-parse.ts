@@ -131,6 +131,12 @@ export function normalizeCandidateUrl(
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
   if (!hosts.has(parsed.hostname.toLowerCase())) return null;
+  // A registration names a hostname, never a port: a same-host link to a
+  // non-standard port (`info.cern.ch:8001/…`, a WAIS gateway) is another
+  // service, not a page of the site — it used to pass the host test, be
+  // upgraded to https and dialled on that port, hundreds of dead fetches
+  // per scan (2026-09-14 evaluation, g4-6).
+  if (parsed.port !== '') return null;
   if (SKIPPED_SUFFIXES.test(parsed.pathname)) return null;
   parsed.protocol = 'https:';
   parsed.hash = '';
@@ -222,6 +228,9 @@ export function normalizeListedUrl(
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
   if (!hosts.has(parsed.hostname.toLowerCase())) return null;
+  // Same rule as a discovered link: the site is a hostname, a port names
+  // another service.
+  if (parsed.port !== '') return null;
   parsed.protocol = 'https:';
   parsed.hash = '';
   return parsed.toString();
@@ -280,4 +289,21 @@ export function metaDescription(html: string): string | null {
     if (value.length > 0) return value.slice(0, 500);
   }
   return null;
+}
+
+/** Whether an `X-Robots-Tag` field forbids indexing: `noindex` or `none`
+ * among its comma-separated directives, unprefixed or under the `*:` or any
+ * agent prefix — a site's wish about every crawler applies to this one
+ * (2026-09-14 evaluation, g4-10). */
+export function robotsHeaderForbidsIndexing(value: string | null): boolean {
+  if (value === null) return false;
+  return value
+    .split(',')
+    .map((directive) => directive.trim().toLowerCase())
+    .map((directive) =>
+      directive.includes(':')
+        ? directive.slice(directive.indexOf(':') + 1).trim()
+        : directive,
+    )
+    .some((directive) => directive === 'noindex' || directive === 'none');
 }

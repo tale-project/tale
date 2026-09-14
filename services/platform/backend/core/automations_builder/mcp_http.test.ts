@@ -582,17 +582,36 @@ describe('tools/call — arguments are held to the advertised schema', () => {
   // refused, so no dispatch refusal for a malformed argument reaches a
   // client.
   it('refuses a blank automation name, run id or query at the transport', async () => {
+    // Empty AND whitespace-only: the previous round's `minLength: 1` let a
+    // whitespace `name` reach the engine ("AUTOMATION_NOT_FOUND" for a name
+    // the caller never supplied) and a blank `get_knowledge` query answer
+    // `passages: []` as a confident success (2026-09-14 evaluation, g9-2).
     for (const [name, args] of [
       ['get_automation', { name: '' }],
+      ['get_automation', { name: '   ' }],
       ['start_run', { name: '' }],
+      ['start_run', { name: 'ok', projectId: '  ' }],
       ['list_runs', { name: '' }],
+      ['list_runs', { name: ' ' }],
+      ['list_versions', { name: '  ' }],
       ['get_run', { runId: '' }],
+      ['get_run', { runId: '   ' }],
       ['cancel_run', { runId: '' }],
       ['search_catalog', { query: '' }],
       ['search_catalog', { query: '   ' }],
+      ['save_automation', { automation: { name: 'x' }, message: '  ' }],
+      ['search_capabilities', { query: '' }],
+      ['search_capabilities', { query: '   ' }],
+      ['invoke_capability', { id: '' }],
+      ['invoke_capability', { id: '  ' }],
+      ['invoke_capability', { id: 'ok', credential: ' ' }],
+      ['get_knowledge', { query: '' }],
+      ['get_knowledge', { query: '  ' }],
     ] as const) {
       const { message, runAction } = await invalid(name, args);
-      expect(message).toContain('arguments.');
+      expect(message, `${name} ${JSON.stringify(args)}`).toContain(
+        'arguments.',
+      );
       expect(runAction).not.toHaveBeenCalled();
     }
   });

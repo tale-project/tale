@@ -246,6 +246,10 @@ describe('deleteProject (cascade)', () => {
       mode: 'detach',
     });
     expect(result.detachedDocCount).toBe(1);
+    // The released document ids ride back so the door can re-stamp their
+    // corpus scope off the dead project id (`syncRagDocumentScopes`); a
+    // scope-only move never re-embeds, so nothing else heals it.
+    expect(result.detachedDocIds).toEqual(['doc-b']);
     expect(
       statements.some((s) => s.text.startsWith('SELECT id, title, record')),
     ).toBe(false);

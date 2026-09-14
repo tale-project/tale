@@ -22,6 +22,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { syncRagDocumentScopes } from '../knowledge/service.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
   deleteProjectSecret,
@@ -411,6 +412,15 @@ export function createProjectRoutes(deps: {
           projectId: c.req.param('id'),
           ...body.data,
         }),
+      );
+      // A detach releases the documents to the hub; re-stamp their corpus
+      // rows off the dead project id after the commit, so a hub search still
+      // finds them (a scope-only move never re-embeds — nothing else heals
+      // it, and the document keeps reporting `completed`).
+      await syncRagDocumentScopes(
+        deps.sql,
+        auth.organizationId,
+        result.detachedDocIds,
       );
       return c.json(result);
     } catch (error) {

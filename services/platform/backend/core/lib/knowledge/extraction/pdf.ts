@@ -18,6 +18,7 @@
 
 import type { PDFPageProxy } from 'pdfjs-dist';
 
+import { ExtractionError } from './errors';
 import { loadPdfjs } from './pdfjs_loader';
 import type { VisionClient } from './vision_client';
 
@@ -153,11 +154,22 @@ export async function extractTextFromPdfBytes(
   const onProgress = options.onProgress;
 
   const { getDocument } = await loadPdfjs();
-  const doc = await getDocument({
-    data: pdfBytes,
-    isEvalSupported: false,
-    useSystemFonts: true,
-  }).promise;
+  let doc: Awaited<ReturnType<typeof getDocument>['promise']>;
+  try {
+    doc = await getDocument({
+      data: pdfBytes,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise;
+  } catch (error) {
+    // pdfjs's `InvalidPDFException` / `PasswordException`: the bytes do not
+    // parse as a PDF, and never will — terminal, with a sentence for a
+    // person instead of the parser's own ("Invalid PDF structure.").
+    throw new ExtractionError(
+      'malformed',
+      `The file does not parse as a PDF (${error instanceof Error ? error.message : String(error)}); it may be corrupt, encrypted, or not a PDF at all.`,
+    );
+  }
 
   const totalPages = doc.numPages;
   const pagesToProcess = Math.min(totalPages, maxPages);

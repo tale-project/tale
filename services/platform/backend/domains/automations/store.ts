@@ -1090,6 +1090,9 @@ export interface RunRow {
   trace: unknown;
   effects: unknown;
   detail: string | null;
+  /** The stable cause of a `failed` run (`Run.failureCode`); null for any
+   * other status, and for a failure recorded before the code existed. */
+  failureCode: string | null;
   claimEpoch: number;
   chainSeq: number;
   startedAt: number;
@@ -1103,7 +1106,8 @@ export interface RunRow {
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
   status, mode, started_by AS "startedBy", input, output, checkpoints, trace,
-  effects, detail, claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
+  effects, detail, failure_code AS "failureCode",
+  claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
   started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt",
   EXISTS (
     SELECT 1 FROM app.automation_human_asks a
@@ -1256,6 +1260,7 @@ export function toRunSummary(
     | 'mode'
     | 'startedBy'
     | 'detail'
+    | 'failureCode'
     | 'startedAt'
     | 'finishedAt'
     | 'askPending'
@@ -1277,6 +1282,7 @@ export function toRunSummary(
     mode: row.mode,
     startedBy: row.startedBy,
     ...(row.detail !== null ? { detail: row.detail } : {}),
+    ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
@@ -1577,20 +1583,32 @@ export async function cancelRunInTx(
   tx: TransactionSql,
   organizationId: string,
   runId: string,
-): Promise<{ cancelled: boolean }> {
+): Promise<{ cancelled: boolean; status?: string }> {
   {
     const now = Date.now();
     const rows = await tx<
       { name: string; version: number; mode: string; startedBy: string }[]
     >`
       UPDATE app.automation_runs SET
-        status = 'cancelled', finished_at_ms = ${now}, wake_at_ms = NULL
+        status = 'cancelled', finished_at_ms = ${now}, wake_at_ms = NULL,
+        -- The park string (repeat:poll, approval:<id>) described a wait the
+        -- run is no longer in; detail is documented as "the failure or wait
+        -- reason; null while the run has none" (2026-09-14 eval, g5-8).
+        detail = NULL
       WHERE id = ${runId} AND org_id = ${organizationId}
         AND status IN ('queued', 'running', 'waiting')
       RETURNING name, version, mode, started_by AS "startedBy"
     `;
     const row = rows[0];
-    if (!row) return { cancelled: false };
+    if (!row) {
+      // Nothing live to stop: name the terminal state that made this a
+      // no-op, so a client needs no second read to learn whether the run
+      // finished on its own, was already cancelled, or is not there.
+      const current = await runRow(tx, organizationId, runId);
+      return current === null
+        ? { cancelled: false }
+        : { cancelled: false, status: current.status };
+    }
     // cancelRun is a TERMINAL door — it honors the same contract finishRun
     // does: the provenance audit row (live runs) that must never be missing,
     // and freeing the run's sandbox sessions so cancelled agents stop holding
@@ -1613,7 +1631,7 @@ export async function cancelRunInTx(
     await closeRunApprovals(tx, organizationId, runId);
     await closePendingAsksForRun(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
-    return { cancelled: true };
+    return { cancelled: true, status: 'cancelled' };
   }
 }
 
@@ -1621,7 +1639,7 @@ export async function cancelRun(
   sql: Sql,
   organizationId: string,
   runId: string,
-): Promise<{ cancelled: boolean }> {
+): Promise<{ cancelled: boolean; status?: string }> {
   return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId));
 }
 
@@ -2103,6 +2121,9 @@ export async function finishRun(
     trace: unknown;
     effects: unknown;
     detail?: string;
+    /** The stable cause of a `failed` run (`Run.failureCode`); null or
+     * absent for a success, and for a failure no site could classify. */
+    failureCode?: string | null;
     executions: number;
   },
 ): Promise<{ status: string }> {
@@ -2126,6 +2147,7 @@ export async function finishRun(
         trace = ${tx.json(toJson(args.trace ?? []))},
         effects = ${tx.json(toJson(args.effects ?? []))},
         detail = ${truncateRunDetail(args.detail) ?? null},
+        failure_code = ${args.status === 'failed' ? (args.failureCode ?? null) : null},
         checkpoints = ${tx.json(
           toJson({ nodes: checkpoints.nodes, executions: args.executions }),
         )},

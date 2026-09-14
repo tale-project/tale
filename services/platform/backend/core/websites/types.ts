@@ -4,12 +4,25 @@
 
 import { SAFE_FETCH_ERROR_KINDS } from '../../../lib/net/safe-fetch-kinds';
 
-export type WebsiteStatus =
-  | 'idle'
-  | 'scanning'
-  | 'active'
-  | 'error'
-  | 'deleting';
+/**
+ * The SCAN's lifecycle, not the content's health — declared once so the
+ * REST filter refuses a value outside it and the OpenAPI enum publishes it
+ * (the filter used to answer an empty page for `?status=bogus`, and the
+ * spec declared the field a bare string — 2026-09-14 evaluation, g4-7):
+ * `idle` registered, never scanned; `scanning` in flight; `active` the last
+ * scan finished and stored at least one page; `error` the last scan failed
+ * or stored no page (`metadata.lastSyncError` says why); `deleting` mid
+ * removal.
+ */
+export const WEBSITE_STATUS_VALUES = [
+  'idle',
+  'scanning',
+  'active',
+  'error',
+  'deleting',
+] as const;
+
+export type WebsiteStatus = (typeof WEBSITE_STATUS_VALUES)[number];
 
 /** What a websites row IS: a crawled site (pages discovered via
  * robots/sitemaps/links) or a curated list of URLs fetched verbatim. Absent
@@ -79,6 +92,14 @@ export const PAGE_FAILURE_KINDS = [
   'http_error',
   'render_failed',
   'extraction_failed',
+  // The crawler LOOKED and deliberately stored nothing: a content type this
+  // lane cannot turn into text (JSON, XML, an image, a binary download).
+  // It used to clear the row silently, so a listed URL that would never
+  // yield content was indistinguishable from one never fetched (2026-09-14
+  // evaluation, g4-3).
+  'unsupported_content',
+  // The origin asked not to be indexed (`X-Robots-Tag: noindex`).
+  'robots_noindex',
 ] as const;
 
 export type PageFailureKind = (typeof PAGE_FAILURE_KINDS)[number];

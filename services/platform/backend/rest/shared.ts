@@ -29,6 +29,7 @@ import {
   type ProjectRow,
 } from '../domains/projects/service.ts';
 import { PurgeIncompleteError } from '../domains/retention/service.ts';
+import { requestIdOf } from '../error-reporting.ts';
 import {
   codedAppError,
   type CodedRefusalStatus,
@@ -45,6 +46,7 @@ import {
 } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
+  checkOrganizationRateLimit,
   checkUserRateLimit,
   type RateLimitName,
 } from '../lib/rate-limit.ts';
@@ -84,6 +86,45 @@ export interface RestVars {
 }
 
 export type RestEnv = { Variables: RestVars };
+
+/**
+ * The REST door's 429: the shared producer, with `error` a sentence rather
+ * than a second copy of the code — the envelope this door promises on every
+ * other refusal — and the `requestId` its 413 already carries, so an
+ * operator shown `error` reads "too many requests, retry in N ms" and can
+ * quote the request (2026-09-14 evaluation, g4-11 / g7-7a). The app doors
+ * keep the bare shape their client reads the code from.
+ */
+export function restRateLimited(
+  c: Context<RestEnv>,
+  error: RateLimitExceededError,
+): Response {
+  const requestId = requestIdOf(c);
+  return rateLimitedResponse(c, error, {
+    message: `Too many requests — retry after ${error.retryAfter} ms`,
+    ...(requestId === undefined ? {} : { requestId }),
+  });
+}
+
+/** The org-scoped budgets (folder and knowledge-entry mutation) charged in
+ * this door's envelope — `chargeOrgRateLimit`'s shape, answering the same
+ * 429 sentence and `requestId` as every other REST refusal. */
+export async function restChargeOrg(
+  sql: Sql,
+  c: Context<RestEnv>,
+  rule: RateLimitName,
+  organizationId: string,
+): Promise<Response | null> {
+  try {
+    await checkOrganizationRateLimit(sql, rule, organizationId);
+    return null;
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return restRateLimited(c, error);
+    }
+    throw error;
+  }
+}
 
 /** A route's own refusal: the documented status, the human message, and
  * the stable `code` a client branches on (every 4xx on this door carries
@@ -224,7 +265,7 @@ export function domainErrorResponse(
   // included, rather than a coded 429 without the wait.
   const limited = rateLimitExceededCause(error);
   if (limited !== null) {
-    return rateLimitedResponse(c, limited);
+    return restRateLimited(c, limited);
   }
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish
@@ -370,50 +411,98 @@ async function readUtf8Body(
 
 /** Thrown by `parseJsonExactly` for a number the parser had to round. */
 class InexactNumberError extends Error {
-  constructor(readonly key: string) {
-    super(`"${key}" is a whole number beyond 2^53 − 1`);
+  constructor(readonly path: string) {
+    super(`"${path}" is a whole number beyond 2^53 − 1`);
     this.name = 'InexactNumberError';
   }
+}
+
+/** The dotted path of `target` (an object or array) inside `root` by
+ * identity, or null when it is not in the tree. Iterative, so a deep body
+ * cannot exhaust the stack. */
+function identityPath(root: unknown, target: unknown): string | null {
+  const stack: { value: unknown; path: string }[] = [{ value: root, path: '' }];
+  while (stack.length > 0) {
+    const item = stack.pop();
+    if (item === undefined) break;
+    const current = item.value;
+    if (current === target) return item.path;
+    if (Array.isArray(current)) {
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: current[index],
+          path: item.path === '' ? String(index) : `${item.path}.${index}`,
+        });
+      }
+    } else if (current !== null && typeof current === 'object') {
+      for (const [key, child] of Object.entries(current)) {
+        stack.push({
+          value: child,
+          path: item.path === '' ? key : `${item.path}.${key}`,
+        });
+      }
+    }
+  }
+  return null;
 }
 
 /**
  * `JSON.parse` that refuses what it cannot carry: a whole number beyond
  * ±(2^53 − 1) is rounded by the parser before any schema sees it, so a
  * source system's 64-bit id arrived silently altered and was stored that
- * way. The reviver reads the literal's own source text (Node 22) and
- * refuses when the parsed value no longer prints as it — the issue is
- * recorded for `invalidBodyResponse`, keyed by the field name.
+ * way. The reviver reads the literal's own source text (Node 22) and records
+ * the holder of the first such literal; the tree is then walked to name the
+ * FULL path (`messages.0.createdAt`, not the bare `createdAt`) so a client
+ * mapping `issues[].path` back to a row can find it (2026-09-14 evaluation,
+ * g7-7b). The issue is recorded for `invalidBodyResponse`.
  */
 function parseJsonExactly(c: Context<RestEnv>, raw: string): unknown {
-  const reviver = (
+  let inexact: { holder: unknown; key: string } | null = null;
+  const reviver = function (
+    this: unknown,
     key: string,
     value: unknown,
     context?: { source?: string },
-  ): unknown => {
+  ): unknown {
     if (
+      inexact === null &&
       typeof value === 'number' &&
       Number.isInteger(value) &&
       !Number.isSafeInteger(value) &&
       typeof context?.source === 'string' &&
       /^-?\d+$/.test(context.source)
     ) {
-      throw new InexactNumberError(key);
+      inexact = { holder: this, key };
     }
     return value;
   };
-  try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the lib typing predates the reviver's source-text context
-    return JSON.parse(raw, reviver as Parameters<typeof JSON.parse>[1]);
-  } catch (error) {
-    if (error instanceof InexactNumberError) {
-      c.set('bodyIssue', {
-        path: error.key,
-        message:
-          'is a whole number beyond 2^53 − 1, which cannot be carried exactly; send it as a string',
-      });
-    }
-    throw error;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the lib typing predates the reviver's source-text context
+  const parsed: unknown = JSON.parse(
+    raw,
+    reviver as Parameters<typeof JSON.parse>[1],
+  );
+  if (inexact !== null) {
+    // The root literal's holder is JSON.parse's ephemeral `{ "": value }`
+    // wrapper (key ""), so that case is the empty path; otherwise the holder
+    // is a real node of the parsed tree.
+    const found: { holder: unknown; key: string } = inexact;
+    const base = found.key === '' ? '' : identityPath(parsed, found.holder);
+    const path =
+      found.key === ''
+        ? ''
+        : base === null
+          ? found.key
+          : base === ''
+            ? found.key
+            : `${base}.${found.key}`;
+    c.set('bodyIssue', {
+      path,
+      message:
+        'is a whole number beyond 2^53 − 1, which cannot be carried exactly; send it as a string',
+    });
+    throw new InexactNumberError(path);
   }
+  return parsed;
 }
 
 /**
@@ -439,25 +528,25 @@ export async function readJsonBody(
     );
     return INVALID_JSON;
   }
-  return refuseNulBytes(c, parsed);
+  return refuseUnstorableText(c, parsed);
 }
 
 /**
  * The dotted path of the first string — a value or an object key — in a
- * parsed JSON body that carries a U+0000, or null when none does. Postgres
- * refuses a NUL in any text or jsonb value (`22021`), so a body that
- * carries one can never be stored; letting it reach the driver turned a
- * client mistake into a text/plain 500. Iterative, so a deeply nested body
- * cannot exhaust the stack.
+ * parsed JSON body for which `test` holds, or null when none does.
+ * Iterative, so a deeply nested body cannot exhaust the stack.
  */
-export function findNulByte(value: unknown): string | null {
+function findStringPath(
+  value: unknown,
+  test: (text: string) => boolean,
+): string | null {
   const stack: { value: unknown; path: string }[] = [{ value, path: '' }];
   while (stack.length > 0) {
     const item = stack.pop();
     if (item === undefined) break;
     const current = item.value;
     if (typeof current === 'string') {
-      if (current.includes('\0')) return item.path;
+      if (test(current)) return item.path;
       continue;
     }
     if (Array.isArray(current)) {
@@ -476,7 +565,7 @@ export function findNulByte(value: unknown): string | null {
         if (entry === undefined) continue;
         const [key, child] = entry;
         const path = item.path === '' ? key : `${item.path}.${key}`;
-        if (key.includes('\0')) return path;
+        if (test(key)) return path;
         stack.push({ value: child, path });
       }
     }
@@ -484,16 +573,45 @@ export function findNulByte(value: unknown): string | null {
   return null;
 }
 
-/** A parsed body that carries a NUL anywhere reads as `INVALID_JSON`, with
- * the offending path recorded for `invalidBodyResponse` to name. */
-function refuseNulBytes(c: Context<RestEnv>, parsed: unknown): unknown {
-  const path = findNulByte(parsed);
-  if (path === null) return parsed;
-  c.set('bodyIssue', {
-    path,
-    message: 'must not contain a NUL character (U+0000)',
-  });
-  return INVALID_JSON;
+/**
+ * The dotted path of the first string — a value or an object key — that
+ * carries a U+0000, or null when none does. Postgres refuses a NUL in any
+ * text or jsonb value (`22021`), so a body that carries one can never be
+ * stored; letting it reach the driver turned a client mistake into a
+ * text/plain 500.
+ */
+export function findNulByte(value: unknown): string | null {
+  return findStringPath(value, (text) => text.includes('\0'));
+}
+
+/**
+ * A parsed body that carries a value Postgres cannot store reads as
+ * `INVALID_JSON`, with the offending path recorded for `invalidBodyResponse`
+ * to name. Two cases, both refused the same field-named way: a NUL character
+ * (`22021`), and an unpaired UTF-16 surrogate (U+D800–U+DFFF) — which
+ * Node's UTF-8 encoder silently rewrites to U+FFFD on the way to the driver,
+ * so a legacy CRM export carrying one was stored as a different string with
+ * no signal (2026-09-14 evaluation, g7-6). A NUL is named first.
+ */
+function refuseUnstorableText(c: Context<RestEnv>, parsed: unknown): unknown {
+  const nul = findNulByte(parsed);
+  if (nul !== null) {
+    c.set('bodyIssue', {
+      path: nul,
+      message: 'must not contain a NUL character (U+0000)',
+    });
+    return INVALID_JSON;
+  }
+  const surrogate = findStringPath(parsed, (text) => !text.isWellFormed());
+  if (surrogate !== null) {
+    c.set('bodyIssue', {
+      path: surrogate,
+      message:
+        'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
+    });
+    return INVALID_JSON;
+  }
+  return parsed;
 }
 
 /**
@@ -520,7 +638,7 @@ export async function readOptionalJsonBody(
     );
     return INVALID_JSON;
   }
-  return refuseNulBytes(c, parsed);
+  return refuseUnstorableText(c, parsed);
 }
 
 /** How many schema problems one 400 lists — enough to fix a body in one
@@ -658,8 +776,11 @@ export function houseIssueMessage(
 /** The `{path, message}` list a schema refusal answers under `data.issues`.
  * zod reports every unknown key of an object as ONE issue at the object's
  * path; the envelope names each key as its own problem (`unknownKey` is its
- * message), so a client can fix what it named rather than search a list. */
-function schemaIssues(
+ * message), so a client can fix what it named rather than search a list.
+ * Exported for a door that validates rows one at a time and reports each
+ * refused row's issues beside the rows that landed (the contacts bulk
+ * import). */
+export function schemaIssues(
   error: ZodError,
   unknownKey: string,
 ): { path: string; message: string }[] {
@@ -802,7 +923,7 @@ export async function chargeLane(
     return null;
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return rateLimitedResponse(c, error);
+      return restRateLimited(c, error);
     }
     throw error;
   }
@@ -965,39 +1086,53 @@ export const noQuery: MiddlewareHandler<RestEnv> = (c, next) => {
 };
 
 /** What an `Idempotency-Key` may carry — printable ASCII, 0x20–0x7E, the
- * pattern the OpenAPI parameter declares. */
+ * pattern the OpenAPI parameter declares — bounded so it cannot be an
+ * unbounded row the ledger keeps for 24 h. */
 const IDEMPOTENCY_KEY_PATTERN = /^[ -~]+$/;
+const IDEMPOTENCY_KEY_MAX = 255;
 const IDEMPOTENCY_KEY_RULE =
   'must be printable ASCII — letters, digits, punctuation and spaces';
 
+function idempotencyKeyRefusal(c: Context<RestEnv>, rule: string): Response {
+  return c.json(
+    {
+      error: `invalid header: "Idempotency-Key" ${rule}`,
+      code: 'INVALID_HEADER',
+      data: { issues: [{ path: 'Idempotency-Key', message: rule }] },
+    },
+    400,
+  );
+}
+
 /**
  * The `Idempotency-Key` header as every door that honours it reads it —
- * the run start, the chat send: trimmed; a blank value is no key (the
- * webhook door reads its delivery-id headers the same way); a value
- * outside printable ASCII is refused with 400 `INVALID_HEADER`, named
- * under `data.issues` like a refused body field — never replaced, never
- * let through. The ledgers compare keys byte for byte, so a key outside
- * the declared pattern (`é` composed beside `é` decomposed) named two
- * starts of one retry and the retry duplicated durable work, while a
- * client generated from the contract refused the key the door took. No
- * length cap: the ledgers hash the key.
+ * the run start, the chat send: an ABSENT header is no key; a header the
+ * client sent but which is blank after trimming, over 255 characters, or
+ * outside printable ASCII is refused with 400 `INVALID_HEADER`, named under
+ * `data.issues` like a refused body field — never replaced, never silently
+ * read as "no key". A blank key used to be dropped to "no key", so a client
+ * whose key generator emitted `"   "` lost at-most-once protection and every
+ * retry billed a fresh run with no signal (2026-09-14 evaluation, g5-2). The
+ * ledgers compare keys byte for byte once surrounding whitespace is removed,
+ * so a key outside the declared pattern (`é` composed beside `é` decomposed)
+ * named two starts of one retry; a client generated from the contract
+ * refused the key the door took. Omit the header to start without a key.
  */
 export function readIdempotencyKey(
   c: Context<RestEnv>,
 ): string | undefined | Response {
-  const key = c.req.header('idempotency-key')?.trim();
-  if (key === undefined || key === '') return undefined;
+  const raw = c.req.header('idempotency-key');
+  if (raw === undefined) return undefined;
+  const key = raw.trim();
+  if (key === '') return idempotencyKeyRefusal(c, 'must not be blank');
+  if (key.length > IDEMPOTENCY_KEY_MAX) {
+    return idempotencyKeyRefusal(
+      c,
+      `must be at most ${IDEMPOTENCY_KEY_MAX} characters`,
+    );
+  }
   if (IDEMPOTENCY_KEY_PATTERN.test(key)) return key;
-  return c.json(
-    {
-      error: `invalid header: "Idempotency-Key" ${IDEMPOTENCY_KEY_RULE}`,
-      code: 'INVALID_HEADER',
-      data: {
-        issues: [{ path: 'Idempotency-Key', message: IDEMPOTENCY_KEY_RULE }],
-      },
-    },
-    400,
-  );
+  return idempotencyKeyRefusal(c, IDEMPOTENCY_KEY_RULE);
 }
 
 const CURSOR_MESSAGE =

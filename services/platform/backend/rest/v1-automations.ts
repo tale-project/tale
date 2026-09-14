@@ -122,6 +122,7 @@ const RUN_FIELDS = [
   'trace',
   'effects',
   'detail',
+  'failureCode',
   'claimEpoch',
   'chainSeq',
   'startedAt',

@@ -194,6 +194,33 @@ export async function synchronizeConversation(
         'The source conversation belongs to another contact',
         409,
       );
+    // A conversation whose contact was moved to the trash must not keep
+    // growing. `DELETE /contacts/{id}` frees the `externalId` for a new
+    // contact, so re-resolving `externalContactId` on every snapshot would
+    // silently re-home one person's history onto whoever next takes the id.
+    // The link is checked against the conversation's OWN `contact_id` — the
+    // row bound on first mirror — never the recyclable external id, so a
+    // recreated contact never inherits the thread. A teardown still applies
+    // (a source closing its mirror after erasing the customer is exactly the
+    // GDPR path), and only an applying content snapshot is refused.
+    if (binding && !input.deleted && Number(binding.version) < input.version) {
+      const trashed = await tx<{ id: string }[]>`
+        SELECT c.id
+        FROM app.conversations conv
+        JOIN app.contacts c
+          ON c.id = conv.contact_id AND c.org_id = ${viewer.organizationId}
+        WHERE conv.id = ${binding.conversationId}
+          AND conv.org_id = ${viewer.organizationId}
+          AND c.lifecycle_status = 'trashed'
+        LIMIT 1
+      `;
+      if (trashed.length > 0)
+        throw new ConversationError(
+          'CONVERSATION_CONTACT_TRASHED',
+          `The contact this conversation is linked to was moved to the trash; restore it, or sync a "deleted": true teardown to close the mirror. Its externalId "${input.externalContactId}" may now belong to a different contact, so it is never re-resolved for an existing conversation.`,
+          409,
+        );
+    }
     if (binding && Number(binding.version) > input.version)
       return { conversationId: binding.conversationId, applied: false };
     // A teardown is not content: `deleted: true` applies at any version
@@ -906,14 +933,40 @@ export async function apiSnapshotState(
 ) {
   requireWriter(viewer);
   const bindings = await sql<
-    { conversationId: string; version: number; organizationId: string }[]
+    {
+      conversationId: string;
+      version: number;
+      organizationId: string;
+      externalContactId: string;
+    }[]
   >`
-    SELECT conversation_id AS "conversationId", snapshot_version::float8 AS version, org_id AS "organizationId"
+    SELECT conversation_id AS "conversationId", snapshot_version::float8 AS version,
+           org_id AS "organizationId", external_contact_id AS "externalContactId"
     FROM app.conversation_api_bindings
     WHERE org_id = ${viewer.organizationId} AND source = ${source} AND external_id = ${externalId} AND owner_user_id = ${viewer.userId}
   `;
   const binding = bindings[0];
   if (!binding) return null;
+  // The linkage a mirror cannot otherwise read back: whether the contact
+  // this conversation was bound to still lives. `missing` means the row is
+  // gone entirely, `trashed` that a `DELETE /contacts/{id}` retired it and
+  // further content snapshots are refused (`CONVERSATION_CONTACT_TRASHED`).
+  const contactRows = await sql<{ id: string | null; status: string | null }[]>`
+    SELECT c.id AS id, c.lifecycle_status AS status
+    FROM app.conversations conv
+    LEFT JOIN app.contacts c
+      ON c.id = conv.contact_id AND c.org_id = ${viewer.organizationId}
+    WHERE conv.id = ${binding.conversationId} AND conv.org_id = ${viewer.organizationId}
+  `;
+  // An active contact carries a NULL lifecycle, so the row's presence — not
+  // the status — is what tells `missing` (no linked contact row) from
+  // `active`; only an explicit `trashed` is the retired state.
+  const contactStatus =
+    contactRows[0]?.id == null
+      ? 'missing'
+      : contactRows[0].status === 'trashed'
+        ? 'trashed'
+        : 'active';
   const rows = await sql<{ metadata: Record<string, unknown> | null }[]>`
     SELECT m.metadata FROM app.conversation_api_messages r
     JOIN app.conversation_messages m ON m.id = r.message_id
@@ -921,6 +974,7 @@ export async function apiSnapshotState(
   `;
   return {
     ...binding,
+    contactStatus,
     attachments: rows.flatMap((row) => {
       const parsed = z
         .array(z.object({ id: z.string(), storageId: z.string() }))

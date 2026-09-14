@@ -269,8 +269,11 @@ test.describe('navigation: user menu', () => {
     await expect(menu).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     // The Help & feedback item was replaced by a Documentation link (BookOpen,
-    // external). Assert the docs anchor exists with the safe external-link attrs…
-    const docsLink = menu.locator('a[href="https://tale.dev/docs"]');
+    // external) to the docs site's own origin — `TALE_DOCS_URL`, which is
+    // `docs.` on the marketing host unless the build overrides it; the docs
+    // are no longer mounted at `/docs` on the marketing origin. Assert the
+    // anchor exists with the safe external-link attrs…
+    const docsLink = menu.locator('a[href="https://docs.tale.dev"]');
     await expect(docsLink).toBeVisible();
     await expect(docsLink).toContainText(t('auth.userButton.documentation'));
     await expect(docsLink).toHaveAttribute('target', '_blank');
