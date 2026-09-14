@@ -1,7 +1,6 @@
 'use client';
 
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import { Mail, Pencil } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -76,10 +75,11 @@ export function ContactInfoDialog({
 
   const headerActions =
     canEmail || canEdit ? (
-      <HStack gap={1}>
+      <>
         {canEmail && (
           <IconButton
             icon={Mail}
+            size="sm"
             aria-label={tConversations('compose.newEmail')}
             onClick={handleEmailClick}
           />
@@ -87,11 +87,12 @@ export function ContactInfoDialog({
         {canEdit && (
           <IconButton
             icon={Pencil}
+            size="sm"
             aria-label={tCommon('actions.edit')}
             onClick={handleEditClick}
           />
         )}
-      </HStack>
+      </>
     ) : undefined;
 
   return (
