@@ -99,9 +99,7 @@
   "paths": {
     "/api/v1/notifications/sync": {
       "get": {
-        "tags": [
-          "Notifications"
-        ],
+        "tags": ["Notifications"],
         "operationId": "listNotificationsForSync",
         "summary": "Read a member’s notifications for one-way mirroring",
         "security": [
@@ -158,10 +156,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "personal",
-                "organization"
-              ]
+              "enum": ["personal", "organization"]
             },
             "description": "Walk each stream independently with its own cursor"
           },
@@ -171,11 +166,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "en",
-                "de",
-                "fr"
-              ]
+              "enum": ["en", "de", "fr"]
             },
             "description": "Defaults to the organization’s language"
           },
@@ -206,10 +197,7 @@
                   ],
                   "properties": {
                     "recipientId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     },
                     "isDone": {
                       "type": "boolean"
@@ -437,9 +425,7 @@
     },
     "/api/v1/me": {
       "get": {
-        "tags": [
-          "Organization"
-        ],
+        "tags": ["Organization"],
         "summary": "Who this key acts as",
         "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob decides rather than the role (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
         "operationId": "getMe",
@@ -651,9 +637,7 @@
     },
     "/api/v1/conversations/sync": {
       "get": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -711,9 +695,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "snapshot"
-                  ],
+                  "required": ["snapshot"],
                   "properties": {
                     "snapshot": {
                       "type": "object",
@@ -737,10 +719,7 @@
                           "type": "array",
                           "items": {
                             "type": "object",
-                            "required": [
-                              "id",
-                              "storageId"
-                            ],
+                            "required": ["id", "storageId"],
                             "properties": {
                               "id": {
                                 "type": "string"
@@ -947,9 +926,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -1013,10 +990,7 @@
                   },
                   "status": {
                     "type": "string",
-                    "enum": [
-                      "open",
-                      "closed"
-                    ]
+                    "enum": ["open", "closed"]
                   },
                   "deleted": {
                     "default": false,
@@ -1085,10 +1059,7 @@
                         "format": {
                           "default": "plain",
                           "type": "string",
-                          "enum": [
-                            "plain",
-                            "markdown"
-                          ]
+                          "enum": ["plain", "markdown"]
                         },
                         "isCustomer": {
                           "type": "boolean"
@@ -1177,10 +1148,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "conversationId",
-                    "applied"
-                  ],
+                  "required": ["conversationId", "applied"],
                   "properties": {
                     "conversationId": {
                       "type": "string",
@@ -1378,9 +1346,7 @@
     },
     "/api/v1/conversations/deliveries": {
       "get": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -1412,12 +1378,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "queued",
-                "leased",
-                "failed",
-                "delivered"
-              ]
+              "enum": ["queued", "leased", "failed", "delivered"]
             },
             "description": "One state to narrow the queue to"
           },
@@ -1464,11 +1425,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "deliveries",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["deliveries", "isDone", "continueCursor"],
                   "properties": {
                     "deliveries": {
                       "type": "array",
@@ -1677,9 +1634,7 @@
     },
     "/api/v1/conversations/deliveries/{id}/retry": {
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -1725,9 +1680,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "ok"
-                  ],
+                  "required": ["ok"],
                   "properties": {
                     "ok": {
                       "type": "boolean"
@@ -1903,9 +1856,7 @@
     },
     "/api/v1/conversations/deliveries/claim": {
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -1941,9 +1892,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "source"
-                ],
+                "required": ["source"],
                 "additionalProperties": false,
                 "properties": {
                   "source": {
@@ -1970,9 +1919,7 @@
                   "type": "object",
                   "description": "The complete set under `deliveries` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "deliveries"
-                  ],
+                  "required": ["deliveries"],
                   "properties": {
                     "deliveries": {
                       "type": "array",
@@ -2259,9 +2206,7 @@
     },
     "/api/v1/conversations/deliveries/{id}/fail": {
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -2331,11 +2276,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "claimToken",
-                  "code",
-                  "permanent"
-                ],
+                "required": ["claimToken", "code", "permanent"],
                 "additionalProperties": false
               }
             }
@@ -2348,9 +2289,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "ok"
-                  ],
+                  "required": ["ok"],
                   "properties": {
                     "ok": {
                       "type": "boolean"
@@ -2544,9 +2483,7 @@
     },
     "/api/v1/conversations/deliveries/{id}/ack": {
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -2591,10 +2528,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "receiptId",
-                  "sourceVersion"
-                ],
+                "required": ["receiptId", "sourceVersion"],
                 "additionalProperties": false,
                 "properties": {
                   "receiptId": {
@@ -2619,9 +2553,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "ok"
-                  ],
+                  "required": ["ok"],
                   "properties": {
                     "ok": {
                       "type": "boolean"
@@ -2815,9 +2747,7 @@
     },
     "/api/v1/conversations/deliveries/{id}/attachments/{index}": {
       "get": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -3045,9 +2975,7 @@
     },
     "/api/v1/conversations/uploads": {
       "post": {
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "security": [
           {
             "bearerAuth": []
@@ -3095,9 +3023,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "storageId"
-                  ],
+                  "required": ["storageId"],
                   "properties": {
                     "storageId": {
                       "type": "string",
@@ -3292,9 +3218,7 @@
     },
     "/api/v1/documents": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "List documents",
         "description": "Knowledge-hub documents the key holder can see, newest first — project files never appear here (the Projects family owns them). `content` is not carried in the listing; read one document for its inline text, or `GET /api/v1/documents/{id}/content` for the bytes.",
         "operationId": "listDocuments",
@@ -3371,11 +3295,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -3564,9 +3484,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Create document",
         "description": "Requires a documents-write role. Send inline `content` from a REST client. Inline content is stored and readable but NOT indexed for knowledge search — only a document backed by an uploaded file (`fileId`) enters the search corpus, and `retry-indexing` answers `skipped` (`content-only`) for the rest. `fileId` must be the key holder’s own unbound upload in this organization. Missing uploads, another user’s uploads and files already bound to a document, thread or conversation answer 404 FILE_NOT_FOUND. REST does not mint hub uploads; use the app to upload first. To put TEXT into the search corpus from REST, create a knowledge entry instead: `POST /api/v1/knowledge-entries` mints a file-backed, indexed Hub document (`sourceProvider: knowledge`, at most 8,000 characters, one active entry per topic). Every file-backed document answers its `indexing` state, so poll it after a create or a `retry-indexing`. The body may run to 32 MiB — this operation’s own cap, sized for the 5,000,000-character inline `content`; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "createDocument",
@@ -3592,9 +3510,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -3791,9 +3707,7 @@
     },
     "/api/v1/documents/{id}": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Get document",
         "description": "A document’s metadata, its `indexing` state and — for a content-only document — its inline `content`; `content` is null for a file-backed document, whose bytes are at `GET /api/v1/documents/{id}/content`. A project file, a foreign document and a nonexistent id all answer the same opaque 404 (`DOCUMENT_NOT_FOUND`).",
         "operationId": "getDocument",
@@ -4012,9 +3926,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Update document",
         "description": "Partial update; a `null` clears an optional field. Requires a documents-write role. Only Knowledge Hub documents are accepted; project files return 404. A controlled record under review, approval or legal hold refuses the change. Send `expectedUpdatedAt` — the `updatedAt` last read — to refuse a write over a concurrent edit. Answers 200 with the document as it now stands, so the next write has its `updatedAt`. `metadata` MERGES per RFC 7396 — sent keys are set, omitted keys stay, a key sent as `null` is removed, the whole field sent as `null` clears it. A patch that changes nothing — an empty body, or every field already at its value — writes nothing and leaves `updatedAt` alone, so it never spends another client’s `expectedUpdatedAt`. A document that backs an active knowledge entry keeps its title, content, MIME type and extension through the entry (update the entry instead); a folder, team or metadata change goes through. The body may run to 32 MiB — this operation’s own cap, sized for the 5,000,000-character inline `content`; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "updateDocument",
@@ -4256,9 +4168,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Delete document",
         "description": "Permanent deletion of a Knowledge Hub document; project files return 404. Role gate, controlled-record protection, legal holds, sync stop and the audit row, then the purge. A document that backs an active knowledge entry is refused — delete the entry (`DELETE /api/v1/knowledge-entries/{id}`), which retires every version of its topic and trashes this document.",
         "operationId": "deleteDocument",
@@ -4485,9 +4395,7 @@
     },
     "/api/v1/documents/{id}/retry-indexing": {
       "post": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Retry RAG indexing",
         "description": "Re-queues a Knowledge Hub document’s blob for indexing; a project file answers 404 here — its own door is `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`, the same core behind it. Requires a documents-write role. The same guards as the app’s Index now: a budget of 10 retries per user per minute (429 `RATE_LIMITED`, `Retry-After` names the wait), and `skipped` — honestly, with the `reason` — for a content-only document (`content-only`: inline text never enters the search corpus, only file-backed documents do), a blob the platform does not track (`untracked-blob`), a file type no extractor can read (`unsupported` — terminal; the document’s `indexing.error` says why), or a fresh index job already queued or running (`in-progress` — poll the document’s `indexing` instead). A file that opted out of indexing when it was uploaded is opted back in by the retry — the explicit request is the opt-in — so it queues and answers `indexing`; it used to answer `skipped` with `rag-opt-out`, a reason no longer given.",
         "operationId": "retryDocumentIndexing",
@@ -4685,9 +4593,7 @@
     },
     "/api/v1/documents/{id}/content": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Download a document",
         "description": "The bytes of a Knowledge Hub document — what `GET /api/v1/documents/{id}` cannot carry for a file-backed one: an uploaded file, and the document every knowledge entry mints. Streamed in the response itself (**200**, no redirect to follow), with the document’s title in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), the stored `Content-Type`, `Content-Length`, `ETag` and `Last-Modified`; `Range` is honoured (206, or a bodiless 416 for a range the file cannot satisfy) and a HEAD request answers the headers alone — `Content-Length`, `ETag`, `Last-Modified`, `Accept-Ranges` — ignoring `Range`. A content-only document answers its inline text the same way — typed as its `mimeType` (`text/plain` when it has none), UTF-8, `Accept-Ranges: none` — so every Hub document reads back from this one URL, and `If-None-Match` and `If-Modified-Since` are judged against the `ETag` and `Last-Modified` issued on both kinds (a bodiless 304). A project file, a foreign document, a nonexistent id and a file whose bytes the store no longer holds all answer the same opaque 404 (`DOCUMENT_NOT_FOUND`). A store that does not answer is a 503 with `Retry-After`.",
         "operationId": "downloadDocument",
@@ -5017,9 +4923,7 @@
     },
     "/api/v1/websites": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "List websites",
         "operationId": "listWebsites",
         "description": "The organization’s registered websites, newest first, keyset-paginated; `status` and `scanInterval` narrow the page.",
@@ -5096,11 +5000,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -5289,9 +5189,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Create website",
         "description": "Registers a domain for crawling and schedules the first crawl. With `urls`, registers (or, for a domain already registered AS A LIST, extends) a curated URL list instead of a whole-site crawl. The host is stored as given — `www.` is kept — and the `www.` and apex spellings count as one site: a domain already registered, under either spelling, is a 409 unless the post extends a list; `data.websiteId` and `data.domain` name the existing row.",
         "operationId": "createWebsite",
@@ -5317,9 +5215,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -5343,9 +5239,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -5560,9 +5454,7 @@
     },
     "/api/v1/websites/{id}": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Get website",
         "operationId": "getWebsite",
         "description": "One registered website with its crawl status, page counts and scan interval.",
@@ -5781,9 +5673,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Update website",
         "operationId": "updateWebsite",
         "description": "Answers the website as it now stands, so the next write has its `updatedAt` and a client can watch `status` without a second read.",
@@ -6007,9 +5897,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Delete website",
         "description": "Deregisters the crawl and removes the website.",
         "operationId": "deleteWebsite",
@@ -6200,9 +6088,7 @@
     },
     "/api/v1/websites/{id}/pages": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Fetch pages",
         "description": "The crawled pages of a website — OFFSET-paginated (`offset` + `limit`, default 100), answering `{pages, total, offset, hasMore}` and, beside them, the keyset pair every other list answers: `isDone`, and a `continueCursor` that stands for the next `offset` — pass it back as `cursor` until `isDone`, the one loop for every list. `cursor` and `offset` together answer 400 `INVALID_QUERY`.",
         "operationId": "listWebsitePages",
@@ -6455,9 +6341,7 @@
     },
     "/api/v1/websites/{id}/sync": {
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Sync statuses",
         "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished. The job is keyed per website: a second call while one is still queued or running folds into it — two calls answer `syncing` twice and run once — so calling after every crawl costs nothing extra.",
         "operationId": "syncWebsite",
@@ -6503,15 +6387,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "syncing"
-                      ]
+                      "enum": ["syncing"]
                     }
                   }
                 }
@@ -6666,9 +6546,7 @@
     },
     "/api/v1/websites/{id}/search": {
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Search content",
         "description": "A POST because it carries a body, not because it writes: semantic search over this website’s crawled content. Answers `{results, total}` — each result its `url`, `title`, `content`, `chunkIndex` and `score` — a shape of its own, not the `{hits, diagnostics}` of the two knowledge-search doors (a different corpus); `limit` is a body field, so a value outside 1..100 is refused with 400 `INVALID_BODY` naming it, never clamped — the rule every body number follows.",
         "operationId": "searchWebsite",
@@ -6713,9 +6591,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "query"
-                ],
+                "required": ["query"],
                 "additionalProperties": false,
                 "properties": {
                   "query": {
@@ -6911,9 +6787,7 @@
     },
     "/api/v1/browser-sessions": {
       "get": {
-        "tags": [
-          "Browser sessions"
-        ],
+        "tags": ["Browser sessions"],
         "summary": "List browser sessions",
         "description": "The organization’s warmed browser-session pool — the cookie jars the video-link ingest presents to get past a platform’s bot wall, with each session’s status, expiry and strike count. Masked: the jar itself is never returned. A complete set, not paginated.",
         "operationId": "listBrowserSessions",
@@ -6931,9 +6805,7 @@
                   "type": "object",
                   "description": "The complete set under `sessions` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "sessions"
-                  ],
+                  "required": ["sessions"],
                   "properties": {
                     "sessions": {
                       "type": "array",
@@ -7138,9 +7010,7 @@
     },
     "/api/v1/browser-sessions/import": {
       "post": {
-        "tags": [
-          "Browser sessions"
-        ],
+        "tags": ["Browser sessions"],
         "summary": "Import a browser session",
         "description": "Adds a warmed cookie jar to the pool for one domain; the jar is encrypted before it is stored. Restricted to organization administrators whose e-mail is on the deployment editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — anyone else answers 403 with a `code` naming the gate that refused, before the body is read. The domain is normalized to its hostname (`https://Example.COM/path` and `example.com` are one host) and held to the crawl-target policy: loopback, link-local, private-network and cloud-metadata hosts answer 400 `INVALID_SESSION`. A session lives 14 days unless `ttlMs` says otherwise, and never longer than 180 days; `DELETE /api/v1/browser-sessions/{id}` revokes it earlier. `GET /api/v1/me` says in advance whether this key passes the gate (`capabilities.deploymentEditor`).",
         "operationId": "importBrowserSession",
@@ -7166,9 +7036,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "sessionId"
-                  ],
+                  "required": ["sessionId"],
                   "properties": {
                     "sessionId": {
                       "type": "string"
@@ -7365,9 +7233,7 @@
     },
     "/api/v1/browser-sessions/{id}": {
       "delete": {
-        "tags": [
-          "Browser sessions"
-        ],
+        "tags": ["Browser sessions"],
         "summary": "Revoke a browser session",
         "description": "Removes one imported session — the jar is gone at once, whatever its lifetime — behind the same gate as the import (`GET /api/v1/me` answers it in advance as `capabilities.deploymentEditor`). An id the organization does not hold answers 404.",
         "operationId": "deleteBrowserSession",
@@ -7558,9 +7424,7 @@
     },
     "/api/v1/products": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "List products",
         "description": "Most recently updated first.",
         "operationId": "listProducts",
@@ -7637,11 +7501,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -7830,9 +7690,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Create product",
         "operationId": "createProduct",
         "description": "Create a product in the organization’s catalog: `name` is required and unique per organization regardless of case (409 `DUPLICATE_PRODUCT_NAME`), `externalId` unique when given (409 `DUPLICATE_PRODUCT_EXTERNAL_ID`).",
@@ -7851,9 +7709,7 @@
                     "$ref": "#/components/schemas/ProductInput"
                   }
                 ],
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               }
             }
           }
@@ -7865,9 +7721,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -8082,9 +7936,7 @@
     },
     "/api/v1/products/{id}": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Get product",
         "operationId": "getProduct",
         "description": "One product by id; a product in the trash or in another organization answers 404 `PRODUCT_NOT_FOUND`.",
@@ -8303,9 +8155,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Update product",
         "operationId": "updateProduct",
         "description": "Update the fields sent and keep the rest — `metadata` merges (RFC 7396), `null` clears — and answer the product as it now stands.",
@@ -8547,9 +8397,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Delete product",
         "operationId": "deleteProduct",
         "description": "Move the product to the trash; a product already there answers 404 `PRODUCT_NOT_FOUND`.",
@@ -8740,9 +8588,7 @@
     },
     "/api/v1/contacts": {
       "get": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "List contacts",
         "description": "Most recently updated first; trashed contacts are hidden.",
         "operationId": "listContacts",
@@ -8810,11 +8656,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -9003,9 +8845,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Create contact",
         "description": "`source` defaults to `api_import`.",
         "operationId": "createContact",
@@ -9031,9 +8871,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -9248,9 +9086,7 @@
     },
     "/api/v1/contacts/bulk": {
       "post": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Create contacts in bulk",
         "description": "Up to 500 contacts per call, each carrying at least one of name, email or externalId (a blank email reads as none); the per-row duplicate check keys on email and externalId. Rows are created independently: the result counts successes and failures and names each failed row with its reason. The body may run to 8 MiB — this operation’s own cap; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "bulkCreateContacts",
@@ -9265,9 +9101,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "contacts"
-                ],
+                "required": ["contacts"],
                 "additionalProperties": false,
                 "properties": {
                   "contacts": {
@@ -9482,9 +9316,7 @@
     },
     "/api/v1/contacts/{id}": {
       "get": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Get contact",
         "operationId": "getContact",
         "description": "One contact by id; a contact in the trash or in another organization answers 404 `CONTACT_NOT_FOUND`.",
@@ -9703,9 +9535,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Update contact",
         "description": "Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. Every successful update advances updatedAt, even within one millisecond. Omit the precondition for the existing unconditional behavior.",
         "operationId": "patchContact",
@@ -9947,9 +9777,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Delete contact",
         "operationId": "deleteContact",
         "description": "Move the contact to the trash, which frees its email and external id for a new contact; a contact already there answers 404 `CONTACT_NOT_FOUND`.",
@@ -10140,9 +9968,7 @@
     },
     "/api/v1/projects": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "List projects, or look one up by external item id",
         "description": "Two doors in one. With `externalItemId`: a LOOKUP answering at most one project — the key is unique per organization and is compared after NFC normalization and trimming, the form the create stored it in; a project the key holder cannot see answers the same empty list as no match, and a lookup takes no `cursor`, `limit` or `archived` (400 `INVALID_QUERY`); it is one whole page and says so (`isDone: true`, an empty `continueCursor`). Without it: the LIST of every project the key holder can see, newest first, keyset-paged like every other list — `{projects, isDone, continueCursor}`, pass `continueCursor` back as `cursor` until `isDone`. While more pages remain the answer also carries `cursor`, the same token under its pre-1.5.0 name — deprecated, served for at least two more minor versions. Archived projects are excluded unless `archived` says `include` or `only`. Either way a row carries `archivedAt` when the project is archived, so a worker can detect an archived project holding its key. Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "listProjects",
@@ -10176,11 +10002,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "exclude",
-                "include",
-                "only"
-              ],
+              "enum": ["exclude", "include", "only"],
               "default": "exclude"
             },
             "description": "Which lifecycle the list covers (list only): `exclude` (the default) answers active projects, `include` both, `only` the archived ones"
@@ -10225,11 +10047,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "projects",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["projects", "isDone", "continueCursor"],
                   "properties": {
                     "projects": {
                       "type": "array",
@@ -10424,9 +10242,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Create a project",
         "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored in one canonical form — NFC-normalized and trimmed, the form every lookup and duplicate check compares — and unique per organization regardless of lifecycle: a conflict against an archived project is still a 409 (delete or restore it first). A value that is blank once trimmed, or over-long, is a 400 `INVALID_BODY`. `key` (the task-identifier prefix) is derived from the name when omitted — omitted, not blank: a key that is blank once trimmed is the same 400 `INVALID_BODY` a blank `name` is; a derived key that is already taken gets a numeric suffix, and a name no key can be derived from creates the project keyless — a name-only create never fails on a key the caller did not choose. Only an EXPLICIT `key` that is taken answers 409, and one outside the 2-6 letters-and-digits rule 400 `PROJECT_KEY_INVALID`.",
         "operationId": "createProject",
@@ -10463,9 +10279,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -10502,9 +10316,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "project"
-                  ],
+                  "required": ["project"],
                   "properties": {
                     "project": {
                       "$ref": "#/components/schemas/Project"
@@ -10698,9 +10510,7 @@
     },
     "/api/v1/projects/{id}": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Get a project",
         "description": "Answers an opaque 404 for a project that is cross-organization, invisible to the key holder, or does not exist — the three are indistinguishable.",
         "operationId": "getProject",
@@ -10746,9 +10556,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "project"
-                  ],
+                  "required": ["project"],
                   "properties": {
                     "project": {
                       "$ref": "#/components/schemas/Project"
@@ -10927,9 +10735,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Update a project — archive, restore, rename, re-describe, re-attach its externalItemId",
         "description": "The project’s mutable surface, every field optional and at least one required. `archived: true` archives the project, `false` restores it — the same action as the app, so it requires an organization admin (403 `ROLE_FORBIDDEN` otherwise); a project already in the requested state is left unchanged. Archiving keeps the project and everything in it readable through this door and refuses every write on it (403 `PROJECT_ARCHIVED`); its `externalItemId` stays taken until the project is deleted. `name`, `description` and `externalItemId` are the identity a mirror propagates when the source record changes: for the org editor role with project edit access (403 `ROLE_FORBIDDEN` / `RBAC_FORBIDDEN` otherwise) on an active project — a body that restores and edits applies the restore first, one that edits and archives applies the archive last, and identity edits on an archived project the body does not restore answer 403 `PROJECT_ARCHIVED`. `name` is trimmed and never blank; `description: null` clears it; `externalItemId` is stored canonical (NFC, trimmed), must be free within the organization (409 `PROJECT_DUPLICATE_EXTERNAL_ID`, the key in `data`), and `null` releases it. An invisible or absent project answers the opaque 404. Answers the project as it now stands.",
         "operationId": "setProjectArchived",
@@ -11011,9 +10817,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "project"
-                  ],
+                  "required": ["project"],
                   "properties": {
                     "project": {
                       "$ref": "#/components/schemas/Project"
@@ -11205,9 +11009,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Delete a project",
         "description": "The app’s project delete, for an organization admin (403 `ROLE_FORBIDDEN` otherwise). The optional body chooses what happens to the project’s content: `mode: \"cascade\"` (the default) destroys it — every document expires into the retention pipeline (purged after the organization’s grace window), the key holder’s own chats are trashed, every task is retired and its live runs cancelled; `mode: \"detach\"` releases the documents and chats into the organization instead. Agents and folders go with the project either way, and its `externalItemId` becomes free again. The app’s confirmation phrase (the project name) is supplied by the door. A cascade is charged against the per-user `project:delete-cascade` budget the app charges too (5/min). Refused as a 409, before anything is written, while an automation is installed in the project (`PROJECT_HAS_BOUND_AUTOMATIONS` — `data.automations` names them; uninstall each with `DELETE /api/v1/projects/{id}/automations/{name}` first), while a cascade would destroy a controlled record that is in review, approved or retains an approved version (`PROJECT_HAS_PROTECTED_RECORDS` — `data.documents` names them), or while a legal hold covers one of its documents (`PROJECT_LEGAL_HOLD`). An invisible or absent project answers the opaque 404.",
         "operationId": "deleteProject",
@@ -11256,10 +11058,7 @@
                 "properties": {
                   "mode": {
                     "type": "string",
-                    "enum": [
-                      "cascade",
-                      "detach"
-                    ],
+                    "enum": ["cascade", "detach"],
                     "default": "cascade",
                     "description": "What happens to the project’s documents and chats: destroyed (`cascade`) or released into the organization (`detach`)"
                   }
@@ -11456,9 +11255,7 @@
     },
     "/api/v1/projects/{id}/agents": {
       "get": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "List project agents",
         "description": "The complete agent roster of this project (at most 50). Uses the same records and project visibility as the project Agents tab. Multi-organization key holders must supply X-Organization-Slug, including on reads.",
         "operationId": "listProjectAgents",
@@ -11506,9 +11303,7 @@
                   "type": "object",
                   "description": "The complete set under `agents` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "agents"
-                  ],
+                  "required": ["agents"],
                   "properties": {
                     "agents": {
                       "type": "array",
@@ -11708,9 +11503,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Create a project agent",
         "description": "Creates an agent in the named project using its existing access rules. Requires project edit access; archived projects are read-only. Agent names are unique within the project (case-insensitive), and a project holds at most 50 agents. Invalid configuration, an unknown secret name (refused by name — `PROJECT_AGENT_SECRET_UNKNOWN` — never pruned on this door), or exceeding the limit answers 400; a name another agent of the project already carries answers 409 (`PROJECT_AGENT_NAME_TAKEN`).",
         "operationId": "createProjectAgent",
@@ -11766,9 +11559,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agent"
-                  ],
+                  "required": ["agent"],
                   "properties": {
                     "agent": {
                       "$ref": "#/components/schemas/ProjectAgent"
@@ -11962,9 +11753,7 @@
     },
     "/api/v1/projects/{id}/agents/{agentId}": {
       "get": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Get a project agent",
         "operationId": "getProjectAgent",
         "description": "One project agent with its full configuration — the model pair, skills, connectors, tool grants and the names (never the values) of its secrets.",
@@ -12019,9 +11808,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agent"
-                  ],
+                  "required": ["agent"],
                   "properties": {
                     "agent": {
                       "$ref": "#/components/schemas/ProjectAgent"
@@ -12218,9 +12005,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Update a project agent",
         "description": "Saves the complete configuration of an existing agent in this project. Omitted optional fields reset to their empty values, so send the whole configuration you mean to keep. Pass the `updatedAt` you last read as `expectedUpdatedAt` to make the save conditional: an agent that changed since answers 409 `PROJECT_AGENT_STALE` (`data.updatedAt` is the current stamp) and nothing is written — reload it and merge before saving again. Requires project edit access; changing secret-name grants requires an organization admin, and an unknown secret name is refused by name (`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned. An agent from another project answers 404 even if the key holder can access both projects.",
         "operationId": "updateProjectAgent",
@@ -12285,9 +12070,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agent"
-                  ],
+                  "required": ["agent"],
                   "properties": {
                     "agent": {
                       "$ref": "#/components/schemas/ProjectAgent"
@@ -12479,9 +12262,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Delete a project agent",
         "operationId": "deleteProjectAgent",
         "description": "Delete the project agent; its past runs and their records stay.",
@@ -12699,9 +12480,7 @@
     },
     "/api/v1/projects/{id}/folders": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "List the project’s folders — the roots, or one folder’s children",
         "description": "The root folders, or with `parentId` the children of that folder — one level at a time, NOT paginated (a project holds a handful of period folders per level, not an unbounded tree); walk the tree level by level, or resolve a file’s `folderId` with `GET …/folders/{folderId}`. Every folder carries its `parentId` (null at the root). A `parentId` that is not a folder of THIS project answers the opaque 404 (`FOLDER_NOT_FOUND`).",
         "operationId": "listProjectFolders",
@@ -12758,9 +12537,7 @@
                   "type": "object",
                   "description": "The complete set under `folders` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "folders"
-                  ],
+                  "required": ["folders"],
                   "properties": {
                     "folders": {
                       "type": "array",
@@ -12942,9 +12719,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Get or create a folder",
         "description": "GET-OR-CREATE semantics: a folder of the same name under the same parent — compared without regard to case, the way sibling names are unique — answers 200 with `created: false` and the STORED spelling; otherwise the folder is created and answered 201 with `created: true`. Two concurrent creates of one name yield one folder (the sibling rule is database-enforced). `name` is trimmed and NFC-normalized; a name that is a path (`a/b`, `a\\b`, `.`, `..`) or carries a control character is refused (`FOLDER_NAME_INVALID` — the sentence names the rule broken and `data.issues` names `name`) — the rule a file name and a WebDAV segment follow — and a parent 20 levels deep refuses a child (`FOLDER_DEPTH_EXCEEDED`). `parentId` must name a folder of THIS project (an opaque 404 otherwise); omit it for a root folder — a blank id is a 400 `INVALID_BODY`. Requires the org editor role and project edit access. Charged against the general REST bucket (120/min) and the per-org `folder:mutate` budget the in-app folder actions share.",
         "operationId": "getOrCreateProjectFolder",
@@ -12990,9 +12765,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -13224,9 +12997,7 @@
     },
     "/api/v1/projects/{id}/folders/{folderId}": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Get a project folder",
         "description": "One folder of this project with its `parentId` (null at the root) — what a file’s `folderId` resolves to, and, parent by parent, its path. A folder of another project or organization, or an absent id, answers the same opaque 404 (`FOLDER_NOT_FOUND`).",
         "operationId": "getProjectFolder",
@@ -13281,9 +13052,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "folder"
-                  ],
+                  "required": ["folder"],
                   "properties": {
                     "folder": {
                       "$ref": "#/components/schemas/ProjectFolder"
@@ -13462,9 +13231,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Delete a project folder and everything beneath it",
         "description": "Permanent, cascading: every file under the folder (subfolders included) is purged — its document row, its search-corpus rows (released at once, so project search stops matching them) and its blob — then the subtree goes. A protected controlled record or a legal hold anywhere beneath refuses the whole delete before anything is removed. Requires the org editor role and project edit access on an active project; charged against the general REST bucket and the per-org `folder:mutate` budget the in-app folder actions share. A folder of another project or organization answers the same opaque 404.",
         "operationId": "deleteProjectFolder",
@@ -13700,9 +13467,7 @@
     },
     "/api/v1/projects/{id}/uploads": {
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Mint an upload handoff",
         "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. The signed URL is valid for exactly as long as the intent — `expiresAt` is the one deadline for both. Send `fileName` to have the bind’s type rules run here too: the organization’s extension and MIME allowlists and the platform’s format allowlist refuse a name they would refuse at the bind — a name without an extension included, whatever `contentType` says — 400 `UPLOAD_POLICY_REJECTED` / `UNSUPPORTED_FILE_TYPE` before anything is presigned, so the bytes never travel. The answer names `maxBytes`, the largest file this organization accepts for the declared type (the platform ceiling, 100 MiB, or the organization’s lower cap); declare `size` and the size and volume caps are judged here too — 400 `FILE_TOO_LARGE` / `UPLOAD_POLICY_REJECTED` with `data.limitBytes` — where they were discoverable only by uploading past them (the bind judges the landed bytes against the same caps; the declared size is a pre-check, never compared with what landed, so understating it buys nothing). A handoff never bound — or bound and refused — is reclaimed lazily: 24 hours after its 30-minute expiry, on the next mint into the organization, the blob is deleted with the intent, so a crashed worker leaves no permanent orphan and needs no delete call. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
@@ -13964,9 +13729,7 @@
     },
     "/api/v1/projects/{id}/files/{documentId}": {
       "delete": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Delete a project file",
         "description": "Permanent: the file’s document row, its search-corpus rows and its blob are purged through the same lane every hard delete uses (controlled-record protection, legal holds, the audit row). Requires the org editor role and project edit access on an active project. A file of another project or organization, a document without a file, and a trashed or absent one answer the same opaque 404.",
         "operationId": "deleteProjectFile",
@@ -14202,9 +13965,7 @@
     },
     "/api/v1/projects/{id}/files/{documentId}/content": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Download a project file",
         "description": "The result lane: fetch the bytes of a file in the project — including what an automation filed back (a prepared return, a report). The bytes are streamed in the response itself (**200**, no redirect to follow), with the stored name in an RFC 6266 `Content-Disposition` (`filename` and `filename*`), the stored `Content-Type`, `Content-Length`, `ETag` and `Last-Modified`; `Range` is honoured (206, or a bodiless 416 for a range the file cannot satisfy — judged against the stored size before any byte is fetched) and a HEAD request answers the headers alone — `Content-Length`, `ETag`, `Last-Modified`, `Accept-Ranges` — ignoring `Range`. Visibility is the minting user’s; a cross-project, cross-organization, trashed, or absent file answers the same opaque 404, and a file whose bytes the store no longer holds does too. A store that does not answer is a 503 with `Retry-After`.",
         "operationId": "downloadProjectFile",
@@ -14561,9 +14322,7 @@
     },
     "/api/v1/projects/{id}/files/{documentId}/retry-indexing": {
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Index a project file now",
         "description": "The REST twin of **Index now** on the project’s Knowledge tab: re-queues the file’s blob for indexing through the core behind `POST /api/v1/documents/{id}/retry-indexing` (which answers 404 for a project file) and answers the same `{status, reason}`. A file bound with the default `skipRagIndexing: true` is opted back in by this request — the explicit ask is the opt-in — and answers `indexing`; poll its `indexing` on `GET /api/v1/projects/{id}/files` until `completed`, from when `POST …/knowledge/search` finds it. `skipped` names its `reason`: a blob the platform does not track (`untracked-blob`), a file type no extractor can read (`unsupported` — terminal; the row’s `indexing.error` says why), or a fresh index job already queued or running (`in-progress` — poll instead); `content-only` cannot occur here, a project file always has a blob. Requires the org editor role and project edit access on an active project — the gate `DELETE …/files/{documentId}` runs — plus a role that can write documents (403 `RBAC_FORBIDDEN`); the same budget as the Hub door, 10 retries per user per minute, answers 429 `RATE_LIMITED` with `Retry-After`. A file of another project or organization, a document without a file, and a trashed or absent one answer the same opaque 404 (`FILE_NOT_FOUND`).",
         "operationId": "retryProjectFileIndexing",
@@ -14770,9 +14529,7 @@
     },
     "/api/v1/projects/{id}/files": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "List the project’s files",
         "description": "Keyset-paginated (`cursor` + `limit`, answering `{files, isDone, continueCursor}` — pass `continueCursor` back as `cursor` until `isDone`; while more pages remain the answer also carries `cursor`, the same token under its pre-1.5.0 name — deprecated, served for at least two more minor versions). `folderId` narrows to one folder of this project. Project files never appear in `GET /api/v1/documents` — that is the knowledge hub’s surface.",
         "operationId": "listProjectFiles",
@@ -14849,11 +14606,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "files",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["files", "isDone", "continueCursor"],
                   "properties": {
                     "files": {
                       "type": "array",
@@ -15048,9 +14801,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
         "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` (the allowlist keys on the file name’s extension, which the name must carry; a declared `contentType` is a hint resolved against it, never a substitute), and the organization’s `file:upload` budget answers 429. `fileName` must be a file name — no path separators, no `..`, no control characters — and is stored trimmed and NFC-normalized, the rule a folder name follows. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
@@ -15096,12 +14847,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "uploadId",
-                  "fileId",
-                  "folderId",
-                  "fileName"
-                ],
+                "required": ["uploadId", "fileId", "folderId", "fileName"],
                 "properties": {
                   "uploadId": {
                     "type": "string",
@@ -15143,9 +14889,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "file"
-                  ],
+                  "required": ["file"],
                   "properties": {
                     "file": {
                       "type": "object",
@@ -15387,9 +15131,7 @@
     },
     "/api/v1/projects/{id}/tasks": {
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Create a project task from an external ref (idempotent)",
         "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.",
         "operationId": "createTask",
@@ -15435,11 +15177,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "externalSystem",
-                  "externalId",
-                  "title"
-                ],
+                "required": ["externalSystem", "externalId", "title"],
                 "properties": {
                   "externalSystem": {
                     "type": "string",
@@ -15487,10 +15225,7 @@
                   },
                   "externalState": {
                     "type": "string",
-                    "enum": [
-                      "open",
-                      "closed"
-                    ],
+                    "enum": ["open", "closed"],
                     "description": "The source item’s lifecycle (default `open`). `closed` parks the task at `in_review` for a person to complete — only the workflow engine itself lands a close at `done`. `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`. A park a person or an agent made is theirs: `open` leaves it, and any move through the board ends the mirror’s claim on a park it made. Local triage owns every other status; a cancelled task stays cancelled."
                   },
                   "runWorkflowSlug": {
@@ -15723,9 +15458,7 @@
     },
     "/api/v1/projects/{id}/tasks/{taskId}": {
       "get": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Read a project task",
         "description": "The task must belong to the URL project and be visible to the key holder. Archived tasks remain readable. Keep the `runId` from a start to poll `GET /api/v1/projects/{id}/runs/{runId}`; the task response has no live-run linkage.",
         "operationId": "getTask",
@@ -15780,9 +15513,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "task"
-                  ],
+                  "required": ["task"],
                   "properties": {
                     "task": {
                       "$ref": "#/components/schemas/Task"
@@ -15963,9 +15694,7 @@
     },
     "/api/v1/projects/{id}/tasks/{taskId}/comments": {
       "get": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Read a project task’s discussion",
         "description": "The newest page first, chronological within each page. The default is 200 comments, at most 500. While isDone is false, pass continueCursor as cursor to read older comments. The task must belong to this project and be visible to the key holder.",
         "operationId": "listTaskComments",
@@ -16042,11 +15771,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "comments",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["comments", "isDone", "continueCursor"],
                   "properties": {
                     "comments": {
                       "type": "array",
@@ -16065,10 +15790,7 @@
                           },
                           "authorType": {
                             "type": "string",
-                            "enum": [
-                              "user",
-                              "agent"
-                            ]
+                            "enum": ["user", "agent"]
                           },
                           "authorId": {
                             "type": "string"
@@ -16271,9 +15993,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Comment on a project task as the key holder",
         "description": "Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior.",
         "operationId": "addTaskComment",
@@ -16328,9 +16048,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "body"
-                ],
+                "required": ["body"],
                 "properties": {
                   "body": {
                     "type": "string",
@@ -16350,15 +16068,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "comment"
-                  ],
+                  "required": ["comment"],
                   "properties": {
                     "comment": {
                       "type": "object",
-                      "required": [
-                        "id"
-                      ],
+                      "required": ["id"],
                       "properties": {
                         "id": {
                           "type": "string"
@@ -16536,9 +16250,7 @@
     },
     "/api/v1/projects/{id}/tasks/{taskId}/start": {
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Start a deployed workflow on a project task",
         "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED`, naming it (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. Once the door reaches the start the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run, and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startTaskWorkflow",
@@ -16593,9 +16305,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "workflowSlug"
-                ],
+                "required": ["workflowSlug"],
                 "properties": {
                   "workflowSlug": {
                     "type": "string",
@@ -16614,21 +16324,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "started",
-                    "runId",
-                    "executionId"
-                  ],
+                  "required": ["started", "runId", "executionId"],
                   "properties": {
                     "started": {
                       "type": "boolean"
                     },
                     "reason": {
                       "type": "string",
-                      "enum": [
-                        "already_running",
-                        "not_started"
-                      ],
+                      "enum": ["already_running", "not_started"],
                       "description": "Present when started is false"
                     },
                     "runId": {
@@ -16831,9 +16534,7 @@
     },
     "/api/v1/automations": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List automations",
         "description": "The organization’s automation definitions, by name, as a complete set (not paginated). Each carries the ids of the projects it is installed in that the key holder can see — the scope a project-bound automation must be started in. Read `/api/v1/projects/{id}/automations` for the automations installed in one visible project.",
         "operationId": "listAutomations",
@@ -16851,9 +16552,7 @@
                   "type": "object",
                   "description": "The complete set under `automations` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "automations"
-                  ],
+                  "required": ["automations"],
                   "properties": {
                     "automations": {
                       "type": "array",
@@ -17058,9 +16757,7 @@
     },
     "/api/v1/automations/{name}": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Get one automation version",
         "operationId": "getAutomation",
         "security": [
@@ -17288,9 +16985,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Delete an automation",
         "description": "Retires the automation: every version, its trigger and its project installations. Run history is kept. Requires the developer capability. A run still in flight refuses the delete — cancel or wait for it first.",
         "operationId": "deleteAutomation",
@@ -17499,9 +17194,7 @@
     },
     "/api/v1/automations/{name}/versions": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List an automation’s versions",
         "description": "The immutable version history, complete — not paginated. `deployedVersion` names the live one and each row says whether it is `deployed`.",
         "operationId": "listAutomationVersions",
@@ -17549,11 +17242,7 @@
                   "type": "object",
                   "description": "The complete set under `versions` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "versions",
-                    "name",
-                    "deployedVersion"
-                  ],
+                  "required": ["versions", "name", "deployedVersion"],
                   "properties": {
                     "versions": {
                       "type": "array",
@@ -17745,9 +17434,7 @@
     },
     "/api/v1/projects/{id}/automations": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List automations installed in a project",
         "description": "The definitions explicitly bound to the URL project, each with the ids of the projects it is installed in that the key holder can see — a complete set, not paginated. Requires project read access. Organization-wide definitions are available from the global catalog.",
         "operationId": "listProjectAutomations",
@@ -17795,9 +17482,7 @@
                   "type": "object",
                   "description": "The complete set under `automations` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "automations"
-                  ],
+                  "required": ["automations"],
                   "properties": {
                     "automations": {
                       "type": "array",
@@ -17981,9 +17666,7 @@
     },
     "/api/v1/projects/{id}/automations/{name}": {
       "delete": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Uninstall an automation from a project",
         "description": "Removes the binding to the URL project — the inverse of the install. The definition, its other installations and its run history stay. Requires the developer capability and write access to an active project.",
         "operationId": "unbindAutomationProject",
@@ -18181,9 +17864,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Install an automation in a project",
         "description": "Idempotently binds the named automation to the URL project. Requires the developer capability and write access to an active project. Send no body or an empty object. Answers 201 when added and 200 when already bound. An automation with bindings can run only in those projects; an unbound definition can run organization-wide or in a visible project.",
         "operationId": "bindAutomationProject",
@@ -18250,19 +17931,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name",
-                    "added"
-                  ],
+                  "required": ["name", "added"],
                   "properties": {
                     "name": {
                       "type": "string"
                     },
                     "added": {
                       "type": "boolean",
-                      "enum": [
-                        false
-                      ]
+                      "enum": [false]
                     }
                   }
                 }
@@ -18283,19 +17959,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name",
-                    "added"
-                  ],
+                  "required": ["name", "added"],
                   "properties": {
                     "name": {
                       "type": "string"
                     },
                     "added": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "enum": [true]
                     }
                   }
                 }
@@ -18468,9 +18139,7 @@
     },
     "/api/v1/automations/{name}/runs": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List an automation’s organization runs",
         "description": "Newest first, as summaries (`RunSummary`: identity, scope, status and timing — never the input, output, trace or checkpoints unless `include` names them), paged by a signed keyset cursor: pass `continueCursor` back as `cursor` until `isDone`. `status` narrows the listing to one or more statuses. Includes only runs without a project. Project runs are read through their project URL. Poll a run at GET /api/v1/runs/{runId}.",
         "operationId": "listAutomationRuns",
@@ -18556,11 +18225,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "runs",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["runs", "isDone", "continueCursor"],
                   "properties": {
                     "runs": {
                       "type": "array",
@@ -18749,9 +18414,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Start an organization automation run",
         "description": "Answers 202 with the run identity; poll GET /api/v1/runs/{runId}. Mode defaults to live and requires the developer capability. Mock mode requires membership. Only definitions without project bindings can start here; a project-bound definition returns 409 AUTOMATION_PROJECT_SCOPE_REQUIRED. The body accepts input, mode and version only. Send `Idempotency-Key` to make the start safe to retry: a repeat within 24 hours answers the run the first attempt started with `duplicate: true`, and a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`; a refused start remembers nothing. Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startAutomationRun",
@@ -18813,10 +18476,7 @@
                   },
                   "mode": {
                     "type": "string",
-                    "enum": [
-                      "live",
-                      "mock"
-                    ],
+                    "enum": ["live", "mock"],
                     "default": "live"
                   },
                   "version": {
@@ -18836,12 +18496,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "runId",
-                    "version",
-                    "name",
-                    "mode"
-                  ],
+                  "required": ["runId", "version", "name", "mode"],
                   "properties": {
                     "runId": {
                       "type": "string"
@@ -18854,16 +18509,11 @@
                     },
                     "mode": {
                       "type": "string",
-                      "enum": [
-                        "live",
-                        "mock"
-                      ]
+                      "enum": ["live", "mock"]
                     },
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ],
+                      "enum": [true],
                       "description": "Present when the `Idempotency-Key` had already started this run: nothing new ran"
                     }
                   }
@@ -19055,9 +18705,7 @@
     },
     "/api/v1/projects/{id}/automations/{name}/runs": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List an automation’s runs in a project",
         "description": "Newest first, as summaries (`RunSummary`: identity, scope, status and timing — never the input, output, trace or checkpoints unless `include` names them), paged by a signed keyset cursor: pass `continueCursor` back as `cursor` until `isDone`. `status` narrows the listing to one or more statuses. Includes only runs attributed to the URL project; requires project read access. Poll a run at GET /api/v1/projects/{id}/runs/{runId}.",
         "operationId": "listProjectAutomationRuns",
@@ -19152,11 +18800,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "runs",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["runs", "isDone", "continueCursor"],
                   "properties": {
                     "runs": {
                       "type": "array",
@@ -19345,9 +18989,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Start an automation run in a project",
         "description": "Answers 202 with the run identity; poll GET /api/v1/projects/{id}/runs/{runId}. Mode defaults to live and requires the developer capability. Both live and mock starts require write access to the active URL project. An automation with bindings must include this project; an unbound definition may also run here. The body accepts input, mode and version only. Send `Idempotency-Key` to make the start safe to retry: a repeat within 24 hours answers the run the first attempt started with `duplicate: true`, and a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`; a refused start remembers nothing. Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startProjectAutomationRun",
@@ -19418,10 +19060,7 @@
                   },
                   "mode": {
                     "type": "string",
-                    "enum": [
-                      "live",
-                      "mock"
-                    ],
+                    "enum": ["live", "mock"],
                     "default": "live"
                   },
                   "version": {
@@ -19441,12 +19080,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "runId",
-                    "version",
-                    "name",
-                    "mode"
-                  ],
+                  "required": ["runId", "version", "name", "mode"],
                   "properties": {
                     "runId": {
                       "type": "string"
@@ -19459,16 +19093,11 @@
                     },
                     "mode": {
                       "type": "string",
-                      "enum": [
-                        "live",
-                        "mock"
-                      ]
+                      "enum": ["live", "mock"]
                     },
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ],
+                      "enum": [true],
                       "description": "Present when the `Idempotency-Key` had already started this run: nothing new ran"
                     }
                   }
@@ -19660,9 +19289,7 @@
     },
     "/api/v1/runs": {
       "get": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "List every run the key holder can see",
         "description": "Newest first, as summaries (`RunSummary`: identity, scope, status and timing — never the input, output, trace or checkpoints unless `include` names them), paged by a signed keyset cursor: pass `continueCursor` back as `cursor` until `isDone`. `status` narrows the listing to one or more statuses. Whatever started them and whatever automation ran: organization runs and the runs of every project the key holder can see, each row naming its `projectId` — a project run is read in full at `/api/v1/projects/{projectId}/runs/{runId}`, an organization run at `/api/v1/runs/{runId}`.",
         "operationId": "listRuns",
@@ -19739,11 +19366,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "runs",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["runs", "isDone", "continueCursor"],
                   "properties": {
                     "runs": {
                       "type": "array",
@@ -19934,9 +19557,7 @@
     },
     "/api/v1/projects/{id}/runs": {
       "get": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "List a project’s runs",
         "description": "Newest first, as summaries (`RunSummary`: identity, scope, status and timing — never the input, output, trace or checkpoints unless `include` names them), paged by a signed keyset cursor: pass `continueCursor` back as `cursor` until `isDone`. `status` narrows the listing to one or more statuses. Every run attributed to the URL project, whatever automation ran; requires project read access.",
         "operationId": "listProjectRuns",
@@ -20022,11 +19643,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "runs",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["runs", "isDone", "continueCursor"],
                   "properties": {
                     "runs": {
                       "type": "array",
@@ -20217,9 +19834,7 @@
     },
     "/api/v1/automations/{name}/triggers": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Read the automation’s trigger",
         "description": "The trigger binding — at most one per automation, answered as a list. Never the webhook secret: `hasToken` says one exists.",
         "operationId": "listAutomationTriggers",
@@ -20267,10 +19882,7 @@
                   "type": "object",
                   "description": "The complete set under `triggers` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "triggers",
-                    "name"
-                  ],
+                  "required": ["triggers", "name"],
                   "properties": {
                     "triggers": {
                       "type": "array",
@@ -20455,9 +20067,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Bind what starts the automation",
         "description": "Requires the developer capability. One trigger per automation: the PUT replaces whatever was bound, and binding another kind over a live webhook revokes its URL — the response says so (`revoked`). For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash. Each kind takes its own keys — `cron` and `timezone` only with `schedule`, `event` only with `event`, `rotateToken` only with `webhook`, `enabled` with any — and a key of another kind is refused like an unknown key (`INVALID_BODY`, named under `data.issues`). The 200 says whether the automation has a version to run (`deployed`): binding before deploying is accepted, and such a trigger skips every occurrence as `not_deployed` — visible on `GET /api/v1/automations` — until a version is deployed.",
         "operationId": "setAutomationTrigger",
@@ -20502,18 +20112,12 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "kind"
-                ],
+                "required": ["kind"],
                 "additionalProperties": false,
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "schedule",
-                      "webhook",
-                      "event"
-                    ]
+                    "enum": ["schedule", "webhook", "event"]
                   },
                   "cron": {
                     "type": "string",
@@ -20559,10 +20163,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name",
-                    "deployed"
-                  ],
+                  "required": ["name", "deployed"],
                   "properties": {
                     "name": {
                       "type": "string"
@@ -20577,9 +20178,7 @@
                     },
                     "revoked": {
                       "type": "string",
-                      "enum": [
-                        "webhook"
-                      ],
+                      "enum": ["webhook"],
                       "description": "Present when this bind replaced a live webhook trigger with another kind: its URL stopped answering the moment the bind committed, and no later bind brings that token back. Absent on a first bind and on a re-bind of the same kind (which keeps the token)."
                     }
                   }
@@ -20751,9 +20350,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Unbind the automation’s trigger",
         "description": "For an existing automation, answers 204 whether or not a trigger existed. An unknown automation answers 404. Versions and run history stay. Requires the developer capability.",
         "operationId": "deleteAutomationTrigger",
@@ -20944,9 +20541,7 @@
     },
     "/api/v1/runs/{runId}": {
       "get": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Read an organization run in full",
         "description": "Only a run without a project is visible here. Use its project URL for a project run. A poller after the outcome should name the keys it reads — `?fields=status,finishedAt` — instead of moving the input, the trace and the checkpoints on every read; the answer then carries exactly those keys.",
         "operationId": "getRun",
@@ -21181,9 +20776,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Delete a finished run",
         "description": "Only a run without a project is visible here. Use its project URL for a project run. Requires the developer capability. Removes the run — its stored input and output included — together with the questions it asked and the webhook-delivery and idempotency entries that would otherwise answer a repeat with a run that no longer exists. A run still in flight is refused: cancel it first.",
         "operationId": "deleteRun",
@@ -21392,9 +20985,7 @@
     },
     "/api/v1/runs/{runId}/cancel": {
       "post": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Stop a run at its next node boundary",
         "description": "Only a run without a project is visible here. Use its project URL for a project run. Requires the developer capability. Work already performed is not undone. Send no body or an empty object.",
         "operationId": "cancelRun",
@@ -21452,9 +21043,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "cancelled"
-                  ],
+                  "required": ["cancelled"],
                   "properties": {
                     "cancelled": {
                       "type": "boolean"
@@ -21630,9 +21219,7 @@
     },
     "/api/v1/projects/{id}/runs/{runId}": {
       "get": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Read a project run in full",
         "description": "The run must belong to the URL project, and the key holder must have project read access. A poller after the outcome should name the keys it reads — `?fields=status,finishedAt` — instead of moving the input, the trace and the checkpoints on every read; the answer then carries exactly those keys.",
         "operationId": "getProjectRun",
@@ -21876,9 +21463,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Delete a finished run",
         "description": "The run must belong to the URL project, and the key holder must have project read access. Requires the developer capability. The project must be active and writable. Removes the run — its stored input and output included — together with the questions it asked and the webhook-delivery and idempotency entries that would otherwise answer a repeat with a run that no longer exists. A run still in flight is refused: cancel it first.",
         "operationId": "deleteProjectRun",
@@ -22096,9 +21681,7 @@
     },
     "/api/v1/projects/{id}/runs/{runId}/cancel": {
       "post": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Stop a run at its next node boundary",
         "description": "The run must belong to the URL project, and the key holder must have project read access. Requires the developer capability. The project must be active and writable. Work already performed is not undone. Send no body or an empty object.",
         "operationId": "cancelProjectRun",
@@ -22165,9 +21748,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "cancelled"
-                  ],
+                  "required": ["cancelled"],
                   "properties": {
                     "cancelled": {
                       "type": "boolean"
@@ -22343,9 +21924,7 @@
     },
     "/api/v1/models": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "List available chat models",
         "description": "The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available; the list is a complete set, not paginated. Use id as model when sending a message, and providerSlug when the same id is listed under more than one provider. Each entry carries what a client needs to choose — context window, output cap, capabilities, price when the catalog publishes one, tags — and `default: true` marks the organization’s default pick for this key holder. The list is the organization’s configured catalog, not a promise from the provider’s account: a plan that excludes a listed model fails the turn with errorCode `model_not_entitled`, a spent balance with `credit_exhausted`.",
         "operationId": "listChatModels",
@@ -22363,9 +21942,7 @@
                   "type": "object",
                   "description": "The complete set under `models` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "models"
-                  ],
+                  "required": ["models"],
                   "properties": {
                     "models": {
                       "type": "array",
@@ -22570,9 +22147,7 @@
     },
     "/api/v1/threads": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "List your personal threads",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Includes archived threads, newest activity first.",
         "operationId": "listThreads",
@@ -22631,11 +22206,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -22824,9 +22395,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Create a personal chat",
         "description": "A direct chat with the built-in assistant. The thread has no project context. This operation accepts only an optional title (trimmed, 1–120 characters — the bound `PATCH` renames within); agent selectors and projectId are refused. Project agents execute through project tasks. A thread created without a title is named by the assistant after its first message (read `title` back from the thread); `PATCH` renames it.",
         "operationId": "createThread",
@@ -22882,9 +22451,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -23060,9 +22627,7 @@
     },
     "/api/v1/threads/{id}": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read a thread",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL.",
         "operationId": "getThread",
@@ -23281,9 +22846,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Archive, restore or rename a thread",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
         "operationId": "updateThread",
@@ -23520,9 +23083,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Delete a thread",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running — or whose accepted send is still queued — answers 409 `CHAT_TURN_IN_PROGRESS`; cancel the turn first.",
         "operationId": "deleteThread",
@@ -23731,9 +23292,7 @@
     },
     "/api/v1/threads/{id}/messages": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read a thread’s messages",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Messages are in sequence order — oldest first, or newest first with `order=desc`, so the reply a turn just produced is on the first page of a long thread; use the previous continueCursor as cursor for the next page (a cursor is bound to the direction it was minted in). While a turn runs, its assistant row is already on the page with status `pending` and empty parts — the row GET /api/v1/threads/{id}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final. One message is also readable by id at GET /api/v1/threads/{id}/messages/{messageId}.",
         "operationId": "listMessages",
@@ -23788,10 +23347,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ],
+              "enum": ["asc", "desc"],
               "default": "asc"
             },
             "description": "The walk’s direction: `asc` (the default) pages oldest first from sequence 0, `desc` pages newest first — the settled reply of the latest turn leads the first page. A `cursor` minted walking one direction is refused with 400 `INVALID_CURSOR` on the other"
@@ -23815,11 +23371,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -24008,9 +23560,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Send a message and start a turn",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (`messageId`). Poll GET /api/v1/threads/{id}/generation until status is idle, then read the messages. Send `Idempotency-Key` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same `messageId` — with `duplicate: true` and queues nothing, and a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in `usage.inputTokens` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.",
         "operationId": "postMessage",
@@ -24066,10 +23616,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "content",
-                  "model"
-                ],
+                "required": ["content", "model"],
                 "properties": {
                   "content": {
                     "type": "string",
@@ -24091,13 +23638,7 @@
                   },
                   "reasoningEffort": {
                     "type": "string",
-                    "enum": [
-                      "low",
-                      "medium",
-                      "high",
-                      "extra",
-                      "max"
-                    ],
+                    "enum": ["low", "medium", "high", "extra", "max"],
                     "description": "The reasoning depth, on the same five-step scale the app offers; omitted samples the model’s default. Ignored by a model whose `capabilities.reasoning` is false."
                   },
                   "maxOutputTokens": {
@@ -24135,9 +23676,7 @@
                   "properties": {
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ],
+                      "enum": [true],
                       "description": "Present when the `Idempotency-Key` had already accepted this send: nothing new was queued — poll for the `messageId` it names"
                     },
                     "threadId": {
@@ -24145,9 +23684,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "accepted"
-                      ]
+                      "enum": ["accepted"]
                     },
                     "model": {
                       "type": "string"
@@ -24353,9 +23890,7 @@
     },
     "/api/v1/threads/{id}/messages/{messageId}": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read one message",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. One message of the thread by id — the reply the 202 named (`messageId`), read without paging the transcript. The same shape as a row of GET /api/v1/threads/{id}/messages: `pending` while its turn still runs, settled with `finishReason` and `usage` once the poll says idle. A message id the thread does not carry answers 404 `MESSAGE_NOT_FOUND`.",
         "operationId": "getMessage",
@@ -24585,9 +24120,7 @@
     },
     "/api/v1/threads/{id}/generation": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Poll the running turn",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the characters of `text` you already hold) and `reasoningSince` (the characters of `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/threads/{id}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/threads/{id}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
         "operationId": "getGeneration",
@@ -24653,17 +24186,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "idle",
-                        "queued",
-                        "streaming"
-                      ]
+                      "enum": ["idle", "queued", "streaming"]
                     },
                     "messageId": {
                       "type": "string",
@@ -24689,12 +24216,7 @@
                     },
                     "lastStatus": {
                       "type": "string",
-                      "enum": [
-                        "pending",
-                        "complete",
-                        "failed",
-                        "cancelled"
-                      ],
+                      "enum": ["pending", "complete", "failed", "cancelled"],
                       "description": "How `lastMessageId` settled (present with it)"
                     },
                     "reasoning": {
@@ -24894,9 +24416,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Cancel the running turn",
         "description": "Only the key holder’s threads without a project. Project threads are available through their project URL. Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. A send still queued (no worker has opened it) is stopped the same way: 202 naming the reply the send’s 202 promised, the model is never called, and that reply settles as `cancelled` with empty `parts`. Nothing running and nothing queued answers 404 `CHAT_TURN_NOT_RUNNING` with `data.lastMessageId` and `data.lastStatus` — the idle poll’s answer, so a stop that lost the race against a fast model needs no second call.",
         "operationId": "cancelGeneration",
@@ -24942,15 +24462,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "cancelling"
-                      ]
+                      "enum": ["cancelling"]
                     },
                     "messageId": {
                       "type": "string",
@@ -25109,9 +24625,7 @@
     },
     "/api/v1/projects/{id}/threads": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "List your threads in a project",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Includes archived threads, newest activity first.",
         "operationId": "listProjectThreads",
@@ -25179,11 +24693,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -25372,9 +24882,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Create a chat in a project",
         "description": "A direct chat with the built-in assistant. The URL supplies its project context. Any member with project read access may create a chat while the project is active. This operation accepts only an optional title (trimmed, 1–120 characters — the bound `PATCH` renames within); agent selectors and projectId are refused. Project agents execute through project tasks. A thread created without a title is named by the assistant after its first message (read `title` back from the thread); `PATCH` renames it.",
         "operationId": "createProjectThread",
@@ -25439,9 +24947,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -25617,9 +25123,7 @@
     },
     "/api/v1/projects/{id}/threads/{threadId}": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read a thread",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access.",
         "operationId": "getProjectThread",
@@ -25847,9 +25351,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Archive, restore or rename a thread",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Archiving is the app’s own toggle, audited the same way: an archived thread stays readable and refuses messages with 409 `CHAT_THREAD_ARCHIVED`; `archived: false` restores it. Archiving stamps `archivedAt` and leaves `updatedAt` — the last message activity — untouched. `title` renames the thread (trimmed, 1–120 characters). Send at least one of the two.",
         "operationId": "updateProjectThread",
@@ -26095,9 +25597,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Delete a thread",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Moves the thread to the app’s trash (its grace window and legal-hold check apply). A thread whose turn is still running — or whose accepted send is still queued — answers 409 `CHAT_TURN_IN_PROGRESS`; cancel the turn first.",
         "operationId": "deleteProjectThread",
@@ -26315,9 +25815,7 @@
     },
     "/api/v1/projects/{id}/threads/{threadId}/messages": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read a thread’s messages",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Messages are in sequence order — oldest first, or newest first with `order=desc`, so the reply a turn just produced is on the first page of a long thread; use the previous continueCursor as cursor for the next page (a cursor is bound to the direction it was minted in). While a turn runs, its assistant row is already on the page with status `pending` and empty parts — the row GET /api/v1/projects/{id}/threads/{threadId}/generation names as messageId — and is filled in when the turn settles; the page is complete without that row being final. One message is also readable by id at GET /api/v1/projects/{id}/threads/{threadId}/messages/{messageId}.",
         "operationId": "listProjectThreadMessages",
@@ -26381,10 +25879,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ],
+              "enum": ["asc", "desc"],
               "default": "asc"
             },
             "description": "The walk’s direction: `asc` (the default) pages oldest first from sequence 0, `desc` pages newest first — the settled reply of the latest turn leads the first page. A `cursor` minted walking one direction is refused with 400 `INVALID_CURSOR` on the other"
@@ -26408,11 +25903,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -26601,9 +26092,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Send a message and start a turn",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. The project must be active; members can send without an editor seat. Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (`messageId`). Poll GET /api/v1/projects/{id}/threads/{threadId}/generation until status is idle, then read the messages. Send `Idempotency-Key` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same `messageId` — with `duplicate: true` and queues nothing, and a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in `usage.inputTokens` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.",
         "operationId": "postProjectThreadMessage",
@@ -26668,10 +26157,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "content",
-                  "model"
-                ],
+                "required": ["content", "model"],
                 "properties": {
                   "content": {
                     "type": "string",
@@ -26693,13 +26179,7 @@
                   },
                   "reasoningEffort": {
                     "type": "string",
-                    "enum": [
-                      "low",
-                      "medium",
-                      "high",
-                      "extra",
-                      "max"
-                    ],
+                    "enum": ["low", "medium", "high", "extra", "max"],
                     "description": "The reasoning depth, on the same five-step scale the app offers; omitted samples the model’s default. Ignored by a model whose `capabilities.reasoning` is false."
                   },
                   "maxOutputTokens": {
@@ -26737,9 +26217,7 @@
                   "properties": {
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ],
+                      "enum": [true],
                       "description": "Present when the `Idempotency-Key` had already accepted this send: nothing new was queued — poll for the `messageId` it names"
                     },
                     "threadId": {
@@ -26747,9 +26225,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "accepted"
-                      ]
+                      "enum": ["accepted"]
                     },
                     "model": {
                       "type": "string"
@@ -26955,9 +26431,7 @@
     },
     "/api/v1/projects/{id}/threads/{threadId}/messages/{messageId}": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Read one message",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. One message of the thread by id — the reply the 202 named (`messageId`), read without paging the transcript. The same shape as a row of GET /api/v1/projects/{id}/threads/{threadId}/messages: `pending` while its turn still runs, settled with `finishReason` and `usage` once the poll says idle. A message id the thread does not carry answers 404 `MESSAGE_NOT_FOUND`.",
         "operationId": "getProjectThreadMessage",
@@ -27196,9 +26670,7 @@
     },
     "/api/v1/projects/{id}/threads/{threadId}/generation": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Poll the running turn",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. `queued`: the accepted send is waiting for a worker (the 202 was answered, the turn has not opened). `streaming`: the model is streaming its reply to the server — `text` and `reasoning` carry what has arrived so far, so a poller sees progress; send `since` (the characters of `text` you already hold) and `reasoningSince` (the characters of `reasoning`) to receive only what arrived after them, with `textOffset`/`textLength` and `reasoningOffset`/`reasoningLength` beside them; there is no push channel on this surface. A turn has no fixed deadline — the server abandons one only after 180 seconds of provider silence — so bound your own loop and stop a turn you no longer want with DELETE /api/v1/projects/{id}/threads/{threadId}/generation. `idle`: no turn is running — `lastMessageId` and `lastStatus` name the newest assistant message and how it settled. The recipe after a send (or a lost 202): poll until `idle`, then compare `lastMessageId` with the `messageId` the 202 named — equal means your turn settled (read that message at GET /api/v1/projects/{id}/threads/{threadId}/messages/{messageId}, or page the messages with `order=desc`), a different id means yours has not started yet.",
         "operationId": "getProjectThreadGeneration",
@@ -27273,17 +26745,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "idle",
-                        "queued",
-                        "streaming"
-                      ]
+                      "enum": ["idle", "queued", "streaming"]
                     },
                     "messageId": {
                       "type": "string",
@@ -27309,12 +26775,7 @@
                     },
                     "lastStatus": {
                       "type": "string",
-                      "enum": [
-                        "pending",
-                        "complete",
-                        "failed",
-                        "cancelled"
-                      ],
+                      "enum": ["pending", "complete", "failed", "cancelled"],
                       "description": "How `lastMessageId` settled (present with it)"
                     },
                     "reasoning": {
@@ -27514,9 +26975,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Cancel the running turn",
         "description": "Only the key holder’s threads belonging to the URL project; requires project read access. Asks the running turn to stop — the app’s own stop: the turn reads the flag at its next progress write and settles what it has. 202 means the stop is requested, not done; poll until idle. A send still queued (no worker has opened it) is stopped the same way: 202 naming the reply the send’s 202 promised, the model is never called, and that reply settles as `cancelled` with empty `parts`. Nothing running and nothing queued answers 404 `CHAT_TURN_NOT_RUNNING` with `data.lastMessageId` and `data.lastStatus` — the idle poll’s answer, so a stop that lost the race against a fast model needs no second call.",
         "operationId": "cancelProjectThreadGeneration",
@@ -27571,15 +27030,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "cancelling"
-                      ]
+                      "enum": ["cancelling"]
                     },
                     "messageId": {
                       "type": "string",
@@ -27738,9 +27193,7 @@
     },
     "/api/v1/skills": {
       "get": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "List skills",
         "description": "The skills the key holder can see (their own, their teams’, the organization’s) — a complete set, not paginated. `failures` names skill bundles that could not be read.",
         "operationId": "listSkills",
@@ -27758,10 +27211,7 @@
                   "type": "object",
                   "description": "The complete set under `skills` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "skills",
-                    "failures"
-                  ],
+                  "required": ["skills", "failures"],
                   "properties": {
                     "skills": {
                       "type": "array",
@@ -27774,11 +27224,7 @@
                       "description": "Skill bundles on disk that could not be read — each names the bundle and why",
                       "items": {
                         "type": "object",
-                        "required": [
-                          "slug",
-                          "path",
-                          "message"
-                        ],
+                        "required": ["slug", "path", "message"],
                         "properties": {
                           "slug": {
                             "type": "string"
@@ -27990,9 +27436,7 @@
     },
     "/api/v1/skills/{slug}": {
       "get": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Get skill",
         "operationId": "getSkill",
         "description": "One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. A malformed slug answers 404 like an unknown one.",
@@ -28222,9 +27666,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Create or update skill",
         "description": "Creates the bundle when the slug is free — **201** — and updates it in place otherwise — **200** — so the status is the create-or-update signal (the same convention as a task materialisation) and a sync that mirrors bundles from elsewhere needs no read first: `description` and `body` are required; an omitted `icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` keeps its stored value, `null` clears `icon` or `labels`, and `disableModelInvocation: false` drops the flag. A body that does not end with a newline gets one appended. The save rewrites `SKILL.md` only — every other file of the bundle stays, and frontmatter keys the body does not carry (`license`, `recommended-packages`, community keys) are preserved; replacing a whole bundle is the app’s zip upload. Guard an update with `If-Match`: the `etag` you last read (the GET’s `ETag`) — a document that changed since, or is not there, answers 412 `SKILL_STALE` with the current tag in `data.etag` and nothing is written. Send `If-None-Match: *` to create only — a slug that already has a bundle then answers 412 `SKILL_EXISTS` and nothing is written. The body is validated before the preconditions are evaluated. A save whose composed `SKILL.md` is byte-identical to the stored document writes nothing — 200 with the stored `etag` and `updatedAt`, no history entry — the preconditions still evaluated first, so a stale `If-Match` on an identical body is still 412. Every skill carries `canEdit`: whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite, so check it before a save that means to replace one. The body may run to 4 MiB — this operation’s own cap, so the worst JSON escaping of a full-size `body` still fits; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "saveSkill",
@@ -28289,10 +27731,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "description",
-                  "body"
-                ],
+                "required": ["description", "body"],
                 "additionalProperties": false,
                 "properties": {
                   "description": {
@@ -28307,10 +27746,7 @@
                   },
                   "visibility": {
                     "type": "string",
-                    "enum": [
-                      "team",
-                      "org"
-                    ],
+                    "enum": ["team", "org"],
                     "description": "Who sees the skill; omitted keeps the stored value (a new skill is `org`). `private` is retired: it cannot be set, only kept by omission on a bundle that already carries it"
                   },
                   "teams": {
@@ -28578,9 +28014,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Delete skill",
         "operationId": "deleteSkill",
         "description": "Delete the bundle the slug names — its owner, or an administrator; a malformed or unknown slug answers 404 `SKILL_NOT_FOUND` (no precondition is evaluated on an absent slug). `If-Match` guards it like the save: a tag that no longer matches the stored SKILL.md answers 412 `SKILL_STALE` and the bundle stays.",
@@ -28809,9 +28243,7 @@
     },
     "/api/v1/skills/{slug}/files/{path}": {
       "get": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Download a bundle file",
         "operationId": "downloadSkillFile",
         "description": "The bytes of one file of the bundle — `SKILL.md` included — exactly as the organization’s tree holds it: `application/octet-stream`, `Content-Length`, the file’s own name in an RFC 6266 `Content-Disposition`, private and uncacheable; a HEAD request answers the headers alone. The skill’s `files[]` is the only legitimate source of paths: a path it would never list — a traversal, a dot-entry, `node_modules/…` — reads as a file the bundle does not have (404 `SKILL_FILE_NOT_FOUND`), where an unknown, invisible or malformed slug is 404 `SKILL_NOT_FOUND`. A raw dot-segment in the URL (`../`, or `%2e%2e/` — the dots encoded, the slash not) never reaches this operation: the edge refuses it first with its own 404 `NOT_FOUND`, without `X-Tale-Api-Version`; a spelling whose slashes are encoded too (`%2e%2e%2f…`) does, and reads as `SKILL_FILE_NOT_FOUND`. A bundle the file layer refuses to read — a planted symlink, a file over the 4 MiB staging cap — answers 422 `SKILL_MALFORMED`.",
@@ -29045,9 +28477,7 @@
     },
     "/api/v1/knowledge-entries": {
       "get": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "List knowledge entries",
         "description": "Newest first; `cursor` is the previous page’s `continueCursor`. `topic` narrows the page to one topic — with `status=superseded` that is a fact’s replaced versions, each with its `supersededAt`; `GET /api/v1/knowledge-entries/{id}/versions` answers the same chain from any of its rows.",
         "operationId": "listKnowledgeEntries",
@@ -29124,11 +28554,7 @@
                 "schema": {
                   "type": "object",
                   "x-tale-pagination": "keyset",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -29317,9 +28743,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Create a knowledge entry",
         "description": "Charged against the per-organization `knowledge:mutate` budget the in-app editor shares. Mints a file-backed Hub document (`sourceProvider: knowledge`) and queues it for indexing, so the content is searchable once its `indexing` completes — the one way to put text into the search corpus from REST. The 201 answers the entry’s `id` AND that `documentId`: poll `GET /api/v1/documents/{documentId}` for `indexing` directly. A supersede re-indexes under the same `documentId`; a delete trashes it. The document itself refuses a direct delete or content edit (`DOCUMENT_HAS_KNOWLEDGE_ENTRY`); its bytes read back at `GET /api/v1/documents/{documentId}/content`. Requires the knowledge write grant (editor and up).",
         "operationId": "createKnowledgeEntry",
@@ -29334,10 +28758,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "topic",
-                  "content"
-                ],
+                "required": ["topic", "content"],
                 "additionalProperties": false,
                 "properties": {
                   "topic": {
@@ -29590,9 +29011,7 @@
     },
     "/api/v1/knowledge-entries/{id}": {
       "get": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Get a knowledge entry",
         "operationId": "getKnowledgeEntry",
         "description": "One knowledge entry — active or superseded — with its topic, content, version (`supersededBy` and `supersededAt` on a replaced row) and the Hub document behind it.",
@@ -29811,9 +29230,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Supersede a knowledge entry",
         "description": "Entries are immutable: an update writes a NEW row and answers its id (with the `documentId` it re-indexes under); the old row becomes `superseded`, stamped with `supersededAt`. Both `topic` and `content` are required. A write that repeats the active row — the same `topic` and `content` after trimming — writes no version and answers the active row’s own id (the documents PATCH rule), so a retry or a replaying sync job never inflates the history; a case-only change of the topic is a change. Only the ACTIVE row of a topic takes an update — a superseded row answers 409 naming the row that replaced it, an identical body included. Requires the knowledge write grant (editor and up).",
         "operationId": "updateKnowledgeEntry",
@@ -29858,10 +29275,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "topic",
-                  "content"
-                ],
+                "required": ["topic", "content"],
                 "additionalProperties": false,
                 "properties": {
                   "topic": {
@@ -30091,9 +29505,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Delete a knowledge entry",
         "description": "What a delete removes depends on the row it names. The ACTIVE row is the fact itself: deleting it retires the whole topic — every version is deleted and the Knowledge Hub document behind it is moved to trash. A SUPERSEDED row is history: deleting it prunes that one version and leaves the active fact and its document untouched, so a retention job can walk `?status=superseded` and delete row by row.",
         "operationId": "deleteKnowledgeEntry",
@@ -30284,9 +29696,7 @@
     },
     "/api/v1/knowledge-entries/{id}/versions": {
       "get": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "List a knowledge entry’s versions",
         "description": "The whole version chain of the entry’s topic, newest first — the active row and every superseded one (`supersededBy`, `supersededAt`), from any row of the chain. The chain is keyed by the Hub document every version re-materializes onto, so a topic rename keeps it together; a version pruned with `DELETE /api/v1/knowledge-entries/{id}` is not listed. The same history the app’s entry panel shows — the whole chain at once, not paginated.",
         "operationId": "listKnowledgeEntryVersions",
@@ -30334,9 +29744,7 @@
                   "type": "object",
                   "description": "The complete set under `versions` — never paginated: no `isDone`, no cursor to follow",
                   "x-tale-pagination": "none",
-                  "required": [
-                    "versions"
-                  ],
+                  "required": ["versions"],
                   "properties": {
                     "versions": {
                       "type": "array",
@@ -30520,9 +29928,7 @@
     },
     "/api/v1/knowledge/search": {
       "post": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Search visible Hub knowledge and organization websites",
         "description": "Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams — file-backed documents only; a document created with inline `content` and no `fileId` is never indexed and cannot match. Web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.",
         "operationId": "searchKnowledge",
@@ -30559,9 +29965,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "query"
-                ],
+                "required": ["query"],
                 "properties": {
                   "query": {
                     "type": "string",
@@ -30571,11 +29975,7 @@
                   },
                   "corpus": {
                     "type": "string",
-                    "enum": [
-                      "documents",
-                      "web",
-                      "all"
-                    ],
+                    "enum": ["documents", "web", "all"],
                     "default": "all"
                   },
                   "limit": {
@@ -30811,9 +30211,7 @@
     },
     "/api/v1/projects/{id}/knowledge/search": {
       "post": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Search a project’s indexed files",
         "description": "Searches only indexed files attached to the URL project (a project file indexes when bound with `skipRagIndexing: false`, or later through `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`). Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.",
         "operationId": "searchProjectKnowledge",
@@ -30859,9 +30257,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "query"
-                ],
+                "required": ["query"],
                 "properties": {
                   "query": {
                     "type": "string",
@@ -30871,9 +30267,7 @@
                   },
                   "corpus": {
                     "type": "string",
-                    "enum": [
-                      "documents"
-                    ],
+                    "enum": ["documents"],
                     "default": "documents"
                   },
                   "limit": {
@@ -31109,9 +30503,7 @@
     },
     "/api/v1/mcp": {
       "post": {
-        "tags": [
-          "MCP"
-        ],
+        "tags": ["MCP"],
         "summary": "The platform MCP endpoint",
         "description": "JSON-RPC over HTTP (MCP protocol 2025-06-18, or 2025-03-26 when the client proposes it; JSON responses only, no SSE). One message per request, or a JSON-RPC batch answered as an array. Authenticate with the same Bearer org API key as the REST API. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference. Tool arguments are checked against the advertised input schema. GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
         "operationId": "mcp",
@@ -31128,16 +30520,11 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": [
-                      "jsonrpc",
-                      "method"
-                    ],
+                    "required": ["jsonrpc", "method"],
                     "properties": {
                       "jsonrpc": {
                         "type": "string",
-                        "enum": [
-                          "2.0"
-                        ]
+                        "enum": ["2.0"]
                       },
                       "id": {
                         "oneOf": [
@@ -31165,16 +30552,11 @@
                     "maxItems": 20,
                     "items": {
                       "type": "object",
-                      "required": [
-                        "jsonrpc",
-                        "method"
-                      ],
+                      "required": ["jsonrpc", "method"],
                       "properties": {
                         "jsonrpc": {
                           "type": "string",
-                          "enum": [
-                            "2.0"
-                          ]
+                          "enum": ["2.0"]
                         },
                         "id": {
                           "oneOf": [
@@ -31214,17 +30596,11 @@
                       "oneOf": [
                         {
                           "type": "object",
-                          "required": [
-                            "jsonrpc",
-                            "id",
-                            "result"
-                          ],
+                          "required": ["jsonrpc", "id", "result"],
                           "properties": {
                             "jsonrpc": {
                               "type": "string",
-                              "enum": [
-                                "2.0"
-                              ]
+                              "enum": ["2.0"]
                             },
                             "id": {
                               "oneOf": [
@@ -31245,17 +30621,11 @@
                         },
                         {
                           "type": "object",
-                          "required": [
-                            "jsonrpc",
-                            "id",
-                            "error"
-                          ],
+                          "required": ["jsonrpc", "id", "error"],
                           "properties": {
                             "jsonrpc": {
                               "type": "string",
-                              "enum": [
-                                "2.0"
-                              ]
+                              "enum": ["2.0"]
                             },
                             "id": {
                               "anyOf": [
@@ -31272,10 +30642,7 @@
                             },
                             "error": {
                               "type": "object",
-                              "required": [
-                                "code",
-                                "message"
-                              ],
+                              "required": ["code", "message"],
                               "properties": {
                                 "code": {
                                   "type": "integer",
@@ -31296,17 +30663,11 @@
                         "oneOf": [
                           {
                             "type": "object",
-                            "required": [
-                              "jsonrpc",
-                              "id",
-                              "result"
-                            ],
+                            "required": ["jsonrpc", "id", "result"],
                             "properties": {
                               "jsonrpc": {
                                 "type": "string",
-                                "enum": [
-                                  "2.0"
-                                ]
+                                "enum": ["2.0"]
                               },
                               "id": {
                                 "oneOf": [
@@ -31327,17 +30688,11 @@
                           },
                           {
                             "type": "object",
-                            "required": [
-                              "jsonrpc",
-                              "id",
-                              "error"
-                            ],
+                            "required": ["jsonrpc", "id", "error"],
                             "properties": {
                               "jsonrpc": {
                                 "type": "string",
-                                "enum": [
-                                  "2.0"
-                                ]
+                                "enum": ["2.0"]
                               },
                               "id": {
                                 "anyOf": [
@@ -31354,10 +30709,7 @@
                               },
                               "error": {
                                 "type": "object",
-                                "required": [
-                                  "code",
-                                  "message"
-                                ],
+                                "required": ["code", "message"],
                                 "properties": {
                                   "code": {
                                     "type": "integer",
@@ -31403,17 +30755,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "jsonrpc",
-                    "id",
-                    "error"
-                  ],
+                  "required": ["jsonrpc", "id", "error"],
                   "properties": {
                     "jsonrpc": {
                       "type": "string",
-                      "enum": [
-                        "2.0"
-                      ]
+                      "enum": ["2.0"]
                     },
                     "id": {
                       "anyOf": [
@@ -31430,10 +30776,7 @@
                     },
                     "error": {
                       "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
+                      "required": ["code", "message"],
                       "properties": {
                         "code": {
                           "type": "integer",
@@ -31618,9 +30961,7 @@
     },
     "/api/automations/webhook/{token}": {
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Fire an organization webhook trigger",
         "description": "Starts a run without a project. Automations installed in any project require the project webhook URL; this URL refuses them. The URL token is the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed); no API key or organization header is needed. The `projectId` query parameter is rejected. The body (≤256 KiB) becomes `payload` in the run input `{trigger: \"webhook\", payload: <body>}`. Any JSON value is accepted as event data; non-JSON bodies become text. Delivery IDs are remembered for 24 hours — matched by value, whichever recognised header carried them — or byte-identical bodies for two minutes when no ID is supplied. Deduplication includes the URL project. Nothing authenticates the sender, so the door is budgeted per sender IP before the token is checked (120 a minute, burst 240) and per trigger once it is verified (20 a minute, burst 40).",
         "operationId": "fireAutomationWebhook",
@@ -31666,18 +31007,14 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "runId"
-                  ],
+                  "required": ["runId"],
                   "properties": {
                     "runId": {
                       "type": "string"
                     },
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "enum": [true]
                     }
                   }
                 }
@@ -31808,9 +31145,7 @@
     },
     "/api/projects/{id}/automations/webhook/{token}": {
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Fire a project webhook trigger",
         "description": "Starts a run in the URL project. The automation must be installed in that existing, active project in the token’s organization. Scope is rechecked before returning a duplicate delivery. The URL token is the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed); no API key or organization header is needed. The `projectId` query parameter is rejected. The body (≤256 KiB) becomes `payload` in the run input `{trigger: \"webhook\", payload: <body>}`. Any JSON value is accepted as event data; non-JSON bodies become text. Delivery IDs are remembered for 24 hours — matched by value, whichever recognised header carried them — or byte-identical bodies for two minutes when no ID is supplied. Deduplication includes the URL project. Nothing authenticates the sender, so the door is budgeted per sender IP before the token is checked (120 a minute, burst 240) and per trigger once it is verified (20 a minute, burst 40).",
         "operationId": "fireProjectAutomationWebhook",
@@ -31865,18 +31200,14 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "runId"
-                  ],
+                  "required": ["runId"],
                   "properties": {
                     "runId": {
                       "type": "string"
                     },
                     "duplicate": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "enum": [true]
                     }
                   }
                 }
@@ -32096,10 +31427,7 @@
     "schemas": {
       "Error": {
         "type": "object",
-        "required": [
-          "error",
-          "code"
-        ],
+        "required": ["error", "code"],
         "properties": {
           "error": {
             "type": "string",
@@ -32281,12 +31609,7 @@
               },
               "lastStatus": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "complete",
-                  "failed",
-                  "cancelled"
-                ],
+                "enum": ["pending", "complete", "failed", "cancelled"],
                 "description": "For CHAT_TURN_NOT_RUNNING, how `lastMessageId` settled (present with it)"
               },
               "organizations": {
@@ -32294,10 +31617,7 @@
                 "description": "For ORG_SLUG_REQUIRED, the organizations the key holder belongs to — send one of the slugs as `X-Organization-Slug`",
                 "items": {
                   "type": "object",
-                  "required": [
-                    "slug",
-                    "name"
-                  ],
+                  "required": ["slug", "name"],
                   "properties": {
                     "slug": {
                       "type": "string"
@@ -32313,10 +31633,7 @@
                 "description": "For INVALID_BODY and INVALID_QUERY, every problem the schema found in the body or the query string; for INVALID_LIMIT and INVALID_CURSOR, the one parameter refused (`limit`, `cursor`); for AUTOMATION_INPUT_INVALID, every problem the automation’s inputs schema found in the run input (at most 20 either way), each naming the field and the reason; `error` repeats the first one",
                 "items": {
                   "type": "object",
-                  "required": [
-                    "path",
-                    "message"
-                  ],
+                  "required": ["path", "message"],
                   "properties": {
                     "path": {
                       "type": "string",
@@ -32334,17 +31651,12 @@
       },
       "RetryIndexingResult": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "description": "What a retry-indexing request did — the one answer the Hub document door and the project-file door share.",
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "indexing",
-              "skipped"
-            ],
+            "enum": ["indexing", "skipped"],
             "description": "`indexing` — the blob was queued (an opt-out lifted); `skipped` — nothing was queued, `reason` says why"
           },
           "reason": {
@@ -32431,9 +31743,7 @@
           },
           "indexing": {
             "type": "object",
-            "required": [
-              "status"
-            ],
+            "required": ["status"],
             "additionalProperties": false,
             "description": "Where a file-backed document stands in the search corpus — absent for a content-only document (never indexed) and for a blob the platform does not track. Poll it after a create or a `retry-indexing`.",
             "properties": {
@@ -32468,9 +31778,7 @@
       "DocumentInput": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "title"
-        ],
+        "required": ["title"],
         "properties": {
           "title": {
             "type": "string",
@@ -32591,10 +31899,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "site",
-              "list"
-            ],
+            "enum": ["site", "list"],
             "nullable": true
           },
           "title": {
@@ -32652,10 +31957,7 @@
       },
       "WebsiteInput": {
         "type": "object",
-        "required": [
-          "domain",
-          "scanInterval"
-        ],
+        "required": ["domain", "scanInterval"],
         "additionalProperties": false,
         "properties": {
           "domain": {
@@ -32673,15 +31975,7 @@
           },
           "scanInterval": {
             "type": "string",
-            "enum": [
-              "60m",
-              "6h",
-              "12h",
-              "1d",
-              "5d",
-              "7d",
-              "30d"
-            ],
+            "enum": ["60m", "6h", "12h", "1d", "5d", "7d", "30d"],
             "description": "How often the site is re-crawled"
           },
           "urls": {
@@ -32710,15 +32004,7 @@
           },
           "scanInterval": {
             "type": "string",
-            "enum": [
-              "60m",
-              "6h",
-              "12h",
-              "1d",
-              "5d",
-              "7d",
-              "30d"
-            ]
+            "enum": ["60m", "6h", "12h", "1d", "5d", "7d", "30d"]
           },
           "domain": {
             "type": "string",
@@ -32756,10 +32042,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "discovered",
-              "active"
-            ],
+            "enum": ["discovered", "active"],
             "description": "`discovered`: the crawler knows the URL but no fetch has stored it yet — never attempted, or every attempt failed (then `failCount` and `lastError` say so); `active`: a fetch stored the page at least once (`indexed` says whether its chunks are in the corpus). A page the site answered 404/410 for leaves the listing."
           },
           "contentHash": {
@@ -32862,13 +32145,7 @@
       },
       "WebsiteSearchHit": {
         "type": "object",
-        "required": [
-          "url",
-          "title",
-          "content",
-          "chunkIndex",
-          "score"
-        ],
+        "required": ["url", "title", "content", "chunkIndex", "score"],
         "properties": {
           "url": {
             "type": "string"
@@ -32892,10 +32169,7 @@
       },
       "WebsiteSearchResults": {
         "type": "object",
-        "required": [
-          "results",
-          "total"
-        ],
+        "required": ["results", "total"],
         "properties": {
           "results": {
             "type": "array",
@@ -32938,12 +32212,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "queued",
-              "leased",
-              "failed",
-              "delivered"
-            ],
+            "enum": ["queued", "leased", "failed", "delivered"],
             "description": "`queued` — waiting (the undo window, a backoff, a lapsed lease); `leased` — a claim’s five-minute lease runs; `failed` — dead-lettered, awaiting a retry or a discard; `delivered` — acknowledged"
           },
           "attempts": {
@@ -33019,11 +32288,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "healthy",
-              "cooling",
-              "expired"
-            ],
+            "enum": ["healthy", "cooling", "expired"],
             "description": "healthy = claimable; cooling = blocked once, recovers after a quiet period; expired = three strikes or past its TTL"
           },
           "expiresAt": {
@@ -33044,10 +32309,7 @@
       },
       "BrowserSessionImport": {
         "type": "object",
-        "required": [
-          "domain",
-          "cookiesJar"
-        ],
+        "required": ["domain", "cookiesJar"],
         "additionalProperties": false,
         "properties": {
           "domain": {
@@ -33146,9 +32408,7 @@
             "description": "Reserved: per-language overrides of the catalog fields. Read-only and always null on this surface today — no input schema takes it and nothing writes it; a localized catalog is a later addition, and the field is declared so a client generated now keeps its shape then.",
             "items": {
               "type": "object",
-              "required": [
-                "language"
-              ],
+              "required": ["language"],
               "properties": {
                 "language": {
                   "type": "string",
@@ -33253,12 +32513,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive",
-              "draft",
-              "archived"
-            ]
+            "enum": ["active", "inactive", "draft", "archived"]
           },
           "externalId": {
             "type": "string",
@@ -33335,12 +32590,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive",
-              "draft",
-              "archived"
-            ],
+            "enum": ["active", "inactive", "draft", "archived"],
             "nullable": true
           },
           "externalId": {
@@ -33379,11 +32629,7 @@
             "type": "object",
             "nullable": true,
             "description": "The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.",
-            "required": [
-              "id",
-              "name",
-              "expiresAt"
-            ],
+            "required": ["id", "name", "expiresAt"],
             "additionalProperties": false,
             "properties": {
               "id": {
@@ -33404,10 +32650,7 @@
           },
           "user": {
             "type": "object",
-            "required": [
-              "id",
-              "email"
-            ],
+            "required": ["id", "email"],
             "properties": {
               "id": {
                 "type": "string"
@@ -33420,11 +32663,7 @@
           "organization": {
             "type": "object",
             "description": "The organization this request resolved to",
-            "required": [
-              "id",
-              "slug",
-              "role"
-            ],
+            "required": ["id", "slug", "role"],
             "properties": {
               "id": {
                 "type": "string"
@@ -33443,12 +32682,7 @@
             "description": "Every organization the key holder belongs to (disabled memberships excluded)",
             "items": {
               "type": "object",
-              "required": [
-                "id",
-                "slug",
-                "name",
-                "role"
-              ],
+              "required": ["id", "slug", "name", "role"],
               "properties": {
                 "id": {
                   "type": "string"
@@ -33469,9 +32703,7 @@
           "capabilities": {
             "type": "object",
             "description": "What this key may do beyond what its role says — the gates a deployment knob decides, answered here so a client learns them before its first write rather than from a 403",
-            "required": [
-              "deploymentEditor"
-            ],
+            "required": ["deploymentEditor"],
             "additionalProperties": false,
             "properties": {
               "deploymentEditor": {
@@ -33775,12 +33007,7 @@
       },
       "BulkCreateResult": {
         "type": "object",
-        "required": [
-          "success",
-          "failed",
-          "created",
-          "errors"
-        ],
+        "required": ["success", "failed", "created", "errors"],
         "description": "A body the schema refuses fails the whole call with 400; a row the directory refuses (a duplicate email or external id) fails that row alone and is listed under `errors` with its code. `created` here is the list of rows that landed — unlike the boolean `created` a folder or task result carries.",
         "properties": {
           "success": {
@@ -33794,10 +33021,7 @@
             "description": "The rows that landed, by input index",
             "items": {
               "type": "object",
-              "required": [
-                "index",
-                "id"
-              ],
+              "required": ["index", "id"],
               "properties": {
                 "index": {
                   "type": "integer"
@@ -33812,12 +33036,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": [
-                "index",
-                "error",
-                "errorCode",
-                "contact"
-              ],
+              "required": ["index", "error", "errorCode", "contact"],
               "properties": {
                 "index": {
                   "type": "integer"
@@ -33844,12 +33063,7 @@
       },
       "Project": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "createdAt",
-          "updatedAt"
-        ],
+        "required": ["id", "name", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -33887,11 +33101,7 @@
       },
       "ProjectFolder": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "parentId"
-        ],
+        "required": ["id", "name", "parentId"],
         "properties": {
           "id": {
             "type": "string"
@@ -33908,10 +33118,7 @@
       },
       "ProjectFolderResult": {
         "type": "object",
-        "required": [
-          "folder",
-          "created"
-        ],
+        "required": ["folder", "created"],
         "properties": {
           "folder": {
             "$ref": "#/components/schemas/ProjectFolder"
@@ -33947,9 +33154,7 @@
           },
           "method": {
             "type": "string",
-            "enum": [
-              "PUT"
-            ]
+            "enum": ["PUT"]
           },
           "s3Ref": {
             "type": "string",
@@ -33964,11 +33169,7 @@
       },
       "ProjectFile": {
         "type": "object",
-        "required": [
-          "id",
-          "createdAt",
-          "size"
-        ],
+        "required": ["id", "createdAt", "size"],
         "properties": {
           "id": {
             "type": "string"
@@ -33992,9 +33193,7 @@
           },
           "indexing": {
             "type": "object",
-            "required": [
-              "status"
-            ],
+            "required": ["status"],
             "additionalProperties": false,
             "description": "Where the file stands in the search corpus — the vocabulary `Document.indexing` speaks. A file bound with the default `skipRagIndexing: true` reads `skipped` until someone indexes it (**Index now** on the project’s Knowledge tab, `POST …/files/{documentId}/retry-indexing`, or a bind with `skipRagIndexing: false`) and is not found by `POST …/knowledge/search` until then; absent when the platform does not track the blob.",
             "properties": {
@@ -34102,16 +33301,11 @@
       },
       "TaskUpsertResult": {
         "type": "object",
-        "required": [
-          "task"
-        ],
+        "required": ["task"],
         "properties": {
           "task": {
             "type": "object",
-            "required": [
-              "id",
-              "created"
-            ],
+            "required": ["id", "created"],
             "properties": {
               "id": {
                 "type": "string"
@@ -34186,11 +33380,7 @@
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": [
-                  "schedule",
-                  "webhook",
-                  "event"
-                ]
+                "enum": ["schedule", "webhook", "event"]
               },
               "enabled": {
                 "type": "boolean"
@@ -34210,11 +33400,7 @@
               "lastSkipReason": {
                 "type": "string",
                 "nullable": true,
-                "enum": [
-                  "not_deployed",
-                  "unusable_cron",
-                  "start_refused"
-                ],
+                "enum": ["not_deployed", "unusable_cron", "start_refused"],
                 "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
               }
             },
@@ -34393,11 +33579,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "schedule",
-              "webhook",
-              "event"
-            ]
+            "enum": ["schedule", "webhook", "event"]
           },
           "cron": {
             "type": "string",
@@ -34438,11 +33620,7 @@
           "lastSkipReason": {
             "type": "string",
             "nullable": true,
-            "enum": [
-              "not_deployed",
-              "unusable_cron",
-              "start_refused"
-            ],
+            "enum": ["not_deployed", "unusable_cron", "start_refused"],
             "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
           }
         }
@@ -34495,10 +33673,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "mock",
-              "live"
-            ]
+            "enum": ["mock", "live"]
           },
           "startedBy": {
             "type": "string",
@@ -34510,12 +33685,7 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": [
-              "approval",
-              "ask",
-              "agent",
-              "repeat"
-            ],
+            "enum": ["approval", "ask", "agent", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
           },
           "startedAt": {
@@ -34590,10 +33760,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "mock",
-              "live"
-            ]
+            "enum": ["mock", "live"]
           },
           "startedBy": {
             "type": "string",
@@ -34611,12 +33778,7 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": [
-              "approval",
-              "ask",
-              "agent",
-              "repeat"
-            ],
+            "enum": ["approval", "ask", "agent", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
@@ -34673,10 +33835,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "mock",
-              "live"
-            ]
+            "enum": ["mock", "live"]
           },
           "startedBy": {
             "type": "string",
@@ -34694,12 +33853,7 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": [
-              "approval",
-              "ask",
-              "agent",
-              "repeat"
-            ],
+            "enum": ["approval", "ask", "agent", "repeat"],
             "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
           },
           "claimEpoch": {
@@ -34743,10 +33897,7 @@
           },
           "corpus": {
             "type": "string",
-            "enum": [
-              "documents",
-              "web"
-            ]
+            "enum": ["documents", "web"]
           },
           "text": {
             "type": "string",
@@ -34754,10 +33905,7 @@
           },
           "source": {
             "type": "object",
-            "required": [
-              "ref",
-              "title"
-            ],
+            "required": ["ref", "title"],
             "properties": {
               "ref": {
                 "type": "string",
@@ -34851,10 +33999,7 @@
       },
       "KnowledgeSearchResult": {
         "type": "object",
-        "required": [
-          "hits",
-          "diagnostics"
-        ],
+        "required": ["hits", "diagnostics"],
         "properties": {
           "hits": {
             "type": "array",
@@ -34865,13 +34010,7 @@
           },
           "diagnostics": {
             "type": "object",
-            "required": [
-              "bm25",
-              "reranked",
-              "cached",
-              "admitted",
-              "legs"
-            ],
+            "required": ["bm25", "reranked", "cached", "admitted", "legs"],
             "properties": {
               "bm25": {
                 "type": "boolean",
@@ -34993,11 +34132,7 @@
           },
           "capabilities": {
             "type": "object",
-            "required": [
-              "tools",
-              "vision",
-              "reasoning"
-            ],
+            "required": ["tools", "vision", "reasoning"],
             "additionalProperties": false,
             "properties": {
               "tools": {
@@ -35016,10 +34151,7 @@
           },
           "pricing": {
             "type": "object",
-            "required": [
-              "inputCentsPerMillion",
-              "outputCentsPerMillion"
-            ],
+            "required": ["inputCentsPerMillion", "outputCentsPerMillion"],
             "additionalProperties": false,
             "description": "The catalog price in US cents per million tokens; absent when the source publishes none",
             "properties": {
@@ -35054,16 +34186,11 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "type",
-              "text"
-            ],
+            "required": ["type", "text"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               },
               "text": {
                 "type": "string"
@@ -35072,17 +34199,12 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "text"
-            ],
+            "required": ["type", "text"],
             "description": "The model’s reasoning ahead of its reply — display-only, never replayed to the model; it may quote the assistant’s own instructions verbatim, so it is not safe to render as the answer.",
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "reasoning"
-                ]
+                "enum": ["reasoning"]
               },
               "text": {
                 "type": "string"
@@ -35091,17 +34213,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "name",
-              "mediaType"
-            ],
+            "required": ["type", "name", "mediaType"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "attachment"
-                ]
+                "enum": ["attachment"]
               },
               "name": {
                 "type": "string"
@@ -35126,18 +34242,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "callId",
-              "capabilityId",
-              "input"
-            ],
+            "required": ["type", "callId", "capabilityId", "input"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool-call"
-                ]
+                "enum": ["tool-call"]
               },
               "callId": {
                 "type": "string"
@@ -35160,9 +34269,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool-result"
-                ]
+                "enum": ["tool-result"]
               },
               "callId": {
                 "type": "string"
@@ -35179,17 +34286,11 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "approvalId",
-              "question"
-            ],
+            "required": ["type", "approvalId", "question"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "approval"
-                ]
+                "enum": ["approval"]
               },
               "approvalId": {
                 "type": "string"
@@ -35199,26 +34300,17 @@
               },
               "decision": {
                 "type": "string",
-                "enum": [
-                  "approved",
-                  "rejected"
-                ]
+                "enum": ["approved", "rejected"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "requestId",
-              "question"
-            ],
+            "required": ["type", "requestId", "question"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "human-input"
-                ]
+                "enum": ["human-input"]
               },
               "requestId": {
                 "type": "string"
@@ -35231,10 +34323,7 @@
               },
               "outcome": {
                 "type": "string",
-                "enum": [
-                  "answered",
-                  "skipped"
-                ]
+                "enum": ["answered", "skipped"]
               }
             }
           }
@@ -35242,24 +34331,14 @@
       },
       "Message": {
         "type": "object",
-        "required": [
-          "id",
-          "role",
-          "parts",
-          "sequence",
-          "status",
-          "createdAt"
-        ],
+        "required": ["id", "role", "parts", "sequence", "status", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
           },
           "role": {
             "type": "string",
-            "enum": [
-              "user",
-              "assistant"
-            ]
+            "enum": ["user", "assistant"]
           },
           "parts": {
             "type": "array",
@@ -35274,12 +34353,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "complete",
-              "failed",
-              "cancelled"
-            ],
+            "enum": ["pending", "complete", "failed", "cancelled"],
             "description": "`pending` is the placeholder a running turn fills in (the row GET …/generation names as messageId); `complete` is a settled reply — a reply the output cap cut short included, so read `finishReason` for that; `cancelled` is a turn stopped through DELETE …/generation — `parts` and `usage` hold what had streamed; `failed` carries `error`."
           },
           "finishReason": {
@@ -35357,16 +34431,12 @@
               },
               "estimated": {
                 "type": "boolean",
-                "enum": [
-                  true
-                ],
+                "enum": [true],
                 "description": "Present when the counts are the platform’s own estimate — the provider’s usage frame was lost (a cancelled turn, typically) or never sent — so the cost is an estimate too"
               },
               "stepLimitHit": {
                 "type": "boolean",
-                "enum": [
-                  true
-                ],
+                "enum": [true],
                 "description": "Present when the tool loop spent its whole round budget and the final round had tools withheld — the answer may have been forced"
               }
             }
@@ -35452,13 +34522,7 @@
             "maxLength": 20000
           }
         },
-        "required": [
-          "name",
-          "harness",
-          "model",
-          "skills",
-          "connectors"
-        ],
+        "required": ["name", "harness", "model", "skills", "connectors"],
         "additionalProperties": false,
         "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants, and a name the organization has not stored is refused (`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned."
       },
@@ -35542,13 +34606,7 @@
             "description": "The `updatedAt` last read; a save against an agent that changed since answers 409 `PROJECT_AGENT_STALE` and writes nothing. Omitted, the save is unconditional."
           }
         },
-        "required": [
-          "name",
-          "harness",
-          "model",
-          "skills",
-          "connectors"
-        ],
+        "required": ["name", "harness", "model", "skills", "connectors"],
         "additionalProperties": false,
         "description": "The full configuration a `PUT` replaces — `ProjectAgentInput` plus the optional `expectedUpdatedAt` precondition."
       },
@@ -35659,11 +34717,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "team",
-              "org"
-            ],
+            "enum": ["private", "team", "org"],
             "description": "`org` — every member; `team` — members of `teams`; `private` — retired for new skills, still carried by pre-existing bundles their owner alone sees"
           },
           "teams": {
@@ -35732,11 +34786,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "team",
-              "org"
-            ],
+            "enum": ["private", "team", "org"],
             "description": "`org` — every member; `team` — members of `teams`; `private` — retired for new skills, still carried by pre-existing bundles their owner alone sees"
           },
           "teams": {
@@ -35787,10 +34837,7 @@
             "description": "Every file of the bundle (SKILL.md included), sorted by path",
             "items": {
               "type": "object",
-              "required": [
-                "path",
-                "size"
-              ],
+              "required": ["path", "size"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -35830,10 +34877,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "superseded"
-            ]
+            "enum": ["active", "superseded"]
           },
           "source": {
             "type": "string"
@@ -35863,10 +34907,7 @@
       },
       "KnowledgeEntryCreated": {
         "type": "object",
-        "required": [
-          "id",
-          "documentId"
-        ],
+        "required": ["id", "documentId"],
         "properties": {
           "id": {
             "type": "string",
