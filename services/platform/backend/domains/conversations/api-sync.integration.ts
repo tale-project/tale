@@ -886,4 +886,127 @@ export async function checkConversationApi(
     true,
     'Source deletion reconciles acknowledged messages, stale snapshots cannot restore them, a teardown replays at its version and applies at the maximum version, deleted source threads refuse replies',
   );
+
+  // ---- a trashed contact freezes its mirror, and a recycled id never
+  //      inherits it (round-g S2-3) --------------------------------------
+  const trashSuffix = randomUUID();
+  const trashExternalId = `trash-thread-${trashSuffix}`;
+  const trashContactExternalId = `trash:client:${trashSuffix}`;
+  const trashSnapshot = (version: number, extra?: Record<string, unknown>) =>
+    apiSnapshotSchema.parse({
+      source: 'vatplus',
+      externalId: trashExternalId,
+      externalContactId: trashContactExternalId,
+      version,
+      subject: 'Trashed-contact mirror',
+      status: 'open',
+      messages: [
+        {
+          externalId: `trash-msg-${version}`,
+          content: `message at version ${version}`,
+          format: 'plain',
+          isCustomer: true,
+          authorName: 'Client',
+          createdAt: 1000 + version,
+          attachments: [],
+        },
+      ],
+      ...extra,
+    });
+  const deleteContactByExternalId = async (extId: string): Promise<number> => {
+    const liveRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.contacts
+      WHERE org_id = ${ctx.orgId} AND external_id = ${extId}
+        AND lifecycle_status IS DISTINCT FROM 'trashed'
+      LIMIT 1
+    `;
+    const id = liveRows[0]?.id;
+    assert.ok(id, `contact ${extId} exists to delete`);
+    const response = await fetch(`${base}/api/v1/contacts/${id}`, {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${key}`,
+        'X-Organization-Slug': slug,
+      },
+    });
+    return response.status;
+  };
+  // Alice: create, mirror one message, then trash her.
+  assert.equal(
+    (
+      await machine('/contacts/bulk', {
+        contacts: [
+          { name: 'Alice', email: '', externalId: trashContactExternalId },
+        ],
+      })
+    ).status,
+    201,
+  );
+  const opened = snapshotResult.parse(
+    await (await machine('/conversations/sync', trashSnapshot(1))).json(),
+  );
+  assert.equal(opened.applied, true);
+  assert.equal(await deleteContactByExternalId(trashContactExternalId), 204);
+  // A content snapshot for the trashed contact's conversation is refused…
+  const afterTrash = await machine('/conversations/sync', trashSnapshot(2));
+  const afterTrashCode = z
+    .object({ code: z.string() })
+    .parse(await afterTrash.json()).code;
+  // …and the receipt reports the trashed link so a mirror can see why.
+  const trashReceipt = await machine(
+    `/conversations/sync?${new URLSearchParams({ source: 'vatplus', externalId: trashExternalId })}`,
+  );
+  const trashState = z
+    .object({
+      snapshot: z.object({
+        contactStatus: z.string(),
+        externalContactId: z.string(),
+        version: z.number(),
+      }),
+    })
+    .parse(await trashReceipt.json());
+  // A teardown still closes the mirror even with the contact gone (a
+  // teardown carries no messages, like every other teardown on this lane).
+  const teardownResponse = await machine(
+    '/conversations/sync',
+    trashSnapshot(2, { status: 'closed', deleted: true, messages: [] }),
+  );
+  const teardown = snapshotResult.safeParse(await teardownResponse.json());
+  // Bob recycles the freed externalId; Alice's conversation must NOT re-home.
+  assert.equal(
+    (
+      await machine('/contacts/bulk', {
+        contacts: [
+          { name: 'Bob', email: '', externalId: trashContactExternalId },
+        ],
+      })
+    ).status,
+    201,
+  );
+  const afterRecycle = await machine('/conversations/sync', trashSnapshot(3));
+  const afterRecycleCode = z
+    .object({ code: z.string() })
+    .parse(await afterRecycle.json()).code;
+  const bindingContact = await sql<{ contactId: string | null }[]>`
+    SELECT contact_id AS "contactId" FROM app.conversations
+    WHERE id = ${opened.conversationId} AND org_id = ${ctx.orgId}
+  `;
+  const aliceRow = await sql<{ id: string; status: string | null }[]>`
+    SELECT id, lifecycle_status AS status FROM app.contacts
+    WHERE org_id = ${ctx.orgId} AND external_id = ${trashContactExternalId}
+      AND lifecycle_status = 'trashed'
+    LIMIT 1
+  `;
+  record(
+    'conversation API trashed-contact mirror is frozen and never re-homed',
+    afterTrash.status === 409 &&
+      afterTrashCode === 'CONVERSATION_CONTACT_TRASHED' &&
+      trashState.snapshot.contactStatus === 'trashed' &&
+      teardown.success &&
+      teardown.data.applied &&
+      afterRecycle.status === 409 &&
+      afterRecycleCode === 'CONVERSATION_CONTACT_TRASHED' &&
+      bindingContact[0]?.contactId === aliceRow[0]?.id,
+    `afterTrash=${afterTrash.status}/${afterTrashCode}, receipt=${trashState.snapshot.contactStatus}, teardown=${teardownResponse.status}/${teardown.success ? String(teardown.data.applied) : 'BAD SHAPE'}, afterRecycle=${afterRecycle.status}/${afterRecycleCode}, link=${bindingContact[0]?.contactId === aliceRow[0]?.id}`,
+  );
 }
