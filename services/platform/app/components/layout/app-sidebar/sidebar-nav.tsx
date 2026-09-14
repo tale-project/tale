@@ -64,6 +64,9 @@ export function SidebarNavItem({ item, organizationId }: SidebarNavItemProps) {
     ? ({
         to: `/dashboard/${organizationId}/${remembered.path}`,
         search: remembered.search,
+        // Tells the landing page this place was restored, not chosen, so a
+        // deleted entity falls back to the section rather than dead-ending.
+        state: { navRestore: true },
         // A restored target is a deep route; prefetching six of them on every
         // dashboard render would load far more than the section roots do.
         preload: 'intent',

@@ -64,7 +64,11 @@ function resolveNavTarget(
   organizationId: string,
   entry: Pick<PrimaryTab, 'to' | 'section' | 'reentrySearch'>,
   active: boolean,
-): { to: string; search?: Record<string, unknown> } {
+): {
+  to: string;
+  search?: Record<string, unknown>;
+  state?: { navRestore: true };
+} {
   const remembered =
     active || entry.section === undefined
       ? undefined
@@ -73,6 +77,7 @@ function resolveNavTarget(
     return {
       to: `/dashboard/${organizationId}/${remembered.path}`,
       ...(remembered.search !== undefined ? { search: remembered.search } : {}),
+      state: { navRestore: true },
     };
   }
   return {

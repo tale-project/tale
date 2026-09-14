@@ -114,5 +114,9 @@ declare module '@tanstack/react-router' {
       id: string;
       status: 'open' | 'closed' | 'spam' | 'archived';
     };
+    /** Set by the nav rail when it reopened a REMEMBERED place. A detail page
+     *  that then finds its entity gone falls back to the section instead of
+     *  stranding the user somewhere they never chose to go. */
+    navRestore?: true;
   }
 }
