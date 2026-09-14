@@ -714,7 +714,22 @@ export interface KnowledgeEntryRow {
   documentId: string | null;
   createdBy: string;
   createdAt: number;
+  ragStatus?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
+  ragIndexedAt?: number;
+  ragError?: string;
+  ragErrorCode?: string;
 }
+
+type StoredKnowledgeEntryRow = Omit<
+  KnowledgeEntryRow,
+  'ragStatus' | 'ragIndexedAt' | 'ragError' | 'ragErrorCode'
+> & {
+  seq: number;
+  ragStatus: KnowledgeEntryRow['ragStatus'] | null;
+  ragIndexedAt: number | null;
+  ragError: string | null;
+  ragErrorCode: string | null;
+};
 
 export async function listKnowledgeEntries(
   sql: Sql,
@@ -735,24 +750,49 @@ export async function listKnowledgeEntries(
     options.matchWords === true && topicLower !== null
       ? wordStartPatterns(topicLower)
       : [];
-  const page = await sql<(KnowledgeEntryRow & { seq: number })[]>`
-    SELECT id, topic, content, source, document_id AS "documentId",
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
-           seq::float8 AS seq
-    FROM app.knowledge_entries
-    WHERE org_id = ${organizationId} AND status = 'active'
-      AND deleted_at_ms IS NULL
+  const page = await sql<StoredKnowledgeEntryRow[]>`
+    SELECT ke.id, ke.topic, ke.content, ke.source, ke.document_id AS "documentId",
+           ke.created_by AS "createdBy", ke.created_at_ms::float8 AS "createdAt",
+           ke.seq::float8 AS seq, fm.rag_status AS "ragStatus",
+           fm.rag_indexed_at_ms::float8 AS "ragIndexedAt",
+           fm.rag_error AS "ragError", fm.rag_error_code AS "ragErrorCode"
+    FROM app.knowledge_entries ke
+    LEFT JOIN app.documents d ON d.id = ke.document_id AND d.org_id = ke.org_id
+    LEFT JOIN LATERAL (
+      SELECT rag_status, rag_indexed_at_ms, rag_error, rag_error_code
+      FROM app.file_metadata
+      WHERE org_id = ke.org_id AND storage_ref = d.file_ref
+      ORDER BY created_at_ms DESC, id DESC
+      LIMIT 1
+    ) fm ON true
+    WHERE ke.org_id = ${organizationId} AND ke.status = 'active'
+      AND ke.deleted_at_ms IS NULL
       AND (${topicLower}::text IS NULL
-           OR lower(topic) LIKE '%' || ${topicLower} || '%'
-           OR (${words.length > 0} AND topic ~* ANY(${words})))
+           OR lower(ke.topic) LIKE '%' || ${topicLower} || '%'
+           OR (${words.length > 0} AND ke.topic ~* ANY(${words})))
       AND (${options.cursor ?? null}::bigint IS NULL
-           OR seq < ${options.cursor ?? null})
-    ORDER BY seq DESC
+           OR ke.seq < ${options.cursor ?? null})
+    ORDER BY ke.seq DESC
     LIMIT ${limit + 1}
   `;
   const rows = page.slice(0, limit);
   return {
-    rows: rows.map(({ seq: _seq, ...row }) => row),
+    rows: rows.map(
+      ({
+        seq: _seq,
+        ragStatus,
+        ragIndexedAt,
+        ragError,
+        ragErrorCode,
+        ...row
+      }) => ({
+        ...row,
+        ...(ragStatus !== null ? { ragStatus } : {}),
+        ...(ragIndexedAt !== null ? { ragIndexedAt } : {}),
+        ...(ragError !== null ? { ragError } : {}),
+        ...(ragErrorCode !== null ? { ragErrorCode } : {}),
+      }),
+    ),
     nextCursor: page.length > limit ? (rows.at(-1)?.seq ?? null) : null,
   };
 }

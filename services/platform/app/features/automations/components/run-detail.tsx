@@ -175,7 +175,7 @@ export function RunDetail({
             date: formatDate(new Date(run.startedAt), 'long'),
           })}
         </Text>
-        {run.finishedAt !== undefined && (
+        {typeof run.finishedAt === 'number' && (
           <Text as="span" variant="muted" className="text-xs">
             {t('runs.finishedAt', {
               date: formatDate(new Date(run.finishedAt), 'long'),
@@ -225,7 +225,7 @@ export function RunDetail({
             />
           );
         }
-        if (run.detail === undefined) return null;
+        if (run.detail == null) return null;
         return (
           <Alert
             variant={status === 'failed' ? 'destructive' : 'info'}

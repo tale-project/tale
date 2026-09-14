@@ -345,8 +345,7 @@ auth:
     loginButton: Log in
     continueWithSso: Continue with SSO
     ssoTitle: Sign in with SSO
-    ssoDescription: Enter your organization email address — it selects your
-      organization's sign-in.
+    ssoDescription: Choose your organization to continue to its sign-in provider.
     ssoOrgListLabel: Organizations
     ssoBackToLogin: Back to log in
     ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
@@ -592,6 +591,12 @@ automations:
       deployed version.
     runLiveTitle: Run live?
     runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
+    runInput:
+      label: Run input (JSON)
+      description: 'Input for saved version {version}. It does not change the automation.'
+      schema: Input schema
+      invalid: 'The input does not match the schema. Check these fields: {paths}.'
+      mockDescription: Test the saved version with mock responses. No external actions run.
     runScope:
       label: Project scope
       orgWide: Organization-wide
@@ -4177,18 +4182,16 @@ personalization:
       overridingOrgDefault: Overriding organization default ({state}).
     customInstructionsToggle:
       label: Custom instructions
-      description: When on, the assistant prepends your custom instructions to every reply.
+      description: "Save preferences for your account. Chat replies do not currently use these instructions. Use project Instructions for project chats."
     memoriesToggle:
       label: Memories
-      description:
-        When on, the assistant can save and reuse facts you approve about
-        yourself across chats.
+      description: "Manage stored memories for your account. The chat assistant does not currently save or retrieve memories automatically."
     customInstructions:
       title: Custom instructions
       placeholder: e.g. Reply concisely. Default to TypeScript when discussing code.
     memories:
       title: Saved memories
-      empty: Memories appear here after the assistant proposes them and you save.
+      empty: "No saved memories."
       delete: Delete
       deleteLabel: 'Delete memory: {content}'
     pending:
@@ -4513,7 +4516,7 @@ skills:
     license: License
     recommendedPython: Recommended Python
     recommendedNode: Recommended Node
-    disableModelInvocation: Skill is hidden from the model — explicit invocation only.
+    disableModelInvocation: Requests explicit use of this skill; does not restrict access.
     unknownKeys:
       '{count, plural, one {# additional frontmatter key preserved} other
       {# additional frontmatter keys preserved}}'
@@ -5430,11 +5433,7 @@ settings:
         s7:
           For group→team sync, add the Microsoft Graph GroupMember.Read.All permission
           under API permissions and grant admin consent.
-        s8:
-          For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read
-          and Sites.Read.All permissions under API permissions and grant admin
-          consent. If you only want sign-in, remove the two scopes from the
-          Scopes field above.
+        s8: Microsoft 365 file import uses a separate consent flow in Knowledge. Do not add Files.Read or Sites.Read.All to SSO scopes for sign-in. Configure import access through the connector OAuth app settings.
       google:
         intro:
           Create an OAuth client in the Google Cloud Console, then paste its
@@ -5664,13 +5663,8 @@ settings:
       resultValidTitle: Chain verified
       resultValidBody: '{count, plural, one {Checked # entry} other {Checked #
         entries}} — no tampering detected.'
-      truncatedNote:
-        Only the first {count} entries were checked. Run verification
-        again to continue down the chain.
-      unsignedScrubNote:
-        '{count, plural, one {# entry was trusted via an unsigned
-        scrub record} other {# entries were trusted via unsigned scrub
-        records}}. Review your audit signing key.'
+      truncatedNote: "Only the first {count} entries were checked. Ask your deployment operator to verify the remaining range."
+      unsignedScrubNote: "{count, plural, one {# scrubbed entry has no matching erasure request} other {# scrubbed entries have no matching erasure request}}. Review the erasure records before relying on this history."
       brokenTitle: Chain integrity broken
       brokenBody:
         The hash chain does not match at the entry below. Preserve this

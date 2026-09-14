@@ -325,6 +325,14 @@ export function ProjectAgentDialog({
         searchPlaceholder={t('agents.modelSearchPlaceholder')}
         emptyText={t('agents.modelSearchEmpty')}
         options={modelOptions}
+        filterFn={(option, query) => {
+          const search = query.toLowerCase();
+          return [
+            option.label,
+            option.description,
+            offeredModels[Number(option.value)]?.id,
+          ].some((value) => value?.toLowerCase().includes(search));
+        }}
         required
         value={
           displayedModel !== undefined

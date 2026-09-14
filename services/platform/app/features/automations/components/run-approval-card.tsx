@@ -13,12 +13,13 @@ import { useRunApproval } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 
 /** `approval:<id>` — the detail a run parked on a write-approval carries. */
-const APPROVAL_DETAIL_RE = /^approval:([a-z0-9]+)$/;
+const APPROVAL_DETAIL_RE = /^approval:([a-z0-9]+(?:-[a-z0-9]+)*)$/i;
 
 export function approvalIdFromDetail(
-  detail: string | undefined,
+  detail: string | null | undefined,
 ): string | undefined {
-  const match = detail === undefined ? null : APPROVAL_DETAIL_RE.exec(detail);
+  const match =
+    typeof detail === 'string' ? APPROVAL_DETAIL_RE.exec(detail) : null;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the id came out of the run's own detail; a stale one reads as null downstream
   return match ? match[1] : undefined;
 }

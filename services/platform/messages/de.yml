@@ -358,9 +358,7 @@ auth:
     loginButton: Anmelden
     continueWithSso: Weiter mit SSO
     ssoTitle: Mit SSO anmelden
-    ssoDescription:
-      Gib die E-Mail-Adresse deiner Organisation ein — sie bestimmt
-      die passende Anmeldung.
+    ssoDescription: Wähle deine Organisation, um dich bei ihrem Identitätsanbieter anzumelden.
     ssoOrgListLabel: Organisationen
     ssoBackToLogin: Zurück zur Anmeldung
     ssoNoOrganizations:
@@ -615,6 +613,12 @@ automations:
       die Version aus, die live ist.
     runLiveTitle: Live ausführen?
     runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
+    runInput:
+      label: Eingabe für den Lauf (JSON)
+      description: 'Eingabe für die gespeicherte Version {version}. Die Automatisierung bleibt unverändert.'
+      schema: Eingabeschema
+      invalid: 'Die Eingabe entspricht nicht dem Schema. Prüfe diese Felder: {paths}.'
+      mockDescription: Teste die gespeicherte Version mit simulierten Antworten. Es werden keine externen Aktionen ausgeführt.
     runScope:
       label: Projektbereich
       orgWide: Organisationsweit
@@ -4327,20 +4331,16 @@ personalization:
       overridingOrgDefault: Überschreibt den Organisations-Standard ({state}).
     customInstructionsToggle:
       label: Benutzerdefinierte Anweisungen
-      description: Wenn aktiv, stellt der Assistent deine benutzerdefinierten
-        Anweisungen jeder Antwort voran.
+      description: "Speichere Einstellungen für dein Konto. Chatantworten nutzen diese Anweisungen derzeit nicht. Für Projektchats gelten die Anweisungen des Projekts."
     memoriesToggle:
       label: Erinnerungen
-      description: Wenn aktiv, kann der Assistent von dir freigegebene Fakten
-        chat-übergreifend speichern und wiederverwenden.
+      description: "Verwalte gespeicherte Erinnerungen für dein Konto. Der Chat-Assistent speichert oder lädt Erinnerungen derzeit nicht automatisch."
     customInstructions:
       title: Benutzerdefinierte Anweisungen
       placeholder: z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.
     memories:
       title: Gespeicherte Erinnerungen
-      empty:
-        Erinnerungen erscheinen hier, nachdem der Assistent sie vorgeschlagen hat
-        und du sie speicherst.
+      empty: "Keine gespeicherten Erinnerungen."
       delete: Löschen
       deleteLabel: 'Erinnerung löschen: {content}'
     pending:
@@ -4668,7 +4668,7 @@ skills:
     license: Lizenz
     recommendedPython: Empfohlenes Python
     recommendedNode: Empfohlenes Node
-    disableModelInvocation: Skill ist vor dem Modell verborgen — nur explizite Aufrufe.
+    disableModelInvocation: Bittet um ausdrückliche Verwendung dieses Skills; beschränkt den Zugriff nicht.
     unknownKeys:
       '{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt}
       other {# zusätzliche Frontmatter-Einträge bewahrt}}'
@@ -5311,11 +5311,7 @@ settings:
           Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
           die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
           erteilen Sie die Administratorzustimmung.
-        s8: Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter
-          API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und
-          Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst
-          du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld
-          Scopes.
+        s8: Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge Files.Read oder Sites.Read.All nicht zu den SSO-Scopes für die Anmeldung hinzu. Richte den Importzugriff über die OAuth-App-Einstellungen der Konnektoren ein.
       google:
         intro:
           Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
@@ -5555,14 +5551,8 @@ settings:
       resultValidBody:
         '{count, plural, one {# Eintrag geprüft} other {# Einträge
         geprüft}} – keine Manipulation festgestellt.'
-      truncatedNote:
-        Nur die ersten {count} Einträge wurden geprüft. Führe die Prüfung
-        erneut aus, um die Kette weiter zu prüfen.
-      unsignedScrubNote:
-        '{count, plural, one {# Eintrag wurde über einen unsignierten
-        Bereinigungsnachweis als vertrauenswürdig eingestuft} other {# Einträge
-        wurden über unsignierte Bereinigungsnachweise als vertrauenswürdig
-        eingestuft}}. Überprüfe deinen Audit-Signaturschlüssel.'
+      truncatedNote: "Nur die ersten {count} Einträge wurden geprüft. Bitte den Betreiber deiner Installation, den restlichen Bereich zu prüfen."
+      unsignedScrubNote: "{count, plural, one {Für # bereinigten Eintrag fehlt ein passender Löschantrag} other {Für # bereinigte Einträge fehlt ein passender Löschantrag}}. Prüfe die Löschvorgänge, bevor du dich auf diesen Verlauf verlässt."
       brokenTitle: Ketten-Integrität verletzt
       brokenBody:
         Die Hash-Kette stimmt beim unten stehenden Eintrag nicht überein.
@@ -7019,7 +7009,7 @@ projects:
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
     folderDeleteHeld: Eine Datei in diesem Ordner unterliegt einem Legal Hold —
-      heben Sie ihn zuerst auf.
+      hebe ihn zuerst auf.
     folderDeleteAction: Ordner löschen
     folderDeleteConfirm:
       „{folder}“ mitsamt Inhalt löschen? Die Dateien werden aus

@@ -32,6 +32,7 @@ const {
     } as unknown,
     /** The pack manifest's display half, when the test wants one. */
     presentation: undefined as unknown,
+    deployedDocument: undefined as unknown,
     version: 3,
     deployedVersion: 2 as number | undefined,
     /** Agent nodes of the DEPLOYED version without a provider pin. */
@@ -87,7 +88,11 @@ vi.mock('../hooks/queries', () => ({
     version?: number,
   ) => ({
     data: {
-      document: state.document,
+      document:
+        version === state.deployedVersion &&
+        state.deployedDocument !== undefined
+          ? state.deployedDocument
+          : state.document,
       version: version ?? state.version,
       deployedVersion: state.deployedVersion,
       ...(state.presentation !== undefined
@@ -267,6 +272,7 @@ beforeEach(() => {
     nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
   };
   state.presentation = undefined;
+  state.deployedDocument = undefined;
   state.version = 3;
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
@@ -552,6 +558,91 @@ describe('AutomationEditor', () => {
     );
   });
 
+  it('collects schema-valid input before scheduling the selected test version', async () => {
+    const previous = state.document;
+    state.document = {
+      name: 'billing/dunning',
+      inputs: {
+        type: 'object',
+        properties: { owner: { type: 'string', minLength: 1 } },
+        required: ['owner'],
+        additionalProperties: false,
+      },
+      nodes: [{ id: 'summary', type: 'transform', code: 'return input;' }],
+    };
+    try {
+      const { user } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'Test run' }));
+      expect(startRun.mutate).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog', { name: 'Test run' });
+      const input = within(dialog).getByRole('textbox', {
+        name: 'Run input (JSON)',
+      });
+      const confirm = within(dialog).getByRole('button', { name: 'Test run' });
+      expect(confirm).toBeDisabled();
+      await user.clear(input);
+      await user.paste('{');
+      expect(confirm).toBeDisabled();
+      await user.clear(input);
+      await user.paste('{"owner":42}');
+      expect(confirm).toBeDisabled();
+      await user.clear(input);
+      await user.paste('{"owner":"docs-proof"}');
+      await user.click(confirm);
+      expect(startRun.mutate).toHaveBeenCalledWith(
+        {
+          organizationId: 'org-1',
+          name: 'billing/dunning',
+          mode: 'mock',
+          version: 3,
+          input: { owner: 'docs-proof' },
+        },
+        expect.any(Object),
+      );
+      expect(screen.queryByRole('dialog', { name: 'Test run' })).toBeNull();
+    } finally {
+      state.document = previous;
+    }
+  });
+
+  it('validates the deployed schema for live input and keeps confirmation explicit', async () => {
+    state.deployedDocument = {
+      name: 'billing/dunning',
+      inputs: {
+        type: 'object',
+        properties: { target: { type: 'string' } },
+        required: ['target'],
+        additionalProperties: false,
+      },
+      nodes: [{ id: 'summary', type: 'transform', code: 'return input;' }],
+    };
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Run live' }));
+    const dialog = screen.getByRole('dialog', { name: 'Run live?' });
+    expect(
+      within(dialog).getByText(/emails send, records change/),
+    ).toBeVisible();
+    const input = within(dialog).getByRole('textbox', {
+      name: 'Run input (JSON)',
+    });
+    const confirm = within(dialog).getByRole('button', { name: 'Run live' });
+    expect(confirm).toBeDisabled();
+    await user.clear(input);
+    await user.paste('{"target":"reviewed-destination"}');
+    expect(startRun.mutate).not.toHaveBeenCalled();
+    await user.click(confirm);
+    expect(startRun.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        mode: 'live',
+        version: 2,
+        input: { target: 'reviewed-destination' },
+      },
+      expect.any(Object),
+    );
+  });
+
   it('closes the Run live confirm as soon as the run is started', async () => {
     // startRun only schedules the run — a later LIVE_BODY_FAILED is a run
     // outcome, not a start refusal. Waiting on the mutation would leave the
@@ -567,6 +658,7 @@ describe('AutomationEditor', () => {
         organizationId: 'org-1',
         name: 'billing/dunning',
         mode: 'live',
+        version: 2,
       },
       expect.any(Object),
     );

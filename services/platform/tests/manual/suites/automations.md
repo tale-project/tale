@@ -1,15 +1,15 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 52 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
 one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
-with its create menu (from a goal, blank, or upload a pack), the detail page's
-tabs — **Editor** (canvas + node inspector + trigger + bindings),
-**Versions** and **Runs** — the run-detail page (status, effects, agent log,
-approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
+with its create menu (from a goal, blank, or upload a pack), the detail
+workbench (canvas + node inspector + trigger + bindings + versions + runs),
+the run-detail page (status, effects, agent log, approval/ask cards), and the
+metrics redirect. The Inbox that deployed email-sync packs open has its own
 plan: [conversations.md](conversations.md).
 
 ## Scope & routes
@@ -23,27 +23,22 @@ as `__` (`billing__dunning-reminder`, lossless codec in
 `{runId}` is a plain URL segment — the run routes take **no** search params
 (the old `?wf=` is gone; verified in the route files).
 
-| Surface                   | Route                                                                                                                                        |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Automations (org list)    | `/dashboard/{org}/automations`                                                                                                               |
-| Automation detail (alias) | `/dashboard/{org}/automations/{slug}` → forwards to `…/{slug}/editor`                                                                        |
-| Editor tab (default)      | `/dashboard/{org}/automations/{slug}/editor` — `?version={n}` pins a stored version on the canvas                                            |
-| Versions tab              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
-| Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
-| Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
-| Project-scoped list       | `/dashboard/{org}/projects/{projectId}/automations`                                                                                          |
-| Project-scoped detail     | `/dashboard/{org}/projects/{projectId}/automations/{slug}` → forwards to `…/{slug}/editor`; carries the same Editor, Versions and Runs tabs |
-| Project-scoped run        | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/{runId}`                                                                      |
-| Metrics (redirect)        | `/dashboard/{org}/automations/metrics` → `/dashboard/{org}/settings/metrics/automations` (keeps query)                                       |
+| Surface                | Route                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| Automations (org list) | `/dashboard/{org}/automations`                                                                         |
+| Automation detail      | `/dashboard/{org}/automations/{slug}`                                                                  |
+| Run detail             | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                     |
+| Project-scoped list    | `/dashboard/{org}/projects/{projectId}/automations`                                                    |
+| Project-scoped detail  | `/dashboard/{org}/projects/{projectId}/automations/{slug}`                                             |
+| Project-scoped run     | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/{runId}`                                |
+| Metrics (redirect)     | `/dashboard/{org}/automations/metrics` → `/dashboard/{org}/settings/metrics/automations` (keeps query) |
 
-> **Route note**: project navigation shows an Automations tab only once
-> something is bound to that project (tasks stay the project-side interface)
-> — otherwise the project-scoped list/detail are reached by URL or through an
-> org-list row: a row bound to exactly one project links into that project's
-> shell; org-level and multi-bound rows open the org detail page. The bare
-> detail URL is an alias that forwards to the Editor tab, exactly like a bare
-> project URL forwards to Tasks. A run id from another org (or another table)
-> reads as **Run not found**, never a leak.
+> **Route note**: project navigation has **no** Automations tab (tasks are the
+> project-side interface) — the project-scoped list/detail are reached by URL
+> or through an org-list row: a row bound to exactly one project links into
+> that project's shell; org-level and multi-bound rows open the org detail
+> page. A run id from another org (or another table) reads as **Run not
+> found**, never a leak.
 
 ## Preconditions
 
@@ -113,314 +108,277 @@ output:
 ## Functional tests
 
 - [ ] `AUTO-F1` · **List renders** — `/dashboard/{org}/automations` → Heading
-      **Automations** (`automations.title`) in a title row that ends in the page
-      divider above the table toolbar (the same line the Projects list draws);
-      search (`automations.list.searchPlaceholder`); with the developer
-      capability a **Create automation** button (`automations.list.createButton`)
-      in the table toolbar; rows sorted by name, each showing display name, the raw slug beneath it,
-      version-count (`automations.list.versionCount`) and live/not-deployed
-      status. Row click opens the editor; the row ⋮ menu offers **Delete**
-      (`common.actions.delete`). With zero automations: EmptyState
-      (`automations.list.empty.title` + `automations.list.empty.description`)
+  **Automations** (`automations.title`); search
+  (`automations.list.searchPlaceholder`); with the developer capability a
+  **New automation** button (`automations.builder.new`) in the table toolbar;
+  rows sorted by name, each showing display name, the raw slug beneath it,
+  version-count (`automations.list.versionCount`) and live/not-deployed
+  status. Row click opens the editor; the row ⋮ menu offers **Delete**
+  (`common.actions.delete`). With zero automations: EmptyState
+  (`automations.list.empty.title` + `automations.list.empty.description`)
 - [ ] `AUTO-F1b` · **Delete from the list** — List row ⋮ → **Delete**
-      (`common.actions.delete`) → confirm (`automations.detail.delete.title`) →
-      Confirm names the automation; confirming removes it from the list
-      (`automations.detail.delete.done`) without opening the editor. The editor
-      header (Test run / Run live / Discard / Save) has no delete control. A live
-      run still refuses (`automations.detail.delete.failed`).
+  (`common.actions.delete`) → confirm (`automations.detail.delete.title`) →
+  Confirm names the automation; confirming removes it from the list
+  (`automations.detail.delete.done`) without opening the editor. The editor
+  header (Test run / Run live / Discard / Save) has no delete control. A live
+  run still refuses (`automations.detail.delete.failed`).
 - [ ] `AUTO-F2` · **Draft vs live badges** — List rows for one undeployed and
-      one deployed automation → Undeployed row: yellow **Not deployed**
-      (`automations.list.notDeployed`); deployed row: green **Live: v{n}**
-      (`automations.detail.deployedVersion`) — the absence of a deployment IS the
-      "drafts only" answer.
+  one deployed automation → Undeployed row: yellow **Not deployed**
+  (`automations.list.notDeployed`); deployed row: green **Live: v{n}**
+  (`automations.detail.deployedVersion`) — the absence of a deployment IS the
+  "drafts only" answer.
 - [ ] `AUTO-F3` · **Seed packs into an org** — Run the provisioning command
-      (Prerequisites) against an org missing the packs → reload
-      `/dashboard/{org}/automations` → The eight org-scope packs appear, every one
-      **Not deployed**; re-running the command changes nothing (idempotent); an
-      org's own edits/triggers are untouched.
+  (Prerequisites) against an org missing the packs → reload
+  `/dashboard/{org}/automations` → The eight org-scope packs appear, every one
+  **Not deployed**; re-running the command changes nothing (idempotent); an
+  org's own edits/triggers are untouched.
 - [ ] `AUTO-F4` · **Row routing** — Click an org-level row, then a row bound
-      to exactly one project → Org-level →
-      `/dashboard/{org}/automations/{slug}/editor`; single-project-bound →
-      `/dashboard/{org}/projects/{projectId}/automations/{slug}/editor` (inside
-      the project shell) — a row opens the Editor tab directly, the way a
-      project row opens Tasks; bound rows carry a blue project-name chip
-      (fallback `automations.list.projectBound`)
-- [ ] `AUTO-F5` · **Create menu** — **Create automation**
-      (`automations.list.createButton`) → A dropdown with three lanes: **From a
-      goal**
-      (`automations.createMenu.fromGoal`), **Blank (trigger + agent)**
-      (`automations.createMenu.blank`), and **Upload package**
-      (`automations.upload.trigger`); absent entirely without the developer
-      capability.
+  to exactly one project → Org-level → `/dashboard/{org}/automations/{slug}`;
+  single-project-bound →
+  `/dashboard/{org}/projects/{projectId}/automations/{slug}` (inside the
+  project shell); bound rows carry a blue project-name chip (fallback
+  `automations.list.projectBound`)
+- [ ] `AUTO-F5` · **Create menu** — **New automation**
+  (`automations.builder.new`) → A dropdown with three lanes: **From a goal**
+  (`automations.createMenu.fromGoal`), **Blank (trigger + agent)**
+  (`automations.createMenu.blank`), and **Upload package**
+  (`automations.upload.trigger`); absent entirely without the developer
+  capability.
 - [ ] `AUTO-F6` · **Builder dialog** — Create menu → **From a goal** → dialog
-      **New automation** (`automations.builder.title`) → Fields **Goal**
-      (`automations.builder.goalLabel`), **AI provider**
-      (`automations.builder.providerLabel`), **Model**
-      (`automations.builder.modelLabel`); **Start building**
-      (`automations.builder.submit`) disabled until all three are set; with no
-      API-key provider a warning (`automations.builder.noProviders`); a sole
-      provider/model pre-selects itself.
+  **New automation** (`automations.builder.title`) → Fields **Goal**
+  (`automations.builder.goalLabel`), **AI provider**
+  (`automations.builder.providerLabel`), **Model**
+  (`automations.builder.modelLabel`); **Start building**
+  (`automations.builder.submit`) disabled until all three are set; with no
+  API-key provider a warning (`automations.builder.noProviders`); a sole
+  provider/model pre-selects itself.
 - [ ] `AUTO-F7` · **Builder run** — (env-gated: real provider) Submit a small
-      goal → Progress notice (`automations.builder.running`); saved versions land
-      in the list as drafts while it works; on failure an alert titled
-      `automations.builder.outcomeFailedTitle`, on give-up
-      `automations.builder.outcomeGaveUpTitle` (with
-      `automations.builder.gaveUpNoReason` when the builder gave no reason) —
-      never a silent close.
+  goal → Progress notice (`automations.builder.running`); saved versions land
+  in the list as drafts while it works; on failure
+  `automations.builder.outcomeFailedTitle` with the error details; an early stop
+  shows `automations.builder.outcomeGaveUpTitle` with its reason, or
+  `automations.builder.gaveUpNoReason` when no reason is available — never a
+  silent close.
 - [ ] `AUTO-F8` · **Upload — yml lane** — Create menu → **Upload package** →
-      dialog (`automations.upload.title`) → pick the Prerequisites `workflow.yml`
-      in **Package files** (`automations.upload.filesLabel`) → **Upload**
-      (`automations.upload.submit`) → The dialog flips to a success panel
-      (`automations.upload.successTitle` + `…successNote`) offering **Deploy now**
-      (`automations.upload.deployNow`) and **Deploy later**
-      (`automations.upload.deployLater`) (#2911). **Deploy later**: after reload
-      the list shows `qa/manual-probe` as **Not deployed** with 1 version.
-      **Deploy now**: the pack deploys immediately (`automations.upload.deployed`)
-      and the list shows it live. An optional manifest (automation.yml) may ride
-      along.
+  dialog (`automations.upload.title`) → pick the Prerequisites `workflow.yml`
+  in **Package files** (`automations.upload.filesLabel`) → **Upload**
+  (`automations.upload.submit`) → The dialog flips to a success panel
+  (`automations.upload.successTitle` + `…successNote`) offering **Deploy now**
+  (`automations.upload.deployNow`) and **Deploy later**
+  (`automations.upload.deployLater`) (#2911). **Deploy later**: after reload
+  the list shows `qa/manual-probe` as **Not deployed** with 1 version.
+  **Deploy now**: the pack deploys immediately (`automations.upload.deployed`)
+  and the list shows it live. An optional manifest (automation.yml) may ride
+  along.
 - [ ] `AUTO-F9` · **Upload — zip lane** — Zip a whole pack directory (manifest
-  - workflow + optional skills/) and upload the single .zip → Zip must travel
-    alone (`automations.upload.zipOnly` otherwise, see AUTO-B4); with bundled
-    skills a toast summary (`automations.upload.skillsSummary`); validation
-    warnings surface as `automations.upload.warnings`; the uploaded version
-    stays a draft.
+  + workflow + optional skills/) and upload the single .zip → Zip must travel
+  alone (`automations.upload.zipOnly` otherwise, see AUTO-B4); with bundled
+  skills a toast summary (`automations.upload.skillsSummary`); validation
+  warnings surface as `automations.upload.warnings`; the uploaded version
+  stays a draft.
 - [ ] `AUTO-F10` · **Upload — skill conflict** — Re-upload a zip whose skills/
-      differ from already-installed skills → Conflict panel
-      (`automations.upload.skillConflictTitle`) lists them; **Replace**
-      (`automations.upload.skillConflictConfirm`) re-runs the upload replacing the
-      listed skills; **Keep the existing skills**
-      (`automations.upload.skillConflictCancel`) aborts the replacement.
+  differ from already-installed skills → Conflict panel
+  (`automations.upload.skillConflictTitle`) lists them; **Replace**
+  (`automations.upload.skillConflictConfirm`) re-runs the upload replacing the
+  listed skills; **Keep the existing skills**
+  (`automations.upload.skillConflictCancel`) aborts the replacement.
 - [ ] `AUTO-F11` · **Upload — install target** — In the upload dialog set
-      **Install into** (`automations.upload.targetLabel`) to a project instead of
-      **Organization** (`automations.upload.targetOrg`) → upload → The automation
-      arrives bound to that project — its detail page's Projects panel shows the
-      binding (`automations.bindings.countBadge`), and the list row carries the
-      project chip; bindings stay editable afterwards (AUTO-F30)
+  **Install into** (`automations.upload.targetLabel`) to a project instead of
+  **Organization** (`automations.upload.targetOrg`) → upload → The automation
+  arrives bound to that project — its detail page's Projects panel shows the
+  binding (`automations.bindings.countBadge`), and the list row carries the
+  project chip; bindings stay editable afterwards (AUTO-F30)
 - [ ] `AUTO-F12` · **Detail workbench renders** —
-      `/dashboard/{org}/automations/{slug}` for a seeded pack → The URL lands on
-      `…/{slug}/editor`. Title row: display name (breadcrumb leaf) on the left
-      with a **Live** badge (`automations.versions.deployed`) beside the name
-      when looking === live (no version number in the badge); the row draws no
-      divider of its own — the tab strip under it carries the line, exactly as
-      a project detail. Tab strip (`common.aria.automationsNavigation`):
-      **Editor** / **Versions** / **Runs** (`automations.navigation.editor` /
-      `automations.navigation.versions` / `automations.navigation.runs`), Editor
-      active; at its right end the **Version** button
-      (`automations.detail.versionSelect`) showing
-      `automations.versions.versionLabel`, **Deploy this version**
-      (`automations.detail.deployThis`) when looking ≠ live, **Test run**, **Run
-      live**, **Discard**, **Save** — nothing sits in the title row's right
-      half. Body: canvas + inspector two-column grid filling the window under
-      the strip (canvas does not grow with inspector content). With no node
-      selected the inspector shows **Trigger** (`automations.trigger.title`) and
-      **Projects** (`automations.bindings.title`). Versions and runs are the
-      other two tabs (AUTO-F35), not panels under the canvas.
+  `/dashboard/{org}/automations/{slug}` for a seeded pack → Header: display
+  name (breadcrumb leaf) on the left with a **Live** badge
+  (`automations.versions.deployed`) beside the name when looking === live (no
+  version number in the badge). Right: **Version** button
+  (`automations.detail.versionSelect`) showing
+  `automations.versions.versionLabel`; **Deploy this version**
+  (`automations.detail.deployThis`) when looking ≠ live; **Test run**, **Run
+  live**, **Discard**, **Save**. Body: canvas + inspector two-column grid of
+  viewport height (canvas does not grow with inspector content). With no node
+  selected the inspector shows **Trigger** (`automations.trigger.title`) and
+  **Projects** (`automations.bindings.title`). **Versions**
+  (`automations.versions.title`) and **Runs** (`automations.runs.title`) sit
+  below.
 - [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
-      Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
-      node is a box naming its type and inputs it reads
-      (`automations.canvas.readsFrom`); edges carry data/order semantics
-      (`automations.canvas.edge.data` / `automations.canvas.edge.control`); a
-      versionless/empty document shows `automations.canvas.empty.title`
+  Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
+  node is a box naming its type and inputs it reads
+  (`automations.canvas.readsFrom`); edges carry data/order semantics
+  (`automations.canvas.edge.data` / `automations.canvas.edge.control`); a
+  versionless/empty document shows `automations.canvas.empty.title`
 - [ ] `AUTO-F14` · **Node inspector** — Click a node; **Close**
-      (`common.aria.close`); Escape; click the box again; click empty canvas →
-      First click opens the node's fields, rings the box, and moves focus into the
-      inspector (Tab reaches the fields next; scroll is at the top). **Close**,
-      Escape (not while typing in a field), a second click on the same box, and
-      empty canvas all restore **Trigger** / **Projects**. Canvas height stays
-      put; extra node fields scroll inside the inspector. Inspector heading is the
-      node id with a type badge (catalog copy is not dumped into the header).
-      Typed fields come first (e.g. **Prompt**), then **Input**
-      (`automations.editor.fields.input`); unused **Control flow**
-      (`automations.editor.controlFlowTitle`) is a closed disclosure that opens
-      when any of When / Else of / For each / Repeat until is set. Read-only
-      without the developer capability.
+  (`common.aria.close`); Escape; click the box again; click empty canvas →
+  First click opens the node's fields, rings the box, and moves focus into the
+  inspector (Tab reaches the fields next; scroll is at the top). **Close**,
+  Escape (not while typing in a field), a second click on the same box, and
+  empty canvas all restore **Trigger** / **Projects**. Canvas height stays
+  put; extra node fields scroll inside the inspector. Inspector heading is the
+  node id with a type badge (catalog copy is not dumped into the header).
+  Typed fields come first (e.g. **Prompt**), then **Input**
+  (`automations.editor.fields.input`); unused **Control flow**
+  (`automations.editor.controlFlowTitle`) is a closed disclosure that opens
+  when any of When / Else of / For each / Repeat until is set. Read-only
+  without the developer capability.
 - [ ] `AUTO-F15` · **Edit → Save version** — Change a node field → **Save
-      version** (`automations.detail.saveVersion`) → dialog
-      (`automations.detail.saveDialog.title`) → enter a **Version message**
-      (`automations.detail.saveMessageLabel`) → confirm → Saving APPENDS: the
-      URL drops any `?version=`, the canvas shows the new version, and the
-      **Versions** tab lists v{n+1} carrying the message; older versions
-      unchanged (append-only — reload and read the list back).
-- [ ] `AUTO-F16` · **Version switching** — The strip's **Version** button
-      (`automations.detail.versionSelect`) → an older version; also from a
-      **Versions** tab row; repeat with unsaved edits on the canvas → Clean: the
-      canvas redraws that stored version, the URL carries `?version={n}` and
-      the **Version** button shows it (AUTO-F36). Dirty, from the picker:
-      confirm dialog (`automations.detail.switchVersion.title`) — **Discard and
-      switch** (`automations.detail.switchVersion.confirm`) drops the draft;
-      Cancel keeps it. Dirty, from the **Versions** tab: leaving the Editor
-      first raises the unsaved-changes dialog (`common.unsavedChanges.title`).
+  version** (`automations.detail.saveVersion`) → dialog
+  (`automations.detail.saveDialog.title`) → enter a **Version message**
+  (`automations.detail.saveMessageLabel`) → confirm → Saving APPENDS: the
+  Versions panel gains v{n+1} carrying the message; older versions unchanged
+  (append-only — reload and read the list back); the canvas now shows the new
+  version.
+- [ ] `AUTO-F16` · **Version switching** — Header **Version** button
+  (`automations.detail.versionSelect`) → an older version; also from a
+  **Versions** row label; repeat with unsaved edits on the canvas → Clean: the
+  canvas redraws that stored version (header button and selected row both show
+  it). Dirty: confirm dialog (`automations.detail.switchVersion.title`) —
+  **Discard and switch** (`automations.detail.switchVersion.confirm`) drops
+  the draft; Cancel keeps it.
 - [ ] `AUTO-F17` · **Deploy** — On a version that is not live (pick it from
-      the **Version** button, or open it from a **Versions** tab row)
-      → **Deploy this version** (`automations.detail.deployThis`) — tests on that
-      version did not fail → The green **Live** badge
-      (`automations.versions.deployed`) moves to that version and to the name in
-      the header; the **Version** button does not say Live (not `Live: v{n}`);
-      versions saved with passing/failing acceptance tests carry
-      `automations.versions.testsPassed` / `automations.versions.testsFailed`
-      badges — deploying a failed one is refused
-      (`automations.versions.deployRefused` alert). **Versions** rows have no
-      **Deploy** control.
+  the header **Version** button or click its label in **Versions** if needed)
+  → **Deploy this version** (`automations.detail.deployThis`) — tests on that
+  version did not fail → The green **Live** badge
+  (`automations.versions.deployed`) moves to that version and to the name in
+  the header; the **Version** button does not say Live (not `Live: v{n}`);
+  versions saved with passing/failing acceptance tests carry
+  `automations.versions.testsPassed` / `automations.versions.testsFailed`
+  badges — deploying a failed one is refused
+  (`automations.versions.deployRefused` alert). **Versions** rows have no
+  **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
-      fine) → **Test run** (`automations.detail.runMock`) → A run starts on the
-      version on screen; the canvas icon **Show last run** / **Hide last run**
-      (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
-      toggles per-node status overlays on the canvas
-      (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
-      run** section (`automations.editor.runTitle`) with **Resolved input** /
-      **Output** (`automations.editor.resolvedInput` /
-      `automations.editor.output`)
-- [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
-      after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
-      heading (`automations.runs.title` + `automations.runs.description`): each
-      row shows status badge, mode, version, and starter
-      (`automations.runs.startedBy`); an automation that never ran reads
-      `automations.runs.empty`; clicking a run row navigates to the run route,
-      where the strip stays and **Runs** remains the active tab.
+  fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
+  version on screen; the canvas icon **Show last run** / **Hide last run**
+  (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
+  toggles per-node status overlays on the canvas
+  (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
+  run** section (`automations.editor.runTitle`) with **Resolved input** /
+  **Output** (`automations.editor.resolvedInput` /
+  `automations.editor.output`)
+- [ ] `AUTO-F19` · **Runs panel** — Workbench **Runs** panel after AUTO-F18 →
+  The run rows show status badge, version, and starter
+  (`automations.runs.startedBy`); an automation that never ran reads
+  `automations.runs.empty`; clicking a run row navigates to the run route.
 - [ ] `AUTO-F20` · **Run live** — (env-gated: deployed version + live
-      connectors) **Run live** (`automations.detail.runLive`) → Confirm dialog
-      first (`automations.detail.runLiveTitle` — real connector calls, runs the
-      DEPLOYED version once); confirming starts a run whose detail page carries
-      the orange **Live** mode badge (`automations.runs.mode.live`)
+  connectors) **Run live** (`automations.detail.runLive`) → Confirm dialog
+  first (`automations.detail.runLiveTitle` — real connector calls, runs the
+  DEPLOYED version once); input uses the deployed version’s schema, even when the canvas shows another version; cancelling starts nothing; confirming starts a run whose detail page carries
+  the orange **Live** mode badge (`automations.runs.mode.live`)
 - [ ] `AUTO-F21` · **Run detail page** —
-      `/dashboard/{org}/automations/{slug}/runs/{runId}` → Under the same
-      breadcrumb + tab strip (**Runs** active; the name crumb returns to the
-      Editor): heading `automations.runs.heading` + status badge (`automations.runs.status.*`) +
-      mode badge (**Test**, `automations.runs.mode.mock`) + version + **Started**
-      (`automations.runs.startedAt`) and, once terminal, **Finished**; read-only
-      canvas with per-node statuses beside the read-only inspector; **Run input**
-      / **Run output** sections (`automations.runs.inputTitle` /
-      `automations.runs.outputTitle`)
+  `/dashboard/{org}/automations/{slug}/runs/{runId}` → Heading
+  `automations.runs.heading` + status badge (`automations.runs.status.*`) +
+  mode badge (**Test**, `automations.runs.mode.mock`) + version + **Started**
+  (`automations.runs.startedAt`) and, once terminal, **Finished**; read-only
+  canvas with per-node statuses beside the read-only inspector; **Run input**
+  / **Run output** sections (`automations.runs.inputTitle` /
+  `automations.runs.outputTitle`)
 - [ ] `AUTO-F22` · **Effects audit** — On a run's detail page, the effects
-      section → Section title counts effects (`automations.runs.effects.title`); a
-      run that changed nothing outside the platform reads
-      `automations.runs.effects.none`; real effects list chronologically with
-      their node (`automations.runs.effects.byNode`) and call payload
-      (`automations.runs.effects.inputLabel`) — effects are never truncated.
+  section → Section title counts effects (`automations.runs.effects.title`); a
+  run that changed nothing outside the platform reads
+  `automations.runs.effects.none`; real effects list chronologically with
+  their node (`automations.runs.effects.byNode`) and call payload
+  (`automations.runs.effects.inputLabel`) — effects are never truncated.
 - [ ] `AUTO-F23` · **Agent log** — (env-gated: a run with an agent node) Run
-      detail → **Agent log** section (`automations.runs.agentLog.title`) streams
-      the sandbox turn; before output `automations.runs.agentLog.starting`; a
-      logless run reads `automations.runs.agentLog.empty`; absent entirely for
-      runs without an agent node.
+  detail → **Agent log** section (`automations.runs.agentLog.title`) streams
+  the sandbox turn; before output `automations.runs.agentLog.starting`; a
+  logless run reads `automations.runs.agentLog.empty`; absent entirely for
+  runs without an agent node.
 - [ ] `AUTO-F24` · **Bounded run log** — Author a transform whose output is
-      huge (e.g. a 100 KB string built in code) → Test run → inspect the node **In
-      this run** → The run completes and its row persists (the write never dies on
-      document size): trace fields are shape-bounded (≈4 KB per string) so
-      **Resolved input** shows a truncation marker for the oversized value — while
-      the run's **Output** and effects stay complete (they are never cut)
+  huge (e.g. a 100 KB string built in code) → Test run → inspect the node **In
+  this run** → The run completes and its row persists (the write never dies on
+  document size): trace fields are shape-bounded (≈4 KB per string) so
+  **Resolved input** shows a truncation marker for the oversized value — while
+  the run's **Output** and effects stay complete (they are never cut)
 - [ ] `AUTO-F25` · **Approval card** — (env-gated: live run parked on a write
-      approval) Open the parked run → Card `automations.runs.approval.title` names
-      the operation; **Approve** (`automations.runs.approval.approve`) lets the
-      step act on the next poll and the run resumes; **Reject**
-      (`automations.runs.approval.reject`) fails the step and the run stops — the
-      card disappears once the run is terminal.
+  approval) Open the parked run → Card `automations.runs.approval.title` names
+  the operation; **Approve** (`automations.runs.approval.approve`) lets the
+  step act on the next poll and the run resumes; **Reject**
+  (`automations.runs.approval.reject`) fails the step and the run stops — the
+  card disappears once the run is terminal.
 - [ ] `AUTO-F26` · **Ask card** — (env-gated: a run parked on an agent
-      question) Open the parked run → Card `automations.runs.ask.title` with
-      **Your answer** (`automations.runs.ask.answerLabel`); **Send answer &
-      resume** (`automations.runs.ask.submit`) resumes the SAME agent session —
-      status leaves **Waiting** without reload.
-- [ ] `AUTO-F27` · **Trigger — schedule** — Workbench **Trigger** panel on a
-      seeded pack (e.g. `github-triage-issues`) → The seeded schedule renders:
-      **Kind** (`automations.trigger.kindLabel`) = Schedule, **Cron**
-      (`automations.trigger.cronLabel`) + **Timezone**
-      (`automations.trigger.timezoneLabel`), an **Enabled** switch
-      (`automations.trigger.enabledLabel`) and the next-run preview
-      (`automations.trigger.cronNext`); edit the cron → the panel's **Save**
-      (`automations.trigger.save`) persists on reload; an unchanged form
-      disables Save with `automations.trigger.nothingToSave`
-- [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Kind** to Webhook →
-      **Save** → Token dialog `automations.trigger.tokenTitle` shows the full
-      webhook URL ONCE (`automations.trigger.webhookEndpointLabel`, with
-      `automations.trigger.tokenHint` explaining the token is its last part);
-      after reload the panel says a token exists (`automations.trigger.hasToken`)
-      and offers **Rotate token** (`automations.trigger.rotate`) — rotating
-      mints a new one and the old URL stops working.
+  question) Open the parked run → Card `automations.runs.ask.title` with
+  **Your answer** (`automations.runs.ask.answerLabel`); **Send answer &
+  resume** (`automations.runs.ask.submit`) resumes the SAME agent session —
+  status leaves **Waiting** without reload.
+- [ ] `AUTO-F27` · **Trigger — schedule** — Open the workbench **Trigger**
+  panel on an automation with a schedule → **Trigger type**
+  (`automations.trigger.kindLabel`) is Schedule; **Cron**
+  (`automations.trigger.cronLabel`), **Timezone**, and the **Enabled** switch
+  (`automations.trigger.enabledLabel`) reflect the stored trigger. Edit the
+  cron → **Save settings** (`automations.workflow.save`) persists on reload;
+  an unchanged form disables Save with `automations.workflow.nothingToSave`.
+- [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
+  Webhook → **Save settings** → The warning
+  `automations.trigger.tokenTitle` shows the full webhook URL once. The
+  **Webhook endpoint** section (`automations.trigger.webhookEndpointLabel`)
+  shows its POST command; after reload it uses a token placeholder and says
+  a token exists (`automations.trigger.hasToken`). **Rotate token**
+  (`automations.trigger.rotate`) reveals a new URL and the old URL stops
+  working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
-      (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
-      → The panel reads `automations.trigger.none` after reload; versions and run
-      history untouched.
+  (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
+  → The panel reads `automations.trigger.none` after reload; versions and run
+  history untouched.
 - [ ] `AUTO-F30` · **Project bindings** — Inspector **Projects** (no node
-      selected) → select project(s) → **Save** (`automations.bindings.save`) →
-      An empty picker reads the hint (`automations.bindings.hint` — leave empty
-      for all projects); after save + reload the bound-count badge
-      (`automations.bindings.countBadge`) shows and the list row gains the
-      project chip; unchanged selection disables Save
-      (`automations.bindings.nothingToSave`); a bound project cannot be deleted
-      while the binding stands.
+  selected) → select project(s) → **Save settings**
+  (`automations.workflow.save`) → The bound-count badge
+  (`automations.bindings.countBadge`) shows the saved number after reload;
+  an empty selection shows no count badge and keeps the scope hint
+  (`automations.bindings.hint`). The list row gains the project chip;
+  unchanged settings disable Save (`automations.workflow.nothingToSave`);
+  a bound project cannot be deleted while the binding stands.
 - [ ] `AUTO-F31` · **Project-scoped surface** —
-      `/dashboard/{org}/projects/{projectId}/automations` then a bound
-      automation's detail and one of its runs → The index lists only that
-      project's automations inside the project shell; the detail carries the
-      same **Editor** / **Versions** / **Runs** strip and the run page the same
-      run UI under the Automations chrome; every tab, row and run link stays
-      inside `/dashboard/{org}/projects/{projectId}/…`
+  `/dashboard/{org}/projects/{projectId}/automations` then a bound
+  automation's detail and one of its runs → The index lists only that
+  project's automations inside the project shell; detail and run pages render
+  the same workbench/run UI under project chrome; row links and **Open the
+  last run** stay inside `/dashboard/{org}/projects/{projectId}/…`
 - [ ] `AUTO-F32` · **Task-board integration** — (env-gated: a pack whose
-      manifest declares a task contract, e.g. the triage packs, deployed and run)
-      Open the automation-created task on the project board → The task modal shows
-      the run's step timeline (list labelled `automations.runs.timeline.label`,
-      current step badged `automations.runs.timeline.current`) and a settings
-      entry opening **{name} — settings** (`automations.settings.dialogTitle`);
-      saving valid values toasts `automations.settings.saved` and survives reopen.
+  manifest declares a task contract, e.g. the triage packs, deployed and run)
+  Open the automation-created task on the project board → The task modal shows
+  the run's step timeline (list labelled `automations.runs.timeline.label`,
+  current step badged `automations.runs.timeline.current`) and a settings
+  entry opening **{name} — settings** (`automations.settings.dialogTitle`);
+  saving valid values toasts `automations.settings.saved` and survives reopen.
 - [ ] `AUTO-F33` · **Metrics redirect + page** — Navigate to
-      `/dashboard/{org}/automations/metrics?period=7d` → URL is rewritten to
-      `/dashboard/{org}/settings/metrics/automations` keeping the query; the page
-      renders **Automation metrics** (`analytics.automations.title`) with KPI
-      cards (`analytics.automations.cards.totalRuns` …) and charts; with no runs
-      in the window: `analytics.automations.empty.title`
+  `/dashboard/{org}/automations/metrics?period=7d` → URL is rewritten to
+  `/dashboard/{org}/settings/metrics/automations` keeping the query; the page
+  renders **Automation metrics** (`analytics.automations.title`) with KPI
+  cards (`analytics.automations.cards.totalRuns` …) and charts; with no runs
+  in the window: `analytics.automations.empty.title`
 - [ ] `AUTO-F34` · **Run retention** — (env-gated, scripted) Settings →
-      governance retention: set **Automation run logs**
-      (`governance.retentionPolicy.workflowLogs.title`) low, age a TERMINAL run
-      past it, let the sweep pass → Only terminal runs expire (a Waiting run
-      parked on a human is never touched); the expired run leaves the Runs
-      panel/run routes (Run not found after the grace window's hard delete); live
-      runs and other orgs unaffected.
-- [ ] `AUTO-F35` · **Detail tabs** — Open any automation, then walk the tab
-      strip (`common.aria.automationsNavigation`) → The bare
-      `/dashboard/{org}/automations/{slug}` forwards to `…/{slug}/editor`;
-      **Editor** (`automations.navigation.editor`) is the canvas workbench;
-      **Versions** (`automations.navigation.versions`) →
-      `/dashboard/{org}/automations/{slug}/versions` lists every version newest
-      first under `automations.versions.title` +
-      `automations.versions.description`, the **Live** badge on the deployed one
-      and no per-row deploy control; **Runs** (`automations.navigation.runs`) →
-      `/dashboard/{org}/automations/{slug}/runs`; the active tab carries the
-      underline and `aria-current="page"`; the action cluster (Version / Deploy
-      / Test run / Run live / Discard / Save) shows on the Editor tab only; the
-      breadcrumb switcher opens the same tab on the sibling automation (a run
-      page switches to the sibling's Runs list); the project-scoped detail
-      carries the identical strip.
-- [ ] `AUTO-F36` · **Version deep link** — On the **Versions** tab click an
-      older version's row → URL `…/{slug}/editor?version={n}`, the **Version**
-      button reads v{n}, the canvas draws that version; a shared link with the
-      same `?version=` opens the same picture; `?version=abc` opens the latest
-      instead of erroring; after **Save version** the URL loses `?version=` and
-      the canvas shows the new latest.
+  governance retention: set **Automation run logs**
+  (`governance.retentionPolicy.workflowLogs.title`) low, age a TERMINAL run
+  past it, let the sweep pass → Only terminal runs expire (a Waiting run
+  parked on a human is never touched); the expired run leaves the Runs
+  panel/run routes (Run not found after the grace window's hard delete); live
+  runs and other orgs unaffected.
 
 ## Boundary & error tests
 
 - [ ] `AUTO-B1` · **Unknown automation slug** —
-      `/dashboard/{org}/automations/does-not-exist` → EmptyState **Automation not
-      found** (`automations.notFound.title` + `automations.notFound.description`);
-      no error boundary, no console error.
+  `/dashboard/{org}/automations/does-not-exist` → EmptyState **Automation not
+  found** (`automations.notFound.title` + `automations.notFound.description`);
+  no error boundary, no console error.
 - [ ] `AUTO-B2` · **Unknown / foreign run id** —
-      `/dashboard/{org}/automations/{slug}/runs/<random-or-other-org-id>` →
-      EmptyState **Run not found** (`automations.runs.notFound.title`) — an id
-      belonging to another org or table reads identically (no existence leak)
+  `/dashboard/{org}/automations/{slug}/runs/<random-or-other-org-id>` →
+  EmptyState **Run not found** (`automations.runs.notFound.title`) — an id
+  belonging to another org or table reads identically (no existence leak)
 - [ ] `AUTO-B3` · **Oversized zip** — Upload a .zip over 20 MiB → Inline
-      refusal `automations.upload.zipTooLarge` before any network write; the
-      dialog stays open, nothing is stored.
+  refusal `automations.upload.zipTooLarge` before any network write; the
+  dialog stays open, nothing is stored.
 - [ ] `AUTO-B4` · **Zip mixed with files** — In the upload dialog select a
-      .zip **plus** any other file → Inline refusal `automations.upload.zipOnly`;
-      removing the extra file (its remove control is labelled via
-      `automations.upload.removeFile`) clears the refusal.
+  .zip **plus** any other file → Inline refusal `automations.upload.zipOnly`;
+  removing the extra file (its remove control is labelled via
+  `automations.upload.removeFile`) clears the refusal.
 - [ ] `AUTO-B5` · **Run live undeployed** — Workbench of an automation with
-      versions but no deployment → hover/inspect **Run live** → The button is
-      disabled with reason `automations.detail.runLiveNeedsDeploy`; no dialog, no
-      run row appears.
-- [ ] `AUTO-B6` · **Invalid JSON in a node** — In the inspector, type the
-      text `{ not json` into the **Input** field → Notice
-      `automations.editor.invalidJson`; the node is NOT changed (no dirty state
-      from the invalid text; Save version keeps the last valid document)
+  versions but no deployment → hover/inspect **Run live** → The button is
+  disabled with reason `automations.detail.runLiveNeedsDeploy`; no dialog, no
+  run row appears.
+- [ ] `AUTO-B6` · **Invalid JSON in a node** — In the inspector, type `{ not
+  json` into the **Input** field → Notice `automations.editor.invalidJson`;
+  the node is NOT changed (no dirty state from the invalid text; Save version
+  keeps the last valid document)
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -431,54 +389,48 @@ is revived by the liveness sweep — the "Running now forever" incident class
 the chaos door `testing/e2e_chaos:severRunWakes` refuses unless the deployment
 sets `TALE_E2E=1` or `TALE_CHAOS_DOORS=1`. Executed end-to-end 2026-07-31 on
 the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
-
 - [ ] `AUTO-L1` · **Healthy park cadence** — Set `TALE_CHAOS_DOORS=1` →
-      save+deploy a probe (one transform, repeat-until that never ends, capped
-      repeats) → start a live run → read its cursor twice ~8 s apart → Status
-      **Waiting**; the poll pass counter advances ~1 per 5–6 s.
+  save+deploy a probe (one transform, repeat-until that never ends, capped
+  repeats) → start a live run → read its cursor twice ~8 s apart → Status
+  **Waiting**; the poll pass counter advances ~1 per 5–6 s.
 - [ ] `AUTO-L2` · **Sever = the incident** — `testing/e2e_chaos:severRunWakes`
-      for the run → observe ≥ 20 s → Exactly ONE pending wake existed and is
-      cancelled; the pass counter freezes; status stays **Waiting** — the wedged
-      state.
+  for the run → observe ≥ 20 s → Exactly ONE pending wake existed and is
+  cancelled; the pass counter freezes; status stays **Waiting** — the wedged
+  state.
 - [ ] `AUTO-L3` · **Sweep revives** — Sever again rewinding the wake past the
-      grace window → run `automations/triggers:enforceRunLiveness` → observe ~20 s
-      → The sweep logs the re-poke and returns `poked: 1`; the pass counter
-      resumes advancing.
+  grace window → run `automations/triggers:enforceRunLiveness` → observe ~20 s
+  → The sweep logs the re-poke and returns `poked: 1`; the pass counter
+  resumes advancing.
 - [ ] `AUTO-L4` · **Event-poke edge** — (optional) Park a live run on a real
-      approval, sever, then decide the approval in the UI (AUTO-F25) → The
-      decision itself resumes the run immediately — no sweep needed.
+  approval, sever, then decide the approval in the UI (AUTO-F25) → The
+  decision itself resumes the run immediately — no sweep needed.
 - [ ] `AUTO-L5` · **Cleanup** — Cancel the probe run → remove
-      `TALE_CHAOS_DOORS` → Run **Stopped**; the chaos door refuses again.
+  `TALE_CHAOS_DOORS` → Run **Stopped**; the chaos door refuses again.
 
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `AUTO-A1` · **Canvas semantics** → The canvas is a labelled region
-      (**Automation canvas**, `automations.canvas.ariaLabel`); every node box is a
-      real `<button>` that is keyboard reachable and expands/controls the
-      inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles the
-      inspector; Escape closes it (not while typing); **Close**
-      (`common.aria.close`) is in the panel. Selection never needs a mouse.
+  (**Automation canvas**, `automations.canvas.ariaLabel`); every node box is a
+  real `<button>` that is keyboard reachable and expands/controls the
+  inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles the
+  inspector; Escape closes it (not while typing); **Close**
+  (`common.aria.close`) is in the panel. Selection never needs a mouse.
 - [ ] `AUTO-A2` · **Status not by colour** → Run and node status badges each
-      carry an icon AND a word (`automations.runs.status.*`,
-      `automations.runs.nodeStatus.*`); the timeline's icon-only variant keeps the
-      status word for screen readers (role img + label)
+  carry an icon AND a word (`automations.runs.status.*`,
+  `automations.runs.nodeStatus.*`); the timeline's icon-only variant keeps the
+  status word for screen readers (role img + label)
 - [ ] `AUTO-A3` · **List and menus** → List rows are links with visible focus
-      rings and accessible names; the **Create automation** menu and every panel
-      action (Deploy, Save trigger, Save projects) are keyboard operable, with
-      disabled reasons exposed, not silent.
+  rings and accessible names; the **Create automation** menu and every panel
+  action (Deploy, Save trigger, Save projects) are keyboard operable, with
+  disabled reasons exposed, not silent.
 - [ ] `AUTO-A4` · **Dialogs** → Builder / upload / save-version / run-live
-      dialogs: labelled fields (label ↔ control), focus trapped, Escape closes —
-      except while a save is in flight, when close waits exactly like Cancel.
-- [ ] `AUTO-A5` · **Tab strip semantics** → The strip is a `navigation`
-      landmark named `common.aria.automationsNavigation`; tabs are links (the
-      active one `aria-current="page"`), keyboard reachable with visible focus;
-      below `md` the Editor's action cluster sits in the floating dock, wraps
-      within the viewport width and never covers the bottom navigation.
+  dialogs: labelled fields (label ↔ control), focus trapped, Escape closes —
+  except while a save is in flight, when close waits exactly like Cancel.
 
 ## Performance
 
 - [ ] `AUTO-P1` · **List first render** → Rows or EmptyState visible < 1.5 s
-      after navigation (local stack)
+  after navigation (local stack)
 - [ ] `AUTO-P2` · **Workbench interaction** → Canvas + panels visible < 2 s on
-      a seeded pack; node select → inspector update and live run-status overlays
-      feel instant (< 100 ms, no layout jank while a run streams)
+  a seeded pack; node select → inspector update and live run-status overlays
+  feel instant (< 100 ms, no layout jank while a run streams)
