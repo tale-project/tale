@@ -267,7 +267,7 @@ records and delete them after.
   reachable — title `emptyStates.<entity>.title` for
   products/contacts/websites/knowledgeEntries, and
   `documents.emptyState.title` ("No documents yet") for **documents** (note:
-  documents uses this key, NOT `emptyStates.documents`).
+  documents has no entry under the `emptyStates` group — it keeps its own key).
 - [ ] `KNOW-A4` · **Upload + preview** → The drop-zone file input
   (`#document-file-upload`) is keyboard operable; the preview dialog traps
   focus and returns it to the row on **Close preview**.

@@ -161,7 +161,8 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   NO `[task-agent] --resume launch … failed — restarting fresh` line for the
   run (that line = the fresh fallback, expected only when the previous
   conversation is gone). Setting **Done** completes the review: the status
-  change is attributed to you in Activity (`review.passed` recorded), the task
+  change is attributed to you in Activity (the audit trail records the action
+  task.review_responded with your response), the task
   reaches **Done** after reload, and any project **editor** can decide — the
   gate is not locked to one reviewer; pending review notifications clear
   ([notifications.md](notifications.md) NOTIF-F7b/NOTIF-F7c)

@@ -226,9 +226,10 @@ default is an external bucket rather than the bundled store.
   change `OBJECT_STORE_BUCKET` to a different name, restart → the log says
   `object store (ignored): … OBJECT_STORE_* is ignored …`, the file is
   byte-identical, and blobs still go to the file's bucket. Then stop the
-  MinIO container and scrape `/metrics` → after ~30 s
-  `tale_backend_store_up{store="object_store"}` reads `0` while `/ready`
-  stays `200` (a flapping store must not drain the colour).
+  MinIO container and scrape `GET /metrics` (a backend endpoint, not an app
+  route) → after ~30 s `tale_backend_store_up{store="object_store"}` reads
+  `0` while `GET /ready` stays `200` (a flapping store must not drain the
+  colour).
 
 ## Accessibility
 

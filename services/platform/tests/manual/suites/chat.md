@@ -136,11 +136,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Suggested follow-ups** section (`chat.structured.nextSteps`) renders
   suggestion buttons; clicking one sends it as a new turn.
 - [ ] `CHAT-F18` · **Human input request** — Mode A: send `e2e:humaninput` →
-  The turn renders a human-input row with the question and the badge **Your
-  answer is needed** (`chat.parts.humanInputPending`); the response-status
-  region (`chat.generation.regionLabel`) reads **Waiting for your answer**
-  (`chat.generation.waitingInput`); an answered request flips the badge to
-  **Answered** (`chat.parts.humanInputAnswered`)
+  While the question is outstanding the composer carries it (the question
+  panel, or its collapsed bar) and the response-status region
+  (`chat.generation.regionLabel`) reads **Waiting for your answer**
+  (`chat.generation.waitingInput`); the transcript shows NO second copy of
+  the live question. Once resolved, a timeline row with the question appears
+  as the marker of the ask — the answer itself is your next message below
+  it, unlabelled; a skipped question carries the badge **Skipped**
+  (`chat.parts.humanInputSkipped`), and several questions read as
+  `chat.parts.humanInputAndMore`
 - [ ] `CHAT-F19` · **Provider error** — Mode A: send `e2e:error` → A friendly
   **Something went wrong** error (`chat.errorGenerating`) with a **Technical
   details** disclosure (`chat.errorDetailsSummary`) and **Try again**
@@ -155,10 +159,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.export.downloadPdf`) opens the print flow; with none selected both
   are disabled.
 - [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
-  **Share chat** (`chat.share.title`) → toggle **Enable sharing**
-  (`chat.share.enableSharing`, a switch) → **Copy link**
-  (`chat.share.copyLink`) → **Preview** (`chat.share.preview`) → The link
-  (`chat.share.linkLabel`) copies with confirmation **Link copied**
+  **Share chat** (`chat.share.title`) → under **Who can view this chat**
+  (`chat.share.accessPickerLabel`) pick **Share with organization**
+  (`chat.share.organizationLink`; **Keep private**, `chat.share.keepPrivate`,
+  is the default) → **Create share link** (`chat.share.createLink`) →
+  **Copy link** (`chat.share.copyLink`) → **Preview** (`chat.share.preview`)
+  → The link copies with confirmation **Link copied**
   (`chat.share.copied`); Preview opens
   `/dashboard/{org}/chat/shared/{shareToken}`; the thread row gains the
   **Shared** indicator (`chat.share.sharedIndicator`)
@@ -169,11 +175,11 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.share.byline`, no composer; after unsharing the same URL shows **This
   shared chat is no longer available.** (`chat.share.notFound`)
 - [ ] `CHAT-F23` · **Republish newer messages** — With sharing on, send
-  another message in the thread; reopen the Share dialog → The dialog shows
-  **Shared as of {date}…** (`chat.share.sharedAsOf`) and **Publish newer
-  messages** (`chat.share.republish`); before republishing the shared view
-  lacks the new message; after clicking republish and reloading the shared
-  view includes it.
+  another message in the thread; reopen the Share dialog → The dialog reads
+  **Newer messages aren't included.** (`chat.share.snapshotHintShared`) and
+  offers **Include newer messages** (`chat.share.includeNewer`); before
+  clicking it the shared view lacks the new message; after clicking it and
+  reloading, the shared view includes it.
 - [ ] `CHAT-F24` · **Arena mode** — **Open chat menu** (`composer.openMenu`) →
   under **Modes** (`composer.modeHeader`) pick **Arena Mode**
   (`chat.arena.label`); pick **Model A** / **Model B**
@@ -301,8 +307,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   added.
 - [ ] `CHAT-AT7` · **Audio transcription** — **Mode B** (transcription-capable
   provider): attach an audio file → The chip shows **Transcribing…**
-  (`chat.transcription.transcribing`); Send is held with tooltip
-  `chat.transcription.inProgressTooltip`; then **Transcribed**
+  (`chat.transcription.transcribing`); a Send meanwhile is deferred, the tray
+  reading **Queued — sends when the attachments are ready**
+  (`chat.deferredSend.waiting`) and going out on its own once the
+  transcript lands; then **Transcribed**
   (`chat.transcription.transcribed`) with **View transcript**
   (`chat.transcription.viewTranscript`) — the transcript stays off the message
   bubble; a failure shows `chat.transcription.couldNotTranscribe` with **Try

@@ -124,9 +124,10 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-F10` · **Task fields** — Open a task → **Status**
   (`tasks.fields.status` → **In progress** `tasks.status.in_progress`),
   **Priority** (`tasks.fields.priority` → **High** `tasks.priority.p1`), **Add
-  label…** (`tasks.labels.add`) → **Change color**
-  (`tasks.labels.changeColor`) → After reload the task shows the updated
-  status, priority, and label color.
+  label…** (`tasks.labels.add`) → type a new name → **Create "{name}"**
+  (`tasks.labels.createNamed`) → After reload the task shows the updated
+  status, priority, and the label with its dot — the colour derives from the
+  label's name, there is no colour picker.
 - [ ] `PROJ-F11` · **Task deep link** — Navigate directly to
   `…/tasks/board?task={taskId}` → The task detail sheet opens for that task
   (its title is visible in the sheet)
