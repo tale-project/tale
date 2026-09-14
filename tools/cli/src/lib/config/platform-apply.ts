@@ -7,6 +7,7 @@ import {
   configurationPlanSchema,
   parsePlatformConfiguration,
   resourceConverged,
+  resourceConvergedWithHash,
   resourceId,
   sameConfiguration,
   type ConfigurationPlan,
@@ -28,12 +29,63 @@ const resultSchema = z.strictObject({
   configurationSha256: sha,
   revision: z.string().max(200).nullable(),
 });
-const journalSchema = z.strictObject({
+const operationSchema = z.strictObject({
   schemaVersion: z.literal(1),
   phase: z.enum(['pending', 'ready']),
   plan: configurationPlanSchema,
   verified: z.array(resultSchema).max(128),
 });
+const journalSchema = operationSchema.extend({
+  superseded: z.array(operationSchema).max(64).optional(),
+});
+
+/** A reviewed replacement may only adopt states the retained operation could
+ * have produced. Unknown edits and omitted resources still require recovery. */
+async function checkSupersededOperation(
+  configuration: PlatformConfiguration,
+  previous: z.infer<typeof journalSchema>,
+  client: PlatformConfigurationClient,
+) {
+  const selected = ordered(configuration);
+  if (
+    !sameConfiguration(
+      selected.map(resourceId).sort(),
+      previous.plan.resources.map(({ id }) => id).sort(),
+    )
+  )
+    throw preconditionError(
+      'A replacement plan must retain every resource of the pending operation.',
+    );
+  for (const resource of selected) {
+    const planned = previous.plan.resources.find(
+      ({ id }) => id === resourceId(resource),
+    );
+    if (!planned)
+      throw preconditionError(
+        'A replacement resource has no retained preimage.',
+      );
+    const verified = previous.verified.find(({ id }) => id === planned.id);
+    const current = await readResource(client, resource);
+    const currentHash = valueHash(current.config);
+    if (
+      !(
+        (currentHash === planned.currentSha256 &&
+          current.revision === planned.revision) ||
+        resourceConvergedWithHash(
+          resource,
+          current.config,
+          planned.desiredSha256,
+        ) ||
+        (verified &&
+          currentHash === verified.configurationSha256 &&
+          current.revision === verified.revision)
+      )
+    )
+      throw preconditionError(
+        `Native configuration changed outside the pending operation: ${planned.id}.`,
+      );
+  }
+}
 
 function ordered(configuration: PlatformConfiguration) {
   const rank = (resource: PlatformResource) => {
@@ -139,7 +191,7 @@ export async function applyPlatformConfiguration(
   rawPlan: unknown,
   client: PlatformConfigurationClient,
   receiptPath: string,
-  options: { migrateOriginFrom?: string } = {},
+  options: { migrateOriginFrom?: string; supersedesPendingPlan?: string } = {},
 ) {
   const configuration = parsePlatformConfiguration(input);
   const plan = configurationPlanSchema.parse(rawPlan);
@@ -147,6 +199,21 @@ export async function applyPlatformConfiguration(
   const rawPrevious = await readOptionalJson(receiptPath);
   const previous =
     rawPrevious === undefined ? undefined : journalSchema.parse(rawPrevious);
+  const superseding =
+    previous?.phase === 'pending' &&
+    !sameConfiguration(previous.plan, plan) &&
+    options.supersedesPendingPlan === valueHash(previous.plan);
+  if (
+    options.supersedesPendingPlan &&
+    !superseding &&
+    !previous?.superseded?.some(
+      ({ plan: retained }) =>
+        valueHash(retained) === options.supersedesPendingPlan,
+    )
+  )
+    throw preconditionError(
+      'The selected pending configuration plan is not retained in this receipt.',
+    );
   if (options.migrateOriginFrom && !previous)
     throw preconditionError(
       'Origin migration requires a retained native configuration receipt.',
@@ -161,12 +228,16 @@ export async function applyPlatformConfiguration(
   if (
     previous &&
     ((!sameConfiguration(previous.plan.target, client.target) && !migrating) ||
-      (previous.phase === 'pending' && !sameConfiguration(previous.plan, plan)))
+      (previous.phase === 'pending' &&
+        !sameConfiguration(previous.plan, plan) &&
+        !superseding))
   )
     throw preconditionError(
       'A different native configuration operation is retained in this receipt. Recover its reviewed plan first.',
     );
   const selected = ordered(configuration);
+  if (superseding)
+    await checkSupersededOperation(configuration, previous, client);
   for (const [index, resource] of selected.entries()) {
     const current = await readResource(client, resource);
     assertUnchanged(resource, current, plan.resources[index]);
@@ -182,6 +253,23 @@ export async function applyPlatformConfiguration(
     phase: 'pending',
     plan,
     verified: [],
+    ...(previous?.superseded || superseding
+      ? {
+          superseded: [
+            ...(previous?.superseded ?? []),
+            ...(superseding
+              ? [
+                  operationSchema.parse({
+                    schemaVersion: previous.schemaVersion,
+                    phase: previous.phase,
+                    plan: previous.plan,
+                    verified: previous.verified,
+                  }),
+                ]
+              : []),
+          ],
+        }
+      : {}),
   });
   await writePrivateJson(receiptPath, journal);
   let changed = false;
@@ -221,7 +309,14 @@ export async function applyPlatformConfiguration(
     configured: true as const,
     configurationSha256: plan.configurationSha256,
     target: plan.target,
-    resources: journal.verified,
+    // Public proof binds reviewed intent after native semantic readback. The
+    // journal continues to retain exact observed hashes for recovery custody.
+    resources: journal.verified.map((verified, index) => ({
+      id: verified.id,
+      revision: verified.revision,
+      configurationSha256: plan.resources[index].desiredSha256,
+      observedConfigurationSha256: verified.configurationSha256,
+    })),
     unchanged: !changed,
     restartRequired: plan.resources.some((resource) =>
       resource.effects.includes('restart-required'),

@@ -41,6 +41,7 @@ interface Flags {
   output?: string;
   plan?: string;
   receipt?: string;
+  supersedesPendingPlan?: string;
 }
 
 /** Output publication must never replace its own declaration or reviewed plan,
@@ -117,6 +118,10 @@ export function addPlatformCommands(parent: Command) {
         .requiredOption(
           '--receipt <path>',
           'Persistent private application journal',
+        )
+        .option(
+          '--supersedes-pending-plan <sha256>',
+          'Reviewed hash of the retained pending plan to replace while preserving its journal',
         );
     command.action(
       action(async (flags: Flags) => {
@@ -166,7 +171,9 @@ export function addPlatformCommands(parent: Command) {
                 );
               const receipt = resolve(flags.receipt);
               result = await withLock(dirname(receipt), 'config apply', () =>
-                applyPlatformConfiguration(declaration, plan, client, receipt),
+                applyPlatformConfiguration(declaration, plan, client, receipt, {
+                  supersedesPendingPlan: flags.supersedesPendingPlan,
+                }),
               );
             }
           }

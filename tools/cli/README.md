@@ -176,6 +176,19 @@ pending receipt for explicit recovery; completed earlier writes may remain.
 Undeclared resources are preserved. Secret values stay in environment
 variables. `read` compares the declared resources with native state.
 
+When a pending plan contains an endpoint that cannot be recovered, review a
+replacement declaration and a fresh plan. `config apply
+--supersedes-pending-plan <sha256>` selects the exact retained plan by the
+SHA-256 of its canonical JSON (object keys sorted recursively, arrays preserved,
+no whitespace). Managed deployments select the same hash with
+`supersedesPendingConfigurationPlan`; `supersedesPendingBundle` alone does not
+replace native configuration intent. The replacement must keep the same target
+and resource identities. Each resource must still match its planned preimage,
+intended write, or verified result; an unrelated edit holds without mutation.
+The receipt keeps the complete superseded plan and verified subset in
+`superseded`, including after interruption and replay. Remove the one-shot
+selector from subsequent declarations after the replacement reaches `ready`.
+
 Managed deployments use the same engine through `configuration` after
 identity provisioning and before configuration releases. Their public
 `native.configuration` proof binds the declaration and deployment bundle.

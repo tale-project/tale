@@ -12,7 +12,10 @@ import { dirname, join } from 'node:path';
 
 import { preconditionError } from '../../utils/fail';
 import { writeDeploymentBundle } from '../deployment/bundle';
-import { provisionDeploymentConfiguration } from '../deployment/configuration';
+import {
+  provisionDeploymentConfiguration,
+  verifyNativeConfigurationProof,
+} from '../deployment/configuration';
 import type { ProvisionContext } from '../deployment/identity';
 import { writePrivateJson } from '../state/private-files';
 import {
@@ -221,87 +224,302 @@ const ordinary = () =>
   });
 
 describe('one general native configuration lifecycle', () => {
-  test.skipIf(process.platform === 'win32')(
-    'managed deployment carries the reviewed migration into native configuration readback',
-    async () => {
-      const f = await fixture(ordinary());
-      const stateDirectory = dirname(f.receipt);
-      const receipt = join(stateDirectory, 'configuration.json');
-      await applyPlatformConfiguration(
-        f.configuration,
-        await planPlatformConfiguration(f.configuration, f.client),
-        f.client,
-        receipt,
-      );
-      const writes = [...f.writes];
-      const origin = 'https://renamed.example.invalid';
-      const migrateOriginFrom = f.client.target.origin;
-      const directory = join(stateDirectory, 'bundle');
-      for (const [file, bytes] of [
-        ['cli/tale', 'synthetic executable'],
-        ['runtime/runtime.json', '{}'],
-        ['runtime/compose.yml', 'services: {}'],
-      ]) {
-        const target = join(directory, file!);
-        await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, bytes!, {
-          mode: file === 'cli/tale' ? 0o755 : 0o644,
-        });
-      }
-      await writeDeploymentBundle(directory, {
+  test('pending embedding recovery honors cleared and preserved similarity floors after a lost response', async () => {
+    for (const floor of [null, undefined]) {
+      const configuration = parsePlatformConfiguration({
         schemaVersion: 1,
-        kind: 'tale-deployment',
-        cli: { revision: 'c'.repeat(40), path: 'cli/tale' },
-        spec: {
-          schemaVersion: 1,
-          name: 'example-native',
-          stateDirectory: '/opt/example',
-          composeProject: 'tale',
-          runtime: { revision: 'c'.repeat(40), platform: 'linux/amd64' },
-          origin,
-          tlsMode: 'external',
-          environment: {},
-          identity: {
-            email: 'operator@example.invalid',
-            slug: f.client.target.organizationSlug,
-            name: 'Example Office',
-            ssoEnabled: false,
-            bootstrap: 'fresh',
-            migrateOriginFrom,
-            nativeClients: [],
+        resources: [
+          {
+            kind: 'knowledge-embedding',
+            config: {
+              providerSlug: 'local-embedding',
+              model: 'New-embedding',
+              dimensions: 1536,
+              baseUrl: 'https://models.example.invalid/v1',
+              ...(floor === null ? { minSimilarity: null } : {}),
+            },
           },
-          configuration: f.configuration,
-          configs: [],
-        },
+        ],
       });
-      const context: ProvisionContext = {
-        origin,
-        migrateOriginFrom,
-        baseUrl: 'http://127.0.0.1:3005',
-        stateDirectory,
-        organization: {
-          id: f.client.target.organizationId,
-          slug: f.client.target.organizationSlug,
-        },
-        user: { id: 'operator-example' },
-        headers: () => new Headers(),
-        request: async (path, method, body) =>
-          Response.json(await f.client.request(path, method, body)),
-        requireJson: (response) => response.json(),
-      };
-      const result = await provisionDeploymentConfiguration(directory, context);
-      expect(result).toMatchObject({
-        configured: true,
-        target: { ...f.client.target, origin },
+      const f = await fixture(configuration);
+      f.mutate('knowledge-embedding', {
+        ...configuration.resources[0]!.config,
+        model: 'Previous-embedding',
+        minSimilarity: 0.25,
       });
-      expect(JSON.parse(await readFile(receipt, 'utf8'))).toMatchObject({
+      const originalPlan = await planPlatformConfiguration(
+        configuration,
+        f.client,
+      );
+      f.controls.lost = 'knowledge-embedding';
+      await expect(
+        applyPlatformConfiguration(
+          configuration,
+          originalPlan,
+          f.client,
+          f.receipt,
+        ),
+      ).rejects.toThrow('stopped');
+      const retained = JSON.parse(await readFile(f.receipt, 'utf8'));
+      const next = parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          {
+            ...configuration.resources[0],
+            config: {
+              ...configuration.resources[0]!.config,
+              baseUrl: 'https://corrected.example.invalid/v1',
+            },
+          },
+        ],
+      });
+      const proof = await applyPlatformConfiguration(
+        next,
+        await planPlatformConfiguration(next, f.client),
+        f.client,
+        f.receipt,
+        { supersedesPendingPlan: valueHash(originalPlan) },
+      );
+      const deploymentBundleSha256 = 'b'.repeat(64);
+      expect(
+        verifyNativeConfigurationProof(
+          { ...proof, deploymentBundleSha256 },
+          next,
+          deploymentBundleSha256,
+          f.client.target.organizationId,
+          f.client.target.organizationSlug,
+          f.client.target.origin,
+        ).resources[0]?.configurationSha256,
+      ).toBe(valueHash(next.resources[0]!.config));
+      expect(proof.resources[0]?.observedConfigurationSha256).toBe(
+        valueHash(f.entries.get('knowledge-embedding')?.config),
+      );
+      expect(JSON.parse(await readFile(f.receipt, 'utf8'))).toMatchObject({
         phase: 'ready',
-        plan: { target: { ...f.client.target, origin } },
+        superseded: [retained],
       });
-      await provisionDeploymentConfiguration(directory, context);
+      expect(f.entries.get('knowledge-embedding')?.config).toEqual({
+        ...next.resources[0]!.config,
+        ...(floor === null ? {} : { minSimilarity: 0.25 }),
+        minSimilarity: floor === null ? undefined : 0.25,
+      });
+      expect(f.writes).toEqual(['knowledge-embedding', 'knowledge-embedding']);
+    }
+  });
+
+  test('a reviewed replacement recovers a partial plan and retains its evidence across retries', async () => {
+    const f = await fixture(ordinary());
+    const originalPlan = await planPlatformConfiguration(
+      f.configuration,
+      f.client,
+    );
+    f.controls.lost = 'branding';
+    await expect(
+      applyPlatformConfiguration(
+        f.configuration,
+        originalPlan,
+        f.client,
+        f.receipt,
+      ),
+    ).rejects.toThrow('stopped');
+    const original = JSON.parse(await readFile(f.receipt, 'utf8'));
+    const changed = ordinary();
+    changed.resources[0] = {
+      kind: 'branding',
+      config: { accentColor: '#993366' },
+    };
+    const plan = await planPlatformConfiguration(changed, f.client);
+    for (const supersedesPendingPlan of [undefined, 'f'.repeat(64)]) {
+      const before = await readFile(f.receipt, 'utf8');
+      const writes = [...f.writes];
+      await expect(
+        applyPlatformConfiguration(changed, plan, f.client, f.receipt, {
+          supersedesPendingPlan,
+        }),
+      ).rejects.toThrow('retained');
+      expect(await readFile(f.receipt, 'utf8')).toBe(before);
       expect(f.writes).toEqual(writes);
-    },
-  );
+    }
+    const options = { supersedesPendingPlan: valueHash(originalPlan) };
+    f.controls.lost = 'branding';
+    await expect(
+      applyPlatformConfiguration(changed, plan, f.client, f.receipt, options),
+    ).rejects.toThrow('stopped');
+    expect(JSON.parse(await readFile(f.receipt, 'utf8'))).toMatchObject({
+      phase: 'pending',
+      superseded: [original],
+    });
+    await applyPlatformConfiguration(
+      changed,
+      plan,
+      f.client,
+      f.receipt,
+      options,
+    );
+    const writes = [...f.writes];
+    await applyPlatformConfiguration(
+      changed,
+      await planPlatformConfiguration(changed, f.client),
+      f.client,
+      f.receipt,
+      options,
+    );
+    expect(f.writes).toEqual(writes);
+    expect(JSON.parse(await readFile(f.receipt, 'utf8'))).toMatchObject({
+      phase: 'ready',
+      superseded: [original],
+    });
+    if (process.platform !== 'win32')
+      expect((await stat(f.receipt)).mode & 0o777).toBe(0o600);
+  });
+
+  test('pending replacement refuses concurrent edits, omitted resources and another target without mutation', async () => {
+    for (const fault of ['edit', 'omit', 'target'] as const) {
+      const f = await fixture(ordinary());
+      const originalPlan = await planPlatformConfiguration(
+        f.configuration,
+        f.client,
+      );
+      f.controls.lost = 'branding';
+      await expect(
+        applyPlatformConfiguration(
+          f.configuration,
+          originalPlan,
+          f.client,
+          f.receipt,
+        ),
+      ).rejects.toThrow();
+      const changed = ordinary();
+      changed.resources[0] = {
+        kind: 'branding',
+        config: { accentColor: '#993366' },
+      };
+      if (fault === 'edit') f.mutate('branding', { accentColor: '#000000' });
+      if (fault === 'omit') changed.resources.pop();
+      if (fault === 'target')
+        f.client.target.organizationId = 'foreign-organization';
+      const plan = await planPlatformConfiguration(changed, f.client);
+      const before = await readFile(f.receipt, 'utf8');
+      const writes = [...f.writes];
+      await expect(
+        applyPlatformConfiguration(changed, plan, f.client, f.receipt, {
+          supersedesPendingPlan: valueHash(originalPlan),
+        }),
+      ).rejects.toThrow();
+      expect(await readFile(f.receipt, 'utf8')).toBe(before);
+      expect(f.writes).toEqual(writes);
+    }
+  });
+  for (const mode of ['migration', 'recovery'] as const)
+    test.skipIf(process.platform === 'win32')(
+      `managed deployment carries reviewed ${mode} into native configuration readback`,
+      async () => {
+        const f = await fixture(ordinary());
+        const stateDirectory = dirname(f.receipt);
+        const receipt = join(stateDirectory, 'configuration.json');
+        const originalPlan = await planPlatformConfiguration(
+          f.configuration,
+          f.client,
+        );
+        if (mode === 'recovery') f.controls.lost = 'branding';
+        const initial = applyPlatformConfiguration(
+          f.configuration,
+          originalPlan,
+          f.client,
+          receipt,
+        );
+        if (mode === 'recovery') {
+          await expect(initial).rejects.toThrow('stopped');
+          f.configuration.resources[0] = {
+            kind: 'branding',
+            config: { accentColor: '#993366' },
+          };
+        } else await initial;
+        const writes = [...f.writes];
+        const origin =
+          mode === 'migration'
+            ? 'https://renamed.example.invalid'
+            : f.client.target.origin;
+        const migrateOriginFrom =
+          mode === 'migration' ? f.client.target.origin : undefined;
+        const directory = join(stateDirectory, 'bundle');
+        for (const [file, bytes] of [
+          ['cli/tale', 'synthetic executable'],
+          ['runtime/runtime.json', '{}'],
+          ['runtime/compose.yml', 'services: {}'],
+        ]) {
+          const target = join(directory, file!);
+          await mkdir(dirname(target), { recursive: true });
+          await writeFile(target, bytes!, {
+            mode: file === 'cli/tale' ? 0o755 : 0o644,
+          });
+        }
+        await writeDeploymentBundle(directory, {
+          schemaVersion: 1,
+          kind: 'tale-deployment',
+          cli: { revision: 'c'.repeat(40), path: 'cli/tale' },
+          spec: {
+            schemaVersion: 1,
+            name: 'example-native',
+            stateDirectory: '/opt/example',
+            composeProject: 'tale',
+            runtime: { revision: 'c'.repeat(40), platform: 'linux/amd64' },
+            origin,
+            tlsMode: 'external',
+            environment: {},
+            identity: {
+              email: 'operator@example.invalid',
+              slug: f.client.target.organizationSlug,
+              name: 'Example Office',
+              ssoEnabled: false,
+              bootstrap: 'fresh',
+              migrateOriginFrom,
+              nativeClients: [],
+            },
+            configuration: f.configuration,
+            ...(mode === 'recovery'
+              ? { supersedesPendingConfigurationPlan: valueHash(originalPlan) }
+              : {}),
+            configs: [],
+          },
+        });
+        const context: ProvisionContext = {
+          origin,
+          migrateOriginFrom,
+          baseUrl: 'http://127.0.0.1:3005',
+          stateDirectory,
+          organization: {
+            id: f.client.target.organizationId,
+            slug: f.client.target.organizationSlug,
+          },
+          user: { id: 'operator-example' },
+          headers: () => new Headers(),
+          request: async (path, method, body) =>
+            Response.json(await f.client.request(path, method, body)),
+          requireJson: (response) => response.json(),
+        };
+        const result = await provisionDeploymentConfiguration(
+          directory,
+          context,
+        );
+        expect(result).toMatchObject({
+          configured: true,
+          target: { ...f.client.target, origin },
+        });
+        expect(JSON.parse(await readFile(receipt, 'utf8'))).toMatchObject({
+          phase: 'ready',
+          plan: { target: { ...f.client.target, origin } },
+        });
+        if (mode === 'migration') expect(f.writes).toEqual(writes);
+        else
+          expect(
+            JSON.parse(await readFile(receipt, 'utf8')).superseded[0].plan,
+          ).toEqual(originalPlan);
+        const completedWrites = [...f.writes];
+        await provisionDeploymentConfiguration(directory, context);
+        expect(f.writes).toEqual(completedWrites);
+      },
+    );
 
   test('reviewed hostname migration preserves native configuration and its organization binding', async () => {
     const f = await fixture();

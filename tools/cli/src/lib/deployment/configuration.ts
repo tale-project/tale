@@ -51,7 +51,13 @@ export async function provisionDeploymentConfiguration(
     .optional()
     .parse(await readOptionalJson(receipt));
   const plan =
-    previous?.phase === 'pending'
+    previous?.phase === 'pending' &&
+    !(
+      deployment.spec.supersedesPendingConfigurationPlan ===
+        valueHash(previous.plan) &&
+      previous.plan.configurationSha256 !==
+        valueHash(deployment.spec.configuration)
+    )
       ? previous.plan
       : await planPlatformConfiguration(deployment.spec.configuration, client);
   const result = await applyPlatformConfiguration(
@@ -59,7 +65,10 @@ export async function provisionDeploymentConfiguration(
     plan,
     client,
     receipt,
-    { migrateOriginFrom: context.migrateOriginFrom },
+    {
+      migrateOriginFrom: context.migrateOriginFrom,
+      supersedesPendingPlan: deployment.spec.supersedesPendingConfigurationPlan,
+    },
   );
   return {
     ...result,
@@ -79,6 +88,7 @@ const proofSchema = z.object({
       z.object({
         id: z.string(),
         configurationSha256: sha,
+        observedConfigurationSha256: sha.optional(),
         revision: z.string().max(200).nullable(),
       }),
     )

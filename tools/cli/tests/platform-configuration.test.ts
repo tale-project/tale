@@ -657,6 +657,61 @@ for (const [label, executable] of modes)
       }
     }, 30_000);
 
+    test('explicit CLI recovery preserves a partially verified operation when its declaration changes', async () => {
+      const f = fixture();
+      try {
+        const plan = () =>
+          run(
+            executable,
+            ['config', 'plan', ...f.target, '--output', f.plan],
+            f.directory,
+            f.cookie,
+          );
+        const args = [
+          'config',
+          'apply',
+          ...f.target,
+          '--plan',
+          f.plan,
+          '--receipt',
+          f.receipt,
+          '--yes',
+        ];
+        envelope(await plan());
+        f.controls.failWrite = 'governance/session_idle_timeout';
+        envelope(await run(executable, args, f.directory, f.cookie), 3);
+        const retained = JSON.parse(readFileSync(f.receipt, 'utf8'));
+        const declaration = JSON.parse(readFileSync(f.file, 'utf8'));
+        declaration.resources[0].config.accentColor = '#abcdef';
+        writeFileSync(f.file, JSON.stringify(declaration));
+        envelope(await plan());
+        envelope(await run(executable, args, f.directory, f.cookie), 3);
+        expect(JSON.parse(readFileSync(f.receipt, 'utf8'))).toEqual(retained);
+        f.controls.failWrite = '';
+        const recover = [
+          ...args,
+          '--supersedes-pending-plan',
+          valueHash(retained.plan),
+        ];
+        const result = envelope(
+          await run(executable, recover, f.directory, f.cookie),
+        );
+        expect(result.data.configured).toBe(true);
+        expect(JSON.parse(readFileSync(f.receipt, 'utf8'))).toMatchObject({
+          phase: 'ready',
+          superseded: [retained],
+        });
+        expect(f.writes).toEqual([
+          'branding',
+          'branding',
+          'governance/session_idle_timeout',
+        ]);
+        expect(JSON.stringify(result)).not.toContain(f.privateBody);
+      } finally {
+        await f.server.stop(true);
+      }
+    }, 30_000);
+
     test('partial apply resumes the same reviewed plan after verified readback without repeating its first write', async () => {
       const f = fixture();
       try {
