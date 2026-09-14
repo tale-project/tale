@@ -27688,6 +27688,28 @@ async function checkOneDriveSync(
       browseBody.data.success &&
       (browseBody.data.items?.length ?? 0) === 2;
 
+    // q1 is already in the hub — a one-time import at the root, the way a
+    // person brings a single file in before deciding to sync its folder.
+    // The folder sync below must ADOPT it (unchanged bytes) and still file
+    // it under the sync folder; it used to stay at the root, and a folder
+    // whose every file was adopted never got its folder row (2026-09-14).
+    const rootImport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'one-time',
+          items: [
+            {
+              id: 'f-q1',
+              name: 'q1.txt',
+              size: 5,
+              relativePath: 'q1.txt',
+              isDirectlySelected: true,
+            },
+          ],
+        })
+      ).json(),
+    );
+    const q1AtRoot = await docsByExternalId('f-q1');
     const importResponse = await post('/import', {
       importType: 'sync',
       items: [
@@ -27741,9 +27763,16 @@ async function checkOneDriveSync(
     record(
       'onedrive sync import (grant token, reused pipeline, substrate)',
       browseOk &&
+        rootImport.success &&
+        rootImport.data.successCount === 1 &&
+        q1AtRoot.length === 1 &&
+        q1AtRoot[0]?.folderPath === null &&
         imported.success &&
         imported.data.success &&
-        imported.data.successCount === 3 &&
+        imported.data.successCount === 2 &&
+        imported.data.skippedCount === 1 &&
+        q1AfterImport.length === 1 &&
+        q1AfterImport[0]?.id === q1AtRoot[0]?.id &&
         folderConfig?.status === 'active' &&
         folderConfig.itemType === 'folder' &&
         notesConfig?.status === 'active' &&
@@ -27755,7 +27784,7 @@ async function checkOneDriveSync(
         hubFolders.length === 2 &&
         Number(ragDispatched[0]?.count ?? '0') === 3 &&
         graphAuth.includes('Bearer graph-grant-token'),
-      `browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
+      `root=${rootImport.success ? `${rootImport.data.successCount}ok` : 'ERR'} q1AtRoot=${q1AtRoot[0]?.folderPath ?? 'null'} adopted=${q1AfterImport[0]?.id === q1AtRoot[0]?.id} browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
     );
 
     // 2. Idle re-sync: unchanged hashes skip, nothing is pruned or rewritten.
