@@ -1222,3 +1222,64 @@ describe('knowledge entries: documentId, versions, topic, supersededAt', () => {
     });
   });
 });
+
+describe('REST product upload image round trips', () => {
+  const imageId = '05b12345-1020-4000-8000-123456789abc';
+  const imageUrl = `/api/app/products/images/${imageId}?orgId=org-1`;
+  beforeEach(() => {
+    vi.stubEnv('SITE_URL', 'http://localhost:3000');
+    vi.stubEnv('ADDITIONAL_SITE_URLS', '');
+    vi.stubEnv('BASE_PATH', '');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('projects managed images as absolute URIs on single and list reads', async () => {
+    const row = { ...productRow(1), imageUrl };
+    const { sql } = fakeSql([row]);
+    const app = mount(sql);
+    const single = await app.request('http://internal/products/p-1');
+    expect(single.status).toBe(200);
+    expect(await single.json()).toMatchObject({
+      imageUrl: `http://localhost:3000${imageUrl}`,
+    });
+    const list = await app.request('http://internal/products');
+    expect(await list.json()).toMatchObject({
+      page: [{ imageUrl: `http://localhost:3000${imageUrl}` }],
+    });
+  });
+
+  it('keeps a read-and-replayed managed image bound without changing its revision', async () => {
+    const row = { ...productRow(1), imageUrl };
+    const { sql, queries } = fakeSql([row], (text) =>
+      text.includes('FROM app.file_metadata')
+        ? [
+            {
+              id: imageId,
+              uploadedBy: 'user-1',
+              contentType: 'image/png',
+              storageRef: 's3:acme/image',
+            },
+          ]
+        : undefined,
+    );
+    const response = await mount(sql).request('http://internal/products/p-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        imageUrl: `http://localhost:3000${imageUrl}`,
+        expectedUpdatedAt: row.updatedAt,
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      imageUrl: `http://localhost:3000${imageUrl}`,
+      updatedAt: row.updatedAt,
+    });
+    expect(
+      queries.find((q) => q.text.includes('FROM app.file_metadata'))?.values,
+    ).toContainEqual({ unsafe: 'FOR UPDATE' });
+    expect(queries.some((q) => q.text.startsWith('UPDATE app.products'))).toBe(
+      false,
+    );
+  });
+});

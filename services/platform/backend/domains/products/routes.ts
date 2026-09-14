@@ -3,12 +3,31 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { PRODUCT_IMAGE_MAX_BYTES } from '../../../lib/shared/product-images.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { PRODUCT_CATEGORY_MAX } from '../../core/products/field_limits.ts';
-import { productFieldsShape, productNameSchema } from './input-schema.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
+  checkUserRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
+import { readBodyBounded } from '../files/bounded-body.ts';
+import { FileError, openFileContent } from '../files/service.ts';
+import {
+  isProductImageUrl,
+  readProductImage,
+  uploadProductImage,
+  validateProductImageBinding,
+} from './images.ts';
+import {
+  productFieldsShape,
+  productNameSchema,
+  productImageUrlSchema,
+} from './input-schema.ts';
+import {
+  assertProductAccess,
   bulkCreateProducts,
   countProducts,
   createProduct,
@@ -30,11 +49,20 @@ const productInputSchema = z.object({
   name: productNameSchema,
 });
 
+const productAppInputSchema = productInputSchema.extend({
+  imageUrl: z
+    .union([productImageUrlSchema, z.string().refine(isProductImageUrl)])
+    .nullable()
+    .optional(),
+});
+
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof ProductError) {
+  if (error instanceof RateLimitExceededError)
+    return rateLimitedResponse(c, error);
+  if (error instanceof ProductError || error instanceof FileError) {
     return c.json({ error: error.code }, error.status);
   }
   throw error;
@@ -53,6 +81,47 @@ export function createProductRoutes(deps: {
     userId: c.get('sessionBundle').user.id,
     email: c.get('sessionBundle').user.email,
     role: c.get('orgMember').role,
+  });
+
+  app.post('/images', async (c) => {
+    try {
+      const scope = scopeOf(c);
+      assertProductAccess(scope, 'write');
+      await checkUserRateLimit(deps.sql, 'file:upload', scope.userId);
+      const bytes = await readBodyBounded(c.req.raw, PRODUCT_IMAGE_MAX_BYTES);
+      return c.json(await uploadProductImage(deps.sql, scope, bytes));
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/images/:fileId', async (c) => {
+    try {
+      const scope = scopeOf(c);
+      const image = await readProductImage(
+        deps.sql,
+        scope,
+        c.req.param('fileId'),
+      );
+      const content = await openFileContent(deps.sql, scope, image.storageRef, {
+        head: c.req.method === 'HEAD',
+        signal: c.req.raw.signal,
+      });
+      if (!content) return c.json({ error: 'PRODUCT_IMAGE_NOT_FOUND' }, 404);
+      // Serve inline under a sandbox even for direct SVG navigation. Never
+      // redirect to an object URL that lacks this response policy.
+      const headers = new Headers(content.headers);
+      headers.set('content-type', image.contentType);
+      headers.set(
+        'content-security-policy',
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+      );
+      headers.set('x-content-type-options', 'nosniff');
+      headers.set('cache-control', 'private, no-store');
+      return new Response(content.body, { status: content.status, headers });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.get('/', async (c) => {
@@ -101,15 +170,16 @@ export function createProductRoutes(deps: {
   });
 
   app.post('/', async (c) => {
-    const body = productInputSchema.safeParse(await c.req.json());
+    const body = productAppInputSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);
-      const productId = await transactSerializable(deps.sql, (tx) =>
-        createProduct(tx, scope, body.data),
-      );
+      const productId = await transactSerializable(deps.sql, async (tx) => {
+        await validateProductImageBinding(tx, scope, body.data.imageUrl);
+        return createProduct(tx, scope, body.data);
+      });
       return c.json({ productId });
     } catch (error) {
       return handleError(c, error);
@@ -147,15 +217,16 @@ export function createProductRoutes(deps: {
   });
 
   app.post('/:productId', async (c) => {
-    const body = productInputSchema.partial().safeParse(await c.req.json());
+    const body = productAppInputSchema.partial().safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateProduct(tx, scope, c.req.param('productId'), body.data),
-      );
+      await transactSerializable(deps.sql, async (tx) => {
+        await validateProductImageBinding(tx, scope, body.data.imageUrl);
+        await updateProduct(tx, scope, c.req.param('productId'), body.data);
+      });
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

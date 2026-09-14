@@ -100,6 +100,11 @@ import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { entityTagOf } from '../lib/conditional-get.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
+  productRestImageSchema,
+  productRestPayload,
+  validateRestProductImage,
+} from './product-images.ts';
+import {
   codedRefusalResponse,
   documentDeleteRefusal,
   domainErrorResponse,
@@ -195,8 +200,6 @@ const contactBulkRow = blankStringsAsAbsent(contactBulkItemSchema);
 const contactPatchBody = blankStringsAsNull(
   contactFieldsSchema.extend(expectedUpdatedAtField),
 );
-const productCreateBody = blankStringsAsAbsent(productCreateSchema);
-const productPatchBody = blankStringsAsNull(productPatchSchema);
 
 /** What `/me` says about the key itself. Keys are minted, rotated and
  * revoked in the app — nothing under `/api/v1` does — so this is the one
@@ -527,7 +530,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         limit,
       });
       return c.json({
-        page: result.items,
+        page: result.items.map((product) =>
+          productRestPayload(c.req.raw, product),
+        ),
         isDone: result.nextCursor === null,
         continueCursor:
           result.nextCursor === null
@@ -547,12 +552,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = await parseBody(c, productCreateBody);
+    const body = await parseBody(
+      c,
+      blankStringsAsAbsent(
+        productCreateSchema.extend({
+          imageUrl: productRestImageSchema(c.req.raw, c.get('organizationId')),
+        }),
+      ),
+    );
     if (body instanceof Response) return body;
     try {
-      const id = await deps.sql.begin((tx) =>
-        createProduct(tx, scope(c), body),
-      );
+      const id = await deps.sql.begin(async (tx) => {
+        await validateRestProductImage(tx, scope(c), body.imageUrl);
+        return createProduct(tx, scope(c), body);
+      });
       return c.json({ id }, 201);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -564,7 +577,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const product = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!product)
         return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
-      return c.json(product);
+      return c.json(productRestPayload(c.req.raw, product));
     } catch (error) {
       return domainErrorResponse(c, error);
     }
@@ -574,16 +587,24 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * an optional field (a blank string reads as `null`; a blank `name` is
    * refused); `metadata` merges per RFC 7396. */
   app.patch('/products/:id', async (c) => {
-    const body = await parseBody(c, productPatchBody);
+    const body = await parseBody(
+      c,
+      blankStringsAsNull(
+        productPatchSchema.extend({
+          imageUrl: productRestImageSchema(c.req.raw, c.get('organizationId')),
+        }),
+      ),
+    );
     if (body instanceof Response) return body;
     try {
-      await deps.sql.begin((tx) =>
-        updateProduct(tx, scope(c), c.req.param('id'), body),
-      );
+      await deps.sql.begin(async (tx) => {
+        await validateRestProductImage(tx, scope(c), body.imageUrl);
+        await updateProduct(tx, scope(c), c.req.param('id'), body);
+      });
       const updated = await getProduct(deps.sql, scope(c), c.req.param('id'));
       if (!updated)
         return notFound(c, 'Product not found', 'PRODUCT_NOT_FOUND');
-      return c.json(updated);
+      return c.json(productRestPayload(c.req.raw, updated));
     } catch (error) {
       return domainErrorResponse(c, error);
     }

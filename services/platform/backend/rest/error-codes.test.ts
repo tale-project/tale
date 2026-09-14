@@ -178,6 +178,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'DOCUMENT_SCOPE_CONFLICT',
   'DOCUMENT_TITLE_INVALID',
   'FILE_BOUND_TO_DOCUMENT',
+  // Product-image intake and bare-file deletion are app-only. The REST
+  // binding adapter translates its metadata refusal to FILE_NOT_FOUND.
+  'FILE_BOUND_TO_PRODUCT',
+  'PRODUCT_IMAGE_INVALID',
+  'PRODUCT_IMAGE_NOT_FOUND',
   // Knowledge entries: the chat/MCP listing lane's own cursor check —
   // REST lists sign their cursors and refuse a foreign one as
   // `INVALID_CURSOR` at the door.

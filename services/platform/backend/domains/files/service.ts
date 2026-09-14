@@ -6,6 +6,7 @@ import {
 } from '@tale/shared/http/range';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { buildProductImageUrl } from '../../../lib/shared/product-images.ts';
 import { encodeS3Ref, parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3KeyBelongsToOrg } from '../../core/lib/storage/blob_ref.ts';
 import { browserFacing } from '../../core/lib/storage/object_store.ts';
@@ -594,7 +595,9 @@ export async function deleteFile(
   scope: { organizationId: string },
   fileId: string,
 ): Promise<void> {
-  const meta = await getFileMetadata(tx, scope.organizationId, fileId);
+  const meta = await getFileMetadata(tx, scope.organizationId, fileId, {
+    lock: true,
+  });
   if (!meta) {
     return;
   }
@@ -602,6 +605,21 @@ export async function deleteFile(
     throw new FileError(
       'FILE_BOUND_TO_DOCUMENT',
       'This file is a document; delete the document instead',
+      409,
+    );
+  }
+  // Product binding takes the same metadata lock. An uploader cannot remove
+  // the bytes between another writer validating and saving its product URL.
+  const products = await tx<{ id: string }[]>`
+    SELECT id FROM app.products
+    WHERE org_id = ${scope.organizationId}
+      AND image_url = ${buildProductImageUrl(scope.organizationId, fileId, process.env.BASE_PATH ?? '')}
+    LIMIT 1
+  `;
+  if (products[0]) {
+    throw new FileError(
+      'FILE_BOUND_TO_PRODUCT',
+      'Remove the image from its product before deleting the file',
       409,
     );
   }

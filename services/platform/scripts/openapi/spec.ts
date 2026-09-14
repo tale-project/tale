@@ -766,7 +766,12 @@ const productInputProperties: Record<string, Json> = {
       'resolves to a private address passes here. The platform never fetches ' +
       'the URL; the rule keeps a stored URL from becoming a server-side ' +
       'request later. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` lifts the ' +
-      'private-network half, never the metadata half.',
+      'private-network half, never the metadata half. Exception: an exact ' +
+      'managed product-image URL returned by this deployment may be replayed, ' +
+      'including on a private deployment. It must name registered image ' +
+      'metadata in this organization that the caller uploaded or a current ' +
+      'product already uses; a missing or inaccessible image answers 404 ' +
+      '`FILE_NOT_FOUND`. The app accepts inspected PNG, JPEG, WebP, GIF, or SVG uploads up to 5 MiB. Its bytes require an authorized app session; an API key does not authorize this app route.',
   },
   stock: safeNumber,
   price: safeNumber,
@@ -6686,7 +6691,12 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizationId: str,
             name: str,
             description: nullable(str),
-            imageUrl: nullable({ ...str, format: 'uri' }),
+            imageUrl: nullable({
+              ...str,
+              format: 'uri',
+              description:
+                'An absolute image URL. App-uploaded images use a stable, organization-protected app URL and require an authorized app session to view; external image URLs keep their original access rules.',
+            }),
             stock: nullable(num),
             price: nullable(num),
             currency: nullable(str),
